@@ -34,7 +34,7 @@ picking, and a drag begins. Five passes were chasing a chain that works.
 | `SplitFraction` | **0.22, unchanged** |
 
 ## Filed upstream
-`bevy-coven/bevy_gooey#38` (G-34, `consumer`, `consumer:bevy_grimoire`, `grimoire-ui`) — a split divider
+`dark-incorporated/bevy_gooey#38` (G-34, `consumer`, `consumer:bevy_grimoire`, `grimoire-ui`) — a split divider
 that does not move under a drag picking reports as in progress, with all of the above as the evidence and
 an acceptance test that reproduces it headlessly. The ask includes the most useful thing gooey could give
 back: making `divider_on_drag`'s early returns observable, since right now a refusal is silent.

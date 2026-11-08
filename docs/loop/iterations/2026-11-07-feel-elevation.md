@@ -3,12 +3,12 @@
 Focus: epic #330 (owner's steer) · Commits: bevy_gooey 5b022a1 · Machine: big · Outcome: shipped (in bevy_gooey)
 
 ## Summary
-None of the epic's bevy_grimoire items (UI-R01 to UI-R06, #331 to #336) is ready: all wait on bevy_gooey. This pass built G-48, elevation as data (bevy-coven/bevy_gooey#55), in `~/family_src/bevy_emerge_loop/bevy_gooey`, after claiming it. G-48 is one of UI-R02 #332's needs, and G-49 waits on it.
+None of the epic's bevy_grimoire items (UI-R01 to UI-R06, #331 to #336) is ready: all wait on bevy_gooey. This pass built G-48, elevation as data (dark-incorporated/bevy_gooey#55), in `~/family_src/bevy_emerge_loop/bevy_gooey`, after claiming it. G-48 is one of UI-R02 #332's needs, and G-49 waits on it.
 
 ## Baseline
 bevy_grimoire gate and `accept.py`: not run, because no bevy_grimoire code changed. Load 17, free disk 59 GB (99% used). GPU unleased at the start; leased twice for about 40 s each (`gpu-tenant run 3d --who bevy_gooey@big`) to render the stills.
 
-## Enhancement: G-48 (bevy-coven/bevy_gooey#55)
+## Enhancement: G-48 (dark-incorporated/bevy_gooey#55)
 - **Goal:** a skin's shadows are data, stacked per height and drawn in CSS terms.
 - **Files (bevy_gooey):**
   - `src/elevation.rs` (new)

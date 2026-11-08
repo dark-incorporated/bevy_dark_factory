@@ -131,12 +131,12 @@ def main(argv):
         # summary of it.
         facts = scratch / "facts.json"
         facts.write_text(json.dumps({"entries": [{"id": i, "sentence": s} for i, s in rows]}, indent=2), encoding="utf-8")
-        # **A project, in the shape `bevy_oracle` reads one**: `<project>/assets/grimoire/checks.ron`, which
+        # **A project, in the shape `bevy_oracle` reads one**: `<project>/assets/blueprint/checks.ron`, which
         # is where a game's own checks live. Writing it anywhere else would be a second convention for the
         # same file, and `for_project` would quietly answer with the built-in set instead.
         project = scratch / "project"
-        (project / "assets" / "grimoire").mkdir(parents=True)
-        (project / "assets" / "grimoire" / "checks.ron").write_text(checks_file(), encoding="utf-8")
+        (project / "assets" / "blueprint").mkdir(parents=True)
+        (project / "assets" / "blueprint" / "checks.ron").write_text(checks_file(), encoding="utf-8")
         cmd = [
             "cargo", "run", "-q", "-p", "bevy_oracle", "--bin", "decide_check", "--",
             "--captures", str(scratch),

@@ -3,7 +3,7 @@
 Focus: epic #330 (owner's steer, which now also says re-record the demo GIFs each loop) · Commits: bevy_gooey 4a29aab (merged 32dfb72), release 1f7e4ad; bevy_grimoire demos below · Machine: big · Outcome: shipped
 
 ## Summary
-G-66 (bevy-coven/bevy_gooey#73) is a labelled field with a popover list under it that narrows as the player types. UI-R03 (#333) has no open Needs left: the next pass moves the editor's pin to v0.43.0. The eight standing GIFs and `editor.png` were re-recorded on the current editor (origin/main 3e9d9bb8), under a private Xvfb on big.
+G-66 (dark-incorporated/bevy_gooey#73) is a labelled field with a popover list under it that narrows as the player types. UI-R03 (#333) has no open Needs left: the next pass moves the editor's pin to v0.43.0. The eight standing GIFs and `editor.png` were re-recorded on the current editor (origin/main 3e9d9bb8), under a private Xvfb on big.
 
 ## Baseline
 bevy_grimoire code was not touched, so its gate and `accept.py` did not run. Disk on big was 640 GB free after the runner caches pruned, load high from CI.

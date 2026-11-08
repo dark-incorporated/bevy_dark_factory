@@ -1,0 +1,40 @@
+[package]
+name = "blueprint_model"
+version = "0.9.0"
+edition = "2024"
+rust-version = "1.97.1"
+description = "Engine-free world-building core: constraint IR, solvers, WFC, deterministic RNG."
+# Relicensed MIT OR Apache-2.0 on extraction from foundation_vs_slop (owner decision, Sanctuary decision 0087).
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/dark-incorporated/bevy_dark_factory"
+
+# **No `bevy`, and that is the point of the crate.** Everything here is plain data and arithmetic, so
+# it can be consumed by the game, by the headless search, and by a standalone editor without any of
+# them agreeing on a renderer. `placement/ir.rs` has stated this invariant since before there was a
+# crate to enforce it; the crate is what turns the comment into a compiler error.
+#
+# Adding a `bevy` dependency here is a design change, not a convenience — see
+# `docs/2026-08-03-emerge-mapper-plan.md`.
+[dependencies]
+# The deterministic RNG, lifted out of this crate so a permissive sibling can share the exact same
+# generator rather than copy it. Re-exported as `blueprint_model::rng`, so this crate's callers are
+# unchanged. See `crates/blueprint_rng/CLAUDE.md` for why one definition is non-negotiable.
+blueprint_rng = { path = "../blueprint_rng", version = "0.2.0" }
+# The Boolean satisfiability back-end `constraints::Problem::solve` delegates to. Its own crate
+# because it is the one part of the constraint stack likely to be REPLACED, and because the decision
+# procedure knows nothing about grids or prototypes. It carries its own `tests/leaf.rs`, so the
+# boundary is policed on that side rather than taken on trust here.
+blueprint_solver = { path = "../blueprint_solver", version = "0.2.0" }
+serde.workspace = true
+ron.workspace = true
+# On a refused reload, the field the file is wrong at (`reload_check.rs`); never on the happy path.
+serde_path_to_error.workspace = true
+# Reading a `.glb`'s JSON chunk (`glb.rs`). Data only — no engine, no renderer. The reader is
+# hand-rolled rather than pulling a glTF crate, for the reason `tests/common/mod.rs` gives: it would
+# be "a second, differently-behaved reader of an asset the engine already parses its own way".
+serde_json.workspace = true
+rand.workspace = true
+rand_chacha.workspace = true
+# The platform's per-user data and config folders (`user_dirs.rs`): the one place the editor and its MCP server
+# name where `recent.ron`, `settings.ron`, `trusted.ron` and `dark_factory.log` live. No engine in it.
+dirs = "6"

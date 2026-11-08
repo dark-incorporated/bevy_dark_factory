@@ -1,7 +1,7 @@
 #!/bin/bash
 # Re-records the eight standing demos on a fresh editor each, until each passes tools/demo/check.py.
 #
-#   DISPLAY=:96 EDITOR_BIN=/tmp/x/bevy_cauldron MCP_BIN=/tmp/x/bevy_cauldron_mcp WORK=/tmp/x \
+#   DISPLAY=:96 EDITOR_BIN=/tmp/x/bevy_dark_factory MCP_BIN=/tmp/x/dark_factory_mcp WORK=/tmp/x \
 #     ONLY="hero build-a-map" tools/demo/retake.sh   # ONLY unset: all eight (GIF names, no .gif)
 #
 # Writes WORK/<name>.gif and WORK/<name>_sheet_<take>.png (look at the sheet: a passing check is
@@ -16,7 +16,7 @@ set -u
 exec </dev/null
 REPO=${REPO:-$(git rev-parse --show-toplevel)}
 : "${DISPLAY:?set DISPLAY to a private Xvfb, never :0}"
-: "${EDITOR_BIN:?path to bevy_cauldron}" "${MCP_BIN:?path to bevy_cauldron_mcp}" "${WORK:?scratch directory}"
+: "${EDITOR_BIN:?path to bevy_dark_factory}" "${MCP_BIN:?path to dark_factory_mcp}" "${WORK:?scratch directory}"
 PORT=${PORT:-15710}
 mkdir -p "$WORK/home"
 SPECS=("hero hero 600" "agent_drives agent-drives 600" "agent_removes_then_undo agent-removes-then-undo 600"
@@ -35,7 +35,7 @@ for spec in "${SPECS[@]}"; do
     (cd "$WORK/proj" && HOME="$WORK/home" BEVY_BRP_PORT=$PORT exec "$EDITOR_BIN" . bedroom > "$WORK/editor.log" 2>&1 < /dev/null) &
     for i in $(seq 1 60); do curl -s -X POST "http://127.0.0.1:$PORT" -d '{"jsonrpc":"2.0","id":1,"method":"rpc.discover"}' | grep -q Bevy && break; sleep 1; done
     sleep 45   # the palette's thumbnails bake for about 40 s after the editor opens
-    ( cd "$REPO" && BEVY_GRIMOIRE_MCP="$MCP_BIN" timeout 400 python3 tools/demo/record.py "tools/demo/storyboards/$1.json" --port $PORT --project "$WORK/proj" ) > "$WORK/rec_$2.log" 2>&1 \
+    ( cd "$REPO" && DARK_FACTORY_MCP="$MCP_BIN" timeout 400 python3 tools/demo/record.py "tools/demo/storyboards/$1.json" --port $PORT --project "$WORK/proj" ) > "$WORK/rec_$2.log" 2>&1 \
       || { echo "take $take: record failed: $(tail -1 "$WORK/rec_$2.log")" >> "$WORK/summary.txt"; continue; }
     ev="$WORK/proj/target/loop/demo/$1/events.json"
     ( cd "$REPO" && python3 tools/demo/render.py "$ev" --out "$WORK/$2.gif" --width "$3" --sheet "$WORK/$2_sheet_$take.png" > /dev/null 2>&1 \

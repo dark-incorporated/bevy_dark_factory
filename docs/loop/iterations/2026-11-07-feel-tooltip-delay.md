@@ -3,7 +3,7 @@
 Focus: epic #330 (owner's steer) · Commits: bevy_gooey 760405b, release 460b081 · Machine: big · Outcome: shipped (in bevy_gooey)
 
 ## Summary
-G-57 (bevy-coven/bevy_gooey#64) was blocked on the protected `tests/tooltip.rs`. The loop applied the #76 decision, which was its own recommendation, as an assumed exception. A tooltip now opens only after the pointer has rested half a second. UI-R03 #333 still needs G-58 and G-66; UI-R04 #334 now needs G-53 and G-58.
+G-57 (dark-incorporated/bevy_gooey#64) was blocked on the protected `tests/tooltip.rs`. The loop applied the #76 decision, which was its own recommendation, as an assumed exception. A tooltip now opens only after the pointer has rested half a second. UI-R03 #333 still needs G-58 and G-66; UI-R04 #334 now needs G-53 and G-58.
 
 ## Baseline
 bevy_grimoire was not touched, so its gate and `accept.py` did not run.

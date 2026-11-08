@@ -17,7 +17,7 @@
       ]
     },
     {
-      "mcp": "grimoire_frame_view",
+      "mcp": "factory_frame_view",
       "args": {
         "target": {
           "rect": [
@@ -49,7 +49,7 @@
     },
     {
       "at": 0.9,
-      "mcp": "grimoire_apply_operation",
+      "mcp": "factory_apply_operation",
       "args": {
         "operation": "placement_set_yaw",
         "parameters": {
@@ -76,7 +76,7 @@
     },
     {
       "at": 5.0,
-      "mcp": "grimoire_apply_operation",
+      "mcp": "factory_apply_operation",
       "args": {
         "operation": "placement_set_yaw",
         "parameters": {
@@ -107,7 +107,7 @@
     },
     {
       "at": 10.2,
-      "mcp": "grimoire_apply_operation",
+      "mcp": "factory_apply_operation",
       "args": {
         "operation": "placement_set_yaw",
         "parameters": {

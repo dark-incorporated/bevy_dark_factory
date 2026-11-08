@@ -3,12 +3,12 @@
 Focus: epic #330 (owner's steer) · Commits: bevy_gooey 8c68c5b, e19492c · Machine: big · Outcome: shipped (in bevy_gooey)
 
 ## Summary
-No bevy_grimoire item in the epic is ready. UI-R02 #332 depends on UI-R01 #331, which needs the motion items G-43..G-46. This pass claimed and built G-43 (bevy-coven/bevy_gooey#50), the first of them, in `~/family_src/bevy_emerge_loop/bevy_gooey`. Under `MotionSettings::reduced`, nothing travels and fades still run, and `motion_row` is the options row for it.
+No bevy_grimoire item in the epic is ready. UI-R02 #332 depends on UI-R01 #331, which needs the motion items G-43..G-46. This pass claimed and built G-43 (dark-incorporated/bevy_gooey#50), the first of them, in `~/family_src/bevy_emerge_loop/bevy_gooey`. Under `MotionSettings::reduced`, nothing travels and fades still run, and `motion_row` is the options row for it.
 
 ## Baseline
 The bevy_grimoire gate and `accept.py` were not run: no bevy_grimoire code changed.
 
-## Enhancement: G-43 (bevy-coven/bevy_gooey#50)
+## Enhancement: G-43 (dark-incorporated/bevy_gooey#50)
 - **Commit 1, 8c68c5b:** `MotionSettings::reduced: bool` (serde default false) and `MotionSettings::reduced()`.
   - **Assumed owner exception:** `reduced: false` is added to the three protected test literals that spell `MotionSettings` out (`tests/meter_motion.rs:303`, `tests/motion.rs:186`, `tests/motion_trace.rs:532`). This is the new field's empty default; no assertion changed. Gooey's build-loop rule 6 allows exactly this addition.
 - **Commit 2, the behaviour:**

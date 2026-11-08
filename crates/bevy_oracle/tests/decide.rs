@@ -7,7 +7,7 @@ fn fixtures() -> PathBuf {
 
 /// The request the fixture was recorded from, built through the typed API.
 fn fixture_request() -> Request {
-    Request::new("A screenshot of the bevy_grimoire map editor.")
+    Request::new("A screenshot of the bevy_blueprint map editor.")
         .with_image("<data URL of docs/changelog/media/2026-10-24-S1.5.png, 640x390 PNG>")
         .with_question("has_ui", Question::noul("Does the image show an editor window with panels or a toolbar?"))
         .with_question(
@@ -167,10 +167,10 @@ fn config_defaults_local_and_reads_the_environment() {
     let d = Config::from_lookup(|_| None);
     assert!(d.endpoint.starts_with("http://127.0.0.1:") && d.key.is_none() && d.model.is_none());
     let c = Config::from_lookup(|k| match k {
-        "GRIMOIRE_DECIDE_ENDPOINT" => Some("https://api.cloudflare.com/x".into()),
-        "GRIMOIRE_DECIDE_MODEL" => Some("@cf/cloudflare/clef".into()),
-        "GRIMOIRE_DECIDE_KEY" => Some("k".into()),
-        "GRIMOIRE_DECIDE_TIMEOUT_SECS" => Some("5".into()),
+        "DARK_FACTORY_DECIDE_ENDPOINT" => Some("https://api.cloudflare.com/x".into()),
+        "DARK_FACTORY_DECIDE_MODEL" => Some("@cf/cloudflare/clef".into()),
+        "DARK_FACTORY_DECIDE_KEY" => Some("k".into()),
+        "DARK_FACTORY_DECIDE_TIMEOUT_SECS" => Some("5".into()),
         _ => None,
     });
     assert_eq!((c.endpoint.as_str(), c.model.as_deref(), c.key.as_deref(), c.timeout_secs),

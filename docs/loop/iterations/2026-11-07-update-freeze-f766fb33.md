@@ -23,7 +23,7 @@ Also green: the 36 lib tests of `terminal`, the 29 updater, download, terminal a
 **What this does not fix:** an app already running the old code (0.4.1 to 0.4.3) still quits with the old script and needs one kill and restart; the update after that one is the first that is covered. The staged 0.4.3 app is in `~/Library/Caches/Cauldron/updates/0.4.3/unpacked/Cauldron.app`; nothing was moved in `/Applications`.
 Not closed: `Refs #337`, not `Fixes`, because the end-to-end claim (an update from a build that has this, on a Mac) cannot be checked until a release with it exists.
 
-## Enhancement: G-60 switch motion (bevy-coven/bevy_gooey#67)
+## Enhancement: G-60 switch motion (dark-incorporated/bevy_gooey#67)
 Goal: a toggle's knob travels on `motion.snappy` instead of jumping · Files: `src/layout_motion.rs` (`TravelSpring`, the knob marked), `src/lib.rs`, `tests/switch_motion.rs`, `docs/research/switch-motion.md`, `docs/guide/motion.md`, `AGENTS.md`, `CHANGELOG.md`.
 Proof: 6 new tests; an unmarked knob and a knob on the default spring each fail the two spring tests. Gate on big: fmt, clippy `--all-targets --all-features`, nextest 1164/1164, doctests 256, `check`, wasm `check`, `doc -D warnings`. Merged with pass 473's G-57 (`760405b`); the CHANGELOG conflict kept both lines.
 Not built, said on the issue: the menu check mark's entrance, and Rune's hover stretch of the thumb.
@@ -35,7 +35,7 @@ Reviewer not spawned. Self-review, my five questions: (1) Can the watchdog end a
 ## Test diffs
 New files only, plus the three `mod` lines at the end of `crates/bevy_cauldron/tests/all.rs` (the owner's exception). No existing assertion changed.
 
-## Enhancement: G-67 the inspector reads mixed over a multi-selection (bevy-coven/bevy_gooey#77)
+## Enhancement: G-67 the inspector reads mixed over a multi-selection (dark-incorporated/bevy_gooey#77)
 `InspectMixed(Vec<String>)` and `sync_inspect_mixed` in `src/inspector.rs`; `tests/inspect_mixed.rs`, 6 tests; research `docs/research/inspect-mixed.md`. On `main` at 19e8071 (tests and note to 6c7736f), `Fixes #77`, in no release yet. Gate on big: fmt, clippy, nextest 1172/1172, doctests 258, `check`, wasm `check`, `doc`. Mutation checks: marking nothing fails three tests; re-marking every named row on any change fails the sixth (added after the first mutation run showed the fifth did not catch it). Not built: a mixed state for toggles, choices and text rows, and a `problems()` line for an unknown path (both said on the issue and in the note).
 
 ## Disk (asked about, then granted)

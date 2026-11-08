@@ -19,7 +19,7 @@ Gate green at 97c1e8d (pass 224's push). `accept.py` not run: nothing it exercis
   - #260 waits on 18 open issues; it is the series' last step.
   - Left unlabelled because they are workable or not blockers: #235 (now G-32, also labelled), #208 (the
     tracking issue), #197 (`wontfix`), #195 (a decided report), #129 (workable, the only one).
-- **bevy-coven/bevy_gooey#36 (G-32)** filed and added to UI-00's request list: `ShortcutBadges::hold` is a
+- **dark-incorporated/bevy_gooey#36 (G-32)** filed and added to UI-00's request list: `ShortcutBadges::hold` is a
   `Modifiers`, but this editor's overlay is opened by **`K`**, a plain key, so `ShortcutBadges` can never be
   revealed by it. Asks for `hold: Reveal { Modifier | Key | Never }` (default unchanged), a readable
   `shown`, and host-supplied legend rows for `keys::Home::Legend`.

@@ -71,7 +71,7 @@
     {
       "at": 7.1,
       "write": {
-        "path": "assets/grimoire/editor.ron",
+        "path": "assets/blueprint/editor.ron",
         "text": "(version:1,keymap:{\"edit.redo\":(modifiers:(ctrl:true,shift:false,alt:true,meta:false),key:KeyJ)})"
       }
     },

@@ -3,12 +3,12 @@
 Focus: epic #330 (owner's steer) · Commits: none in code · Machine: big · Outcome: nothing shipped (blocker named)
 
 ## Summary
-No bevy_grimoire item in the epic is ready, and no ready bevy_gooey feel item can be built without changing protected tests. The ready items are G-58, G-63, G-64 and G-65, and the earlier blocked ones are G-44, G-46 and G-57. Each one animates something that bevy_gooey's protected tests assert right after the interaction, and 54 of its test files run on a real-time clock. This pass filed one consolidated owner decision, bevy-coven/bevy_gooey#76, with the evidence and a one-line exception that keeps every assertion. It linked that decision from every blocked item and from the epic, and built nothing.
+No bevy_grimoire item in the epic is ready, and no ready bevy_gooey feel item can be built without changing protected tests. The ready items are G-58, G-63, G-64 and G-65, and the earlier blocked ones are G-44, G-46 and G-57. Each one animates something that bevy_gooey's protected tests assert right after the interaction, and 54 of its test files run on a real-time clock. This pass filed one consolidated owner decision, dark-incorporated/bevy_gooey#76, with the evidence and a one-line exception that keeps every assertion. It linked that decision from every blocked item and from the epic, and built nothing.
 
 ## Baseline
 No gate or `accept.py` run: no code changed.
 
-## The blocker (bevy-coven/bevy_gooey#76)
+## The blocker (dark-incorporated/bevy_gooey#76)
 - **Real-time clocks.** Every `tests/*.rs` except the motion, presence, toast, tree and feel-series files lacks `TimeUpdateStrategy::ManualDuration`. A frame lasts milliseconds, so any spring or delay is still near its start when an assertion reads.
 - **The assertions that break:**
   - `split.rs:817-821/857-861/892-895`: collapse within two frames.

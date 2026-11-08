@@ -9,12 +9,12 @@ pgrep -f "Xvfb :89" >/dev/null || (Xvfb :89 -screen 0 1280x720x24 >/tmp/${TAG}_x
 sleep 2
 OUT=/tmp/${TAG}_rec_$NAME; rm -rf $OUT; mkdir -p $OUT/home $OUT/proj
 cp -r $WT/assets $OUT/proj/assets
-BIN=/tmp/${TAG}_new/${TAG}_cauldron; MCP=/tmp/${TAG}_new/${TAG}_cauldron_mcp; PORT=15767
+BIN=/tmp/${TAG}_new/${TAG}_dark_factory; MCP=/tmp/${TAG}_new/${TAG}_dark_factory_mcp; PORT=15767
 (cd $OUT/proj && HOME=$OUT/home XDG_CONFIG_HOME=$OUT/home/config BEVY_BRP_PORT=$PORT exec $BIN . bedroom > $OUT/editor.log 2>&1 < /dev/null) &
 EPID=$!
 for i in $(seq 1 60); do curl -s -X POST http://127.0.0.1:$PORT -d '{"jsonrpc":"2.0","id":1,"method":"rpc.discover"}' | grep -q Bevy && break; sleep 1; done
 sleep ${SETTLE:-80}   # the palette's thumbnails bake for about 40 s after the editor opens; SETTLE=15 when the shot needs none
-cd $WT && BEVY_GRIMOIRE_MCP=$MCP timeout 400 python3 tools/demo/record.py tools/demo/storyboards/$NAME.json --port $PORT --project $OUT/proj 2>&1 | tail -6
+cd $WT && DARK_FACTORY_MCP=$MCP timeout 400 python3 tools/demo/record.py tools/demo/storyboards/$NAME.json --port $PORT --project $OUT/proj 2>&1 | tail -6
 EV=$OUT/proj/target/loop/demo/$NAME/events.json
 python3 tools/demo/render.py $EV --out /tmp/${TAG}_$NAME.mp4 --width $W --sheet $OUT/sheet.png 2>&1 | tail -1
 kill $EPID 2>/dev/null; sleep 2; kill -9 $EPID 2>/dev/null

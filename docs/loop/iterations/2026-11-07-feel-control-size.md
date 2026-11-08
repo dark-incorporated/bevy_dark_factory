@@ -3,19 +3,19 @@
 Focus: epic #330 (owner's steer) · Commits: bevy_gooey 5c96d45 · Machine: big · Outcome: shipped (in bevy_gooey)
 
 ## Summary
-No bevy_grimoire item in the epic is ready: UI-R01 #331 needs G-44 and G-46. G-46, size motion (bevy-coven/bevy_gooey#53), was claimed first and found **blocked**: protected tests in `tests/split.rs` and `tests/section.rs` pin instant collapse and close on a real-time clock. The claim was released with the exact assertions and a recommendation (owner-approved `MotionSettings::off()` in those test apps). This pass then built G-50, control sizes (bevy-coven/bevy_gooey#57), one of UI-R03 #333's needs, which needs no evaluator change.
+No bevy_grimoire item in the epic is ready: UI-R01 #331 needs G-44 and G-46. G-46, size motion (dark-incorporated/bevy_gooey#53), was claimed first and found **blocked**: protected tests in `tests/split.rs` and `tests/section.rs` pin instant collapse and close on a real-time clock. The claim was released with the exact assertions and a recommendation (owner-approved `MotionSettings::off()` in those test apps). This pass then built G-50, control sizes (dark-incorporated/bevy_gooey#57), one of UI-R03 #333's needs, which needs no evaluator change.
 
 ## Baseline
 The bevy_grimoire gate and `accept.py` were not run: no bevy_grimoire code changed.
 
-## Blocked: G-46 (bevy-coven/bevy_gooey#53)
+## Blocked: G-46 (dark-incorporated/bevy_gooey#53)
 Animating the size would re-pin these protected assertions, which is not an addition:
 - `tests/split.rs:817-821`, `:857-861` and `:892-895`: the pane is at its collapsed width within two frames of Enter, South or a double click.
 - `tests/section.rs:295-300`: the body height is 0 right after a click. `:335` and `:360`: it is over 40 px within a few frames of opening.
 
 Recommendation, recorded on #53 as an assumed decision: the owner adds `MotionSettings::off()` to those two test apps. G-44 (colour motion) is likely to meet the same wall, because colour assertions are read right after hover and press. It was not attempted.
 
-## Enhancement: G-50 (bevy-coven/bevy_gooey#57)
+## Enhancement: G-50 (dark-incorporated/bevy_gooey#57)
 - **Change:**
   - `src/control_size.rs` adds `ControlSize { Small, Regular, Large }` at 24, 28 and 36 logical px, with `height(target) = max(px, target)`.
   - `apply_skin` reads it through `State::control`.

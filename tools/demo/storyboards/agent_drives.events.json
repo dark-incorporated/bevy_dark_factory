@@ -432,19 +432,19 @@
   {
    "t": 0.042,
    "type": "caption",
-   "text": "agent: grimoire_frame_view frames the middle of the bedroom, before recording",
+   "text": "agent: factory_frame_view frames the middle of the bedroom, before recording",
    "t_stamp": 0.04192185803549364
   },
   {
    "t": 0.639,
    "type": "caption",
-   "text": "agent: grimoire_apply_operation placement_remove bed",
+   "text": "agent: factory_apply_operation placement_remove bed",
    "t_stamp": 0.6070265200105496
   },
   {
    "t": 1.175,
    "type": "caption",
-   "text": "agent: grimoire_apply_operation placement_set_yaw sofa, yaw 90",
+   "text": "agent: factory_apply_operation placement_set_yaw sofa, yaw 90",
    "t_stamp": 1.1403696730267256
   },
   {

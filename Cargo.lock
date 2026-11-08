@@ -677,6 +677,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "bevy_blueprint"
+version = "0.5.0"
+dependencies = [
+ "bevy",
+ "blueprint_model",
+]
+
+[[package]]
+name = "bevy_blueprint_anim"
+version = "0.2.0"
+dependencies = [
+ "bevy",
+ "blueprint_model",
+]
+
+[[package]]
 name = "bevy_camera"
 version = "0.20.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -706,69 +722,12 @@ dependencies = [
 [[package]]
 name = "bevy_carnage"
 version = "0.7.0"
-source = "git+https://github.com/bevy-coven/bevy_carnage?rev=615c264e28680448b934d3f28b73487dd8b98750#615c264e28680448b934d3f28b73487dd8b98750"
+source = "git+https://github.com/dark-incorporated/bevy_carnage?rev=615c264e28680448b934d3f28b73487dd8b98750#615c264e28680448b934d3f28b73487dd8b98750"
 dependencies = [
  "bevy",
  "isomesh 0.0.10",
  "libm",
  "serde",
-]
-
-[[package]]
-name = "bevy_cauldron"
-version = "0.5.2"
-dependencies = [
- "accesskit",
- "alacritty_terminal",
- "arboard",
- "base64 0.22.1",
- "bevy",
- "bevy_carnage",
- "bevy_devshot",
- "bevy_elements",
- "bevy_fairy",
- "bevy_flora",
- "bevy_gooey",
- "bevy_grimoire",
- "bevy_grimoire_anim",
- "bevy_grimoire_core",
- "bevy_grimoire_snip",
- "bevy_light_grid",
- "bevy_lights",
- "bevy_oracle",
- "bevy_orca",
- "bevy_siren",
- "bevy_society",
- "bevy_speech_bubbles",
- "bevy_stigmergy",
- "dirs",
- "image",
- "isomesh 0.0.11",
- "rfd",
- "ron",
- "rustix 1.1.5",
- "semver",
- "serde",
- "serde_json",
- "sha2",
- "ttf-parser",
- "ureq",
-]
-
-[[package]]
-name = "bevy_cauldron_mcp"
-version = "0.1.0"
-dependencies = [
- "base64 0.22.1",
- "bevy_grimoire_core",
- "bevy_grimoire_snip",
- "bevy_oracle",
- "rmcp",
- "schemars",
- "serde",
- "serde_json",
- "tokio",
- "ureq",
 ]
 
 [[package]]
@@ -847,6 +806,47 @@ dependencies = [
  "serde",
  "thiserror 2.0.21",
  "variadics_please",
+]
+
+[[package]]
+name = "bevy_dark_factory"
+version = "0.6.0"
+dependencies = [
+ "accesskit",
+ "alacritty_terminal",
+ "arboard",
+ "base64 0.22.1",
+ "bevy",
+ "bevy_blueprint",
+ "bevy_blueprint_anim",
+ "bevy_carnage",
+ "bevy_devshot",
+ "bevy_elements",
+ "bevy_fairy",
+ "bevy_flora",
+ "bevy_gooey",
+ "bevy_light_grid",
+ "bevy_lights",
+ "bevy_oracle",
+ "bevy_orca",
+ "bevy_siren",
+ "bevy_society",
+ "bevy_speech_bubbles",
+ "bevy_stigmergy",
+ "blueprint_model",
+ "dark_factory_snip",
+ "dirs",
+ "image",
+ "isomesh 0.0.11",
+ "rfd",
+ "ron",
+ "rustix 1.1.5",
+ "semver",
+ "serde",
+ "serde_json",
+ "sha2",
+ "ttf-parser",
+ "ureq",
 ]
 
 [[package]]
@@ -986,7 +986,7 @@ dependencies = [
 [[package]]
 name = "bevy_elements"
 version = "0.7.8"
-source = "git+https://github.com/bevy-coven/bevy_elements?rev=0778a620452368662771825ea568b7d79966b87c#0778a620452368662771825ea568b7d79966b87c"
+source = "git+https://github.com/dark-incorporated/bevy_elements?rev=0778a620452368662771825ea568b7d79966b87c#0778a620452368662771825ea568b7d79966b87c"
 dependencies = [
  "bevy",
  "bevy_isomesh",
@@ -1048,7 +1048,7 @@ dependencies = [
 [[package]]
 name = "bevy_fairy"
 version = "0.3.1"
-source = "git+https://github.com/bevy-coven/bevy_fairy?rev=06c9c1805651fabb2474a9d09af84c761be406aa#06c9c1805651fabb2474a9d09af84c761be406aa"
+source = "git+https://github.com/dark-incorporated/bevy_fairy?rev=06c9c1805651fabb2474a9d09af84c761be406aa#06c9c1805651fabb2474a9d09af84c761be406aa"
 dependencies = [
  "bevy",
  "image",
@@ -1091,7 +1091,7 @@ dependencies = [
 [[package]]
 name = "bevy_flora"
 version = "0.46.0"
-source = "git+https://github.com/bevy-coven/bevy_flora?rev=25e956b3f88ba32a1b6d75957360c6840da6afd9#25e956b3f88ba32a1b6d75957360c6840da6afd9"
+source = "git+https://github.com/dark-incorporated/bevy_flora?rev=25e956b3f88ba32a1b6d75957360c6840da6afd9#25e956b3f88ba32a1b6d75957360c6840da6afd9"
 dependencies = [
  "bevy",
  "ron",
@@ -1221,66 +1221,11 @@ dependencies = [
 [[package]]
 name = "bevy_gooey"
 version = "0.43.1"
-source = "git+https://github.com/bevy-coven/bevy_gooey?rev=04a3cdf261b3076bce47ba35fa8b5c164750b997#04a3cdf261b3076bce47ba35fa8b5c164750b997"
+source = "git+https://github.com/dark-incorporated/bevy_gooey?rev=04a3cdf261b3076bce47ba35fa8b5c164750b997#04a3cdf261b3076bce47ba35fa8b5c164750b997"
 dependencies = [
  "accesskit",
  "bevy",
  "serde",
-]
-
-[[package]]
-name = "bevy_grimoire"
-version = "0.4.4"
-dependencies = [
- "bevy",
- "bevy_grimoire_core",
-]
-
-[[package]]
-name = "bevy_grimoire_anim"
-version = "0.1.9"
-dependencies = [
- "bevy",
- "bevy_grimoire_core",
-]
-
-[[package]]
-name = "bevy_grimoire_core"
-version = "0.8.0"
-dependencies = [
- "bevy_grimoire_rng",
- "bevy_grimoire_solver",
- "dirs",
- "rand",
- "rand_chacha",
- "ron",
- "serde",
- "serde_json",
- "serde_path_to_error",
-]
-
-[[package]]
-name = "bevy_grimoire_rng"
-version = "0.1.0"
-dependencies = [
- "rand",
- "rand_chacha",
-]
-
-[[package]]
-name = "bevy_grimoire_snip"
-version = "0.1.0"
-dependencies = [
- "image",
- "serde",
- "serde_json",
-]
-
-[[package]]
-name = "bevy_grimoire_solver"
-version = "0.1.1"
-dependencies = [
- "batsat",
 ]
 
 [[package]]
@@ -1458,7 +1403,7 @@ dependencies = [
 [[package]]
 name = "bevy_light_grid"
 version = "0.1.0"
-source = "git+https://github.com/bevy-coven/bevy_light_grid?rev=8b4a3c760ccc05f39e81bb22e366b330080fcc95#8b4a3c760ccc05f39e81bb22e366b330080fcc95"
+source = "git+https://github.com/dark-incorporated/bevy_light_grid?rev=8b4a3c760ccc05f39e81bb22e366b330080fcc95#8b4a3c760ccc05f39e81bb22e366b330080fcc95"
 dependencies = [
  "bevy_ecs",
  "bevy_math",
@@ -1467,7 +1412,7 @@ dependencies = [
 [[package]]
 name = "bevy_lights"
 version = "0.5.0"
-source = "git+https://github.com/bevy-coven/bevy_lights?rev=ae3b818e06cfcde24a0cbfed1a897732c1dfb444#ae3b818e06cfcde24a0cbfed1a897732c1dfb444"
+source = "git+https://github.com/dark-incorporated/bevy_lights?rev=ae3b818e06cfcde24a0cbfed1a897732c1dfb444#ae3b818e06cfcde24a0cbfed1a897732c1dfb444"
 dependencies = [
  "bevy",
  "serde",
@@ -1603,7 +1548,7 @@ dependencies = [
 [[package]]
 name = "bevy_orca"
 version = "0.2.0"
-source = "git+https://github.com/bevy-coven/bevy_orca?rev=e7160df097dc75652633f801f6c0ab1c73356bc4#e7160df097dc75652633f801f6c0ab1c73356bc4"
+source = "git+https://github.com/dark-incorporated/bevy_orca?rev=e7160df097dc75652633f801f6c0ab1c73356bc4#e7160df097dc75652633f801f6c0ab1c73356bc4"
 dependencies = [
  "bevy_math",
 ]
@@ -1947,7 +1892,7 @@ dependencies = [
 [[package]]
 name = "bevy_siren"
 version = "0.1.0"
-source = "git+https://github.com/bevy-coven/bevy_siren?rev=7029b20#7029b20c6250d5ec05db3b50282bacfcaf2089a9"
+source = "git+https://github.com/dark-incorporated/bevy_siren?rev=7029b20#7029b20c6250d5ec05db3b50282bacfcaf2089a9"
 dependencies = [
  "bevy",
  "ron",
@@ -1957,7 +1902,7 @@ dependencies = [
 [[package]]
 name = "bevy_society"
 version = "0.5.0"
-source = "git+https://github.com/bevy-coven/bevy_society?rev=d2e39703e06ebf40b5e787a2da4b6882a9beee3e#d2e39703e06ebf40b5e787a2da4b6882a9beee3e"
+source = "git+https://github.com/dark-incorporated/bevy_society?rev=d2e39703e06ebf40b5e787a2da4b6882a9beee3e#d2e39703e06ebf40b5e787a2da4b6882a9beee3e"
 dependencies = [
  "bevy",
  "bevy_emerge_rng",
@@ -1970,7 +1915,7 @@ dependencies = [
 [[package]]
 name = "bevy_speech_bubbles"
 version = "0.2.1"
-source = "git+https://github.com/bevy-coven/bevy_speech_bubbles?rev=b2d67f0d8a8a984a78f9bc9291cc63be867c6822#b2d67f0d8a8a984a78f9bc9291cc63be867c6822"
+source = "git+https://github.com/dark-incorporated/bevy_speech_bubbles?rev=b2d67f0d8a8a984a78f9bc9291cc63be867c6822#b2d67f0d8a8a984a78f9bc9291cc63be867c6822"
 dependencies = [
  "ab_glyph",
  "bevy",
@@ -2070,7 +2015,7 @@ dependencies = [
 [[package]]
 name = "bevy_stigmergy"
 version = "0.2.0"
-source = "git+https://github.com/bevy-coven/bevy_stigmergy?rev=6ecee6a3c2ff0bf7f18dab10f376c49b49914c44#6ecee6a3c2ff0bf7f18dab10f376c49b49914c44"
+source = "git+https://github.com/dark-incorporated/bevy_stigmergy?rev=6ecee6a3c2ff0bf7f18dab10f376c49b49914c44#6ecee6a3c2ff0bf7f18dab10f376c49b49914c44"
 dependencies = [
  "bevy_math",
  "rayon",
@@ -2446,6 +2391,36 @@ dependencies = [
  "futures-io",
  "futures-lite",
  "piper",
+]
+
+[[package]]
+name = "blueprint_model"
+version = "0.9.0"
+dependencies = [
+ "blueprint_rng",
+ "blueprint_solver",
+ "dirs",
+ "rand",
+ "rand_chacha",
+ "ron",
+ "serde",
+ "serde_json",
+ "serde_path_to_error",
+]
+
+[[package]]
+name = "blueprint_rng"
+version = "0.2.0"
+dependencies = [
+ "rand",
+ "rand_chacha",
+]
+
+[[package]]
+name = "blueprint_solver"
+version = "0.2.0"
+dependencies = [
+ "batsat",
 ]
 
 [[package]]
@@ -2933,6 +2908,31 @@ name = "cursor-icon"
 version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f27ae1dd37df86211c42e150270f82743308803d90a6f6e6651cd730d5e1732f"
+
+[[package]]
+name = "dark_factory_mcp"
+version = "0.2.0"
+dependencies = [
+ "base64 0.22.1",
+ "bevy_oracle",
+ "blueprint_model",
+ "dark_factory_snip",
+ "rmcp",
+ "schemars",
+ "serde",
+ "serde_json",
+ "tokio",
+ "ureq",
+]
+
+[[package]]
+name = "dark_factory_snip"
+version = "0.2.0"
+dependencies = [
+ "image",
+ "serde",
+ "serde_json",
+]
 
 [[package]]
 name = "darling"
@@ -4078,7 +4078,7 @@ dependencies = [
 [[package]]
 name = "isomesh"
 version = "0.0.11"
-source = "git+https://github.com/bevy-coven/isomesh?rev=d3dc6c0fb6b43b899e534643f51f76a856d2d9ee#d3dc6c0fb6b43b899e534643f51f76a856d2d9ee"
+source = "git+https://github.com/dark-incorporated/isomesh?rev=d3dc6c0fb6b43b899e534643f51f76a856d2d9ee#d3dc6c0fb6b43b899e534643f51f76a856d2d9ee"
 dependencies = [
  "libm",
 ]

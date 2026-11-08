@@ -33,7 +33,7 @@ fails when it has earned nothing — is the failure mode the issue exists to avo
 - **Built in** — `crates/bevy_oracle/fixtures/checks.ron`, five yes/no questions about a close-up, a
   before/after pair and a whole view (`floating`, `clipping`, `out_of_area`, `blank_frame`,
   `toast_visible`).
-- **The project's** — `assets/grimoire/checks.ron` in the project being checked, merged over the built-in
+- **The project's** — `assets/blueprint/checks.ron` in the project being checked, merged over the built-in
   set by name, so a project can re-point a threshold without losing the rest.
 
 ## Evidence
@@ -79,7 +79,7 @@ manifest, so a committed set works from any clone.
 another line's mismatch), at a chosen threshold of 0.241:
 
 ```sh
-GRIMOIRE_DECIDE_ENDPOINT=http://127.0.0.1:8093/v1/systemone \
+DARK_FACTORY_DECIDE_ENDPOINT=http://127.0.0.1:8093/v1/systemone \
   cargo run -q -p bevy_oracle --bin decide_check -- \
   --calibrate crates/bevy_oracle/fixtures/clip_samples.ron
 # clip_shows_its_title   agreement 61.5% on 122 samples, threshold 0.241, model clef-flash

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """The first-run walk (#304): the 2026-11-04 audit, as a standing check.
 
-Starts Cauldron under its own Xvfb with a scratch HOME and a copy of the example project, walks a
+Starts DarkFactory under its own Xvfb with a scratch HOME and a copy of the example project, walks a
 newcomer's first minutes, screenshots every step and asserts by BRP text and state, never by pixels:
 
   1. the first-run home (a welcome with Open the example)
@@ -17,7 +17,7 @@ Every step checks that the process answering BRP is the one that started.
 
 Usage (from the repository root; needs Xvfb and a built binary):
 
-  python3 tools/ux/first_run_walk.py --bin <path to bevy_cauldron> [--screen 1280x720]
+  python3 tools/ux/first_run_walk.py --bin <path to bevy_dark_factory> [--screen 1280x720]
 
 The scratch folder (screenshots, the editor's log) is kept and printed: view every screenshot.
 
@@ -94,7 +94,7 @@ def texts(port):
 
 
 def state(port):
-    return brp(port, "grimoire/state", {})
+    return brp(port, "blueprint/state", {})
 
 
 def screen(port):
@@ -124,7 +124,7 @@ def placements(port):
 class Walk:
     def __init__(self, args):
         self.args = args
-        self.tmp = Path(tempfile.mkdtemp(prefix="cauldron-walk-"))
+        self.tmp = Path(tempfile.mkdtemp(prefix="dark-factory-walk-"))
         self.shots = self.tmp / "shots"
         self.shots.mkdir()
         self.port = free_port()
@@ -151,8 +151,8 @@ class Walk:
         env = dict(os.environ, DISPLAY=f":{self.display}", HOME=str(home),
                    XDG_DATA_HOME=str(home / ".local" / "share"), XDG_CONFIG_HOME=str(home / ".config"),
                    XDG_DOCUMENTS_DIR=str(home / "Documents"),
-                   GRIMOIRE_EXAMPLE=str(example), BEVY_BRP_PORT=str(self.port))
-        env.pop("GRIMOIRE_FULLSCREEN", None)
+                   DARK_FACTORY_EXAMPLE=str(example), BEVY_BRP_PORT=str(self.port))
+        env.pop("DARK_FACTORY_FULLSCREEN", None)
         log = open(self.tmp / "editor.log", "w")
         app = subprocess.Popen([self.args.bin], cwd=self.tmp, env=env, stdout=log, stderr=subprocess.STDOUT)
         self.procs.append(app)
@@ -205,7 +205,7 @@ class Walk:
     def shot(self, name):
         out = self.shots / f"{self.step:02d}-{name}"
         out.mkdir()
-        brp(self.port, "grimoire/capture_sequence_start", {"label": f"walk_{self.step:02d}", "out_dir": str(out), "seconds": 0.5, "fps": 2})
+        brp(self.port, "blueprint/capture_sequence_start", {"label": f"walk_{self.step:02d}", "out_dir": str(out), "seconds": 0.5, "fps": 2})
         frames = wait_for(f"a screenshot of {name}", lambda: sorted(out.glob("*.png")) or None, 20)
         time.sleep(1.0)
         frames = sorted(out.glob("*.png")) or frames
@@ -221,7 +221,7 @@ class Walk:
         in the same space `record.widget_centre` clicks in.
         """
         rows = brp(self.port, "world.query", {"data": {"components": ["bevy_ui::ui_node::ComputedNode", "bevy_ui::ui_transform::UiGlobalTransform"]},
-                                              "filter": {"with": ["bevy_cauldron::chrome::ViewportSlot"]}})
+                                              "filter": {"with": ["bevy_dark_factory::chrome::ViewportSlot"]}})
         for r in rows:
             c = r.get("components", {})
             at, node = c.get("bevy_ui::ui_transform::UiGlobalTransform"), c.get("bevy_ui::ui_node::ComputedNode")
@@ -281,7 +281,7 @@ class Walk:
 
     def first_palette_row(self):
         rows = brp(self.port, "world.query", {"data": {"components": ["bevy_ui::ui_node::ComputedNode", "bevy_ui::ui_transform::UiGlobalTransform"]},
-                                              "filter": {"with": ["bevy_cauldron::editor::PaletteRow"]}})
+                                              "filter": {"with": ["bevy_dark_factory::editor::PaletteRow"]}})
         best = None
         for r in rows:
             c = r["components"]
@@ -355,7 +355,7 @@ class Walk:
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--bin", required=True, help="the bevy_cauldron binary to walk")
+    ap.add_argument("--bin", required=True, help="the bevy_dark_factory binary to walk")
     ap.add_argument("--screen", default="1280x720", help="the Xvfb screen, WxH (the small case is 1024x640)")
     args = ap.parse_args()
     walk = Walk(args)

@@ -4,7 +4,7 @@
   "scale": 1,
   "width": 960,
   "setup": [
-    {"mcp": "grimoire_frame_view", "args": {"target": {"rect": [-6, -4, 6, 4]}}}
+    {"mcp": "factory_frame_view", "args": {"target": {"rect": [-6, -4, 6, 4]}}}
   ],
   "chunks": [
     {"seconds": 2.5},

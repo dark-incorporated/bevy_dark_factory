@@ -11,7 +11,7 @@
   ],
   "setup": [
     {
-      "mcp": "grimoire_frame_view",
+      "mcp": "factory_frame_view",
       "args": {
         "target": {
           "rect": [
@@ -36,7 +36,7 @@
     },
     {
       "at": 0.8,
-      "mcp": "grimoire_apply_operation",
+      "mcp": "factory_apply_operation",
       "args": {
         "operation": "brush_arm",
         "parameters": {

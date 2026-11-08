@@ -3,12 +3,12 @@
 Focus: epic #330 (owner's steer) · Commits: bevy_gooey 2b4dd73 · Machine: big · Outcome: shipped (in bevy_gooey)
 
 ## Summary
-The epic's bevy_grimoire items (UI-R01 #331 to UI-R06 #336) still wait on bevy_gooey. UI-R01's needs G-39 to G-41 were closed by the gooey loop; G-42 to G-46 are still open. This pass built G-56, type-select (bevy-coven/bevy_gooey#63), which is one of UI-R04 (#334)'s needs, in the clone at `~/family_src/bevy_emerge_loop/bevy_gooey`. It claimed the issue first because the gooey loop takes ready motion items.
+The epic's bevy_grimoire items (UI-R01 #331 to UI-R06 #336) still wait on bevy_gooey. UI-R01's needs G-39 to G-41 were closed by the gooey loop; G-42 to G-46 are still open. This pass built G-56, type-select (dark-incorporated/bevy_gooey#63), which is one of UI-R04 (#334)'s needs, in the clone at `~/family_src/bevy_emerge_loop/bevy_gooey`. It claimed the issue first because the gooey loop takes ready motion items.
 
 ## Baseline
 bevy_grimoire gate and `accept.py`: not run, because no bevy_grimoire code changed. Load 29.6 at start (gooey and HomeStill builds), free disk 58 GB (99% used).
 
-## Enhancement: G-56 (bevy-coven/bevy_gooey#63)
+## Enhancement: G-56 (dark-incorporated/bevy_gooey#63)
 - Goal: typing a name goes to it in a table, a tree, a list, an open menu and a select of eight options or fewer.
 - Files (bevy_gooey): `src/type_select.rs` (new), `src/table.rs` (`table_by_input`), `src/tree.rs` (its own type-ahead removed), `src/choice.rs` (`Move::To`), `src/menu.rs` (`MenuItem::label`), `src/lib.rs`, `tests/type_select.rs` (new) with its `mod` line, `docs/research/type-select.md`, the guides for lists, tables, menus and select, `README.md`, `AGENTS.md`, `CHANGELOG.md`.
 - The rules (1 s pause, whitespace and Ctrl, Alt and Super ignored) were measured from Rune's `runtime/input/focus.rs` at `f73f72c`. Matching reuses gooey's `model::type_ahead`, which the tree already shipped. There is one shared `TypedPrefix`.

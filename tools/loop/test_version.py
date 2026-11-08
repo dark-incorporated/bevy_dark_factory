@@ -18,7 +18,7 @@ def manifest(version_text: str) -> Path:
     path = Path(tempfile.mkdtemp()) / "Cargo.toml"
     path.write_text(
         "[package]\n"
-        'name = "bevy_cauldron"\n'
+        'name = "bevy_dark_factory"\n'
         f'version = "{version_text}"\n'
         "\n"
         "[dependencies]\n"
@@ -33,7 +33,7 @@ def lock(version_text: str) -> Path:
         'version = 4\n'
         '\n'
         '[[package]]\n'
-        'name = "bevy_cauldron"\n'
+        'name = "bevy_dark_factory"\n'
         f'version = "{version_text}"\n'
         'dependencies = [\n'
         ' "bevy",\n'
@@ -75,7 +75,7 @@ class ThePolicy(unittest.TestCase):
 class TheCheck(unittest.TestCase):
     def test_agreeing_files_and_tags_pass(self):
         self.assertEqual(
-            version.problems(manifest("0.2.6"), lock("0.2.6"), tags=["bevy_cauldron-v0.2.6"]), []
+            version.problems(manifest("0.2.6"), lock("0.2.6"), tags=["bevy_dark_factory-v0.2.6"]), []
         )
 
     def test_a_patch_above_the_ceiling_is_refused_with_the_number_to_aim_for(self):
@@ -102,18 +102,18 @@ class TheCheck(unittest.TestCase):
         path.write_text('version = 4\n\n[[package]]\nname = "bevy_ecs"\nversion = "0.20.0"\n')
         found = version.problems(manifest("0.2.6"), path, tags=[])
         self.assertEqual(len(found), 1, found)
-        self.assertIn("bevy_cauldron", found[0])
+        self.assertIn("bevy_dark_factory", found[0])
 
     def test_a_tag_outside_the_ceiling_is_named(self):
         found = version.problems(
-            manifest("0.2.6"), lock("0.2.6"), tags=["bevy_cauldron-v0.2.278"]
+            manifest("0.2.6"), lock("0.2.6"), tags=["bevy_dark_factory-v0.2.278"]
         )
         self.assertEqual(len(found), 1, found)
-        self.assertIn("bevy_cauldron-v0.2.278", found[0])
+        self.assertIn("bevy_dark_factory-v0.2.278", found[0])
 
     def test_a_tag_that_is_not_a_version_is_named(self):
         found = version.problems(
-            manifest("0.2.6"), lock("0.2.6"), tags=["bevy_cauldron-v0.2.6-rc1"]
+            manifest("0.2.6"), lock("0.2.6"), tags=["bevy_dark_factory-v0.2.6-rc1"]
         )
         self.assertEqual(len(found), 1, found)
         self.assertIn("pre-release", found[0])

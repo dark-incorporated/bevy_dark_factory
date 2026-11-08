@@ -35,7 +35,7 @@ workaround (the bar's menus are unreachable while a toast covers them) — two o
 skin change moves the inset with it; the write is compared first, so a settled editor costs a comparison.
 
 **Pin:** `bevy_gooey` moves `1cc4c7d` → `c6b714c` (v0.36.0), the revision whose `ToastInset` is the widget
-this needs (bevy-coven/bevy_gooey#43, closed as completed). No other gooey API this crate uses changed.
+this needs (dark-incorporated/bevy_gooey#43, closed as completed). No other gooey API this crate uses changed.
 
 ## Proven
 - `a_toast_never_stands_over_the_menu_bar` — 2 tests (the tour's offer, a refusal).

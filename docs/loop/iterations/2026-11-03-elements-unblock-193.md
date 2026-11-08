@@ -27,7 +27,7 @@ Must-fix: blocks **y** (six owed clips and #193's step 3), common **n**, no work
 `AmbientLight`. Deleting a project's `family/bevy_elements.ron` therefore changed nothing on screen, and
 only a restart brought the plain view back.
 
-**Fix** (`bevy-coven/bevy_elements@41407d6`): the existing `toggle` read backwards. Each component comes
+**Fix** (`dark-incorporated/bevy_elements@41407d6`): the existing `toggle` read backwards. Each component comes
 off only when the marker says the crate put it there, so a component the *game* set is never removed;
 `Msaa` returns to its default; `SkyBackground` and the marker go with the rest. `Hdr` arrives through
 `#[require(Hdr)]`, so it stays the caller's to remove — as the issue asked.

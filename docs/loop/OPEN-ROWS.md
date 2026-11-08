@@ -18,8 +18,8 @@ yet, not on a pin this repo failed to move; the fix lands in `bevy_gooey` first,
 
 | stem | issue | what |
 |---|---|---|
-| `feedback-1793927671762` | [gooey#44](https://github.com/bevy-coven/bevy_gooey/issues/44) | the `Role::PromptKey` layout arm sets `min_width` and never centres its content, so a keycap's letter sits off-centre |
-| `feedback-1793927744511` | [gooey#45](https://github.com/bevy-coven/bevy_gooey/issues/45) | `shortcut_label` emits `⌘⌃⌥↩⎋⇥`; this repo's FiraMono lacks 6 of them and `system_font_discovery` is off, so Mac chords draw as tofu |
+| `feedback-1793927671762` | [gooey#44](https://github.com/dark-incorporated/bevy_gooey/issues/44) | the `Role::PromptKey` layout arm sets `min_width` and never centres its content, so a keycap's letter sits off-centre |
+| `feedback-1793927744511` | [gooey#45](https://github.com/dark-incorporated/bevy_gooey/issues/45) | `shortcut_label` emits `⌘⌃⌥↩⎋⇥`; this repo's FiraMono lacks 6 of them and `system_font_discovery` is off, so Mac chords draw as tofu |
 
 ## B. Waiting on an instrument — 4 rows, one tool would likely clear all
 

@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
-"""Drive a freshly built Cauldron.app through its own bundled MCP server and refuse a black window (#306, #307).
+"""Drive a freshly built DarkFactory.app through its own bundled MCP server and refuse a black window (#306, #307).
 
-    python3 tools/release/macos/smoke_app.py --app dist/Cauldron.app --out dist/smoke
+    python3 tools/release/macos/smoke_app.py --app dist/DarkFactory.app --out dist/smoke
 
 1. Launch the app with `open -n` and a scratch HOME, so its log, recent list and settings are its own.
-2. Wait for its BRP port, then start `Contents/MacOS/bevy_cauldron_mcp` (no --project: it follows the editor) and speak
+2. Wait for its BRP port, then start `Contents/MacOS/dark_factory_mcp` (no --project: it follows the editor) and speak
    MCP to it over stdio.
 3. The log must start with this app's version; its window self-check (`startup_probe`) must report at least
    MIN_WINDOW_COLOURS colours and never "the window is black".
 4. A still of the window and one of the surface, each decoded here, must both show at least MIN_WINDOW_COLOURS colours.
 
-Any failure prints the reason, leaves the evidence in --out (reason.txt, cauldron.log, the stills, the MCP answers) and
+Any failure prints the reason, leaves the evidence in --out (reason.txt, dark_factory.log, the stills, the MCP answers) and
 exits 1. Standard library only, and Python 3.9 (mac_air's /usr/bin/python3).
 """
 
@@ -47,8 +47,8 @@ MCP_CALL_TIMEOUT_S = 60
 PID_TIMEOUT_S = 30
 # How many log lines each read asks for.
 LOG_LINES = 400
-LOG_REL = os.path.join("Library", "Application Support", "Grimoire", "cauldron.log")
-TOOLS_NEEDED = ("grimoire_read_log", "grimoire_open_project", "grimoire_capture_still")
+LOG_REL = os.path.join("Library", "Application Support", "DarkFactory", "dark_factory.log")
+TOOLS_NEEDED = ("factory_read_log", "factory_open_project", "factory_capture_still")
 
 
 class SmokeFailure(Exception):
@@ -207,17 +207,17 @@ def sampled_colours(path, grid):
 
 
 def log_lines(mcp):
-    result = ok(mcp.call("grimoire_read_log", {"lines": LOG_LINES}), "grimoire_read_log")
+    result = ok(mcp.call("factory_read_log", {"lines": LOG_LINES}), "factory_read_log")
     return result.get("structuredContent", {}).get("lines", [])
 
 
 def smoke(app, out_dir, home, state):
-    exe = os.path.join(app, "Contents", "MacOS", "bevy_cauldron")
-    mcp_exe = os.path.join(app, "Contents", "MacOS", "bevy_cauldron_mcp")
+    exe = os.path.join(app, "Contents", "MacOS", "bevy_dark_factory")
+    mcp_exe = os.path.join(app, "Contents", "MacOS", "dark_factory_mcp")
     version = subprocess.run(["plutil", "-extract", "CFBundleShortVersionString", "raw",
                               os.path.join(app, "Contents", "Info.plist")],
                              capture_output=True, text=True, check=True).stdout.strip()
-    print("smoke: Cauldron %s at %s, HOME %s" % (version, app, home))
+    print("smoke: Dark Factory %s at %s, HOME %s" % (version, app, home))
 
     before = pids_of(exe)
     subprocess.run(["open", "-n", "--env", "HOME=" + home, "--env", "BEVY_BRP_PORT=%d" % SMOKE_PORT, app], check=True)
@@ -243,18 +243,18 @@ def smoke(app, out_dir, home, state):
     mcp = Mcp(mcp_exe, env, out_dir)
     state["mcp"] = mcp
     mcp.request("initialize", {"protocolVersion": "2025-06-18", "capabilities": {},
-                               "clientInfo": {"name": "cauldron release smoke", "version": version}})
+                               "clientInfo": {"name": "dark_factory release smoke", "version": version}})
     mcp.send({"jsonrpc": "2.0", "method": "notifications/initialized", "params": {}})
     tools = [t["name"] for t in mcp.request("tools/list", {})["tools"]]
     missing = [t for t in TOOLS_NEEDED if t not in tools]
     if missing:
         raise SmokeFailure("the bundled MCP server lacks %s" % ", ".join(missing))
 
-    state_answer = ok(mcp.call("grimoire_state", {}), "grimoire_state")
+    state_answer = ok(mcp.call("factory_state", {}), "factory_state")
     with open(os.path.join(out_dir, "state.json"), "w") as f:
         f.write(text_of(state_answer))
 
-    start = "--- Cauldron %s " % version
+    start = "--- Dark Factory %s " % version
     if not any(l.startswith(start) for l in log_lines(mcp)):
         raise SmokeFailure("the log has no line starting %r" % start)
 
@@ -282,7 +282,7 @@ def smoke(app, out_dir, home, state):
         raise SmokeFailure("the window self-check saw %d colours, fewer than %d" % (colours, MIN_WINDOW_COLOURS))
 
     for source, label in (("window", "smoke_window"), ("surface", "smoke_surface")):
-        result = ok(mcp.call("grimoire_capture_still", {"label": label, "source": source}), "capture of the %s" % source)
+        result = ok(mcp.call("factory_capture_still", {"label": label, "source": source}), "capture of the %s" % source)
         path = json.loads(text_of(result))["path"]
         kept = os.path.join(out_dir, "%s.png" % source)
         shutil.copyfile(path, kept)
@@ -295,7 +295,7 @@ def smoke(app, out_dir, home, state):
 def attempt(app, out_dir):
     """One launch of the app, driven and torn down. Returns `(failure, unfocused)`: why it must not ship
     (`None` when it passed), and whether the cause was a window that never took the foreground."""
-    home = tempfile.mkdtemp(prefix="cauldron-smoke-")
+    home = tempfile.mkdtemp(prefix="dark-factory-smoke-")
     state = {}
     failure = None
     unfocused = False
@@ -310,7 +310,7 @@ def attempt(app, out_dir):
     finally:
         log = os.path.join(home, LOG_REL)
         if os.path.exists(log):
-            shutil.copyfile(log, os.path.join(out_dir, "cauldron.log"))
+            shutil.copyfile(log, os.path.join(out_dir, "dark_factory.log"))
         elif failure is None:
             failure = "the app did not honour HOME; the smoke cannot isolate its log"
         if state.get("mcp") is not None:

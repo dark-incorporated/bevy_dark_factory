@@ -21,7 +21,7 @@ reference in the protected tests by whether gooey can carry it says otherwise:
 
 `UNCHECKED` (5), `VOID` (3), `ROW_SELECTED` (3), `GROUND_HELD` (3), `DIM` (3), `PANEL_BG` (4), `ROW_BG`
 (2), `WORLD_HELD`, `THUMB_SLOT`, `SLOT_BG`. So #210 needed a **gooey request**, not just a re-pin
-exception. Filed as **bevy-coven/bevy_gooey#37 (G-33)**, added to UI-00.
+exception. Filed as **dark-incorporated/bevy_gooey#37 (G-33)**, added to UI-00.
 
 ## Enhancement: K reveals the overlay, in the crate
 Files: `crates/bevy_cauldron/src/ui.rs`, `tests/the_shortcut_overlay_answers_to_k.rs` (new).

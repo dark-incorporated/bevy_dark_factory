@@ -5,7 +5,7 @@
  "width": 960,
  "setup": [
   {
-   "mcp": "grimoire_frame_view",
+   "mcp": "factory_frame_view",
    "args": {
     "target": "map"
    }

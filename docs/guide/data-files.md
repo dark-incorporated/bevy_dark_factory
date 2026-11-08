@@ -1,14 +1,14 @@
 # Data files
 
-This page lists every file in a bevy_grimoire project. Each table says where the file lives, what it holds, who writes it, whether the editor reloads it when it changes, and which code reads it.
+This page lists every file in a bevy_blueprint project. Each table says where the file lives, what it holds, who writes it, whether the editor reloads it when it changes, and which code reads it.
 
-"Live reload" means the editor watches the file and reloads it when its content changes. A game reads the project when it starts, and reloads it when it changes only if it adds `GrimoireLivePlugin` ([your game](your-game.md)). [The reload contract](reload-contract.md) lists every kind of file, with what a change to it costs a running program.
+"Live reload" means the editor watches the file and reloads it when its content changes. A game reads the project when it starts, and reloads it when it changes only if it adds `BlueprintLivePlugin` ([your game](your-game.md)). [The reload contract](reload-contract.md) lists every kind of file, with what a change to it costs a running program.
 
 ## kits.ron
 
 | | |
 |---|---|
-| Where | `assets/grimoire/kits.ron` |
+| Where | `assets/blueprint/kits.ron` |
 | What it holds | The kit folders the project binds (`bind`), each as a namespace and a folder. Named groups of bound kits (`bash`). The lattice (optional, default `face_bands` 1 in the range 1 to 8, `snap_divisor` 3 in the range 2 to 8, `cell_height` 4.0 m). The `authoring` kit (optional). |
 | Written by | The editor's kit chooser adds, removes and points bindings and `authoring`. Other fields are edited by hand. |
 | Live reload | Yes. |
@@ -19,7 +19,7 @@ This page lists every file in a bevy_grimoire project. Each table says where the
 
 | | |
 |---|---|
-| Where | `assets/grimoire/vocab.ron` |
+| Where | `assets/blueprint/vocab.ron` |
 | What it holds | The token tables that every piece is described with. Each axis lists its tokens, up to 64 per axis. The axes are `kind`, `effects`, `look` and `surfaces`, and three optional axes: `capabilities` (what a person can do), `edge` (what a cell presents to its neighbour) and `slot` (what may fill a hole in a tile). |
 | Written by | Edited by hand. The editor's labelling writes suggested tokens to `slop/llm/vocab_proposals.ron`, which nothing loads. |
 | Live reload | Yes. A change reloads the whole file or none of it. |
@@ -30,7 +30,7 @@ This page lists every file in a bevy_grimoire project. Each table says where the
 
 | | |
 |---|---|
-| Where | Each bound kit's folder, such as `assets/grimoire/<kit>/library.ron` |
+| Where | Each bound kit's folder, such as `assets/blueprint/<kit>/library.ron` |
 | What it holds | The pieces a kit defines, one entry per piece. Each entry carries the piece's id, mesh, footprint, extent, alignment and tokens. |
 | Written by | The editor. Committing a piece in the kit door writes it, and measuring a mesh writes its measured values. |
 | Live reload | Yes. |
@@ -41,7 +41,7 @@ This page lists every file in a bevy_grimoire project. Each table says where the
 
 | | |
 |---|---|
-| Where | Each bound kit's folder, such as `assets/grimoire/<kit>/project.ron` |
+| Where | Each bound kit's folder, such as `assets/blueprint/<kit>/project.ron` |
 | What it holds | How this project uses the kit. `exclude` lists path prefixes the project does not use. `patches` are changes to a kit's pieces that apply to this project only. `note` is free text. |
 | Written by | The editor's kit chooser (patches) and its exclude action: `Shift+R` on the Meshes tab, a switch under *Packs the kit leaves out* on the project configuration screen, or an agent's `pack_set_excluded`. |
 | Live reload | Yes. |
@@ -52,7 +52,7 @@ This page lists every file in a bevy_grimoire project. Each table says where the
 
 | | |
 |---|---|
-| Where | `assets/grimoire/compositions.ron`. Optional: the game treats an absent file as no compositions. |
+| Where | `assets/blueprint/compositions.ron`. Optional: the game treats an absent file as no compositions. |
 | What it holds | Named groups of pieces. A map stamps a composition, and the game expands the stamp into placements at load. |
 | Written by | The editor, when a composition is saved or renamed. |
 | Live reload | Yes. |
@@ -63,7 +63,7 @@ This page lists every file in a bevy_grimoire project. Each table says where the
 
 | | |
 |---|---|
-| Where | `assets/grimoire/rules.ron`. Optional: an absent file means no rules. |
+| Where | `assets/blueprint/rules.ron`. Optional: an absent file means no rules. |
 | What it holds | Rules the editor checks against the bound library. |
 | Written by | The editor's rule operations. |
 | Live reload | Yes. |
@@ -74,10 +74,10 @@ This page lists every file in a bevy_grimoire project. Each table says where the
 
 | | |
 |---|---|
-| Where | `assets/grimoire/standards.ron`. Optional: an absent file means no standards. |
+| Where | `assets/blueprint/standards.ron`. Optional: an absent file means no standards. |
 | What it holds | The project's kit standards: rules on a piece's width, depth or height (`min`, `max`, `multiple_of`), each for the pieces whose `kind` holds a token, or every piece. |
 | Written by | Hand. |
-| Live reload | Yes. The Meshes pane's `standards` row names the rules the selected piece breaks, and every pair of modules that do not nest where a rule covering that piece is one of the two; `grimoire_state.standards` lists every breach, every rule that covers no piece, and in `unnested` every pair of rules whose `multiple_of` modules do not nest (neither a whole multiple of the other, so a 2 m wall run and a 1.5 m fence run share a grid line only every 6 m; width and depth compare with each other, height with height), with where they meet again; `piece_import` reports a new piece's breaches. A breach is reported, not refused. |
+| Live reload | Yes. The Meshes pane's `standards` row names the rules the selected piece breaks, and every pair of modules that do not nest where a rule covering that piece is one of the two; `factory_state.standards` lists every breach, every rule that covers no piece, and in `unnested` every pair of rules whose `multiple_of` modules do not nest (neither a whole multiple of the other, so a 2 m wall run and a 1.5 m fence run share a grid line only every 6 m; width and depth compare with each other, height with height), with where they meet again; `piece_import` reports a new piece's breaches. A breach is reported, not refused. |
 | Read by | The editor. |
 | Format version | 1 |
 
@@ -85,17 +85,17 @@ This page lists every file in a bevy_grimoire project. Each table says where the
 
 | | |
 |---|---|
-| Where | `assets/grimoire/repetition.ron`. Optional: an absent file means the default rules (6 m, structure kinds `building-module`, `fence`, `tile`, `landmark`, `grave`, `door`, weight 0.1, no round kinds). |
+| Where | `assets/blueprint/repetition.ron`. Optional: an absent file means the default rules (6 m, structure kinds `building-module`, `fence`, `tile`, `landmark`, `grave`, `door`, weight 0.1, no round kinds). |
 | What it holds | What counts as a visible repeat and what it costs: `radius_m`, the `kind` tokens that make a piece `structure` (meant to repeat), `structure_weight` against clutter's 1.0, and `round`, the `kind` tokens of pieces that look the same at any yaw (a barrel, a pot): their copies repeat whatever their yaw, and `repetition_vary` never turns one but counts it as left. A field left out keeps its default. |
 | Written by | Hand. |
-| Live reload | Yes. `grimoire_state.repetition` reads it on every call and names a bad file in its `error`; the status bar's `REPEATS` line re-reads it when it changes. The `repetition_vary` operation (or the Terrain field line `repeats vary`) reads it on every run: it turns each clutter copy (never a round one) that looks like an earlier one in range by a half or quarter turn until none does, never turns structure, keeps the first copy's yaw, and one undo puts every turned row back. A piece whose floor footprint is longer one way than the other (a bench, a cart) gets the half turn only, since a quarter turn would swap its width and depth onto cells it never covered; a copy the half turn cannot end is counted as left. A bad file is refused, never replaced by the defaults. |
+| Live reload | Yes. `factory_state.repetition` reads it on every call and names a bad file in its `error`; the status bar's `REPEATS` line re-reads it when it changes. The `repetition_vary` operation (or the Terrain field line `repeats vary`) reads it on every run: it turns each clutter copy (never a round one) that looks like an earlier one in range by a half or quarter turn until none does, never turns structure, keeps the first copy's yaw, and one undo puts every turned row back. A piece whose floor footprint is longer one way than the other (a bench, a cart) gets the half turn only, since a quarter turn would swap its width and depth onto cells it never covered; a copy the half turn cannot end is counted as left. A bad file is refused, never replaced by the defaults. |
 | Read by | The editor. |
 
 ## rigs.ron
 
 | | |
 |---|---|
-| Where | `assets/grimoire/rigs.ron` |
+| Where | `assets/blueprint/rigs.ron` |
 | What it holds | The animation rigs: which clips a character plays and the timing values measured for them. |
 | Written by | The editor's animation tab, when a person adopts measured values. The write replaces the whole file. |
 | Live reload | No. The editor does not watch this file. |
@@ -106,7 +106,7 @@ This page lists every file in a bevy_grimoire project. Each table says where the
 
 | | |
 |---|---|
-| Where | `assets/grimoire/maps/<name>.map.ron`, one file per map |
+| Where | `assets/blueprint/maps/<name>.map.ron`, one file per map |
 | What it holds | One map: its name, its origin and bounds, its placements, its stamps, its locations and its `enclosure` wish. The file keeps each stamp as a stamp. The game expands stamps when it loads. |
 | Written by | The editor, when a map is saved and when a new empty map is made. The save **checks** the map by expanding its stamps — the same `Map::expanded` the game uses, so the gate and the loader agree — and then writes the map **unexpanded**, so each stamp stays a stamp. |
 | Live reload | Yes, for the map the editor has open. |
@@ -147,8 +147,8 @@ A `Fire` standing on a placement draws the crate's flame and the light the pool 
 
 | | |
 |---|---|
-| Where | `assets/grimoire/forest/<map>.ron`, one file per map, beside its terrain. Needs the editor built with `--features bevy_flora`. |
-| What it holds | The map's trees: each one's `id`, `species` (a `bevy_flora` preset name such as `oak`, or a `.tree.ron` path under `assets/grimoire/` such as `trees/tall.tree.ron`), its trunk's `at: (x, z)`, the `ground_m` it stands on, `yaw` (radians), `scale` and pool `variant`; a tree placed by hand also has `age_years` and `seed`. |
+| Where | `assets/blueprint/forest/<map>.ron`, one file per map, beside its terrain. Needs the editor built with `--features bevy_flora`. |
+| What it holds | The map's trees: each one's `id`, `species` (a `bevy_flora` preset name such as `oak`, or a `.tree.ron` path under `assets/blueprint/` such as `trees/tall.tree.ron`), its trunk's `at: (x, z)`, the `ground_m` it stands on, `yaw` (radians), `scale` and pool `variant`; a tree placed by hand also has `age_years` and `seed`. |
 | Written by | `forest_scatter`: a `plant` stroke (`bevy_flora`'s own Scatter, kept only within `radius_m` of the stroke, on the terrain) or one `place`d tree; the Terrain field's `forest <x> <z> <radius_m> <spacing_m> <seed> <species>` line sends the same operation. Each is one undo step. |
 | Live reload | Yes. The viewport draws every tree with `bevy_flora`'s plugin and redraws within half a second of a change to this file or to a `.tree.ron` it names: a scattered tree is a `PooledTree` of its species' pool, built in the background, and a placed tree is a `ProceduralTree` grown from its species with its own seed and age, the tree the game grows. With `bevy_elements` too, the trees wear the map's date. |
 | Read by | The editor. A game that lists `bevy_flora` reads it to spawn the same trees through the crate's pools. |
@@ -158,7 +158,7 @@ A `Fire` standing on a placement draws the crate's flame and the light the pool 
 
 | | |
 |---|---|
-| Where | `assets/grimoire/trees/<name>.tree.ron` |
+| Where | `assets/blueprint/trees/<name>.tree.ron` |
 | What it holds | One tree species: `bevy_flora`'s own `TreeParams`, in the format its asset loader reads. |
 | Written by | `tree_edit` (`preset` starts it from a crate preset, `set` changes fields by dotted path, an unknown field is refused), or the Terrain field's `tree <name> [<preset>] [<field.path>=<value> ...]` line. One undo step per edit. |
 | Live reload | Yes. Every drawn tree of this species regrows within half a second of an edit. |
@@ -179,7 +179,7 @@ A `Fire` standing on a placement draws the crate's flame and the light the pool 
 
 | | |
 |---|---|
-| Where | `assets/grimoire/oplog.jsonl` |
+| Where | `assets/blueprint/oplog.jsonl` |
 | What it holds | The editor's history of changes, one JSON object per line. It is only appended to. |
 | Written by | The editor, one line per operation. |
 | Live reload | No. The editor does not watch this file. |
@@ -192,7 +192,7 @@ A `Fire` standing on a placement draws the crate's flame and the light the pool 
 |---|---|
 | Where | `target/loop/captures/snips/`, under the project root. Each snip is a `snip-<ms>.png` with a `.json` beside it. |
 | What it holds | A cut-out of the editor's window, written by the editor and the MCP server. |
-| Written by | The editor and `bevy_grimoire_snip`. Each file is created new, so an existing file is never replaced. |
+| Written by | The editor and `dark_factory_snip`. Each file is created new, so an existing file is never replaced. |
 | Live reload | No. |
 | Read by | Nothing in the project. The game does not read it. |
 | Format version | None. |
@@ -205,18 +205,18 @@ A `Fire` standing on a placement draws the crate's flame and the light the pool 
 | What it holds | Every thing a person pointed at, the relation between each two of them (contains, overlaps, touches or apart, the overlap in square pixels, and which is drawn in front), and what they said was wrong, taken with Cmd+Shift+D. |
 | Written by | The editor, `create_new`, never overwritten. |
 | Live reload | No. |
-| Read by | `grimoire_project_feedback_list`, which needs `--project`. Nothing in the project. The game does not read it. |
+| Read by | `factory_project_feedback_list`, which needs `--project`. Nothing in the project. The game does not read it. |
 | Format version | 2, in the record's `version`. A record from another version is named by the reader, not converted. |
 
 ## Feedback reports about the editor
 
 | | |
 |---|---|
-| Where | `<data_dir>/Grimoire/feedback/`, the same four files under the same names. `~/.local/share/Grimoire/feedback/` on Linux, `~/Library/Application Support/Grimoire/feedback/` on macOS. |
-| What it holds | Every thing a person pointed at, the relation between each two of them, and what they said was wrong about Cauldron itself, taken with Cmd+D. |
+| Where | `<data_dir>/DarkFactory/feedback/`, the same four files under the same names. `~/.local/share/Blueprint/feedback/` on Linux, `~/Library/Application Support/DarkFactory/feedback/` on macOS. |
+| What it holds | Every thing a person pointed at, the relation between each two of them, and what they said was wrong about Dark Factory itself, taken with Cmd+D. |
 | Written by | The editor, `create_new`, never overwritten. |
 | Live reload | No. |
-| Read by | `grimoire_feedback_list`, which needs no `--project`. |
+| Read by | `factory_feedback_list`, which needs no `--project`. |
 | Format version | 2, in the record's `version`. A record from another version is named by the reader, not converted. |
 
 ## recent.ron
@@ -225,7 +225,7 @@ Not a project file: one per user, so a project folder never carries where an aut
 
 | | |
 |---|---|
-| Where | `<data_dir>/Grimoire/recent.ron`: `~/.local/share` on Linux, `~/Library/Application Support` on macOS, `%APPDATA%` on Windows. |
+| Where | `<data_dir>/DarkFactory/recent.ron`: `~/.local/share` on Linux, `~/Library/Application Support` on macOS, `%APPDATA%` on Windows. |
 | What it holds | The projects the editor has opened, most recent first: each one's `path`, whether it is `pinned`, and `last_opened` (seconds since the Unix epoch). A folder that has gone stays listed and is marked missing; `Recent::locate` points the entry at where it went. |
 | Written by | The editor, each time a project is opened by the menu, the command line or an agent's `map_open`. Each write is atomic (`atomic_file::write`). |
 | Live reload | No. |
@@ -238,9 +238,9 @@ The editor's settings, in two files that are laid over the built-in defaults, ke
 
 | | |
 |---|---|
-| Where | The user's layer: `<config_dir>/Grimoire/settings.ron` (`~/.config` on Linux, `~/Library/Application Support` on macOS, `%APPDATA%` on Windows). The project's layer: `assets/grimoire/editor.ron`. |
+| Where | The user's layer: `<config_dir>/DarkFactory/settings.ron` (`~/.config` on Linux, `~/Library/Application Support` on macOS, `%APPDATA%` on Windows). The project's layer: `assets/blueprint/editor.ron`. |
 | What it holds | Only the keys a file sets, each an `Option`: `theme` (`ToolDark`, `Parchment` or `HighContrast`), `text_scale` and `interface_scale` (0.5 to 3.0; 1.0 is as designed), `reduced_motion`, `show_grid` (draw the map's grid; on by default) and `grid_strength` (0.1 to 1.0; how strongly the grid is drawn); and the terminal's `terminal_text_scale` (0.5 to 3.0; 1.0 is the size it ships at, and the shell is told the rows and columns the new size leaves), `terminal_cursor` (`Block`, `Underline` or `Bar`: the caret when a program asks for none; a program that asks, as vim does, still gets its own) `terminal_cursor_blink` (on by default) and `terminal_scrollback` (100 to 100,000 lines each terminal keeps; 5,000 by default), and `terminal_shell` with `terminal_shell_args` (the program a new terminal tab runs and its arguments, as VS Code's default profile; `$SHELL` when the key is left out, tabs already open keep the shell they started with, a shell named in the project's file brings its own arguments and not the person's, and no Settings row has them because the screen has no text field). Example: `(version: 1, text_scale: Some(1.5), reduced_motion: Some(true))`. Also `keymap`, a table from a command's id to the chord that now runs it (`keymap: {"file.save": (modifiers: (ctrl: true, shift: true, alt: false, meta: false), key: KeyY)}`); the keymap screen writes it and refuses a chord another command has. The editor's key dispatcher follows it: a rebound command answers to its new chord and no longer to the old one, in the running editor, and the command palette, the `K` overlay and an agent's `run_command` name or press the new chord. A command the file leaves out keeps its default, and deleting the entry gives the default back. |
 | Written by | A person, or the settings screen (`Cmd/Ctrl+,`), which sets or resets one key at a time and leaves the rest of the file as it is. A file that does not read is never written over. |
-| Live reload | Yes, in the editor: it looks at both files while it runs, so an edit, a deleted key or a deleted file changes the running editor at once. A file that does not read (not RON, an unknown key, a value out of range, another version) keeps that layer's last good content, is refused in `grimoire_state.reloads` with the file and the field, and is a problem on the status line. The game does not read it. |
+| Live reload | Yes, in the editor: it looks at both files while it runs, so an edit, a deleted key or a deleted file changes the running editor at once. A file that does not read (not RON, an unknown key, a value out of range, another version) keeps that layer's last good content, is refused in `factory_state.reloads` with the file and the field, and is a problem on the status line. The game does not read it. |
 | Read by | The editor only (`settings::sync_settings`, resource `EditorSettings`). |
 | Format version | 1. An old file with fewer keys still reads; a file of another version is refused by name. |

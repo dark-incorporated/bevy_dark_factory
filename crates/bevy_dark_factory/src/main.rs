@@ -1,0 +1,237 @@
+//! **bevy_dark_factory** — the binary. Argument parsing and the app; everything else is the
+//! library beside this, so `tests/` can drive the editor without a window. See `lib.rs`.
+
+use bevy_dark_factory::{args, harness, project_assets, screen, screen::Screen};
+
+use bevy::prelude::*;
+// `DefaultPlugins::disable` is `PluginGroup`'s method, and the prelude does not carry the trait.
+use bevy::app::PluginGroup;
+
+/// **One application, two screens.**
+///
+/// This was three processes: a supervisor that never opened a window, a menu process per lap, and an
+/// editor process per door. The shape existed because **winit builds at most one event loop per
+/// process** — a second `App::run` dies on `RecreationAttempt` — so a menu you could return to had
+/// to be a fresh process, and a supervisor had to spawn it.
+///
+/// Asked for at the keyboard, 2026-08-16: *"can we not open a whole another editing window? I'd like
+/// to keep the same bevy application running across whether it's the UI or the editor."*
+///
+/// The winit limit was never the real obstacle: one process can show a menu and an editor in one
+/// window as long as they are two *states* rather than two `App`s. The real obstacle was that in
+/// Bevy 0.19 a **missing `Res<T>` panics its system**, and about a hundred parameter positions take
+/// `Res<Project>` — so a menu inside the editor's `App` meant gating every one of them. That is what
+/// `screen.rs` now does, and this file is what a binary should be again: parse arguments, build one
+/// app, run it.
+fn main() -> AppExit {
+    let argv: Vec<String> = std::env::args().skip(1).collect();
+    if args::asks_for_help(&argv) {
+        println!("{}", args::USAGE);
+        return AppExit::Success;
+    }
+
+    // **`bevy_audio` is opened only when something plays a sound.** The editor links
+    // `bevy_audio` through `DefaultPlugins`, and an audio device that fails is what loops
+    // (`crate::log_filter` has the measurement: 13.5 GB in five minutes). The only thing in this
+    // binary that plays anything is `bevy_siren`'s audition, behind the feature of that name, so a
+    // build without it — the editor on a headless box, a storyboard capture, CI — asks for no device
+    // at all rather than opening one to log its failure.
+    #[cfg(not(feature = "bevy_siren"))]
+    let plugins = DefaultPlugins.build().disable::<bevy::audio::AudioPlugin>();
+    #[cfg(feature = "bevy_siren")]
+    let plugins = DefaultPlugins.build();
+
+    let mut app = App::new();
+    // **The log goes to a file as well as to stderr** (`bevy_dark_factory::log_file`, #306). Measured 2026-11-04 on
+    // `mac_air`: a release launched from Finder drew a black window and nothing said why — a bundle launch has no
+    // terminal for stdout, and macOS wrote no crash report. Opened *before* `DefaultPlugins` and before anything
+    // can panic, so the first line of a run that dies while the window is made still reaches the file.
+    let log = bevy_dark_factory::log_file::LogFile::open();
+    if let Some(log) = &log {
+        log.line(&bevy_dark_factory::log_file::starting_line(&argv));
+        bevy_dark_factory::log_file::install_panic_hook(log.clone());
+    }
+    // **The project is the asset root, and which project is decided later** (`project_assets`): a project named
+    // on the command line is pointed at below, and one chosen on the launcher is pointed at when it is chosen.
+    // Registered before `DefaultPlugins`, which builds the asset sources.
+    project_assets::install(&mut app, None);
+    // In the world before `DefaultPlugins` builds its subscriber, which is where `plugin_layer` looks.
+    if let Some(log) = log.clone() {
+        app.insert_resource(log);
+    }
+    app.add_plugins(
+        plugins
+            // **One repeated log line filled a 16 GB RAM disk** (`bevy_dark_factory::log_filter`): an
+            // editor with no audio device wrote 13.5 GB in five minutes, all of it `rodio::stream`'s
+            // ALSA error. `LogPlugin` puts its `level` first and `RUST_LOG` last, and a directive with
+            // a longer target beats both, so this silences that one target and nothing else.
+            .set(bevy::log::LogPlugin {
+                filter: bevy_dark_factory::log_filter::LOG_SILENCES.to_owned(),
+                // The file layer comes *after* the filter, so both sinks carry the same events: a log that
+                // said more or less than the terminal would be a second answer to the same question.
+                custom_layer: bevy_dark_factory::log_file::plugin_layer,
+                ..default()
+            })
+            // Meshes are named relative to the project, so the project IS the asset root: the default asset
+            // source is `project_assets::ProjectAssetReader`, installed above, and `AssetPlugin` keeps no path.
+            .set(WindowPlugin {
+                primary_window: Some(Window {
+                    // **One window for both screens**, so the title is state rather than a build-time
+                    // decision — see [`name_the_window`].
+                    title: "Dark Factory".to_owned(),
+                    // **Never smaller than the layout is built for**; where it opens, and where it goes back
+                    // to, is `window_frame`'s decision (#292).
+                    resize_constraints: bevy::window::WindowResizeConstraints {
+                        min_width: bevy_dark_factory::window_frame::MIN_SIZE.x,
+                        min_height: bevy_dark_factory::window_frame::MIN_SIZE.y,
+                        ..default()
+                    },
+                    // **Fullscreen for automated checks.** A virtual pointer is ABSOLUTE over the
+                    // whole output, so a screen fraction only means a window fraction when the
+                    // window IS the screen.
+                    mode: if std::env::var("DARK_FACTORY_FULLSCREEN").as_deref() == Ok("1") {
+                        bevy::window::WindowMode::BorderlessFullscreen(
+                            bevy::window::MonitorSelection::Primary,
+                        )
+                    } else {
+                        bevy::window::WindowMode::Windowed
+                    },
+                    ..default()
+                }),
+                ..default()
+            }),
+    )
+    .insert_resource(ClearColor(bevy_dark_factory::chrome::VOID))
+    // **One knob for the whole interface.** `UiScale` multiplies every `Val::Px` and every font
+    // size, so the panels grow together and nothing has to be re-tuned relative to anything else
+    // — the alternative is forty constants that drift apart the first time one is missed.
+    .insert_resource(UiScale(bevy_dark_factory::chrome::EDITOR_UI_SCALE));
+
+    // **The preview uses the game's own sky** (#98): `bevy_elements`' plugins, always added, dress
+    // the editor camera only in a project that has an environment file (`environment::dress_camera`).
+    #[cfg(feature = "bevy_elements")]
+    {
+        use bevy::prelude::*;
+        app.add_plugins(bevy_elements::ElementsPlugins)
+            .add_systems(Update, (bevy_dark_factory::environment::dress_camera, bevy_dark_factory::environment::key_light_follows_dressing));
+    }
+
+    // **A placed `bevy_lights` `Fire` draws its flame and its pooled light** (#103): the crate's own plugins, which need
+    // the render app a window brings, so the headless harness leaves them out.
+    #[cfg(feature = "bevy_lights")]
+    app.add_plugins(bevy_dark_factory::light_view::FirePreviewPlugin);
+
+    // **A bare `bevy_dark_factory` opens the launcher** (`launcher.rs`, UI-10); a project named on the command
+    // line skips it. `insert_state` before `ScreenPlugin`, whose `init_state` leaves a state that exists as it is.
+    let first = if args::opens_the_launcher(&argv) { Screen::Launcher } else { project_assets::screen_for(&argv) };
+    app.insert_state(first);
+    // The state both halves are gated by, and the two transitions that load and unload a door.
+    app.add_plugins(screen::ScreenPlugin);
+    // **What drawing works, into the same log** (`startup_probe`): the surface, the cameras, a self-check of what the
+    // window itself shows, then a pulse of frames, so a black window says which part of it failed (#306, #307).
+    app.add_plugins(bevy_dark_factory::startup_probe::StartupProbePlugin);
+    app.add_plugins((bevy_dark_factory::launcher::LauncherPlugin, bevy_dark_factory::loading::LoadingPlugin, bevy_dark_factory::window_frame::WindowFramePlugin));
+    // **Every opening is recorded in the user's recent-projects list** (`recent.rs`, UI-11). Only the
+    // binary names the file: a test's editor has none, so no test writes to the real data directory.
+    if let Some(file) = bevy_dark_factory::recent::user_file() {
+        app.insert_resource(bevy_dark_factory::recent::RecentProjects(file));
+    }
+    // **The user's settings layer** (`settings.rs`, UI-70): only the binary names the file, as with the recent list.
+    if let Some(file) = bevy_dark_factory::settings::user_file() {
+        app.insert_resource(bevy_dark_factory::settings::UserSettingsFile(file));
+    }
+    // **What an agent tab needs** (`terminal_agent.rs`): the remote protocol's port, the MCP server beside
+    // this binary, and a folder for the configs a launch writes. Only the binary names them, as with the
+    // settings file, so no test hands an agent the real data directory.
+    bevy_dark_factory::terminal_agent::insert_for_the_running_binary(&mut app);
+    // **The installed app's own update** (`update.rs`): only inside a `.app`, so `cargo run` never replaces itself.
+    bevy_dark_factory::update::insert_for_the_running_app(&mut app);
+    // **A quit that does not finish is finished for it** (`exit_watchdog.rs`, #337): only the binary adds it, because
+    // a test editor writes `AppExit` and goes on.
+    app.add_plugins(bevy_dark_factory::exit_watchdog::ExitWatchdogPlugin::ends_the_process());
+
+    // **Both screens' plugins, always added.** Which one *runs* is the state's business, not the
+    // plugin list's — a list that changed with the screen would be two plugin graphs, and only one
+    // of them would ever be the one under test.
+    harness::add_editor_plugins(&mut app);
+    // **`--live`: every committed change goes to disk at once**, so a running game reloads it.
+    if args::split(&argv).live {
+        app.insert_resource(bevy_dark_factory::live::LiveWrite);
+    }
+    // Behind the feature, so an ordinary build has no `bevy_remote` in its dependency graph at all.
+    #[cfg(feature = "debugger")]
+    harness::add_debugger_plugins(&mut app);
+
+    app.add_systems(Update, name_the_window);
+
+    // **A project named on the command line is opened the way one chosen on the launcher is**
+    // (`project_assets::point_at`): the project page's output IS this argv (`args::open`), so
+    // `bevy_dark_factory . --door kit --kit ozea` and pressing Enter on the same row take the identical path in.
+    // The state it names is the one inserted above, so the window starts on it.
+    //
+    // **A door or a map is opened on the loading screen** (`loading.rs`, UI-20): the open runs as named stages
+    // off the main thread, so a slow project shows a spinner and then a progress bar instead of a window that
+    // does not answer, and a project that will not open is said on that screen (and on the terminal the flag
+    // was typed into) with a way back to the launcher. `DARK_FACTORY_LOAD_STAGE_DELAY_MS` pauses as each stage
+    // starts, to see the screen on a project that opens too fast to.
+    if first == Screen::Launcher {
+        // No project: the face compiled in, until one is chosen.
+        if let Err(e) = harness::install_font_in(app.world_mut(), None) {
+            eprintln!("bevy_dark_factory: {e}");
+            std::process::exit(1);
+        }
+    } else {
+        if let Err(e) = project_assets::point_at(app.world_mut(), &argv) {
+            eprintln!("{e}");
+            return AppExit::error();
+        }
+        if first == Screen::Loading
+            && let Some(ms) = std::env::var("DARK_FACTORY_LOAD_STAGE_DELAY_MS").ok().and_then(|v| v.parse::<u64>().ok())
+        {
+            app.insert_resource(bevy_dark_factory::loading::StageDelay(std::time::Duration::from_millis(ms)));
+        }
+    }
+
+    // **How far startup got, into the log** (`dark_factory::startup`): "black window" could be the device, the surface,
+    // the first frame or the state machine; this line and `startup_probe`'s say which one it got to. `LogPlugin`
+    // installed the subscriber while `add_plugins` ran, so this reaches the file.
+    bevy::log::info!(target: "dark_factory::startup", "plugins added; first screen {first:?}");
+    app.run()
+}
+
+/// **The window says which screen it is showing**, and follows a door change.
+///
+/// It was set once when the window was built, which was fine while a door was a process and its
+/// title could be decided before the window existed. One window across both screens makes the title
+/// state — and a stale title is exactly how an author ends up in the Map door believing they are in
+/// the Kit door, which is where an evening went on 2026-08-16 before the log said `— map — test`.
+fn name_the_window(
+    screen: Res<State<Screen>>,
+    door: Option<Res<bevy_dark_factory::tiles::Door>>,
+    open_map: Option<Res<bevy_dark_factory::project::OpenMap>>,
+    project: Option<Res<bevy_dark_factory::project::Project>>,
+    mut windows: Query<&mut Window>,
+) {
+    let want = match (screen.get(), door.as_deref()) {
+        (Screen::Launcher, _) => "Dark Factory".to_owned(),
+        (Screen::Loading, _) => "Dark Factory — opening a project".to_owned(),
+        (Screen::Project, _) => "Dark Factory — a project".to_owned(),
+        (Screen::Editor, Some(d)) => {
+            let door = d.label().to_lowercase();
+            // **Which name to show is `chrome::subject`'s decision, not a second copy of it.** The
+            // chrome bar states the same fact where the eye actually goes, and a title that went on
+            // saying the kit while the bar said the map is the drift this shares one function to
+            // avoid.
+            match bevy_dark_factory::chrome::subject(open_map.as_deref(), project.as_deref()) {
+                Some(name) => format!("Dark Factory — {door} — {name}"),
+                None => format!("Dark Factory — {door}"),
+            }
+        }
+        (Screen::Editor, None) => "Dark Factory".to_owned(),
+    };
+    for mut w in &mut windows {
+        if w.title != want {
+            w.title = want.clone();
+        }
+    }
+}

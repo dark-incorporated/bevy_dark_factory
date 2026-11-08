@@ -15,7 +15,7 @@ Root cause: `MsaaWriteback::Auto` on the interface camera (above). Fix: `environ
 Regression check: `tests/the_interface_does_not_write_the_ground_back_over_the_world.rs` (failed on the base: `left: Auto right: Off`, passes). It asserts the setting, not pixels: no GPU in a test. The pixel evidence is the live capture: `docs/changelog/media/2026-10-31-193-world-under-sky.{mp4,png}`.
 
 ## Not fixed: step 3 (file removed, the world does not come back)
-Pass 159's suggestion, "undress also removes `Hdr`", is wrong on its own: tried live, removing `Hdr` while the crate's atmosphere and fog components remain made the pipelines fail validation (`Caught rendering error: Validation Error ... Quitting the application`), and the editor exited. Undress has to remove the crate's dressing first, which is bevy-coven/bevy_elements#55; the editor can drive it through `ElementsCamera`'s own flags (all false, then remove) once #55 is decided. #193 and #194 stay open.
+Pass 159's suggestion, "undress also removes `Hdr`", is wrong on its own: tried live, removing `Hdr` while the crate's atmosphere and fog components remain made the pipelines fail validation (`Caught rendering error: Validation Error ... Quitting the application`), and the editor exited. Undress has to remove the crate's dressing first, which is dark-incorporated/bevy_elements#55; the editor can drive it through `ElementsCamera`'s own flags (all false, then remove) once #55 is decided. #193 and #194 stay open.
 
 ## Also seen
 At `clock.hour = 22.0` the viewport goes white (auto-exposure at night over the sky); at noon the sky is dark blue and at 6.5 bright. Both are the crate's exposure behaviour on a camera whose clear colour is transparent; not investigated.

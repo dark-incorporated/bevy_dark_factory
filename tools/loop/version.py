@@ -28,7 +28,7 @@ Pre-1.0 SemVer, one bump per **release**, and digits with a ceiling:
 # What `check` looks at
 
 Offline and deterministic, because it runs on every push: the manifest, the lockfile entry that must
-agree with it, and every local `bevy_cauldron-v*` tag. A tag with a version outside the ceiling is a
+agree with it, and every local `bevy_dark_factory-v*` tag. A tag with a version outside the ceiling is a
 failure here before it is a release nobody can explain.
 """
 
@@ -41,9 +41,9 @@ import sys
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
-MANIFEST = REPO / "crates/bevy_cauldron/Cargo.toml"
+MANIFEST = REPO / "crates/bevy_dark_factory/Cargo.toml"
 LOCK = REPO / "Cargo.lock"
-TAG_PREFIX = "bevy_cauldron-v"
+TAG_PREFIX = "bevy_dark_factory-v"
 
 #: The highest PATCH a version may carry. Reaching it is what rolls MINOR: see the module note.
 PATCH_CEILING = 9
@@ -77,10 +77,10 @@ def manifest_version(manifest: Path = MANIFEST) -> str:
 
 
 def lock_version(lock: Path = LOCK) -> str | None:
-    """The `bevy_cauldron` entry's version in `Cargo.lock`, or `None` when it is not in the file."""
+    """The `bevy_dark_factory` entry's version in `Cargo.lock`, or `None` when it is not in the file."""
     text = lock.read_text()
     for block in text.split("[[package]]"):
-        if not re.search(r'^name = "bevy_cauldron"$', block, re.MULTILINE):
+        if not re.search(r'^name = "bevy_dark_factory"$', block, re.MULTILINE):
             continue
         match = re.search(r'^version = "([^"]+)"$', block, re.MULTILINE)
         return match.group(1) if match else None
@@ -88,7 +88,7 @@ def lock_version(lock: Path = LOCK) -> str | None:
 
 
 def local_tags(repo: Path = REPO) -> list[str]:
-    """Every local `bevy_cauldron-v*` tag, sorted. A clone with no tags has none, which is fine."""
+    """Every local `bevy_dark_factory-v*` tag, sorted. A clone with no tags has none, which is fine."""
     try:
         out = subprocess.run(
             ["git", "tag", "-l", f"{TAG_PREFIX}*"],
@@ -165,7 +165,7 @@ def problems(manifest: Path = MANIFEST, lock: Path = LOCK, tags: list[str] | Non
         )
     locked = lock_version(lock)
     if locked is None:
-        found.append(f"{lock} has no `bevy_cauldron` entry, so nothing checks the version it builds")
+        found.append(f"{lock} has no `bevy_dark_factory` entry, so nothing checks the version it builds")
     elif locked != version:
         found.append(
             f"{manifest} says {version} and {lock} says {locked}: run `cargo metadata` (or any build) "

@@ -85,7 +85,7 @@ def change_moments(rec):
             elif "Home" in keys:
                 moments.append(("home", e["t"]))
             # **A held reveal is a change.** The editor's shortcut overlay is shown while a key is
-            # held (`keys::Action::Shortcuts`, `K`; bevy-coven/bevy_gooey#36), so the picture gains a
+            # held (`keys::Action::Shortcuts`, `K`; dark-incorporated/bevy_gooey#36), so the picture gains a
             # dozen chord chips and then loses them — two changes, at the press and at the release.
             # Nothing else in this list describes that: it is a key, not a click, an agent op or a
             # settle, so a storyboard of the overlay reported `change_moments` as empty and failed
@@ -94,7 +94,7 @@ def change_moments(rec):
             # same way the press is.
             elif "KeyK" in keys:
                 moments.append(("reveal", e["t"]))
-        elif e["type"] == "agent" and e.get("tool") == "grimoire_frame_view":
+        elif e["type"] == "agent" and e.get("tool") == "factory_frame_view":
             moments.append(("view", e["t"]))
         elif e["type"] == "settle":
             # **A change the storyboard said would arrive, and has.** A fade is not a step: the picture

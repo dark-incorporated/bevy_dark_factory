@@ -1,0 +1,11 @@
+[
+ {
+  "name": "icon",
+  "prompt": "a heavy industrial robotic arm holding a glowing amber wireframe blueprint cube, green phosphor glow, bold clean silhouette, centered, black background, gritty 1980s sci-fi film poster, pixel art, no text",
+  "width": 256,
+  "height": 256,
+  "seed": 9301,
+  "prompt_style": "rd_pro__default",
+  "num_images": 4
+ }
+]

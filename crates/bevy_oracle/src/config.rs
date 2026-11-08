@@ -23,16 +23,16 @@ impl Default for Config {
 }
 
 impl Config {
-    /// `GRIMOIRE_DECIDE_ENDPOINT`, `GRIMOIRE_DECIDE_MODEL`, `GRIMOIRE_DECIDE_KEY`, `GRIMOIRE_DECIDE_TIMEOUT_SECS`
+    /// `DARK_FACTORY_DECIDE_ENDPOINT`, `DARK_FACTORY_DECIDE_MODEL`, `DARK_FACTORY_DECIDE_KEY`, `DARK_FACTORY_DECIDE_TIMEOUT_SECS`
     /// over the local default; `get` is the environment, so tests pass a map.
     pub fn from_lookup(get: impl Fn(&str) -> Option<String>) -> Self {
         let d = Config::default();
         let set = |k: &str| get(k).filter(|v| !v.trim().is_empty());
         Config {
-            endpoint: set("GRIMOIRE_DECIDE_ENDPOINT").unwrap_or(d.endpoint),
-            model: set("GRIMOIRE_DECIDE_MODEL"),
-            key: set("GRIMOIRE_DECIDE_KEY"),
-            timeout_secs: set("GRIMOIRE_DECIDE_TIMEOUT_SECS").and_then(|v| v.parse().ok()).unwrap_or(d.timeout_secs),
+            endpoint: set("DARK_FACTORY_DECIDE_ENDPOINT").unwrap_or(d.endpoint),
+            model: set("DARK_FACTORY_DECIDE_MODEL"),
+            key: set("DARK_FACTORY_DECIDE_KEY"),
+            timeout_secs: set("DARK_FACTORY_DECIDE_TIMEOUT_SECS").and_then(|v| v.parse().ok()).unwrap_or(d.timeout_secs),
         }
     }
     pub fn from_env() -> Self {

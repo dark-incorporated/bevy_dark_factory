@@ -37,7 +37,7 @@ from common import Client, Editor, binary, brp, make_scratch  # noqa: E402
 
 REQUEST = "a mossy ruined courtyard with two exits"
 MAP = "courtyard"
-NEEDED_TOOLS = ("grimoire_apply_operation", "grimoire_state", "grimoire_capture_still", "grimoire_present")
+NEEDED_TOOLS = ("factory_apply_operation", "factory_state", "factory_capture_still", "factory_present")
 SOURCES = ("learned", "composed", "declared")
 
 
@@ -72,7 +72,7 @@ class Run:
 
     def op(self, name, params):
         """Apply one registered operation, and return its answer."""
-        return self.client.json_call("grimoire_apply_operation",
+        return self.client.json_call("factory_apply_operation",
                                      {"operation": name, "parameters": params, "dry_run": False})
 
     def ok(self, answer):
@@ -124,9 +124,9 @@ class Run:
         #
         # A predicate on the map's name alone would pass on a build with the defect this step is
         # here to catch: `map_open` on the project page inserted `Project` and `OpenMap` and left the screen
-        # at the project page, so `grimoire/state` reported `map.name == courtyard` with the maps in
+        # at the project page, so `blueprint/state` reported `map.name == courtyard` with the maps in
         # front of the person — measured 2026-10-25, and found by the review rather than by the
-        # script. `screen` is `grimoire/state`'s own answer for exactly this, and the map's name is
+        # script. `screen` is `blueprint/state`'s own answer for exactly this, and the map's name is
         # kept beside it because entering the *wrong* map is the other way to be wrong.
         try:
             self.editor.wait_ready(
@@ -148,7 +148,7 @@ class Run:
 
     def step_place(self):
         t0 = time.time()
-        listed = self.client.json_call("grimoire_list_pieces", {})
+        listed = self.client.json_call("factory_list_pieces", {})
         pieces = (listed.get("pieces") or []) if isinstance(listed, dict) else []
         if len(pieces) < 2:
             return _record(self.steps, "place", "fail",
@@ -180,7 +180,7 @@ class Run:
 
     def step_still(self):
         t0 = time.time()
-        answer = self.client.text("grimoire_capture_still", {"label": "accept-proposal"})
+        answer = self.client.text("factory_capture_still", {"label": "accept-proposal"})
         ms = (time.time() - t0) * 1000
         path = answer.get("path") if isinstance(answer, dict) else None
         if answer.get("refused"):
@@ -214,7 +214,7 @@ class Run:
         t0 = time.time()
         applied = [s.get("operation_id") for s in self.steps if s.get("operation_id")]
         summary = (accepted or {}).get("detail") or "a 12 x 4 x 12 m courtyard map"
-        answer = self.client.text("grimoire_present", {
+        answer = self.client.text("factory_present", {
             "title": MAP,
             "summary": summary,
             "specified": ["a courtyard", "two exits"],
@@ -230,11 +230,11 @@ class Run:
 
     def step_verify(self):
         t0 = time.time()
-        state = self.client.json_call("grimoire_state", {})
+        state = self.client.json_call("factory_state", {})
         ms = (time.time() - t0) * 1000
         presentation = state.get("presentation")
         if not presentation:
-            return _record(self.steps, "verify", "fail", "grimoire_state carries no presentation", ms)
+            return _record(self.steps, "verify", "fail", "factory_state carries no presentation", ms)
         if presentation.get("answer") is not None:
             return _record(self.steps, "verify", "fail",
                            f"the question was already answered: {presentation.get('answer')}", ms)
@@ -273,7 +273,7 @@ class Run:
 def run(source, out, glb=None):
     """Every step, in order, with dependencies expressed as data."""
     stamp = int(time.time())
-    scratch = make_scratch(Path(source), Path(f"/tmp/grimoire_accept/run-{stamp}"))
+    scratch = make_scratch(Path(source), Path(f"/tmp/blueprint_accept/run-{stamp}"))
     steps = []
     report = {"source": str(source), "scratch": str(scratch), "glb": glb,
               "load_avg_1m": os.getloadavg()[0], "request": REQUEST}
@@ -284,26 +284,26 @@ def run(source, out, glb=None):
     run_ = None
     client = None
     try:
-        # **Ready means the operation surface answers, not just the port.** `grimoire/project_root`
+        # **Ready means the operation surface answers, not just the port.** `blueprint/project_root`
         # is registered by the bridge and answers as soon as the plugin is added, while
-        # `grimoire/operation_apply` needs the world's resources — so waiting only for the former
+        # `blueprint/operation_apply` needs the world's resources — so waiting only for the former
         # raced the first frame and the first step reported a BRP timeout under load. The
         # predicate is the call the next step actually makes.
-        # `grimoire/project_root` answers from the moment the bridge's plugin is added, and that is
+        # `blueprint/project_root` answers from the moment the bridge's plugin is added, and that is
         # this editor's own definition of "the project page is up" — the same predicate the project-root guard
-        # uses. Waiting on `grimoire/operation_list` instead made the script give up after 120 s while
+        # uses. Waiting on `blueprint/operation_list` instead made the script give up after 120 s while
         # the editor was still starting: a method that is not registered yet raises on every poll, and
         # the loop treated "not yet" as "never".
         editor.wait_ready(lambda s: True)
         report["editor_port"] = editor.port
         report["ready_at_s"] = round(time.time() - stamp, 1)
-        client = Client(str(binary("bevy_cauldron_mcp")), str(scratch), editor.port, "accept")
+        client = Client(str(binary("dark_factory_mcp")), str(scratch), editor.port, "accept")
         run_ = Run(client, editor, scratch)
 
         run_.step_tools()
         # **`make_map` depends on nothing but the server answering.** A listing check that finds one
         # tool missing does not stop `map_create` from working, and wiring it that way was a bug in
-        # this script's first version: `grimoire_present` was absent and the report said `reached 0/10`
+        # this script's first version: `factory_present` was absent and the report said `reached 0/10`
         # when a map could be made, which is the opposite of the honest measurement this exists for.
         run_.step_make_map()
         if steps_ok(run_.steps, "make_map"):

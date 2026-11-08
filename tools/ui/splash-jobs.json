@@ -1,29 +1,11 @@
 [
-  {
-    "name": "crows_horror",
-    "prompt": "A murder of crows: dozens of black crows swirling in a great spiral across a huge glowing yellow full moon, more crows perched on bare twisted branches in the foreground, a small iron cauldron glowing violet on the ground below, dramatic purple to orange sunset sky, 1980s airbrushed custom van mural, bold clean silhouettes, cinematic wide panorama, no text",
-    "prompt_style": "rd_pro__horror",
-    "width": 256,
-    "height": 80,
-    "num_images": 4,
-    "seed": 701
-  },
-  {
-    "name": "crows_fantasy",
-    "prompt": "A murder of crows: dozens of black crows swirling in a great spiral across a huge glowing yellow full moon, more crows perched on bare twisted branches in the foreground, a small iron cauldron glowing violet on the ground below, dramatic purple to orange sunset sky, 1980s airbrushed custom van mural, bold clean silhouettes, cinematic wide panorama, no text",
-    "prompt_style": "rd_pro__fantasy",
-    "width": 256,
-    "height": 80,
-    "num_images": 4,
-    "seed": 702
-  },
-  {
-    "name": "crows_default",
-    "prompt": "A murder of crows: dozens of black crows swirling in a great spiral across a huge glowing yellow full moon, more crows perched on bare twisted branches in the foreground, a small iron cauldron glowing violet on the ground below, dramatic purple to orange sunset sky, 1980s airbrushed custom van mural, bold clean silhouettes, cinematic wide panorama, no text",
-    "prompt_style": "rd_pro__default",
-    "width": 256,
-    "height": 80,
-    "num_images": 4,
-    "seed": 703
-  }
+ {
+  "name": "splash",
+  "prompt": "a vast dark factory at night seen from the wet street, smokestacks and steam, rows of dark windows with one amber-lit window, a giant robotic arm silhouetted against a neon-magenta sky, sodium lights reflected in rain, wide landscape, gritty 1980s sci-fi film poster, pixel art, no text",
+  "width": 256,
+  "height": 80,
+  "seed": 9401,
+  "prompt_style": "rd_pro__default",
+  "num_images": 4
+ }
 ]

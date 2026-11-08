@@ -17,7 +17,7 @@
     {
       "at": 0.6,
       "write": {
-        "path": "assets/grimoire/editor.ron",
+        "path": "assets/blueprint/editor.ron",
         "text": "(version:1,keymap:{\"file.save\":(modifiers:(ctrl:true,shift:true,alt:false,meta:false),key:KeyY)})"
       }
     },

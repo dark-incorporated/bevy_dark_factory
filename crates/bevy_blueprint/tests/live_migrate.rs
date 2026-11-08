@@ -1,0 +1,315 @@
+//! **One migration hook per kind of state, not one per call site** (#201). A reload draws a piece
+//! again when its definition changed (a move, a turn, a new kind), and the entity that stood for it is
+//! despawned. State a game hung on that entity survives only if the game says, once, how it moves from
+//! the old entity to the new one: `carry_across_respawn::<C>()` for a component that is copied as it
+//! is, `migrate_on_respawn` for anything that needs more. These tests prove the hook runs for exactly
+//! the pieces a reload draws again, with the old entity still alive and the new one fully drawn.
+//!
+//! Headless: footprint-only descriptors draw as marker slabs, so no glTF and no GPU is needed.
+
+use std::collections::HashMap;
+use std::path::{Path, PathBuf};
+use std::sync::{Arc, Mutex};
+use std::time::{Duration, SystemTime};
+
+use bevy::prelude::*;
+use bevy::time::TimeUpdateStrategy;
+use bevy_blueprint::live::{BlueprintLiveApp, BlueprintLivePlugin};
+use bevy_blueprint::{BlueprintPlugin, BlueprintWorld, MountedOn, OfDescriptor, Placement};
+use blueprint_model::descriptor::{Descriptor, Extent};
+use blueprint_model::kits::{Bind, KITS_VERSION, Kits, Lattice};
+use blueprint_model::library::{LIBRARY_VERSION, Library};
+use blueprint_model::map::{MAP_VERSION, Map, Placed};
+use blueprint_model::project_data::ProjectData;
+
+/// State a game hung on a placement's entity, and registered to be carried.
+#[derive(Component, Clone, Debug, PartialEq)]
+struct Booked(u32);
+
+/// State a game hung on a placement's entity and did not register: it is not carried.
+#[derive(Component, Clone, Debug, PartialEq)]
+struct Mood(u32);
+
+/// What a hook saw: the id of each old entity, and the kind of the new one.
+type Seen = Arc<Mutex<Vec<(String, Option<String>)>>>;
+
+fn piece(id: &str, footprint: (f32, f32)) -> Descriptor {
+    Descriptor {
+        id: id.to_owned(),
+        extent: Extent { footprint: Some(footprint), height: Some(1.0) },
+        ..Descriptor::default()
+    }
+}
+
+fn row(id: &str, descriptor: &str, at: (f32, f32)) -> Placed {
+    Placed { id: id.to_owned(), descriptor: descriptor.to_owned(), at, ..Placed::default() }
+}
+
+fn map(placements: Vec<Placed>) -> Map {
+    Map {
+        version: MAP_VERSION,
+        name: "yard".to_owned(),
+        bounds: (100.0, 10.0, 100.0),
+        placements,
+        ..Map::default()
+    }
+}
+
+struct Project {
+    blueprint: PathBuf,
+}
+
+impl Project {
+    fn new(tag: &str) -> Project {
+        let dir = std::env::temp_dir().join(format!("blueprint_live_migrate_{tag}_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let blueprint = dir.join("assets/blueprint");
+        std::fs::create_dir_all(blueprint.join("kit")).unwrap();
+        std::fs::create_dir_all(blueprint.join("maps")).unwrap();
+        let kits = Kits {
+            version: KITS_VERSION,
+            note: None,
+            lattice: Lattice::default(),
+            bind: vec![Bind { namespace: "kit".to_owned(), dir: "kit".to_owned() }],
+            bash: Vec::new(),
+            authoring: Some("kit".to_owned()),
+        };
+        std::fs::write(blueprint.join("kits.ron"), kits.to_ron().unwrap()).unwrap();
+        std::fs::copy(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../assets/blueprint/vocab.ron"), blueprint.join("vocab.ron"))
+            .unwrap();
+        std::fs::write(blueprint.join("kit/project.ron"), "(\n    version: 2,\n    note: None,\n    patches: [],\n)").unwrap();
+        let library = Library {
+            version: LIBRARY_VERSION,
+            note: None,
+            descriptors: vec![piece("kit/crate", (1.0, 1.0)), piece("kit/table", (2.0, 1.0))],
+        };
+        std::fs::write(blueprint.join("kit/library.ron"), library.to_ron().unwrap()).unwrap();
+        Project { blueprint }
+    }
+
+    /// Writes with a modification time later than anything written before, so a fast test is
+    /// never defeated by a coarse filesystem clock.
+    fn write(&self, relative: &str, text: &str) {
+        use std::sync::atomic::{AtomicU64, Ordering};
+        static TICK: AtomicU64 = AtomicU64::new(1);
+        let path = self.blueprint.join(relative);
+        std::fs::write(&path, text).unwrap();
+        let t = SystemTime::now() + Duration::from_secs(TICK.fetch_add(10, Ordering::SeqCst));
+        std::fs::File::options().write(true).open(&path).unwrap().set_modified(t).unwrap();
+    }
+
+    fn write_map(&self, m: &Map) {
+        self.write("maps/yard.map.ron", &m.to_ron().unwrap());
+    }
+
+    /// The library with `kit/crate` given another footprint: an edit that draws every crate again.
+    fn write_crate_footprint(&self, footprint: (f32, f32)) {
+        let library = Library {
+            version: LIBRARY_VERSION,
+            note: None,
+            descriptors: vec![piece("kit/crate", footprint), piece("kit/table", (2.0, 1.0))],
+        };
+        self.write("kit/library.ron", &library.to_ron().unwrap());
+    }
+}
+
+/// An app on `project`'s `yard` map. `hooks` runs after the plugin is added and before the first
+/// frame, where a game registers what it carries.
+fn app(project: &Project, hooks: impl FnOnce(&mut App)) -> App {
+    let data = ProjectData::load(&project.blueprint, &["yard"]).unwrap_or_else(|e| panic!("{e}"));
+    let world = BlueprintWorld::with_compositions(
+        data.bound.library.clone(),
+        data.maps["yard"].clone(),
+        data.vocab.clone(),
+        &[],
+        data.kits.lattice,
+    )
+    .unwrap_or_else(|e| panic!("{e}"));
+    let mut app = App::new();
+    app.add_plugins((MinimalPlugins, AssetPlugin::default()))
+        .init_asset::<Mesh>()
+        .init_asset::<StandardMaterial>()
+        .add_plugins(BlueprintPlugin)
+        .add_plugins(BlueprintLivePlugin { dir: project.blueprint.clone(), maps: vec!["yard".to_owned()] })
+        .insert_resource(TimeUpdateStrategy::ManualDuration(Duration::from_millis(600)))
+        .insert_resource(world);
+    hooks(&mut app);
+    app.update();
+    app
+}
+
+fn entities(app: &mut App) -> HashMap<String, Entity> {
+    app.world_mut().query::<(Entity, &Placement)>().iter(app.world()).map(|(e, p)| (p.0.clone(), e)).collect()
+}
+
+/// Steps frames until the watcher has had time to notice and settle.
+fn settle(app: &mut App) {
+    for _ in 0..8 {
+        app.update();
+    }
+}
+
+#[test]
+fn a_registered_component_follows_a_piece_that_is_drawn_again() {
+    let project = Project::new("move");
+    project.write_map(&map(vec![
+        row("crate_a", "kit/crate", (1.0, 1.0)),
+        row("crate_b", "kit/crate", (4.0, 1.0)),
+    ]));
+    let mut app = app(&project, |app| {
+        app.carry_across_respawn::<Booked>();
+    });
+    let before = entities(&mut app);
+    for id in ["crate_a", "crate_b"] {
+        app.world_mut().entity_mut(before[id]).insert((Booked(7), Mood(3)));
+    }
+
+    project.write_map(&map(vec![
+        row("crate_a", "kit/crate", (1.0, 1.0)),
+        row("crate_b", "kit/crate", (6.0, 1.0)),
+    ]));
+    settle(&mut app);
+
+    let after = entities(&mut app);
+    // **A moved piece is not drawn again, so nothing has to be carried** (#201 acceptance item 5).
+    // This test used to assert the opposite — `assert_ne!`, the registered component moved by the
+    // hook, and an unregistered one `Mood` deliberately dropped — because a move was a respawn. It
+    // no longer is: the entity survives, so *everything* on it survives, registered or not, which is
+    // the whole point of the split and is strictly more than the hook could promise.
+    assert_eq!(after["crate_b"], before["crate_b"], "a moved piece keeps its Entity");
+    assert_eq!(app.world().get::<Booked>(after["crate_b"]), Some(&Booked(7)), "and the registered state on it");
+    assert_eq!(app.world().get::<Mood>(after["crate_b"]), Some(&Mood(3)), "and a component nobody registered, because nothing was respawned");
+    assert_eq!(after["crate_a"], before["crate_a"], "an untouched piece keeps its entity");
+    assert_eq!(app.world().get::<Mood>(after["crate_a"]), Some(&Mood(3)), "and everything on it");
+}
+
+#[test]
+fn a_changed_kind_carries_state_to_the_new_kind() {
+    let project = Project::new("kind");
+    project.write_map(&map(vec![row("crate_b", "kit/crate", (4.0, 1.0))]));
+    let mut app = app(&project, |app| {
+        app.carry_across_respawn::<Booked>();
+    });
+    let before = entities(&mut app);
+    app.world_mut().entity_mut(before["crate_b"]).insert(Booked(11));
+
+    project.write_map(&map(vec![row("crate_b", "kit/table", (4.0, 1.0))]));
+    settle(&mut app);
+
+    let after = entities(&mut app);
+    assert_ne!(after["crate_b"], before["crate_b"]);
+    assert_eq!(app.world().get::<OfDescriptor>(after["crate_b"]).map(|d| d.0.as_str()), Some("kit/table"));
+    assert_eq!(app.world().get::<Booked>(after["crate_b"]), Some(&Booked(11)));
+}
+
+#[test]
+fn a_hook_runs_once_per_piece_drawn_again_with_the_old_entity_alive_and_the_new_one_drawn() {
+    let project = Project::new("hook");
+    project.write_map(&map(vec![
+        row("crate_a", "kit/crate", (1.0, 1.0)),
+        row("crate_b", "kit/crate", (4.0, 1.0)),
+        row("crate_c", "kit/crate", (8.0, 1.0)),
+    ]));
+    // Each call logs (id of the old entity, kind of the new entity) and puts the old state doubled on the new one.
+    let seen: Seen = Arc::default();
+    let log = Arc::clone(&seen);
+    let mut app = app(&project, move |app| {
+        app.migrate_on_respawn(move |world, old, new| {
+            let was = world.get::<Placement>(old).map(|p| p.0.clone()).expect("the old entity is still alive");
+            let kind = world.get::<OfDescriptor>(new).map(|d| d.0.clone());
+            if let Some(Booked(n)) = world.get::<Booked>(old).cloned() {
+                world.entity_mut(new).insert(Booked(n * 2));
+            }
+            log.lock().unwrap().push((was, kind));
+        });
+    });
+    let before = entities(&mut app);
+    app.world_mut().entity_mut(before["crate_b"]).insert(Booked(5));
+
+    project.write_map(&map(vec![
+        row("crate_a", "kit/crate", (1.0, 1.0)),
+        row("crate_b", "kit/table", (4.0, 1.0)),
+        row("crate_c", "kit/crate", (8.0, 1.0)),
+    ]));
+    settle(&mut app);
+
+    assert_eq!(*seen.lock().unwrap(), vec![("crate_b".to_owned(), Some("kit/table".to_owned()))], "one call, for the one piece drawn again");
+    let after = entities(&mut app);
+    assert_eq!(app.world().get::<Booked>(after["crate_b"]), Some(&Booked(10)), "the hook decides what arrives");
+    assert!(app.world().get_entity(before["crate_b"]).is_err(), "the old entity is gone once the hook has run");
+}
+
+#[test]
+fn a_rider_drawn_again_with_its_host_carries_its_state_too() {
+    let project = Project::new("rider");
+    let mut lamp = row("lamp", "kit/crate", (5.0, 1.0));
+    lamp.on = Some("table".to_owned());
+    project.write_map(&map(vec![row("table", "kit/table", (5.0, 1.0)), lamp.clone()]));
+    let mut app = app(&project, |app| {
+        app.carry_across_respawn::<Booked>();
+    });
+    let before = entities(&mut app);
+    app.world_mut().entity_mut(before["table"]).insert(Booked(1));
+    app.world_mut().entity_mut(before["lamp"]).insert(Booked(2));
+
+    project.write_map(&map(vec![row("table", "kit/table", (5.5, 1.0)), lamp]));
+    settle(&mut app);
+
+    let after = entities(&mut app);
+    // **Neither is respawned**: a moved host keeps its entity and its rider follows it in place
+    // (#201 item 5), so the state on both is the state it always had rather than something a hook
+    // had to carry.
+    assert_eq!(after["table"], before["table"], "a moved host keeps its Entity");
+    assert_eq!(after["lamp"], before["lamp"], "and its rider follows it in place");
+    assert_eq!(app.world().get::<MountedOn>(after["lamp"]).map(|m| m.0), Some(after["table"]), "still mounted, on the same host");
+    assert_eq!(app.world().get::<Booked>(after["table"]), Some(&Booked(1)));
+    assert_eq!(app.world().get::<Booked>(after["lamp"]), Some(&Booked(2)));
+}
+
+#[test]
+fn a_piece_renamed_and_drawn_again_in_one_save_carries_its_state_to_the_new_name() {
+    let project = Project::new("renamed_redrawn");
+    project.write_map(&map(vec![
+        row("crate_a", "kit/crate", (1.0, 1.0)),
+        row("crate_b", "kit/crate", (4.0, 1.0)),
+    ]));
+    let mut app = app(&project, |app| {
+        app.carry_across_respawn::<Booked>();
+    });
+    let before = entities(&mut app);
+    app.world_mut().entity_mut(before["crate_b"]).insert(Booked(4));
+
+    // One save: the library changes (every crate is drawn again) and one crate is renamed.
+    project.write_crate_footprint((1.5, 1.0));
+    project.write_map(&map(vec![
+        row("crate_a", "kit/crate", (1.0, 1.0)),
+        row("crate_beta", "kit/crate", (4.0, 1.0)),
+    ]));
+    settle(&mut app);
+
+    let after = entities(&mut app);
+    assert_ne!(after["crate_beta"], before["crate_b"], "the library edit drew the crate again");
+    assert!(app.world().get_entity(before["crate_b"]).is_err());
+    assert_eq!(app.world().get::<Booked>(after["crate_beta"]), Some(&Booked(4)), "the state follows the rename into the new entity");
+}
+
+#[test]
+fn a_reload_that_draws_nothing_again_runs_no_hook_and_a_removed_piece_has_nothing_to_carry_to() {
+    let project = Project::new("quiet");
+    let rows = vec![row("crate_a", "kit/crate", (1.0, 1.0)), row("crate_b", "kit/crate", (4.0, 1.0))];
+    project.write_map(&map(rows.clone()));
+    let calls: Arc<Mutex<Vec<(Entity, Entity)>>> = Arc::default();
+    let log = Arc::clone(&calls);
+    let mut app = app(&project, move |app| {
+        app.migrate_on_respawn(move |_, old, new| log.lock().unwrap().push((old, new)));
+    });
+
+    project.write_map(&map(rows.clone()));
+    settle(&mut app);
+    assert!(calls.lock().unwrap().is_empty(), "the same content again draws nothing, so nothing migrates");
+
+    project.write_map(&map(vec![rows[0].clone()]));
+    settle(&mut app);
+    assert!(calls.lock().unwrap().is_empty(), "a removed piece is despawned with nothing to migrate to");
+    assert_eq!(entities(&mut app).len(), 1);
+}

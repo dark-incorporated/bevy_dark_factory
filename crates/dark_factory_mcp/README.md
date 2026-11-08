@@ -1,0 +1,62 @@
+# dark_factory_mcp
+
+**The [Dark Factory](https://github.com/dark-incorporated/bevy_dark_factory) world editor, over the Model Context
+Protocol.**
+
+An MCP server that lets an agent drive the editor through **typed operations** — the same
+operations a person at the keyboard uses — instead of synthesising keystrokes.
+
+## What it is
+
+The server speaks MCP over **stdio** and reaches the **running editor** over the Bevy Remote
+Protocol. The editor is a separate process and owns the world; the server asks it questions and
+tells it what to do, and **it never writes to the project directory itself** — the editor owns
+that.
+
+## Running it
+
+```sh
+# The editor, with its BRP transport up (it is on by default).
+cargo run -p bevy_dark_factory -- <project>
+
+# The server. BEVY_BRP_PORT is the same variable the editor reads.
+cargo run -p dark_factory_mcp -- --project <project>
+```
+
+`BEVY_BRP_PORT` defaults to **15702** on both sides, so one variable points both ends at the same
+socket. With `--project`, the server refuses a change made while the editor has another project
+open. **Without it the server follows the editor**: whatever it has open, including none (the
+Projects home), and `factory_open_project` opens one.
+
+## An installed Dark Factory
+
+Every macOS release carries this server beside the editor, signed with it:
+`DarkFactory.app/Contents/MacOS/dark_factory_mcp`. An agent on another machine attaches over ssh with
+no `--project`, so it follows the installed app from its first frame:
+
+```sh
+ssh <mac> /Applications/DarkFactory.app/Contents/MacOS/dark_factory_mcp
+```
+
+`factory_read_log` reads the editor's own log (`~/Library/Application Support/DarkFactory/dark_factory.log`)
+from disk, so it answers when the editor does not, and `factory_capture_still` with
+`"source": "window"` shows what the window itself shows rather than what the editor drew.
+
+## The tools
+
+| tool | what it does |
+|---|---|
+| `factory_list_operations` | every operation the editor knows, with its parameters' schema; `query` searches them, best first |
+| `factory_preview_operation` | what an operation would change; nothing changes |
+| `factory_apply_operation` | run one, and record it in the operation log |
+| `factory_read_oplog` | the log, newest last |
+
+**Four tools, and not one per operation**, because the always-loaded toolset is a prompt an agent
+pays for on every turn. The apply tool dispatches by name, and the list tool says what the names
+are.
+
+The reference is generated: `cargo run -q -p dark_factory_mcp -- --emit-docs > docs/mcp-tools.md`.
+
+## Licence
+
+MIT OR Apache-2.0.

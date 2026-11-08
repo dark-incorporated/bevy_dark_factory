@@ -3,12 +3,12 @@
 Focus: epic #330 (owner's steer) · Commits: bevy_gooey 7465bc2 · Machine: big · Outcome: shipped (in bevy_gooey)
 
 ## Summary
-No bevy_grimoire item in the epic is ready: UI-R01 #331 still needs G-44, G-45 and G-46. This pass claimed and built G-45 (bevy-coven/bevy_gooey#52) in `~/family_src/bevy_emerge_loop/bevy_gooey`. A node with `MovesSmoothly` that layout moves now travels to its new place instead of jumping.
+No bevy_grimoire item in the epic is ready: UI-R01 #331 still needs G-44, G-45 and G-46. This pass claimed and built G-45 (dark-incorporated/bevy_gooey#52) in `~/family_src/bevy_emerge_loop/bevy_gooey`. A node with `MovesSmoothly` that layout moves now travels to its new place instead of jumping.
 
 ## Baseline
 The bevy_grimoire gate and `accept.py` were not run: no bevy_grimoire code changed.
 
-## Enhancement: G-45 (bevy-coven/bevy_gooey#52)
+## Enhancement: G-45 (dark-incorporated/bevy_gooey#52)
 - **Change:** `src/layout_motion.rs` adds `MovesSmoothly`, `LayoutTravel`, `mark_moving_parts` and `update_layout_motion`.
   - The system runs in `PostUpdate` after Bevy's layout. It springs a corner offset to 0 on `motion.default` and adds it to the `UiGlobalTransform` of the node and its subtree.
   - Bevy's layout rewrites every global each frame, so the patch is redone while the node moves, and nothing is written at rest.

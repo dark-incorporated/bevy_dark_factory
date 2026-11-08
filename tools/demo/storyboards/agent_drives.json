@@ -6,7 +6,7 @@
   "crop": [420, 240, 810, 575],
   "setup": [{"key": "KeyJ", "mods": ["ControlLeft"]}, 
     {
-      "mcp": "grimoire_frame_view",
+      "mcp": "factory_frame_view",
       "args": {
         "target": {
           "rect": [
@@ -56,15 +56,15 @@
     },
     {
       "at": 0.0,
-      "caption": "agent: grimoire_frame_view frames the middle of the bedroom, before recording"
+      "caption": "agent: factory_frame_view frames the middle of the bedroom, before recording"
     },
     {
       "at": 0.45,
-      "caption": "agent: grimoire_apply_operation placement_remove bed"
+      "caption": "agent: factory_apply_operation placement_remove bed"
     },
     {
       "at": 0.85,
-      "caption": "agent: grimoire_apply_operation placement_set_yaw sofa, yaw 90"
+      "caption": "agent: factory_apply_operation placement_set_yaw sofa, yaw 90"
     },
     {
       "at": 1.45,

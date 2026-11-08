@@ -10,7 +10,7 @@ Gate: green on main at the start (CI run f07b70c: success). Load 3.6, 187 GB fre
 
 ## Cluster
 - #103 F7: slice committed and its last acceptance item was already met (items 1 and 2 by earlier passes, item 3's clip by pass 199), so the issue is closed with this slice's evidence.
-- Everything else, skipped as in pass 213: #210/#211/#224 and all `ui` issues behind them (protected `chrome::NAME` spellings, asked on #210 in pass 210, no answer); #235 (deleting protected tests); #129's remainder; #152, #201 (protected edits); #193/#194 (bevy-coven/bevy_elements#55, open); #112/#113 (no decision model); #195 (hosts' settings); #197 (wontfix).
+- Everything else, skipped as in pass 213: #210/#211/#224 and all `ui` issues behind them (protected `chrome::NAME` spellings, asked on #210 in pass 210, no answer); #235 (deleting protected tests); #129's remainder; #152, #201 (protected edits); #193/#194 (dark-incorporated/bevy_elements#55, open); #112/#113 (no decision model); #195 (hosts' settings); #197 (wontfix).
 
 ## Enhancement: a placement carries a Fire
 Goal: `placement_set_family` with `(kind: Campfire)` puts the crate's own `Fire` on a piece; the preview draws its flame and pooled light; the light map and `light_pool` read its lumens.

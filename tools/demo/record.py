@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
-"""Run a demo storyboard against a live bevy_grimoire editor and record it.
+"""Run a demo storyboard against a live bevy_blueprint editor and record it.
 
-usage: record.py <storyboard.json> --port <brp-port> --project <project-root> [--server <bevy_cauldron_mcp>]
+usage: record.py <storyboard.json> --port <brp-port> --project <project-root> [--server <dark_factory_mcp>]
 
 The editor must already be running on the project, with BEVY_BRP_PORT set to the port. The recorder
 never launches or closes the editor.
 
-Frames come from the editor's own grimoire_capture_sequence (no screen capture). A storyboard lists
+Frames come from the editor's own factory_capture_sequence (no screen capture). A storyboard lists
 `chunks`: one capture per chunk, each at the storyboard's fps. An agent operation can only be applied
 at the start of a sequence (frame 0 is the state before it), so every operation starts a new chunk.
 Chunk k is due at the sum of the seconds of the chunks before it. The person's input is injected over
@@ -19,7 +19,7 @@ Storyboard format (JSON):
   {
     "name": "undo_place", "fps": 15,
     "setup": [{"key": "KeyJ", "mods": ["ControlLeft"]},   a chord before the capture (here: collapse the terminal)
-              {"mcp": "grimoire_frame_view", "args": {"target": {"rect": [-150, -110, 150, 110]}}}],
+              {"mcp": "factory_frame_view", "args": {"target": {"rect": [-150, -110, 150, 110]}}}],
     "chunks": [ {"seconds": 6}, {"seconds": 4, "operation": {"name": "...", "parameters": {...}}} ],
     "steps": [
       {"at": 0.5, "cursor": [x, y]},            logical px
@@ -46,12 +46,12 @@ Storyboard format (JSON):
       {"at": 4.5, "drop_file": "/tmp/crate.glb"},   a file dropped on the window, as the window system reports it
                                                 (a `FileDragAndDrop::DroppedFile` over BRP: no real drag can be made
                                                 under Xvfb)
-      {"at": 5.0, "mcp": "grimoire_frame_view", "args": {...}, "caption": "agent: frames the walls"},
-      {"at": 5.5, "mcp": "grimoire_apply_operation", "args": {...}, "as": "built"},
+      {"at": 5.0, "mcp": "factory_frame_view", "args": {...}, "caption": "agent: frames the walls"},
+      {"at": 5.5, "mcp": "factory_apply_operation", "args": {...}, "as": "built"},
                                                 saves the answer's operation_id; "$built" anywhere in a
                                                 later step's args is replaced by it (note_resolve's ops)
       {"at": 6.0, "caption": "person: ..."}
-      {"at": 7.0, "write": {"path": "assets/grimoire/standards.ron", "text": "..."}}
+      {"at": 7.0, "write": {"path": "assets/blueprint/standards.ron", "text": "..."}}
                                                 a person saving a project file (path under --project),
                                                 for a live reload; the editor reads it, nothing is injected.
                                                 "$now_ms" in the text is the time of the write in Unix
@@ -78,7 +78,7 @@ import urllib.request
 
 
 class McpClient:
-    """One bevy_cauldron_mcp process, spoken to over its stdio transport."""
+    """One dark_factory_mcp process, spoken to over its stdio transport."""
 
     def __init__(self, server, project, port, label):
         self.proc = subprocess.Popen(
@@ -205,7 +205,7 @@ def run_chunks(storyboard, server, project, port, timeline, errors):
             timeline.started[i].set()
             keep = keep_awake(port, timeline) if "operation" in chunk else None
             try:
-                answer = client.json_call("grimoire_capture_sequence", args)
+                answer = client.json_call("factory_capture_sequence", args)
             finally:
                 if keep:
                     keep()
@@ -574,10 +574,10 @@ def main():
     ap.add_argument("storyboard")
     ap.add_argument("--port", type=int, required=True)
     ap.add_argument("--project", required=True)
-    ap.add_argument("--server", default=os.environ.get("BEVY_GRIMOIRE_MCP") or shutil.which("bevy_cauldron_mcp"))
+    ap.add_argument("--server", default=os.environ.get("DARK_FACTORY_MCP") or shutil.which("dark_factory_mcp"))
     args = ap.parse_args()
     if not args.server:
-        sys.exit("bevy_cauldron_mcp not found: pass --server or set BEVY_GRIMOIRE_MCP")
+        sys.exit("dark_factory_mcp not found: pass --server or set DARK_FACTORY_MCP")
 
     with open(args.storyboard) as fh:
         sb = json.load(fh)

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Write the 16-bit height map `tools/demo/storyboards/terrain_import.json` imports (#99).
 
-    python3 tools/demo/height_map.py --out <project>/assets/grimoire/maps/hills16.png
+    python3 tools/demo/height_map.py --out <project>/assets/blueprint/maps/hills16.png
 
 A 65x65 16-bit greyscale PNG: sample 0 is `range_m.0` on the Terrain line and 65535 is `range_m.1`. The
 shape is a dome with a flat middle, so the change the clip shows is unmistakable — the ground was a plane

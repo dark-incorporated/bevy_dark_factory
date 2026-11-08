@@ -3,7 +3,7 @@
 Focus: epic #330 (owner's steer) · Commits: bevy_gooey b749025, release a2413c5 · Machine: big · Outcome: shipped (in bevy_gooey)
 
 ## Summary
-UI-R01 and UI-R02 are closed, so the next ready work for UI-R03 (#333) is in bevy_gooey. This pass built G-51 (bevy-coven/bevy_gooey#58), the first of UI-R03's four open needs (G-51, G-57, G-58, G-59 and G-66), and released v0.40.2.
+UI-R01 and UI-R02 are closed, so the next ready work for UI-R03 (#333) is in bevy_gooey. This pass built G-51 (dark-incorporated/bevy_gooey#58), the first of UI-R03's four open needs (G-51, G-57, G-58, G-59 and G-66), and released v0.40.2.
 
 ## Baseline
 bevy_grimoire was not touched, so its gate and `accept.py` did not run.

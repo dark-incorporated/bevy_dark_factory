@@ -4,7 +4,7 @@
 
 A frame on demand. `touch screenshot.request` and the next frame writes `screenshot.png`, rendered straight from the GPU.
 
-> **Part of [`bevy-coven/bevy_grimoire`](https://github.com/bevy-coven/bevy_grimoire)** (`crates/bevy_devshot/`), MIT OR Apache-2.0, Bevy 0.20. It began as `crates/bevy_devshot/` in [`Ladvien/foundation_vs_slop`](https://github.com/Ladvien/foundation_vs_slop) with the history kept; that repo still carries the GPL Bevy 0.19 original until it ports to this one. Issues and PRs belong in `bevy_grimoire`.
+> **Part of [`dark-incorporated/bevy_dark_factory`](https://github.com/dark-incorporated/bevy_dark_factory)** (`crates/bevy_devshot/`), MIT OR Apache-2.0, Bevy 0.20. It began as `crates/bevy_devshot/` in [`Ladvien/foundation_vs_slop`](https://github.com/Ladvien/foundation_vs_slop) with the history kept; that repo still carries the GPL Bevy 0.19 original until it ports to this one. Issues and PRs belong in `bevy_blueprint`.
 
 ## Why a file and not a key binding
 

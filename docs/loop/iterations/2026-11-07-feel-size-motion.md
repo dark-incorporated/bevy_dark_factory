@@ -3,7 +3,7 @@
 Focus: epic #330 (owner's steer) · Commits: bevy_gooey 75f8cc0 (not a commit of this repo), 1deec8a (release d6fa6dd) · Machine: big · Outcome: shipped (in bevy_gooey)
 
 ## Summary
-The owner had not replied to bevy-coven/bevy_gooey#76, and the loop's steer says "Always go with your recommendation and don't prompt me". So this pass applied #76's recommendation as an assumed decision, one file at a time: `tests/split.rs` and `tests/section.rs` run with `MotionSettings::off()`, and no assertion changed. It then built G-46, size motion (bevy-coven/bevy_gooey#53), one of UI-R01 #331's two remaining needs. The owner's interjected steer, "Ensure to publish a new version after each issue is pushed", is followed: bevy_gooey is released after the push (Release below).
+The owner had not replied to dark-incorporated/bevy_gooey#76, and the loop's steer says "Always go with your recommendation and don't prompt me". So this pass applied #76's recommendation as an assumed decision, one file at a time: `tests/split.rs` and `tests/section.rs` run with `MotionSettings::off()`, and no assertion changed. It then built G-46, size motion (dark-incorporated/bevy_gooey#53), one of UI-R01 #331's two remaining needs. The owner's interjected steer, "Ensure to publish a new version after each issue is pushed", is followed: bevy_gooey is released after the push (Release below).
 
 ## Baseline
 The bevy_grimoire gate and `accept.py` were not run: no bevy_grimoire code changed.
@@ -11,7 +11,7 @@ The bevy_grimoire gate and `accept.py` were not run: no bevy_grimoire code chang
 ## Assumed owner exception (#76): commit 75f8cc0
 Each file gains one line, `.insert_resource(MotionSettings::off())`, in its real-time `app()`. Both files pass 43/43 before the change and after it. No assertion changed. Recorded on #76, which the owner may override.
 
-## Enhancement: G-46 (bevy-coven/bevy_gooey#53)
+## Enhancement: G-46 (dark-incorporated/bevy_gooey#53)
 - **Change:** `src/size_motion.rs` adds `SectionGlide` and `SplitGlide`.
   - **Sections:** a section toggled after its first frame grows or shrinks its clipped body toward its widgets' height (`content_size`) or 0, on `motion.default`, in whole device pixels. When it ends, the body's own height comes back, or the body is hidden.
   - **Splits:** `toggle_split` slides the panes from where they are laid out.

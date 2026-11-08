@@ -3,12 +3,12 @@
 Focus: epic #330 (owner's steer) · Commits: bevy_gooey 7d06510 · Machine: big · Outcome: shipped (in bevy_gooey)
 
 ## Summary
-No bevy_grimoire item in the epic is ready. UI-R01 #331 waits on G-44 and on G-46, which is blocked on the evaluator, and so do UI-R02 to UI-R06, which depend on it. Of the ready bevy_gooey items, G-57 (tooltip timing, #64) turned out blocked as well: `tests/tooltip.rs:215-217` pins a tooltip opening on one pointer move, on a real-time clock. The block is recorded on #64 with a recommendation. This pass built G-54, press scale (bevy-coven/bevy_gooey#61), one of UI-R04 #334's needs.
+No bevy_grimoire item in the epic is ready. UI-R01 #331 waits on G-44 and on G-46, which is blocked on the evaluator, and so do UI-R02 to UI-R06, which depend on it. Of the ready bevy_gooey items, G-57 (tooltip timing, #64) turned out blocked as well: `tests/tooltip.rs:215-217` pins a tooltip opening on one pointer move, on a real-time clock. The block is recorded on #64 with a recommendation. This pass built G-54, press scale (dark-incorporated/bevy_gooey#61), one of UI-R04 #334's needs.
 
 ## Baseline
 The bevy_grimoire gate and `accept.py` were not run: no bevy_grimoire code changed.
 
-## Enhancement: G-54 (bevy-coven/bevy_gooey#61)
+## Enhancement: G-54 (dark-incorporated/bevy_gooey#61)
 - **Change:** `src/press_scale.rs` adds `PressScale` (default 0.97) and `PressScaled`.
   - `update_press_scale` springs the scale on `motion.snappy` while the widget is `Pressed` and hovered. It springs back with Rune's `POP` bounce of 0.15. A scroll of an ancestor cancels the press by taking `Pressed` off.
   - `draw_press_scale` scales the subtree's `UiGlobalTransform` after layout. `restore_press_scale` puts the resting values back in `First`, before picking.

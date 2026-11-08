@@ -3,12 +3,12 @@
 Focus: epic #330 (owner's steer) · Commits: bevy_gooey 39730eb · Machine: big · Outcome: shipped (in bevy_gooey)
 
 ## Summary
-No bevy_grimoire item of the epic is ready (UI-R01 to UI-R06, #331 to #336, wait on bevy_gooey). This pass built G-47, a skin from three seeds (bevy-coven/bevy_gooey#54), which is one of UI-R02 (#332)'s four needs. The work was done in `~/family_src/bevy_emerge_loop/bevy_gooey`, and the issue was claimed first.
+No bevy_grimoire item of the epic is ready (UI-R01 to UI-R06, #331 to #336, wait on bevy_gooey). This pass built G-47, a skin from three seeds (dark-incorporated/bevy_gooey#54), which is one of UI-R02 (#332)'s four needs. The work was done in `~/family_src/bevy_emerge_loop/bevy_gooey`, and the issue was claimed first.
 
 ## Baseline
 bevy_grimoire gate and `accept.py` were not run, because no bevy_grimoire code changed. Load at start: 19. Free disk: 60 GB (99% used).
 
-## Enhancement: G-47 (bevy-coven/bevy_gooey#54)
+## Enhancement: G-47 (dark-incorporated/bevy_gooey#54)
 - **Goal:** `GooeySkin::from_seed(PaletteSeed { background, text, accent })` derives a whole skin that passes `problems()`, or refuses the seed.
 - **Files (bevy_gooey):**
   - `src/seed.rs` (new)

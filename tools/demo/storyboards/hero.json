@@ -17,7 +17,7 @@
    ]
   },
   {
-   "mcp": "grimoire_frame_view",
+   "mcp": "factory_frame_view",
    "args": {
     "target": {
      "rect": [
@@ -87,7 +87,7 @@
   },
   {
    "at": 3.85,
-   "mcp": "grimoire_list_snips",
+   "mcp": "factory_list_snips",
    "args": {
     "limit": 1
    },

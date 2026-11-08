@@ -3,7 +3,7 @@
 Focus: epic #330 (owner's steer) · Commits: bevy_gooey 895dec9 (merged 48d9d1b), release e4053a2 · Machine: big · Outcome: shipped (in bevy_gooey)
 
 ## Summary
-G-58 (bevy-coven/bevy_gooey#65): a scroll the crate makes now glides on a spring, a held key crosses a 10,000-row table as one motion with the cursor in view, and a clipped list fades each edge only where content is hidden. UI-R03 #333 now waits on G-66 (#73) alone; UI-R05 #335 now waits on nothing but the pin move.
+G-58 (dark-incorporated/bevy_gooey#65): a scroll the crate makes now glides on a spring, a held key crosses a 10,000-row table as one motion with the cursor in view, and a clipped list fades each edge only where content is hidden. UI-R03 #333 now waits on G-66 (#73) alone; UI-R05 #335 now waits on nothing but the pin move.
 
 ## Baseline
 bevy_grimoire was not touched, so its gate and `accept.py` did not run. Disk on big hit 100% for about 20 minutes mid-pass (the runners' caches, not this work) and recovered; the first test link took 18 minutes.

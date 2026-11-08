@@ -5,7 +5,7 @@
  "width": 960,
  "setup": [
   {
-   "mcp": "grimoire_apply_operation",
+   "mcp": "factory_apply_operation",
    "args": {
     "operation": "door_open",
     "parameters": {

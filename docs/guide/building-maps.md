@@ -168,7 +168,7 @@ An agent can lay only part of the map: `layout_propose` takes an `area`, `[x0, z
 1. Drag a png, jpg, jpeg, webp or gif file onto the editor window. Or type `ref <path> [caption]` in the terrain field.
 2. Type `ref <id> remove` in the terrain field to take one off.
 
-**What you see:** The status line says `added reference r1 (references/court.png)`. A picture from outside the project is copied into the project's `references/` folder first; one already inside stays where it is. The list is kept beside the map as `<map>.references.ron`, and an agent reads it in `grimoire_state` and cites a picture by its id. `Cmd+Z` takes the reference back and leaves the copied file. A file that is not an image, or a different picture under a name `references/` already holds, is refused and nothing changes.
+**What you see:** The status line says `added reference r1 (references/court.png)`. A picture from outside the project is copied into the project's `references/` folder first; one already inside stays where it is. The list is kept beside the map as `<map>.references.ron`, and an agent reads it in `factory_state` and cites a picture by its id. `Cmd+Z` takes the reference back and leaves the copied file. A file that is not an image, or a different picture under a name `references/` already holds, is refused and nothing changes.
 
 ## Move the camera
 
@@ -198,8 +198,8 @@ An agent can lay only part of the map: `layout_propose` takes an `area`, `[x0, z
 ![The status band counts "Baking previews 5 of 90", then 8: the palette's portraits. A click opens the job list with its Stop row, Stop ends the bake, and the band goes quiet and stays quiet.](../changelog/media/2026-11-03-jobs.png)
 
 1. Open a project with a library. The editor bakes a portrait of every piece for the PLACE list, and the status band says so while it works.
-2. Click the words in the band. A list opens with one row per job. An agent reads the same thing: `grimoire_state.jobs` answers the words the band draws, with each job's key and fraction.
-3. Click a row to stop that job. An agent can make the same request with `grimoire_jobs_stop { "key": "thumbs" }`.
+2. Click the words in the band. A list opens with one row per job. An agent reads the same thing: `factory_state.jobs` answers the words the band draws, with each job's key and fraction.
+3. Click a row to stop that job. An agent can make the same request with `factory_jobs_stop { "key": "thumbs" }`.
 
 **What you see:** The band reads `Baking previews 3 of 40` and the number climbs. A piece whose bake was stopped keeps an empty tile rather than holding the whole library behind it. The band says nothing at all when no job is running, so a quiet band means quiet. Two jobs at once read as `Baking previews 3 of 40 +1`, and the list names every one.
 

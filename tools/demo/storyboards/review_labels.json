@@ -22,14 +22,14 @@
   },
   {
    "at": 0.1,
-   "mcp": "grimoire_list_pieces",
+   "mcp": "factory_list_pieces",
    "args": {
     "by_model": true
    }
   },
   {
    "at": 0.8,
-   "mcp": "grimoire_apply_operation",
+   "mcp": "factory_apply_operation",
    "args": {
     "operation": "door_open",
     "parameters": {

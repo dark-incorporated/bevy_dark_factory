@@ -16,7 +16,7 @@ jobs:
   test:
     name: test (workspace)
     # **A self-hosted runner** (owner, 2026-11-04). Eight sibling repos already run here, the registry
-    # allocates `bevy-coven/bevy_grimoire 1`, and big carries the toolchain, `cargo-nextest`, `Xvfb` and
+    # allocates `dark-incorporated/bevy_dark_factory 1`, and big carries the toolchain, `cargo-nextest`, `Xvfb` and
     # `xvfb-run` the workspace test needs. big is shared and runs systemd-oomd, which has SIGKILLed a CI
     # container under memory pressure: a job lost that way is rerun, not diagnosed.
     runs-on: [self-hosted, big]

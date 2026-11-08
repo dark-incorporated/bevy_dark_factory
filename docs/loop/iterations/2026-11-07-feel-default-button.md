@@ -3,7 +3,7 @@
 Focus: epic #330 (owner's steer) · Commits: bevy_gooey e5ac61b, release b66ec01 · Machine: big · Outcome: shipped (in bevy_gooey)
 
 ## Summary
-G-59 (bevy-coven/bevy_gooey#66) is the next UI-R03 need that was ready (it needed G-51, closed last pass). Typing a name in a dialog and pressing Return now presses its default button. UI-R03 #333 still needs G-57, G-58 and G-66.
+G-59 (dark-incorporated/bevy_gooey#66) is the next UI-R03 need that was ready (it needed G-51, closed last pass). Typing a name in a dialog and pressing Return now presses its default button. UI-R03 #333 still needs G-57, G-58 and G-66.
 
 ## Baseline
 bevy_grimoire was not touched, so its gate and `accept.py` did not run.

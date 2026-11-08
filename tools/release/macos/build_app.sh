@@ -1,25 +1,25 @@
 #!/usr/bin/env bash
-# Builds Cauldron.app (bevy_cauldron with every family crate, and its MCP server bevy_cauldron_mcp beside it), signs it,
+# Builds DarkFactory.app (bevy_dark_factory with every family crate, and its MCP server dark_factory_mcp beside it), signs it,
 # wraps it in a DMG, optionally notarizes and staples both, and writes the update zip and SHA256SUMS. Run from the repo
 # root on macOS.
 #
-#   CAULDRON_SIGN_IDENTITY  codesign identity; default `-` (ad-hoc, no timestamp, no notarization)
-#   CAULDRON_NOTARIZE       1 to notarize (needs APPLE_NOTARY_KEY_PATH, APPLE_NOTARY_KEY_ID, APPLE_NOTARY_ISSUER_ID)
+#   DARK_FACTORY_SIGN_IDENTITY  codesign identity; default `-` (ad-hoc, no timestamp, no notarization)
+#   DARK_FACTORY_NOTARIZE       1 to notarize (needs APPLE_NOTARY_KEY_PATH, APPLE_NOTARY_KEY_ID, APPLE_NOTARY_ISSUER_ID)
 #
-# Output in dist/: Cauldron.app, Cauldron-<V>-macos-arm64.dmg, Cauldron-<V>-macos-arm64.zip, SHA256SUMS.
-# The asset names are what the in-app updater looks for (crates/bevy_cauldron/src/update.rs, zip_name).
+# Output in dist/: DarkFactory.app, DarkFactory-<V>-macos-arm64.dmg, DarkFactory-<V>-macos-arm64.zip, SHA256SUMS.
+# The asset names are what the in-app updater looks for (crates/bevy_dark_factory/src/update.rs, zip_name).
 set -euo pipefail
 
-IDENTITY="${CAULDRON_SIGN_IDENTITY:--}"
-NOTARIZE="${CAULDRON_NOTARIZE:-0}"
-MACOS_DIR=crates/bevy_cauldron/macos
+IDENTITY="${DARK_FACTORY_SIGN_IDENTITY:--}"
+NOTARIZE="${DARK_FACTORY_NOTARIZE:-0}"
+MACOS_DIR=crates/bevy_dark_factory/macos
 
 [ "$(uname -s)" = Darwin ] || { echo "build_app.sh: macOS only" >&2; exit 1; }
 [ -f "$MACOS_DIR/Info.plist.in" ] || { echo "build_app.sh: run from the repository root" >&2; exit 1; }
 if [ "$NOTARIZE" = 1 ]; then
-  : "${APPLE_NOTARY_KEY_PATH:?CAULDRON_NOTARIZE=1 needs APPLE_NOTARY_KEY_PATH}"
-  : "${APPLE_NOTARY_KEY_ID:?CAULDRON_NOTARIZE=1 needs APPLE_NOTARY_KEY_ID}"
-  : "${APPLE_NOTARY_ISSUER_ID:?CAULDRON_NOTARIZE=1 needs APPLE_NOTARY_ISSUER_ID}"
+  : "${APPLE_NOTARY_KEY_PATH:?DARK_FACTORY_NOTARIZE=1 needs APPLE_NOTARY_KEY_PATH}"
+  : "${APPLE_NOTARY_KEY_ID:?DARK_FACTORY_NOTARIZE=1 needs APPLE_NOTARY_KEY_ID}"
+  : "${APPLE_NOTARY_ISSUER_ID:?DARK_FACTORY_NOTARIZE=1 needs APPLE_NOTARY_ISSUER_ID}"
   [ "$IDENTITY" != - ] || { echo "build_app.sh: an ad-hoc signature cannot be notarized" >&2; exit 1; }
 fi
 
@@ -27,23 +27,23 @@ fi
 read -r V T < <(cargo metadata --format-version 1 --no-deps | python3 -c '
 import json, sys
 m = json.load(sys.stdin)
-print(next(p["version"] for p in m["packages"] if p["name"] == "bevy_cauldron"), m["target_directory"])')
-NAME="Cauldron-$V-macos-arm64"
-echo "build_app.sh: Cauldron $V, identity $IDENTITY, notarize $NOTARIZE"
+print(next(p["version"] for p in m["packages"] if p["name"] == "bevy_dark_factory"), m["target_directory"])')
+NAME="DarkFactory-$V-macos-arm64"
+echo "build_app.sh: Dark Factory $V, identity $IDENTITY, notarize $NOTARIZE"
 
-cargo build --release -p bevy_cauldron --features family_all
+cargo build --release -p bevy_dark_factory --features family_all
 # The editor's own MCP server ships inside the app (#306), so an agent can drive an installed copy:
-# `ssh <mac> /Applications/Cauldron.app/Contents/MacOS/bevy_cauldron_mcp`.
-cargo build --release -p bevy_cauldron_mcp
+# `ssh <mac> /Applications/DarkFactory.app/Contents/MacOS/dark_factory_mcp`.
+cargo build --release -p dark_factory_mcp
 
 rm -rf dist
-APP=dist/Cauldron.app
+APP=dist/DarkFactory.app
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources/example"
-cp "$T/release/bevy_cauldron" "$APP/Contents/MacOS/bevy_cauldron"
-cp "$T/release/bevy_cauldron_mcp" "$APP/Contents/MacOS/bevy_cauldron_mcp"
+cp "$T/release/bevy_dark_factory" "$APP/Contents/MacOS/bevy_dark_factory"
+cp "$T/release/dark_factory_mcp" "$APP/Contents/MacOS/dark_factory_mcp"
 sed "s/@VERSION@/$V/g" "$MACOS_DIR/Info.plist.in" > "$APP/Contents/Info.plist"
 plutil -lint "$APP/Contents/Info.plist"
-cp "$MACOS_DIR/Cauldron.icns" "$APP/Contents/Resources/Cauldron.icns"
+cp "$MACOS_DIR/DarkFactory.icns" "$APP/Contents/Resources/DarkFactory.icns"
 # The example project: tracked files only, copied to ~/Documents on first open (launcher::example_to_open).
 git archive HEAD assets | tar -x -C "$APP/Contents/Resources/example"
 # The What's new page's stills, where launcher::still_image looks: Contents/Resources/<the path the changelog gives>.
@@ -65,8 +65,8 @@ done < <(python3 tools/release/macos/news_stills.py CHANGELOG.md "$NEWS_SHOWN")
 # 42470951199: "A timestamp was expected but was not found", 15 s into the first call, and the whole release failed with
 # nothing built to upload). Nothing about the bundle was wrong, so the same call is tried again, a few times, before the
 # release is given up; any other codesign failure stays a failure at once, because a bad bundle is not made good by waiting.
-SIGN_ATTEMPTS=${CAULDRON_SIGN_ATTEMPTS:-4}
-SIGN_WAIT_S=${CAULDRON_SIGN_WAIT_S:-20}
+SIGN_ATTEMPTS=${DARK_FACTORY_SIGN_ATTEMPTS:-4}
+SIGN_WAIT_S=${DARK_FACTORY_SIGN_WAIT_S:-20}
 stamped_codesign() {
   local attempt out status=1
   for attempt in $(seq 1 "$SIGN_ATTEMPTS"); do
@@ -88,10 +88,10 @@ stamped_codesign() {
 # The nested binary is signed first, with the app's own flags: `codesign` on the bundle signs only its main executable,
 # and notarization refuses a bundle with an unsigned (or untimestamped) executable inside it.
 if [ "$IDENTITY" = - ]; then
-  codesign --force --options runtime --sign - "$APP/Contents/MacOS/bevy_cauldron_mcp"
+  codesign --force --options runtime --sign - "$APP/Contents/MacOS/dark_factory_mcp"
   codesign --force --options runtime --entitlements "$MACOS_DIR/entitlements.plist" --sign - "$APP"
 else
-  stamped_codesign --force --options runtime --timestamp --sign "$IDENTITY" "$APP/Contents/MacOS/bevy_cauldron_mcp"
+  stamped_codesign --force --options runtime --timestamp --sign "$IDENTITY" "$APP/Contents/MacOS/dark_factory_mcp"
   stamped_codesign --force --options runtime --timestamp --entitlements "$MACOS_DIR/entitlements.plist" --sign "$IDENTITY" "$APP"
 fi
 codesign --verify --deep --strict --verbose=2 "$APP"
@@ -127,9 +127,9 @@ STAGE=dist/dmg-staging
 mkdir -p "$STAGE"
 # `ditto`, not `cp -R`: the notarization ticket lives in the bundle's metadata, and `cp -R` is not guaranteed to carry it
 # into the staging folder (the DMG is built from that copy, so a dropped ticket is a DMG whose app cannot open offline).
-ditto "$APP" "$STAGE/Cauldron.app"
+ditto "$APP" "$STAGE/DarkFactory.app"
 ln -s /Applications "$STAGE/Applications"
-hdiutil create -volname Cauldron -srcfolder "$STAGE" -ov -format UDZO "dist/$NAME.dmg"
+hdiutil create -volname "Dark Factory" -srcfolder "$STAGE" -ov -format UDZO "dist/$NAME.dmg"
 rm -rf "$STAGE"
 if [ "$IDENTITY" != - ]; then
   stamped_codesign --timestamp --sign "$IDENTITY" "dist/$NAME.dmg"

@@ -1,0 +1,17 @@
+[package]
+name = "bevy_blueprint"
+version = "0.5.0"
+edition = "2024"
+rust-version = "1.97.1"
+description = "The runtime half of blueprint: load a library and a map, and put it in a Bevy world."
+# Relicensed MIT OR Apache-2.0 on extraction from foundation_vs_slop (owner decision, Sanctuary decision 0087).
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/dark-incorporated/bevy_dark_factory"
+
+# **The only crate in the set that knows what a renderer is on purpose.** `blueprint_model` is the schema
+# and the solvers and has no engine (`crates/blueprint_model/tests/engine_free.rs` fails the build if that
+# stops being true); this turns its data into entities. The game and `bevy_dark_factory` both depend on
+# THIS rather than each growing a spawner, so a map looks the same in the editor and in play.
+[dependencies]
+blueprint_model = { path = "../blueprint_model", version = "0.9.0" }
+bevy = { workspace = true, features = ["jpeg"] }

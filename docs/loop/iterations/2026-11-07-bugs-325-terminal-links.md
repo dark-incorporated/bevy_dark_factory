@@ -13,7 +13,7 @@ Gate: green on `main` at start (pass 469's push). Load 17 to 35 (CI containers),
 - **#324**: slice 5, `CAULDRON_PROJECT` (`ec36b43e`). Left open: a Settings-screen row for the shell and the agent command needs `Value::Text(String)`, and `Value` is `Copy`.
 - **#327**: closed. Re-recorded the terminal-settings storyboard with the `editor.ron` write in the middle of a capture: the frames after it show 1.4x text and a bar caret.
 - **#322**: the cell-edge flake is fixed (pass 468's `4f706ad8`); the updater-refusal flake did not reproduce in 25 runs of both tests under 30 busy loops. Left open.
-- **#236**: the multi-selection's mixed value needs a gooey change; filed **bevy-coven/bevy_gooey#77** (G-67).
+- **#236**: the multi-selection's mixed value needs a gooey change; filed **dark-incorporated/bevy_gooey#77** (G-67).
 - **Skipped:** #333 to #336 (gooey Needs open); #237 to #260 (integration, see Summary and the comment on #208); #113 (the remaining step, removing `vlm.rs`, is blocked by the protected evaluator, as pass 369 found); #129 (stalled behind the protected `Camera` list).
 
 ## Demos

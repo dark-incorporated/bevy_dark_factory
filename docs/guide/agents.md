@@ -8,15 +8,15 @@ This page uses a few words you may not know yet. A **door** is one of the editor
 
 Goal: connect an MCP client to the running editor, so the agent can read and change the open project.
 
-1. Start the editor on your project folder. For the repo's own project, run `cargo run -p bevy_cauldron -- .` from the repo root. The editor serves the Bevy Remote Protocol (BRP) on port 15702 by default. Set `BEVY_BRP_PORT` before launching if that port is taken.
-2. Build the MCP server with `cargo build -p bevy_cauldron_mcp`. The binary is `target/debug/bevy_cauldron_mcp`.
+1. Start the editor on your project folder. For the repo's own project, run `cargo run -p bevy_dark_factory -- .` from the repo root. The editor serves the Bevy Remote Protocol (BRP) on port 15702 by default. Set `BEVY_BRP_PORT` before launching if that port is taken.
+2. Build the MCP server with `cargo build -p dark_factory_mcp`. The binary is `target/debug/dark_factory_mcp`.
 3. Add the server to your client's config. Use absolute paths. Point `--project` at the project folder, the same folder you passed to the editor:
 
 ```json
 {
   "mcpServers": {
-    "bevy_grimoire": {
-      "command": "/absolute/path/to/bevy_grimoire/target/debug/bevy_cauldron_mcp",
+    "bevy_blueprint": {
+      "command": "/absolute/path/to/bevy_blueprint/target/debug/dark_factory_mcp",
       "args": ["--project", "/absolute/path/to/your/project"],
       "env": { "BEVY_BRP_PORT": "15702" }
     }
@@ -26,44 +26,44 @@ Goal: connect an MCP client to the running editor, so the agent can read and cha
 
 Leave out the `env` block if you did not change the port. Set the same value on the editor if you did.
 
-What you see: ask the agent to call `grimoire_state`. It answers with the open map, the door you are on, and the undo depth. If the editor is not running, the server answers with a sentence saying so, and changes nothing.
+What you see: ask the agent to call `factory_state`. It answers with the open map, the door you are on, and the undo depth. If the editor is not running, the server answers with a sentence saying so, and changes nothing.
 
 If it goes wrong: a refusal that says no editor answered means the editor is not running, or it is on another port. Check that both sides use the same `BEVY_BRP_PORT`.
 
-## Start an agent in Cauldron's terminal
+## Start an agent in Dark Factory's terminal
 
 Goal: have the terminal start your agent already connected to the editor, and see that the whole chain works before you ask it anything.
 
 1. Open Settings (Terminal tab) and set **Terminal agent** to **Oh My Pi**. `omp` must be on your login shell's `PATH`.
-2. **Nothing starts by itself, except an agent that was running when you closed Cauldron** (see "Quit and come back" below): a session costs tokens to warm up, so with an agent chosen the terminal opens empty and shows an **Invoke Agent** button in the middle of its area, and a person who is only looking around the game pays nothing. Pressing it (or Enter while the terminal has the keyboard) opens an agent tab, which types `omp -e <folder> '<prompt>'` at the shell's prompt. Closing the last tab brings the button back (the `+` chip still opens a plain shell, and so does a terminal with no agent chosen). The folder is an omp extension whose `.mcp.json` names the editor's MCP server (the `bevy_cauldron_mcp` beside the editor binary) on the editor's port, and which tells the editor which omp session the tab is in; the prompt asks omp to call `grimoire_self_test` once.
-3. For any other harness choose **Custom command** and set the line in `settings.ron`, which the Settings screen has no text field for: `terminal_agent_command: Some("claude --mcp-config $CAULDRON_MCP_CONFIG \"$CAULDRON_SELF_TEST_PROMPT\"")`. The tab's shell has `CAULDRON_MCP` (the server binary), `CAULDRON_MCP_CONFIG` (a `mcpServers` file for it), `CAULDRON_AGENT_TOKEN`, `CAULDRON_SELF_TEST_PROMPT` and `BEVY_BRP_PORT`.
+2. **Nothing starts by itself, except an agent that was running when you closed Dark Factory** (see "Quit and come back" below): a session costs tokens to warm up, so with an agent chosen the terminal opens empty and shows an **Invoke Agent** button in the middle of its area, and a person who is only looking around the game pays nothing. Pressing it (or Enter while the terminal has the keyboard) opens an agent tab, which types `omp -e <folder> '<prompt>'` at the shell's prompt. Closing the last tab brings the button back (the `+` chip still opens a plain shell, and so does a terminal with no agent chosen). The folder is an omp extension whose `.mcp.json` names the editor's MCP server (the `dark_factory_mcp` beside the editor binary) on the editor's port, and which tells the editor which omp session the tab is in; the prompt asks omp to call `factory_self_test` once.
+3. For any other harness choose **Custom command** and set the line in `settings.ron`, which the Settings screen has no text field for: `terminal_agent_command: Some("claude --mcp-config $DARK_FACTORY_MCP_CONFIG \"$DARK_FACTORY_SELF_TEST_PROMPT\"")`. The tab's shell has `DARK_FACTORY_MCP` (the server binary), `DARK_FACTORY_MCP_CONFIG` (a `mcpServers` file for it), `DARK_FACTORY_AGENT_TOKEN`, `DARK_FACTORY_SELF_TEST_PROMPT` and `BEVY_BRP_PORT`.
 
 What you see: a card at the terminal's top right lists four checks and marks each `OK` as it passes: **Tools server** (the server binary is there and its config was written), **Agent started** (the line was typed), **Agent connected** (the client finished the MCP handshake: its name, its version and how many tools it was offered) and **Agent self test** (the agent read the state, counted the operations and took a picture). A few seconds after the last one the card gives way to a chip in the bar, `omp connected · 22 tools`. The **Agent** chip in the bar opens another agent tab; `+` still opens a plain shell.
 
-If it goes wrong: the check that failed says why, in red, and the chip reads `omp: self test failed`. `Agent connected` fails after 60 s when the harness never started (look in the terminal for `command not found`); `Agent self test` fails after 180 s when the agent did not call the tool, often because it is waiting for you to approve the call. Answer it in the terminal, then click the chip: the card comes back and omp is asked again. A custom command that does not pass `$CAULDRON_SELF_TEST_PROMPT` to its agent gets `SKIP` on the self test, not a failure.
+If it goes wrong: the check that failed says why, in red, and the chip reads `omp: self test failed`. `Agent connected` fails after 60 s when the harness never started (look in the terminal for `command not found`); `Agent self test` fails after 180 s when the agent did not call the tool, often because it is waiting for you to approve the call. Answer it in the terminal, then click the chip: the card comes back and omp is asked again. A custom command that does not pass `$DARK_FACTORY_SELF_TEST_PROMPT` to its agent gets `SKIP` on the self test, not a failure.
 
-**Quit and come back**: the editor keeps one record per project of the omp session its agent was in (`<data folder>/agents/resume.json`, written when the extension reports the session). If you close Cauldron while an agent is running, the next time that project is open and the terminal would offer **Invoke Agent**, the tab opens by itself and types `omp -e <folder> --resume <session>`, so the agent is back in the same conversation; no self-test prompt is typed, because the session already has its history. Ending the agent yourself clears the record: closing its tab, typing `exit` at its shell, or leaving omp (`/exit`, Ctrl+D). A resumed omp that never connects clears it too, so a session that cannot be resumed is not tried at every launch. Pressing **Invoke Agent** or `+` first starts what you asked for instead. Only omp is resumed: a custom command has no resume syntax the editor knows.
+**Quit and come back**: the editor keeps one record per project of the omp session its agent was in (`<data folder>/agents/resume.json`, written when the extension reports the session). If you close Dark Factory while an agent is running, the next time that project is open and the terminal would offer **Invoke Agent**, the tab opens by itself and types `omp -e <folder> --resume <session>`, so the agent is back in the same conversation; no self-test prompt is typed, because the session already has its history. Ending the agent yourself clears the record: closing its tab, typing `exit` at its shell, or leaving omp (`/exit`, Ctrl+D). A resumed omp that never connects clears it too, so a session that cannot be resumed is not tried at every launch. Pressing **Invoke Agent** or `+` first starts what you asked for instead. Only omp is resumed: a custom command has no resume syntax the editor knows.
 
-## Attach to an installed Cauldron
+## Attach to an installed Dark Factory
 
-Goal: drive the Cauldron app installed on a Mac, from any machine that can ssh to it, from the moment it opens.
+Goal: drive the Dark Factory app installed on a Mac, from any machine that can ssh to it, from the moment it opens.
 
-The app carries its own MCP server, `Cauldron.app/Contents/MacOS/bevy_cauldron_mcp`. Run it over ssh with no `--project`, and it follows whatever the app has open, the Projects home included:
+The app carries its own MCP server, `DarkFactory.app/Contents/MacOS/dark_factory_mcp`. Run it over ssh with no `--project`, and it follows whatever the app has open, the Projects home included:
 
 ```json
 {
   "mcpServers": {
-    "cauldron-mac": {
+    "dark-factory-mac": {
       "command": "ssh",
-      "args": ["-o", "BatchMode=yes", "<mac>", "/Applications/Cauldron.app/Contents/MacOS/bevy_cauldron_mcp"]
+      "args": ["-o", "BatchMode=yes", "<mac>", "/Applications/DarkFactory.app/Contents/MacOS/dark_factory_mcp"]
     }
   }
 }
 ```
 
-What you see: `grimoire_state` answers on the Projects home, and `grimoire_open_project` with `root` opens a project folder on that Mac. `grimoire_read_log` reads the app's own log, `~/Library/Application Support/Grimoire/cauldron.log`, and answers even when the app does not. `grimoire_capture_still` with `"source": "window"` shows what the window itself shows.
+What you see: `factory_state` answers on the Projects home, and `factory_open_project` with `root` opens a project folder on that Mac. `factory_read_log` reads the app's own log, `~/Library/Application Support/DarkFactory/dark_factory.log`, and answers even when the app does not. `factory_capture_still` with `"source": "window"` shows what the window itself shows.
 
-If it goes wrong: read the log first. Its first line names the version and where the app runs from; a `window self-check` line says how many colours the window showed, and `the window is black` means the editor draws but nothing reaches the window. Without `--project`, `grimoire_decide`, `grimoire_list_rules` and `grimoire_list_snips` refuse, because they read project files from disk.
+If it goes wrong: read the log first. Its first line names the version and where the app runs from; a `window self-check` line says how many colours the window showed, and `the window is black` means the editor draws but nothing reaches the window. Without `--project`, `factory_decide`, `factory_list_rules` and `factory_list_snips` refuse, because they read project files from disk.
 
 ## A worked session
 
@@ -71,12 +71,12 @@ Goal: remove a piece that is in the way, and undo the removal if you change your
 
 Say to the agent what you see. For example: "The bed is in the way. Take it out." The agent then does the following.
 
-1. It calls `grimoire_state` to read the open map and the placements. The answer gives the bed's id.
-2. It calls `grimoire_capture_still` to see the room before the change.
-3. It calls `grimoire_preview_operation` with `operation: "placement_remove"` and `parameters: {"id": "<the bed's id>"}`. The answer says what would change. Nothing changes yet.
-4. It calls `grimoire_apply_operation` with the same operation and parameters. The answer carries an `operation_id`.
-5. It calls `grimoire_capture_still` again. The bed is gone.
-6. You press Cmd+Z in the editor. The bed comes back. `grimoire_read_oplog` shows the undo as a new line.
+1. It calls `factory_state` to read the open map and the placements. The answer gives the bed's id.
+2. It calls `factory_capture_still` to see the room before the change.
+3. It calls `factory_preview_operation` with `operation: "placement_remove"` and `parameters: {"id": "<the bed's id>"}`. The answer says what would change. Nothing changes yet.
+4. It calls `factory_apply_operation` with the same operation and parameters. The answer carries an `operation_id`.
+5. It calls `factory_capture_still` again. The bed is gone.
+6. You press Cmd+Z in the editor. The bed comes back. `factory_read_oplog` shows the undo as a new line.
 
 To turn a placement instead of removing it, use `placement_set_yaw` with `id` and `yaw`. Yaw wraps to 0 to 360, so `-15` is `345`. To lay it on its side, use `placement_set_tip` with `id` and `tip`, two quarter-turn counts (about X, then Z) from 0 to 3; `[0, 0]` is upright. To raise a lamp off its table, use `placement_set_lift` with `id` and `lift` in metres; `0` puts it back. To set the turn and the tip in one change, use `placement_set_pose` with `id`, `yaw` and `tip`; `0` and `[0, 0]` stand it straight, as `V` does.
 
@@ -94,11 +94,11 @@ If it goes wrong: `placement_remove` takes away any piece standing on the placem
 
 An agent never writes a file itself. The server passes each call to the editor, and the editor does the work.
 
-1. The agent lists the operations with `grimoire_list_operations`. The names are the same as in the table below.
-2. The agent previews one with `grimoire_preview_operation`. A preview refuses bad input and says what would change, and it writes nothing.
-3. The agent applies it with `grimoire_apply_operation`. The editor changes the open map or the library in memory.
-4. The editor writes the file it changed under `assets/grimoire/`, and appends one line to `assets/grimoire/oplog.jsonl`. The editor watches the project files, so the open editor shows the new state.
-5. To take a change back, the agent calls `grimoire_undo_operation`. The undo is a new log line.
+1. The agent lists the operations with `factory_list_operations`. The names are the same as in the table below.
+2. The agent previews one with `factory_preview_operation`. A preview refuses bad input and says what would change, and it writes nothing.
+3. The agent applies it with `factory_apply_operation`. The editor changes the open map or the library in memory.
+4. The editor writes the file it changed under `assets/blueprint/`, and appends one line to `assets/blueprint/oplog.jsonl`. The editor watches the project files, so the open editor shows the new state.
+5. To take a change back, the agent calls `factory_undo_operation`. The undo is a new log line.
 
 Each apply answers with an `operation_id`, which names its line in the log.
 
@@ -134,35 +134,35 @@ Goal: know what an agent can change, and what undoes each change.
 
 Goal: give the agent a picture of the editor, and read back what the person saw.
 
-`grimoire_capture_still` returns one picture of the whole window, world and interface together, plus a summary of the state at that moment. The picture is also written to a file, and the answer gives its path and a **fingerprint** of the picture's bytes. Use it before and after a change. **Compare fingerprints, not paths**: two stills with the same fingerprint are the same picture, so a fingerprint that did not move says the screen did not change. Reading the raw `bevy_fairy/screenshot` method instead is a trap: it answers with an id in about twenty milliseconds and writes the file a frame or more later — measured, about 200 ms — so a read at that moment finds no file at all, or the previous capture if the path was reused. This tool polls `bevy_fairy/capture` until the frame is done and writes the file itself, which is why it is the one to use.
+`factory_capture_still` returns one picture of the whole window, world and interface together, plus a summary of the state at that moment. The picture is also written to a file, and the answer gives its path and a **fingerprint** of the picture's bytes. Use it before and after a change. **Compare fingerprints, not paths**: two stills with the same fingerprint are the same picture, so a fingerprint that did not move says the screen did not change. Reading the raw `bevy_fairy/screenshot` method instead is a trap: it answers with an id in about twenty milliseconds and writes the file a frame or more later — measured, about 200 ms — so a read at that moment finds no file at all, or the previous capture if the path was reused. This tool polls `bevy_fairy/capture` until the frame is done and writes the file itself, which is why it is the one to use.
 
-`grimoire_capture_sequence` takes a series of frames. Its `label` names the run, `seconds` sets the length (default 2, up to 10), and `fps` sets the rate (default 4, from 2 to 15). With an `operation`, the editor applies it after frame 0. Frame 0 is the state before the change, and the later frames show what it did. The run is done only when every frame is written. A frame that does not land within five seconds ends the run with a reason.
+`factory_capture_sequence` takes a series of frames. Its `label` names the run, `seconds` sets the length (default 2, up to 10), and `fps` sets the rate (default 4, from 2 to 15). With an `operation`, the editor applies it after frame 0. Frame 0 is the state before the change, and the later frames show what it did. The run is done only when every frame is written. A frame that does not land within five seconds ends the run with a reason.
 
-`grimoire_frame_view` moves the Map camera without changing any map data. Its `target` is `"map"`, `"selection"`, `{"placements": [ids]}`, or `{"rect": [x0, z0, x1, z1]}` in map metres. It is not logged and not undoable. Call `grimoire_capture_still` after it to see the result.
+`factory_frame_view` moves the Map camera without changing any map data. Its `target` is `"map"`, `"selection"`, `{"placements": [ids]}`, or `{"rect": [x0, z0, x1, z1]}` in map metres. It is not logged and not undoable. Call `factory_capture_still` after it to see the result.
 
-`grimoire_run_command` runs a registered command by its id, as its shortcut would: `{"id": "edit.undo"}` takes back what Cmd+Z takes back. The ids are the ones on the keys page, `<category>.<verb>`. The editor presses the shortcut for one frame, so the command goes through the same code as the key and is refused when the key would be: the answer is `refused` with the reason (for example `Only while holding a piece`), and nothing is pressed. An unknown id is refused and the answer names the nearest ids in `did_you_mean`. `ran` means the shortcut was queued, so read `grimoire_state` for the result. `grimoire_state.ui` says where the person is looking: `screen` (`launcher` or `workbench`), `workspace`, the `panels` that workspace shows, and `focus`, the region that has the keys (`viewport`, `text_field`, `filter` or `journal`). For a change an agent can name, prefer `grimoire_apply_operation`: it logs the change and answers with what it set.
+`factory_run_command` runs a registered command by its id, as its shortcut would: `{"id": "edit.undo"}` takes back what Cmd+Z takes back. The ids are the ones on the keys page, `<category>.<verb>`. The editor presses the shortcut for one frame, so the command goes through the same code as the key and is refused when the key would be: the answer is `refused` with the reason (for example `Only while holding a piece`), and nothing is pressed. An unknown id is refused and the answer names the nearest ids in `did_you_mean`. `ran` means the shortcut was queued, so read `factory_state` for the result. `factory_state.ui` says where the person is looking: `screen` (`launcher` or `workbench`), `workspace`, the `panels` that workspace shows, and `focus`, the region that has the keys (`viewport`, `text_field`, `filter` or `journal`). For a change an agent can name, prefer `factory_apply_operation`: it logs the change and answers with what it set.
 
-A snip is a region you mark for the agent. Press Cmd+\ in the editor, drag a rectangle, type a one-line note, and press Enter to save. Press Escape to cancel. The editor writes `snip-<ms>.png` and `snip-<ms>.json` under `target/loop/captures/snips/`. Those files stay out of `assets/grimoire/`, so a game never loads them.
+A snip is a region you mark for the agent. Press Cmd+\ in the editor, drag a rectangle, type a one-line note, and press Enter to save. Press Escape to cancel. The editor writes `snip-<ms>.png` and `snip-<ms>.json` under `target/loop/captures/snips/`. Those files stay out of `assets/blueprint/`, so a game never loads them.
 
-A snip that is confirmed but not yet written is pending. The editor clears pending snips once, when a project is first opened in the session. `grimoire_list_snips` reads the snips you took. It takes a `limit` from 1 to 20, default 5. It changes nothing. A snip is not logged and not undoable.
+A snip that is confirmed but not yet written is pending. The editor clears pending snips once, when a project is first opened in the session. `factory_list_snips` reads the snips you took. It takes a `limit` from 1 to 20, default 5. It changes nothing. A snip is not logged and not undoable.
 
-`grimoire_snip` is a different tool. The agent gives it a `label` and a `rect` in window pixels, and it writes one crop of the editor's picture. The crop is not logged and not undoable.
+`factory_snip` is a different tool. The agent gives it a `label` and a `rect` in window pixels, and it writes one crop of the editor's picture. The crop is not logged and not undoable.
 
 ## Reports the person files
 
 Goal: read what the person pointed at and said was wrong, without asking them to describe it again.
 
-A person presses a key while using Cauldron, points at **anything on screen** — a panel, a button, a field, a tooltip, a placed piece, a cell, the empty viewport — and types what is wrong. The frame is the one that was on screen when the key was pressed, so what the agent reads is what the person saw.
+A person presses a key while using Dark Factory, points at **anything on screen** — a panel, a button, a field, a tooltip, a placed piece, a cell, the empty viewport — and types what is wrong. The frame is the one that was on screen when the key was pressed, so what the agent reads is what the person saw.
 
-There are two channels and they do not mix. **Cmd+D** reports on Cauldron itself, for the people who write the editor: it works on every screen, including the Projects home, and needs no project open. **Cmd+Shift+D** reports on the project you have open, for whoever works that project, and is refused with a sentence where there is none.
+There are two channels and they do not mix. **Cmd+D** reports on Dark Factory itself, for the people who write the editor: it works on every screen, including the Projects home, and needs no project open. **Cmd+Shift+D** reports on the project you have open, for whoever works that project, and is refused with a sentence where there is none.
 
 | | Developers | Project |
 |---|---|---|
 | chord | Cmd+D (Ctrl+D) | Cmd+Shift+D (Ctrl+Shift+D) |
 | needs a project | no | yes |
-| folder | `<data dir>/Grimoire/feedback/` | `<project>/target/feedback/` |
+| folder | `<data dir>/DarkFactory/feedback/` | `<project>/target/feedback/` |
 | record's `audience` | `"developers"` | `"project"` |
-| tool | `grimoire_feedback_list` | `grimoire_project_feedback_list` |
+| tool | `factory_feedback_list` | `factory_project_feedback_list` |
 
 One report is four files sharing a stem. `feedback-<ms>.png` is the whole frame as it was. `feedback-<ms>_picks.png` is the same frame with **every** pick outlined: a bordered rectangle round a picked node or a dragged area, a cross where a map point was clicked, and the shared area of two overlapping picks washed. The newest pick is drawn in the danger red and every earlier one in the accent amber, so the last thing the person added is findable; a whole-screen report has no second picture at all, because it would be the first. `feedback-<ms>.json` is the record. `feedback-<ms>.log` is the tail of the editor's log, written when the editor has one.
 
@@ -179,19 +179,19 @@ One report is four files sharing a stem. `feedback-<ms>.png` is the whole frame 
 
 The record no longer has a `subject`: the picks carry it each. Alongside them: `note` (what the person typed), `screen` (`launcher`, `loading`, `project` or `editor`), `project`, `map`, `tool`, `app_version` (the build that was wrong), and `window` (the surface's physical size, the same in logical pixels, the scale factor and the UI scale).
 
-Both tools take a `limit` from 1 to 20, default 5, and return the reports newest first with `picture_path`, `picks_picture_path` and `log_path` beside each one. The newest picture comes back as an image. `grimoire_project_feedback_list` needs `--project`; `grimoire_feedback_list` needs nothing. A `.json` in the folder that is not a report, or a record whose picture is missing, is named in `not_reports` with the reason rather than hidden. A report is not logged, not undoable, and changes nothing.
+Both tools take a `limit` from 1 to 20, default 5, and return the reports newest first with `picture_path`, `picks_picture_path` and `log_path` beside each one. The newest picture comes back as an image. `factory_project_feedback_list` needs `--project`; `factory_feedback_list` needs nothing. A `.json` in the folder that is not a report, or a record whose picture is missing, is named in `not_reports` with the reason rather than hidden. A report is not logged, not undoable, and changes nothing.
 
-`grimoire_decide` asks a decision model a typed question and returns a probability for every answer. Give it `check` (a named check: `floating`, `clipping`, `out_of_area`, `blank_frame` or `toast_visible`, from the editor's built-ins with the project's `assets/grimoire/checks.ron` over them, read on every call) or `questions` (ad-hoc `noul`, `choice` and `score` questions), with `images` (project files, at most four), `view: true` for the editor's current picture, and `facts`. A check missing a picture or the facts is refused and names what is missing. A finding is advisory: it changes no map data and never blocks or undoes an operation. The endpoint is one per run, set by `GRIMOIRE_DECIDE_ENDPOINT`, `GRIMOIRE_DECIDE_MODEL` and `GRIMOIRE_DECIDE_KEY`; local clef-flash is the default, and a Cloudflare endpoint sends pictures off the LAN.
+`factory_decide` asks a decision model a typed question and returns a probability for every answer. Give it `check` (a named check: `floating`, `clipping`, `out_of_area`, `blank_frame` or `toast_visible`, from the editor's built-ins with the project's `assets/blueprint/checks.ron` over them, read on every call) or `questions` (ad-hoc `noul`, `choice` and `score` questions), with `images` (project files, at most four), `view: true` for the editor's current picture, and `facts`. A check missing a picture or the facts is refused and names what is missing. A finding is advisory: it changes no map data and never blocks or undoes an operation. The endpoint is one per run, set by `DARK_FACTORY_DECIDE_ENDPOINT`, `DARK_FACTORY_DECIDE_MODEL` and `DARK_FACTORY_DECIDE_KEY`; local clef-flash is the default, and a Cloudflare endpoint sends pictures off the LAN.
 
-`grimoire_decide` can look at the running game as well as the editor. `play` starts the game, which carries `bevy_fairy`. Give `grimoire_decide` `game: {}` and it takes one frame through the game's own `bevy_fairy`, named `game`, on the port in the project's `play.ron` (or `game: {port: 15990}`), and sends it with the question. `game: {state: {method: "world.query", params: {...}}}` also makes one BRP call to the game and puts its answer in the facts under `game`. A named check that asks for the image `game` takes the frame by itself, so `{check: "hud_readable"}` is enough. A game's checks are the game's own: write them in the project's `assets/grimoire/checks.ron` with `images: ["game"]`, and the editor's built-in checks do not change. A game that is not running is refused naming the port, and a check is never answered from less.
+`factory_decide` can look at the running game as well as the editor. `play` starts the game, which carries `bevy_fairy`. Give `factory_decide` `game: {}` and it takes one frame through the game's own `bevy_fairy`, named `game`, on the port in the project's `play.ron` (or `game: {port: 15990}`), and sends it with the question. `game: {state: {method: "world.query", params: {...}}}` also makes one BRP call to the game and puts its answer in the facts under `game`. A named check that asks for the image `game` takes the frame by itself, so `{check: "hud_readable"}` is enough. A game's checks are the game's own: write them in the project's `assets/blueprint/checks.ron` with `images: ["game"]`, and the editor's built-in checks do not change. A game that is not running is refused naming the port, and a check is never answered from less.
 
 ![The person presses Ctrl+\ and drags a snip box round the bed, writing the note "remove the bed"; the agent reads the snip and removes the bed with placement_remove; the person's Ctrl+Z takes the removal back.](../media/hero.gif)
 
-The state read has its own paging. `grimoire_state` takes `pinned_from` to page the list of pins, and returns `pinned_next` when more follow. It also reports `undo_next`, `undo_depth`, `redo_next`, `redo_depth`, `leaving`, and `door_waiting`.
+The state read has its own paging. `factory_state` takes `pinned_from` to page the list of pins, and returns `pinned_next` when more follow. It also reports `undo_next`, `undo_depth`, `redo_next`, `redo_depth`, `leaving`, and `door_waiting`.
 
-An agent shows what it means to do with the `plan_set` operation: the whole list of steps as it now stands, each `pending`, `doing`, `done` or `skipped`. The plan is `<map>.plan.ron` beside the map, `grimoire_state` reports it under `plan`, and one undo puts the previous list back. The editor's Inspector shows it under **PLAN**: a line `plan: k of n done`, then one numbered row per step with its status, redrawn within half a second of a change, and `no plan` when the list is empty.
+An agent shows what it means to do with the `plan_set` operation: the whole list of steps as it now stands, each `pending`, `doing`, `done` or `skipped`. The plan is `<map>.plan.ron` beside the map, `factory_state` reports it under `plan`, and one undo puts the previous list back. The editor's Inspector shows it under **PLAN**: a line `plan: k of n done`, then one numbered row per step with its status, redrawn within half a second of a change, and `no plan` when the list is empty.
 
-What a map is meant to keep true lives beside it in `<map>.relations.ron`: relations between placements by id, such as a chair that `Faces` its table, a lamp `Near` a door, a door whose `ClearInFront` corridor nothing but its own stack may stand in (a jug on the counter is part of the counter), a sign `VisibleFrom(from: "gate", clearance: 1.0)`, a sight line no other piece's centre may stand within 1 m of (each end's whole stack does not count: what rests on either end, and what an end rests on, such as the stall a sign hangs on), or a lamp `Along(path: ["gate", "well", "hall"], within: 1.0)`, within 1 m of the road through those pieces' centres in order (two or more waypoints; past the last one, it is measured to the end). A chest `ReachableFrom(from: "gate", clearance: 0.6)` asks for a walk from the gate to the chest that keeps 0.6 m from every other piece's centre, round whatever stands between; it is measured as the walk's length, and a sealed one names the piece whose removal opens it, which `relations_solve` slides aside. `grimoire_state` reports them under `relations`, each with its outcome (`met`, `unmet` or `missing`), what was measured, and what blocks it. The file is re-read on every call. The `relations_solve` operation, or the line `relations solve` in the Terrain field, nudges the pieces of the unmet relations. It keeps a move only when fewer relations are broken after it, and it never moves a relation's target. One undo puts every moved row back. A map with no relations file, or one that does not parse, is refused and nothing moves.
+What a map is meant to keep true lives beside it in `<map>.relations.ron`: relations between placements by id, such as a chair that `Faces` its table, a lamp `Near` a door, a door whose `ClearInFront` corridor nothing but its own stack may stand in (a jug on the counter is part of the counter), a sign `VisibleFrom(from: "gate", clearance: 1.0)`, a sight line no other piece's centre may stand within 1 m of (each end's whole stack does not count: what rests on either end, and what an end rests on, such as the stall a sign hangs on), or a lamp `Along(path: ["gate", "well", "hall"], within: 1.0)`, within 1 m of the road through those pieces' centres in order (two or more waypoints; past the last one, it is measured to the end). A chest `ReachableFrom(from: "gate", clearance: 0.6)` asks for a walk from the gate to the chest that keeps 0.6 m from every other piece's centre, round whatever stands between; it is measured as the walk's length, and a sealed one names the piece whose removal opens it, which `relations_solve` slides aside. `factory_state` reports them under `relations`, each with its outcome (`met`, `unmet` or `missing`), what was measured, and what blocks it. The file is re-read on every call. The `relations_solve` operation, or the line `relations solve` in the Terrain field, nudges the pieces of the unmet relations. It keeps a move only when fewer relations are broken after it, and it never moves a relation's target. One undo puts every moved row back. A map with no relations file, or one that does not parse, is refused and nothing moves.
 
 A pew `AlignedWith("pew_1")` keeps pew_1's heading, within 30°: a row of pews facing the altar, stalls along a street. It is measured as the angle between the two headings the short way round (facing the opposite way is 180° off), `relations_solve` turns the piece to the other's heading without moving it, and the `RELATIONS` row reads `pew_2 aligned with pew_1`.
 
@@ -217,20 +217,20 @@ A person sees the same check on the Map inspector's `RELATIONS` row, under `REPE
 
 Goal: find out who changed a map, and take back only the change you want.
 
-Every log line records whether a person or an agent made the change. The log is `assets/grimoire/oplog.jsonl`. Read it with `grimoire_read_oplog`, which lists lines newest last. A refusal is not logged, so every line is a change that happened.
+Every log line records whether a person or an agent made the change. The log is `assets/blueprint/oplog.jsonl`. Read it with `factory_read_oplog`, which lists lines newest last. A refusal is not logged, so every line is a change that happened.
 
-`grimoire_list_pieces` lists the library a page at a time, 50 pieces per page. Pass `pieces_from` to read the next page. Filters combine. `with_mesh` keeps pieces that have a mesh. `unlabelled` keeps pieces with no label. `by_model` keeps pieces with a label that a model or an agent set and no person has changed since. `confidence` takes `high`, `medium`, or `low`, and refuses anything else. `id_contains` matches part of an id. Without an open project, the call refuses. It does not answer with an empty list.
+`factory_list_pieces` lists the library a page at a time, 50 pieces per page. Pass `pieces_from` to read the next page. Filters combine. `with_mesh` keeps pieces that have a mesh. `unlabelled` keeps pieces with no label. `by_model` keeps pieces with a label that a model or an agent set and no person has changed since. `confidence` takes `high`, `medium`, or `low`, and refuses anything else. `id_contains` matches part of an id. Without an open project, the call refuses. It does not answer with an empty list.
 
-`grimoire_undo_operation` takes an optional `operation_id`. Without one, it takes back the newest change still in effect. With one, it takes back that change. Pass `dry_run` to check the undo without making it.
+`factory_undo_operation` takes an optional `operation_id`. Without one, it takes back the newest change still in effect. With one, it takes back that change. Pass `dry_run` to check the undo without making it.
 
 An undo refuses, and says why, in these cases:
 
 - A newer change to the same map is still in effect. The refusal names that change, so you can undo it first.
 - The state no longer matches what the change left. Someone changed the map after it, and putting the old values back would overwrite that work.
 - The change was logged before undo existed, so it has nothing to put back.
-- The operation id is not in the log. `grimoire_read_oplog` lists the ids.
+- The operation id is not in the log. `factory_read_oplog` lists the ids.
 
-A removal with `put_back` is the undo of another removal. An agent cannot apply it directly. Take the removal back with `grimoire_undo_operation`, or with Cmd+Z in the editor.
+A removal with `put_back` is the undo of another removal. An agent cannot apply it directly. Take the removal back with `factory_undo_operation`, or with Cmd+Z in the editor.
 
 Cmd+Z in the editor undoes the newest change on the door you are on. The keys page lists which doors keep a history.
 
@@ -239,7 +239,7 @@ Cmd+Z in the editor undoes the newest change on the door you are on. The keys pa
 Goal: stop an agent changing the map while you look, think or take over, without disconnecting it.
 
 1. Choose **View ▸ Pause agent writes**. The row is ticked while the pause is on.
-2. While it is on, an agent's `grimoire_apply_operation` and `grimoire_undo_operation` are refused. The answer says `refused` and why, the status line shows the same sentence as a problem, and nothing is changed or logged. A `dry_run` preview still answers, so the agent can keep planning.
+2. While it is on, an agent's `factory_apply_operation` and `factory_undo_operation` are refused. The answer says `refused` and why, the status line shows the same sentence as a problem, and nothing is changed or logged. A `dry_run` preview still answers, so the agent can keep planning.
 3. Choose the row again to let it write.
 
 Your own edits are not affected, and the pause is not saved: the next session starts with the agent free to write.
@@ -250,10 +250,10 @@ Goal: know whether the agent is there, whose the newest change is, and undo the 
 
 1. Choose **View ▸ Show agent**. An AGENT block appears at the top of the Map door's INSPECTOR panel; choose the row again to hide it.
 2. **HEARD** says which call the editor last got from an agent and how long ago, and how many it has had this session. It is what the editor can know: an agent that has asked nothing has not been heard, so this is not a promise that one is connected.
-3. **NEWEST** says whether the newest thing on the undo stack is the agent's or yours, and what it was. **HAND-BACK** says what the agent last handed back (`grimoire_present`) and whether it still waits for your Keep or Undo all, or how you answered.
+3. **NEWEST** says whether the newest thing on the undo stack is the agent's or yours, and what it was. **HAND-BACK** says what the agent last handed back (`factory_present`) and whether it still waits for your Keep or Undo all, or how you answered.
 4. **Undo the agent's change** presses Undo (so it is exactly Cmd+Z, and it shows in the History). It is greyed unless the newest change is the agent's: it never undoes your own edit under the agent's name.
 5. **Pause agent writes** in the block is the View row's twin: the same switch, ticked in both.
-6. **Answer hand-backs here** (off by default) moves the agent's hand-back out of the modal and into the block. With it on and the block open, `grimoire_present` shows a card in the block instead of the Keep / Undo dialog: what was made, what you said, what the agent assumed and where to look, then **Accept** (keep it), **Undo N operations** (take every operation it covers back, newest first) and **Dismiss** (keep it, unread). The answer reaches the agent the same way as the dialog's, in `grimoire_state`'s `presentation.answer` (`kept`, `undone` or `dismissed`). Close the block on a waiting card and the question moves to the dialog, so it never waits where nobody can see it.
+6. **Answer hand-backs here** (off by default) moves the agent's hand-back out of the modal and into the block. With it on and the block open, `factory_present` shows a card in the block instead of the Keep / Undo dialog: what was made, what you said, what the agent assumed and where to look, then **Accept** (keep it), **Undo N operations** (take every operation it covers back, newest first) and **Dismiss** (keep it, unread). The answer reaches the agent the same way as the dialog's, in `factory_state`'s `presentation.answer` (`kept`, `undone` or `dismissed`). Close the block on a waiting card and the question moves to the dialog, so it never waits where nobody can see it.
 
 ## Limits
 
@@ -261,8 +261,8 @@ Goal: know whether the agent is there, whose the newest change is, and undo the 
 - An editor built without the `debugger` feature has no BRP endpoint, so the server cannot reach it. The feature is on by default.
 - The agent can turn, pin, remove, rename, label, and set settings. It cannot place a new piece, stamp a composition, or fill an area. The registry has no operation for those. Place them yourself in the editor, as the building maps page describes.
 - The server makes no change itself. Every change to the map goes through the editor's operations above.
-- `grimoire_snip` and `grimoire_frame_view` change no map data. They are not logged, and they cannot be undone.
-- `grimoire_capture_sequence` waits for the run to end: at most the sequence's length, plus ten seconds, plus five seconds for each frame.
-- A still shows one moment on screen. An agent reads only what is in the picture, so frame the area with `grimoire_frame_view` before you ask for a still.
+- `factory_snip` and `factory_frame_view` change no map data. They are not logged, and they cannot be undone.
+- `factory_capture_sequence` waits for the run to end: at most the sequence's length, plus ten seconds, plus five seconds for each frame.
+- A still shows one moment on screen. An agent reads only what is in the picture, so frame the area with `factory_frame_view` before you ask for a still.
 
 For the full schema of every tool, parameter, and annotation, see [docs/mcp-tools.md](../mcp-tools.md). For the keys the editor uses, see [keys](keys.md). For labels and the kit door, see [kits and labels](kits-and-labels.md). For map work, see [building maps](building-maps.md). For the files in a project, see [data files](data-files.md).

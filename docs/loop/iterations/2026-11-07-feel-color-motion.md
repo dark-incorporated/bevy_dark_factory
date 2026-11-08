@@ -3,12 +3,12 @@
 Focus: epic #330 (owner's steer) · Commits: bevy_gooey 779849f, b9aa28c (merged 2bca3af), release e264418 · Machine: big · Outcome: shipped (in bevy_gooey)
 
 ## Summary
-G-44 (bevy-coven/bevy_gooey#51), colour motion, is built and released. It was one of the two needs of UI-R01 #331, and with G-46 from pass 464 both are now closed: #331 is ready for its pin move. The loop's steer to publish after each issue is followed: bevy_gooey v0.40.1 is on crates.io.
+G-44 (dark-incorporated/bevy_gooey#51), colour motion, is built and released. It was one of the two needs of UI-R01 #331, and with G-46 from pass 464 both are now closed: #331 is ready for its pin move. The loop's steer to publish after each issue is followed: bevy_gooey v0.40.1 is on crates.io.
 
 ## Baseline
 The bevy_grimoire gate and `accept.py` were not run: no bevy_grimoire code changed.
 
-## Enhancement: G-44 (bevy-coven/bevy_gooey#51)
+## Enhancement: G-44 (dark-incorporated/bevy_gooey#51)
 - **Change:** `src/color_motion.rs`.
   - **Mechanism:** every `Role` requires a `ColorTrack`. `update_color_motion`, after `GooeySystems::Style`, leads each node's background, four border sides, text and icon tint to the colour `apply_skin` wrote, in premultiplied Oklab on the skin's springs. `apply_skin` stays the one writer of the final colour.
   - **Springs:** snappy for a state change, calm for a skin or scope change, and text and icons at half their fill's length. Reduced motion fades over `fade_seconds`.

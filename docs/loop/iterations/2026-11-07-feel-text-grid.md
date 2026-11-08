@@ -3,12 +3,12 @@
 Focus: epic #330 (owner's steer) · Commits: bevy_gooey a596481 (merge c69b73b) · Machine: big · Outcome: shipped (in bevy_gooey)
 
 ## Summary
-None of the epic's bevy_grimoire items (UI-R01..R06, #331-#336) was ready at the start: all wait on bevy_gooey. This pass claimed and built G-52 (bevy-coven/bevy_gooey#59), the last open need of UI-R02 #332, in `~/family_src/bevy_emerge_loop/bevy_gooey`. Every widget's text size is now rounded up to a whole number of device pixels at the node's scale.
+None of the epic's bevy_grimoire items (UI-R01..R06, #331-#336) was ready at the start: all wait on bevy_gooey. This pass claimed and built G-52 (dark-incorporated/bevy_gooey#59), the last open need of UI-R02 #332, in `~/family_src/bevy_emerge_loop/bevy_gooey`. Every widget's text size is now rounded up to a whole number of device pixels at the node's scale.
 
 ## Baseline
 The bevy_grimoire gate and `accept.py` were not run: no bevy_grimoire code changed.
 
-## Enhancement: G-52 (bevy-coven/bevy_gooey#59)
+## Enhancement: G-52 (dark-incorporated/bevy_gooey#59)
 - **Goal:** glyphs set at a whole pixel size at 1.25x and 1.5x, not softened between two.
 - **Change:**
   - `snap_text_size(size, scale)` is new in `src/model.rs`, beside `snap_line_width`, and shares its ulp stepping. It rounds `size × scale` up, with Rune's tolerance (`ceil(x − 1e-3)`).

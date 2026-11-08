@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Draw the editor's icon atlas, `crates/bevy_cauldron/assets/ui/icons.png` (UI-38, #232).
+"""Draw the editor's icon atlas, `crates/bevy_dark_factory/assets/ui/icons.png` (UI-38, #232).
 
 Each icon is 16 x 16 pixels, white on transparent with no soft edges, because bevy_gooey's `Icon` tints a
-glyph from the skin. The order and the names come from `ICONS` in `crates/bevy_cauldron/src/icons.rs`
+glyph from the skin. The order and the names come from `ICONS` in `crates/bevy_dark_factory/src/icons.rs`
 (read between its `icons:begin` and `icons:end` markers), so a name added there needs a drawing here and
 `tests/every_toolbar_command_has_an_icon.rs` refuses a sheet that disagrees with the list.
 
@@ -20,8 +20,8 @@ from pathlib import Path
 from PIL import Image
 
 ROOT = Path(__file__).resolve().parents[2]
-RUST = ROOT / "crates/bevy_cauldron/src/icons.rs"
-OUT = ROOT / "crates/bevy_cauldron/assets/ui/icons.png"
+RUST = ROOT / "crates/bevy_dark_factory/src/icons.rs"
+OUT = ROOT / "crates/bevy_dark_factory/assets/ui/icons.png"
 CELL = 16
 COLUMNS = 8
 
@@ -263,7 +263,7 @@ def data():
     return c
 
 
-def familiar():
+def night_shift():
     c = Canvas()
     c.poly([(2.5, 2), (7, 6), (2.5, 7)])
     c.poly([(13.5, 2), (9, 6), (13.5, 7)])
@@ -322,7 +322,7 @@ ART = {
     "panel.problems": problems(),
     "panel.notes": notes_page(),
     "panel.data": data(),
-    "panel.familiar": familiar(),
+    "panel.night_shift": night_shift(),
     "panel.reload": reload(),
     "panel.log": log(),
     "map.place_mode": place(),

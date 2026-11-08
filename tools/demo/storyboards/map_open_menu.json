@@ -5,7 +5,7 @@
   "width": 960,
   "setup": [
     {
-      "mcp": "grimoire_frame_view",
+      "mcp": "factory_frame_view",
       "args": {
         "target": {
           "placements": [
@@ -17,7 +17,7 @@
   ],
   "calls": [
     {
-      "mcp": "grimoire_list_operations",
+      "mcp": "factory_list_operations",
       "args": {}
     }
   ],
