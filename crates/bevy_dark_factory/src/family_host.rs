@@ -5,10 +5,11 @@
 //! compiled without is a problem the author is told about, never a silent no-op.
 
 use bevy::prelude::*;
-use blueprint_model::family::{Family, FamilyWatch, SettingsChange};
+use bevy::reflect::TypeRegistry;
+use blueprint_model::family::{Family, FamilyWatch, SettingsChange, SettingsKey, read_settings_files, settings_file, settings_path};
 use blueprint_model::live::KindVerdict;
-use blueprint_model::reload_check;
 use blueprint_model::reload_check::Refusal;
+use std::collections::BTreeMap;
 use std::path::PathBuf;
 
 use crate::editor::EditorState;
@@ -89,45 +90,57 @@ pub fn report_problems(
     }
 }
 
-/// **Hot reload of family settings** (#96): a settings file that changes on disk, from `family_set`
-/// or from a person's editor, is read once it settles and reported on the status line. The new text
-/// is kept in [`FamilySettings`] for the crate's own plugin to apply; a file that does not parse is a
-/// problem and the previous settings stay.
+/// **The settings files in force** (#96): `(crate, type)` → the text the running resource was last read
+/// from. A data file (a dialogue script, a society's definitions) is listed too once it is valid RON; its
+/// own panel reads it. A file that does not read is not here, and the previous settings stay.
 #[derive(Resource, Default, Debug)]
-pub struct FamilySettings {
-    /// Crate name → the last good settings text.
-    pub text: std::collections::BTreeMap<String, String>,
+pub struct FamilyFiles {
+    pub applied: BTreeMap<SettingsKey, String>,
 }
 
-/// The set [`reload_settings`] runs in, which a crate's apply system orders after. A set rather than
-/// the system itself, because ordering against a system type panics once a schedule holds two of it.
+impl FamilyFiles {
+    /// Whether any of `krate`'s settings files is in force.
+    pub fn has_crate(&self, krate: &str) -> bool {
+        self.applied.keys().any(|(k, _)| k == krate)
+    }
+}
+
+/// What [`reload_settings`] decided to apply, for [`apply_pending_settings`] to write with the world in
+/// hand: `(crate, type, Some(text))` applies a file, `None` puts the type's default back.
+#[derive(Resource, Default, Debug)]
+pub struct PendingSettings(pub Vec<(String, String, Option<String>)>);
+
+/// The set [`reload_settings`] and [`apply_pending_settings`] run in, which a crate's own system orders
+/// after. A set rather than the system itself, because ordering against a system type panics once a
+/// schedule holds two of it.
 #[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Reloaded;
 
-/// **The file a crate's settings are in**, as the verdicts name it: under the game's root, which is
-/// where a `family` kind's pattern starts.
-fn settings_file(krate: &str) -> String {
-    format!("family/{krate}.ron")
+/// Whether `(krate, ident)` is a settings type this build registers, which is what the editor applies.
+/// Any other file under `family/<crate>/` is a crate's data, read by its own panel.
+fn is_settings(registry: &TypeRegistry, krate: &str, ident: &str) -> bool {
+    built().contains(&krate) && bevy_blueprint::settings::settings_type(registry, krate, ident).is_ok()
 }
 
-/// **What the crate's own type makes of a settings file** (#200): for the crates this build has the type
-/// of (`bevy_elements`' [`ElementsSettings`](crate::environment::ElementsSettings), `bevy_gooey`'s skin)
-/// the file is read as that type with [`reload_check::read`], so a refusal names the file and the field
-/// it is wrong at (`family/bevy_elements.ron (clock)`), and the words returned with it say what stays.
-/// The editor holds no schema of its own: the type is the crate's. Any other crate's file is held to
-/// being RON, which [`FamilyWatch`] has already seen.
-fn read_as(krate: &str, text: &str) -> Result<(), (Refusal, &'static str)> {
-    #[cfg(feature = "bevy_elements")]
-    if krate == crate::environment::CRATE {
-        let file = settings_file(krate);
-        return reload_check::read::<crate::environment::ElementsSettings>("family", &file, text).map(drop).map_err(|r| (r, "the previous environment stays"));
+/// **What the crate's own type makes of a settings file** (#200): a settings type this build registers is
+/// read with it by reflection, so a refusal names the file and the field it is wrong at
+/// (`family/bevy_elements/WorldClock.ron (date.month)`), and the words returned with it say what stays.
+/// The editor holds no schema of its own. Any other file is held to being RON, which [`FamilyWatch`]
+/// has already seen.
+fn read_as(registry: &TypeRegistry, krate: &str, ident: &str, text: &str) -> Result<(), (Refusal, &'static str)> {
+    if !is_settings(registry, krate, ident) {
+        return Ok(());
     }
-    if krate == crate::ui_skin::CRATE {
-        let file = settings_file(krate);
-        return reload_check::read::<bevy_gooey::GooeySkin>("family", &file, text).map(drop).map_err(|r| (r, "the previous skin stays"));
-    }
-    let _ = (krate, text);
-    Ok(())
+    bevy_blueprint::settings::read_settings(registry, krate, ident, text)
+        .map(drop)
+        .map_err(|e| (Refusal { kind: "family", file: e.file, field: e.field, reason: e.reason }, "the previous settings stay"))
+}
+
+/// The `(crate, type)` a verdict's file names, `family/<crate>/<type>.ron`.
+fn key_of(file: &str) -> Option<SettingsKey> {
+    let rest = file.strip_prefix("family/")?.strip_suffix(".ron")?;
+    let (krate, ident) = rest.split_once('/')?;
+    Some((krate.to_owned(), ident.to_owned()))
 }
 
 /// How often a refused settings file is compared with the disk, seconds.
@@ -146,28 +159,22 @@ pub struct Held {
     settled_at: f64,
     /// The text of each refused file as last decided, so the same bytes are decided once: the watch
     /// says a file is invalid again whenever another settings file changes.
-    bad: std::collections::BTreeMap<String, String>,
+    bad: BTreeMap<SettingsKey, String>,
 }
 
 /// **The settings files that were not valid RON when the project opened**, with their text and why.
 /// [`FamilyWatch`] keeps only the ones that were, and says nothing about the rest until one of them
 /// changes, so a file broken before the editor started would go unnamed.
-fn unread_at_launch(root: &std::path::Path, good: &std::collections::BTreeMap<String, String>) -> Vec<(String, String, String)> {
-    let Ok(entries) = std::fs::read_dir(blueprint_model::family::settings_dir(root)) else { return Vec::new() };
+fn unread_at_launch(root: &std::path::Path, good: &BTreeMap<SettingsKey, String>) -> Vec<(SettingsKey, String, String)> {
     let mut out = Vec::new();
-    for entry in entries.flatten() {
-        let path = entry.path();
-        let (Some(stem), Some(ext), Some(name)) = (path.file_stem(), path.extension(), path.file_name()) else { continue };
-        let krate = stem.to_string_lossy().into_owned();
-        if ext != "ron" || name.to_string_lossy().starts_with('.') || good.contains_key(&krate) {
+    for (key, text) in read_settings_files(&blueprint_model::family::settings_dir(root)) {
+        if good.contains_key(&key) {
             continue;
         }
-        let Ok(text) = std::fs::read_to_string(&path) else { continue };
         if let Err(e) = ron::from_str::<ron::Value>(&text) {
-            out.push((krate, text, e.to_string()));
+            out.push((key, text, e.to_string()));
         }
     }
-    out.sort();
     out
 }
 
@@ -176,14 +183,16 @@ fn unread_at_launch(root: &std::path::Path, good: &std::collections::BTreeMap<St
 /// to it, and a file that never read and is then deleted was never in force to be removed. Neither
 /// would ever leave the verdicts, so a refused file is looked at twice a second: back to the settings
 /// in force it is `applied` again, gone it is forgotten, and anything else is the watch's to report.
-/// A crate whose type refused a file is the watch's too: it holds the text it took (valid RON) and the
+/// A type that refused a file is the watch's too: it holds the text it took (valid RON) and the
 /// settings in force are the last the type read, so the file's next edit is a change to it; the one thing
 /// it cannot say is a return to that text after an unreadable edit in between, which is said here.
+#[allow(clippy::too_many_arguments)]
 fn settle_refused(
+    registry: &TypeRegistry,
     root: &std::path::Path,
-    good: &std::collections::BTreeMap<String, String>,
-    bad: &mut std::collections::BTreeMap<String, String>,
-    current: &std::collections::BTreeMap<String, String>,
+    good: &BTreeMap<SettingsKey, String>,
+    bad: &mut BTreeMap<SettingsKey, String>,
+    current: &BTreeMap<SettingsKey, String>,
     state: &mut EditorState,
     reloads: &mut crate::live::EditorReloads,
 ) {
@@ -195,25 +204,25 @@ fn settle_refused(
         .collect();
     let mut decided = Vec::new();
     for file in refused {
-        let Some(krate) = file.strip_prefix("family/").and_then(|f| f.strip_suffix(".ron")) else { continue };
+        let Some(key) = key_of(&file) else { continue };
         match std::fs::read_to_string(root.join(&file)) {
             Err(_) => {
-                bad.remove(krate);
+                bad.remove(&key);
                 reloads.forget_file("family", &file);
             }
             // The settings in force are not what the watch holds: the type refused its text.
-            Ok(text) if current.get(krate) != good.get(krate) => {
-                if current.get(krate) == Some(&text)
-                    && bad.get(krate) != Some(&text)
-                    && let Err((refusal, stays)) = read_as(krate, &text)
+            Ok(text) if current.get(&key) != good.get(&key) => {
+                if current.get(&key) == Some(&text)
+                    && bad.get(&key) != Some(&text)
+                    && let Err((refusal, stays)) = read_as(registry, &key.0, &key.1, &text)
                 {
                     state.status.problem(format!("{}; {stays}", refusal.sentence()));
                     decided.push(KindVerdict::refused("family", refusal.file, refusal.field, refusal.reason));
-                    bad.insert(krate.to_owned(), text);
+                    bad.insert(key, text);
                 }
             }
-            Ok(text) if good.get(krate) == Some(&text) => {
-                bad.remove(krate);
+            Ok(text) if good.get(&key) == Some(&text) => {
+                bad.remove(&key);
                 decided.push(KindVerdict::applied("family", file));
             }
             Ok(_) => {}
@@ -226,114 +235,112 @@ fn settle_refused(
 
 /// **Follow the settings files, and say what became of each edit** (#96, #200).
 ///
-/// A file that reads replaces the crate's settings; one that is not valid RON is refused and the last
-/// good ones stay ([`FamilyWatch`] holds them). A file that is RON but is not the crate's own type
-/// (`read_as`: the elements settings, the gooey skin) is refused the same way, naming the file and the
-/// field, and never reaches [`FamilySettings`], so what a crate applies is always a text its type reads.
-/// Each poll's changes are one decision in [`crate::live::EditorReloads`], kind `family`, so
-/// `factory_state.reloads` names the file and why, once per edit; a file that is gone is no longer
-/// listed, and one that was already broken when the project opened is named from the start.
+/// A file that reads replaces its type's resource (by reflection, in [`apply_pending_settings`]); one
+/// that is not valid RON is refused and the last good settings stay ([`FamilyWatch`] holds them). A file
+/// that is RON but not its type (`read_as`) is refused the same way, naming the file and the field, and
+/// is never applied. Each poll's changes are one decision in [`crate::live::EditorReloads`], kind
+/// `family`, so `factory_state.reloads` names the file and why, once per edit; a file that is gone is
+/// no longer listed, and one that was already broken when the project opened is named from the start.
+#[allow(clippy::too_many_arguments)]
 pub fn reload_settings(
     project: Option<Res<Project>>,
-    // **The clock is Bevy's, not a `std::time::Instant` this system owns** (#279).
-    //
-    // `FamilyWatch::poll` has always taken `now_secs` and never asked where it came from, but the
-    // caller passed `held.started.elapsed()` — an `Instant` created here — so the one knob that
-    // decides when a reload lands was pinned to the wall clock and could not be injected. A test
-    // therefore had to *wait* the poll and the settle interval out in real time, and on a loaded
-    // machine `app.update()` cost more than the 3 s it was given, which failed the push gate three
-    // times (#121, #279).
-    //
-    // `Time<Real>` is the same wall clock by default — `TimePlugin` advances it from `Instant` — and
-    // `TimeUpdateStrategy::ManualDuration` replaces it with a step a test chooses, which is how
-    // `bevy_time`'s own tests drive time. So this changes no behaviour for a running editor, and it
-    // makes the reload path testable without a sleep.
+    // **The clock is Bevy's, not a `std::time::Instant` this system owns** (#279): `Time<Real>` is the
+    // wall clock by default and `TimeUpdateStrategy::ManualDuration` lets a test step it.
     real: Res<Time<Real>>,
-    mut settings: ResMut<FamilySettings>,
+    registry: Res<AppTypeRegistry>,
+    mut files: ResMut<FamilyFiles>,
+    mut pending: ResMut<PendingSettings>,
     mut state: ResMut<EditorState>,
     mut reloads: Option<ResMut<crate::live::EditorReloads>>,
     mut held: Local<Option<Held>>,
 ) {
     let Some(project) = project else { return };
+    let registry = registry.read();
     if held.as_ref().is_none_or(|h| h.root != project.root) {
         let fresh = FamilyWatch::new(&project.root);
-        settings.text.clear();
+        // Another project's settings are not this one's: every type that was applied goes back to its
+        // default before this project's files are read.
+        for (krate, ident) in std::mem::take(&mut files.applied).into_keys() {
+            if is_settings(&registry, &krate, &ident) {
+                pending.0.push((krate, ident, None));
+            }
+        }
         let mut verdicts = Vec::new();
-        let mut bad = std::collections::BTreeMap::new();
-        for (krate, text) in fresh.current() {
-            match read_as(krate, text) {
+        let mut bad = BTreeMap::new();
+        for ((krate, ident), text) in fresh.current() {
+            match read_as(&registry, krate, ident, text) {
                 Ok(()) => {
-                    settings.text.insert(krate.clone(), text.clone());
-                    verdicts.push(KindVerdict::applied("family", settings_file(krate)));
+                    files.applied.insert((krate.clone(), ident.clone()), text.clone());
+                    if is_settings(&registry, krate, ident) {
+                        pending.0.push((krate.clone(), ident.clone(), Some(text.clone())));
+                    }
+                    verdicts.push(KindVerdict::applied("family", settings_file(krate, ident)));
                 }
                 Err((refusal, _)) => {
-                    state.status.problem(format!("{}; its defaults apply", refusal.sentence()));
+                    state.status.problem(format!("{}; its default applies", refusal.sentence()));
                     verdicts.push(KindVerdict::refused("family", refusal.file, refusal.field, refusal.reason));
-                    bad.insert(krate.clone(), text.clone());
+                    bad.insert((krate.clone(), ident.clone()), text.clone());
                 }
             }
         }
-        for (krate, text, error) in unread_at_launch(&project.root, fresh.current()) {
-            state.status.problem(format!("{krate} settings are not valid RON, so its defaults apply: {error}"));
-            let field = read_as(&krate, &text).err().and_then(|(r, _)| r.field);
-            verdicts.push(KindVerdict::refused("family", settings_file(&krate), field, error));
-            bad.insert(krate, text);
+        for ((krate, ident), text, error) in unread_at_launch(&project.root, fresh.current()) {
+            state.status.problem(format!("{} is not valid RON, so its default applies: {error}", settings_file(&krate, &ident)));
+            let field = read_as(&registry, &krate, &ident, &text).err().and_then(|(r, _)| r.field);
+            verdicts.push(KindVerdict::refused("family", settings_file(&krate, &ident), field, error));
+            bad.insert((krate, ident), text);
         }
         if let Some(reloads) = reloads.as_deref_mut() {
-            // Another project's files are not this one's.
             reloads.forget(&["family"]);
             if !verdicts.is_empty() {
                 reloads.decide(verdicts);
             }
         }
-        // **When the watch was made**, on the same clock every poll reads, so `settled_at` and the
-        // watch's own `last_poll` are two readings of one clock rather than of two.
         *held = Some(Held { root: project.root.clone(), watch: fresh, made_at: real.elapsed_secs_f64(), settled_at: 0.0, bad });
     }
     let Some(held) = held.as_mut() else { return };
-    // **Seconds since the watch was made**, from the injected clock: `Time<Real>` is monotonic and
-    // starts near zero, and subtracting the reading taken at the watch's creation keeps this the
-    // "seconds since we started" the watch's own intervals are written in — while letting a test
-    // step it. A plain `elapsed()` would be seconds since the *app* started, which would make the
-    // first poll and settle land early relative to the watch.
     let now = real.elapsed_secs_f64() - held.made_at;
     let (mut decided, mut gone) = (Vec::new(), Vec::new());
     for change in held.watch.poll(now) {
         match change {
-            SettingsChange::Reloaded { krate, text } => {
-                match read_as(&krate, &text) {
-                    Ok(()) => {
-                        state.status.note(format!("{krate} settings reloaded"));
-                        held.bad.remove(&krate);
-                        decided.push(KindVerdict::applied("family", settings_file(&krate)));
-                        settings.text.insert(krate, text);
+            SettingsChange::Reloaded { krate, ident, text } => match read_as(&registry, &krate, &ident, &text) {
+                Ok(()) => {
+                    state.status.note(format!("{} reloaded", settings_file(&krate, &ident)));
+                    held.bad.remove(&(krate.clone(), ident.clone()));
+                    decided.push(KindVerdict::applied("family", settings_file(&krate, &ident)));
+                    if is_settings(&registry, &krate, &ident) {
+                        pending.0.push((krate.clone(), ident.clone(), Some(text.clone())));
                     }
-                    Err((refusal, stays)) => {
-                        state.status.problem(format!("{}; {stays}", refusal.sentence()));
-                        decided.push(KindVerdict::refused("family", refusal.file, refusal.field, refusal.reason));
-                        held.bad.insert(krate.clone(), text);
-                    }
+                    files.applied.insert((krate, ident), text);
                 }
-            }
-            SettingsChange::Invalid { krate, error } => {
+                Err((refusal, stays)) => {
+                    state.status.problem(format!("{}; {stays}", refusal.sentence()));
+                    decided.push(KindVerdict::refused("family", refusal.file, refusal.field, refusal.reason));
+                    held.bad.insert((krate, ident), text);
+                }
+            },
+            SettingsChange::Invalid { krate, ident, error } => {
                 // The same bytes are decided once, however often the watch says so.
-                let text = std::fs::read_to_string(blueprint_model::family::settings_dir(&held.root).join(format!("{krate}.ron"))).ok();
-                if text.is_some() && held.bad.get(&krate) == text.as_ref() {
+                let key = (krate.clone(), ident.clone());
+                let text = std::fs::read_to_string(settings_path(&held.root, &krate, &ident)).ok();
+                if text.is_some() && held.bad.get(&key) == text.as_ref() {
                     continue;
                 }
-                state.status.problem(format!("{krate} settings are not valid RON, so the previous ones stay: {error}"));
-                // Where the crate's own type stopped reading, when this build has it.
-                let field = text.as_deref().and_then(|t| read_as(&krate, t).err()).and_then(|(r, _)| r.field);
-                decided.push(KindVerdict::refused("family", settings_file(&krate), field, error));
+                state.status.problem(format!("{} is not valid RON, so the previous settings stay: {error}", settings_file(&krate, &ident)));
+                let field = text.as_deref().and_then(|t| read_as(&registry, &krate, &ident, t).err()).and_then(|(r, _)| r.field);
+                decided.push(KindVerdict::refused("family", settings_file(&krate, &ident), field, error));
                 if let Some(text) = text {
-                    held.bad.insert(krate, text);
+                    held.bad.insert(key, text);
                 }
             }
-            SettingsChange::Removed { krate } => {
-                state.status.note(format!("{krate} settings removed; its defaults apply"));
-                held.bad.remove(&krate);
-                gone.push(settings_file(&krate));
-                settings.text.remove(&krate);
+            SettingsChange::Removed { krate, ident } => {
+                state.status.note(format!("{} removed; its default applies", settings_file(&krate, &ident)));
+                let key = (krate.clone(), ident.clone());
+                held.bad.remove(&key);
+                gone.push(settings_file(&krate, &ident));
+                files.applied.remove(&key);
+                if is_settings(&registry, &krate, &ident) {
+                    pending.0.push((krate, ident, None));
+                }
             }
         }
     }
@@ -346,7 +353,32 @@ pub fn reload_settings(
         }
         if now - held.settled_at >= SETTLE_REFUSED_SECS {
             held.settled_at = now;
-            settle_refused(&held.root, &settings.text, &mut held.bad, held.watch.current(), &mut state, reloads);
+            settle_refused(&registry, &held.root, &files.applied, &mut held.bad, held.watch.current(), &mut state, reloads);
+        }
+    }
+}
+
+/// **Applies what [`reload_settings`] decided**, by reflection, with the world in hand: the same
+/// `bevy_blueprint::settings` path a game's live reload takes, so the preview and the game read a file
+/// the same way. A file the type refuses at this point (it read a moment ago) is a problem and the
+/// previous settings stay.
+pub fn apply_pending_settings(world: &mut World) {
+    let pending = std::mem::take(&mut world.resource_mut::<PendingSettings>().0);
+    for (krate, ident, text) in pending {
+        #[cfg(feature = "bevy_elements")]
+        let before = crate::environment::clock_before(world, &krate, &ident);
+        let result = match &text {
+            Some(text) => bevy_blueprint::settings::apply_settings_text(world, &krate, &ident, text),
+            None => bevy_blueprint::settings::reset_settings(world, &krate, &ident),
+        };
+        if let Err(e) = result {
+            world.resource_mut::<EditorState>().status.problem(format!("{e}; the previous settings stay"));
+            continue;
+        }
+        #[cfg(feature = "bevy_elements")]
+        crate::environment::ramp_clock_edit(world, before);
+        if krate == crate::ui_skin::CRATE {
+            crate::ui_skin::report_skin_problems(world);
         }
     }
 }

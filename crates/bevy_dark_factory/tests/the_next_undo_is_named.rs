@@ -25,7 +25,7 @@ fn editor(tag: &str, id: &str) -> App {
     let mut app = bevy_dark_factory::harness::build_headless(&root, "m", None)
         .unwrap_or_else(|e| panic!("{e}"));
     // **The agent's door**, as `an_agent_can_drive_the_editor` opens it: the state is read over BRP.
-    app.add_plugins(bevy_debugger_bevy::DebuggerPlugin::default());
+    app.add_plugins(bevy_debugger_bevy::FairyPlugin::default());
     app.add_plugins(bevy_dark_factory::ops_brp::OpsBridgePlugin);
     for _ in 0..6 {
         app.update();

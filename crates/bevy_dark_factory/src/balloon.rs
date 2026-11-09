@@ -2,7 +2,7 @@
 //!
 //! `dialogue <conversation> [options]` walks a conversation through `dialogue_preview`; the lines it
 //! reports are kept here and drawn as one balloon above the placed piece that carries that
-//! conversation (`family["bevy_speech_bubbles"]` is its name), so an author sees the words where the
+//! conversation (its `StartsConversation` component names it), so an author sees the words where the
 //! speaker stands. A measurement kept for drawing: nothing is saved, and an empty preview draws nothing.
 
 use bevy::prelude::*;
@@ -46,17 +46,26 @@ impl BalloonPreview {
     }
 }
 
-/// The first placed piece whose `bevy_speech_bubbles` value is the conversation's name (a RON string).
+/// The first placed piece whose `StartsConversation` component names the conversation.
+#[cfg(feature = "bevy_speech_bubbles")]
 pub fn speaker_of<'a>(map: &'a Map, conversation: &str) -> Option<&'a str> {
+    use bevy::reflect::TypePath;
+    let key = bevy_speech_bubbles::StartsConversation::type_path();
     map.placements
         .iter()
         .find(|p| {
-            p.family
-                .get("bevy_speech_bubbles")
-                .and_then(|v| ron::from_str::<String>(v).ok())
-                .is_some_and(|name| name == conversation)
+            p.components
+                .get(key)
+                .and_then(|v| ron::from_str::<bevy_speech_bubbles::StartsConversation>(v).ok())
+                .is_some_and(|starts| starts.0 == conversation)
         })
         .map(|p| p.id.as_str())
+}
+
+/// Without `bevy_speech_bubbles` no piece can carry a conversation.
+#[cfg(not(feature = "bevy_speech_bubbles"))]
+pub fn speaker_of<'a>(_map: &'a Map, _conversation: &str) -> Option<&'a str> {
+    None
 }
 
 /// The one balloon node.
@@ -121,7 +130,7 @@ pub fn show_balloon(
     ));
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "bevy_speech_bubbles"))]
 mod tests {
     use super::*;
     use blueprint_model::map::Placed;
@@ -129,7 +138,8 @@ mod tests {
     fn placed(id: &str, convo: Option<&str>) -> Placed {
         let mut p = Placed { id: id.to_owned(), descriptor: "npc".to_owned(), ..Default::default() };
         if let Some(c) = convo {
-            p.family.insert("bevy_speech_bubbles".to_owned(), format!("{c:?}"));
+            use bevy::reflect::TypePath;
+            p.components.insert(bevy_speech_bubbles::StartsConversation::type_path().to_owned(), format!("({c:?})"));
         }
         p
     }

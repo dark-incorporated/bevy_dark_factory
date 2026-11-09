@@ -4303,7 +4303,7 @@ pub fn registry() -> Vec<Box<dyn Operation>> {
         Box::new(crate::ops_label_vlm::LabelApply),
         Box::new(crate::ops_data::DataSet),
         Box::new(crate::ops_family::FamilySet),
-        Box::new(crate::ops_family::PlacementSetFamily),
+        Box::new(crate::ops_family::PlacementSetComponent),
         #[cfg(feature = "bevy_light_grid")]
         Box::new(crate::ops_light::LightMap),
         #[cfg(feature = "bevy_lights")]
@@ -4324,6 +4324,7 @@ pub fn registry() -> Vec<Box<dyn Operation>> {
         #[cfg(feature = "bevy_elements")]
         Box::new(crate::ops_terrain::TerrainPreset),
         Box::new(crate::ops_volume::VolumeEdit),
+        Box::new(crate::ops_volume::VolumeSetCover),
         Box::new(crate::ops_forest::ForestScatter),
         Box::new(crate::ops_tree::TreeEdit),
         Box::new(crate::ops_people::PersonSet),
@@ -4612,9 +4613,9 @@ pub const UI_ENTRY_POINTS: &[(&str, &str)] = &[
     // **The POOL HERE button** dispatches `light_pool` at the point the camera looks at (#103).
     #[cfg(feature = "bevy_lights")]
     ("light_pool", "ops_pool::on_pool_click"),
-    // **A piece's family settings (#103)** — the same field with `@<id> <crate> <value>` dispatches
-    // `placement_set_family` through `set_piece_family`.
-    ("placement_set_family", "set_piece_family("),
+    // **A component a piece carries (#103)** — the same field with `@<id> <component> <value>` dispatches
+    // `placement_set_component` through `set_piece_component`.
+    ("placement_set_component", "set_piece_component("),
     // **The family field's `dialogue` line (#106)** — `dialogue <conversation> [option numbers]` dispatches
     // `dialogue_preview` through `preview_dialogue`, the same walk an agent's `apply` makes.
     #[cfg(feature = "bevy_speech_bubbles")]
@@ -4663,6 +4664,8 @@ pub const UI_ENTRY_POINTS: &[(&str, &str)] = &[
     // **The volume line (#101)** — `volume add|carve sphere|box|capsule <numbers> [smooth_m]` and `volume clear` in the
     // terrain field dispatch `volume_edit` through `edit_volume`.
     ("volume_edit", "edit_volume("),
+    // `volume cover <snow> <wetness>` and `volume cover off` in the same field dispatch `volume_set_cover` through `set_volume_cover`.
+    ("volume_set_cover", "set_volume_cover("),
     // `water run` in the same field dispatches `water_run` through `run_water`.
     ("water_run", "run_water("),
     // **The Note tool (#89)** — a dragged rectangle and the note box's Enter dispatch `note_add`

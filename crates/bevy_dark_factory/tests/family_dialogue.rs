@@ -21,9 +21,9 @@ fn with_start(start: &str) -> String {
 
 fn open(name: &str) -> (Ctx, std::path::PathBuf) {
     let root = fixtures::Fixture::new(name).descriptor("site/wall", "alpha").build("m");
-    std::fs::create_dir_all(root.join("family")).unwrap();
+    std::fs::create_dir_all(root.join("family/bevy_speech_bubbles")).unwrap();
     std::fs::write(root.join("family.ron"), "(version: 1, crates: [\"bevy_speech_bubbles\"])").unwrap();
-    let file = root.join("family/bevy_speech_bubbles.ron");
+    let file = root.join("family/bevy_speech_bubbles/DialogueScript.ron");
     std::fs::write(&file, SCRIPT).unwrap();
     let mut app = bevy_dark_factory::harness::build_headless(&root, "m", None).unwrap_or_else(|e| panic!("{e}"));
     for _ in 0..4 {
@@ -39,7 +39,7 @@ fn a_choice_pointing_nowhere_is_refused_with_the_crates_message_and_the_file_is_
     let err = ops::dispatch(
         &mut ctx,
         "family_set",
-        &json!({"crate": "bevy_speech_bubbles", "field": "conversations", "value": with_start("nope")}),
+        &json!({"crate": "bevy_speech_bubbles", "type": "DialogueScript", "field": "conversations", "value": with_start("nope")}),
     )
     .map(|_| ())
     .unwrap_err();
@@ -53,7 +53,7 @@ fn a_valid_edit_is_written_and_reads_back_as_the_crates_own_script() {
     let done = ops::dispatch(
         &mut ctx,
         "family_set",
-        &json!({"crate": "bevy_speech_bubbles", "field": "conversations", "value": with_start("b")}),
+        &json!({"crate": "bevy_speech_bubbles", "type": "DialogueScript", "field": "conversations", "value": with_start("b")}),
     )
     .unwrap_or_else(|e| panic!("{e:?}"));
     assert!(matches!(done, Applied::Done { .. }));
@@ -63,9 +63,9 @@ fn a_valid_edit_is_written_and_reads_back_as_the_crates_own_script() {
 
 fn placed(name: &str) -> (Ctx, std::path::PathBuf) {
     let root = fixtures::Fixture::new(name).descriptor("site/wall", "alpha").place("site/wall", (0.0, 0.0)).build("m");
-    std::fs::create_dir_all(root.join("family")).unwrap();
+    std::fs::create_dir_all(root.join("family/bevy_speech_bubbles")).unwrap();
     std::fs::write(root.join("family.ron"), "(version: 1, crates: [\"bevy_speech_bubbles\"])").unwrap();
-    std::fs::write(root.join("family/bevy_speech_bubbles.ron"), SCRIPT).unwrap();
+    std::fs::write(root.join("family/bevy_speech_bubbles/DialogueScript.ron"), SCRIPT).unwrap();
     let mut app = bevy_dark_factory::harness::build_headless(&root, "m", None).unwrap_or_else(|e| panic!("{e}"));
     for _ in 0..4 {
         app.update();
@@ -75,49 +75,32 @@ fn placed(name: &str) -> (Ctx, std::path::PathBuf) {
     (Ctx { project: Some(project), open: Some(open), session: name.to_owned(), ..Ctx::default() }, root)
 }
 
-fn saved_family(root: &std::path::Path) -> std::collections::BTreeMap<String, String> {
+fn saved_components(root: &std::path::Path) -> std::collections::BTreeMap<String, String> {
     let text = std::fs::read_to_string(root.join("assets/blueprint/maps/m.map.ron")).unwrap();
     let map: blueprint_model::map::Map = ron::from_str(&text).unwrap();
-    map.placements[0].family.clone().into_iter().collect()
+    map.placements[0].components.clone()
+}
+
+fn starts() -> &'static str {
+    <bevy_speech_bubbles::StartsConversation as bevy::reflect::TypePath>::type_path()
 }
 
 #[test]
 fn a_conversation_attached_to_a_piece_is_saved_on_its_row_and_one_the_script_lacks_is_refused() {
     let (mut ctx, root) = placed("dialogue_attach");
     let id = ctx.open.as_ref().unwrap().map.placements[0].id.clone();
-    let done = ops::dispatch(&mut ctx, "placement_set_family", &json!({"id": id, "crate": "bevy_speech_bubbles", "value": "\"hello\""})).unwrap();
+    let done = ops::dispatch(&mut ctx, "placement_set_component", &json!({"id": id, "component": starts(), "value": "(\"hello\")"})).unwrap();
     assert!(matches!(done, Applied::Done { .. }), "{done:?}");
-    assert_eq!(saved_family(&root)["bevy_speech_bubbles"], "\"hello\"");
+    assert_eq!(saved_components(&root)[starts()], "(\"hello\")");
 
-    let r = ops::dispatch(&mut ctx, "placement_set_family", &json!({"id": id, "crate": "bevy_speech_bubbles", "value": "\"goodbye\""}));
+    let r = ops::dispatch(&mut ctx, "placement_set_component", &json!({"id": id, "component": starts(), "value": "(\"goodbye\")"}));
     let said = match r {
         Ok(Applied::Refused(e)) | Err(e) => e.0,
         Ok(other) => panic!("an undefined conversation was accepted: {other:?}"),
     };
     assert!(said.contains("goodbye") && said.contains("hello"), "{said}");
-    assert_eq!(saved_family(&root)["bevy_speech_bubbles"], "\"hello\"", "a refusal leaves the row as it was");
+    assert_eq!(saved_components(&root)[starts()], "(\"hello\")", "a refusal leaves the row as it was");
 
     ops::undo(&mut ctx, None).unwrap();
-    assert!(saved_family(&root).is_empty(), "undo takes the conversation back off the piece");
-}
-
-#[test]
-fn barks_attached_to_a_piece_are_the_crates_own_bark_list_and_a_malformed_one_is_refused() {
-    let (mut ctx, root) = placed("dialogue_barks");
-    let id = ctx.open.as_ref().unwrap().map.placements[0].id.clone();
-    let barks = r#"[(speaker: "Mara", kind: Speech, emotion: Joy, text: "Fine day."), (speaker: "Mara", kind: Thought, emotion: Neutral, text: "Rain soon.")]"#;
-    let done = ops::dispatch(&mut ctx, "placement_set_family", &json!({"id": id, "crate": "bevy_speech_bubbles", "value": barks})).unwrap();
-    assert!(matches!(done, Applied::Done { .. }), "{done:?}");
-    let saved: Vec<bevy_speech_bubbles::Bark> = ron::from_str(&saved_family(&root)["bevy_speech_bubbles"]).unwrap();
-    assert_eq!(saved.len(), 2);
-    assert_eq!(saved[0].text, "Fine day.");
-
-    let bad = r#"[(speaker: "Mara", kind: Shout, emotion: Joy, text: "x")]"#;
-    let r = ops::dispatch(&mut ctx, "placement_set_family", &json!({"id": id, "crate": "bevy_speech_bubbles", "value": bad}));
-    let said = match r {
-        Ok(Applied::Refused(e)) | Err(e) => e.0,
-        Ok(other) => panic!("a malformed bark was accepted: {other:?}"),
-    };
-    assert!(said.contains("Shout") || said.contains("bark"), "{said}");
-    assert_eq!(saved_family(&root)["bevy_speech_bubbles"], barks);
+    assert!(saved_components(&root).is_empty(), "undo takes the conversation back off the piece");
 }

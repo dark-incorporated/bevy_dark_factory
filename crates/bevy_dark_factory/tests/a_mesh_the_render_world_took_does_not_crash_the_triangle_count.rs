@@ -4,7 +4,7 @@
 //! `RENDER_WORLD` only, so once the first frame is extracted the main world's copy has no vertex or
 //! index data, and `Mesh::indices()` panics on it. `refresh_triangle_total` (the `N tris drawn` readout)
 //! asked every visible mesh for its indices, so the editor aborted on `big` the moment a project's
-//! `family/bevy_elements.ron` dressed the viewport. The readout counts what the main world can still
+//! a `family/bevy_elements/` settings file dressed the viewport. The readout counts what the main world can still
 //! read and skips what it cannot.
 
 use bevy::asset::RenderAssetUsages;

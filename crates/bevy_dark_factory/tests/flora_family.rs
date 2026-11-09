@@ -11,9 +11,9 @@ use crate::fixtures;
 
 fn open(tag: &str) -> (App, std::path::PathBuf) {
     let root = fixtures::Fixture::new(tag).descriptor("site/wall", "alpha").build("m");
-    std::fs::create_dir_all(root.join("family")).unwrap();
+    std::fs::create_dir_all(root.join("family/bevy_flora")).unwrap();
     std::fs::write(root.join("family.ron"), "(version: 1, crates: [\"bevy_flora\"])").unwrap();
-    std::fs::write(root.join("family/bevy_flora.ron"), "(scatter: (density: 0.2, seed: 7))\n").unwrap();
+    std::fs::write(root.join("family/bevy_flora/Scatter.ron"), "(density: 0.2, seed: 7)\n").unwrap();
     let mut app = bevy_dark_factory::harness::build_headless(&root, "m", None).unwrap_or_else(|e| panic!("{e}"));
     app.init_resource::<EditorState>().add_systems(Update, report_problems);
     for _ in 0..4 {
@@ -39,11 +39,11 @@ fn flora_settings_are_written_by_family_set_and_one_undo_restores_them() {
     let (app, root) = open("flora_set");
     let project = app.world().resource::<bevy_dark_factory::project::Project>().clone();
     let mut ctx = Ctx { project: Some(project), session: "test".to_owned(), ..Ctx::default() };
-    let file = root.join("family/bevy_flora.ron");
+    let file = root.join("family/bevy_flora/Scatter.ron");
     let before = std::fs::read_to_string(&file).unwrap();
-    let r = ops::dispatch(&mut ctx, "family_set", &json!({"crate": "bevy_flora", "field": "scatter.density", "value": "0.6"})).unwrap();
+    let r = ops::dispatch(&mut ctx, "family_set", &json!({"crate": "bevy_flora", "type": "Scatter", "field": "density", "value": "0.6"})).unwrap();
     assert!(matches!(r, Applied::Done { .. }));
-    assert_eq!(std::fs::read_to_string(&file).unwrap(), "(scatter: (density: 0.6, seed: 7))\n");
+    assert_eq!(std::fs::read_to_string(&file).unwrap(), "(density: 0.6, seed: 7)\n");
     ops::undo(&mut ctx, None).unwrap();
     assert_eq!(std::fs::read_to_string(&file).unwrap(), before);
 }

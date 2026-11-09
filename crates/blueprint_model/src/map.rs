@@ -81,9 +81,12 @@ use crate::placement::ir::Guard;
 /// default is the pair of numbers the editor shipped, so an older map generates exactly as it did.
 /// **`8` added [`Map::runs`]** — a piece repeated along a path, held as the run and not the rows it
 /// lays; an older map says `runs: []` by saying nothing.
-/// **`9` added [`Placed::family`]** — the family-crate settings a piece carries; an older map says
+/// **`9` added `Placed::family`** — the family-crate settings a piece carries; an older map says
 /// `family: {}` by saying nothing.
-pub const MAP_VERSION: u32 = 9;
+/// **`10` replaced it with [`Placed::components`]** — keyed by the component's full type path and read by
+/// reflection, so any registered authoring component can ride on a piece. A `9` map that used `family`
+/// is refused by `deny_unknown_fields`; one that did not reads unchanged.
+pub const MAP_VERSION: u32 = 10;
 
 /// One authored world.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -373,12 +376,13 @@ pub struct Placed {
     /// respect. This one is for the reader.
     #[serde(default, skip_serializing_if = "absent")]
     pub note: Option<String>,
-    /// **Settings of the family crates this piece carries, by crate name** (#103): a brazier's
-    /// `bevy_lights` `Flicker`, as the crate's own serde type written as RON text. The editor holds no
-    /// schema for it, so the piece moves, copies and undoes like any other and the game's own copy of
-    /// the plugin reads the same text. Skipped when empty, so every older file stays byte-identical.
+    /// **The authoring components this piece carries** (#103), keyed by each component's full type
+    /// path (`bevy_lights::flicker::Flicker`), the value its reflected RON. The game's
+    /// `bevy_blueprint` spawner inserts each by reflection, so a crate's own component is the schema and
+    /// the piece moves, copies and undoes like any other. Skipped when empty, so a file without any
+    /// stays byte-identical.
     #[serde(default, skip_serializing_if = "std::collections::BTreeMap::is_empty")]
-    pub family: std::collections::BTreeMap<String, String>,
+    pub components: std::collections::BTreeMap<String, String>,
 }
 
 /// An invisible thing that owns a group of props and governs their use.

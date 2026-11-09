@@ -51,6 +51,8 @@ crate::keys::enumerated! {
         Anim,
         /// Build reusable groups, and see what they present and what has gone stale under them.
         Compose,
+        /// The family crates as plugins: their settings, components and systems.
+        Plugins,
     }
     /// **Every panel there is**, in strip order — for the ratchets that have to visit all of them.
     ///
@@ -97,11 +99,13 @@ pub enum Door {
     Map,
     /// The rig bench.
     Rigs,
+    /// The family crates as Bevy plugins: settings, components, systems.
+    Plugins,
 }
 
 impl Door {
     /// The doors, in the order the menu lists them.
-    pub const ALL: [Door; 3] = [Door::Kit, Door::Map, Door::Rigs];
+    pub const ALL: [Door; 4] = [Door::Kit, Door::Map, Door::Rigs, Door::Plugins];
 
     /// **The panels this door shows**, in hierarchy order.
     ///
@@ -113,6 +117,7 @@ impl Door {
             Door::Kit => &[Mode::Meshes, Mode::Tiles, Mode::Compose],
             Door::Map => &[Mode::Map],
             Door::Rigs => &[Mode::Anim],
+            Door::Plugins => &[Mode::Plugins],
         }
     }
 
@@ -126,6 +131,7 @@ impl Door {
             Door::Kit => "KIT",
             Door::Map => "MAP",
             Door::Rigs => "RIGS",
+            Door::Plugins => "PLUGINS",
         }
     }
 
@@ -175,6 +181,7 @@ impl Mode {
             Mode::Tiles => "TILES",
             Mode::Anim => "ANIM",
             Mode::Compose => "COMPOSE",
+            Mode::Plugins => "PLUGINS",
         }
     }
 
@@ -188,6 +195,8 @@ impl Mode {
             Mode::Tiles => crate::keys::Context::Tiles,
             Mode::Anim => crate::keys::Context::Anim,
             Mode::Compose => crate::keys::Context::Compose,
+            // The Plugins door binds no key of its own: only the frame's keys are live there.
+            Mode::Plugins => crate::keys::Context::Global,
         }
     }
 }
@@ -553,7 +562,7 @@ fn stage_camera(
                 crate::compose::carousel_height(&carousel.0).min(crate::view::MAX_ZOOM);
             rig.elevation = crate::view::ISO_ELEVATION;
         }
-        Mode::Map => {
+        Mode::Map | Mode::Plugins => {
             if let Some(was) = saved.0.take() {
                 rig.focus = was.focus;
                 rig.height = was.height;
@@ -3732,6 +3741,10 @@ pub struct AnimRoot;
 #[derive(Component)]
 pub struct ComposeRoot;
 
+/// Root of a Plugins door panel.
+#[derive(Component)]
+pub struct PluginsRoot;
+
 /// One tag chip: which axis, and which token.
 #[derive(Component, Clone, Copy, PartialEq, Eq)]
 struct TagChip {
@@ -4322,7 +4335,7 @@ pub fn other_door(door: Door) -> Option<Door> {
     match door {
         Door::Map => Some(Door::Kit),
         Door::Kit => Some(Door::Map),
-        Door::Rigs => None,
+        Door::Rigs | Door::Plugins => None,
     }
 }
 
@@ -4467,6 +4480,8 @@ fn focus_filter(
             Mode::Map => crate::filter::Pane::Palette,
             Mode::Anim => crate::filter::Pane::Rigs,
             Mode::Compose => crate::filter::Pane::Candidates,
+            // The Plugins door's list has no filter.
+            Mode::Plugins => return,
         };
         filters.take_focus(pane);
     }
@@ -7859,6 +7874,7 @@ type PanelQuery<'w, 's> = Query<
         Has<TilesRoot>,
         Has<AnimRoot>,
         Has<ComposeRoot>,
+        Has<PluginsRoot>,
     ),
 >;
 
@@ -7875,7 +7891,7 @@ fn apply_mode(
     if !mode.is_changed() {
         return;
     }
-    for (mut node, is_map, is_tiles, is_anim, is_compose) in &mut panels {
+    for (mut node, is_map, is_tiles, is_anim, is_compose, is_plugins) in &mut panels {
         // **`TilesRoot` serves both tabs.** The left pane shows a mesh or a tile depending on which
         // is live (`rebuild_detail`), and the right-hand library list is needed by both — describing
         // picks a mesh to edit, building picks one to drop. Two copies of that list would be two
@@ -7885,10 +7901,11 @@ fn apply_mode(
             Mode::Meshes | Mode::Tiles => is_tiles,
             Mode::Anim => is_anim,
             Mode::Compose => is_compose,
+            Mode::Plugins => is_plugins,
         };
         // A panel belonging to no tab is not ours to touch — the tab strip and the cost readout are
         // both unmarked and must stay visible in every mode.
-        if !(is_map || is_tiles || is_anim || is_compose) {
+        if !(is_map || is_tiles || is_anim || is_compose || is_plugins) {
             continue;
         }
         let want = if mine { Display::Flex } else { Display::None };

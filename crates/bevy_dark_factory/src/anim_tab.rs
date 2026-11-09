@@ -250,7 +250,7 @@ impl Plugin for AnimTabPlugin {
             .init_resource::<crate::anim_stage::BenchCamera>()
             // The editor registers the game's blend pass once, here — the staged figure is driven
             // by the REAL machinery, which is the whole reason bevy_blueprint_anim is a crate.
-            .add_plugins(bevy_blueprint_anim::PoseBlendPlugin)
+            .add_plugins(bevy_blueprint_anim::BlueprintAnimPlugin)
             .add_systems(
                 OnEnter(crate::screen::Screen::Editor),
                 (
@@ -311,8 +311,8 @@ impl Plugin for AnimTabPlugin {
                         crate::anim_stage::cycle_cam_preset.in_set(crate::keys::Phase::Act),
                         crate::anim_stage::drive_bench_scrub
                             .in_set(crate::keys::Phase::Act)
-                            .after(bevy_blueprint_anim::PoseAttachSet)
-                            .before(bevy_blueprint_anim::PoseBlendSet),
+                            .after(bevy_blueprint_anim::BlueprintAnimSystems::Attach)
+                            .before(bevy_blueprint_anim::BlueprintAnimSystems::Blend),
                         crate::anim_stage::refresh_scrub_ui,
                         crate::anim_plots::drive_plot_hover,
                     ),

@@ -16,7 +16,7 @@
 //! Run: `cargo run -p bevy_devshot --example capture`
 
 use bevy::prelude::*;
-use bevy_devshot::DevShotPlugin;
+use bevy_devshot::DevshotPlugin;
 
 #[derive(Component)]
 struct Spin;
@@ -34,7 +34,7 @@ fn main() {
         }))
         // In a real game, gate this: `#[cfg(debug_assertions)]`. A shipped build has no reason to
         // watch the filesystem for a screenshot request.
-        .add_plugins(DevShotPlugin)
+        .add_plugins(DevshotPlugin)
         .add_systems(Startup, setup)
         .add_systems(Update, spin)
         .run();

@@ -41,7 +41,7 @@ fn editor_with_tower(tag: &str, at: (f32, f32)) -> App {
 
 fn booted(root: &std::path::Path) -> App {
     let mut app = harness::build_headless(root, "m", None).unwrap_or_else(|e| panic!("{e}"));
-    app.add_plugins(bevy_debugger_bevy::DebuggerPlugin::default());
+    app.add_plugins(bevy_debugger_bevy::FairyPlugin::default());
     app.add_plugins(bevy_dark_factory::ops_brp::OpsBridgePlugin);
     for _ in 0..6 {
         app.update();

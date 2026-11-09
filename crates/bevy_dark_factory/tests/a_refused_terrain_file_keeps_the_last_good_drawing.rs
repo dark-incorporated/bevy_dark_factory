@@ -24,7 +24,7 @@ const WATER_DEEPER: &str = "(origin: (0.0, 0.0), cell_m: 1.0, width: 2, depth: 2
 fn editor(tag: &str) -> App {
     let root = fixtures::Fixture::new(tag).descriptor("site/wall", "alpha").build("m");
     let mut app = bevy_dark_factory::harness::build_headless(&root, "m", None).unwrap_or_else(|e| panic!("{e}"));
-    app.add_plugins(bevy_debugger_bevy::DebuggerPlugin::default());
+    app.add_plugins(bevy_debugger_bevy::FairyPlugin::default());
     app.add_plugins(bevy_dark_factory::ops_brp::OpsBridgePlugin);
     for _ in 0..4 {
         app.update();

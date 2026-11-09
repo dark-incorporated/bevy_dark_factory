@@ -6,21 +6,21 @@
 //! `MsaaWriteback::Auto` copies what the lower camera wrote (the opaque ground colour) into the
 //! interface camera's sampled texture *instead of* honouring its `Custom(Color::NONE)` clear. The
 //! interface then wrote that opaque ground over the HDR world, so the viewport was one flat colour
-//! with `family/bevy_elements.ron` present. Found live on 2026-10-31: with the interface camera's
+//! with a `family/bevy_elements/` settings file present. Found live on 2026-10-31: with the interface camera's
 //! `msaa_writeback` set to `Off` over BRP the viewport went from 1 colour to 456, the sky and the map's
 //! box and grid. No GPU is available to a test, so this asserts the setting the frame depends on.
 
 use bevy::camera::{Camera, MsaaWriteback};
 use bevy::prelude::*;
 use bevy_dark_factory::environment::dress_camera;
-use bevy_dark_factory::family_host::FamilySettings;
+use bevy_dark_factory::family_host::FamilyFiles;
 use bevy_dark_factory::surface::SurfaceCamera;
 use bevy_dark_factory::view::MainCamera;
 
 #[test]
 fn a_dressed_world_is_not_overwritten_by_a_copy_of_the_ground() {
     let mut app = App::new();
-    app.init_resource::<FamilySettings>().add_systems(Update, dress_camera);
+    app.init_resource::<FamilyFiles>().add_systems(Update, dress_camera);
     app.world_mut().spawn((MainCamera, Camera::default()));
     let ui = app.world_mut().spawn((SurfaceCamera, Camera::default())).id();
 
@@ -32,9 +32,9 @@ fn a_dressed_world_is_not_overwritten_by_a_copy_of_the_ground() {
     );
 
     app.world_mut()
-        .resource_mut::<FamilySettings>()
-        .text
-        .insert("bevy_elements".to_owned(), String::new());
+        .resource_mut::<FamilyFiles>()
+        .applied
+        .insert(("bevy_elements".to_owned(), "WorldClock".to_owned()), String::new());
     app.update();
     assert_eq!(
         app.world().get::<Camera>(ui).unwrap().msaa_writeback,
@@ -42,7 +42,7 @@ fn a_dressed_world_is_not_overwritten_by_a_copy_of_the_ground() {
         "dressed: the interface starts from its transparent clear, not from a copy of the ground"
     );
 
-    app.world_mut().resource_mut::<FamilySettings>().text.clear();
+    app.world_mut().resource_mut::<FamilyFiles>().applied.clear();
     app.update();
     assert_eq!(
         app.world().get::<Camera>(ui).unwrap().msaa_writeback,

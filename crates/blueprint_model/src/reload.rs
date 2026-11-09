@@ -196,8 +196,8 @@ pub const KINDS: &[FileKind] = &[
     kind("trees", Blueprint, "<kit>/trees/<name>.tree.ron", "TreeParams", Respawn, Global, "",
         "A species a forest uses: the editor regrows every tree of it when the file's modification time moves, and a file that does not read leaves them as the last good one drew them."),
     // ---- the game root's files ----
-    kind("family", Root, "family/<name>.ron", "a family crate's settings", Live, Global, "",
-        "One file per family crate: the editor applies it in place, polled every 0.1 s. The game-side `BlueprintLivePlugin` does not watch `<root>/family/`."),
+    kind("family", Root, "family/<crate>/<name>.ron", "a family crate's settings resource or data file", Live, Global, "",
+        "One file per settings resource: the editor and the game-side `BlueprintLivePlugin` both apply it in place by reflection; the editor polls every 0.1 s."),
     kind("family_list", Root, "family.ron", "Family", Live, Global, "by hand",
         "Which family crates the project uses, read when the editor needs the list; nothing holds it."),
     kind("editor_settings", Blueprint, "editor.ron", "EditorSettings", Live, Global, "by hand",
@@ -427,7 +427,8 @@ mod tests {
         assert_eq!(kind_of(Base::Blueprint, "site/water/lake.ron").map(|k| k.id), Some("water_plan"));
         assert_eq!(kind_of(Base::Blueprint, "site/library.ron").map(|k| k.id), Some("library"));
         assert_eq!(kind_of(Base::Root, "references/Sketch v2.JPG").map(|k| k.id), Some("reference_images"));
-        assert_eq!(kind_of(Base::Root, "family/weather.ron").map(|k| k.id), Some("family"));
+        assert_eq!(kind_of(Base::Root, "family/weather/Sky.ron").map(|k| k.id), Some("family"));
+        assert_eq!(kind_of(Base::Root, "family/weather.ron"), None, "a file directly in family/ is no settings file");
         assert_eq!(kind_of(Base::Blueprint, "maps/town.map.ron.tmp"), None);
         assert_eq!(kind_of(Base::Blueprint, ".live/game.ron"), None);
     }

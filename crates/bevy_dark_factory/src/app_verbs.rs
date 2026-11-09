@@ -410,6 +410,6 @@ mod tests {
 
     #[test]
     fn a_body_is_written_as_percent_bytes() {
-        assert_eq!(percent_encode("Dark Factory 0.2.0 on linux\n\nWhat?"), "Dark Factory%200.2.0%20on%20linux%0A%0AWhat%3F");
+        assert_eq!(percent_encode("Dark Factory 0.2.0 on linux\n\nWhat?"), "Dark%20Factory%200.2.0%20on%20linux%0A%0AWhat%3F");
     }
 }

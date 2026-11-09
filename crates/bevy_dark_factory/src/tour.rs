@@ -10,10 +10,12 @@
 //!
 //! # Who watches the checkpoints
 //!
-//! `bevy_fairy/guide+watch` is the watching half and it is a BRP *watching* method: nothing runs it unless a client is attached.
-//! An agent is that client; a person following the tour is not, so while a tour runs [`drive_the_tour`] runs the same
-//! [`bevy_debugger_bevy::watch_guide`] every frame, and the step advances when its condition arrives. It runs only while a
-//! [`TourRunning`] stands, so an agent's own script is never read by a second consumer.
+//! A step advances when its checkpoint passes, evaluated in `Last` by `bevy_fairy`'s own `evaluate_checkpoint` (scheduled by
+//! `FairyPlugin`, or by [`crate::guided::GuidePlugin`] in a headless app that has none). `bevy_fairy/guide+watch` only reports
+//! the passes, and it is a BRP *watching* method: nothing runs it unless a client is attached. An agent is that client; a
+//! person following the tour is not, so while a tour runs [`drive_the_tour`] runs the same [`bevy_debugger_bevy::watch_guide`]
+//! every frame to learn when the script is done. It runs only while a [`TourRunning`] stands, so an agent's own script is
+//! never read by a second consumer.
 //!
 //! # Pulled, never pushed
 //!

@@ -256,7 +256,7 @@ fn cmd_z_does_not_undo_a_resize_the_agent_already_took_back() {
 /// An editor with the agent's BRP methods registered, as the MCP server reaches them.
 fn agent_editor(tag: &str) -> App {
     let mut app = editor(tag);
-    app.add_plugins(bevy_debugger_bevy::DebuggerPlugin::default());
+    app.add_plugins(bevy_debugger_bevy::FairyPlugin::default());
     app.add_plugins(bevy_dark_factory::ops_brp::OpsBridgePlugin);
     for _ in 0..8 {
         app.update();

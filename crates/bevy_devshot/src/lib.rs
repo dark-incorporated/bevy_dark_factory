@@ -11,12 +11,12 @@
 //!
 //! # Register it behind a debug gate
 //!
-//! [`DevShotPlugin`] polls one `Path::exists` per frame and does nothing else, but a shipped game has
+//! [`DevshotPlugin`] polls one `Path::exists` per frame and does nothing else, but a shipped game has
 //! no reason to watch the filesystem for a screenshot request. Gate the registration:
 //!
 //! ```ignore
 //! #[cfg(debug_assertions)]
-//! app.add_plugins(bevy_devshot::DevShotPlugin);
+//! app.add_plugins(bevy_devshot::DevshotPlugin);
 //! ```
 
 use std::fs;
@@ -28,11 +28,15 @@ use bevy::render::view::screenshot::{save_to_disk, Screenshot};
 const REQUEST: &str = "screenshot.request";
 const OUTPUT: &str = "screenshot.png";
 
-pub struct DevShotPlugin;
+/// **Every system this crate adds is in this set** (the machine plate).
+#[derive(SystemSet, Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct DevshotSystems;
 
-impl Plugin for DevShotPlugin {
+pub struct DevshotPlugin;
+
+impl Plugin for DevshotPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Update, watch_sentinel);
+        app.add_systems(Update, watch_sentinel.in_set(DevshotSystems));
     }
 }
 

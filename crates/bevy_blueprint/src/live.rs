@@ -37,6 +37,10 @@ use crate::{BlueprintWorld, Placement, spawn_placements};
 pub struct BlueprintLivePlugin {
     pub dir: PathBuf,
     pub maps: Vec<String>,
+    /// The game's root, the folder that holds `family/` (for `dir` = `assets/blueprint`, the folder
+    /// `assets` is in). Its settings files, `family/<crate>/<TypeIdent>.ron`, are applied to the
+    /// crates' resources by reflection.
+    pub root: PathBuf,
 }
 
 /// One successful reload.
@@ -227,8 +231,55 @@ impl Plugin for BlueprintLivePlugin {
                 seq: 0,
             })
             .init_resource::<DataReaders>()
-            .add_systems(Update, (reload, reload_data));
+            .insert_resource(LiveSettings { watch: blueprint_model::family::FamilyWatch::new(&self.root), made_at: None })
+            .add_systems(Update, (reload, reload_data, reload_settings).in_set(crate::BlueprintSystems));
     }
+}
+
+/// The project's settings files (`family/<crate>/<TypeIdent>.ron`) and when their watch started.
+#[derive(Resource)]
+struct LiveSettings {
+    watch: blueprint_model::family::FamilyWatch,
+    /// The clock reading at the first run, so the watch's intervals are measured from it.
+    made_at: Option<f64>,
+}
+
+/// **The project's settings follow its files** in a running game: on the first frame every settings
+/// file is applied to its crate's resource ([`crate::settings::apply_settings_text`]), and afterwards each
+/// settled change is applied, a deleted file puts the resource back to its default, and a file that does
+/// not read is logged and leaves the resource as it was. A file whose crate this build does not register
+/// a settings type for (a data file such as a dialogue script) is the reading system's business, not this
+/// one's.
+fn reload_settings(world: &mut World) {
+    let now = world.resource::<Time<Real>>().elapsed_secs_f64();
+    let changes: Vec<blueprint_model::family::SettingsChange> = world.resource_scope(|_, mut live: Mut<LiveSettings>| match live.made_at {
+        None => {
+            live.made_at = Some(now);
+            live.watch
+                .current()
+                .iter()
+                .map(|((krate, ident), text)| blueprint_model::family::SettingsChange::Reloaded { krate: krate.clone(), ident: ident.clone(), text: text.clone() })
+                .collect()
+        }
+        Some(start) => live.watch.poll(now - start),
+    });
+    for change in changes {
+        use blueprint_model::family::SettingsChange::*;
+        let result = match &change {
+            Reloaded { krate, ident, text } => applies(world, krate, ident).then(|| crate::settings::apply_settings_text(world, krate, ident, text)),
+            Removed { krate, ident } => applies(world, krate, ident).then(|| crate::settings::reset_settings(world, krate, ident)),
+            Invalid { krate, ident, error } => Some(Err(format!("{}: {error}", blueprint_model::family::settings_file(krate, ident)))),
+        };
+        if let Some(Err(e)) = result {
+            warn!("blueprint live: {e}; the previous settings stay");
+        }
+    }
+}
+
+/// Whether `krate` registers a settings type named `ident` in this build.
+fn applies(world: &World, krate: &str, ident: &str) -> bool {
+    let registry = world.resource::<AppTypeRegistry>().read();
+    crate::settings::settings_type(&registry, krate, ident).is_ok()
 }
 
 /// What to do to the entities: draw these (new) ids, and despawn the entities that stood for these (old)

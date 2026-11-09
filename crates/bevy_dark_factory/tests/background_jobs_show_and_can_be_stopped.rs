@@ -240,7 +240,7 @@ fn click(app: &mut App, target: Entity) {
 #[test]
 fn an_agent_reads_the_jobs_the_band_draws_and_stops_one_through_the_same_request() {
     let mut app = editor("jobs-agent", 3);
-    app.add_plugins(bevy_debugger_bevy::DebuggerPlugin::default());
+    app.add_plugins(bevy_debugger_bevy::FairyPlugin::default());
     app.add_plugins(bevy_dark_factory::ops_brp::OpsBridgePlugin);
     for _ in 0..4 {
         app.update();

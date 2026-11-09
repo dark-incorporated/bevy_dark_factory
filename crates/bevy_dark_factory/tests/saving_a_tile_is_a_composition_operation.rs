@@ -24,7 +24,7 @@ fn editor(name: &str) -> (std::path::PathBuf, App) {
         .bounded_composition("bay", (1.0, 2.4, 1.0), &[("north", "wall", (0.0, 0.0))])
         .build("m");
     let mut app = harness::build_headless_at(&root, "m", None, Mode::Tiles).unwrap_or_else(|e| panic!("{e}"));
-    app.add_plugins(bevy_debugger_bevy::DebuggerPlugin::default());
+    app.add_plugins(bevy_debugger_bevy::FairyPlugin::default());
     app.add_plugins(bevy_dark_factory::ops_brp::OpsBridgePlugin);
     for _ in 0..8 {
         app.update();

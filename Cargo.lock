@@ -682,6 +682,9 @@ version = "0.5.0"
 dependencies = [
  "bevy",
  "blueprint_model",
+ "ron",
+ "serde",
+ "serde_path_to_error",
 ]
 
 [[package]]
@@ -951,6 +954,7 @@ dependencies = [
  "indexmap",
  "log",
  "nonmax",
+ "rand",
  "serde",
  "slotmap",
  "smallvec",
@@ -985,8 +989,8 @@ dependencies = [
 
 [[package]]
 name = "bevy_elements"
-version = "0.7.8"
-source = "git+https://github.com/dark-incorporated/bevy_elements?rev=0778a620452368662771825ea568b7d79966b87c#0778a620452368662771825ea568b7d79966b87c"
+version = "0.8.0"
+source = "git+https://github.com/dark-incorporated/bevy_elements?rev=55955fe6ce2a3223e607398ce28500471a7eb0d3#55955fe6ce2a3223e607398ce28500471a7eb0d3"
 dependencies = [
  "bevy",
  "bevy_isomesh",
@@ -1047,8 +1051,8 @@ dependencies = [
 
 [[package]]
 name = "bevy_fairy"
-version = "0.3.1"
-source = "git+https://github.com/dark-incorporated/bevy_fairy?rev=06c9c1805651fabb2474a9d09af84c761be406aa#06c9c1805651fabb2474a9d09af84c761be406aa"
+version = "0.13.0"
+source = "git+https://github.com/dark-incorporated/bevy_fairy?rev=65ec493b8d5f74f264b5c85d507d7c01a43bfe52#65ec493b8d5f74f264b5c85d507d7c01a43bfe52"
 dependencies = [
  "bevy",
  "image",
@@ -1090,8 +1094,8 @@ dependencies = [
 
 [[package]]
 name = "bevy_flora"
-version = "0.46.0"
-source = "git+https://github.com/dark-incorporated/bevy_flora?rev=25e956b3f88ba32a1b6d75957360c6840da6afd9#25e956b3f88ba32a1b6d75957360c6840da6afd9"
+version = "0.47.0"
+source = "git+https://github.com/dark-incorporated/bevy_flora?rev=403d3cdb29e0a51dc50e0b10b37d685a6f66ba1c#403d3cdb29e0a51dc50e0b10b37d685a6f66ba1c"
 dependencies = [
  "bevy",
  "ron",
@@ -1220,8 +1224,8 @@ dependencies = [
 
 [[package]]
 name = "bevy_gooey"
-version = "0.43.1"
-source = "git+https://github.com/dark-incorporated/bevy_gooey?rev=04a3cdf261b3076bce47ba35fa8b5c164750b997#04a3cdf261b3076bce47ba35fa8b5c164750b997"
+version = "0.44.2"
+source = "git+https://github.com/dark-incorporated/bevy_gooey?rev=9d3fccb21869a35818356a80386e085bef8123fb#9d3fccb21869a35818356a80386e085bef8123fb"
 dependencies = [
  "accesskit",
  "bevy",
@@ -1412,7 +1416,7 @@ dependencies = [
 [[package]]
 name = "bevy_lights"
 version = "0.5.0"
-source = "git+https://github.com/dark-incorporated/bevy_lights?rev=ae3b818e06cfcde24a0cbfed1a897732c1dfb444#ae3b818e06cfcde24a0cbfed1a897732c1dfb444"
+source = "git+https://github.com/dark-incorporated/bevy_lights?rev=af57561b778daf9f1e0d8eed1aea218b4da17826#af57561b778daf9f1e0d8eed1aea218b4da17826"
 dependencies = [
  "bevy",
  "serde",
@@ -1892,7 +1896,7 @@ dependencies = [
 [[package]]
 name = "bevy_siren"
 version = "0.1.0"
-source = "git+https://github.com/dark-incorporated/bevy_siren?rev=7029b20#7029b20c6250d5ec05db3b50282bacfcaf2089a9"
+source = "git+https://github.com/dark-incorporated/bevy_siren?rev=a7e3f8ab43d4ddede71cfeb8c88c5e92f7f0452a#a7e3f8ab43d4ddede71cfeb8c88c5e92f7f0452a"
 dependencies = [
  "bevy",
  "ron",
@@ -1914,12 +1918,13 @@ dependencies = [
 
 [[package]]
 name = "bevy_speech_bubbles"
-version = "0.2.1"
-source = "git+https://github.com/dark-incorporated/bevy_speech_bubbles?rev=b2d67f0d8a8a984a78f9bc9291cc63be867c6822#b2d67f0d8a8a984a78f9bc9291cc63be867c6822"
+version = "0.3.0"
+source = "git+https://github.com/dark-incorporated/bevy_speech_bubbles?rev=02bcbe12b3aaf264fc5a4868263ef6cb9090f6bb#02bcbe12b3aaf264fc5a4868263ef6cb9090f6bb"
 dependencies = [
  "ab_glyph",
  "bevy",
  "serde",
+ "unicode-segmentation",
 ]
 
 [[package]]

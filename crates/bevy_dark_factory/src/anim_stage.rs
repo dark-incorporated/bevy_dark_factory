@@ -531,7 +531,7 @@ type Blenders<'w, 's> = Query<
 >;
 
 /// **Drive the staged blender** — the bench's creature driver, ordered exactly like the game's
-/// (`.after(PoseAttachSet).before(PoseBlendSet)`).
+/// (`.after(BlueprintAnimSystems::Attach).before(BlueprintAnimSystems::Blend)`).
 pub(crate) fn drive_bench_scrub(
     keyboard: Res<ButtonInput<KeyCode>>,
     live: Res<crate::keys::Live>,

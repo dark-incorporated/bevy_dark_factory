@@ -1,7 +1,7 @@
 //! **Walk a conversation without playing it, as one registered operation** (#106): `dialogue_preview`.
 //!
 //! A read: it loads the project's `DialogueScript` (the crate's own type, from
-//! `family/bevy_speech_bubbles.ron`), follows one path through a conversation taking the named
+//! `family/bevy_speech_bubbles/DialogueScript.ron`), follows one path through a conversation taking the named
 //! options at each choice, and answers with the lines said, where the walk stopped, and which nodes
 //! no path from the start reaches. It changes no document, so it has no undo.
 
@@ -29,7 +29,7 @@ impl DialoguePreview {
     fn run(ctx: &Ctx, raw: &serde_json::Value) -> Result<serde_json::Value, Refusal> {
         let p: Params = serde_json::from_value(raw.clone())
             .map_err(|e| Refusal::new(format!("this is not a dialogue preview: {e}. The fields are `conversation` and `choices`.")))?;
-        let path = crate::ops_family::settings_path(ctx, "bevy_speech_bubbles")?;
+        let path = crate::ops_family::settings_path(ctx, "bevy_speech_bubbles", "DialogueScript")?;
         let text = std::fs::read_to_string(&path)
             .map_err(|e| Refusal::new(format!("{} cannot be read, so there is nothing to preview: {e}", path.display())))?;
         let script: DialogueScript =

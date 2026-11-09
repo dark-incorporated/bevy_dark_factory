@@ -108,7 +108,7 @@ fn app(project: &Project) -> App {
         .init_asset::<Mesh>()
         .init_asset::<StandardMaterial>()
         .add_plugins(BlueprintPlugin)
-        .add_plugins(BlueprintLivePlugin { dir: project.blueprint.clone(), maps: vec!["yard".to_owned()] })
+        .add_plugins(BlueprintLivePlugin { dir: project.blueprint.clone(), maps: vec!["yard".to_owned()], root: project.blueprint.join("../..") })
         .init_resource::<Spawns>()
         .add_observer(|_: On<Add<Placement>>, mut spawns: ResMut<Spawns>| spawns.0 += 1)
         .insert_resource(TimeUpdateStrategy::ManualDuration(Duration::from_millis(600)))

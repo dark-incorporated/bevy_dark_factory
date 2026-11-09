@@ -31,16 +31,16 @@
     {
       "at": 2.4,
       "write": {
-        "path": "family/bevy_siren.ron",
-        "text": "(buses: {\"sfx\": 0.0, \"music\": -4.0}, cues: {\"door_open\": (bus: \"sfx\", gain: -1.0)})\n"
+        "path": "family/bevy_siren/SirenSettings.ron",
+        "text": "(buses: [(name: \"sfx\", gain_db: 0.0), (name: \"music\", gain_db: -4.0)])\n"
       },
-      "caption": "person: saves family/bevy_siren.ron with two buses and a cue"
+      "caption": "person: saves family/bevy_siren/SirenSettings.ron with two buses"
     },
     {
       "at": 5.0,
       "write": {
-        "path": "family/bevy_siren.ron",
-        "text": "(buses: {\"sfx\": -3.0, \"music\": -9.0}, cues: {\"door_open\": (bus: \"sfx\", gain: -1.0)})\n"
+        "path": "family/bevy_siren/SirenSettings.ron",
+        "text": "(buses: [(name: \"sfx\", gain_db: -3.0), (name: \"music\", gain_db: -9.0)])\n"
       },
       "caption": "person: saves it again, quieter"
     }

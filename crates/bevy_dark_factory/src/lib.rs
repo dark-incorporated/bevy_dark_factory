@@ -45,6 +45,7 @@ pub mod anim_cache;
 pub mod anim_plots;
 pub mod anim_stage;
 pub mod anim_tab;
+pub mod plugins_tab;
 pub mod anim_watch;
 pub mod args;
 #[cfg(feature = "asset_spike")]
@@ -74,6 +75,8 @@ pub mod app_verbs;
 pub mod menu_bar;
 pub mod empty_state;
 pub mod family_host;
+pub mod piece_components;
+pub mod type_registry;
 pub mod log_filter;
 pub mod log_file;
 pub mod startup_probe;

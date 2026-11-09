@@ -230,7 +230,14 @@ pub fn sync_terrain_view(
     // Read each file that exists, and decide it: its value, or the refusal that names file and field.
     let ground = read_kind("terrain", &project, &ground_path, Heightfield::parse);
     let water = read_kind("water_field", &project, &water_path, WaterField::parse);
-    let volume = read_kind("volume", &project, &volume_path, Volume::parse);
+    // **The cover is not the shape** (#101): `dress_volume` puts it on the material, so a cover edit must
+    // not count as a change to what is drawn, or every `volume_set_cover` would remesh the carved ground.
+    let volume = read_kind("volume", &project, &volume_path, |text| {
+        Volume::parse(text).map(|mut v| {
+            v.cover = None;
+            v
+        })
+    });
     let verdicts: Vec<KindVerdict> = ground
         .iter()
         .map(|(_, v)| v)

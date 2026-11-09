@@ -124,7 +124,7 @@ fn a_theme_edit_reaches_a_panel_that_was_already_built() {
 ///
 /// `the_skin_carries_the_editors_other_colours.rs` pins the editor skin's tone set *exactly*, so a tone
 /// added to `editor_skin.ron` re-pins a protected assertion and is not this pass's to make. A tone a
-/// **project** writes is a different thing: it is in the project's own `family/bevy_gooey.ron`, no
+/// **project** writes is a different thing: it is in the project's own `family/bevy_gooey/GooeySkin.ron`, no
 /// protected set describes it, and it must reach the status bar and the chrome bar.
 #[test]
 fn a_projects_bar_tone_repaints_the_bands() {

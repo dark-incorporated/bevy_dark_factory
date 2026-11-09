@@ -52,8 +52,8 @@ pub fn budget(map: &blueprint_model::map::Map, p: &Params) -> Result<serde_json:
     app.world_mut().spawn((Focus, Transform::from_xyz(p.focus.0, 0.0, p.focus.1)));
     let mut ids = std::collections::HashMap::new();
     for pl in &map.placements {
-        let Some(text) = pl.family.get("bevy_lights") else { continue };
-        let f = Fixture::read(text).map_err(|e| Refusal::new(format!("{}'s bevy_lights settings do not read: {e}", pl.id)))?;
+        let Some(read) = Fixture::of(pl) else { continue };
+        let f = read.map_err(|e| Refusal::new(format!("{}'s bevy_lights component does not read: {e}", pl.id)))?;
         let e = app.world_mut().spawn((PoolCandidate { intensity: f.lumens(), ..default() }, Transform::from_xyz(pl.at.0, 0.0, pl.at.1))).id();
         ids.insert(e, pl.id.clone());
     }

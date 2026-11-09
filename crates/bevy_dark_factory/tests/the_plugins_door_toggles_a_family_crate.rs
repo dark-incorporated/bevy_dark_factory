@@ -1,9 +1,10 @@
-//! **The project configuration screen lists the family crates and a switch rewrites `family.ron`** (UI-74, #252).
+//! **The Plugins door lists the family crates and a switch rewrites `family.ron`** (UI-74, #252).
 //!
-//! A switch lists a crate in the project's `family.ron`, or takes it out, through an atomic write that
-//! keeps every other crate where the file has it. The file is then read back through the reload contract's
-//! own check and the screen says what became of it: `applied`, or the refusal with the file and the field.
-//! A `family.ron` that does not read is shown and never written over.
+//! A switch, named by its crate, lists a crate in the project's `family.ron`, or takes it out, through an
+//! atomic write that keeps every other crate where the file has it. The file is then read back through
+//! the reload contract's own check, and the project configuration screen says what became of it:
+//! `applied`, or the refusal with the file and the field. A `family.ron` that does not read is shown and
+//! never written over.
 
 use std::path::PathBuf;
 
@@ -11,6 +12,7 @@ use bevy::prelude::*;
 use bevy_dark_factory::live::EditorReloads;
 use bevy_dark_factory::project::Project;
 use bevy_dark_factory::project_config::OpenProjectConfig;
+use bevy_dark_factory::tiles::Mode;
 use blueprint_model::family::Family;
 use bevy_gooey::testing::{click, find_by_label};
 
@@ -23,7 +25,7 @@ fn rig(tag: &str) -> (App, PathBuf) {
         app.update();
     }
     let root = app.world().resource::<Project>().root.clone();
-    app.world_mut().write_message(OpenProjectConfig);
+    app.world_mut().insert_resource(Mode::Plugins);
     for _ in 0..4 {
         app.update();
     }
@@ -51,15 +53,19 @@ fn toggling_a_crate_writes_family_ron_atomically_and_the_verdict_row_reads_appli
     settle(&mut app);
     let family = Family::load(&root).expect("what the screen wrote reads");
     assert_eq!(family.crates, ["bevy_gooey"], "the switch listed the crate");
-    let leftovers: Vec<_> = std::fs::read_dir(&root).unwrap().flatten().map(|e| e.file_name().to_string_lossy().into_owned()).filter(|n| n.contains("family")).collect();
+    let leftovers: Vec<_> = std::fs::read_dir(&root).unwrap().flatten().map(|e| e.file_name().to_string_lossy().into_owned()).filter(|n| n.starts_with("family.")).collect();
     assert_eq!(leftovers, ["family.ron"], "an atomic write leaves no temporary file beside it");
+    assert!(root.join("family/bevy_gooey/GooeySkin.ron").exists(), "switching gooey on wrote its settings files");
     assert_eq!(verdict(&app), Some(("applied".to_owned(), "family.ron".to_owned())), "the reload contract's verdict on the file it wrote is recorded");
-    assert!(find_by_label(&mut app, "family.ron: applied").is_ok(), "and the screen says so");
 
     let again = find_by_label(&mut app, "bevy_gooey").unwrap();
     click(&mut app, again);
     settle(&mut app);
     assert!(Family::load(&root).unwrap().crates.is_empty(), "the same switch takes it out again");
+
+    app.world_mut().write_message(OpenProjectConfig);
+    settle(&mut app);
+    assert!(find_by_label(&mut app, "family.ron: applied").is_ok(), "the project configuration says what became of the file");
 }
 
 #[test]
@@ -86,7 +92,7 @@ fn a_family_ron_that_does_not_read_is_said_and_left_exactly_as_it_is() {
     settle(&mut app);
     let mut texts = app.world_mut().query::<&Text>();
     let said: Vec<String> = texts.iter(app.world()).map(|t| t.0.clone()).collect();
-    assert!(said.iter().any(|t| t.contains("family.ron") && t.contains("nothing is written until it reads")), "the screen names the file: {said:?}");
+    assert!(said.iter().any(|t| t.contains("family.ron") && t.contains("nothing is written until it reads")), "the door names the file: {said:?}");
     assert!(find_by_label(&mut app, "bevy_gooey").is_err(), "no switch is offered over a file that does not read");
     assert_eq!(std::fs::read_to_string(root.join("family.ron")).unwrap(), broken);
     // And the writer itself refuses, for an agent or a test that reaches it without the screen.

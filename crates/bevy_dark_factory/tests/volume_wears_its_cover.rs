@@ -1,14 +1,13 @@
-//! **The carved ground wears the cover the environment file names** (#101): `volume_cover`, the
-//! crate's own `SurfaceCover` in `family/bevy_elements.ron`, is put on the carved chunks' weathered
-//! material, follows an edit to the file without a remesh, and the chunks go back to the plain
-//! material when the file goes. Needs `bevy_elements` and `isomesh`:
+//! **The carved ground wears the cover its volume names** (#101): the volume's `cover`, set by
+//! `volume_set_cover`, is put on the carved chunks' weathered material as the crate's own `SurfaceCover`,
+//! follows an edit without a remesh, and the chunks go back to the plain material when the project has no
+//! `bevy_elements` file left. Needs `bevy_elements` and `isomesh`:
 //! `cargo test -p bevy_dark_factory --features volume_snow --test editor volume_wears_its_cover::`.
 #![cfg(all(feature = "bevy_elements", feature = "isomesh"))]
 
 use bevy::prelude::*;
-use bevy_elements::{CoverBand, SurfaceCover, WeatheredExtension, WeatheredMaterial};
+use bevy_elements::{SurfaceCover, WeatheredExtension, WeatheredMaterial};
 use blueprint_model::heightfield::Heightfield;
-use bevy_dark_factory::environment::ElementsSettings;
 use bevy_dark_factory::ops::{self, Applied, Ctx};
 use bevy_dark_factory::terrain_view::TerrainView;
 use serde_json::json;
@@ -61,11 +60,10 @@ fn done(r: Result<Applied, ops::Refusal>) {
 #[test]
 fn the_carved_ground_wears_the_files_cover_and_follows_an_edit() {
     let root = fixtures::Fixture::new("volume_cover").descriptor("site/wall", "alpha").build("m");
-    std::fs::create_dir_all(root.join("family")).unwrap();
+    std::fs::create_dir_all(root.join("family/bevy_elements")).unwrap();
     std::fs::write(root.join("family.ron"), "(version: 1, crates: [\"bevy_elements\"])").unwrap();
-    let file = root.join("family/bevy_elements.ron");
-    let wet = SurfaceCover { wetness: CoverBand::wet(1.0), ..default() };
-    std::fs::write(&file, ElementsSettings { volume_cover: Some(wet), ..ElementsSettings::defaults() }.to_ron()).unwrap();
+    let file = root.join("family/bevy_elements/WorldClock.ron");
+    std::fs::write(&file, ron::to_string(&bevy_elements::WorldClock::default()).unwrap()).unwrap();
     let mut app = bevy_dark_factory::harness::build_headless(&root, "m", None).unwrap_or_else(|e| panic!("{e}"));
     // What `bevy_elements`' plugins give the editor's app; the headless harness renders nothing.
     app.init_asset::<WeatheredMaterial>();
@@ -78,14 +76,17 @@ fn the_carved_ground_wears_the_files_cover_and_follows_an_edit() {
     let mut ctx = Ctx { project: Some(project), session: "test".to_owned(), ..Ctx::default() };
     let carve = json!({"map": "m", "edit": {"shape": {"Sphere": {"center": [16.0, 0.3, 16.0], "radius_m": 5.0}}, "mode": "Carve"}});
     done(ops::dispatch(&mut ctx, "volume_edit", &carve));
+    let set = |ctx: &mut Ctx, cover: serde_json::Value| done(ops::dispatch(ctx, "volume_set_cover", &json!({"map": "m", "cover": cover})));
+    set(&mut ctx, json!({"snow": 0.0, "wetness": 1.0}));
+    let wet = SurfaceCover::new(0.0, 1.0);
 
     let all_wear = |want: String| move |app: &mut App| {
         let c = chunks(app);
         !c.is_empty() && c.iter().all(|e| e.as_deref() == Some(want.as_str()))
     };
-    assert!(until(&mut app, all_wear(wearing(Some(wet)))), "every carved chunk wears the file's wet cover: {:?}", chunks(&mut app));
+    assert!(until(&mut app, all_wear(wearing(Some(wet)))), "every carved chunk wears the volume's wet cover: {:?}", chunks(&mut app));
 
-    // An edit to the file, through the operation a person and an agent both use, reaches the drawn
+    // An edit, through the operation a person and an agent both use, reaches the drawn
     // chunks without a remesh: the same entities, wearing the new cover.
     let ids = |app: &mut App| -> Vec<Entity> {
         let world = app.world_mut();
@@ -95,16 +96,15 @@ fn the_carved_ground_wears_the_files_cover_and_follows_an_edit() {
         v
     };
     let before = ids(&mut app);
-    let snow = SurfaceCover { snow: CoverBand::snow(1.0), ..default() };
-    let set = |ctx: &mut Ctx, value: String| done(ops::dispatch(ctx, "family_set", &json!({"crate": "bevy_elements", "field": "volume_cover", "value": value})));
-    set(&mut ctx, ron::to_string(&Some(snow)).unwrap());
+    let snow = SurfaceCover::new(1.0, 0.0);
+    set(&mut ctx, json!({"snow": 1.0, "wetness": 0.0}));
     assert!(until(&mut app, all_wear(wearing(Some(snow)))), "the snow cover replaces the wet one: {:?}", chunks(&mut app));
     assert_eq!(ids(&mut app), before, "a cover edit remeshed the carved ground");
-    set(&mut ctx, "None".to_owned());
+    set(&mut ctx, serde_json::Value::Null);
     assert!(until(&mut app, all_wear(wearing(None))), "no cover: the scene's weather decides: {:?}", chunks(&mut app));
     assert_eq!(ids(&mut app), before, "a cover edit remeshed the carved ground");
 
-    // Without the environment file the editor's own plain material is back.
+    // With no `bevy_elements` file left the editor's own plain material is back.
     std::fs::remove_file(&file).unwrap();
     assert!(
         until(&mut app, |app| {

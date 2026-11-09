@@ -121,7 +121,7 @@ fn app(project: &Project, hooks: impl FnOnce(&mut App)) -> App {
         .init_asset::<Mesh>()
         .init_asset::<StandardMaterial>()
         .add_plugins(BlueprintPlugin)
-        .add_plugins(BlueprintLivePlugin { dir: project.blueprint.clone(), maps: vec!["yard".to_owned()] })
+        .add_plugins(BlueprintLivePlugin { dir: project.blueprint.clone(), maps: vec!["yard".to_owned()], root: project.blueprint.join("../..") })
         .insert_resource(TimeUpdateStrategy::ManualDuration(Duration::from_millis(600)))
         .insert_resource(Flagged::default())
         .add_systems(Update, log_changed_homes)

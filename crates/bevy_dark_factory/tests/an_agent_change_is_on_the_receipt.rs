@@ -35,7 +35,7 @@ fn project(name: &str) -> std::path::PathBuf {
 /// **The editor, with the agent's door open.** Same plugin graph as `an_agent_can_drive_the_editor`.
 fn editor_with_bridge(root: &std::path::Path) -> App {
     let mut app = harness::build_headless(root, "m", None).unwrap_or_else(|e| panic!("{e}"));
-    app.add_plugins(bevy_debugger_bevy::DebuggerPlugin::default());
+    app.add_plugins(bevy_debugger_bevy::FairyPlugin::default());
     app.add_plugins(bevy_dark_factory::ops_brp::OpsBridgePlugin);
     app
 }

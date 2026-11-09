@@ -210,8 +210,8 @@ async fn the_reference_names_the_servers_own_tools() {
 fn every_tool_is_prefixed() {
     for tool in dark_factory_mcp::docs::TOOLS {
         assert!(
-            tool.name.starts_with("blueprint_"),
-            "the tool `{}` is not prefixed with `blueprint_`.",
+            tool.name.starts_with("factory_"),
+            "the tool `{}` is not prefixed with `factory_`.",
             tool.name
         );
     }

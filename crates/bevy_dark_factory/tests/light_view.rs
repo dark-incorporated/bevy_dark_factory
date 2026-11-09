@@ -27,31 +27,28 @@ fn editor(name: &str) -> App {
     app
 }
 
-fn set_family(app: &mut App, nth: usize, value: Option<&str>) -> String {
+fn set_flicker(app: &mut App, nth: usize, value: Option<&str>) -> String {
     let mut open = app.world_mut().resource_mut::<OpenMap>();
     let p = &mut open.map.placements[nth];
     match value {
-        Some(v) => drop(p.family.insert("bevy_lights".to_owned(), v.to_owned())),
-        None => drop(p.family.remove("bevy_lights")),
+        Some(v) => drop(p.components.insert(<bevy_lights::Flicker as bevy::reflect::TypePath>::type_path().to_owned(), v.to_owned())),
+        None => drop(p.components.remove(<bevy_lights::Flicker as bevy::reflect::TypePath>::type_path())),
     }
     p.id.clone()
 }
 
-/// The lights the preview drew, with the placement each hangs under.
+/// The lights the preview drew: each on the piece's own entity, with the placement's id.
 fn lights(app: &mut App) -> Vec<(String, f32, Flicker)> {
     let world = app.world_mut();
-    let mut q = world.query::<(&PointLight, &Flicker, &ChildOf)>();
-    let hits: Vec<(f32, Flicker, Entity)> = q.iter(world).map(|(l, f, c)| (l.intensity, *f, c.parent())).collect();
-    hits.into_iter()
-        .filter_map(|(i, f, parent)| world.get::<bevy_dark_factory::editor::Placement>(parent).map(|p| (p.0.clone(), i, f)))
-        .collect()
+    let mut q = world.query::<(&PointLight, &Flicker, &bevy_dark_factory::editor::Placement)>();
+    q.iter(world).map(|(l, f, p)| (p.0.clone(), l.intensity, *f)).collect()
 }
 
 #[test]
 fn a_placement_carrying_a_flicker_holds_a_light_and_one_without_holds_none() {
     let mut app = editor("light_view_holds");
     assert!(lights(&mut app).is_empty(), "no placement carries a flicker yet");
-    let id = set_family(&mut app, 0, Some("(base: 1200.0, phase: 0.4)"));
+    let id = set_flicker(&mut app, 0, Some("(base: 1200.0, phase: 0.4)"));
     for _ in 0..3 {
         app.update();
     }
@@ -64,7 +61,7 @@ fn a_placement_carrying_a_flicker_holds_a_light_and_one_without_holds_none() {
 #[test]
 fn the_light_flickers_between_the_crates_own_bounds_as_frames_pass() {
     let mut app = editor("light_view_flickers");
-    set_family(&mut app, 0, Some("(base: 1000.0, depth: 0.15)"));
+    set_flicker(&mut app, 0, Some("(base: 1000.0, depth: 0.15)"));
     let mut seen = Vec::new();
     for _ in 0..120 {
         app.update();
@@ -81,12 +78,12 @@ fn the_light_flickers_between_the_crates_own_bounds_as_frames_pass() {
 #[test]
 fn editing_the_value_retunes_the_light_and_removing_it_takes_the_light_down() {
     let mut app = editor("light_view_edits");
-    set_family(&mut app, 0, Some("(base: 1000.0)"));
+    set_flicker(&mut app, 0, Some("(base: 1000.0)"));
     for _ in 0..3 {
         app.update();
     }
     assert_eq!(lights(&mut app).len(), 1);
-    set_family(&mut app, 0, Some("(base: 400.0, depth: 0.0)"));
+    set_flicker(&mut app, 0, Some("(base: 400.0, depth: 0.0)"));
     for _ in 0..3 {
         app.update();
     }
@@ -94,7 +91,7 @@ fn editing_the_value_retunes_the_light_and_removing_it_takes_the_light_down() {
     assert_eq!(drawn.len(), 1, "a retune is not a second light: {drawn:?}");
     assert_eq!(drawn[0].2.base, 400.0);
     assert!((drawn[0].1 - 400.0).abs() < 1.0, "with no depth the light holds its base: {}", drawn[0].1);
-    set_family(&mut app, 0, None);
+    set_flicker(&mut app, 0, None);
     for _ in 0..3 {
         app.update();
     }

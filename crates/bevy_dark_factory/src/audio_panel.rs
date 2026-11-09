@@ -1,9 +1,10 @@
 //! **The audio panel** (S-01): a project's sound as the crate's own data, with its mix drawn live and every cue
 //! auditionable.
 //!
-//! The file is `<project>/family/bevy_siren.ron` — `bevy_siren`'s own `SirenSettings`, `CueTable` and `MusicScore`,
-//! read and written through their own `serde` derives. There is no second schema: the editor writes the crate's
-//! types, so the file a person edits here is the file a game ships.
+//! The files are `bevy_siren`'s own types, one each under `<project>/family/bevy_siren/`: `SirenSettings.ron` (the
+//! mix, a settings resource the family layer applies by reflection like every other) and `CueTable.ron` (the cues,
+//! which this panel reads through the crate's own `serde` derives). There is no second schema: the editor writes the
+//! crate's types, so the files a person edits here are the files a game ships.
 //!
 //! # What it draws
 //!
@@ -22,13 +23,15 @@
 
 use bevy::prelude::*;
 use bevy::ui_widgets::Activate;
-use blueprint_model::family::settings_dir;
 
 use crate::editor::EditorState;
 use crate::project::Project;
 
-/// The crate's settings file, under the project's `family/`.
-pub const FILE: &str = "bevy_siren.ron";
+/// The crate, as `family.ron` names it.
+pub const CRATE: &str = "bevy_siren";
+
+/// The cue table's file, `family/bevy_siren/CueTable.ron`.
+pub const CUES: &str = "CueTable";
 
 /// The panel's own state: what was read, what is selected, and whether it is open.
 #[derive(Resource, Clone, Debug, Default, PartialEq)]
@@ -74,37 +77,39 @@ pub fn spawn_section(s: &mut ChildSpawnerCommands) {
     button(s, AuditionButton, "Audition cue", Severity::Plain);
 }
 
-/// **Read the project's sound** when the project changes and when its file changes on disk — once per change, never
-/// per frame. A file that does not parse is a problem naming the field, and the previous settings stay in force.
+/// **Read the project's cues** when the project changes and when `family/bevy_siren/CueTable.ron` changes on disk,
+/// and the buses whenever the running `SirenSettings` changes (its file is applied by the family layer) — once per
+/// change, never per frame. A cue file that does not parse is a problem naming the file, and the previous cues stay.
 ///
 /// A missing file is not a problem: a project may ship no sound yet, and the crate's defaults are a real mix. The
 /// panel still names the buses and the cues from the crate's own tables, so it has rows to draw.
 pub fn read_audio(
     mut panel: ResMut<AudioPanel>,
     project: Option<Res<Project>>,
-    mut settings: ResMut<bevy_siren::SirenSettings>,
+    settings: Res<bevy_siren::SirenSettings>,
     mut table: ResMut<bevy_siren::CueTable>,
     mut state: ResMut<EditorState>,
 ) {
+    if settings.is_changed() {
+        let buses: Vec<String> = settings.bus_names().iter().map(|b| (*b).to_owned()).collect();
+        if panel.buses != buses {
+            panel.buses = buses;
+        }
+        for problem in settings.problems() {
+            state.status.problem(format!("{}: {problem}", blueprint_model::family::settings_file(CRATE, "SirenSettings")));
+        }
+    }
     let Some(project) = project else {
         return;
     };
-    if panel.root.as_deref() == Some(project.root.as_path())
-        && !project.is_changed()
-        && !panel.is_changed()
-    {
+    if panel.root.as_deref() == Some(project.root.as_path()) && !project.is_changed() && !panel.is_changed() {
         return;
     }
     let reopened = panel.root.as_deref() != Some(project.root.as_path());
     panel.root = Some(project.root.clone());
-    let file = settings_dir(&project.root).join(FILE);
+    let file = blueprint_model::family::settings_path(&project.root, CRATE, CUES);
     let Ok(text) = std::fs::read_to_string(&file) else {
         if reopened {
-            panel.buses = settings
-                .bus_names()
-                .iter()
-                .map(|b| (*b).to_owned())
-                .collect();
             panel.cues = table.names().map(str::to_owned).collect();
             panel.text.clear();
         }
@@ -114,60 +119,28 @@ pub fn read_audio(
         return;
     }
     panel.text.clone_from(&text);
-    match read_file(&text) {
-        Ok((read, table_read)) => {
-            for problem in read
-                .problems()
-                .into_iter()
-                .chain(table_read.problems().into_iter().map(|p| p.to_string()))
-            {
-                state.status.problem(format!("family/{FILE}: {problem}"));
+    match read_cues(&text) {
+        Ok(read) => {
+            for problem in read.problems() {
+                state.status.problem(format!("{}: {problem}", blueprint_model::family::settings_file(CRATE, CUES)));
             }
-            panel.buses = read.bus_names().iter().map(|b| (*b).to_owned()).collect();
-            panel.cues = table_read.names().map(str::to_owned).collect();
+            panel.cues = read.names().map(str::to_owned).collect();
             panel.selected = panel.selected.min(panel.cues.len().saturating_sub(1));
-            *settings = read;
-            *table = table_read;
+            *table = read;
         }
         Err(problem) => state.status.problem(problem),
     }
 }
 
-/// One file's worth of the crate's own types: the mix table and the cue table, which is what an audio panel edits.
-///
-/// The file is a RON tuple of the two, so a project ships one sound file and the editor has one file to write. A
-/// score is a third section and is optional: a project with no adaptive music leaves it out.
-pub fn read_file(text: &str) -> Result<(bevy_siren::SirenSettings, bevy_siren::CueTable), String> {
-    #[derive(serde::Deserialize)]
-    struct File {
-        #[serde(default)]
-        settings: bevy_siren::SirenSettings,
-        #[serde(default)]
-        cues: bevy_siren::CueTable,
-    }
-    let file: File =
-        ron::from_str(text).map_err(|e| format!("family/{FILE} does not parse: {e}"))?;
-    Ok((file.settings, file.cues))
+/// Reads `family/bevy_siren/CueTable.ron` as the crate's own `CueTable`.
+pub fn read_cues(text: &str) -> Result<bevy_siren::CueTable, String> {
+    ron::from_str(text).map_err(|e| format!("{} does not parse: {e}", blueprint_model::family::settings_file(CRATE, CUES)))
 }
 
-/// Writes the mix table and the cue table back as the same file, so an edit here is an edit a game ships.
-pub fn write_file(
-    settings: &bevy_siren::SirenSettings,
-    table: &bevy_siren::CueTable,
-) -> Result<String, String> {
-    #[derive(serde::Serialize)]
-    struct File<'a> {
-        settings: &'a bevy_siren::SirenSettings,
-        cues: &'a bevy_siren::CueTable,
-    }
-    ron::ser::to_string_pretty(
-        &File {
-            settings,
-            cues: table,
-        },
-        ron::ser::PrettyConfig::default(),
-    )
-    .map_err(|e| format!("family/{FILE} does not write: {e}"))
+/// Writes the cue table back as the same file, so an edit here is an edit a game ships.
+pub fn write_cues(table: &bevy_siren::CueTable) -> Result<String, String> {
+    ron::ser::to_string_pretty(table, ron::ser::PrettyConfig::default())
+        .map_err(|e| format!("{} does not write: {e}", blueprint_model::family::settings_file(CRATE, CUES)))
 }
 
 /// **Audition** plays the selected cue through the crate's own door, and the panel's log shows what happened.

@@ -597,7 +597,10 @@ fn editor_state(
     // path did, so these two numbers are the next question.
     #[cfg(feature = "bevy_elements")] clock: Option<Res<bevy_elements::WorldClock>>,
     #[cfg(feature = "bevy_elements")] scrub: Option<Res<crate::environment::ClockScrub>>,
+    // **The Plugins door's facts** read from the registry and the schedules, which only the world holds.
+    world: &World,
 ) -> Result<Value, String> {
+    let plugins = crate::plugins_tab::plugins_json(world);
     let Loaded { project, open, game, reloads, live, diagnostics, busy } = loaded;
     // **The agent's presentation, and the person's answer to it** (S1.7). `None` until an agent
     // presents something; then an object whose `answer` is `null` while the question is up. This is
@@ -819,6 +822,10 @@ fn editor_state(
         // **The editor's own verdicts** on the files it watches and draws (#200, H3): `{ok, seq, kinds}`,
         // one entry per file with its kind, path, `applied` or `refused`, and the field and reason.
         "reloads": reloads.as_deref().map_or(Value::Null, |r| r.state_json()),
+        // **The family crates as plugins** (the Plugins door): one entry per crate the editor can host, with
+        // whether the project lists it, the short names of its settings types, the type paths of its
+        // components and how many systems it has in the schedules that ran.
+        "plugins": plugins,
         // **What became of each file's latest edit, as a running game says it** (#203, H6): `{now_unix_ms,
         // game: {connected, watching, at_unix_ms, seq}, files}`, one entry per file of the open project with its
         // kind, path, `state` (`no_game_connected`, `pending`, `game_applied`, `game_refused`,

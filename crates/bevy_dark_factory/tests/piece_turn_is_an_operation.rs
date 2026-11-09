@@ -20,7 +20,7 @@ use crate::fixtures;
 fn open(root: &std::path::Path) -> App {
     let mut app =
         harness::build_headless_at(root, "m", None, Mode::Meshes).unwrap_or_else(|e| panic!("{e}"));
-    app.add_plugins(bevy_debugger_bevy::DebuggerPlugin::default());
+    app.add_plugins(bevy_debugger_bevy::FairyPlugin::default());
     app.add_plugins(bevy_dark_factory::ops_brp::OpsBridgePlugin);
     for _ in 0..8 {
         app.update();

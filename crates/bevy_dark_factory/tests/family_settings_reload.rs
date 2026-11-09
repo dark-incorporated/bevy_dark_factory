@@ -10,7 +10,7 @@
 use bevy::prelude::*;
 use bevy::time::TimeUpdateStrategy;
 use bevy_dark_factory::editor::EditorState;
-use bevy_dark_factory::family_host::{reload_settings, FamilySettings};
+use bevy_dark_factory::family_host::{reload_settings, FamilyFiles, PendingSettings};
 
 use crate::fixtures;
 
@@ -21,31 +21,27 @@ const PROMISE_SECS: f32 = 1.0;
 /// Updates a loop may run before it gives up: five seconds of clock time, as the wall-clock loop allowed.
 const MAX_STEPS: u32 = 100;
 
-/// **A real `ElementsSettings`, as `bevy_elements` writes one**, and the same file an hour later.
-///
-/// These tests wrote `(sun: (hour: 6.0))`, which is not an `ElementsSettings`: the host's typed read
-/// refuses it (`Unexpected field named sun`), nothing is stored, and the test was asserting on a
-/// fixture the crate throws away (#152). The base is `ElementsSettings::defaults().to_ron()` with
-/// `clock.hour` set; **exactly one line differs** between the two, which is what makes the edit an
-/// edit rather than a second file.
-const SETTINGS: &str = include_str!("fixtures/bevy_elements.ron");
-const SETTINGS_LATER: &str = include_str!("fixtures/bevy_elements_18.5.ron");
+/// **A real `WorldClock`, as `bevy_elements` writes one**, and the same file twelve and a half hours
+/// later: the crate's own settings type in its own file (`family/bevy_elements/WorldClock.ron`). The type is
+/// `#[serde(default)]`, so the hour alone is a whole clock and the host's typed read takes both.
+const SETTINGS: &str = "(hour: 6.0)\n";
+const SETTINGS_LATER: &str = "(hour: 18.5)\n";
 
 #[test]
 fn an_edited_settings_file_reaches_the_editor_and_a_bad_one_is_a_problem() {
     let root = fixtures::Fixture::new("family_reload").descriptor("site/wall", "alpha").build("m");
-    let file = root.join("family").join("bevy_elements.ron");
+    let file = root.join("family").join("bevy_elements").join("WorldClock.ron");
     std::fs::create_dir_all(file.parent().unwrap()).unwrap();
     std::fs::write(&file, SETTINGS).unwrap();
     let mut app = bevy_dark_factory::harness::build_headless(&root, "m", None).unwrap_or_else(|e| panic!("{e}"));
-    app.init_resource::<EditorState>().init_resource::<FamilySettings>().add_systems(Update, reload_settings);
+    app.init_resource::<EditorState>().init_resource::<FamilyFiles>().init_resource::<PendingSettings>().add_systems(Update, reload_settings);
     app.insert_resource(TimeUpdateStrategy::ManualDuration(std::time::Duration::from_secs_f32(STEP_SECS)));
     app.update();
     std::thread::sleep(std::time::Duration::from_millis(50));
     std::fs::write(&file, SETTINGS_LATER).unwrap();
     let start = std::time::Instant::now();
     let mut steps = 0;
-    while steps < MAX_STEPS && app.world().resource::<FamilySettings>().text["bevy_elements"] != SETTINGS_LATER {
+    while steps < MAX_STEPS && app.world().resource::<FamilyFiles>().applied[&("bevy_elements".to_owned(), "WorldClock".to_owned())] != SETTINGS_LATER {
         app.update();
         steps += 1;
     }
@@ -60,7 +56,7 @@ fn an_edited_settings_file_reaches_the_editor_and_a_bad_one_is_a_problem() {
         "the edit took {steps} updates of {STEP_SECS} s on the editor's clock, past the {PROMISE_SECS} s it promises"
     );
     assert_eq!(
-        app.world().resource::<FamilySettings>().text["bevy_elements"],
+        app.world().resource::<FamilyFiles>().applied[&("bevy_elements".to_owned(), "WorldClock".to_owned())],
         SETTINGS_LATER,
         "the edit must be the settings the host holds, verbatim"
     );
@@ -73,9 +69,9 @@ fn an_edited_settings_file_reaches_the_editor_and_a_bad_one_is_a_problem() {
         steps += 1;
     }
     let probs = app.world().resource::<EditorState>().status.problems().iter().map(|p| p.text.clone()).collect::<Vec<_>>();
-    assert!(probs.iter().any(|p| p.contains("bevy_elements") && p.contains("not valid RON")), "{probs:?}");
+    assert!(probs.iter().any(|p| p.contains("family/bevy_elements/WorldClock.ron") && p.contains("not valid RON")), "{probs:?}");
     assert_eq!(
-        app.world().resource::<FamilySettings>().text["bevy_elements"],
+        app.world().resource::<FamilyFiles>().applied[&("bevy_elements".to_owned(), "WorldClock".to_owned())],
         SETTINGS_LATER,
         "a refused edit keeps the last good settings, verbatim"
     );

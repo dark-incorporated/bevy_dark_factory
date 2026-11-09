@@ -32,11 +32,11 @@ fn editor(name: &str) -> App {
     app
 }
 
-/// Light the `index`th torch the way `placement_set_family` leaves the map.
+/// Light the `index`th torch the way `placement_set_component` leaves the map.
 fn light(app: &mut App, index: usize) {
     let mut open = app.world_mut().resource_mut::<OpenMap>();
     let torch = open.map.placements.iter_mut().filter(|p| p.descriptor == "site/torch").nth(index).unwrap();
-    torch.family.insert("bevy_lights".to_owned(), "(base: 1000.0)".to_owned());
+    torch.components.insert(<bevy_lights::Flicker as bevy::reflect::TypePath>::type_path().to_owned(), "(base: 1000.0)".to_owned());
 }
 
 /// What an agent reads for the cell at `at`, through the registry.

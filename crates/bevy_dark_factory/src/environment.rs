@@ -1,210 +1,72 @@
 //! **A map's environment: climate, date, clock, place and forced weather** (#98).
 //!
-//! The data is `bevy_elements`' own serde types, written as RON in `<project>/family/bevy_elements.ron`
-//! (the file `family_set` edits and the game's copy of the plugin reads). [`ElementsSettings`] only
-//! lists which of the crate's resources the file holds; it defines no field of its own except which
-//! weather preset is forced, because the crate keeps that inside a private director.
-//!
-//! [`apply_environment`] copies a changed file into the running resources, so the editor's preview
-//! and the game see the same values. Forcing rain is `WeatherDirector::force`; clearing the field
-//! releases the weather back to the climate's own schedule.
+//! The data is `bevy_elements`' own settings resources, one RON file each in
+//! `<project>/family/bevy_elements/` (`WorldClock.ron`, `GeoLocation.ron`, `Climate.ron`,
+//! `WeatherOverrideSettings.ron`, `SnowSettings.ron`, ...): the files `family_set` edits and the game's
+//! copy of the plugin reads. They are applied to the running resources by reflection
+//! ([`crate::family_host::apply_pending_settings`]), the same path a game's live reload takes, so the
+//! editor's preview and the game see the same values. Forcing rain is the crate's own
+//! `WeatherOverrideSettings`; this module keeps only what the editor adds on top: the clock ramp, the
+//! scrubber, the dressing of the camera and of the carved ground, and the panel.
 
 use std::time::Duration;
 
 use bevy::prelude::*;
-use bevy_elements::{
-    Climate, DustSettings, GeoLocation, RockSettings, SnowSettings, SurfaceCover, WeatherDirector, WeatherPreset, WeatheredExtension,
-    WeatheredMaterial, WetnessSettings, WorldClock,
-};
-use serde::{Deserialize, Serialize};
+use bevy_elements::{Climate, SurfaceCover, WeatherPreset, WeatheredExtension, WeatheredMaterial, WorldClock};
 
-use crate::family_host::FamilySettings;
+use crate::family_host::FamilyFiles;
 use crate::terrain_view::TerrainView;
 
-/// The crate this settings file belongs to, as `family.ron` names it.
+/// The crate these settings files belong to, as `family.ron` names it.
 pub const CRATE: &str = "bevy_elements";
 
-/// Game time a forced or released weather takes to blend, so the sky does not jump.
-const BLEND: Duration = Duration::from_secs(10 * 60);
+/// How often the carved ground's cover is compared with the map's volume file.
+const COVER_POLL: Duration = Duration::from_millis(200);
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct ElementsSettings {
-    pub clock: WorldClock,
-    #[serde(default)]
-    pub location: GeoLocation,
-    pub climate: Climate,
-    /// `Some(Rain)` forces rain; `None` (the default) lets the climate's scheduler choose.
-    #[serde(default)]
-    pub forced_weather: Option<WeatherPreset>,
-    /// How snow settles, melts and drifts (#100). The crate's own type; a file without it takes the crate's defaults.
-    #[serde(default)]
-    pub snow: SnowSettings,
-    /// How the ground wets, dries and puddles.
-    #[serde(default)]
-    pub wetness: WetnessSettings,
-    /// How many rocks lie on the ground (`talus_cover`, `meadow_cover`, `range_scale` 0 for none).
-    #[serde(default)]
-    pub rocks: RockSettings,
-    /// Blown sand and dust.
-    #[serde(default)]
-    pub dust: DustSettings,
-    /// The snow and wetness the carved ground wears whatever the weather is (#101): the crate's own
-    /// `SurfaceCover`, put on the volume's material by [`dress_volume`]. `None` (the default) lets the
-    /// scene's weather decide, as it does for a game's own weathered material.
-    #[serde(default)]
-    pub volume_cover: Option<SurfaceCover>,
+/// **The clock as it was before a settings file is applied**, when the file is `WorldClock`'s: what
+/// [`ramp_clock_edit`] compares the new clock with.
+pub fn clock_before(world: &World, krate: &str, ident: &str) -> Option<WorldClock> {
+    (krate == CRATE && ident == "WorldClock").then(|| world.get_resource::<WorldClock>().cloned()).flatten()
 }
 
-impl ElementsSettings {
-    pub fn from_ron(text: &str) -> Result<Self, String> {
-        ron::from_str(text).map_err(|e| format!("bevy_elements settings: {e}"))
-    }
-
-    /// The settings a new map starts with: the crate's own defaults.
-    pub fn defaults() -> Self {
-        ElementsSettings {
-            clock: WorldClock::default(),
-            location: GeoLocation::default(),
-            climate: Climate::default(),
-            forced_weather: None,
-            snow: SnowSettings::default(),
-            wetness: WetnessSettings::default(),
-            rocks: RockSettings::default(),
-            dust: DustSettings::default(),
-            volume_cover: None,
-        }
-    }
-
-    pub fn to_ron(&self) -> String {
-        ron::ser::to_string_pretty(self, ron::ser::PrettyConfig::default()).expect("settings serialise")
-    }
-}
-
-/// Puts `settings` into the running resources. `applied_force` is the forced preset this was last
-/// called with, so an unchanged field is not forced again (which would restart the blend).
-pub fn apply(
-    settings: &ElementsSettings,
-    clock: &mut WorldClock,
-    location: &mut GeoLocation,
-    climate: &mut Climate,
-    director: &mut WeatherDirector,
-    applied_force: &mut Option<Option<WeatherPreset>>,
-) {
-    // **The hour is walked, not jumped** (#271). `bevy_elements` adapts the camera's exposure to the
-    // sky with a 1.5 s time constant (`EXPOSURE_TAU_S`), so a step from noon to 20:00 shows the night
-    // scene at noon's exposure for about a second and a half — measured as 12 frames of a viewport
-    // more than 45% white on big, 2026-11-02, which is why the clock demos could not be recorded.
-    // The crate is right to smooth; the step is the editor's. When the settings differ in the hour
-    // and nothing else, [`ramp_clock`] takes it there over a second, and the exposure follows a slope
-    // instead of a cliff. Any other change is applied whole, as before: a date, a climate or a pause
-    // is not a transition, and walking one would be a lie about what the file says.
-    if same_except_hour(clock, &settings.clock) && clock.hour != settings.clock.hour {
-        // A ramp is already in flight for this text if one was started; the hour it walks to is the
-        // file's, so the walk simply continues and the text's own change is never re-applied.
-        *clock = WorldClock { hour: clock.hour, ..settings.clock.clone() };
-    } else {
-        *clock = settings.clock.clone();
-    }
-    *location = settings.location.clone();
-    *climate = settings.climate.clone();
-    if *applied_force != Some(settings.forced_weather) {
-        match settings.forced_weather {
-            Some(preset) => director.force(preset, BLEND),
-            None if director.is_forced() => director.release(BLEND),
-            None => {}
-        }
-        *applied_force = Some(settings.forced_weather);
-    }
-}
-
-/// Puts the ground-cover settings into the preview's resources, only where the plugin made one and the value differs.
-pub fn apply_cover(settings: &ElementsSettings, preview: &mut Preview) {
-    fn put<T: bevy::prelude::Resource<Mutability = bevy::ecs::component::Mutable> + Clone + PartialEq>(slot: &mut Option<ResMut<T>>, want: &T) {
-        if let Some(r) = slot.as_mut()
-            && **r != *want
-        {
-            **r = want.clone();
-        }
-    }
-    put(&mut preview.snow, &settings.snow);
-    put(&mut preview.wetness, &settings.wetness);
-    put(&mut preview.rocks, &settings.rocks);
-    put(&mut preview.dust, &settings.dust);
-}
-
-/// The preview's resources the settings file drives; absent until `bevy_elements`' plugins are added.
-#[derive(bevy::ecs::system::SystemParam)]
-pub struct Preview<'w> {
-    clock: Option<ResMut<'w, WorldClock>>,
-    location: Option<ResMut<'w, GeoLocation>>,
-    climate: Option<ResMut<'w, Climate>>,
-    director: Option<ResMut<'w, WeatherDirector>>,
-    snow: Option<ResMut<'w, SnowSettings>>,
-    wetness: Option<ResMut<'w, WetnessSettings>>,
-    rocks: Option<ResMut<'w, RockSettings>>,
-    dust: Option<ResMut<'w, DustSettings>>,
-}
-
-/// Reads a reloaded `family/bevy_elements.ron` into the preview's resources. A file that does not
-/// fit the crate's types is a problem on the status line and the previous values stay.
-pub fn apply_environment(
-    settings: Res<FamilySettings>,
-    mut state: ResMut<crate::editor::EditorState>,
-    mut preview: Preview,
-    mut ramp: Option<ResMut<ClockRamp>>,
-    mut applied_force: Local<Option<Option<WeatherPreset>>>,
-    mut seen: Local<Option<String>>,
-) {
-    let Some(text) = settings.text.get(CRATE) else {
-        *seen = None;
-        return;
-    };
-    if seen.as_ref() == Some(text) {
+/// **A `WorldClock.ron` edit that changes only the hour walks there** (#271): the applied clock is put
+/// back at the hour it had and a [`ClockRamp`] carries it to the file's hour, so the exposure follows
+/// a slope instead of a cliff. Any other change is left whole: a date, a climate or a pause is not a
+/// transition.
+pub fn ramp_clock_edit(world: &mut World, before: Option<WorldClock>) {
+    let Some(before) = before else { return };
+    let Some(now) = world.get_resource::<WorldClock>().cloned() else { return };
+    if !same_except_hour(&before, &now) || before.hour == now.hour || !world.contains_resource::<ClockRamp>() {
         return;
     }
-    *seen = Some(text.clone());
-    let parsed = match ElementsSettings::from_ron(text) {
-        Ok(p) => p,
-        Err(e) => {
-            state.status.problem(format!("{e}; the previous environment stays"));
-            return;
-        }
-    };
-    if let (Some(clock), Some(location), Some(climate), Some(director)) =
-        (preview.clock.as_mut(), preview.location.as_mut(), preview.climate.as_mut(), preview.director.as_mut())
-    {
-        // **The ramp starts here**, where the file's hour and the clock's are both in hand. `apply`
-        // then leaves the hour to the walk and writes every other field whole.
-        if let Some(ramp) = ramp.as_mut()
-            && same_except_hour(clock, &parsed.clock)
-            && let Some(walk) = ClockRamp::between(clock.hour, parsed.clock.hour)
-        {
-            **ramp = walk;
-        }
-        apply(&parsed, clock, location, climate, director, &mut applied_force);
-    }
-    apply_cover(&parsed, &mut preview);
+    let Some(walk) = ClockRamp::between(before.hour, now.hour) else { return };
+    *world.resource_mut::<ClockRamp>() = walk;
+    world.resource_mut::<WorldClock>().hour = before.hour;
 }
 
-/// What [`dress_volume`] keeps between frames: the shared material, the settings text it last read,
-/// and the cover the material wears (none, as `WeatheredExtension::default()` starts).
+/// What [`dress_volume`] keeps between frames: the shared material, when the volume file was last read,
+/// its text, and the cover the material wears (none, as `WeatheredExtension::default()` starts).
 #[derive(Default)]
 pub struct Dressing {
     handle: Option<Handle<WeatheredMaterial>>,
+    read_at: Option<Duration>,
     seen: Option<String>,
     worn: Option<SurfaceCover>,
 }
 
-/// **The carved ground wears the game's weathered material** (#101). While the project has a
-/// `family/bevy_elements.ron` and `bevy_elements`' plugins are in the app, every chunk of the carved
-/// ground ([`TerrainView::Volume`](crate::terrain_view::TerrainView::Volume)) is drawn with one
-/// `WeatheredMaterial`, so the preview's snow and wetness are what the game draws. The file's
-/// [`ElementsSettings::volume_cover`] is put on that material with `set_cover` when the file changes,
-/// so an edit shows in the next frame without remeshing; a file that does not parse keeps the previous
-/// cover (`apply_environment` reports it). Without the file the chunks go back to the plain material.
+/// **The carved ground wears the game's weathered material** (#101). While the project has
+/// `bevy_elements` settings and the crate's plugins are in the app, every chunk of the carved ground
+/// ([`TerrainView::Volume`](crate::terrain_view::TerrainView::Volume)) is drawn with one
+/// `WeatheredMaterial`, so the preview's snow and wetness are what the game draws. The open map's
+/// volume's [`cover`](blueprint_model::volume::Volume::cover) is put on that material with `set_cover`
+/// when it changes (`volume_set_cover`), so an edit shows without remeshing. Without the settings the
+/// chunks go back to the plain material.
+#[allow(clippy::too_many_arguments)]
 pub fn dress_volume(
-    settings: Res<FamilySettings>,
+    files: Res<FamilyFiles>,
+    project: Option<Res<crate::project::Project>>,
+    open: Option<Res<crate::project::OpenMap>>,
+    real: Res<Time<Real>>,
     weathered: Option<ResMut<Assets<WeatheredMaterial>>>,
     mut plain_materials: ResMut<Assets<StandardMaterial>>,
     plain: Query<(Entity, &TerrainView), With<MeshMaterial3d<StandardMaterial>>>,
@@ -213,8 +75,8 @@ pub fn dress_volume(
     mut state: Local<Dressing>,
 ) {
     let Some(mut weathered) = weathered else { return };
-    let Dressing { handle, seen, worn } = &mut *state;
-    let Some(text) = settings.text.get(CRATE) else {
+    let Dressing { handle, read_at, seen, worn } = &mut *state;
+    if !files.has_crate(CRATE) {
         let mut back = None;
         for (e, view) in &dressed {
             if *view == TerrainView::Volume {
@@ -224,19 +86,28 @@ pub fn dress_volume(
         }
         *seen = None;
         return;
-    };
+    }
     let handle = handle
         .get_or_insert_with(|| weathered.add(WeatheredMaterial { base: crate::terrain_view::volume_base(), extension: WeatheredExtension::default() }))
         .clone();
-    if seen.as_ref() != Some(text) {
-        *seen = Some(text.clone());
-        // Only a changed cover touches the material: `get_mut` re-prepares it, and a clock edit should not.
-        if let Ok(parsed) = ElementsSettings::from_ron(text)
-            && parsed.volume_cover != *worn
-            && let Some(mut material) = weathered.get_mut(&handle)
-        {
-            material.extension.set_cover(parsed.volume_cover);
-            *worn = parsed.volume_cover;
+    let now = real.elapsed();
+    if read_at.is_none_or(|at| now.saturating_sub(at) >= COVER_POLL) {
+        *read_at = Some(now);
+        let text = project.as_deref().zip(open.as_deref()).and_then(|(p, o)| crate::ops_volume::volume_text(p, o));
+        if *seen != text {
+            *seen = text;
+            // Only a changed cover touches the material: `get_mut` re-prepares it, and a carve should not.
+            let cover = seen
+                .as_deref()
+                .and_then(|t| ron::from_str::<blueprint_model::volume::Volume>(t).ok())
+                .and_then(|v| v.cover)
+                .map(|c| SurfaceCover::new(c.snow, c.wetness));
+            if cover != *worn
+                && let Some(mut material) = weathered.get_mut(&handle)
+            {
+                material.extension.set_cover(cover);
+                *worn = cover;
+            }
         }
     }
     for (e, view) in &plain {
@@ -248,7 +119,7 @@ pub fn dress_volume(
 
 /// **Keep the weathered carved-ground pipeline compiled** (#268), as
 /// [`crate::terrain_view::warm_volume_pipeline`] does the plain one: the first carve of a project with
-/// a `family/bevy_elements.ron` drew nothing for 0.5 s while `WeatheredMaterial`'s pipeline compiled.
+/// `bevy_elements` settings drew nothing for 0.5 s while `WeatheredMaterial`'s pipeline compiled.
 /// Does nothing without `bevy_elements`' material store.
 pub fn warm_weathered_pipeline(
     mut commands: Commands,
@@ -266,7 +137,7 @@ pub fn warm_weathered_pipeline(
 }
 
 /// **The clock scrubber** (#98): camera-style state, not an operation. `Some(hour)` holds the
-/// preview's clock at that hour of day without touching `family/bevy_elements.ron`, so scrubbing
+/// preview's clock at that hour of day without touching `family/bevy_elements/WorldClock.ron`, so scrubbing
 /// writes no file and leaves no undo step; `None` lets the file's clock run.
 #[derive(Resource, Default, Clone, Copy, Debug, PartialEq)]
 pub struct ClockScrub(pub Option<f64>);
@@ -439,17 +310,14 @@ impl EnvAction {
 
     /// The `family_set` params this action writes, or `None` for the camera-style clock buttons.
     pub fn family_params(self) -> Option<serde_json::Value> {
-        let (field, value) = match self {
-            EnvAction::Force(p) => ("forced_weather", format!("Some({p:?})")),
-            EnvAction::ReleaseWeather => ("forced_weather", "None".to_owned()),
-            EnvAction::Month(m) => ("clock.date.month", m.to_string()),
-            EnvAction::Climate(c) => (
-                "climate",
-                ron::ser::to_string(&c.climate()).expect("climate serialises"),
-            ),
+        let (ty, field, value) = match self {
+            EnvAction::Force(p) => ("WeatherOverrideSettings", "preset", format!("Some({p:?})")),
+            EnvAction::ReleaseWeather => ("WeatherOverrideSettings", "preset", "None".to_owned()),
+            EnvAction::Month(m) => ("WorldClock", "date.month", m.to_string()),
+            EnvAction::Climate(c) => ("Climate", "", ron::ser::to_string(&c.climate()).ok()?),
             EnvAction::Scrub(_) | EnvAction::ReleaseClock => return None,
         };
-        Some(serde_json::json!({"crate": CRATE, "field": field, "value": value}))
+        Some(serde_json::json!({"crate": CRATE, "type": ty, "field": field, "value": value}))
     }
 }
 
@@ -487,7 +355,7 @@ pub fn spawn_section(s: &mut ChildSpawnerCommands) {
 
 type WorldCamera = (Entity, Has<bevy_elements::ElementsCamera>, &'static mut Camera);
 
-/// **The preview's look** (#98): a project with a `family/bevy_elements.ron` gets `bevy_elements'`
+/// **The preview's look** (#98): a project with `bevy_elements` settings files gets `bevy_elements'`
 /// atmosphere, fog, clouds and sun on the editor camera, which is what the game draws; a project
 /// without one keeps the editor's own light. Follows the file's presence, so adding or deleting it
 /// switches the preview without a restart.
@@ -507,12 +375,12 @@ type WorldCamera = (Entity, Has<bevy_elements::ElementsCamera>, &'static mut Cam
 /// interface's writeback is `Off`; with `Off` set live over BRP the viewport went from one colour to
 /// the sky, the box and the grid.
 pub fn dress_camera(
-    settings: Res<FamilySettings>,
+    files: Res<FamilyFiles>,
     mut camera: Query<WorldCamera, (With<crate::view::MainCamera>, Without<crate::surface::SurfaceCamera>)>,
     mut interface: Query<&mut Camera, With<crate::surface::SurfaceCamera>>,
     mut commands: Commands,
 ) {
-    let wanted = settings.text.contains_key(CRATE);
+    let wanted = files.has_crate(CRATE);
     for (entity, has, mut world) in &mut camera {
         if wanted == has {
             continue;

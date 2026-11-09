@@ -27,7 +27,7 @@ fn editor(name: &str) -> App {
     let mut app = harness::build_headless(&root, "m", None).unwrap_or_else(|e| panic!("{e}"));
     // The registered methods an agent's request arrives through (the same pair the other operation
     // tests add): without them `RemoteMethods` does not exist and nothing is callable.
-    app.add_plugins(bevy_debugger_bevy::DebuggerPlugin::default());
+    app.add_plugins(bevy_debugger_bevy::FairyPlugin::default());
     app.add_plugins(bevy_dark_factory::ops_brp::OpsBridgePlugin);
     for _ in 0..8 {
         app.update();

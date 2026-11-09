@@ -475,6 +475,11 @@ door_state![
     // The Environment panel's held hour (#98): what this door's preview is showing, released with it.
     #[cfg(feature = "bevy_elements")]
     crate::environment::ClockScrub,
+    // The hour the preview is walking to after a clock edit (#279): this door's preview, dropped with it.
+    #[cfg(feature = "bevy_elements")]
+    crate::environment::ClockRamp,
+    // The Plugins door's selected crate and what its panes were built from (Phase 7): this door's view.
+    crate::plugins_tab::PluginsDoor,
     // The light map's shown/hidden and its last bake (#103): a view of this door's map, released with it.
     #[cfg(feature = "bevy_light_grid")]
     crate::light_overlay::LightOverlay,
@@ -690,7 +695,8 @@ pub const OWNERSHIP: &[(&str, Ownership)] = &[
     ("bevy_dark_factory::data_view::DataView", Ownership::Project),
     // **Derived from the open map's `references.ron` and the pictures it lists**: what the editor last found when it read their headers (#200). Another map or project starts it afresh.
     ("bevy_dark_factory::reference_view::ReferenceView", Ownership::Project),
-    ("bevy_dark_factory::family_host::FamilySettings", Ownership::Session),
+    ("bevy_dark_factory::family_host::FamilyFiles", Ownership::Session),
+    ("bevy_dark_factory::family_host::PendingSettings", Ownership::Session),
     // **The editor's settings** (UI-70): the defaults, the user's file and the project's laid over them. The user's layer is the app's and the project's layer follows the open project's path (`sync_settings` starts afresh when it moves), so both are true for as long as the app runs.
     ("bevy_dark_factory::settings::EditorSettings", Ownership::Session),
     ("bevy_dark_factory::settings::SettingsView", Ownership::Session),
@@ -699,6 +705,12 @@ pub const OWNERSHIP: &[(&str, Ownership)] = &[
     // door change lets the next project's own clock run.
     #[cfg(feature = "bevy_elements")]
     ("bevy_dark_factory::environment::ClockScrub", Ownership::Door),
+    // **`Door`**: the hour the preview walks to after a clock edit is a view of the open project's file,
+    // and a door change lets the next project's clock stand where its own file says.
+    #[cfg(feature = "bevy_elements")]
+    ("bevy_dark_factory::environment::ClockRamp", Ownership::Door),
+    // **`Door`**: the Plugins door's selected crate is this door's working state, built again on entry.
+    ("bevy_dark_factory::plugins_tab::PluginsDoor", Ownership::Door),
     #[cfg(feature = "bevy_light_grid")]
     ("bevy_dark_factory::light_overlay::LightOverlay", Ownership::Door),
     // **`Door`, like the selection it mirrors**: the entity the inspector edits belongs to the open
@@ -716,7 +728,7 @@ pub const OWNERSHIP: &[(&str, Ownership)] = &[
     ("bevy_dark_factory::shell_view::ShellView", Ownership::Session),
     ("bevy_dark_factory::selection::Selection", Ownership::Session),
     // **`Door`, like the light map**: the audio panel's buses, cue names and selection are read from
-    // this door's `family/bevy_siren.ron`, and another project's sound is another file.
+    // this door's `family/bevy_siren/` files, and another project's sound is another file.
     #[cfg(feature = "bevy_siren")]
     ("bevy_dark_factory::audio_panel::AudioPanel", Ownership::Door),
     // **`Session`, not `Door`**: the icon sheet is decoded from the binary (`icons::ATLAS_PNG`) once and

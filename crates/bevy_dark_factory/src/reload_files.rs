@@ -69,7 +69,7 @@ impl GameState {
 pub struct FileReload {
     pub kind: String,
     /// Relative to the project directory for the project's files, to the game's root for a kind that
-    /// lives there (`family/bevy_lights.ron`), as the verdicts name them.
+    /// lives there (`family/bevy_lights/<Type>.ron`), as the verdicts name them.
     pub file: String,
     pub state: GameState,
     /// The field a refusal names, from the game's verdict, or the editor's for `needs_restart`.

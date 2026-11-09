@@ -114,11 +114,16 @@ impl Slot {
 
 /// The live blend state of one model. Lives on the **model child** that owns the scene, never on the
 /// sim entity (see the module docs).
-#[derive(Component)]
+///
+/// Reflected for inspection only: the slot table is shared runtime data (`#[reflect(ignore)]`), so the
+/// type is not built back from a reflected value.
+#[derive(Component, Reflect)]
+#[reflect(Component, from_reflect = false)]
 pub struct PoseBlender {
     /// The asynchronously-spawned `AnimationPlayer` entity this drives.
     pub player: Entity,
     /// The shared slot table, cloned by refcount from the creature's animation resource.
+    #[reflect(ignore)]
     slots: Arc<[Slot]>,
     /// Live weights, eased toward `target`.
     weight: Vec<f32>,
@@ -285,17 +290,24 @@ impl std::fmt::Display for PoseBlendError {
 ///
 /// Both fields are shared by refcount (`Handle` + `Arc`), so cloning one resource-held source onto
 /// every spawned instance is two refcount bumps, never a copy of the table.
-#[derive(Component, Clone)]
+///
+/// Reflected for inspection only: the slot table is code, not data (`#[reflect(ignore)]`).
+#[derive(Component, Clone, Reflect)]
+#[reflect(Component, from_reflect = false)]
 pub struct BlendSource {
     pub graph: Handle<AnimationGraph>,
+    #[reflect(ignore)]
     pub slots: Arc<[Slot]>,
 }
 
-/// The attach pass ([`attach_pose_blenders`]). Creature drivers order themselves
-/// `.after(PoseAttachSet).before(PoseBlendSet)` so a model whose skeleton streamed in this frame
-/// gets its first targets the same frame (Bevy inserts the command flush on the ordered edge).
+/// **Every system this crate adds is in one of these** (the machine plate). `Attach` is the attach pass
+/// ([`attach_pose_blenders`]); `Blend` is the apply pass ([`apply_pose_blenders`]). Creature drivers order
+/// themselves `.after(BlueprintAnimSystems::Attach).before(BlueprintAnimSystems::Blend)`.
 #[derive(SystemSet, Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct PoseAttachSet;
+pub enum BlueprintAnimSystems {
+    Attach,
+    Blend,
+}
 
 /// Wire every freshly streamed-in `AnimationPlayer` to the nearest ancestor [`BlendSource`]. The one
 /// attach path for every creature (squad figurine, crab, manca, and whatever comes next); a player
@@ -381,7 +393,7 @@ pub fn wrap01(phase: f32) -> f32 {
 
 /// Ease every model's weights toward its driver's targets, advance the shared gait phase, and write
 /// both to the `AnimationPlayer`. Runs on `Update`, after every creature's driver (see
-/// [`PoseBlendSet`]).
+/// [`BlueprintAnimSystems::Blend`]).
 pub fn apply_pose_blenders(
     time: Res<Time>,
     mut blenders: Query<&mut PoseBlender>,
@@ -495,23 +507,20 @@ pub fn apply_pose_blenders(
     }
 }
 
-/// The apply pass. Every creature's driver is registered `.before(PoseBlendSet)` so it writes this
-/// frame's targets first.
-#[derive(SystemSet, Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct PoseBlendSet;
+/// Adds the attach and apply passes, in [`BlueprintAnimSystems`]. A model whose skeleton streamed in this
+/// frame gets its first targets the same frame (Bevy inserts the command flush on the ordered edge).
+pub struct BlueprintAnimPlugin;
 
-pub struct PoseBlendPlugin;
-
-impl Plugin for PoseBlendPlugin {
+impl Plugin for BlueprintAnimPlugin {
     fn build(&self, app: &mut App) {
         // Cosmetic: `Update`, never `FixedUpdate` — nothing here appears in `snapshot_hash`.
         // Attach before apply, so a blender wired this frame is applied this frame (the ordered edge
         // makes Bevy flush the wire commands in between) even for a creature with no driver yet.
-        app.add_systems(
+        app.register_type::<PoseBlender>().register_type::<BlendSource>().add_systems(
             Update,
             (
-                attach_pose_blenders.in_set(PoseAttachSet),
-                apply_pose_blenders.in_set(PoseBlendSet).after(PoseAttachSet),
+                attach_pose_blenders.in_set(BlueprintAnimSystems::Attach),
+                apply_pose_blenders.in_set(BlueprintAnimSystems::Blend).after(BlueprintAnimSystems::Attach),
             ),
         );
     }

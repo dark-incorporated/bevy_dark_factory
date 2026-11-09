@@ -58,3 +58,22 @@ fn clearing_is_one_undo_and_a_bad_edit_writes_nothing() {
     assert!(matches!(ops::dispatch(&mut ctx, "volume_edit", &bad), Err(_) | Ok(Applied::Refused(_))));
     assert_eq!(load(&file).edits.len(), 1);
 }
+
+#[test]
+fn a_cover_is_saved_on_the_volume_and_one_undo_puts_the_old_one_back() {
+    let (mut ctx, file) = project("volume_cover_op");
+    let snowy = json!({"map": "m", "cover": {"snow": 0.8, "wetness": 0.2}});
+    done(ops::dispatch(&mut ctx, "volume_set_cover", &snowy));
+    let v = load(&file);
+    assert_eq!(v.cover, Some(blueprint_model::volume::VolumeCover { snow: 0.8, wetness: 0.2 }));
+    assert_eq!(v.version, blueprint_model::volume::VOLUME_VERSION, "the file says the version it was written in");
+    ops::undo(&mut ctx, None).unwrap();
+    assert_eq!(load(&file).cover, None, "undo puts the weather back in charge");
+
+    let wet = ops::dispatch(&mut ctx, "volume_set_cover", &json!({"map": "m", "cover": {"snow": 1.5, "wetness": 0.0}}));
+    let said = match wet {
+        Ok(Applied::Refused(e)) | Err(e) => e.0,
+        Ok(other) => panic!("a cover above 1 was accepted: {other:?}"),
+    };
+    assert!(said.contains("snow must be from 0 to 1"), "{said}");
+}

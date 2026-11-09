@@ -30,7 +30,7 @@ fn editor(name: &str) -> Ctx {
 
 fn torch(ctx: &mut Ctx, index: usize) {
     let id = ctx.open.as_ref().unwrap().map.placements.iter().filter(|p| p.descriptor == "site/torch").nth(index).unwrap().id.clone();
-    let done = ops::dispatch(ctx, "placement_set_family", &json!({"id": id, "crate": "bevy_lights", "value": "(base: 1000.0)"})).unwrap();
+    let done = ops::dispatch(ctx, "placement_set_component", &json!({"id": id, "component": <bevy_lights::Flicker as bevy::reflect::TypePath>::type_path(), "value": "(base: 1000.0)"})).unwrap();
     assert!(matches!(done, Applied::Done { .. }), "{done:?}");
 }
 

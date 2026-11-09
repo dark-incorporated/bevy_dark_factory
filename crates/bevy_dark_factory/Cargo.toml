@@ -81,21 +81,21 @@ family_all = ["bevy_carnage", "bevy_elements", "bevy_flora", "bevy_lights", "bev
 
 [dependencies]
 bevy_carnage = { git = "https://github.com/dark-incorporated/bevy_carnage", rev = "615c264e28680448b934d3f28b73487dd8b98750", default-features = false, features = ["serde"], optional = true }
-bevy_elements = { git = "https://github.com/dark-incorporated/bevy_elements", rev = "0778a620452368662771825ea568b7d79966b87c", features = ["serde"], optional = true }
+bevy_elements = { git = "https://github.com/dark-incorporated/bevy_elements", rev = "55955fe6ce2a3223e607398ce28500471a7eb0d3", features = ["serde"], optional = true }
 isomesh = { git = "https://github.com/dark-incorporated/isomesh", rev = "d3dc6c0fb6b43b899e534643f51f76a856d2d9ee", optional = true }
-bevy_lights = { git = "https://github.com/dark-incorporated/bevy_lights", rev = "ae3b818e06cfcde24a0cbfed1a897732c1dfb444", features = ["serde"], optional = true }
+bevy_lights = { git = "https://github.com/dark-incorporated/bevy_lights", rev = "af57561b778daf9f1e0d8eed1aea218b4da17826", features = ["serde"], optional = true }
 bevy_light_grid = { git = "https://github.com/dark-incorporated/bevy_light_grid", rev = "8b4a3c760ccc05f39e81bb22e366b330080fcc95", optional = true }
 bevy_orca = { git = "https://github.com/dark-incorporated/bevy_orca", rev = "e7160df097dc75652633f801f6c0ab1c73356bc4", optional = true }
 bevy_society = { git = "https://github.com/dark-incorporated/bevy_society", rev = "d2e39703e06ebf40b5e787a2da4b6882a9beee3e", default-features = false, optional = true }
-bevy_speech_bubbles = { git = "https://github.com/dark-incorporated/bevy_speech_bubbles", rev = "b2d67f0d8a8a984a78f9bc9291cc63be867c6822", optional = true }
+bevy_speech_bubbles = { git = "https://github.com/dark-incorporated/bevy_speech_bubbles", rev = "02bcbe12b3aaf264fc5a4868263ef6cb9090f6bb", optional = true }
 bevy_stigmergy = { git = "https://github.com/dark-incorporated/bevy_stigmergy", rev = "6ecee6a3c2ff0bf7f18dab10f376c49b49914c44", optional = true }
 # The audio crate (S-01): the editor writes the crate's own `SirenSettings` and `CueTable`, never a schema of its
-# own. `serde` on, because the panel reads and writes `family/bevy_siren.ron`.
-bevy_siren = { git = "https://github.com/dark-incorporated/bevy_siren", rev = "7029b20", features = ["serde"], optional = true }
+# own. `serde` on, because the files are `family/bevy_siren/SirenSettings.ron` and `CueTable.ron`.
+bevy_siren = { git = "https://github.com/dark-incorporated/bevy_siren", rev = "a7e3f8ab43d4ddede71cfeb8c88c5e92f7f0452a", features = ["serde"], optional = true }
 blueprint_model = { path = "../blueprint_model" }
-bevy_flora = { git = "https://github.com/dark-incorporated/bevy_flora", rev = "25e956b3f88ba32a1b6d75957360c6840da6afd9", features = ["ron"], optional = true }
+bevy_flora = { git = "https://github.com/dark-incorporated/bevy_flora", rev = "403d3cdb29e0a51dc50e0b10b37d685a6f66ba1c", features = ["ron"], optional = true }
 # The editor's UI library (UI-01, #209): required, not a family-crate feature. `EditorUiPlugin` owns it.
-bevy_gooey = { git = "https://github.com/dark-incorporated/bevy_gooey", rev = "04a3cdf261b3076bce47ba35fa8b5c164750b997", features = ["serde", "reflect"] }
+bevy_gooey = { git = "https://github.com/dark-incorporated/bevy_gooey", rev = "9d3fccb21869a35818356a80386e085bef8123fb", features = ["serde", "reflect"] }
 # The runtime half. The editor spawns pieces through `bevy_blueprint::spawn_descriptor` rather than its
 # own copy, so a map cannot look one way here and another in the game — the failure `bake.rs` and
 # `site_editor::source_map` demonstrated by independently growing the same RON writer.
@@ -174,12 +174,12 @@ rustix = { version = "1", default-features = false, features = ["std", "termios"
 # it is. The wire methods are `bevy_fairy/*`. Default features are off but the three plugin ones the
 # editor uses (guide overlay, screenshot, cursor) are on: no server, no tokio. A fix the editor needs
 # is made and pushed there, then the rev here is bumped.
-bevy_debugger_bevy = { package = "bevy_fairy", git = "https://github.com/dark-incorporated/bevy_fairy", rev = "06c9c1805651fabb2474a9d09af84c761be406aa", default-features = false, features = ["plugin", "plugin-guide", "plugin-screenshot"], optional = true }
+bevy_debugger_bevy = { package = "bevy_fairy", git = "https://github.com/dark-incorporated/bevy_fairy", rev = "65ec493b8d5f74f264b5c85d507d7c01a43bfe52", default-features = false, features = ["plugin", "plugin-guide", "plugin-screenshot"], optional = true }
 
 # `bevy_gooey::testing` finds a widget by its label and clicks it (UI-06, #214). A test dependency only:
 # the editor itself ships none of it.
 [dev-dependencies]
-bevy_gooey = { git = "https://github.com/dark-incorporated/bevy_gooey", rev = "04a3cdf261b3076bce47ba35fa8b5c164750b997", features = ["serde", "reflect", "testing"] }
+bevy_gooey = { git = "https://github.com/dark-incorporated/bevy_gooey", rev = "9d3fccb21869a35818356a80386e085bef8123fb", features = ["serde", "reflect", "testing"] }
 # Reads a face's own character map, so a test can say the terminal's face has the icons a prompt draws
 # (#323). Already in the lock through Bevy's text stack; a test dependency only.
 ttf-parser = "0.25"

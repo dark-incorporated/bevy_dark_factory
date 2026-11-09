@@ -19,7 +19,7 @@ fn editor(name: &str, live: bool) -> App {
         .place_as("crate_0", "site/wall", (0.0, 0.0))
         .build("m");
     let mut app = harness::build_headless(&root, "m", None).unwrap_or_else(|e| panic!("{e}"));
-    app.add_plugins(bevy_debugger_bevy::DebuggerPlugin::default());
+    app.add_plugins(bevy_debugger_bevy::FairyPlugin::default());
     app.add_plugins(bevy_dark_factory::ops_brp::OpsBridgePlugin);
     if live {
         app.insert_resource(LiveWrite);

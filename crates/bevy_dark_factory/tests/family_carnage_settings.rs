@@ -10,9 +10,9 @@ use crate::fixtures;
 #[test]
 fn a_hit_stop_is_set_through_family_set_and_reads_back_as_the_crates_own_type() {
     let root = fixtures::Fixture::new("carnage_settings").descriptor("site/wall", "alpha").build("m");
-    std::fs::create_dir_all(root.join("family")).unwrap();
+    std::fs::create_dir_all(root.join("family/bevy_carnage")).unwrap();
     std::fs::write(root.join("family.ron"), "(version: 1, crates: [\"bevy_carnage\"])").unwrap();
-    let file = root.join("family/bevy_carnage.ron");
+    let file = root.join("family/bevy_carnage/CarnageSettings.ron");
     std::fs::write(&file, "(trauma_per_wound: 0.4, hitstop_seconds: 0.055)").unwrap();
     let mut app = bevy_dark_factory::harness::build_headless(&root, "m", None).unwrap_or_else(|e| panic!("{e}"));
     for _ in 0..4 {
@@ -24,7 +24,7 @@ fn a_hit_stop_is_set_through_family_set_and_reads_back_as_the_crates_own_type() 
         "bevy_carnage is a known, built family crate"
     );
     let mut ctx = Ctx { project: Some(project), session: "test".to_owned(), ..Ctx::default() };
-    let done = ops::dispatch(&mut ctx, "family_set", &json!({"crate": "bevy_carnage", "field": "hitstop_seconds", "value": "0.1"})).unwrap();
+    let done = ops::dispatch(&mut ctx, "family_set", &json!({"crate": "bevy_carnage", "type": "CarnageSettings", "field": "hitstop_seconds", "value": "0.1"})).unwrap();
     assert!(matches!(done, Applied::Done { .. }));
     let flicker: CarnageSettings = ron::from_str(&std::fs::read_to_string(&file).unwrap()).unwrap();
     assert_eq!((flicker.trauma_per_wound, flicker.hitstop_seconds), (0.4, 0.1));

@@ -6,7 +6,7 @@ A kit is the set of meshes a map draws from. You bring meshes into a kit, label 
 
 A **kit** is a folder of meshes and the `library.ron` file that lists them. Each entry in that file is a **piece**: one mesh, its size, and its labels. The file lives beside the meshes, for example at `assets/blueprint/kit/library.ron`.
 
-A **door** is one of the editor's three screens: Map, Kit and Rigs. Press `=` to switch to the other door. The kit door has three panels, and you switch between them with `1`, `2` and `3`:
+A **door** is one of the editor's four screens: Map, Kit, Rigs and Plugins. Press `=` to switch to the other door. The kit door has three panels, and you switch between them with `1`, `2` and `3`:
 
 - `1` **Meshes**: bring meshes in, and label the pieces you have.
 - `2` **Tiles**: the kit's tiles, and placing pieces on them.

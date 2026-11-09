@@ -1,6 +1,6 @@
 # Building maps
 
-The Map door is one of the editor's three workspaces. It is where you lay pieces on the ground. A **piece** is one kit item you place. A **placement** is one piece on the map. A **stamp** is a composition laid down as one unit. A **composition** is a named group of pieces that you keep for reuse. This page covers the tasks you do on the Map. For the file formats, see [data files](data-files.md). For every key, see [keys](keys.md).
+The Map door is one of the editor's four workspaces. It is where you lay pieces on the ground. A **piece** is one kit item you place. A **placement** is one piece on the map. A **stamp** is a composition laid down as one unit. A **composition** is a named group of pieces that you keep for reuse. This page covers the tasks you do on the Map. For the file formats, see [data files](data-files.md). For every key, see [keys](keys.md).
 
 ![The Map door's 3D view of the bedroom map: a sofa is armed from the PLACE list, R turns it a quarter turn, a click places it, X and a click remove it, and Ctrl+Z puts it back](../media/build-a-map.gif)
 

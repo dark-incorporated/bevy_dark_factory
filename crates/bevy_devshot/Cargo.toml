@@ -25,4 +25,5 @@ bevy = { version = "0.20.0", default-features = false, features = [
 # cannot reach a consumer's dependency graph. `tests/`-style boundary checks read `[dependencies]`
 # only, deliberately: a dev-dependency on something heavier is a different conversation.
 [dev-dependencies]
-bevy = { version = "0.20.0" }
+# `debug`: full system names, which the machine-plate test reads.
+bevy = { version = "0.20.0", features = ["debug"] }

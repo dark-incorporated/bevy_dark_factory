@@ -1,4 +1,5 @@
-//! **A project's `family/bevy_gooey.ron` is the running UI skin, and edits reach it live** (#147).
+//! **A settings file per settings type: a project's `family/bevy_gooey/GooeySkin.ron` is the running UI skin,
+//! applied by reflection, and edits reach it live** (#147).
 
 use bevy::prelude::*;
 use bevy_dark_factory::editor::EditorState;
@@ -23,9 +24,9 @@ fn problems(world: &World) -> Vec<String> {
 #[test]
 fn a_partial_skin_file_changes_only_its_field_and_an_unreadable_one_keeps_the_last_good_skin() {
     let root = fixtures::Fixture::new(&format!("gooey_skin_{}", std::process::id())).descriptor("site/wall", "alpha").build("m");
-    std::fs::create_dir_all(root.join("family")).unwrap();
+    std::fs::create_dir_all(root.join("family/bevy_gooey")).unwrap();
     std::fs::write(root.join("family.ron"), "(version: 1, crates: [\"bevy_gooey\"])").unwrap();
-    let file = root.join("family/bevy_gooey.ron");
+    let file = root.join("family/bevy_gooey/GooeySkin.ron");
     std::fs::write(&file, BLUE).unwrap();
     let mut app = bevy_dark_factory::harness::build_headless(&root, "m", None).unwrap_or_else(|e| panic!("{e}"));
     assert!(
@@ -45,7 +46,7 @@ fn a_partial_skin_file_changes_only_its_field_and_an_unreadable_one_keeps_the_la
     std::fs::write(&file, "(accent: 5)").unwrap();
     run_until(&mut app, |w| !problems(w).is_empty());
     let probs = problems(app.world());
-    assert!(probs.iter().any(|p| p.contains("bevy_gooey") && p.contains("previous skin stays")), "{probs:?}");
+    assert!(probs.iter().any(|p| p.contains("family/bevy_gooey/GooeySkin.ron") && p.contains("previous settings stay")), "{probs:?}");
     assert_eq!(app.world().resource::<GooeySkin>().accent, blue);
 
     // Not RON at all: the host's own problem, and still the blue skin.
@@ -54,7 +55,7 @@ fn a_partial_skin_file_changes_only_its_field_and_an_unreadable_one_keeps_the_la
     let before = problems(app.world()).len();
     run_until(&mut app, |w| problems(w).len() > before);
     let probs = problems(app.world());
-    assert!(probs.iter().any(|p| p.contains("bevy_gooey") && p.contains("not valid RON")), "{probs:?}");
+    assert!(probs.iter().any(|p| p.contains("family/bevy_gooey/GooeySkin.ron") && p.contains("not valid RON")), "{probs:?}");
     assert_eq!(app.world().resource::<GooeySkin>().accent, blue);
 
     // A skin the crate's own rules refuse is applied, and each broken rule is a problem.

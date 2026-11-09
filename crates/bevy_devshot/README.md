@@ -12,7 +12,7 @@ Because the thing that wants the screenshot usually isn't a person at the keyboa
 
 ```rust
 #[cfg(debug_assertions)]
-app.add_plugins(bevy_devshot::DevShotPlugin);
+app.add_plugins(bevy_devshot::DevshotPlugin);
 ```
 
 ```sh

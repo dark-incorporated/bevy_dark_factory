@@ -1007,7 +1007,7 @@ pub struct BandGround;
 ///
 /// `panel_root` used to spawn `PANEL_BG` and `BAR_BG` — constants — so every panel in the editor was
 /// painted once, at spawn, and never asked the skin again. A project's `editor_skin.ron`, or a
-/// `family/bevy_gooey.ron` edit at run time, therefore reached the list rows and the migrated ink but
+/// `family/bevy_gooey/GooeySkin.ron` edit at run time, therefore reached the list rows and the migrated ink but
 /// **not the largest surface on screen**.
 ///
 /// One function, called by the spawn and by [`dim_the_ground`] alike, the way [`RowFills::of`] is

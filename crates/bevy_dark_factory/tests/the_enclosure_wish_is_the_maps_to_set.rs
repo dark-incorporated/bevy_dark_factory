@@ -27,7 +27,7 @@ fn editor(tag: &str) -> App {
         .place("site/wall", (0.0, 0.0))
         .build("m");
     let mut app = harness::build_headless(&root, "m", None).unwrap_or_else(|e| panic!("{e}"));
-    app.add_plugins(bevy_debugger_bevy::DebuggerPlugin::default());
+    app.add_plugins(bevy_debugger_bevy::FairyPlugin::default());
     app.add_plugins(bevy_dark_factory::ops_brp::OpsBridgePlugin);
     for _ in 0..8 {
         app.update();
@@ -133,7 +133,7 @@ fn a_map_from_before_the_field_keeps_the_shipped_pair() {
         Enclosure { wish: 0.25, weight: 200 },
         "a map written before `enclosure` existed must generate exactly as it did (E-005)"
     );
-    assert_eq!(MAP_VERSION, 9, "the field arrived with a version, so an older build refuses it");
+    const { assert!(MAP_VERSION >= 9, "the field arrived with version 9, so an older build refuses it") };
 }
 
 /// **A percentage typed as a number is refused by name**, rather than quietly clamped.

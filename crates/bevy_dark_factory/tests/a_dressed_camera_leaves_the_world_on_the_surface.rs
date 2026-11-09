@@ -13,7 +13,7 @@
 use bevy::camera::{CameraOutputMode, ClearColorConfig};
 use bevy::prelude::*;
 use bevy_dark_factory::environment::dress_camera;
-use bevy_dark_factory::family_host::FamilySettings;
+use bevy_dark_factory::family_host::FamilyFiles;
 use bevy_dark_factory::surface::SurfaceCamera;
 use bevy_dark_factory::view::MainCamera;
 
@@ -24,7 +24,7 @@ fn blends(c: &Camera) -> bool {
 #[test]
 fn a_dressed_camera_is_composited_over_the_ground_and_under_the_interface() {
     let mut app = App::new();
-    app.init_resource::<FamilySettings>().add_systems(Update, dress_camera);
+    app.init_resource::<FamilyFiles>().add_systems(Update, dress_camera);
     let world = app
         .world_mut()
         .spawn((MainCamera, Camera { clear_color: ClearColorConfig::None, ..default() }))
@@ -38,9 +38,9 @@ fn a_dressed_camera_is_composited_over_the_ground_and_under_the_interface() {
     assert!(!blends(app.world().get::<Camera>(ui).unwrap()), "no family file: untouched");
 
     app.world_mut()
-        .resource_mut::<FamilySettings>()
-        .text
-        .insert("bevy_elements".to_owned(), String::new());
+        .resource_mut::<FamilyFiles>()
+        .applied
+        .insert(("bevy_elements".to_owned(), "WorldClock".to_owned()), String::new());
     app.update();
     let w = app.world().get::<Camera>(world).unwrap();
     let u = app.world().get::<Camera>(ui).unwrap();
@@ -48,7 +48,7 @@ fn a_dressed_camera_is_composited_over_the_ground_and_under_the_interface() {
     assert!(blends(u), "the interface is written over the world, not instead of it");
     assert!(matches!(u.clear_color, ClearColorConfig::Custom(_)), "the interface starts from transparent");
 
-    app.world_mut().resource_mut::<FamilySettings>().text.clear();
+    app.world_mut().resource_mut::<FamilyFiles>().applied.clear();
     app.update();
     let u = app.world().get::<Camera>(ui).unwrap();
     assert!(!blends(u), "the file is gone: the editor's own composition returns");

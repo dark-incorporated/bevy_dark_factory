@@ -214,7 +214,7 @@ fn def_of(t: &Trigger, people: &People, watch: bool) -> Result<bevy_society::Tri
 /// The project's society definitions as authored, or the starter pack.
 #[cfg(feature = "bevy_society")]
 fn base_file(ctx: &Ctx) -> Result<bevy_society::DefsFile, Refusal> {
-    match crate::ops_family::settings_path(ctx, "bevy_society").ok().and_then(|f| std::fs::read_to_string(f).ok()) {
+    match crate::ops_family::settings_path(ctx, "bevy_society", "DefsFile").ok().and_then(|f| std::fs::read_to_string(f).ok()) {
         Some(text) => bevy_society::DefsFile::from_ron(&text).map_err(|e| Refusal::new(format!("the society definitions do not parse: {e}"))),
         None => bevy_society::DefsFile::starter().map_err(|e| Refusal::new(format!("the starter pack does not parse: {e}"))),
     }

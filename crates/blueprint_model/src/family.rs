@@ -231,10 +231,26 @@ fn value_extent(t: &str, i: usize, end: usize) -> usize {
     value_end(t, i, &[]).map_or(end, |e| e.min(end))
 }
 
-/// `<project>/family/`: one `<crate>.ron` of that crate's own settings each.
+/// `<project>/family/`: one folder per crate, holding one `<TypeIdent>.ron` per settings resource the
+/// crate registers (`family/bevy_gooey/GooeySkin.ron`) or per data type it reads. A file directly in
+/// `family/` is not read.
 pub fn settings_dir(root: &Path) -> PathBuf {
     root.join("family")
 }
+
+/// `family/<crate>/<ident>.ron`: the file one settings type lives in, as the verdicts and refusals
+/// name it, relative to the project root.
+pub fn settings_file(krate: &str, ident: &str) -> String {
+    format!("family/{krate}/{ident}.ron")
+}
+
+/// `<project>/family/<crate>/<ident>.ron`.
+pub fn settings_path(root: &Path, krate: &str, ident: &str) -> PathBuf {
+    settings_dir(root).join(krate).join(format!("{ident}.ron"))
+}
+
+/// One settings file's key: the crate and the type's short name.
+pub type SettingsKey = (String, String);
 
 /// Settings files are a few small files: look every tenth of a second and take a change as settled
 /// after another, so a reload lands well inside the second the editor promises, even on a busy machine.
@@ -249,18 +265,18 @@ const SETTINGS_SETTLE_SECS: f64 = 0.1;
 pub struct FamilyWatch {
     files: crate::live::FileWatch,
     dir: PathBuf,
-    good: std::collections::BTreeMap<String, String>,
+    good: std::collections::BTreeMap<SettingsKey, String>,
 }
 
-/// One settled change to a crate's settings.
+/// One settled change to one settings file.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum SettingsChange {
     /// The file now holds these settings.
-    Reloaded { krate: String, text: String },
+    Reloaded { krate: String, ident: String, text: String },
     /// The file is not valid RON; the last good settings stay in force.
-    Invalid { krate: String, error: String },
-    /// The file was deleted; the crate falls back to its own defaults.
-    Removed { krate: String },
+    Invalid { krate: String, ident: String, error: String },
+    /// The file was deleted; the type falls back to its own default.
+    Removed { krate: String, ident: String },
 }
 
 impl FamilyWatch {
@@ -268,33 +284,23 @@ impl FamilyWatch {
     pub fn new(root: &Path) -> FamilyWatch {
         let dir = settings_dir(root);
         let mut watch = FamilyWatch { files: crate::live::FileWatch::new(&dir, &["ron"]).with_timing(SETTINGS_POLL_SECS, SETTINGS_SETTLE_SECS), dir, good: Default::default() };
-        for (krate, text) in watch.read() {
+        for (key, text) in watch.read() {
             if ron::from_str::<ron::Value>(&text).is_ok() {
-                watch.good.insert(krate, text);
+                watch.good.insert(key, text);
             }
         }
         watch
     }
 
     /// The settings that parsed when the watch was made, and every change since: what is in force now.
-    pub fn current(&self) -> &std::collections::BTreeMap<String, String> {
+    pub fn current(&self) -> &std::collections::BTreeMap<SettingsKey, String> {
         &self.good
     }
 
-    fn read(&self) -> Vec<(String, String)> {
-        let Ok(entries) = std::fs::read_dir(&self.dir) else { return Vec::new() };
-        let mut out: Vec<(String, String)> = entries
-            .flatten()
-            .filter_map(|e| {
-                let p = e.path();
-                if p.extension()? != "ron" || p.file_name()?.to_string_lossy().starts_with('.') {
-                    return None;
-                }
-                Some((p.file_stem()?.to_string_lossy().into_owned(), std::fs::read_to_string(&p).ok()?))
-            })
-            .collect();
-        out.sort();
-        out
+    /// Every `family/<crate>/<ident>.ron`, sorted by key. A dotfile or a file directly in `family/` is
+    /// not a settings file.
+    pub fn read(&self) -> Vec<(SettingsKey, String)> {
+        read_settings_files(&self.dir)
     }
 
     /// At most one look per [`crate::live::POLL_SECS`]; the changes once the files have settled.
@@ -304,23 +310,50 @@ impl FamilyWatch {
         }
         let now = self.read();
         let mut out = Vec::new();
-        for (krate, text) in &now {
-            if self.good.get(krate) == Some(text) {
+        for (key, text) in &now {
+            if self.good.get(key) == Some(text) {
                 continue;
             }
+            let (krate, ident) = key.clone();
             match ron::from_str::<ron::Value>(text) {
                 Ok(_) => {
-                    self.good.insert(krate.clone(), text.clone());
-                    out.push(SettingsChange::Reloaded { krate: krate.clone(), text: text.clone() });
+                    self.good.insert(key.clone(), text.clone());
+                    out.push(SettingsChange::Reloaded { krate, ident, text: text.clone() });
                 }
-                Err(e) => out.push(SettingsChange::Invalid { krate: krate.clone(), error: e.to_string() }),
+                Err(e) => out.push(SettingsChange::Invalid { krate, ident, error: e.to_string() }),
             }
         }
-        let gone: Vec<String> = self.good.keys().filter(|k| !now.iter().any(|(n, _)| n == *k)).cloned().collect();
-        for krate in gone {
-            self.good.remove(&krate);
-            out.push(SettingsChange::Removed { krate });
+        let gone: Vec<SettingsKey> = self.good.keys().filter(|k| !now.iter().any(|(n, _)| n == *k)).cloned().collect();
+        for key in gone {
+            self.good.remove(&key);
+            let (krate, ident) = key;
+            out.push(SettingsChange::Removed { krate, ident });
         }
         out
     }
+}
+
+/// Every `<dir>/<crate>/<ident>.ron` and its text, sorted by key.
+pub fn read_settings_files(dir: &Path) -> Vec<(SettingsKey, String)> {
+    let mut out = Vec::new();
+    let Ok(crates) = std::fs::read_dir(dir) else { return out };
+    for krate in crates.flatten() {
+        let path = krate.path();
+        let Some(krate) = path.file_name().map(|n| n.to_string_lossy().into_owned()) else { continue };
+        if !path.is_dir() || krate.starts_with('.') {
+            continue;
+        }
+        let Ok(files) = std::fs::read_dir(&path) else { continue };
+        for file in files.flatten() {
+            let p = file.path();
+            let (Some(ext), Some(stem), Some(name)) = (p.extension(), p.file_stem(), p.file_name()) else { continue };
+            if ext != "ron" || name.to_string_lossy().starts_with('.') {
+                continue;
+            }
+            let Ok(text) = std::fs::read_to_string(&p) else { continue };
+            out.push(((krate.clone(), stem.to_string_lossy().into_owned()), text));
+        }
+    }
+    out.sort();
+    out
 }

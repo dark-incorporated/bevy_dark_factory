@@ -135,7 +135,7 @@ fn app(project: &Project) -> App {
         .init_asset::<Mesh>()
         .init_asset::<StandardMaterial>()
         .add_plugins(BlueprintPlugin)
-        .add_plugins(BlueprintLivePlugin { dir: project.blueprint.clone(), maps: vec!["yard".to_owned()] })
+        .add_plugins(BlueprintLivePlugin { dir: project.blueprint.clone(), maps: vec!["yard".to_owned()], root: project.blueprint.join("../..") })
         .insert_resource(TimeUpdateStrategy::ManualDuration(Duration::from_millis(600)))
         .insert_resource(world)
         // The game loaded its own file when it started.

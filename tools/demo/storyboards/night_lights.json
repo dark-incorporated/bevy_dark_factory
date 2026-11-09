@@ -11,10 +11,10 @@
   {
    "seconds": 3,
    "operation": {
-    "name": "placement_set_family",
+    "name": "placement_set_component",
     "parameters": {
      "id": "floor_lamp",
-     "crate": "bevy_lights",
+     "component": "bevy_lights::flicker::Flicker",
      "value": "(base: 60.0)"
     }
    }
@@ -35,10 +35,10 @@
   {
    "seconds": 3,
    "operation": {
-    "name": "placement_set_family",
+    "name": "placement_set_component",
     "parameters": {
      "id": "lamp_tall@1",
-     "crate": "bevy_lights",
+     "component": "bevy_lights::flicker::Flicker",
      "value": "(base: 60.0)"
     }
    }

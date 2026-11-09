@@ -113,10 +113,13 @@ The game follows the same files if you add `BlueprintLivePlugin`:
 app.add_plugins(bevy_blueprint::live::BlueprintLivePlugin {
     dir: "assets/blueprint".into(),
     maps: vec!["town".into()],
+    root: ".".into(),
 });
 ```
 
 It needs an `BlueprintWorld` resource, which `BlueprintPlugin` spawns from. About a second after the last write, the plugin reloads the project and redraws only what changed.
+
+It also applies the project's settings files, `<root>/family/<crate>/<Type>.ron`, to the crates' resources: every file on the first frame, then each saved edit. A file is read as the crate's own type through reflection, so only a settings resource the crate registers (rule 3 of the machine plate) is applied. A deleted file puts the resource back to its default. A file that does not read is logged and the previous settings stay.
 
 - A placement that is new, edited, removed, or resting on something that was redrawn is despawned and spawned again. A placement that did not change keeps its `Entity`.
 - A placement that only changed its id is a rename and keeps its `Entity` too: its row is the same in every other field, and no other row is the same, so it is the same piece under another name. Its `Placement` component now holds the new id and whatever you hung on the entity stays. `ProjectReloaded::diffs` come from `diff_maps_renaming`, whose `MapDiff::renamed` lists `(old id, new id)`, and neither id is in `added` or `removed` (the plain `diff_maps` takes an id for the piece and never guesses). A piece renamed and edited in one save is redrawn, and so is a pair of identical rows that were both renamed, because nothing says which is which.
@@ -189,4 +192,4 @@ After you allow one, press Play or Send again; nothing starts on its own. What y
 
 ## Conversations over the speaker
 
-With the editor built with `--features bevy_speech_bubbles` and `bevy_speech_bubbles` listed in `family.ron`, a project's conversations are `bevy_speech_bubbles`' own `DialogueScript`, saved as `family/bevy_speech_bubbles.ron`; a graph `validate_script` refuses is not written. A placed piece carries one by name (`placement_set_family` with `"crate": "bevy_speech_bubbles"` and `"value": "\"market\""`, or `@<id> bevy_speech_bubbles "market"` in FAMILY SETTINGS). Typing `dialogue market 0` in FAMILY SETTINGS walks that conversation (`dialogue_preview`), each number picking an option at the next choice (0 is the first), and draws the lines it says as one balloon over the piece carrying it; a choice with no number left stops the walk there.
+With the editor built with `--features bevy_speech_bubbles` and `bevy_speech_bubbles` listed in `family.ron`, a project's conversations are `bevy_speech_bubbles`' own `DialogueScript`, saved as `family/bevy_speech_bubbles/DialogueScript.ron`; a graph `validate_script` refuses is not written. A placed piece starts one by carrying the crate's `StartsConversation` component (`placement_set_component` with `"component": "bevy_speech_bubbles::conversation::StartsConversation"` and `"value": "(\"market\")"`, or `@<id> bevy_speech_bubbles::conversation::StartsConversation ("market")` in FAMILY SETTINGS); a name the script does not define is refused. Typing `dialogue market 0` in FAMILY SETTINGS walks that conversation (`dialogue_preview`), each number picking an option at the next choice (0 is the first), and draws the lines it says as one balloon over the piece carrying it; a choice with no number left stops the walk there.

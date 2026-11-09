@@ -150,7 +150,7 @@ fn entering_the_editor_from_the_project_page_records_the_project() {
     let s = Scratch::new("enter");
     let root = fixtures::Fixture::new("recent_enter").descriptor("site/wall", "alpha").place("site/wall", (0.0, 0.0)).build("m");
     let mut app = bevy_dark_factory::harness::build_headless(&root, "m", None).unwrap_or_else(|e| panic!("{e}"));
-    app.add_plugins(bevy_debugger_bevy::DebuggerPlugin::default());
+    app.add_plugins(bevy_debugger_bevy::FairyPlugin::default());
     app.add_plugins(bevy_dark_factory::ops_brp::OpsBridgePlugin);
     app.insert_resource(RecentProjects(s.file()));
     bevy_dark_factory::harness::stand_on_the_project_page(&mut app, &root);

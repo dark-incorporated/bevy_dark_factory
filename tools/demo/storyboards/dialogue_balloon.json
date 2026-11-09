@@ -9,12 +9,12 @@
  ],
  "chunks": [
   {"seconds": 1.5},
-  {"seconds": 2.5, "operation": {"name": "placement_set_family", "parameters": {"id": "stall_0", "crate": "bevy_speech_bubbles", "value": "\"market\""}}},
+  {"seconds": 2.5, "operation": {"name": "placement_set_component", "parameters": {"id": "stall_0", "component": "bevy_speech_bubbles::conversation::StartsConversation", "value": "(\"market\")"}}},
   {"seconds": 7}
  ],
  "steps": [
   {"at": 0.2, "caption": "a market stall; the project's dialogue script holds a conversation, market"},
-  {"at": 1.6, "caption": "agent: the stall carries conversation market (placement_set_family)"},
+  {"at": 1.6, "caption": "agent: the stall carries conversation market (placement_set_component)"},
   {"at": 4.3, "wheel": {"y": -1, "n": 4, "at": [150, 480]}},
   {"at": 5.0, "click": [147, 346], "caption": "person: FAMILY SETTINGS, dialogue market 0 (the first option)"},
   {"at": 5.6, "type": "dialogue market 0"},

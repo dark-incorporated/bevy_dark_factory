@@ -1,20 +1,18 @@
-//! **The project configuration screen: which family crates the project uses, with the verdict of the
-//! file that says so** (UI-74, #252).
+//! **The project configuration screen: the verdict of the project's `family.ron`, its kits and the packs
+//! they leave out** (UI-74, #252).
 //!
 //! Opened from the settings screen's *Project configuration* button (and by [`OpenProjectConfig`]) in a
-//! project that is open. It lists every crate the editor can host (`family_host::KNOWN`), one switch each,
-//! on while the project's `family.ron` names it. A switch rewrites `family.ron` atomically with the crate
-//! added or taken out, every other crate in the order the file has them, and then reads the file back
-//! through the reload contract's own check (`reload_check::check`, kind `family_list`) and records the
-//! verdict where `factory_state.reloads` and the reload panel read it. The screen shows that verdict
-//! under the switches: *applied*, or the refusal with the file and the field.
+//! project that is open. The family crates are switched on and off in the Plugins door
+//! ([`crate::plugins_tab`]), which writes `family.ron` with [`write_family`] and records [`verdict_of`]
+//! where `factory_state.reloads` and the reload panel read it; this screen shows that verdict: *applied*,
+//! or the refusal with the file and the field.
 //!
 //! # Validation, in the words of `Family::problems`
 //!
 //! A crate the project lists that this build was compiled without is a problem the file can carry (the
-//! game may use it; the editor cannot host its panel), so it is shown on the crate's own line, in the
-//! words the status line uses (`family_host::problems_with`), and the switch still works. A `family.ron`
-//! that does not read is shown and **never written over**: the switches wait until it reads.
+//! game may use it; the editor cannot host its panel), so it is shown here in the words the status line
+//! uses (`family_host::problems_with`). A `family.ron` that does not read is shown and **never written
+//! over**: the switches wait until it reads.
 //!
 //! The kits the project binds are listed under the switches, the one being authored marked. Under them
 //! is the kit's **policy**: every folder directly under `assets/` and every pack `project.ron` already
@@ -79,24 +77,9 @@ struct Writer<'w, 's> {
     dialog: Query<'w, 's, &'static mut ProjectConfigDialog>,
     project: Option<ResMut<'w, Project>>,
     import: Option<ResMut<'w, ImportState>>,
-    reloads: Option<ResMut<'w, EditorReloads>>,
 }
 
 impl Writer<'_, '_> {
-    /// Lists `krate` in `family.ron` when `on`, takes it out otherwise, and records what the reload contract
-    /// makes of the file it wrote.
-    fn set(&mut self, krate: &str, on: bool) {
-        let Some(project) = self.project.as_deref() else { return };
-        let outcome = write_family(&project.root, krate, on);
-        if let Some(reloads) = self.reloads.as_deref_mut() {
-            reloads.decide(vec![verdict_of(&project.root)]);
-        }
-        if let Ok(mut dialog) = self.dialog.single_mut() {
-            dialog.problem = outcome.err();
-            dialog.writes += 1;
-        }
-    }
-
     /// Leaves `pack` out of the kit when `excluded`, brings it back otherwise, through the operation
     /// `pack_set_excluded`; what it refused is shown under the switches.
     fn leave_out(&mut self, pack: &str, excluded: bool) {
@@ -220,23 +203,12 @@ fn refresh(
     let problems = family_host::problems_with(&project.root, &built_in);
     commands.entity(column).with_children(|lines| {
         lines.spawn(heading("Family crates"));
-        lines.spawn(label("A project lists the crates it uses in family.ron; a switch adds or takes one out."));
+        lines.spawn(label("A project lists the plugins it uses in family.ron; switch them on and off in the Plugins door."));
         match &family {
             Err(why) => {
                 lines.spawn(label(format!("{why}. Fix the file by hand: nothing is written until it reads.")));
             }
-            Ok(listed) => {
-                // A list, so the nine switches scroll in a window of any height; a crate this build lacks says so on its own switch.
-                let rows: Vec<_> = family_host::KNOWN
-                    .iter()
-                    .map(|krate| {
-                        let on = listed.iter().any(|c| c == krate);
-                        let name = (*krate).to_owned();
-                        let words = if built_in.contains(krate) { (*krate).to_owned() } else { format!("{krate} (not built here)") };
-                        (toggle(words, on), observe(move |c: On<ValueChange<bool>>, mut w: Writer| w.set(&name, c.value)))
-                    })
-                    .collect();
-                lines.spawn(list(FAMILY_ROWS, Children::spawn(SpawnIter(rows.into_iter()))));
+            Ok(_) => {
                 // What is wrong with what the file lists, in the status line's own words.
                 for problem in &problems {
                     lines.spawn(label(problem.clone()));

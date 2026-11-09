@@ -103,8 +103,10 @@ impl Plugin for InspectorPlugin {
         app.register_type::<PoseView>()
             .init_resource::<PoseInspector>()
             .add_systems(OnEnter(Screen::Editor), spawn_the_view.after(crate::chrome::FrameSystems))
-            .add_systems(Update, mirror_the_selection.run_if(in_state(Screen::Editor)))
-            .add_observer(pose_edits_are_operations);
+            .add_systems(Update, (mirror_the_selection, mirror_piece_components.after(mirror_the_selection)).run_if(in_state(Screen::Editor)))
+            .add_observer(pose_edits_are_operations)
+            .add_observer(component_edits_are_operations)
+            .add_observer(remove_component);
     }
 }
 
@@ -328,4 +330,141 @@ fn pose_edits_are_operations(
     if drawn_stale && let Some(mut due) = due {
         due.map_replaced = true;
     }
+}
+
+/// **The components the selected piece carries**, one section each under the pose: gooey's reflect
+/// inspector over the component on the piece's entity, and a *Remove* button. Built again when the
+/// primary piece or what it carries changes.
+#[derive(Component)]
+pub struct ComponentsBlock;
+
+/// One component's inspector: the piece and the component's type path.
+#[derive(Component, Clone, Debug)]
+pub struct PieceComponentInspector {
+    pub id: String,
+    pub path: String,
+}
+
+/// A *Remove* button: the piece and the component's type path.
+#[derive(Component, Clone, Debug)]
+pub struct RemoveComponent {
+    pub id: String,
+    pub path: String,
+}
+
+/// What the block was last built from: the piece, its entity and what it carries.
+type ComponentsKey = Option<(String, Entity, std::collections::BTreeMap<String, String>)>;
+
+fn mirror_piece_components(world: &mut World, mut built: Local<ComponentsKey>) {
+    let key: ComponentsKey = (|| {
+        let open = world.get_resource::<OpenMap>()?;
+        let lock = world.get_resource::<TargetLock>()?;
+        let ids = selected_ids(lock, world.get_resource::<Selection>(), open);
+        let primary = ids.first()?;
+        let placed = open.map.placements.iter().find(|p| p.id == *primary)?;
+        if placed.components.is_empty() {
+            return None;
+        }
+        let entity = world
+            .try_query::<(Entity, &crate::editor::Placement)>()?
+            .iter(world)
+            .find(|(_, p)| p.0 == *primary)
+            .map(|(e, _)| e)?;
+        Some((primary.clone(), entity, placed.components.clone()))
+    })();
+    if *built == key {
+        return;
+    }
+    *built = key.clone();
+    let blocks: Vec<Entity> = world.query_filtered::<Entity, With<ComponentsBlock>>().iter(world).collect();
+    for block in blocks {
+        world.entity_mut(block).despawn();
+    }
+    let Some((id, entity, components)) = key else { return };
+    let Some(pane) = world.query_filtered::<Entity, With<MapControlsPane>>().iter(world).next() else { return };
+    let rows: Vec<(String, String, Option<std::any::TypeId>)> = {
+        let registry = world.resource::<AppTypeRegistry>().read();
+        components
+            .keys()
+            .map(|path| {
+                let short = path.rsplit("::").next().unwrap_or(path).to_owned();
+                let type_id = registry.get_with_type_path(path).map(|r| r.type_id());
+                (path.clone(), short, type_id)
+            })
+            .collect()
+    };
+    let mut commands = world.commands();
+    let block = commands
+        .spawn((ComponentsBlock, Name::new("components block"), Node { flex_direction: FlexDirection::Column, row_gap: Val::Px(crate::chrome::GAP_TIGHT), ..default() }))
+        .with_children(|block| {
+            crate::chrome::list_heading(block, "COMPONENTS");
+            for (path, short, type_id) in rows {
+                let remove = (bevy_gooey::button("Remove"), RemoveComponent { id: id.clone(), path: path.clone() });
+                match type_id {
+                    Some(type_id) => {
+                        block.spawn(bevy_gooey::section(
+                            short,
+                            true,
+                            children![
+                                (bevy_gooey::inspector(bevy_gooey::InspectTarget::Component { entity, type_id }), PieceComponentInspector { id: id.clone(), path: path.clone() }),
+                                remove,
+                            ],
+                        ));
+                    }
+                    None => {
+                        block.spawn(bevy_gooey::section(short, true, children![bevy_gooey::label(format!("{path} is not registered in this build")), remove]));
+                    }
+                }
+            }
+        })
+        .id();
+    world.flush();
+    // Under the pose block, which is first when something is selected.
+    let at = world.get::<Children>(pane).map_or(0, |c| c.iter().position(|e| world.get::<PoseBlock>(e).is_some()).map_or(0, |i| i + 1));
+    world.entity_mut(pane).insert_children(at, &[block]);
+}
+
+/// Dispatches `placement_set_component` from a world in hand: the open map goes through the context.
+fn dispatch_component(world: &mut World, params: serde_json::Value, phrase: &str) {
+    let open = world.remove_resource::<OpenMap>();
+    let mut ctx = Ctx { project: world.get_resource::<Project>().cloned(), open, source: Source::Human, session: ops::session_id(), ..Ctx::default() };
+    let outcome = ops::dispatch(&mut ctx, "placement_set_component", &params);
+    if let Some(open) = ctx.open.take() {
+        world.insert_resource(open);
+    }
+    let mut state = world.resource_mut::<EditorState>();
+    match outcome {
+        Ok(ops::Applied::Done { outcome, operation_id, .. }) => {
+            state.status.note(outcome.summary.clone());
+            state.record_logged(operation_id, outcome.summary, false);
+        }
+        Ok(ops::Applied::Refused(e)) | Err(e) => state.status.raise(&format!("cannot {phrase}: "), e.problem()),
+    }
+}
+
+/// **An edit of a piece's component is `placement_set_component`** with the whole component as RON.
+fn component_edits_are_operations(change: On<bevy_gooey::InspectorChange>, inspectors: Query<&PieceComponentInspector>, mut commands: Commands) {
+    let Ok(inspector) = inspectors.get(change.entity) else { return };
+    let (id, path) = (inspector.id.clone(), inspector.path.clone());
+    commands.queue(move |world: &mut World| {
+        let value = {
+            let registry = world.resource::<AppTypeRegistry>().clone();
+            let registry = registry.read();
+            let entity = world.query::<(Entity, &crate::editor::Placement)>().iter(world).find(|(_, p)| p.0 == id).map(|(e, _)| e);
+            let Some(component) = registry.get_with_type_path(&path).and_then(|r| r.data::<bevy::ecs::reflect::ReflectComponent>()) else { return };
+            let Some(value) = entity.and_then(|e| component.reflect(world.entity(e))) else { return };
+            bevy_blueprint::components::component_ron(&registry, &path, Some(value.as_partial_reflect()))
+        };
+        match value {
+            Ok(value) => dispatch_component(world, serde_json::json!({"id": id, "component": path, "value": value}), "set the component"),
+            Err(e) => world.resource_mut::<EditorState>().status.problem(e),
+        }
+    });
+}
+
+/// **Remove**: `placement_set_component` with no value takes the component off the piece.
+fn remove_component(press: On<bevy_gooey::Activate>, buttons: Query<&RemoveComponent>, mut commands: Commands) {
+    let Ok(RemoveComponent { id, path }) = buttons.get(press.entity) else { return };
+    let params = serde_json::json!({"id": id, "component": path});
+    commands.queue(move |world: &mut World| dispatch_component(world, params, "remove the component"));
 }

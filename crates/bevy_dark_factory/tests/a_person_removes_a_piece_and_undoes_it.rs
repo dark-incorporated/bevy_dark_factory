@@ -285,7 +285,7 @@ fn an_agents_undo_of_a_removal_waits_while_the_person_has_moved_a_piece_since() 
         .build("m");
     let mut app = bevy_dark_factory::harness::build_headless(&root, "m", None)
         .unwrap_or_else(|e| panic!("{e}"));
-    app.add_plugins(bevy_debugger_bevy::DebuggerPlugin::default());
+    app.add_plugins(bevy_debugger_bevy::FairyPlugin::default());
     app.add_plugins(bevy_dark_factory::ops_brp::OpsBridgePlugin);
     app.init_resource::<Script>();
     app.world_mut().spawn((Window::default(), PrimaryWindow));

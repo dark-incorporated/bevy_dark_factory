@@ -27,9 +27,9 @@ impl Component for Talker {
 #[test]
 fn the_conversation_a_piece_carries_is_walked_by_the_crates_runtime_down_the_chosen_option() {
     let root = fixtures::Fixture::new("dialogue_runtime").descriptor("site/wall", "alpha").place("site/wall", (0.0, 0.0)).build("m");
-    std::fs::create_dir_all(root.join("family")).unwrap();
+    std::fs::create_dir_all(root.join("family/bevy_speech_bubbles")).unwrap();
     std::fs::write(root.join("family.ron"), "(version: 1, crates: [\"bevy_speech_bubbles\"])").unwrap();
-    std::fs::write(root.join("family/bevy_speech_bubbles.ron"), SCRIPT).unwrap();
+    std::fs::write(root.join("family/bevy_speech_bubbles/DialogueScript.ron"), SCRIPT).unwrap();
     let mut editor = bevy_dark_factory::harness::build_headless(&root, "m", None).unwrap_or_else(|e| panic!("{e}"));
     for _ in 0..4 {
         editor.update();
@@ -38,16 +38,17 @@ fn the_conversation_a_piece_carries_is_walked_by_the_crates_runtime_down_the_cho
     let open = editor.world().resource::<bevy_dark_factory::project::OpenMap>().clone();
     let mut ctx = ops::Ctx { project: Some(project), open: Some(open), session: "dialogue_runtime".into(), ..ops::Ctx::default() };
     let id = ctx.open.as_ref().unwrap().map.placements[0].id.clone();
-    let done = ops::dispatch(&mut ctx, "placement_set_family", &json!({"id": id, "crate": "bevy_bubbles_unused", "value": "\"hello\""}));
-    assert!(done.is_err() || matches!(done, Ok(Applied::Refused(_))), "a crate the project does not list is refused");
-    let done = ops::dispatch(&mut ctx, "placement_set_family", &json!({"id": id, "crate": "bevy_speech_bubbles", "value": "\"hello\""})).unwrap();
+    let starts = <bevy_speech_bubbles::StartsConversation as bevy::reflect::TypePath>::type_path();
+    let done = ops::dispatch(&mut ctx, "placement_set_component", &json!({"id": id, "component": "bevy_bubbles_unused::Starts", "value": "(\"hello\")"}));
+    assert!(done.is_err() || matches!(done, Ok(Applied::Refused(_))), "a component this build does not register is refused");
+    let done = ops::dispatch(&mut ctx, "placement_set_component", &json!({"id": id, "component": starts, "value": "(\"hello\")"})).unwrap();
     assert!(matches!(done, Applied::Done { .. }), "{done:?}");
 
     // The game reads the saved map and the saved script, as it would at load.
     let map: blueprint_model::map::Map =
         ron::from_str(&std::fs::read_to_string(root.join("assets/blueprint/maps/m.map.ron")).unwrap()).unwrap();
-    let name: String = ron::from_str(&map.placements[0].family["bevy_speech_bubbles"]).unwrap();
-    let script: DialogueScript = ron::from_str(&std::fs::read_to_string(root.join("family/bevy_speech_bubbles.ron")).unwrap()).unwrap();
+    let name: String = ron::from_str::<bevy_speech_bubbles::StartsConversation>(&map.placements[0].components[starts]).unwrap().0;
+    let script: DialogueScript = ron::from_str(&std::fs::read_to_string(root.join("family/bevy_speech_bubbles/DialogueScript.ron")).unwrap()).unwrap();
 
     let mut game = App::new();
     game.add_plugins((MinimalPlugins, AssetPlugin::default(), SpeechBubblesPlugin::<Talker>::default()))
@@ -61,7 +62,7 @@ fn the_conversation_a_piece_carries_is_walked_by_the_crates_runtime_down_the_cho
     let font = std::fs::read(concat!(env!("CARGO_MANIFEST_DIR"), "/assets/fonts/FiraMono-Regular.ttf")).unwrap();
     game.insert_resource(BubbleAssets::from_font_bytes(Handle::default(), font).unwrap());
     game.world_mut().resource_mut::<Speakers>().0.insert("Mara".into(), Speaker { entity: Some(mara), name: "Mara".into(), portrait: None });
-    game.world_mut().write_message(StartConversation { id: name.clone() });
+    game.world_mut().write_message(StartConversation { id: name.clone(), delivery: Default::default() });
     let mut entered: Vec<String> = Vec::new();
     let mut frame = |game: &mut App| {
         game.update();

@@ -1,4 +1,4 @@
-//! **The bevy_blueprint MCP server**, as a library.
+//! **The Dark Factory MCP server**, as a library.
 //!
 //! The binary is the server; this is the half the tests read. **The tool declarations live here**
 //! so that a test can check the reference against them without parsing source text — a test that

@@ -23,7 +23,7 @@ fn editor(tag: &str) -> App {
         .build("m");
     let mut app = bevy_dark_factory::harness::build_headless(&root, "m", None)
         .unwrap_or_else(|e| panic!("{e}"));
-    app.add_plugins(bevy_debugger_bevy::DebuggerPlugin::default());
+    app.add_plugins(bevy_debugger_bevy::FairyPlugin::default());
     app.add_plugins(bevy_dark_factory::ops_brp::OpsBridgePlugin);
     for _ in 0..6 {
         app.update();

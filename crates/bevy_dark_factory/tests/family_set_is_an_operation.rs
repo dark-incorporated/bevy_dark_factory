@@ -1,4 +1,5 @@
-//! **`family_set` writes one field of a family crate's settings file, and is one undo** (#96).
+//! **`family_set` writes one field of one of a family crate's files, `family/<crate>/<Type>.ron`, and is one
+//! undo** (#96). The file here is a data file no build registers as a settings type, so only its RON is held to.
 
 use bevy_dark_factory::ops::{self, Applied, Ctx};
 use serde_json::json;
@@ -7,9 +8,9 @@ use crate::fixtures;
 
 fn project(tag: &str, listed: &str) -> (Ctx, std::path::PathBuf) {
     let root = fixtures::Fixture::new(tag).descriptor("site/wall", "alpha").build("m");
-    std::fs::create_dir_all(root.join("family")).unwrap();
+    std::fs::create_dir_all(root.join("family/bevy_elements")).unwrap();
     std::fs::write(root.join("family.ron"), format!("(version: 1, crates: [\"{listed}\"])")).unwrap();
-    let file = root.join("family/bevy_elements.ron");
+    let file = root.join("family/bevy_elements/Sky.ron");
     std::fs::write(&file, "// the sun\n(sun: (hour: 12.0, tilt: 0.4), wind: 3)\n").unwrap();
     let mut app = bevy_dark_factory::harness::build_headless(&root, "m", None).unwrap_or_else(|e| panic!("{e}"));
     for _ in 0..4 {
@@ -20,7 +21,7 @@ fn project(tag: &str, listed: &str) -> (Ctx, std::path::PathBuf) {
 }
 
 fn set(ctx: &mut Ctx, value: &str) -> Result<Applied, ops::Refusal> {
-    ops::dispatch(ctx, "family_set", &json!({"crate": "bevy_elements", "field": "sun.hour", "value": value}))
+    ops::dispatch(ctx, "family_set", &json!({"crate": "bevy_elements", "type": "Sky", "field": "sun.hour", "value": value}))
 }
 
 #[test]
@@ -48,4 +49,14 @@ fn an_unlisted_crate_or_a_bad_value_changes_nothing() {
     assert_eq!(std::fs::read_to_string(&file).unwrap(), before);
     assert_eq!(std::fs::read_to_string(&file2).unwrap(), before);
     let _ = &ctx2;
+}
+
+#[test]
+fn a_type_with_no_file_is_refused_with_the_way_to_write_its_defaults() {
+    let (mut ctx, _) = project("family_set_missing", "bevy_elements");
+    let e = match ops::dispatch(&mut ctx, "family_set", &json!({"crate": "bevy_elements", "type": "Moonlight", "field": "lux", "value": "1.0"})) {
+        Err(e) | Ok(Applied::Refused(e)) => e.0,
+        Ok(_) => panic!("a file that does not exist was written"),
+    };
+    assert_eq!(e, "family/bevy_elements/Moonlight.ron does not exist; switch bevy_elements on in the Plugins door to write its defaults");
 }

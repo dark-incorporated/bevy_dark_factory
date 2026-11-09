@@ -102,11 +102,36 @@ pub struct Volume {
     pub version: u32,
     #[serde(default)]
     pub edits: Vec<Edit>,
+    /// **The snow and wetness the carved ground wears whatever the weather is** (#101). `None` lets the
+    /// scene's weather decide, as it does for a game's own weathered material. A file without it reads
+    /// as `None`, so adding it changed no saved volume and needed no new version.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cover: Option<VolumeCover>,
+}
+
+/// How snowy and how wet the carved ground is, each from 0 (none) to 1 (fully covered).
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct VolumeCover {
+    pub snow: f32,
+    pub wetness: f32,
+}
+
+impl VolumeCover {
+    /// Refuses a cover outside 0 to 1 or not a number, naming the field.
+    pub fn check(&self) -> Result<(), String> {
+        for (name, v) in [("snow", self.snow), ("wetness", self.wetness)] {
+            if !(0.0..=1.0).contains(&v) {
+                return Err(format!("cover {name} must be from 0 to 1, not {v}"));
+            }
+        }
+        Ok(())
+    }
 }
 
 impl Default for Volume {
     fn default() -> Self {
-        Volume { version: VOLUME_VERSION, edits: Vec::new() }
+        Volume { version: VOLUME_VERSION, edits: Vec::new(), cover: None }
     }
 }
 

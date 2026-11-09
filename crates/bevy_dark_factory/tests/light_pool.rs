@@ -23,7 +23,7 @@ fn editor(name: &str) -> Ctx {
     let mut ctx = Ctx { project: Some(project), open: Some(open), session: name.to_owned(), ..Ctx::default() };
     let ids: Vec<String> = ctx.open.as_ref().unwrap().map.placements.iter().map(|p| p.id.clone()).collect();
     for id in ids {
-        let done = ops::dispatch(&mut ctx, "placement_set_family", &json!({"id": id, "crate": "bevy_lights", "value": "(base: 1000.0)"})).unwrap();
+        let done = ops::dispatch(&mut ctx, "placement_set_component", &json!({"id": id, "component": <bevy_lights::Flicker as bevy::reflect::TypePath>::type_path(), "value": "(base: 1000.0)"})).unwrap();
         assert!(matches!(done, Applied::Done { .. }), "{done:?}");
     }
     ctx

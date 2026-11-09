@@ -1066,7 +1066,7 @@ const FENCED: &[&str] = &[
     "placement_set_tip",
     "placement_set_pose",
     "placement_set_lift",
-    "placement_set_family",
+    "placement_set_component",
     "placement_remove",
     "stamp_remove",
     "stamp_add",

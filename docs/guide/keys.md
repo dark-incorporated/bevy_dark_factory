@@ -6,11 +6,12 @@ This page lists the keys the editor answers to, grouped by where they work. It i
 
 Cmd means the Command key on a Mac. Shift and Alt keep their names. Alt is Option on a Mac. A row with two chords, such as `Cmd+Z` and `Cmd+Shift+Z`, is two bindings that do opposite jobs.
 
-The editor has three doors. A door is one of its three workspaces:
+The editor has four doors. A door is one of its four workspaces:
 
 - **Map** builds a level out of pieces.
 - **Kit** makes the reusable content: meshes, tiles, and compositions.
 - **Rigs** checks the animation rigs.
+- **Plugins** lists the family crates this build has: switch one on for the project, see its systems by schedule, edit its settings, and add its components to the selected pieces.
 
 A piece is one placed item on a map. A composition is a named group of pieces that you place as one. A kit is the set of meshes, tiles, and compositions you make once and reuse.
 

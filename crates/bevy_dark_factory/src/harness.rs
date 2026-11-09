@@ -95,13 +95,15 @@ pub fn add_editor_plugins(app: &mut App) -> &mut App {
         // The error names a `Plugins<_>` bound rather than the cap, so this is worth the comment.
         // Still one list, in one order — the nesting is punctuation, not a second code path.
         (
+            // **The Plugins door**: the family crates' settings, components and systems, by reflection.
+            crate::plugins_tab::PluginsTabPlugin,
             // **The vocabulary prompt** — the tag block's `+` chip and `Shift+T` both land here.
             // In the shared list because a headless test drives `Shift+T` the same way a person does.
             crate::token_prompt::TokenPromptPlugin,
             // **The after-edit checks owed** for each agent operation, never for a person's.
             crate::after_edit::AfterEditPlugin,
             // Two plugins, two jobs: the capture rig is the shared crate, the verbs are ours.
-            bevy_devshot::DevShotPlugin,
+            bevy_devshot::DevshotPlugin,
             crate::devshot::DrivePlugin,
             // **The file watcher** — a change on disk, in the editor, without a restart.
             //
@@ -170,7 +172,7 @@ pub fn add_editor_plugins(app: &mut App) -> &mut App {
 /// without, and a conditional inside the shared list would make "the same plugin graph" a claim with
 /// an asterisk on it.
 ///
-/// **`DebuggerPlugin` owns `RemotePlugin`.** Its `build` adds `RemotePlugin::default()
+/// **`FairyPlugin` owns `RemotePlugin`.** Its `build` adds `RemotePlugin::default()
 /// .with_method_main(..)` to register the two custom methods, and Bevy rejects a duplicate plugin by
 /// name — so adding `RemotePlugin` here as well panics the moment the feature is switched on. Only
 /// the HTTP transport is ours to add. `docs/bevy_debugger_mcp.md` records this; the game paid for it
@@ -184,7 +186,7 @@ pub fn add_editor_plugins(app: &mut App) -> &mut App {
 pub fn add_debugger_plugins(app: &mut App) -> &mut App {
     let port = brp_port();
     app.add_plugins((
-        bevy_debugger_bevy::DebuggerPlugin::default(),
+        bevy_debugger_bevy::FairyPlugin::default(),
         bevy::remote::http::RemoteHttpPlugin::default().with_port(port),
         // **The capture target is `crate::surface`'s, and it is in the SHARED list, not this one.**
         // There used to be a `DebugCapturePlugin` here owning a second `Camera3d` that mirrored the

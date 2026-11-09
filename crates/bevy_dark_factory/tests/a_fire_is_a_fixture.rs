@@ -1,10 +1,11 @@
-//! **A placement can carry a whole `bevy_lights` `Fire`, not only a `Flicker`** (#103): the value is the
-//! crate's own type, a `Fire` is told from a `Flicker` by the fields only it has, the preview holds the
-//! `Fire` itself (the crate's `FirePlugin` makes its flame and its pooled light in the running editor),
-//! and the light map reads the same lumens the pool would be handed.
+//! **A placement can carry a whole `bevy_lights` `Fire`, not only a `Flicker`** (#103): each is the crate's
+//! own component under its type path, the piece's entity holds the `Fire` itself (the crate's `FirePlugin`
+//! makes its flame and its pooled light in the running editor), and the light map reads the same lumens
+//! the pool would be handed.
 #![cfg(feature = "bevy_lights")]
 
 use bevy::prelude::*;
+use bevy::reflect::TypePath;
 use bevy_dark_factory::ops::{self, Applied, Ctx};
 use bevy_lights::{Fire, FireKind, Flicker};
 use serde_json::json;
@@ -23,16 +24,18 @@ fn editor(name: &str) -> (bevy::prelude::App, Ctx) {
     (app, Ctx { project: Some(project), open: Some(open), session: name.to_owned(), ..Ctx::default() })
 }
 
+/// Puts a `Fire` (a value naming `kind`) or a `Flicker` on the nth piece.
 fn set(ctx: &mut Ctx, nth: usize, value: &str) -> Result<Applied, ops::Refusal> {
     let id = ctx.open.as_ref().unwrap().map.placements[nth].id.clone();
-    ops::dispatch(ctx, "placement_set_family", &json!({"id": id, "crate": "bevy_lights", "value": value}))
+    let component = if value.contains("kind") { Fire::type_path() } else { Flicker::type_path() };
+    ops::dispatch(ctx, "placement_set_component", &json!({"id": id, "component": component, "value": value}))
 }
 
 #[test]
-fn a_fire_is_read_as_a_fire_and_a_misspelt_kind_is_refused_not_read_as_a_default_flicker() {
+fn a_fire_is_read_as_a_fire_and_a_misspelt_kind_is_refused() {
     let (_app, mut ctx) = editor("fire_fixture_refuse");
     assert!(matches!(set(&mut ctx, 0, "(kind: Campfire)"), Ok(Applied::Done { .. })));
-    let saved = ctx.open.as_ref().unwrap().map.placements[0].family.get("bevy_lights").cloned();
+    let saved = ctx.open.as_ref().unwrap().map.placements[0].components.get(Fire::type_path()).cloned();
     assert_eq!(saved.as_deref(), Some("(kind: Campfire)"));
 
     let refused = set(&mut ctx, 1, "(kind: Campfir)");
@@ -41,7 +44,7 @@ fn a_fire_is_read_as_a_fire_and_a_misspelt_kind_is_refused_not_read_as_a_default
         other => panic!("a kind the crate does not have must be refused, got {other:?}"),
     };
     assert!(said.contains("Fire") && said.contains("Campfir"), "the refusal names the Fire type and the value: {said}");
-    assert!(!ctx.open.as_ref().unwrap().map.placements[1].family.contains_key("bevy_lights"), "nothing was set");
+    assert!(ctx.open.as_ref().unwrap().map.placements[1].components.is_empty(), "nothing was set");
 }
 
 #[test]
@@ -49,23 +52,23 @@ fn a_placement_carrying_a_fire_holds_that_fire_and_no_bare_light() {
     let (mut app, _) = editor("fire_fixture_view");
     {
         let mut open = app.world_mut().resource_mut::<bevy_dark_factory::project::OpenMap>();
-        open.map.placements[0].family.insert("bevy_lights".to_owned(), "(kind: Brazier, lumens: Some(4000.0))".to_owned());
+        open.map.placements[0].components.insert(Fire::type_path().to_owned(), "(kind: Brazier, lumens: Some(4000.0))".to_owned());
     }
     for _ in 0..3 {
         app.update();
     }
     let world = app.world_mut();
-    let mut fires = world.query::<(&Fire, &ChildOf)>();
-    let found: Vec<(Fire, Entity)> = fires.iter(world).map(|(f, c)| (*f, c.parent())).collect();
+    let mut fires = world.query::<(&Fire, Entity)>();
+    let found: Vec<(Fire, Entity)> = fires.iter(world).map(|(f, e)| (*f, e)).collect();
     assert_eq!(found.len(), 1, "one placement carries a fire, so one fire: {found:?}");
     assert_eq!(found[0].0.kind, FireKind::Brazier);
     assert_eq!(found[0].0.lumens, Some(4000.0));
-    assert!(world.get::<bevy_dark_factory::editor::Placement>(found[0].1).is_some(), "the fire hangs under the placement");
+    assert!(world.get::<bevy_dark_factory::editor::Placement>(found[0].1).is_some(), "the fire is on the piece's own entity");
     let mut bare = world.query_filtered::<(), (With<Flicker>, With<PointLight>)>();
     assert_eq!(bare.iter(world).count(), 0, "a fire is not also drawn as a bare flicker light");
 
     // Taking the value off takes the fire down.
-    app.world_mut().resource_mut::<bevy_dark_factory::project::OpenMap>().map.placements[0].family.remove("bevy_lights");
+    app.world_mut().resource_mut::<bevy_dark_factory::project::OpenMap>().map.placements[0].components.remove(Fire::type_path());
     for _ in 0..3 {
         app.update();
     }

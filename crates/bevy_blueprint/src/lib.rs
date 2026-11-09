@@ -32,7 +32,11 @@
 //! than from a hand-maintained map. Both gotchas those pairs document apply here and are restated on
 //! the types.
 
+pub mod components;
 pub mod live;
+pub mod settings;
+
+pub use components::{SpawnProblem, insert_piece_components, queue_piece_components};
 
 use std::collections::HashMap;
 
@@ -180,11 +184,13 @@ impl BlueprintWorld {
 }
 
 /// The placement's stable id from the map — how an entity is named back to the file it came from.
-#[derive(Component, Debug, Clone)]
+#[derive(Component, Reflect, Debug, Clone)]
+#[reflect(Component)]
 pub struct Placement(pub String);
 
 /// The descriptor this entity is an instance of.
-#[derive(Component, Debug, Clone)]
+#[derive(Component, Reflect, Debug, Clone)]
+#[reflect(Component)]
 pub struct OfDescriptor(pub String);
 
 /// The resolved token masks, so a query for "what here emits light?" is one `&` rather than a string
@@ -193,8 +199,9 @@ pub struct OfDescriptor(pub String);
 /// Game AI Pro 4 ch.4 on smart-object matching: *"a simple bit-mask can be used to represent the
 /// requirements for the link and the capabilities of the agent. Comparing these bitmasks is a very
 /// efficient way to filter out invalid links."*
-#[derive(Component, Debug, Clone, Copy)]
-pub struct Tags(pub Masks);
+#[derive(Component, Reflect, Debug, Clone, Copy)]
+#[reflect(Component, from_reflect = false)]
+pub struct Tags(#[reflect(ignore)] pub Masks);
 
 /// "This piece rests on that one."
 ///
@@ -206,12 +213,14 @@ pub struct Tags(pub Masks);
 /// 2. **Target order is attach order, never a total order.** Anything that picks one — a lethal
 ///    choice, a shared RNG draw, a `take(n)` — must sort by a stable key first, or it depends on spawn
 ///    order and stops being reproducible. See `docs/…` on `sort_total!`.
-#[derive(Component, Debug)]
+#[derive(Component, Reflect, Debug)]
+#[reflect(Component)]
 #[relationship(relationship_target = Supporting)]
 pub struct MountedOn(pub Entity);
 
 /// "These pieces rest on me." The reverse of [`MountedOn`], maintained by the engine.
-#[derive(Component, Debug)]
+#[derive(Component, Reflect, Debug)]
+#[reflect(Component)]
 #[relationship_target(relationship = MountedOn)]
 pub struct Supporting(Vec<Entity>);
 
@@ -220,7 +229,8 @@ pub struct Supporting(Vec<Entity>);
 ///
 /// Put on the root a piece spawns as; [`apply_paint`] finds it by walking up from each material the
 /// glTF scene brings in, because those arrive frames later than the entity does.
-#[derive(Component, Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Component, Reflect, Clone, Copy, Debug, PartialEq, Eq)]
+#[reflect(Component)]
 pub struct Paint(pub i8);
 
 /// **One material per `(base, paint)` pair, never per piece.**
@@ -319,19 +329,31 @@ fn lift_flat_markers(
     }
 }
 
+/// **Every system this crate adds is in this set** (the machine plate): a host orders the blueprint's
+/// work as one thing.
+#[derive(SystemSet, Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct BlueprintSystems;
+
 pub struct BlueprintPlugin;
 
 impl Plugin for BlueprintPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<SmartObjects>()
             .init_resource::<PaintedMaterials>()
+            .add_message::<SpawnProblem>()
+            .register_type::<Placement>()
+            .register_type::<OfDescriptor>()
+            .register_type::<Tags>()
+            .register_type::<MountedOn>()
+            .register_type::<Supporting>()
+            .register_type::<Paint>()
             .add_systems(
                 Update,
-                spawn_world.run_if(resource_added::<BlueprintWorld>),
+                spawn_world.run_if(resource_added::<BlueprintWorld>).in_set(BlueprintSystems),
             )
             // Not gated on the world resource: a scene's materials land frames after the spawn, and
             // the editor spawns pieces without an `BlueprintWorld` at all.
-            .add_systems(Update, (apply_paint, lift_flat_markers));
+            .add_systems(Update, (apply_paint, lift_flat_markers).in_set(BlueprintSystems));
     }
 }
 
@@ -682,6 +704,7 @@ fn spawn_placements<'w>(
             if p.paint != 0 {
                 commands.entity(e).insert(Paint(p.paint));
             }
+            queue_piece_components(commands, e, p.id.clone(), p.components.clone());
             by_id.insert(p.id.as_str(), e);
         }
     }

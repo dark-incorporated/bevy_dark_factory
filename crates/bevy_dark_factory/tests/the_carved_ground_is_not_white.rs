@@ -38,9 +38,9 @@ mod drawn {
     /// The base colours the carved chunks wear, plain or weathered, after a carve.
     fn bases(root: &std::path::Path, with_environment_file: bool) -> Vec<f32> {
         if with_environment_file {
-            std::fs::create_dir_all(root.join("family")).unwrap();
+            std::fs::create_dir_all(root.join("family/bevy_elements")).unwrap();
             std::fs::write(root.join("family.ron"), "(version: 1, crates: [\"bevy_elements\"])").unwrap();
-            std::fs::write(root.join("family/bevy_elements.ron"), bevy_dark_factory::environment::ElementsSettings::defaults().to_ron()).unwrap();
+            std::fs::write(root.join("family/bevy_elements/WorldClock.ron"), ron::to_string(&bevy_elements::WorldClock::default()).unwrap()).unwrap();
         }
         let mut app = bevy_dark_factory::harness::build_headless(root, "m", None).unwrap_or_else(|e| panic!("{e}"));
         app.init_asset::<WeatheredMaterial>();

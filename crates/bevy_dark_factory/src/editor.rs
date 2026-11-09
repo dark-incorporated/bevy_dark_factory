@@ -2425,6 +2425,8 @@ pub struct EditorPlugin;
 
 impl Plugin for EditorPlugin {
     fn build(&self, app: &mut App) {
+        // Operations read the crate types through the app's registry (`family_set`, `placement_set_component`).
+        crate::type_registry::set(app.world().resource::<AppTypeRegistry>().clone());
         app.add_systems(OnEnter(crate::screen::Screen::Editor), crate::terrain_view::warm_volume_pipeline);
         #[cfg(feature = "bevy_elements")]
         app.add_systems(OnEnter(crate::screen::Screen::Editor), crate::environment::warm_weathered_pipeline);
@@ -2434,13 +2436,10 @@ impl Plugin for EditorPlugin {
             .add_systems(
             Update,
             (
-                crate::environment::apply_environment.after(crate::family_host::Reloaded),
                 // **After the settings, before the scrubber**: the walk moves the hour the file
                 // asked for, and a held scrubber then wins, as it always has (#271).
-                crate::environment::walk_the_clock
-                    .after(crate::environment::apply_environment)
-                    .before(crate::environment::scrub_clock),
-                crate::environment::scrub_clock.after(crate::environment::apply_environment),
+                crate::environment::walk_the_clock.after(crate::family_host::Reloaded).before(crate::environment::scrub_clock),
+                crate::environment::scrub_clock.after(crate::family_host::Reloaded),
                 crate::environment::dress_volume.after(crate::family_host::Reloaded).after(crate::terrain_view::sync_terrain_view),
             ),
         );
@@ -2500,8 +2499,16 @@ impl Plugin for EditorPlugin {
             .init_resource::<NoteBox>()
             .init_resource::<NotesFilter>()
             .init_resource::<crate::notes_view::NotesView>()
-            .init_resource::<crate::family_host::FamilySettings>()
-            .add_systems(Update, (crate::family_host::report_problems, crate::family_host::reload_settings.in_set(crate::family_host::Reloaded)))
+            .init_resource::<crate::family_host::FamilyFiles>()
+            .init_resource::<crate::family_host::PendingSettings>()
+            .add_systems(
+                Update,
+                (
+                    crate::family_host::report_problems,
+                    (crate::family_host::reload_settings, crate::family_host::apply_pending_settings).chain().in_set(crate::family_host::Reloaded),
+                    crate::piece_components::sync_piece_components,
+                ),
+            )
             // Registered in the same commit as `drive_move` and `keys` read it — a missing `ResMut`
             // panics its system in Bevy 0.19 rather than skipping it (`CLAUDE.md`).
             .init_resource::<MoveDrag>()
@@ -5274,7 +5281,7 @@ fn family_edit_keys(
                 if raw.trim_start().starts_with("dialogue ") {
                     preview_dialogue(project.as_deref(), open.as_deref().map(|o| &o.map), &mut state, &mut balloon, &raw);
                 } else if raw.trim_start().starts_with('@') {
-                    set_piece_family(project.as_deref(), open.as_deref_mut(), &mut state, &raw);
+                    set_piece_component(project.as_deref(), open.as_deref_mut(), &mut state, &raw);
                 } else {
                     set_family_field(project.as_deref(), &mut state, &raw);
                 }
@@ -5306,20 +5313,22 @@ fn family_edit_keys(
 }
 
 /// **Commit the typed line through the registry** as `family_set`: the first word is the crate, the
-/// second the dot-pathed field, and the rest one RON value.
+/// second the settings type (the file `family/<crate>/<Type>.ron`), the third the dot-pathed field (`.`
+/// for the whole value), and the rest one RON value.
 fn set_family_field(project: Option<&Project>, state: &mut EditorState, raw: &str) {
-    let mut words = raw.trim().splitn(3, ' ');
-    let (Some(krate), Some(field), Some(value)) = (words.next(), words.next(), words.next()) else {
-        state.status.problem(format!("`{}` is not `<crate> <field> <value>`, so nothing was written", raw.trim()));
+    let mut words = raw.trim().splitn(4, ' ');
+    let (Some(krate), Some(ty), Some(field), Some(value)) = (words.next(), words.next(), words.next(), words.next()) else {
+        state.status.problem(format!("`{}` is not `<crate> <Type> <field> <value>`, so nothing was written", raw.trim()));
         return;
     };
+    let field = if field == "." { "" } else { field };
     let mut ctx = crate::ops::Ctx {
         project: project.cloned(),
         source: crate::ops::Source::Human,
         session: crate::ops::session_id(),
         ..crate::ops::Ctx::default()
     };
-    let params = serde_json::json!({"crate": krate, "field": field, "value": value});
+    let params = serde_json::json!({"crate": krate, "type": ty, "field": field, "value": value});
     match crate::ops::dispatch(&mut ctx, "family_set", &params) {
         Ok(crate::ops::Applied::Done { outcome, operation_id, .. }) => {
             state.status.note(outcome.summary.clone());
@@ -5379,12 +5388,12 @@ fn preview_dialogue(
     state.status.problem("this editor was built without bevy_speech_bubbles, so there is no dialogue to preview".to_owned());
 }
 
-/// **Commit `@<id> <crate> <value>` through the registry** as `placement_set_family`: the piece
-/// named by the id carries the crate's own settings as one RON value; no value takes them off.
-fn set_piece_family(project: Option<&Project>, open: Option<&mut OpenMap>, state: &mut EditorState, raw: &str) {
+/// **Commit `@<id> <component> <value>` through the registry** as `placement_set_component`: the piece
+/// named by the id carries the component (its full type path) as one RON value; no value takes it off.
+fn set_piece_component(project: Option<&Project>, open: Option<&mut OpenMap>, state: &mut EditorState, raw: &str) {
     let mut words = raw.trim().trim_start_matches('@').splitn(3, ' ');
-    let (Some(id), Some(krate)) = (words.next(), words.next()) else {
-        state.status.problem(format!("`{}` is not `@<id> <crate> <value>`, so nothing was written", raw.trim()));
+    let (Some(id), Some(component)) = (words.next(), words.next()) else {
+        state.status.problem(format!("`{}` is not `@<id> <component> <value>`, so nothing was written", raw.trim()));
         return;
     };
     let (Some(project), Some(open)) = (project, open) else {
@@ -5398,11 +5407,11 @@ fn set_piece_family(project: Option<&Project>, open: Option<&mut OpenMap>, state
         session: crate::ops::session_id(),
         ..crate::ops::Ctx::default()
     };
-    let mut params = serde_json::json!({"id": id, "crate": krate});
+    let mut params = serde_json::json!({"id": id, "component": component});
     if let Some(value) = words.next().filter(|v| !v.trim().is_empty()) {
         params["value"] = serde_json::Value::String(value.to_owned());
     }
-    let outcome = crate::ops::dispatch(&mut ctx, "placement_set_family", &params);
+    let outcome = crate::ops::dispatch(&mut ctx, "placement_set_component", &params);
     if let Some(fresh) = ctx.open.take() {
         *open = fresh;
     }
@@ -5951,6 +5960,10 @@ fn edit_volume(project: Option<&Project>, open: Option<&OpenMap>, state: &mut Ed
         return;
     };
     let words: Vec<&str> = raw.split_whitespace().collect();
+    if words.get(1) == Some(&"cover") {
+        set_volume_cover(project, open, state, &words[2..]);
+        return;
+    }
     let nums: Vec<f32> = words.iter().skip(3).map_while(|n| n.parse().ok()).collect();
     let (arity, shape) = match words.get(2).copied() {
         Some("sphere") => (4, nums.get(..4).map(|n| serde_json::json!({"Sphere": {"center": [n[0], n[1], n[2]], "radius_m": n[3]}}))),
@@ -5978,6 +5991,39 @@ fn edit_volume(project: Option<&Project>, open: Option<&OpenMap>, state: &mut Ed
         ..crate::ops::Ctx::default()
     };
     match crate::ops::dispatch(&mut ctx, "volume_edit", &params) {
+        Ok(crate::ops::Applied::Done { outcome, operation_id, .. }) => {
+            state.status.note(outcome.summary.clone());
+            state.record(Undo::Logged { line: operation_id, phrase: outcome.summary, agent: false });
+        }
+        Ok(crate::ops::Applied::Refused(e)) | Err(e) => state.status.problem(e.0),
+    }
+}
+
+/// **Set the carved ground's cover through the registry** as `volume_set_cover`, from the terrain line
+/// `volume cover <snow> <wetness>` (each 0 to 1) or `volume cover off`, which gives it back to the weather.
+fn set_volume_cover(project: Option<&Project>, open: &OpenMap, state: &mut EditorState, args: &[&str]) {
+    let cover = match args {
+        ["off"] => serde_json::Value::Null,
+        [snow, wetness] => match (snow.parse::<f32>(), wetness.parse::<f32>()) {
+            (Ok(snow), Ok(wetness)) => serde_json::json!({"snow": snow, "wetness": wetness}),
+            _ => {
+                state.status.problem("`volume cover` takes two numbers from 0 to 1 (snow, wetness) or `off`, so nothing was changed".to_owned());
+                return;
+            }
+        },
+        _ => {
+            state.status.problem("`volume cover` is `volume cover <snow> <wetness>` or `volume cover off`, so nothing was changed".to_owned());
+            return;
+        }
+    };
+    let mut ctx = crate::ops::Ctx {
+        project: project.cloned(),
+        open: Some(open.clone()),
+        source: crate::ops::Source::Human,
+        session: crate::ops::session_id(),
+        ..crate::ops::Ctx::default()
+    };
+    match crate::ops::dispatch(&mut ctx, "volume_set_cover", &serde_json::json!({"map": open.map.name, "cover": cover})) {
         Ok(crate::ops::Applied::Done { outcome, operation_id, .. }) => {
             state.status.note(outcome.summary.clone());
             state.record(Undo::Logged { line: operation_id, phrase: outcome.summary, agent: false });
@@ -10288,7 +10334,7 @@ fn stamp_set(
             owned_because: piece.owned_because.clone(),
             patch: piece.patch.clone(),
             note: piece.note.clone(),
-            family: Default::default(),
+            components: Default::default(),
         });
     }
 
@@ -12061,7 +12107,7 @@ fn keys(
     // also keeps the one deliberate hole: the name box's full-screen backdrop carries no `Hovered`
     // because it is a prompt rather than a modal, and counting it would make the whole window read
     // as interface whenever the prompt was open.
-    ui_nodes: Query<(&bevy::ui::ComputedNode, &bevy::ui::UiGlobalTransform), With<Hovered>>,
+    ui_nodes: Query<crate::view::PanelNode, With<Hovered>>,
     pointer: Res<crate::view::Pointer>,
     camera: Option<Single<(&Camera, &GlobalTransform), With<MainCamera>>>,
     placed: Query<(Entity, &Placement)>,
@@ -12116,7 +12162,7 @@ fn keys(
             .as_ref()
             .and_then(|c| c.0.target_scaling_factor())
             .unwrap_or(1.0),
-        ui_nodes.iter(),
+        crate::view::panels(ui_nodes.iter()),
     );
 
     if keys::just_pressed(&keyboard, *live, Action::Undo) {
@@ -15851,7 +15897,7 @@ fn sense_under_cursor(
     open: Res<OpenMap>,
     mut lock: ResMut<TargetLock>,
     mut under: ResMut<UnderCursor>,
-    ui_nodes: Query<(&bevy::ui::ComputedNode, &bevy::ui::UiGlobalTransform), With<Hovered>>,
+    ui_nodes: Query<crate::view::PanelNode, With<Hovered>>,
 ) {
     let on_ui = crate::view::over_ui(
         pointer.0,
@@ -15859,7 +15905,7 @@ fn sense_under_cursor(
             .as_ref()
             .and_then(|c| c.0.target_scaling_factor())
             .unwrap_or(1.0),
-        ui_nodes.iter(),
+        crate::view::panels(ui_nodes.iter()),
     );
     let picked = under_cursor_target(&mut lock, *pointer, camera, &project, &open)
         .and_then(|i| open.map.placements.get(i));
@@ -17848,7 +17894,7 @@ fn drive_stamp_ghost(
     input: GhostInput,
     map: MapRead,
     camera: Option<Single<(&Camera, &GlobalTransform), With<MainCamera>>>,
-    ui_nodes: Query<(&bevy::ui::ComputedNode, &bevy::ui::UiGlobalTransform), With<Hovered>>,
+    ui_nodes: Query<crate::view::PanelNode, With<Hovered>>,
     ghosts: Query<(Entity, &StampGhost)>,
 ) {
     let GhostInput { keyboard, rung, armed, anchor, pointer } = input;
@@ -17870,9 +17916,7 @@ fn drive_stamp_ghost(
         return;
     };
     let (cam, cam_tf) = *camera;
-    let on_ui = ui_nodes
-        .iter()
-        .any(|(node, tf)| node.contains_point(*tf, pointer.0.unwrap_or(Vec2::NEG_ONE)));
+    let on_ui = crate::view::panels(ui_nodes.iter()).any(|(node, tf)| node.contains_point(*tf, pointer.0.unwrap_or(Vec2::NEG_ONE)));
     let Some(hit) = cursor_ground(pointer.0, cam, cam_tf).filter(|_| !on_ui) else {
         clear(&mut commands);
         return;
@@ -18002,7 +18046,7 @@ fn drive_run_ghost(
     drag: Res<RunGhostDrag>,
     pointer: Res<crate::view::Pointer>,
     camera: Option<Single<(&Camera, &GlobalTransform), With<MainCamera>>>,
-    ui_nodes: Query<(&bevy::ui::ComputedNode, &bevy::ui::UiGlobalTransform), With<Hovered>>,
+    ui_nodes: Query<crate::view::PanelNode, With<Hovered>>,
     ghosts: Query<(Entity, &RunGhost)>,
 ) {
     let clear = |commands: &mut Commands| {
@@ -18026,7 +18070,7 @@ fn drive_run_ghost(
     let on_ui = crate::view::over_ui(
         pointer.0,
         cam.target_scaling_factor().unwrap_or(1.0),
-        ui_nodes.iter(),
+        crate::view::panels(ui_nodes.iter()),
     );
     if on_ui {
         clear(&mut commands);
@@ -18097,7 +18141,7 @@ fn drive_clone_ghost(
     drag: Res<CloneDrag>,
     pointer: Res<crate::view::Pointer>,
     camera: Option<Single<(&Camera, &GlobalTransform), With<MainCamera>>>,
-    ui_nodes: Query<(&bevy::ui::ComputedNode, &bevy::ui::UiGlobalTransform), With<Hovered>>,
+    ui_nodes: Query<crate::view::PanelNode, With<Hovered>>,
     ghosts: Query<(Entity, &CloneGhost)>,
     mut transforms: Query<&mut Transform, With<CloneGhost>>,
 ) {
@@ -18118,7 +18162,7 @@ fn drive_clone_ghost(
     let on_ui = crate::view::over_ui(
         pointer.0,
         cam.target_scaling_factor().unwrap_or(1.0),
-        ui_nodes.iter(),
+        crate::view::panels(ui_nodes.iter()),
     );
     let (Some(set), false) = (drag.held.as_ref(), state.tool != Tool::Clone) else {
         clear(&mut commands);

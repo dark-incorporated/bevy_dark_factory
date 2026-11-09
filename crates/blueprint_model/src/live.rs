@@ -207,7 +207,7 @@ impl MapDiff {
 /// listed one by one so that a field added to [`Placed`] cannot be forgotten here: this stops
 /// compiling.
 pub fn same_but_id(was: &Placed, now: &Placed, renamed: &BTreeMap<String, String>) -> bool {
-    let Placed { id: _, descriptor, at, yaw, lift, tip, on, owned, owned_because, patch, paint, note, family } = was;
+    let Placed { id: _, descriptor, at, yaw, lift, tip, on, owned, owned_because, patch, paint, note, components } = was;
     let host = on.as_deref().map(|h| renamed.get(h).map_or(h, String::as_str));
     *descriptor == now.descriptor
         && *at == now.at
@@ -220,7 +220,7 @@ pub fn same_but_id(was: &Placed, now: &Placed, renamed: &BTreeMap<String, String
         && *patch == now.patch
         && *paint == now.paint
         && *note == now.note
-        && *family == now.family
+        && *components == now.components
 }
 
 /// The run a row id belongs to, if it is `<run id>/<n>` for a run in `runs`.

@@ -14,7 +14,7 @@ const EDITOR_SKIN: &str = include_str!("editor_skin.ron");
 /// `chrome.rs` draws with, the elevation ladder in `surfaces` and the sizes a compact tool wants.
 /// `GooeySkin::problems()` is the check that the ladder is a ladder and the ink is readable.
 pub fn editor_skin() -> GooeySkin {
-    crate::ui_skin::from_ron(EDITOR_SKIN).unwrap_or_else(|e| panic!("src/editor_skin.ron does not read: {e}"))
+    ron::from_str(EDITOR_SKIN).unwrap_or_else(|e| panic!("src/editor_skin.ron does not read: {e}"))
 }
 
 /// **How the editor spells a chord: in words, `Cmd+Z`, never the symbol `⌘Z`** (`feedback-1794097488318`, and
@@ -31,7 +31,8 @@ pub fn editor_binding_settings() -> bevy_gooey::BindingSettings {
     bevy_gooey::BindingSettings { chord_glyphs: bevy_gooey::ChordGlyphs::Words, ..default() }
 }
 
-/// Adds gooey's style plugin and its navigation plugin, puts the editor's skin in as the running one and adds the system that applies the project's skin file ([`crate::ui_skin::apply_ui_skin`]).
+/// Adds gooey's style plugin and its navigation plugin, puts the editor's skin in as the running one, and orders the
+/// family settings (the project's `GooeySkin.ron` among them, [`crate::family_host::Reloaded`]) before gooey styles.
 pub struct EditorUiPlugin;
 
 /// **The wheel scrolls a panel** (#283): `bevy_ui_widgets::ScrollAreaPlugin`, which is the machinery
@@ -105,12 +106,8 @@ impl Plugin for EditorUiPlugin {
         });
         // **Refusals stand at the top of the viewport** (UI-39, #233), where the card they replace stood.
         app.insert_resource(bevy_gooey::ToastSettings { anchor: bevy_gooey::ToastAnchor::TopCenter, ..default() });
-        app.add_systems(
-            Update,
-            crate::ui_skin::apply_ui_skin
-                .after(crate::family_host::Reloaded)
-                .before(bevy_gooey::GooeySystems::Style),
-        );
+        // **A project's skin file restyles in the frame it is applied**: the family settings land before gooey styles.
+        app.configure_sets(Update, crate::family_host::Reloaded.before(bevy_gooey::GooeySystems::Style));
         // **The player's Reduced motion reaches gooey** (UI-R01): travel lands, colours and fades still ease.
         app.add_systems(
             Update,

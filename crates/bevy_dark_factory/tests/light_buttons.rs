@@ -28,7 +28,7 @@ fn editor(name: &str) -> App {
     }
     let mut open = app.world_mut().resource_mut::<bevy_dark_factory::project::OpenMap>();
     for p in open.map.placements.iter_mut() {
-        p.family.insert("bevy_lights".to_owned(), "(base: 1000.0)".to_owned());
+        p.components.insert(<bevy_lights::Flicker as bevy::reflect::TypePath>::type_path().to_owned(), "(base: 1000.0)".to_owned());
     }
     app
 }

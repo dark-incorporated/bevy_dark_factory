@@ -1,6 +1,6 @@
 //! **Undressing gives the editor's own camera back** (#193 step 3, #194).
 //!
-//! Deleting a project's `family/bevy_elements.ron` removes `ElementsCamera`, and the crate now undoes
+//! Deleting a project's `family/bevy_elements/` settings files removes `ElementsCamera`, and the crate now undoes
 //! its own dressing (`bevy_dark/bevy_elements@41407d6`, this repo's #55). One thing it deliberately
 //! cannot take back is `Hdr`: `ElementsCamera` arrives with `#[require(Hdr)]`, so the crate cannot know
 //! whether the host had it first. #55's conclusion says plainly that this is *"left to the caller
@@ -30,14 +30,14 @@
 use bevy::camera::{CameraOutputMode, ClearColorConfig};
 use bevy::prelude::*;
 use bevy_dark_factory::environment::dress_camera;
-use bevy_dark_factory::family_host::FamilySettings;
+use bevy_dark_factory::family_host::FamilyFiles;
 use bevy_dark_factory::surface::SurfaceCamera;
 use bevy_dark_factory::view::MainCamera;
 
-/// The editor's map camera and its interface camera, with a `FamilySettings` a test can edit.
+/// The editor's map camera and its interface camera, with a `FamilyFiles` a test can edit.
 fn app() -> App {
     let mut app = App::new();
-    app.init_resource::<FamilySettings>().add_systems(Update, dress_camera);
+    app.init_resource::<FamilyFiles>().add_systems(Update, dress_camera);
     let world = app
         .world_mut()
         .spawn((MainCamera, Camera::default()))
@@ -71,13 +71,13 @@ fn the_undressed_camera_is_not_hdr() {
 
     // Dressed.
     app.world_mut()
-        .resource_mut::<FamilySettings>()
-        .text
-        .insert("bevy_elements".to_owned(), String::new());
+        .resource_mut::<FamilyFiles>()
+        .applied
+        .insert(("bevy_elements".to_owned(), "WorldClock".to_owned()), String::new());
     app.update();
 
     // Undressed, by deleting the file, which is what a person does.
-    app.world_mut().resource_mut::<FamilySettings>().text.clear();
+    app.world_mut().resource_mut::<FamilyFiles>().applied.clear();
     app.update();
     // One more frame: an observer that removes a component lands on the next flush.
     app.update();

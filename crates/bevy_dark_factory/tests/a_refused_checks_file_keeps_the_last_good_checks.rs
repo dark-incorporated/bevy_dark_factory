@@ -38,7 +38,7 @@ const BAD: [(&str, &str, Option<&str>); 5] = [
 fn editor(tag: &str) -> App {
     let root = fixtures::Fixture::new(tag).descriptor("site/wall", "alpha").place("site/wall", (1.5, 1.5)).build("m");
     let mut app = bevy_dark_factory::harness::build_headless(&root, "m", None).unwrap_or_else(|e| panic!("{e}"));
-    app.add_plugins(bevy_debugger_bevy::DebuggerPlugin::default());
+    app.add_plugins(bevy_debugger_bevy::FairyPlugin::default());
     app.add_plugins(bevy_dark_factory::ops_brp::OpsBridgePlugin);
     for _ in 0..4 {
         app.update();
@@ -178,7 +178,7 @@ fn a_file_broken_when_the_project_opens_is_named_and_there_is_nothing_to_keep() 
     let root = fixtures::Fixture::new("checks_view_broken_at_open").descriptor("site/wall", "alpha").place("site/wall", (1.5, 1.5)).build("m");
     std::fs::write(root.join("assets/blueprint").join(FILE), "(checks: [(name: \"mine\", question: \"q\", threshold: \"high\")])").unwrap();
     let mut app = bevy_dark_factory::harness::build_headless(&root, "m", None).unwrap_or_else(|e| panic!("{e}"));
-    app.add_plugins(bevy_debugger_bevy::DebuggerPlugin::default());
+    app.add_plugins(bevy_debugger_bevy::FairyPlugin::default());
     app.add_plugins(bevy_dark_factory::ops_brp::OpsBridgePlugin);
     until(&mut app, "the broken file is named", |a| verdict(a)["outcome"] == json!("refused"));
     let v = verdict(&mut app);

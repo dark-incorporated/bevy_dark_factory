@@ -32,12 +32,16 @@
 use bevy::prelude::*;
 use bevy::time::TimeUpdateStrategy;
 use bevy_dark_factory::editor::EditorState;
-use bevy_dark_factory::family_host::{reload_settings, FamilySettings};
+use bevy_dark_factory::family_host::{reload_settings, FamilyFiles, PendingSettings};
 
 use crate::fixtures;
 
-const SETTINGS: &str = include_str!("fixtures/bevy_elements.ron");
-const SETTINGS_LATER: &str = include_str!("fixtures/bevy_elements_18.5.ron");
+/// A family file the watch follows. A data file (not a settings type of any built crate), so only the
+/// watch's timing decides when it is in force.
+const KRATE: &str = "bevy_stigmergy";
+const IDENT: &str = "Probe";
+const SETTINGS: &str = "(hour: 6.0)\n";
+const SETTINGS_LATER: &str = "(hour: 18.5)\n";
 
 /// One step of the test's clock, in seconds. `FamilyWatch` is built with `SETTINGS_POLL_SECS` and
 /// `SETTINGS_SETTLE_SECS` both 0.1, so a step of 0.2 crosses both in a single update.
@@ -51,7 +55,8 @@ const STEP: f32 = 0.2;
 fn editor(root: &std::path::Path, step: f32) -> App {
     let mut app = bevy_dark_factory::harness::build_headless(root, "m", None).unwrap_or_else(|e| panic!("{e}"));
     app.init_resource::<EditorState>()
-        .init_resource::<FamilySettings>()
+        .init_resource::<FamilyFiles>()
+        .init_resource::<PendingSettings>()
         .add_systems(Update, reload_settings);
     app.insert_resource(TimeUpdateStrategy::ManualDuration(std::time::Duration::from_secs_f32(step)));
     app
@@ -59,7 +64,7 @@ fn editor(root: &std::path::Path, step: f32) -> App {
 
 /// The settings the host holds right now, as text.
 fn held(app: &App) -> String {
-    app.world().resource::<FamilySettings>().text.get("bevy_elements").cloned().unwrap_or_default()
+    app.world().resource::<FamilyFiles>().applied.get(&(KRATE.to_owned(), IDENT.to_owned())).cloned().unwrap_or_default()
 }
 
 /// **A clock that does not advance reloads nothing**, however many frames run.
@@ -70,7 +75,7 @@ fn held(app: &App) -> String {
 #[test]
 fn a_clock_that_does_not_advance_reloads_nothing() {
     let root = fixtures::Fixture::new("reload_frozen_clock").descriptor("site/wall", "alpha").build("m");
-    let file = root.join("family").join("bevy_elements.ron");
+    let file = blueprint_model::family::settings_path(&root, KRATE, IDENT);
     std::fs::create_dir_all(file.parent().unwrap()).unwrap();
     std::fs::write(&file, SETTINGS).unwrap();
 
@@ -103,7 +108,7 @@ fn a_clock_that_does_not_advance_reloads_nothing() {
 #[test]
 fn stepping_the_clock_past_the_poll_and_the_settle_reloads_the_file() {
     let root = fixtures::Fixture::new("reload_stepped_clock").descriptor("site/wall", "alpha").build("m");
-    let file = root.join("family").join("bevy_elements.ron");
+    let file = blueprint_model::family::settings_path(&root, KRATE, IDENT);
     std::fs::create_dir_all(file.parent().unwrap()).unwrap();
     std::fs::write(&file, SETTINGS).unwrap();
 

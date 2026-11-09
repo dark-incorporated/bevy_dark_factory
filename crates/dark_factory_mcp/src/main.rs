@@ -741,7 +741,10 @@ impl Blueprint {
                        the editor keeps what it had) or needs_restart (the file reads but the editor \
                        holds that kind from when it started, as it does rigs.ron, so the edit is on \
                        disk and not in use); ok is false while any file is not applied, and seq counts \
-                       decisions, one per edit. reload_files is what became of the latest edit of \
+                       decisions, one per edit. plugins lists every family crate the editor can host: \
+                       {crate, enabled (family.ron lists it), settings (the short names of its settings \
+                       types, each one file family/<crate>/<Type>.ron), components (the type paths a piece \
+                       can carry through placement_set_component), systems (how many it has)}. reload_files is what became of the latest edit of \
                        every file of the open project, as a running game says it: {now_unix_ms, game \
                        {connected, watching (this editor runs with --live, the only way it reads a \
                        game's verdict), at_unix_ms, seq}, files}, one entry per file {kind, file, state, \

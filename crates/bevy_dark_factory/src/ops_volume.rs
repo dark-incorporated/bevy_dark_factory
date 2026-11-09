@@ -72,10 +72,15 @@ fn read(ctx: &Ctx, map: &str) -> Option<String> {
     std::fs::read_to_string(path_of(ctx, map).ok()?).ok()
 }
 
+/// **The saved volume file of the open map, as text**, or `None` when it has none.
+pub fn volume_text(project: &crate::project::Project, open: &crate::project::OpenMap) -> Option<String> {
+    let name = open.map_path.file_name()?.to_str()?.strip_suffix(".map.ron")?;
+    std::fs::read_to_string(project.blueprint_dir.join("volume").join(format!("{name}.ron"))).ok()
+}
+
 /// **The saved volume of the open map**, or `None` when it has none.
 pub fn volume_of(project: &crate::project::Project, open: &crate::project::OpenMap) -> Option<Volume> {
-    let name = open.map_path.file_name()?.to_str()?.strip_suffix(".map.ron")?;
-    ron::from_str(&std::fs::read_to_string(project.blueprint_dir.join("volume").join(format!("{name}.ron"))).ok()?).ok()
+    ron::from_str(&volume_text(project, open)?).ok()
 }
 
 /// **Add or carve one primitive, or clear the map's volume.**
@@ -148,6 +153,96 @@ impl Operation for VolumeEdit {
     fn plan(&self, ctx: &Ctx, params: &serde_json::Value) -> Result<serde_json::Value, Refusal> {
         let o = Self::apply(ctx, params, false)?;
         Ok(json!({"map": Params::parse(params)?.map, "edited": o.affected}))
+    }
+    fn commit(&self, ctx: &mut Ctx, params: &serde_json::Value) -> Result<Outcome, Refusal> {
+        Self::apply(ctx, params, true)
+    }
+}
+
+// ---------------------------------------------------------------- volume_set_cover
+
+/// `volume_set_cover`'s parameters: the map and the cover (`null` takes it off).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct CoverParams {
+    pub map: String,
+    pub cover: Option<blueprint_model::volume::VolumeCover>,
+}
+
+impl CoverParams {
+    pub fn schema() -> serde_json::Value {
+        json!({
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["map", "cover"],
+            "properties": {
+                "map": {"type": "string", "description": "The map whose carved ground's cover is set."},
+                "cover": {"description": "{\"snow\": 0..1, \"wetness\": 0..1}, or null to let the weather decide.", "type": ["object", "null"]}
+            }
+        })
+    }
+
+    pub fn parse(raw: &serde_json::Value) -> Result<CoverParams, Refusal> {
+        let p: CoverParams = serde_json::from_value(raw.clone())
+            .map_err(|e| Refusal::new(format!("this is not a cover change: {e}. The fields are `map` and `cover` ({{snow, wetness}} or null).")))?;
+        if let Some(c) = &p.cover {
+            c.check().map_err(|e| Refusal::new(format!("{e}. Nothing was changed.")))?;
+        }
+        Ok(p)
+    }
+}
+
+/// **Set the snow and wetness the carved ground of one map wears**, or give it back to the weather.
+pub struct VolumeSetCover;
+
+impl VolumeSetCover {
+    fn apply(ctx: &Ctx, params: &serde_json::Value, write: bool) -> Result<Outcome, Refusal> {
+        let p = CoverParams::parse(params)?;
+        let path = path_of(ctx, &p.map)?;
+        let before = std::fs::read_to_string(&path).ok();
+        let mut volume = match &before {
+            Some(t) => Volume::parse(t).map_err(|e| Refusal::new(format!("{} is not a volume: {e}", path.display())))?,
+            None => Volume::default(),
+        };
+        let old = volume.cover;
+        let inverse = json!({"map": p.map, "cover": old});
+        volume.cover = p.cover;
+        let text = ron::ser::to_string_pretty(&volume, ron::ser::PrettyConfig::default())
+            .map_err(|e| Refusal::new(format!("the volume could not be written: {e}")))?;
+        if write {
+            if let Some(dir) = path.parent() {
+                std::fs::create_dir_all(dir).map_err(|e| Refusal::new(format!("{} cannot be made: {e}", dir.display())))?;
+            }
+            blueprint_model::atomic_file::write(&path, &text).map_err(|e| Refusal::new(format!("{} refused the change, so nothing was written: {e}", path.display())))?;
+        }
+        Ok(Outcome {
+            summary: match p.cover {
+                Some(c) => format!("volume {}: cover snow {} wetness {}", p.map, c.snow, c.wetness),
+                None => format!("volume {}: cover follows the weather", p.map),
+            },
+            affected: usize::from(old != p.cover),
+            saved: write,
+            inverse: Some(inverse),
+            after: Some(json!({"map": p.map, "cover": p.cover})),
+        })
+    }
+}
+
+impl Operation for VolumeSetCover {
+    fn name(&self) -> &'static str {
+        "volume_set_cover"
+    }
+    fn writes(&self) -> &'static [&'static str] {
+        &["volume"]
+    }
+    fn undo(&self) -> Undo {
+        Undo::Inverse
+    }
+    fn schema(&self) -> serde_json::Value {
+        CoverParams::schema()
+    }
+    fn plan(&self, ctx: &Ctx, params: &serde_json::Value) -> Result<serde_json::Value, Refusal> {
+        Self::apply(ctx, params, false).map(|o| o.after.unwrap_or_default())
     }
     fn commit(&self, ctx: &mut Ctx, params: &serde_json::Value) -> Result<Outcome, Refusal> {
         Self::apply(ctx, params, true)

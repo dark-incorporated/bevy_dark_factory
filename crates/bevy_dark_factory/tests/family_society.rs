@@ -11,9 +11,9 @@ const DEFS: &str = r#"(needs: [(id: "hunger", decay_per_day: 1.0)], factions: [(
 
 fn open(name: &str) -> (Ctx, std::path::PathBuf) {
     let root = fixtures::Fixture::new(name).descriptor("site/wall", "alpha").build("m");
-    std::fs::create_dir_all(root.join("family")).unwrap();
+    std::fs::create_dir_all(root.join("family/bevy_society")).unwrap();
     std::fs::write(root.join("family.ron"), "(version: 1, crates: [\"bevy_society\"])").unwrap();
-    let file = root.join("family/bevy_society.ron");
+    let file = root.join("family/bevy_society/DefsFile.ron");
     std::fs::write(&file, DEFS).unwrap();
     let mut app = bevy_dark_factory::harness::build_headless(&root, "m", None).unwrap_or_else(|e| panic!("{e}"));
     for _ in 0..4 {
@@ -29,7 +29,7 @@ fn a_need_defined_twice_is_refused_with_the_crates_message_and_the_file_is_untou
     let err = ops::dispatch(
         &mut ctx,
         "family_set",
-        &json!({"crate": "bevy_society", "field": "needs", "value": r#"[(id: "hunger"), (id: "hunger")]"#}),
+        &json!({"crate": "bevy_society", "type": "DefsFile", "field": "needs", "value": r#"[(id: "hunger"), (id: "hunger")]"#}),
     )
     .map(|_| ())
     .unwrap_err();
@@ -43,7 +43,7 @@ fn a_valid_edit_is_written_and_reads_back_as_the_crates_own_definitions() {
     let done = ops::dispatch(
         &mut ctx,
         "family_set",
-        &json!({"crate": "bevy_society", "field": "needs", "value": r#"[(id: "hunger"), (id: "rest")]"#}),
+        &json!({"crate": "bevy_society", "type": "DefsFile", "field": "needs", "value": r#"[(id: "hunger"), (id: "rest")]"#}),
     )
     .unwrap_or_else(|e| panic!("{e:?}"));
     assert!(matches!(done, Applied::Done { .. }));

@@ -21,7 +21,7 @@ use bevy::prelude::*;
 /// `down`, `up`. The windowed sibling of the headless probes, for the bugs only pixels can show.
 const DRIVE: &str = "drive.request";
 
-/// The editor's `drive.request` verbs. Capture is `bevy_devshot::DevShotPlugin`, added beside this
+/// The editor's `drive.request` verbs. Capture is `bevy_devshot::DevshotPlugin`, added beside this
 /// one in `harness.rs` — two plugins because they are two jobs, and only one of them is ours.
 pub struct DrivePlugin;
 

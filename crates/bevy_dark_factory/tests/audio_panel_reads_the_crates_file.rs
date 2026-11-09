@@ -1,7 +1,8 @@
 //! **The audio panel reads the crate's own sound, and an audition plays it** (S-01).
 //!
-//! `bevy_siren` is hosted behind the `bevy_siren` feature, and the panel writes and reads
-//! `<project>/family/bevy_siren.ron` through the crate's own `SirenSettings` and `CueTable` — never a second schema.
+//! `bevy_siren` is hosted behind the `bevy_siren` feature: the mix is `<project>/family/bevy_siren/SirenSettings.ron`
+//! (a settings resource, applied by reflection) and the cues `family/bevy_siren/CueTable.ron`, which the panel reads
+//! and writes through the crate's own `CueTable` — never a second schema.
 //! This file is the proof of that claim and of the one behaviour the panel exists for: an **Audition** is a
 //! `Play::cue`, so what the panel shows is what a game hears.
 //!
@@ -40,14 +41,20 @@ fn hear(
     heard.refused.extend(refused.read().cloned());
 }
 
-/// A project with one cue table and one mix table written into `family/`.
-fn project(tag: &str, text: &str) -> std::path::PathBuf {
+/// The mix table's file under the project root.
+fn mix_file(root: &std::path::Path) -> std::path::PathBuf {
+    blueprint_model::family::settings_path(root, audio_panel::CRATE, "SirenSettings")
+}
+
+/// A project with one mix table and one cue table written into `family/bevy_siren/`.
+fn project(tag: &str, settings: &str, cues: &str) -> std::path::PathBuf {
     let root = fixtures::Fixture::new(tag)
         .descriptor("floor", "alpha")
         .build("m");
-    let family = root.join("family");
-    std::fs::create_dir_all(&family).unwrap_or_else(|e| panic!("{family:?}: {e}"));
-    std::fs::write(family.join(audio_panel::FILE), text).unwrap_or_else(|e| panic!("{e}"));
+    let dir = mix_file(&root).parent().map(std::path::Path::to_path_buf).unwrap_or_else(|| panic!("no parent"));
+    std::fs::create_dir_all(&dir).unwrap_or_else(|e| panic!("{dir:?}: {e}"));
+    std::fs::write(mix_file(&root), settings).unwrap_or_else(|e| panic!("{e}"));
+    std::fs::write(blueprint_model::family::settings_path(&root, audio_panel::CRATE, audio_panel::CUES), cues).unwrap_or_else(|e| panic!("{e}"));
     root
 }
 
@@ -55,20 +62,18 @@ fn project(tag: &str, text: &str) -> std::path::PathBuf {
 /// names in the panel, with a key for every sound the panel can audition.
 #[test]
 fn the_panel_reads_the_crates_own_file() {
-    let text = r#"(
-        settings: (
-            max_voices: 8,
-            buses: [(name: "Music", gain_db: -2.0), (name: "Effects")],
-            ducks: [],
-        ),
-        cues: (
-            cues: [
-                (name: "footstep.grass", sounds: [(sound: "step_01"), (sound: "step_02")]),
-                (name: "ui.click", sounds: [(sound: "click")], gain_db: -6.0),
-            ],
-        ),
+    let settings = r#"(
+        max_voices: 8,
+        buses: [(name: "Music", gain_db: -2.0), (name: "Effects")],
+        ducks: [],
     )"#;
-    let root = project("siren_reads", text);
+    let cues = r#"(
+        cues: [
+            (name: "footstep.grass", sounds: [(sound: "step_01"), (sound: "step_02")]),
+            (name: "ui.click", sounds: [(sound: "click")], gain_db: -6.0),
+        ],
+    )"#;
+    let root = project("siren_reads", settings, cues);
     let mut app = harness::build_headless(&root, "m", None).unwrap_or_else(|e| panic!("{e}"));
     for _ in 0..4 {
         app.update();
@@ -104,17 +109,9 @@ fn the_panel_reads_the_crates_own_file() {
 /// key would be playing something the project did not ship.
 #[test]
 fn an_audition_is_a_play_and_the_panel_hears_it() {
-    let text = r#"(
-        settings: (
-            max_voices: 8,
-            buses: [(name: "Effects")],
-            ducks: [],
-        ),
-        cues: (
-            cues: [(name: "ui.click", sounds: [(sound: "click")])],
-        ),
-    )"#;
-    let root = project("siren_audition", text);
+    let settings = r#"(max_voices: 8, buses: [(name: "Effects")], ducks: [])"#;
+    let cues = r#"(cues: [(name: "ui.click", sounds: [(sound: "click")])])"#;
+    let root = project("siren_audition", settings, cues);
     let mut app = harness::build_headless(&root, "m", None).unwrap_or_else(|e| panic!("{e}"));
     // The headless harness has no `AudioPlugin` (nothing opens a device), so the audio asset store the editor's
     // real build gets from it is added here — the same `init_asset` a headless audio test uses.
@@ -158,7 +155,9 @@ fn an_audition_is_a_play_and_the_panel_hears_it() {
         .world_mut()
         .resource_mut::<Assets<bevy::audio::AudioSource>>()
         .add(bevy::audio::AudioSource {
-            bytes: vec![0u8; 4].into(),
+            // Bytes the decoder reads: the crate refuses a sound it cannot decode as a missing one. A 0.22 s
+            // Vorbis footstep, CC0, from `bevy_siren`'s `assets/audio/step_01.ogg`.
+            bytes: include_bytes!("fixtures/step_01.ogg").to_vec().into(),
         });
     app.world_mut()
         .resource_mut::<SirenSounds>()
@@ -196,11 +195,8 @@ fn an_audition_is_a_play_and_the_panel_hears_it() {
 /// edit never silently zeroes a project's sound.
 #[test]
 fn a_file_that_does_not_parse_is_named_and_the_mix_stays() {
-    let good = r#"(
-        settings: (max_voices: 8, buses: [(name: "Effects")], ducks: []),
-        cues: (cues: [(name: "ui.click", sounds: [(sound: "click")])]),
-    )"#;
-    let root = project("siren_broken", good);
+    let good = r#"(max_voices: 8, buses: [(name: "Effects")], ducks: [])"#;
+    let root = project("siren_broken", good, r#"(cues: [(name: "ui.click", sounds: [(sound: "click")])])"#);
     let mut app = harness::build_headless(&root, "m", None).unwrap_or_else(|e| panic!("{e}"));
     for _ in 0..4 {
         app.update();
@@ -209,7 +205,7 @@ fn a_file_that_does_not_parse_is_named_and_the_mix_stays() {
 
     // A hand edit writes a field the crate does not have.
     let broken = good.replace("max_voices: 8", "max_voicers: 8");
-    std::fs::write(root.join("family").join(audio_panel::FILE), broken)
+    std::fs::write(mix_file(&root), broken)
         .unwrap_or_else(|e| panic!("{e}"));
     for _ in 0..4 {
         app.update();
@@ -231,14 +227,11 @@ fn the_panels_file_is_the_crates_file() {
         bus: "Ambience".to_owned(),
         ..Cue::new("wind")
     }]);
-    let settings = SirenSettings::default();
     table.insert(Cue {
         gain_db: -3.0,
         ..Cue::new("click")
     });
-    let text =
-        audio_panel::write_file(&settings, &table).expect("the panel writes the crate's types");
-    let (read_settings, read_table) = audio_panel::read_file(&text).expect("and reads them back");
-    assert_eq!(read_settings, settings);
+    let text = audio_panel::write_cues(&table).expect("the panel writes the crate's type");
+    let read_table = audio_panel::read_cues(&text).expect("and reads it back");
     assert_eq!(read_table, table);
 }

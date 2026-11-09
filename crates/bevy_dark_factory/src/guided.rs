@@ -41,7 +41,7 @@ use crate::project::{OpenMap, Project};
 /// than any shipped script uses is fine and expected — `edges are staged` and `a proposal is on the
 /// map` are conditions the Meshes and Map tabs offer, waiting for the scripts that will want them.
 ///
-/// **The overlay is not here**, and must not be: `DebuggerPlugin` adds `GuideOverlayPlugin`, and Bevy
+/// **The overlay is not here**, and must not be: `FairyPlugin` adds `GuideOverlayPlugin`, and Bevy
 /// rejects a duplicate plugin by name, so adding it here as well would panic the editor's binary the
 /// moment both were present. The consequence is that `build_headless` has the vocabulary but no card
 /// on screen — which is right, since the harness has no window either. That the overlay builds its
@@ -50,7 +50,7 @@ pub struct GuidePlugin;
 
 impl Plugin for GuidePlugin {
     fn build(&self, app: &mut App) {
-        // `DebuggerPlugin` inits both of these, and it is **not** in `build_headless` — it binds a
+        // `FairyPlugin` inits both of these, and it is **not** in `build_headless` — it binds a
         // port. Same argument as `DebugCursor` in `harness.rs`: in Bevy 0.19 a missing `Res<T>`
         // panics its system rather than skipping it, so a resource the editor's own code reads has to
         // exist whether or not the transport does.
@@ -60,7 +60,7 @@ impl Plugin for GuidePlugin {
             // default is 12 px, which here is exactly where MAP / MESHES / TILES live: the first
             // devshot came back with ANIM reading through the card. `insert_resource` rather than
             // `init_resource`, so this wins whichever order the two plugins are added in --
-            // `DebuggerPlugin` only inits it, and init is insert-if-absent.
+            // `FairyPlugin` only inits it, and init is insert-if-absent.
             .insert_resource(bevy_debugger_bevy::plugin::GuidePlacement {
                 top: 58.0,
                 ..default()
@@ -344,6 +344,12 @@ impl Plugin for GuidePlugin {
             },
         );
 
+        // **A step's checkpoint is evaluated by `bevy_fairy`'s own `evaluate_checkpoint`**, which `FairyPlugin` schedules in
+        // `Last`. A headless app has no `FairyPlugin` (it binds a port), so the editor schedules the same system for that
+        // case only: it stands down while `DebugReady`, which `FairyPlugin` inserts, exists. One evaluator per app, in
+        // whatever order the two plugins are added.
+        app.add_systems(Last, bevy_debugger_bevy::evaluate_checkpoint.run_if(not(resource_exists::<bevy_debugger_bevy::DebugReady>)));
+
         let mut checkpoints = app.world_mut().resource_mut::<Checkpoints>();
         checkpoints.register("a piece is chosen", piece_chosen);
         checkpoints.register("a piece was placed", piece_placed);
@@ -372,6 +378,7 @@ impl Plugin for GuidePlugin {
         checkpoints.register("the mesh declares an edge", mesh_declares_edge);
         checkpoints.register("the piece carries", carries_token);
     }
+
 }
 
 fn members(build: &Build) -> usize {

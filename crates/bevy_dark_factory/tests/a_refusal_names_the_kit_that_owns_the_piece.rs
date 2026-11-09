@@ -21,7 +21,7 @@ fn editor_at(name: &str, mode: Mode) -> bevy::prelude::App {
         .build("m");
     let mut app =
         harness::build_headless_at(&root, "m", None, mode).unwrap_or_else(|e| panic!("{e}"));
-    app.add_plugins(bevy_debugger_bevy::DebuggerPlugin::default());
+    app.add_plugins(bevy_debugger_bevy::FairyPlugin::default());
     app.add_plugins(bevy_dark_factory::ops_brp::OpsBridgePlugin);
     for _ in 0..8 {
         app.update();

@@ -1,21 +1,13 @@
-//! **What a `bevy_lights` placement carries** (#103): the crate's own `Flicker` (a bare light that breathes)
-//! or its own `Fire` (a whole fire: flame, pooled light, sparks, smoke), as one RON value under the family
-//! key `bevy_lights`. The editor never defines a second schema: [`Fixture::read`] only decides which of the
-//! crate's two types a value is, then lets the crate's own serde read it.
-//!
-//! Both types are `serde(default)` and neither denies unknown fields, so `(kind: Campfir)` read as a
-//! `Flicker` would be a default flicker with the typo ignored. A value is a `Fire` when it names one of
-//! `Fire`'s own fields ([`FIRE_FIELDS`]); `phase` is shared, so it decides nothing.
+//! **What a `bevy_lights` piece carries** (#103): the crate's own `Flicker` (a bare light that breathes) or its
+//! own `Fire` (a whole fire: flame, pooled light, sparks, smoke), each a component a piece carries under its type
+//! path in [`Placed::components`](blueprint_model::map::Placed::components). The editor never defines a second
+//! schema: [`Fixture::of`] reads the component the piece names with the crate's own serde.
 
+use bevy::reflect::TypePath;
 use bevy_lights::{FIRE_EDGE_LUX, Fire, Flicker, flame_light_offset};
+use blueprint_model::map::Placed;
 
-/// The family key a placement's fixture is saved under, as listed in `family.ron`.
-pub const KEY: &str = "bevy_lights";
-
-/// The fields only a `Fire` has. A value that names any of them is a `Fire`.
-pub const FIRE_FIELDS: [&str; 7] = ["kind", "lumens", "color", "embers", "smoke", "tongues", "bed"];
-
-/// A placement's light: a bare breathing light or a whole fire.
+/// A piece's light: a bare breathing light or a whole fire.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Fixture {
     Flicker(Flicker),
@@ -23,19 +15,14 @@ pub enum Fixture {
 }
 
 impl Fixture {
-    /// Read `text` as the crate's own type for the value it names. The error says which type it read it as.
-    pub fn read(text: &str) -> Result<Fixture, String> {
-        let names_a_fire = match ron::from_str::<ron::Value>(text) {
-            Ok(ron::Value::Map(fields)) => {
-                fields.iter().any(|(k, _)| matches!(k, ron::Value::String(s) if FIRE_FIELDS.contains(&s.as_str())))
-            }
-            _ => false,
-        };
-        if names_a_fire {
-            ron::from_str::<Fire>(text).map(Fixture::Fire).map_err(|e| format!("`{text}` is not a bevy_lights Fire (kind: Candle, Lantern, Torch, Brazier, Campfire or Bonfire): {e}"))
-        } else {
-            ron::from_str::<Flicker>(text).map(Fixture::Flicker).map_err(|e| format!("`{text}` is not a bevy_lights Flicker (and names no field only a Fire has, such as `kind`): {e}"))
+    /// The fixture `piece` carries, `None` for a piece with neither component, or why its value does not read.
+    /// A `Fire` wins over a `Flicker` on the same piece, because a fire hangs its own light.
+    pub fn of(piece: &Placed) -> Option<Result<Fixture, String>> {
+        if let Some(text) = piece.components.get(Fire::type_path()) {
+            return Some(ron::from_str::<Fire>(text).map(Fixture::Fire).map_err(|e| format!("`{text}` is not a bevy_lights Fire: {e}")));
         }
+        let text = piece.components.get(Flicker::type_path())?;
+        Some(ron::from_str::<Flicker>(text).map(Fixture::Flicker).map_err(|e| format!("`{text}` is not a bevy_lights Flicker: {e}")))
     }
 
     /// The light's mean lumens, the number the light map and the pool budget read: a `Flicker`'s `base`, and for a `Fire` its

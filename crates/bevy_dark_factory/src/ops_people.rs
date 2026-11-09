@@ -159,7 +159,7 @@ pub fn tenant_of(project: &crate::project::Project, map: &str, ids: &[String]) -
 
 #[cfg(feature = "bevy_society")]
 fn check_faction(ctx: &Ctx, faction: &str) -> Result<(), Refusal> {
-    let Ok(path) = crate::ops_family::settings_path(ctx, "bevy_society") else { return Ok(()) };
+    let Ok(path) = crate::ops_family::settings_path(ctx, "bevy_society", "DefsFile") else { return Ok(()) };
     let Ok(text) = std::fs::read_to_string(&path) else { return Ok(()) };
     let Ok(file) = ron::from_str::<bevy_society::DefsFile>(&text) else { return Ok(()) };
     if file.factions.iter().any(|f| f.id == faction) {
@@ -178,7 +178,7 @@ fn check_faction(_ctx: &Ctx, _faction: &str) -> Result<(), Refusal> {
 /// script, or a build without the crate, has nothing to check it against.
 #[cfg(feature = "bevy_speech_bubbles")]
 fn check_conversation(ctx: &Ctx, name: &str) -> Result<(), Refusal> {
-    let path = crate::ops_family::settings_path(ctx, "bevy_speech_bubbles")
+    let path = crate::ops_family::settings_path(ctx, "bevy_speech_bubbles", "DialogueScript")
         .map_err(|_| Refusal::new("this project does not use bevy_speech_bubbles, so there is no dialogue script to hold a conversation. Nothing was changed."))?;
     let text = std::fs::read_to_string(&path)
         .map_err(|e| Refusal::new(format!("{} cannot be read, so no conversation can be attached: {e}. Nothing was changed.", path.display())))?;

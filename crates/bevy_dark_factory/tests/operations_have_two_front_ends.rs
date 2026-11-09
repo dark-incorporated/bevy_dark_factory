@@ -82,7 +82,7 @@ fn every_operation_has_a_brp_command() {
     // plugin graph without the transport, because a test process builds several `App`s and cannot
     // have two things bound to one port — but the *command table* is what this test reads, and it
     // is registered by the plugin that owns the commands.
-    app.add_plugins(bevy_debugger_bevy::DebuggerPlugin::default());
+    app.add_plugins(bevy_debugger_bevy::FairyPlugin::default());
     app.add_plugins(bevy_dark_factory::ops_brp::OpsBridgePlugin);
 
     let commands = app
@@ -206,8 +206,8 @@ fn every_mcp_tool_is_prefixed_and_unique() {
     );
     for name in &names {
         assert!(
-            name.starts_with("blueprint_"),
-            "the MCP tool `{name}` is not prefixed with `blueprint_`, and the prefix is what keeps \
+            name.starts_with("factory_"),
+            "the MCP tool `{name}` is not prefixed with `factory_`, and the prefix is what keeps \
              this server's namespace separate from every other the agent has connected to."
         );
     }

@@ -519,16 +519,28 @@ pub struct OverUi(pub bool);
 fn sense_over_ui(
     pointer: Res<Pointer>,
     camera: Option<Single<&Camera, With<MainCamera>>>,
-    nodes: Query<(&bevy::ui::ComputedNode, &bevy::ui::UiGlobalTransform), With<bevy::picking::hover::Hovered>>,
+    nodes: Query<PanelNode, With<bevy::picking::hover::Hovered>>,
     mut over: ResMut<OverUi>,
 ) {
     let scale = camera.as_ref().and_then(|c| c.target_scaling_factor()).unwrap_or(1.0);
-    let want = over_ui(pointer.0, scale, nodes.iter());
+    let want = over_ui(pointer.0, scale, panels(nodes.iter()));
     if over.0 != want {
         over.0 = want;
     }
 }
 
+
+/// What [`panels`] reads of a node that carries `Hovered`: its rect and its gooey role.
+pub type PanelNode = (&'static bevy::ui::ComputedNode, &'static bevy::ui::UiGlobalTransform, Option<&'static bevy_gooey::Role>);
+
+/// **The nodes [`over_ui`] counts as interface**: every node that carries `Hovered`, except a split's
+/// pane. gooey gives a pane `Hovered` so a collapsed one can peek (bevy_gooey 0.44), and the map's
+/// viewport sits in one, so counting it would put the whole map under the interface.
+pub fn panels<'a>(
+    nodes: impl IntoIterator<Item = (&'a bevy::ui::ComputedNode, &'a bevy::ui::UiGlobalTransform, Option<&'a bevy_gooey::Role>)>,
+) -> impl Iterator<Item = (&'a bevy::ui::ComputedNode, &'a bevy::ui::UiGlobalTransform)> {
+    nodes.into_iter().filter(|(.., role)| !matches!(role, Some(bevy_gooey::Role::SplitPane))).map(|(node, tf, _)| (node, tf))
+}
 
 /// Read the pointer once, before anything acts on it.
 ///

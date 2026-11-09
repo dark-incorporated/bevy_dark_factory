@@ -131,17 +131,19 @@ enclosure: (wish: 0.25, weight: 200),
 
 **Absent means those two numbers**, which is what the editor shipped before the field existed (E-005), so a map written earlier generates exactly as it did. Set it through `map_set_settings` (`enclosure_wish`, `enclosure_weight`) or by editing the file; both write the same field, and neither needs a rebuild.
 
-### A placement's `bevy_lights` value
+### A placement's components
 
-A placement carries one `bevy_lights` value in its `family` row (`placement_set_family`, with `bevy_lights` in `family.ron`), and the value is the crate's own RON type. A value that names a field only `Fire` has (`kind`, `lumens`, `color`, `embers`, `smoke`, `tongues`, `bed`) is a `Fire`; any other is a `Flicker`.
+A placement carries the authoring components of the family crates in its `components` row: each component's full type path, and its value as the crate's own RON (`placement_set_component`, `@<id> <type path> <value>` in the FAMILY SETTINGS field, the inspector's COMPONENTS block, or the Plugins door's *Add to selection*). The game's `bevy_blueprint` spawner inserts each by reflection, so the crate's type is the schema. A path this build does not register is refused, and a map that names one anyway spawns the piece without it and says so. `MAP_VERSION` 10 replaced the row `family` (keyed by crate) with `components`.
 
 ```ron
-(kind: Campfire)                       // a whole fire: flame, pooled light, sparks, smoke
-(kind: Brazier, lumens: Some(40.0))    // its own brightness, in the preview's exposure
-(base: 900.0, phase: 1.3, depth: 0.15) // a bare light that breathes
+components: {
+    "bevy_lights::fire::Fire": "(kind: Campfire)",                       // a whole fire: flame, pooled light, sparks, smoke
+    "bevy_lights::flicker::Flicker": "(base: 900.0, phase: 1.3, depth: 0.15)", // a bare light that breathes
+    "bevy_speech_bubbles::conversation::StartsConversation": "(\"hello\")", // the conversation the piece starts
+}
 ```
 
-A `Fire` standing on a placement draws the crate's flame and the light the pool hands it in the running editor (build with `--features bevy_lights`); the light map and `light_pool` read the lumens the crate sizes for its kind, or the `lumens` the value names. A kind the crate does not have, or a value that does not read, is refused and nothing is set; a misspelt field name is dropped without a word, because the crate's types ignore fields they do not know. RON writes an `Option` as `Some(..)`.
+A `Fire` standing on a placement draws the crate's flame and the light the pool hands it in the running editor (build with `--features bevy_lights`); the light map and `light_pool` read the lumens the crate sizes for its kind, or the `lumens` the value names. Taking a component off takes off what putting it on added (a `Flicker`'s `PointLight`). RON writes an `Option` as `Some(..)`.
 
 ## forest/<map>.ron
 
@@ -165,15 +167,17 @@ A `Fire` standing on a placement draws the crate's flame and the light the pool 
 | Read by | The editor and the game. |
 | Format version | `bevy_flora`'s. |
 
-## family/bevy_elements.ron
+## family/<crate>/<Type>.ron
 
 | | |
 |---|---|
-| Where | `<project root>/family/bevy_elements.ron`, beside `family.ron`, which must list `bevy_elements`. Optional: an absent file means the editor's own light and plain ground. With the file, the sun and the moon are the key light and the editor's own key light is hidden, because the crate meters its exposure for the sky's physical light (a night is about ten stops of gain) and a fixed 6,000 lux light at that gain lights the whole viewport white; a lamp placed in the preview (`bevy_lights`) is judged against the same exposure, so a night lamp wants tens of lumens, not a thousand. |
-| What it holds | A map's environment in `bevy_elements`' own serde types: `clock`, `location`, `climate`, `forced_weather`, and the crate's `snow`, `wetness`, `rocks` and `dust` settings. `volume_cover` is the crate's `SurfaceCover` (a `snow` and a `wetness` band: `amount`, `max_slope_deg`, `slope_soft_deg`, `min_height_m`, `max_height_m`, `height_soft_m`) that the carved ground wears whatever the weather is; `None`, the default, lets the weather decide. Every field but `clock` and `climate` may be left out and takes the crate's default. |
-| Written by | `family_set` (the ENVIRONMENT buttons, the FAMILY SETTINGS field, an agent), one undo per change, or by hand. |
-| Live reload | Yes, with `--features bevy_elements`. The preview's clock, climate, weather and ground cover follow the file. With `isomesh` too (`--features volume_snow` has both), the carved ground's chunks are drawn with the crate's `WeatheredMaterial` and wear `volume_cover` in the next frame, with no remesh. A file that does not parse is named on the status line and the previous values stay. |
-| Read by | The editor; a game reads it with the same crate types. |
+| Where | `<project root>/family/<crate>/<Type>.ron`, one file per settings resource a family crate registers, beside `family.ron`, which must list the crate. `family/bevy_elements/WorldClock.ron`, `family/bevy_gooey/GooeySkin.ron`. A crate's data files sit beside them under their type's name: `family/bevy_speech_bubbles/DialogueScript.ron`, `family/bevy_society/DefsFile.ron`, `family/bevy_siren/CueTable.ron`. A file directly in `family/` is not read. |
+| What it holds | One value of the crate's own type, in its own serde form; a partial file is the type's default with those fields changed. Switching a crate on in the Plugins door writes each of its settings files from the running resource. |
+| Written by | `family_set` (`crate`, `type`, a dotted `field` or empty for the whole value, and the value): the Plugins door's Settings inspectors, the ENVIRONMENT buttons, the FAMILY SETTINGS field (`<crate> <Type> <field> <value>`), an agent. One undo per change. A missing file is refused: switch the crate on to write its defaults. |
+| Live reload | Yes. A settled change is read as the crate's type through the type registry and applied to the running resource by reflection (`bevy_blueprint::settings`), the path a game's `BlueprintLivePlugin` takes; a deleted file puts the type's default back. A file that does not read is refused, naming the file and the field, and the previous settings stay. With `bevy_elements`, a `WorldClock.ron` edit that changes only the hour walks the clock there over a second, and the camera wears the crate's sky while the project has any of its files; the sun and the moon are then the key light, and the editor's own is hidden. |
+| Read by | The editor and the game, with the same crate types. |
+
+The carved ground's cover is not a settings file: it is the map's volume's `cover` (`{snow, wetness}`, each 0 to 1, or none to let the weather decide), set by `volume_set_cover` or `volume cover <snow> <wetness>` / `volume cover off` in the Terrain field.
 
 ## oplog.jsonl
 

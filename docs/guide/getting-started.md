@@ -36,7 +36,7 @@ A **map** is a file that holds your placements. It is saved as `<name>.map.ron` 
 3. Type `first_map`. Use lowercase letters, digits and underscores. Start with a letter.
 4. Press Enter. The map `first_map` is made **and opens in the editor**, in that one press.
 
-**What you see:** the editor opens on the MAP door. A door is one of the editor's three workspaces. The MAP door shows your map. A new map's bounds start at `10 x 4 x 10`.
+**What you see:** the editor opens on the MAP door. A door is one of the editor's four workspaces. The MAP door shows your map. A new map's bounds start at `10 x 4 x 10`.
 
 **If the map is made but does not open:** the door refused it, and the reason is on the status line (`\`first_map\` will not open: …`). The map is still in the MAPS column, so pressing Enter on it tries again.
 

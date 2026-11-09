@@ -1,7 +1,7 @@
 //! **The light map** (#103): `bevy_light_grid`'s illuminance field over the open map, as one
 //! registered, read-only operation.
 //!
-//! Every placement that carries a `bevy_lights` `Flicker` or `Fire` (set by `placement_set_family`) is a fixture:
+//! Every placement that carries a `bevy_lights` `Flicker` or `Fire` (set by `placement_set_component`) is a fixture:
 //! its `base` over `reference` is the intensity and the map's cells are `cell_m` metres. A placement
 //! whose descriptor is `kind: ["wall"]` blocks line of sight, so a torch behind a wall does not light
 //! the room beyond it. The values are the crate's own `LightGrid::sample_cell`, not a second formula,
@@ -79,8 +79,8 @@ pub fn bake(map: &blueprint_model::map::Map, library: &blueprint_model::library:
         if library.get(&pl.descriptor).is_some_and(|d| d.kind.iter().any(|k| k == "wall")) {
             walls.insert(cell(pl.at));
         }
-        if let Some(text) = pl.family.get("bevy_lights") {
-            let f = crate::fixture::Fixture::read(text).map_err(|e| Refusal::new(format!("{}'s bevy_lights settings do not read: {e}", pl.id)))?;
+        if let Some(read) = crate::fixture::Fixture::of(pl) {
+            let f = read.map_err(|e| Refusal::new(format!("{}'s bevy_lights component does not read: {e}", pl.id)))?;
             fixtures.push((cell(pl.at), f.lumens() / p.reference, p.range_m / p.cell_m));
         }
     }

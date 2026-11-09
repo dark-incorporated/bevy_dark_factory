@@ -2074,10 +2074,7 @@ fn place_labels(
             &UiGlobalTransform,
         ),
     >,
-    ui_nodes: Query<
-        (&bevy::ui::ComputedNode, &bevy::ui::UiGlobalTransform),
-        With<bevy::picking::hover::Hovered>,
-    >,
+    ui_nodes: Query<crate::view::PanelNode, With<bevy::picking::hover::Hovered>>,
 ) {
     let Some(camera) = camera.filter(|_| *mode == Mode::Compose) else {
         for (_, _, mut node, _, _) in &mut labels {
@@ -2165,7 +2162,7 @@ fn place_labels(
                 crate::view::over_ui(
                     Some(Vec2::new(p.x + dx, p.y + LABEL_DROP)),
                     factor,
-                    ui_nodes.iter(),
+                    crate::view::panels(ui_nodes.iter()),
                 )
             })
         });

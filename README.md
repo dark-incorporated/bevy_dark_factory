@@ -75,11 +75,12 @@ Opens the repository's own project on its `furniture` kit (`site` and `scp` are 
 - **Make kits and labels**: bring in meshes, group them into kits, and confirm the labels a vision model proposes: [kits and labels](https://github.com/dark-incorporated/bevy_dark_factory/blob/main/docs/guide/kits-and-labels.md).
 - **Edit the files your game loads, live**: the editor re-reads changed project files every quarter of a second, and a game can reload them too: [data files](https://github.com/dark-incorporated/bevy_dark_factory/blob/main/docs/guide/data-files.md), [your game](https://github.com/dark-incorporated/bevy_dark_factory/blob/main/docs/guide/your-game.md).
 - **Set the editor up the way you work**: Cmd+, opens the settings screen, where every setting shows its default, can be searched and reset, and is written to your own file or to the project's; the project configuration screen turns the family crates the project uses on and off and leaves a pack out of the kit or brings it back: [data files](https://github.com/dark-incorporated/bevy_dark_factory/blob/main/docs/guide/data-files.md).
-- **Configure the rest of Dark Inc.**: sky, forests, lights, villagers, dialogue and destructible props, each as that crate's own settings: [the book](https://dark-incorporated.github.io/with-blueprint.html).
+- **Install the family's plugins**: the PLUGINS door lists every Dark Inc. crate this build has. Switch one on for the project and its settings files are written from its defaults; its systems are listed by schedule; each settings resource is a reflect inspector whose edits are `family_set` operations on `family/<crate>/<Type>.ron`; and its components can be added to the selected pieces: [data files](https://github.com/dark-incorporated/bevy_dark_factory/blob/main/docs/guide/data-files.md).
+- **Configure the rest of Dark Inc.**: sky, forests, lights, villagers, dialogue and destructible props, each as that crate's own settings: [the book](https://dark-incorporated.github.io/with-dark-factory.html).
 
 ## Part of Dark Inc.
 
-The Dark Factory is the editor of the [Dark Inc.](https://github.com/dark-incorporated): it takes each family crate as an optional cargo feature and edits that crate's own serde settings, so what it saves is what your game loads with the crate alone. [Using a crate with Blueprint](https://dark-incorporated.github.io/with-blueprint.html) explains the arrangement.
+The Dark Factory is the editor of [Dark Inc.](https://github.com/dark-incorporated): it takes each family crate as an optional cargo feature and edits that crate's own serde settings, so what it saves is what your game loads with the crate alone. [Using a crate in the Dark Factory](https://dark-incorporated.github.io/with-dark-factory.html) explains the arrangement.
 
 ## The crates
 

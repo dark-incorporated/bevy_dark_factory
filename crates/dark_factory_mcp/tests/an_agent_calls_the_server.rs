@@ -159,8 +159,8 @@ fn the_server_lists_tools_that_say_what_they_do() {
         let description = tool["description"].as_str().unwrap_or_default();
         assert!(!name.is_empty(), "a tool has no name: {tool}");
         assert!(
-            name.starts_with("blueprint_"),
-            "the tool `{name}` is not prefixed with `blueprint_`."
+            name.starts_with("factory_"),
+            "the tool `{name}` is not prefixed with `factory_`."
         );
         assert!(
             description.len() > 40,
@@ -360,12 +360,12 @@ fn the_state_tool_says_its_cap_and_how_to_page_it() {
 #[test]
 fn an_unknown_tool_is_refused_with_the_list() {
     let mut server = Server::start();
-    let answer = server.call("blueprint_no_such_tool", json!({}));
+    let answer = server.call("factory_no_such_tool", json!({}));
     let text = answer["result"]["content"][0]["text"]
         .as_str()
         .unwrap_or_default();
     assert!(
-        text.contains("blueprint_"),
+        text.contains("factory_apply_operation"),
         "the refusal does not name the tools that do exist, so an agent has to guess again: {text}"
     );
 }
