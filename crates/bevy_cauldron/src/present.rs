@@ -59,6 +59,9 @@ pub struct Presented {
     /// **The style lines the agent says it followed** (SG-09, #408), each checked against what `grimoire_style` served it. The text of a line is for the card;
     /// `grimoire_state` carries the path and the line number only.
     pub followed: Vec<crate::style_followed::Followed>,
+    /// **The pieces the covered operations replaced** (#443), one sentence each ([`replacements`]): a replacement is a piece the person
+    /// loses, so it is listed as one beside the steps and never left to read as an addition.
+    pub replaced: Vec<String>,
 }
 
 /// **How the person answered a hand-back in the AGENT block.** Set by its buttons, taken by [`answer_presentation`].
@@ -123,7 +126,12 @@ pub const MAX_CHECKS: usize = 3;
 /// The order is the brief's own: what it is, what changed, what you asked for, what I assumed, and
 /// where to look — then one line saying how to change it, because "accept or reject" is not a
 /// vocabulary for a result that is nearly right.
-pub fn body_with_followed(params: &PresentParams, steps: &[String], followed: &[crate::style_followed::Followed]) -> String {
+pub fn body_with_followed(
+    params: &PresentParams,
+    steps: &[String],
+    replaced: &[String],
+    followed: &[crate::style_followed::Followed],
+) -> String {
     let mut out = String::new();
     out.push_str(&params.summary);
     out.push_str("\n\n");
@@ -132,6 +140,14 @@ pub fn body_with_followed(params: &PresentParams, steps: &[String], followed: &[
     } else {
         out.push_str("Steps:\n");
         for line in steps {
+            out.push_str(&format!("• {line}\n"));
+        }
+    }
+    // **A replacement is named as one** (#443), under the steps that mention it, because the person reading "replaced" in a step has to
+    // see which piece they no longer have.
+    if !replaced.is_empty() {
+        out.push_str("Replaced:\n");
+        for line in replaced {
             out.push_str(&format!("• {line}\n"));
         }
     }
@@ -160,6 +176,32 @@ pub fn body_with_followed(params: &PresentParams, steps: &[String], followed: &[
     }
     out.push_str("To change it, tell the agent.");
     out
+}
+
+/// **The pieces the covered operations replaced** (#443), one sentence each, in the order the agent listed the operations.
+///
+/// Read from the log's own `after` of each applied `placement_add`: its `replaced` rows (id, kind, at, cell) and the id that took their
+/// place, so the card and the modal say what the person lost without the agent having to remember to.
+pub fn replacements(log: &[crate::ops::Entry], operation_ids: &[String]) -> Vec<String> {
+    let mut lines = Vec::new();
+    for id in operation_ids {
+        let Some(after) = log.iter().find(|e| &e.operation_id == id && e.outcome == "applied").and_then(|e| e.after.as_ref()) else { continue };
+        let by = after.get("id").and_then(serde_json::Value::as_str).unwrap_or("the new piece");
+        for row in after.get("replaced").and_then(serde_json::Value::as_array).into_iter().flatten() {
+            let number = |value: &serde_json::Value, at: usize| value.get(at).and_then(serde_json::Value::as_f64).unwrap_or_default();
+            let (at, cell) = (&row["at"], &row["cell"]);
+            lines.push(format!(
+                "`{}` ({}) at ({:.2}, {:.2}), cell [{}, {}], replaced by `{by}`",
+                row["id"].as_str().unwrap_or("a piece"),
+                row["kind"].as_str().unwrap_or("piece"),
+                number(at, 0),
+                number(at, 1),
+                number(cell, 0),
+                number(cell, 1),
+            ));
+        }
+    }
+    lines
 }
 
 /// **The editor's half of the presentation.** One plugin, one system: the answer.

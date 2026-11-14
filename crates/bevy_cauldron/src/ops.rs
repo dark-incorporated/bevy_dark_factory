@@ -5813,6 +5813,15 @@ pub mod map_open {
 /// stops describing and starts writing. One function, so an agent's placement and a person's cannot
 /// disagree about what is already there, what a piece mounts to, or which rows it replaces.
 ///
+/// # An overlap is refused unless `replace` is true (#443)
+///
+/// **The click replaces what it lands on, because a person sees the piece go. An agent that asked to ADD does not.** In the style
+/// study's runs an awning replaced a stall and the agent was never told. So the operation plans the placement the click would
+/// make, and when that plan would take a piece out it is refused, naming the piece being added and every piece in the way (id, kind,
+/// at, cell), unless the call says `replace: true`. A replacing add answers with what it replaced (`after.replaced`), which a
+/// hand-back that covers it lists as a replacement ([`crate::present::replacements`]). A piece that is only flush with another is
+/// not in its way, and the exact same piece in the same place is still "already there".
+///
 /// # Undo
 ///
 /// `Undo::Inverse`: the inverse removes the row it added and puts back the rows it replaced, at their
@@ -5835,6 +5844,11 @@ pub mod placement_add {
         pub yaw: f32,
         #[serde(default)]
         pub tip: (u8, u8),
+        /// **Replace what the piece lands on** (#443). Without it, a footprint that overlaps a piece already there is
+        /// refused, naming both, and nothing changes: an agent that asked to ADD must never lose a piece it was not told
+        /// about. With it, the overlapped pieces are taken out, and the answer names each.
+        #[serde(default)]
+        pub replace: bool,
         /// **The undo's own form**: what to take away, and what to put back.
         #[serde(default)]
         pub delta: Option<RowDelta>,
@@ -5845,6 +5859,7 @@ pub mod placement_add {
             json!({
                 "type": "object",
                 "additionalProperties": false,
+                "description": "Place one piece. A footprint that overlaps a piece already there is refused, naming both pieces, and nothing changes, unless replace is true; the answer to a replacing add names what it replaced (id, kind, at, cell). A person's click on the map still replaces what it lands on.",
                 "required": ["piece", "at"],
                 "properties": {
                     "piece": {
@@ -5866,6 +5881,11 @@ pub mod placement_add {
                         "minItems": 2,
                         "maxItems": 2
                     },
+                    "replace": {
+                        "type": "boolean",
+                        "default": false,
+                        "description": "true replaces the piece or pieces this one overlaps, and the answer names them. Omitted or false, an overlap is refused naming both pieces and nothing changes."
+                    },
                     "delta": {
                         "description": "The rows an undo moves. Only an undo may set this.",
                         "type": "object"
@@ -5878,10 +5898,48 @@ pub mod placement_add {
             serde_json::from_value(raw.clone()).map_err(|e| {
                 Refusal::new(format!(
                     "these are not the parameters for placing a piece: {e}. The fields are `piece`, \
-                     `at`, `yaw`, `tip` and `delta`, and `piece` and `at` are required."
+                     `at`, `yaw`, `tip`, `replace` and `delta`, and `piece` and `at` are required."
                 ))
             })
         }
+    }
+
+    /// **One row as an answer names it**: its id, its kind (the descriptor), where it stands and the 1 m cell its centre is in.
+    fn described(row: &bevy_grimoire_core::map::Placed) -> serde_json::Value {
+        json!({
+            "id": row.id,
+            "kind": row.descriptor,
+            "at": [row.at.0, row.at.1],
+            "cell": [row.at.0.floor() as i32, row.at.1.floor() as i32],
+        })
+    }
+
+    /// **The sentence for an add that would replace what it lands on** (#443), naming the piece being added and every piece
+    /// in its way, with each one's kind, place and cell, and the two ways on.
+    fn overlap_refusal(piece: &str, at: (f32, f32), open: &crate::project::OpenMap, replaces: &[usize]) -> String {
+        let in_the_way: Vec<String> = replaces
+            .iter()
+            .filter_map(|i| open.map.placements.get(*i))
+            .map(|row| {
+                format!(
+                    "`{}` ({}) at ({:.2}, {:.2}), cell [{}, {}]",
+                    row.id,
+                    row.descriptor,
+                    row.at.0,
+                    row.at.1,
+                    row.at.0.floor() as i32,
+                    row.at.1.floor() as i32
+                )
+            })
+            .collect();
+        format!(
+            "adding `{piece}` at ({:.2}, {:.2}) overlaps {}, and an add does not replace what it lands on unless asked. Choose \
+             another place, remove that piece first (`placement_remove`), or call `placement_add` again with `replace: true` to \
+             replace it. Nothing was changed.",
+            at.0,
+            at.1,
+            in_the_way.join(" and ")
+        )
     }
 
     pub struct PlacementAdd;
@@ -5994,16 +6052,21 @@ pub mod placement_add {
                 crate::editor::next_id_after(&open.map) + 1,
             )
             .map_err(Refusal::new)?;
-            let replaced: Vec<&String> = planned
+            // **An add that would take a piece out is refused unless it says `replace`** (#443): the click replaces, because
+            // the person sees the piece go, and an agent that asked to ADD is told instead of losing one.
+            if !p.replace && !planned.replaces.is_empty() {
+                return Err(Refusal::new(overlap_refusal(&p.piece, p.at, open, &planned.replaces)));
+            }
+            let replaces: Vec<serde_json::Value> = planned
                 .replaces
                 .iter()
-                .filter_map(|i| open.map.placements.get(*i).map(|row| &row.id))
+                .filter_map(|i| open.map.placements.get(*i).map(described))
                 .collect();
             Ok(json!({
                 "id": planned.placed.id,
                 "map": open.map.name,
                 "on": planned.placed.on,
-                "replaces": replaced,
+                "replaces": replaces,
                 "y": planned.y,
             }))
         }
@@ -6125,6 +6188,9 @@ pub mod placement_add {
                     "map": plan["map"],
                     "id": id,
                     "removed": replaced.iter().map(|r| r.row.id.clone()).collect::<Vec<_>>(),
+                    // **What it replaced, as the refusal would have named it** (#443): id, kind, at and cell, so a
+                    // hand-back can list a replacement as one.
+                    "replaced": replaced.iter().map(|r| described(&r.row)).collect::<Vec<_>>(),
                     "placements": open.map.placements.len(),
                     "y": y,
                 })),

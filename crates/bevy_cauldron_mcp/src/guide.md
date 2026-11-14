@@ -28,6 +28,8 @@
 
 **Learn one operation without reading them all.** With no `query`, `grimoire_list_operations` is every operation and every schema, tens of kilobytes. Pass `operation` with an exact name, `{"operation": "data_set"}`, and it returns only that operation: each parameter (its name, whether it is required, its description) and one example call, a few hundred bytes. `query` searches by words; `operation` is the name, and a name that is not an operation is refused with the closest ones. Ask one or the other.
 
+**`placement_add` refuses to land on a piece unless you say so.** A piece whose footprint overlaps one already there is refused, naming both pieces, and nothing changes; add `replace: true` to replace it on purpose. The answer to a replacing add names what it replaced (id, kind, at, cell), and the person's hand-back card lists it as a replacement, so an add is never a silent loss. A person's click on the map still replaces what it lands on, because they see the piece go.
+
 **Your own default is `dry_run: true` for a change to the map's shape.** A `map_set_settings`, a `map_create`, a `fill` or a `layout_accept` moves ground the person is standing on, so preview it before you apply it and say in your summary that you did. The tool's own `dry_run` defaults to false; it is your habit, not the tool's, that has to be safe.
 
 **An operation that replaces values is destructive, not additive.** `grimoire_apply_operation` overwrites the fields it names, so an undo is the only way back. Take one when a proposal is uncertain: the log line is cheap and the person's map is not.

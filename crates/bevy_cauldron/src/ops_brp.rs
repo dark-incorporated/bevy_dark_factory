@@ -1236,6 +1236,8 @@ fn editor_state(
             "check": p.check,
             // **The style lines the hand-back followed**: path and line only, never the line's text (a page is a prompt, and the state is the agent's).
             "followed": p.followed.iter().map(|f| json!({"path": f.path, "line": f.line})).collect::<Vec<_>>(),
+            // **The pieces the turn replaced** (#443), one sentence each, so an agent reading its own hand-back sees a replacement as one.
+            "replaced": p.replaced,
         })
     });
     // **The pins, named by id and reason.** A pin is the one thing an agent cannot see in the state
@@ -3718,7 +3720,9 @@ fn editor_present(
         }
         (false, None) => return Err("no project is open, so there are no served style lines to cite".to_owned()),
     };
-    let body = crate::present::body_with_followed(&p, &steps, &followed);
+    // **A replacement is listed as one** (#443): the pieces the covered operations took out, read from the log's own answers.
+    let replaced = crate::present::replacements(&log, &p.operation_ids);
+    let body = crate::present::body_with_followed(&p, &steps, &replaced, &followed);
     // **With the AGENT block open and "Answer hand-backs here" on, the question is asked there**, beside the rest of what the
     // agent did; otherwise in the modal, as it always was. A block closed on a waiting question hands it to the modal.
     let inline = here.is_some_and(|here| here.0) && !block.is_empty();
@@ -3779,6 +3783,7 @@ fn editor_present(
         body,
         inline,
         followed,
+        replaced,
     });
     // **The turn is one undo step from here on (E-071).** Done at presentation rather than at the
     // answer, so Cmd+Z during the conversation takes the turn back — a person who does not want the
