@@ -2008,7 +2008,7 @@ pub struct Journal {
     dropped: usize,
     /// **The [`bevy_gooey::ToastLog`] id of each entry's row**, parallel to `entries` (`None` until `notice::sync_the_log` has written it), so a
     /// repeat folds into the row it belongs to and the refusal's toast can be the same row ([`bevy_gooey::ToastBundle::logged_as`]).
-    pub(crate) log_ids: Vec<Option<u64>>,
+    pub(crate) log_ids: Vec<Slot>,
     /// **The agent's steps for this session (E-068)**, oldest first, capped by
     /// [`crate::steps::CAP`]. Read from the operation log's own `result` lines rather than written
     /// here, so a row cannot claim more than the log says.
@@ -2031,6 +2031,8 @@ pub struct Journal {
     pub(crate) said: Vec<(Said, String, u64)>,
     /// The log rows of refusals that fell off the front of `entries` at the cap, taken out of the log on the next sync.
     pub(crate) forgotten: Vec<u64>,
+    /// The steps whose rows the log had no room for (the oldest), by operation id: not written again, and said in the note of what was left out.
+    pub(crate) left_steps: Vec<String>,
 }
 
 /// Which fact a row of the centre states about the lists themselves.
@@ -2039,6 +2041,20 @@ pub(crate) enum Said {
     StepsDropped,
     StepsUnreadable,
     RefusalsDropped,
+    /// Rows of the journal the log had no room to keep (the oldest), which the centre says it left out.
+    LeftOut,
+}
+
+/// **Where a refusal of the journal stands in gooey's log.**
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Slot {
+    /// Not written yet.
+    Unwritten,
+    /// **Written and then left out** because the log holds [`bevy_gooey::ToastLog::CAPACITY`] rows and this one was the oldest; the number is the tally it had, so a repeat
+    /// (a different tally) is written again as a row of its own, and nothing else is.
+    Left(u32),
+    /// The row it is, by the id the log gave it.
+    Row(u64),
 }
 
 /// How many the journal keeps. Ten times a panel's [`MAX_PROBLEMS`], because this one is read by
@@ -2072,10 +2088,10 @@ impl Journal {
             return;
         }
         self.entries.push(Problem { text: text.to_owned(), count: times, problem: problem.cloned() });
-        self.log_ids.push(None);
+        self.log_ids.push(Slot::Unwritten);
         if self.entries.len() > JOURNAL_CAP {
             self.entries.remove(0);
-            if let Some(Some(id)) = (!self.log_ids.is_empty()).then(|| self.log_ids.remove(0)) {
+            if let Slot::Row(id) = self.log_ids.remove(0) {
                 // The row of a refusal that fell off the front goes with it, on the next sync.
                 self.forgotten.push(id);
             }
@@ -2090,7 +2106,10 @@ impl Journal {
 
     /// **The log row of the newest refusal that said `text`**, for the toast that raised it to be the same row.
     pub fn log_id_of(&self, text: &str) -> Option<u64> {
-        self.entries.iter().zip(&self.log_ids).rev().find(|(e, _)| e.text == text).and_then(|(_, id)| *id)
+        self.entries.iter().zip(&self.log_ids).rev().find(|(e, _)| e.text == text).and_then(|(_, slot)| match slot {
+            Slot::Row(id) => Some(*id),
+            Slot::Unwritten | Slot::Left(_) => None,
+        })
     }
 
     /// Named rather than silently forgotten — [`Status::dropped`]'s argument, one scope up.

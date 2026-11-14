@@ -705,41 +705,67 @@ fn toggle_journal(
 /// and the one step that can be taken back ([`crate::chrome::Journal::undoable`]) carries an **Undo** button. The refusal toast is raised as the
 /// same row ([`bevy_gooey::ToastBundle::logged_as`]), so the toast and the journal agree because they are one line.
 ///
-/// **Written when the journal changed, and not on a frame**: the ids are bookkeeping written past the change flag, so a settled editor costs a
-/// comparison and the log is not touched.
+/// # The log holds [`bevy_gooey::ToastLog::CAPACITY`] rows, and a list that leaves lines out says so
+///
+/// The journal can hold more than the log can (120 steps, 200 refusals and the notes about them), and the log's own push drops its oldest row in
+/// silence. So this writes at most `CAPACITY - 1` rows of its own and **evicts its own oldest row first** ([`make_room`]), keeping the last slot for
+/// a note: "N older lines are left out of this list…" (*Said, not swallowed: a feed shorter than the file reads as a complete session.*). A row the
+/// log evicted for another toast's sake is found by its id being gone and is left out the same way. An evicted refusal is [`Slot::Left`] with the
+/// tally it had, so a repeat of it (a different tally) is written again as a row of its own and nothing else is; an evicted step is in
+/// `left_steps`, and is not written again. No id is kept for a row the log no longer holds.
+///
+/// **Written when the journal or the log changed, and not on a frame**: the ids are bookkeeping written past the change flag, so a settled editor
+/// costs a comparison and the log is not touched.
 fn sync_the_log(mut journal: ResMut<crate::chrome::Journal>, log: Option<ResMut<bevy_gooey::ToastLog>>, time: Res<Time<Real>>) {
+    use crate::chrome::{Said, Slot};
     let Some(mut log) = log else { return };
-    if !journal.is_changed() {
+    if !journal.is_changed() && !log.is_changed() {
         return;
     }
     let now = time.elapsed_secs();
     let journal = journal.bypass_change_detection();
-    // The rows of refusals that fell off the front go with them.
+    let tally = |count: usize| u32::try_from(count).unwrap_or(u32::MAX);
+    // The rows of refusals that fell off the front of the journal go with them.
     for id in journal.forgotten.drain(..) {
         log.remove(id);
     }
+    // **Rows the log no longer holds** (it evicted them for another toast's sake) are left out, and no id is kept for them.
+    for i in 0..journal.log_ids.len() {
+        if let Slot::Row(id) = journal.log_ids[i]
+            && log.get(id).is_none()
+        {
+            journal.log_ids[i] = Slot::Left(tally(journal.entries()[i].count));
+        }
+    }
+    let missing: Vec<String> = journal.step_rows.iter().filter(|(_, id)| log.get(*id).is_none()).map(|(op, _)| op.clone()).collect();
+    journal.step_rows.retain(|(op, _)| !missing.contains(op));
+    journal.left_steps.extend(missing);
+    journal.said.retain(|(_, _, id)| log.get(*id).is_some());
     // **Refusals**, oldest first: a new one is a row of its own, and one that repeated sets its count.
     for i in 0..journal.entries().len() {
         let (text, count) = {
             let entry = &journal.entries()[i];
-            (entry.text.clone(), u32::try_from(entry.count).unwrap_or(u32::MAX))
+            (entry.text.clone(), tally(entry.count))
         };
         match journal.log_ids[i] {
-            Some(id) => {
+            Slot::Row(id) => {
                 if log.get(id).is_some_and(|row| row.count() != count)
                     && let Some(row) = log.get_mut(id)
                 {
                     row.set_count(count);
                 }
             }
-            None => {
+            // A repeat of a refusal the log left out is a row of its own; the same tally is the same refusal, left out still.
+            Slot::Left(seen) if seen == count => {}
+            Slot::Left(_) | Slot::Unwritten => {
+                make_room(journal, &mut log, bevy_gooey::ToastLog::CAPACITY - 1);
                 let id = log.push(bevy_gooey::ToastLogEntry { seconds: now, kind: bevy_gooey::ToastKind::Alert, text });
                 if count > 1
                     && let Some(row) = log.get_mut(id)
                 {
                     row.set_count(count);
                 }
-                journal.log_ids[i] = Some(id);
+                journal.log_ids[i] = Slot::Row(id);
             }
         }
     }
@@ -750,14 +776,16 @@ fn sync_the_log(mut journal: ResMut<crate::chrome::Journal>, log: Option<ResMut<
         log.remove(id);
     }
     journal.step_rows.retain(|(op, _)| held.contains(op));
+    journal.left_steps.retain(|op| held.contains(op));
     for i in 0..journal.steps.len() {
-        if journal.step_rows.iter().any(|(op, _)| *op == journal.steps[i].operation_id) {
+        let operation_id = journal.steps[i].operation_id.clone();
+        if journal.step_rows.iter().any(|(op, _)| *op == operation_id) || journal.left_steps.contains(&operation_id) {
             continue;
         }
+        make_room(journal, &mut log, bevy_gooey::ToastLog::CAPACITY - 1);
         let step = &journal.steps[i];
         let mark = if step.capture.is_some() { " ▪" } else { "" };
         let id = log.push(bevy_gooey::ToastLogEntry { seconds: now, kind: bevy_gooey::ToastKind::Note, text: format!("{}{mark}", step.text) });
-        let operation_id = step.operation_id.clone();
         journal.step_rows.push((operation_id, id));
     }
     // **The Undo button is on the one step that can be taken back** and on no other.
@@ -777,36 +805,78 @@ fn sync_the_log(mut journal: ResMut<crate::chrome::Journal>, log: Option<ResMut<
     // **What the lists left out is said**, once, as a note: a feed shorter than the file reads as a complete session.
     let facts = [
         (
-            crate::chrome::Said::StepsDropped,
+            Said::StepsDropped,
             (journal.steps_dropped > 0).then(|| format!("+{} earlier steps, dropped at {}", journal.steps_dropped, crate::steps::CAP)),
         ),
         (
-            crate::chrome::Said::StepsUnreadable,
+            Said::StepsUnreadable,
             (journal.steps_unreadable > 0).then(|| format!("{} line(s) of the log could not be read", journal.steps_unreadable)),
         ),
         (
-            crate::chrome::Said::RefusalsDropped,
+            Said::RefusalsDropped,
             (journal.dropped() > 0).then(|| format!("+{} earlier refusals, dropped at {}", journal.dropped(), crate::chrome::JOURNAL_CAP)),
         ),
     ];
     for (which, sentence) in facts {
-        let at = journal.said.iter().position(|(w, ..)| *w == which);
-        match (at, sentence) {
-            (Some(i), Some(now_says)) if journal.said[i].1 == now_says => {}
-            (Some(i), Some(now_says)) => {
-                log.remove(journal.said[i].2);
-                let id = log.push(bevy_gooey::ToastLogEntry { seconds: now, kind: bevy_gooey::ToastKind::Note, text: now_says.clone() });
-                journal.said[i] = (which, now_says, id);
-            }
-            (Some(i), None) => {
-                log.remove(journal.said[i].2);
-                journal.said.remove(i);
-            }
-            (None, Some(now_says)) => {
-                let id = log.push(bevy_gooey::ToastLogEntry { seconds: now, kind: bevy_gooey::ToastKind::Note, text: now_says.clone() });
-                journal.said.push((which, now_says, id));
-            }
-            (None, None) => {}
+        say(journal, &mut log, now, which, sentence);
+    }
+    // **Last, because writing the notes above can leave one more row out**: the count is read after them.
+    let left_out = journal.log_ids.iter().filter(|slot| matches!(slot, Slot::Left(_))).count() + journal.left_steps.len();
+    let sentence = (left_out > 0).then(|| {
+        format!(
+            "{left_out} older line(s) are left out of this list, which keeps the newest {}; the operation log holds every step",
+            bevy_gooey::ToastLog::CAPACITY
+        )
+    });
+    say(journal, &mut log, now, Said::LeftOut, sentence);
+}
+
+/// **Write, change or take out the note that says one fact about the lists**, so there is one row for it and it reads what is true now.
+fn say(journal: &mut crate::chrome::Journal, log: &mut bevy_gooey::ToastLog, now: f32, which: crate::chrome::Said, sentence: Option<String>) {
+    let at = journal.said.iter().position(|(w, ..)| *w == which);
+    match (at, sentence) {
+        (Some(i), Some(now_says)) if journal.said[i].1 == now_says => {}
+        (Some(i), Some(now_says)) => {
+            log.remove(journal.said[i].2);
+            let id = log.push(bevy_gooey::ToastLogEntry { seconds: now, kind: bevy_gooey::ToastKind::Note, text: now_says.clone() });
+            journal.said[i] = (which, now_says, id);
+        }
+        (Some(i), None) => {
+            log.remove(journal.said[i].2);
+            journal.said.remove(i);
+        }
+        (None, Some(now_says)) => {
+            // The notes are the one thing the log keeps in the slot the rows leave free; past the capacity a row of the journal gives way, never a note.
+            make_room(journal, log, bevy_gooey::ToastLog::CAPACITY);
+            let id = log.push(bevy_gooey::ToastLogEntry { seconds: now, kind: bevy_gooey::ToastKind::Note, text: now_says.clone() });
+            journal.said.push((which, now_says, id));
+        }
+        (None, None) => {}
+    }
+}
+
+/// **Take the journal's oldest row out of the log while the log holds `limit` rows or more**, so a push does not make the log evict one in silence. The
+/// oldest is the one with the smallest id (ids go up with every push); a refusal becomes [`crate::chrome::Slot::Left`], a step joins `left_steps`. Stops when
+/// the rest of the log is not the journal's (another toast's rows are not this system's to take out).
+fn make_room(journal: &mut crate::chrome::Journal, log: &mut bevy_gooey::ToastLog, limit: usize) {
+    use crate::chrome::Slot;
+    while log.len() >= limit {
+        let refusal = journal.log_ids.iter().enumerate().filter_map(|(i, slot)| if let Slot::Row(id) = slot { Some((*id, i)) } else { None }).min();
+        let step = journal.step_rows.iter().enumerate().map(|(j, (_, id))| (*id, j)).min();
+        // The refusal's row when it is the older of the two, else the step's.
+        let refusal_is_older = match (refusal, step) {
+            (Some((refusal_id, _)), Some((step_id, _))) => refusal_id < step_id,
+            (Some(_), None) => true,
+            (None, Some(_)) => false,
+            (None, None) => break,
+        };
+        if refusal_is_older && let Some((id, i)) = refusal {
+            log.remove(id);
+            journal.log_ids[i] = Slot::Left(u32::try_from(journal.entries()[i].count).unwrap_or(u32::MAX));
+        } else if let Some((id, j)) = step {
+            log.remove(id);
+            let (op, _) = journal.step_rows.remove(j);
+            journal.left_steps.push(op);
         }
     }
 }

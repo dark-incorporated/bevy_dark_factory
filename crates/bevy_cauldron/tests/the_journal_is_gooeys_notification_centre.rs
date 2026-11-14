@@ -184,22 +184,176 @@ fn the_refusal_toast_and_its_journal_row_are_one_row() {
     assert!(drawn.iter().any(|r| r.contains(line) && r.ends_with("(x2)")), "the row reads the tally: {drawn:#?}");
 }
 
-/// **(4) No `JournalPanel` remains**, nor the list, the line, the paint or the spawn it had: a source that names one has put a second path back.
+/// **A person's Undo is the person's** (review of #442): with the agent paused (UI-60) the press still takes the step back, the oplog line says `human` and
+/// not `agent`, the agent is not told it was heard (the AGENT block's "last heard" is the agent's), and the receipt is not the agent's.
+#[test]
+fn a_persons_undo_press_works_while_the_agent_is_paused_and_is_written_human() {
+    use bevy_cauldron::familiar::{AgentActivity, AgentPause};
+    let (root, mut app) = editor("centre_person");
+    let ids = three_placements(&mut app);
+    harness::resize_surface(&mut app, 1536, 1400).unwrap_or_else(|e| panic!("{e}"));
+    app.insert_resource(AgentPause(true));
+    open_the_journal(&mut app);
+    let heard = app.world().get_resource::<AgentActivity>().map(AgentActivity::heard);
+    let buttons = undo_buttons(&mut app);
+    assert_eq!(buttons.len(), 1, "{buttons:?}");
+    let placed_before = app.world().resource::<bevy_cauldron::project::OpenMap>().map.placements.len();
+    let lines_before = oplog(&root).len();
+
+    bevy_gooey::testing::click(&mut app, buttons[0].0);
+    for _ in 0..6 {
+        app.update();
+    }
+
+    let after = oplog(&root);
+    assert_eq!(after.len(), lines_before + 1, "the press undid the step although the agent is paused");
+    let undo = after.last().expect("the undo's line");
+    assert_eq!(undo.undoes.as_deref(), Some(ids[2].as_str()));
+    assert_eq!(serde_json::to_value(&undo.source).unwrap_or_default(), "human", "a person's press is written human: {undo:?}");
+    assert_eq!(app.world().resource::<bevy_cauldron::project::OpenMap>().map.placements.len(), placed_before - 1, "the map is back by that step");
+    assert_eq!(app.world().get_resource::<AgentActivity>().map(AgentActivity::heard), heard, "the agent was not called, so the AGENT block does not say it was heard");
+    let status = &app.world().resource::<bevy_cauldron::editor::EditorState>().status;
+    assert!(!status.has_problem(), "the agent-pause refusal was not raised: {:?}", status.problems());
+    assert!(!status.note_text().starts_with("agent:"), "the receipt is the person's: {}", status.note_text());
+}
+
+/// **A stale press refuses and undoes nothing else**: the Undo of a step a newer change sits on is refused with the log's own reason, as a problem the
+/// toast and the journal carry; the log gains no line and the map is as it was.
+#[test]
+fn a_stale_undo_press_is_refused_and_undoes_nothing_else() {
+    use bevy_gooey::NotificationAction;
+    let (root, mut app) = editor("centre_stale");
+    let ids = three_placements(&mut app);
+    // A fourth change lands after the row was drawn: the third step is no longer the newest.
+    let answer = call(
+        &mut app,
+        "grimoire/operation_apply",
+        serde_json::json!({"operation": "placement_add", "parameters": {"piece": "crate", "at": [8.0, 2.0]}, "dry_run": false}),
+    );
+    assert_eq!(answer["outcome"], "applied", "{answer}");
+    app.update();
+    let lines_before = oplog(&root).len();
+    let placed_before = app.world().resource::<bevy_cauldron::project::OpenMap>().map.placements.len();
+    let problems_before = app.world().resource::<bevy_cauldron::editor::EditorState>().status.problems().len();
+
+    // The press of the old row's Undo, as the event the centre sends for it.
+    app.world_mut().trigger(NotificationAction { entry: 0, id: format!("undo:{}", ids[2]) });
+    for _ in 0..4 {
+        app.update();
+    }
+
+    assert_eq!(oplog(&root).len(), lines_before, "a refused undo writes nothing");
+    assert_eq!(app.world().resource::<bevy_cauldron::project::OpenMap>().map.placements.len(), placed_before, "and nothing else was undone");
+    let status = &app.world().resource::<bevy_cauldron::editor::EditorState>().status;
+    assert_eq!(status.problems().len(), problems_before + 1, "the refusal is a problem, which the toast and the journal carry: {:?}", status.problems());
+}
+
+/// **The log holds what it can and says what it left out** (review of #442): the journal can hold more lines than gooey's log does, and the log's own push
+/// drops its oldest in silence. The sync keeps the log within its capacity, writes a note counting what is left out, keeps no id for a row that is gone, and
+/// writes a repeat of a refusal that was left out again.
+#[test]
+fn a_journal_longer_than_the_log_says_what_it_left_out_and_keeps_no_stale_id() {
+    let (_root, mut app) = editor("centre_capacity");
+    let capacity = ToastLog::CAPACITY;
+    let step = |n: usize| bevy_cauldron::steps::Step {
+        seq: n as u64,
+        operation_id: format!("op-{n}"),
+        op: "placement_add".to_owned(),
+        text: format!("placed piece {n}"),
+        capture: None,
+    };
+    // 200 refusals (the journal's cap) and 130 steps: 330 lines for a log of 200.
+    {
+        let mut journal = app.world_mut().resource_mut::<Journal>();
+        for i in 0..bevy_cauldron::chrome::JOURNAL_CAP {
+            journal.record(&format!("refusal {i}"), 1);
+        }
+        journal.steps = (0..130).map(step).collect();
+    }
+    for _ in 0..3 {
+        app.update();
+    }
+    let (held, notes, left_note) = {
+        let log = app.world().resource::<ToastLog>();
+        let left: Vec<String> = log.entries().filter(|e| e.text.contains("left out")).map(|e| e.text.clone()).collect();
+        let ours = log.entries().filter(|e| !e.text.contains("left out")).count();
+        (log.len(), ours, left)
+    };
+    assert!(held <= capacity, "the log holds {held} rows, past its capacity {capacity}");
+    assert_eq!(left_note.len(), 1, "one note says what was left out: {left_note:?}");
+    let left = 330 - notes;
+    assert!(left > 0, "the journal is longer than the log, so something is left out");
+    assert!(left_note[0].starts_with(&format!("{left} older line(s) are left out")), "the note counts what is left out ({left}): {left_note:?}");
+    assert!(left_note[0].contains("operation log"), "and says where the whole record is: {left_note:?}");
+    {
+        // **No stale id**: a refusal the log holds is found by its id, one it left out is found by none.
+        let journal = app.world().resource::<Journal>();
+        let log = app.world().resource::<ToastLog>();
+        let mut some = 0;
+        for entry in journal.entries() {
+            match journal.log_id_of(&entry.text) {
+                Some(id) => {
+                    some += 1;
+                    assert!(log.get(id).is_some(), "`{}` keeps the id {id} of a row the log no longer holds", entry.text);
+                }
+                None => {}
+            }
+        }
+        assert!(some > 0 && some < bevy_cauldron::chrome::JOURNAL_CAP, "some refusals are rows and the oldest are left out: {some}");
+        assert!(journal.log_id_of("refusal 0").is_none(), "the oldest refusal was left out");
+        assert!(journal.log_id_of(&format!("refusal {}", bevy_cauldron::chrome::JOURNAL_CAP - 1)).is_some(), "the newest refusal is a row");
+    }
+
+    // **A repeat of a refusal that was left out is written again**, once. The last refusal is the one that folds, so it is made the oldest row first.
+    {
+        let mut journal = app.world_mut().resource_mut::<Journal>();
+        journal.steps.clear();
+        journal.record("the oldest", 1);
+    }
+    for _ in 0..3 {
+        app.update();
+    }
+    {
+        let mut journal = app.world_mut().resource_mut::<Journal>();
+        journal.steps = (1000..1250).map(step).collect();
+    }
+    for _ in 0..3 {
+        app.update();
+    }
+    assert!(app.world().resource::<Journal>().log_id_of("the oldest").is_none(), "the refusal was left out by the steps that came after it");
+    app.world_mut().resource_mut::<Journal>().record("the oldest", 1);
+    for _ in 0..3 {
+        app.update();
+    }
+    let journal = app.world().resource::<Journal>();
+    let log = app.world().resource::<ToastLog>();
+    let id = journal.log_id_of("the oldest").expect("the repeat of a refusal that was left out is a row again");
+    assert_eq!(log.get(id).map(|row| row.count()), Some(2), "with its tally");
+    assert_eq!(log.entries().filter(|e| e.text == "the oldest").count(), 1, "and only once");
+    assert!(log.len() <= capacity, "still within the capacity: {}", log.len());
+}
+
+/// **(4) No `JournalPanel` remains**, nor the list, the line, the paint or the spawn it had: a source that names one has put a second path back. The scan
+/// walks `src/` and every folder under it.
 #[test]
 fn no_hand_built_journal_panel_remains() {
-    let src = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
-    let gone = ["JournalPanel", "JournalList", "ProblemLogLine", "problem_log_line", "paint_journal", "fn journal_panel"];
-    let mut found = Vec::new();
-    for entry in std::fs::read_dir(&src).unwrap_or_else(|e| panic!("{}: {e}", src.display())).flatten() {
-        let path = entry.path();
-        if path.extension().is_some_and(|e| e == "rs") {
-            let text = std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
-            for (n, line) in text.lines().enumerate() {
-                if gone.iter().any(|g| line.contains(g)) {
-                    found.push(format!("{}:{}: {}", path.display(), n + 1, line.trim()));
+    fn walk(dir: &std::path::Path, found: &mut Vec<String>) {
+        let gone = ["JournalPanel", "JournalList", "ProblemLogLine", "problem_log_line", "paint_journal", "fn journal_panel"];
+        for entry in std::fs::read_dir(dir).unwrap_or_else(|e| panic!("{}: {e}", dir.display())).flatten() {
+            let path = entry.path();
+            if path.is_dir() {
+                walk(&path, found);
+            } else if path.extension().is_some_and(|e| e == "rs") {
+                let text = std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
+                for (n, line) in text.lines().enumerate() {
+                    if gone.iter().any(|g| line.contains(g)) {
+                        found.push(format!("{}:{}: {}", path.display(), n + 1, line.trim()));
+                    }
                 }
             }
         }
     }
+    let mut found = Vec::new();
+    walk(&std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src"), &mut found);
     assert!(found.is_empty(), "the journal is gooey's notification centre; the hand-built panel is gone:\n{}", found.join("\n"));
 }

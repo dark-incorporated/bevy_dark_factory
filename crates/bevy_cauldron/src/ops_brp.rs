@@ -94,6 +94,10 @@ pub struct UndoParams {
     /// **Whether to preview.** `true` changes nothing.
     #[serde(default = "yes")]
     pub dry_run: bool,
+    /// **A person's press** on a journal row's Undo (UI-100, #442): the change is taken back as `Source::Human`, without the agent's pause and without the agent being told
+    /// it was heard. **Never on the wire**: `skip`, so the raw door's `deny_unknown_fields` refuses a call that names it, and an agent cannot take back a change as the person.
+    #[serde(skip)]
+    pub person: bool,
 }
 
 /// **`grimoire/agent_guide` — the person's and the project's layers of an agent's guide** (#347, AG-02;
@@ -2703,10 +2707,11 @@ pub(crate) fn refused_answer(operation: &str, refusal: &ops::Refusal) -> Value {
 }
 
 /// **Take one logged change back, by its operation id, as a person's press on a journal row's Undo does** (UI-100, #442): the same system
-/// `grimoire/operation_undo` runs for the id form with `dry_run: false`, so the inverse the change recorded is dispatched, one line is appended to
-/// the operation log, the map is put back and drawn again, the receipt names it and a refusal is raised as any other.
+/// `grimoire/operation_undo` runs for the id form with `dry_run: false` and `person: true`, so the inverse the change recorded is dispatched as
+/// `Source::Human` (the line says `human`; the agent is not told it was heard; the agent's pause does not refuse the person), one line is appended
+/// to the operation log, the map is put back and drawn again, the receipt is the person's and a refusal is raised as any other.
 pub(crate) fn undo_logged_change(world: &mut World, operation_id: &str) {
-    let params = UndoParams { operation_id: Some(operation_id.to_owned()), turn: false, dry_run: false };
+    let params = UndoParams { operation_id: Some(operation_id.to_owned()), turn: false, dry_run: false, person: true };
     if let Err(e) = world.run_system_cached_with(operation_undo, params) {
         error!("the journal's Undo could not run: {e}");
     }
@@ -2728,9 +2733,13 @@ fn operation_undo(
     presenting: Option<Res<crate::present::Presenting>>,
     mut gates: Gates,
 ) -> Result<Value, String> {
-    gates.hear("operation_undo");
+    // **A person's press on a journal row is not the agent calling**: the agent's activity is not told it was heard, and the agent's pause (UI-60)
+    // does not refuse the person. The trust and row checks below are kept, and so is the path (`ops::undo`, the put-back, the history).
+    if !p.person {
+        gates.hear("operation_undo");
+    }
     // **Taking a change back is a write too** (UI-60, #246): paused, it is refused like the change was.
-    if !p.dry_run && gates.pause.as_deref().is_some_and(|pause| pause.0) {
+    if !p.person && !p.dry_run && gates.pause.as_deref().is_some_and(|pause| pause.0) {
         let why = crate::familiar::refusal("undo");
         if let Some(state) = state.as_mut() {
             state.problem_agent_refusal("undo", &why);
@@ -2870,6 +2879,10 @@ fn operation_undo(
         });
     }
     let mut ctx = take(&project, &open);
+    // **A person's press is the person's**: the line is written `human`, not `agent`.
+    if p.person {
+        ctx.source = Source::Human;
+    }
     // An undo of a `style_edit` writes the person's store for the text it puts back, so it is told where the store is.
     ctx.trust_file = gates.trust_file(state.as_deref().and_then(|s| s.trust.file.as_deref()));
     let undone = match rows_refusal(state.as_deref(), &ctx, p.operation_id.as_deref()) {
@@ -2931,6 +2944,8 @@ fn operation_undo(
     // on the map, in the history's words (AF-02, #358), as the apply's receipt is.
     if let Some(state) = state.as_mut() {
         match &undone {
+            Ok((_, ops::Applied::Done { outcome, .. })) if p.person => state.status.note(outcome.summary.clone()),
+            Ok((_, ops::Applied::Refused(e))) | Err(e) if p.person => state.status.raise("", e.problem()),
             Ok((_, ops::Applied::Done { outcome, shown, .. })) => {
                 if crate::follow::request_of(shown).is_some() {
                     state.receipt_agent_change(
@@ -2962,7 +2977,10 @@ fn operation_undo(
             // **Named by the operation the line was for**, not the word `undo`: a page the editor has
             // no view for is reported by name, and `undo` names nothing a person can find in the
             // operation list (review of #359, NIT).
-            gates.follow(&entry.op, &shown, &outcome.summary);
+            // **A person's press is not followed**: the camera is the agent's to move; a person who pressed Undo is already looking at the row.
+            if !p.person {
+                gates.follow(&entry.op, &shown, &outcome.summary);
+            }
             json!({
                 "operation": entry.op,
                 "outcome": "applied",
