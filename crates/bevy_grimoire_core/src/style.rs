@@ -306,10 +306,18 @@ fn check(tree: &Tree, request: &Request) -> Result<(), String> {
         let game: Vec<&str> =
             tree.place(design::DESIGN_DIR).map(|p| p.topics.iter().map(|t| t.name.as_str()).collect()).unwrap_or_default();
         if !game.contains(&topic) {
-            let have = if game.is_empty() {
-                "the game states no topics".to_owned()
+            // **The topics that exist are the ones that can be asked for** (#444): `style` is the overall feel every request already
+            // serves, so listing it answered "what may I ask for?" with a word that asks for nothing. When the game has no other
+            // file, the refusal says so and says what a topic is, because a guide that names `dialogue` as an example sends an agent
+            // to ask for a topic this game may not have written.
+            let asked: Vec<&&str> = game.iter().filter(|t| **t != design::STYLE_TOPIC).collect();
+            let have = if asked.is_empty() {
+                format!(
+                    "it has no topic files beside `{style}.md`, which every request already serves. A topic is a file `design/<topic>.md` the game states first",
+                    style = design::STYLE_TOPIC
+                )
             } else {
-                format!("its topics are {}", game.iter().map(|t| format!("`{t}`")).collect::<Vec<_>>().join(", "))
+                format!("the topics that exist are {}", asked.iter().map(|t| format!("`{t}`")).collect::<Vec<_>>().join(", "))
             };
             return Err(format!("the game has no topic `{topic}`; {have}."));
         }

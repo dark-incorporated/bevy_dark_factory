@@ -672,3 +672,4 @@ mod the_view_verbs_reach_an_agent;
 mod the_style_of_a_place_is_served_behind_the_persons_trust;
 mod tile_in_hand_is_operations;
 mod tile_pieces_are_operations;
+mod an_agent_can_ask_for_one_operations_help;

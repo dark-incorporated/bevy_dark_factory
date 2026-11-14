@@ -47,7 +47,7 @@ from disk, so it answers when the editor does not, and `grimoire_capture_still` 
 | tool | what it does |
 |---|---|
 | `grimoire_guide` | how to work in Cauldron: which tools in what order, and what the person expects — **call it first** |
-| `grimoire_list_operations` | every operation the editor knows, with its parameters' schema; `query` searches them, best first |
+| `grimoire_list_operations` | every operation the editor knows, with its parameters' schema; `query` searches them, best first; `operation` answers for one, with its parameters and an example |
 | `grimoire_preview_operation` | what an operation would change; nothing changes |
 | `grimoire_apply_operation` | run one, and record it in the operation log |
 | `grimoire_read_oplog` | the log, newest last |

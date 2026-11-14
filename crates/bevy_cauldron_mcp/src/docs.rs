@@ -121,7 +121,10 @@ pub const TOOLS: &[ToolDoc] = &[
                       change anything. The undo column names the strategy an operation declares; \
                       grimoire_undo_operation performs it. Pass query (words such as \"carve\" or \"note\") \
                       to get only the operations whose name or parameters match, best first, and total, \
-                      the number of operations there are.",
+                      the number of operations there are. Pass operation (an operation's exact name, \
+                      such as data_set) to get only that one operation: each parameter with its \
+                      description, and one example call, in a few hundred bytes rather than the \
+                      whole list. Ask with query or with operation, not both.",
         read_only: true,
         destructive: false,
         idempotent: true,
@@ -703,6 +706,7 @@ pub fn schemas() -> Value {
             "additionalProperties": false,
             "properties": {
                 "query": {"type": "string", "description": "Words to search for, such as carve or note. With them, only the operations whose name or parameters match, best first, and total. Without them, every operation."},
+                "operation": {"type": "string", "description": "One operation's exact name, such as data_set. With it, only that operation: each parameter with its description, and one example call. An unknown name is refused naming the closest. Not with query."},
             },
         },
         "grimoire_preview_operation": {

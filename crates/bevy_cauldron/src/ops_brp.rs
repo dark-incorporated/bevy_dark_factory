@@ -2046,6 +2046,10 @@ fn staged_panels(_: In<Value>, screen: Option<Res<State<crate::screen::Screen>>>
 /// **`{"query": "..."}` searches instead of listing** (#141): only the operations `ops::search`
 /// finds, best first, with the query and the registry's `total` beside them, so a caller knows how
 /// much it did not read. No query, or a blank one, lists every operation as before.
+///
+/// **`{"operation": "data_set"}` answers for one operation** (#444): its parameters and one example call
+/// ([`crate::ops_help::help`]), a few hundred bytes where the whole list is tens of kilobytes. The name is exact; one that is
+/// not an operation is refused naming the closest ones. `operation` and `query` are two ways to ask, and asking both is refused.
 fn operation_list(In(p): In<serde_json::Value>) -> Result<Value, String> {
     let query = match p.get("query") {
         None | Some(Value::Null) => None,
@@ -2053,6 +2057,23 @@ fn operation_list(In(p): In<serde_json::Value>) -> Result<Value, String> {
         Some(Value::String(q)) => Some(q.clone()),
         Some(other) => return Err(format!("`query` is text to search for, not {other}.")),
     };
+    let operation = match p.get("operation") {
+        None | Some(Value::Null) => None,
+        Some(Value::String(name)) if name.trim().is_empty() => {
+            return Err("`operation` is the name of one operation, such as `data_set`, and it is blank.".to_owned());
+        }
+        Some(Value::String(name)) => Some(name.trim().to_owned()),
+        Some(other) => return Err(format!("`operation` is the name of one operation, not {other}.")),
+    };
+    if let Some(name) = operation {
+        if query.is_some() {
+            return Err("`operation` names one operation and `query` searches them all: ask one or the other.".to_owned());
+        }
+        let Some(op) = ops::find(&name) else {
+            return Err(crate::ops_help::unknown(&name));
+        };
+        return Ok(crate::ops_help::help(op.as_ref()));
+    }
     let row = |op: &dyn ops::Operation| {
         json!({
             "operation": op.name(),
