@@ -666,7 +666,8 @@ fn build_the_pane(
             // it*, the trap `chrome::spawn_frame` records for the shell split's divider.
             Pickable::default(),
             TerminalPaneRoot,
-            // **Its layer among its siblings** (#426): the pane stands where the frame puts it, and above all of them while it covers the window.
+            // **Its layer among its siblings** (#426): the pane stands where the frame puts it. While it covers the window it is a `GlobalZIndex` layer
+            // over the map's overlays ([`apply_the_maximise`], #435).
             ZIndex(0),
             Name::new("terminal"),
         ))
@@ -1189,22 +1190,23 @@ pub fn maximise_from_world(world: &mut World) {
     });
 }
 
-/// The layer the pane stands on while it covers the window: above its siblings (the status band, the body), below every dialog and menu,
-/// which are `GlobalZIndex`.
-const MAXIMISED_Z: i32 = 1;
-
 /// **The pane covers the window below the menu bar while it is maximised** (#426): it leaves the frame's column and stands over it, from
 /// the menu bar's foot to the window's edges, and the shell is told the new size as on any resize ([`crate::terminal_view`] measures the body each
 /// frame). Given back, it is in the frame's column again at the height it had ([`Terminal::height`], which `fit_the_pane_to_the_window`
 /// corrects when the person never chose one). Each write is compared first.
+///
+/// **While it covers the window it is a layer of its own** ([`chrome::TERMINAL_MAXIMISED_Z`], #435): a local `ZIndex` only orders the pane among its
+/// siblings, so the map's overlays (`GlobalZIndex`, [`chrome::COMPASS_Z`]) stood over it. The layer is added when it is maximised and taken off when
+/// it is given back, because a `GlobalZIndex` on the pane in the frame's column would paint it over the status band and the docks' scrollbars.
 fn apply_the_maximise(
+    mut commands: Commands,
     terminal: Res<Terminal>,
     menus: Query<&ComputedNode, With<crate::menu_bar::EditorMenuBar>>,
-    mut panes: Query<(&mut Node, &mut ZIndex), With<TerminalPaneRoot>>,
+    mut panes: Query<(Entity, &mut Node, Option<&GlobalZIndex>), With<TerminalPaneRoot>>,
 ) {
     let maximised = terminal.is_maximised();
     let top = menus.iter().next().map_or(0.0, |menu| menu.size().y * menu.inverse_scale_factor());
-    for (mut node, mut layer) in &mut panes {
+    for (pane, mut node, layer) in &mut panes {
         // PLACES-ITSELF-OK: a maximised terminal stands over the frame from the menu bar's foot to the window's edges (#426); it is a pane the
         // person asked to be full-window, not a panel `chrome::Frame` places.
         let position = if maximised { PositionType::Absolute } else { PositionType::Relative };
@@ -1227,9 +1229,15 @@ fn apply_the_maximise(
         } else if !maximised && node.height == Val::Auto {
             node.height = Val::Px(terminal.height());
         }
-        let want = ZIndex(if maximised { MAXIMISED_Z } else { 0 });
-        if *layer != want {
-            *layer = want;
+        match (maximised, layer) {
+            (true, Some(GlobalZIndex(z))) if *z == chrome::TERMINAL_MAXIMISED_Z => {}
+            (true, _) => {
+                commands.entity(pane).insert(GlobalZIndex(chrome::TERMINAL_MAXIMISED_Z));
+            }
+            (false, Some(_)) => {
+                commands.entity(pane).remove::<GlobalZIndex>();
+            }
+            (false, None) => {}
         }
     }
 }

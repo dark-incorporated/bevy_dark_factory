@@ -3416,6 +3416,10 @@ pub const NOTICE_Z: i32 = 300;
 /// **The compass**, a persistent readout in the corner of the viewport. Lowest, because it is the
 /// one overlay that is never the thing you are looking at.
 pub const COMPASS_Z: i32 = 100;
+/// **The terminal while it is maximised** (#435): above the map's overlays ([`COMPASS_Z`]: the axis gizmo, the Look chip), which are layers of their own
+/// and were drawn over the terminal's text, and below the session journal and the problem toast ([`NOTICE_Z`], and the toast's own), the key badges and
+/// every modal, which are things to answer or to read whatever the terminal covers.
+pub const TERMINAL_MAXIMISED_Z: i32 = COMPASS_Z + 20;
 /// A card is at least this wide, so a one-word question does not render as a one-word box.
 pub const MODAL_MIN_W: f32 = 360.0;
 /// And at most this wide, so a refusal naming three descriptors stays a paragraph rather than a line.
