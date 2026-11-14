@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "label": "style-r8-with-style",
+  "commit": "c16441584c0eef5cc03aff187ad02124bfa71b28",
+  "guide_sha256": "58bdbbdf8bf7904d734d16ac22d410c10d38ed5232b31a11ccb7ac7eb6c766d5",
+  "agent": "omp",
+  "agent_version": "omp/18.16.0",
+  "model": "anthropic/claude-sonnet-5-5",
+  "variant": "with-style",
+  "suite": "bench/tasks",
+  "trials": 1,
+  "host": "bmb",
+  "date": "2026-11-14",
+  "price": {
+    "input": 2.0,
+    "output": 10.0,
+    "cache_read": 0.1,
+    "cache_write": 2.5
+  }
+}

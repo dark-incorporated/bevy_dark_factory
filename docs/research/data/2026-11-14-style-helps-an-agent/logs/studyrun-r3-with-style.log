@@ -1,0 +1,8 @@
+cauldron-bench: no environment variable is withheld from the omp agent (none of the runner's looks like a credential)
+dress-the-market-area trial 1: HARNESS ERROR — the transcript shows a tool `xd__mcp__cauldron_grimoire_guide` that is neither the editor's nor the harness's own set, so the profile was not isolated
+light-the-gate-at-night trial 1: PASS 11/11 checks, 18 call(s), 50 s
+write-the-gatekeepers-greeting trial 1: HARNESS ERROR — the transcript shows a tool `xd__mcp__cauldron_grimoire_guide` that is neither the editor's nor the harness's own set, so the profile was not isolated
+
+3 trial(s): 1 passed, 0 failed, 2 harness error(s). Files are under /Users/rebekahbrittain/.local/state/cauldron-bench/style-r3-with-style
+report: /Users/rebekahbrittain/.local/state/cauldron-bench/style-r3-with-style/report.md
+report: /Users/rebekahbrittain/.local/state/cauldron-bench/style-r3-with-style/report.json
