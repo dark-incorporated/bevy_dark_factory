@@ -4,6 +4,7 @@ What each change added, newest first. A visible change has a clip: click the sti
 
 ## 2026-11-14
 
+- **ui-99-gooey-g92** `aeb23e871` The terminal's pane root and self-test card are laid out with bevy_gooey instead of raw nodes: the editor has no hand-built node left outside the viewport (#260 done) *No clip: nobody can see this change; proved by the_editor_keeps_its_raw_nodes_counted and the_g91_the_pane_root_and_the_agent_card_are_gooeys*
 - **terminal-find-box-opens** `e3cda3e9` Opening the terminal's find box no longer crashes on Linux (a duplicate Pickable in its spawn), and LinesRoom is retired (#260 review) *No clip: a crash fix behind an existing key; proved by the_terminal_finds_in_its_scrollback and the_terminal_overlays_block_the_clicks_on_their_own_ground*
 - **ui-99-gooey-g91** `02f602e4` The editor's panels are bevy_gooey boxes whose width the editor writes through the interface library (UI-99, #260 part) *No clip: no visible change intended; proved by the_g89_nodes_are_gooeys and the whole editor binary*
 - **ui-99-gooey-g90** `ab6eaef6` Every scrolling list in the editor is bevy_gooey's scroll viewport instead of a hand-built scroll container (UI-99, #260 part) *For you: Lists scroll to the focused row and answer Page Up, Page Down, Home and End, and the scrollbar beside them is the interface library's now rather than the editor's own thumb.* *No clip: visible, not yet recorded: fleet worker; proved by the_g90_scroll_viewport_is_the_list and the protected scroll tests*
