@@ -1,0 +1,145 @@
+{
+  "header": {
+    "version": 1,
+    "label": "style-probe",
+    "commit": "c16441584c0eef5cc03aff187ad02124bfa71b28",
+    "guide_sha256": "58bdbbdf8bf7904d734d16ac22d410c10d38ed5232b31a11ccb7ac7eb6c766d5",
+    "agent": "omp",
+    "agent_version": "omp/18.16.0",
+    "model": "anthropic/claude-sonnet-5-5",
+    "variant": "with-style",
+    "suite": "bench/tasks",
+    "trials": 1,
+    "host": "bmb",
+    "date": "2026-11-14",
+    "price": {
+      "input": 2.0,
+      "output": 10.0,
+      "cache_read": 0.1,
+      "cache_write": 2.5
+    }
+  },
+  "unfit": null,
+  "trials_total": 1,
+  "harness_errors": 0,
+  "dev": {
+    "name": "dev",
+    "tasks": 1,
+    "trials": 1,
+    "successes": 1,
+    "harness_errors": 0,
+    "mean_success": 1.0,
+    "interval": {
+      "lo": 1.0,
+      "hi": 1.0
+    },
+    "mean_pass_hat": [
+      1.0
+    ],
+    "cost_usd": 0.19516039999999998,
+    "cost_per_success_usd": 0.19516039999999998,
+    "wall_mean_s": 41.222742166,
+    "tool_calls_mean": 18.0,
+    "edits_behind": 0
+  },
+  "held_out": null,
+  "tags": [
+    {
+      "name": "light",
+      "tasks": 1,
+      "trials": 1,
+      "successes": 1,
+      "harness_errors": 0,
+      "mean_success": 1.0,
+      "interval": {
+        "lo": 1.0,
+        "hi": 1.0
+      },
+      "mean_pass_hat": [
+        1.0
+      ],
+      "cost_usd": 0.19516039999999998,
+      "cost_per_success_usd": 0.19516039999999998,
+      "wall_mean_s": 41.222742166,
+      "tool_calls_mean": 18.0,
+      "edits_behind": 0
+    },
+    {
+      "name": "style",
+      "tasks": 1,
+      "trials": 1,
+      "successes": 1,
+      "harness_errors": 0,
+      "mean_success": 1.0,
+      "interval": {
+        "lo": 1.0,
+        "hi": 1.0
+      },
+      "mean_pass_hat": [
+        1.0
+      ],
+      "cost_usd": 0.19516039999999998,
+      "cost_per_success_usd": 0.19516039999999998,
+      "wall_mean_s": 41.222742166,
+      "tool_calls_mean": 18.0,
+      "edits_behind": 0
+    }
+  ],
+  "tasks": [
+    {
+      "task": "light-the-gate-at-night",
+      "title": "Light the gate at night",
+      "tags": [
+        "style",
+        "light"
+      ],
+      "trials": 1,
+      "successes": 1,
+      "harness_errors": 0,
+      "outcomes": [
+        "pass"
+      ],
+      "success_rate": 1.0,
+      "pass_hat": [
+        1.0
+      ],
+      "wall_median_s": 41.222742166,
+      "wall_p90_s": 41.222742166,
+      "tool_calls_mean": 18.0,
+      "refusals": 4,
+      "undos": 0,
+      "edits_behind": 0,
+      "trials_with_edits_behind": 0,
+      "tokens_in": 22,
+      "tokens_out": 5774,
+      "tokens_cache_read": 329964,
+      "tokens_cache_write": 41752,
+      "cost_usd": 0.19516039999999998,
+      "wishes": 0,
+      "failures": [],
+      "budget_exhausted": 0,
+      "budget_exhausted_trials": []
+    }
+  ],
+  "tool_counts": {
+    "grimoire_apply_operation": 12,
+    "grimoire_guide": 1,
+    "grimoire_list_operations": 1,
+    "grimoire_present": 1,
+    "grimoire_state": 1,
+    "grimoire_style": 2
+  },
+  "refusals_by_tool": {
+    "grimoire_apply_operation": 4
+  },
+  "wishes_by_tool": {},
+  "harness_error_reasons": [],
+  "preflight": {
+    "tokens_in": 4,
+    "tokens_out": 4,
+    "tokens_cache_read": 0,
+    "tokens_cache_write": 11024,
+    "cost_usd": 0.027608
+  },
+  "cost_total_usd": 0.22276839999999998
+}
