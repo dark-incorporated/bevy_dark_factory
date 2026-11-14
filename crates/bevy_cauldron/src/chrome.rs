@@ -1055,28 +1055,6 @@ pub fn panel_root<'a>(
     // draws — so this is never a second copy of a name (see `headless::the_tab_strip_describes_itself`).
     label: &str,
 ) -> EntityCommands<'a> {
-    let mut node = Node {
-        width: Val::Px(width),
-        flex_direction: FlexDirection::Column,
-        // `GAP_ROW`, not the bare `6.0` that stood here until 2026-09-03 — the one gap every panel in
-        // the editor uses was the one gap that was not on the scale.
-        row_gap: Val::Px(GAP_ROW),
-        padding: UiRect::all(Val::Px(PAD)),
-        margin: UiRect::all(Val::Px(MARGIN)),
-        border: UiRect::all(Val::Px(EDGE_W)),
-        border_radius: BorderRadius::all(Val::Px(RADIUS_PANEL)),
-        ..default()
-    };
-    if full_height {
-        node.flex_grow = 1.0;
-        node.min_height = Val::Px(0.0);
-    }
-    if hidden {
-        // `Display::None`, never `Visibility`: a visibility-hidden UI node still occupies layout and
-        // still answers hover, which would leave a hidden tab's rows eating clicks aimed at the
-        // world — and in a dock it would also hold the dock open at its width.
-        node.display = Display::None;
-    }
     let dock = match side {
         Side::Left => frame.left,
         Side::Right => frame.right,
@@ -1088,9 +1066,23 @@ pub fn panel_root<'a>(
     // walks every ground is what makes it the skin's, once per frame, comparing before it writes.
     let panel = commands
         .spawn((
-            // **A raw node, and why** (GAP7): the panel's width is written by three systems (`fit_docks_to_the_window` and the left pane's two), which a skin-written `Sizing` width
-            // would fight; the gooey form broke the snip and library layout tests at a doubled scale (a split clamp panicked), found by the whole run.
-            node,
+            // A panel: a gooey sized box laid out as a column, `width` wide (`fit_docks_to_the_window` and the left pane write that `Sizing` width, so the skin never fights them), `GAP_ROW` px
+            // between its parts, `PAD` in all round, `MARGIN` out all round, a 1 px edge and a panel radius; it grows into what the dock leaves when `full_height`. Its fill and edge are
+            // the editor's (`InkFollow`: `Ground`, `PanelEdge` lit by focus and the theme move them). `display` is the tabs' to write (`ShownFollow`), and a hidden panel starts closed.
+            bevy_gooey::sized(bevy_gooey::Sizing {
+                width: Some(bevy_gooey::Extent::Px(width)),
+                min_height: full_height.then_some(bevy_gooey::Extent::Px(0.0)),
+                ..default()
+            }),
+            (
+                bevy_gooey::RowLayout { direction: Some(FlexDirection::Column), ..default() },
+                bevy_gooey::TextFlow { grow: full_height.then_some(1.0), ..default() },
+                bevy_gooey::GapPx(GAP_ROW),
+                bevy_gooey::Spacing { padding: bevy_gooey::Sides::all(STEP_PAD), margin: bevy_gooey::Sides::all(STEP_PAD) },
+                bevy_gooey::BorderPx(bevy_gooey::Sides::all(EDGE_W)),
+                bevy_gooey::Shape { radius: Some(bevy_gooey::Radius::Step(1)), ..default() },
+                bevy_gooey::InkFollow,
+            ),
             PanelWidth { preferred: width, side },
             // **The panel's name, for something that cannot see it** (UI-30, #224). A `Role::Panel` is a
             // box in the accessibility tree with no name on it, so a reader meets the editor as a set of
@@ -1109,6 +1101,13 @@ pub fn panel_root<'a>(
             Hovered::default(),
         ))
         .id();
+    if hidden {
+        // `Display::None`, never `Visibility` alone: a visibility-hidden UI node still occupies layout and still answers hover, which would leave a hidden tab's rows eating clicks aimed at the
+        // world, and in a dock it would hold the dock open at its width. `ShownFollow` leaves `display` to the tabs that open and close it, and starts it closed.
+        commands.entity(panel).insert(bevy_gooey::ShownFollow::closed());
+    } else {
+        commands.entity(panel).insert(bevy_gooey::ShownFollow);
+    }
     commands.entity(dock).add_child(panel);
     commands.entity(panel)
 }
@@ -1342,7 +1341,7 @@ fn light_the_focused_panel(mut panels: Query<(&mut BorderColor, Has<Focused>), W
 fn fit_docks_to_the_window(
     windows: Query<&Window, With<bevy::window::PrimaryWindow>>,
     ui_scale: Res<UiScale>,
-    mut panels: Query<(&PanelWidth, &mut Node, &ComputedNode), Without<ViewportSlot>>,
+    mut panels: Query<(&PanelWidth, &Node, &mut bevy_gooey::Sizing, &ComputedNode), Without<ViewportSlot>>,
     owned: Query<(), (With<ShellSplit>, Without<SplitUnsized>)>,
     collapsed: Query<(), (With<ShellSplit>, With<bevy_gooey::SplitSaved>)>,
     bars: Query<&ComputedNode, With<crate::activity_bar::ActivityBar>>,
@@ -1371,7 +1370,7 @@ fn fit_docks_to_the_window(
     // collapse and move the viewport again when a peek showed the panel. The panel is out of the layout (its dock is
     // `Display::None`) and is what the right dock's share was worked out against, so that is still the answer.
     let left_stands = !collapsed.is_empty();
-    for (want, node, computed) in &panels {
+    for (want, node, _, computed) in &panels {
         let counted = node.display != Display::None && (computed.size().x > 0.0 || (left_stands && want.side == Side::Left));
         if !counted {
             continue;
@@ -1418,16 +1417,16 @@ fn fit_docks_to_the_window(
     let squeeze = squeeze.max(floor_fraction.min(1.0));
 
     let person_owns_the_split = !owned.is_empty();
-    for (want, mut node, _) in &mut panels {
+    for (want, _, mut sizing, _) in &mut panels {
         // **The left panel is the pane's once a person has dragged the divider**
         // ([`the_left_panel_follows_its_pane`]); writing its width here too would be two systems
         // disagreeing about one number every frame.
         if person_owns_the_split && want.side == Side::Left {
             continue;
         }
-        let width = want.preferred * squeeze;
-        if node.width != Val::Px(width) {
-            node.width = Val::Px(width);
+        let width = Some(bevy_gooey::Extent::Px(want.preferred * squeeze));
+        if sizing.width != width {
+            sizing.width = width;
         }
     }
 }
@@ -3622,7 +3621,7 @@ fn size_the_shell_split(
     mut commands: Commands,
     mut splits: Query<(Entity, &mut bevy_gooey::SplitFraction, &mut SplitUnsized, &ComputedNode, &Children)>,
     dividers: Query<&ComputedNode, With<bevy_gooey::SplitDivider>>,
-    panels: Query<(&PanelWidth, &Node, &ComputedNode)>,
+    panels: Query<(&PanelWidth, &Node, &bevy_gooey::Sizing, &ComputedNode)>,
     windows: Query<(), With<bevy::window::PrimaryWindow>>,
 ) {
     // **No window, no room to answer for**: [`fit_docks_to_the_window`] returns here too, so a panel's
@@ -3631,11 +3630,11 @@ fn size_the_shell_split(
         return;
     }
     let mut want = 0.0f32;
-    for (panel, node, computed) in &panels {
+    for (panel, node, sizing, computed) in &panels {
         if panel.side != Side::Left || node.display == Display::None || computed.size().x <= 0.0 {
             continue;
         }
-        if let Val::Px(w) = node.width {
+        if let Some(bevy_gooey::Extent::Px(w)) = sizing.width {
             want = want.max(w);
         }
     }
@@ -3687,7 +3686,7 @@ fn the_left_panel_follows_its_pane(
     owned: Query<(), (With<ShellSplit>, Without<SplitUnsized>)>,
     parents: Query<&ChildOf>,
     panes: Query<&ComputedNode>,
-    mut panels: Query<(&PanelWidth, &mut Node)>,
+    mut panels: Query<(&PanelWidth, &mut bevy_gooey::Sizing)>,
     windows: Query<(), With<bevy::window::PrimaryWindow>>,
     moving: Query<(), CollapsedOrGliding>,
 ) {
@@ -3701,10 +3700,10 @@ fn the_left_panel_follows_its_pane(
     if wide <= 0.0 {
         return;
     }
-    let width = Val::Px((wide - 2.0 * MARGIN).max(DOCK_MIN_W));
-    for (panel, mut n) in &mut panels {
-        if panel.side == Side::Left && n.width != width {
-            n.width = width;
+    let width = Some(bevy_gooey::Extent::Px((wide - 2.0 * MARGIN).max(DOCK_MIN_W)));
+    for (panel, mut sizing) in &mut panels {
+        if panel.side == Side::Left && sizing.width != width {
+            sizing.width = width;
         }
     }
 }
@@ -3774,6 +3773,8 @@ impl Plugin for ChromePlugin {
                 Update,
                 fit_docks_to_the_window
                     .after(FrameSystems)
+                    // The width is a `Sizing`, which the skin turns into the node's width in the same frame.
+                    .before(bevy_gooey::GooeySystems::Style)
                     .run_if(in_state(crate::screen::Screen::Editor)),
             )
             .add_systems(
@@ -3787,6 +3788,7 @@ impl Plugin for ChromePlugin {
                 Update,
                 the_left_panel_follows_its_pane
                     .after(size_the_shell_split)
+                    .before(bevy_gooey::GooeySystems::Style)
                     .run_if(in_state(crate::screen::Screen::Editor)),
             )
             .add_systems(Update,

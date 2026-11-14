@@ -18,7 +18,8 @@ use crate::fixtures;
 // 8 -> 5: #260 round 10: panel_root, the journal panel and the bottom dock are gooey boxes with ShownFollow (G-89). Owner exception (2026-11-14): a ratchet tightened to the real count.
 // 5 -> 6: #260 round 10: panel_root stays a raw node (its width has three writers); the journal and the bottom dock are gooey boxes (G-89). Owner exception (2026-11-14): a ratchet tightened to the real count.
 // 6 -> 3: #260 round 11: scroll_list is gooey s scroll_viewport (G-90). Owner exception (2026-11-14): a ratchet tightened to the real count.
-const CHROME_NODES_LEFT: usize = 3;
+// 3 -> 2: #260 round 11: panel_root is a gooey sized box whose width is a Sizing the editor writes (G-91 fixed the split clamp); the two lines left are comments naming a Node. Owner exception (2026-11-14): a ratchet tightened to the real count.
+const CHROME_NODES_LEFT: usize = 2;
 
 #[test]
 fn chrome_rs_carries_no_more_raw_nodes_than_it_is_counted_to() {
