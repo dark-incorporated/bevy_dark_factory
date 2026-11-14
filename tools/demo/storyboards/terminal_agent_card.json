@@ -1,0 +1,74 @@
+{
+  "name": "terminal_agent_card",
+  "fps": 10,
+  "scale": 1,
+  "width": 960,
+  "crop": [
+    0,
+    0,
+    1088,
+    640
+  ],
+  "setup": [],
+  "chunks": [
+    {
+      "seconds": 5.0
+    },
+    {
+      "seconds": 5.5
+    }
+  ],
+  "steps": [
+    {
+      "at": 0.2,
+      "cursor": [
+        1010,
+        617
+      ],
+      "caption": "the terminal bar, on a project called lavender_hills"
+    },
+    {
+      "at": 1.2,
+      "key": "KeyJ",
+      "mods": [
+        "ControlLeft"
+      ],
+      "caption": "Ctrl+J raises the terminal"
+    },
+    {
+      "at": 2.4,
+      "click_label": "Start agent",
+      "caption": "person: Start agent"
+    },
+    {
+      "at": 4.2,
+      "cursor": [
+        900,
+        366
+      ],
+      "caption": "the bar: the tab is the program, one light, one word"
+    },
+    {
+      "at": 6.0,
+      "cursor": [
+        790,
+        440
+      ],
+      "caption": "the self-test card: a light and a colour on each row, no OK, FAIL or SKIP"
+    },
+    {
+      "at": 7.6,
+      "cursor": [
+        700,
+        300
+      ]
+    },
+    {
+      "at": 9.0,
+      "cursor": [
+        900,
+        366
+      ]
+    }
+  ]
+}
