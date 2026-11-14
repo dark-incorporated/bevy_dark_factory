@@ -1,0 +1,39 @@
+{
+  "agent": "omp",
+  "call_budget_exhausted": false,
+  "checks": [],
+  "cost_reported_usd": null,
+  "edits_behind": [],
+  "model": "anthropic/claude-sonnet-5-5",
+  "outcome": "harness_error",
+  "prompt": "The market area of the courtyard is empty: the rectangle with x from -10 to -2 and z from 2 to 10 (north is -z). Dress it as a market.\n\nPlace three market stalls (`market_stall`), and then whatever else from the library a market needs. Keep everything inside the rectangle and clear of one another.\n\nWhen it is dressed, hand the result back with grimoire_present, and name every piece you placed.\n",
+  "reason": "the transcript shows a tool `xd___mcp__cauldron_grimoire_guide` that is neither the editor's nor the harness's own set, so the profile was not isolated",
+  "refusals": 0,
+  "refusals_by_tool": {},
+  "score": {
+    "passed": 0,
+    "total": 0
+  },
+  "sentence": "the transcript shows a tool `xd___mcp__cauldron_grimoire_guide` that is neither the editor's nor the harness's own set, so the profile was not isolated",
+  "split": "dev",
+  "tags": [
+    "style",
+    "place"
+  ],
+  "task": "dress-the-market-area",
+  "title": "Dress the market area of the courtyard",
+  "tokens": null,
+  "tokens_cache_read": null,
+  "tokens_cache_write": null,
+  "tokens_in": null,
+  "tokens_out": null,
+  "tool_call_count": 0,
+  "tool_calls": [],
+  "tool_log": [],
+  "tools_offered": [],
+  "trial": 1,
+  "undos": 0,
+  "variant": "without-style",
+  "wall_s": 0.0,
+  "wishes": []
+}

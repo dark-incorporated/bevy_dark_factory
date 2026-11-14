@@ -1,0 +1,280 @@
+{
+  "header": {
+    "version": 1,
+    "label": "style-r7-without-style",
+    "commit": "c16441584c0eef5cc03aff187ad02124bfa71b28",
+    "guide_sha256": "58bdbbdf8bf7904d734d16ac22d410c10d38ed5232b31a11ccb7ac7eb6c766d5",
+    "agent": "omp",
+    "agent_version": "omp/18.16.0",
+    "model": "anthropic/claude-sonnet-5-5",
+    "variant": "without-style",
+    "suite": "bench/tasks",
+    "trials": 1,
+    "host": "bmb",
+    "date": "2026-11-14",
+    "price": {
+      "input": 2.0,
+      "output": 10.0,
+      "cache_read": 0.1,
+      "cache_write": 2.5
+    }
+  },
+  "unfit": "1 of 3 trials are harness errors (33%), over the 10% a comparison tolerates: these numbers are about the harness, not the agent",
+  "trials_total": 3,
+  "harness_errors": 1,
+  "dev": {
+    "name": "dev",
+    "tasks": 2,
+    "trials": 2,
+    "successes": 0,
+    "harness_errors": 1,
+    "mean_success": 0.0,
+    "interval": {
+      "lo": 0.0,
+      "hi": 0.0
+    },
+    "mean_pass_hat": [
+      0.0
+    ],
+    "cost_usd": 0.507758,
+    "cost_per_success_usd": null,
+    "wall_mean_s": 68.374485958,
+    "tool_calls_mean": 17.0,
+    "edits_behind": 0
+  },
+  "held_out": null,
+  "tags": [
+    {
+      "name": "dialogue",
+      "tasks": 0,
+      "trials": 0,
+      "successes": 0,
+      "harness_errors": 1,
+      "mean_success": null,
+      "interval": null,
+      "mean_pass_hat": [],
+      "cost_usd": null,
+      "cost_per_success_usd": null,
+      "wall_mean_s": null,
+      "tool_calls_mean": null,
+      "edits_behind": 0
+    },
+    {
+      "name": "light",
+      "tasks": 1,
+      "trials": 1,
+      "successes": 0,
+      "harness_errors": 0,
+      "mean_success": 0.0,
+      "interval": {
+        "lo": 0.0,
+        "hi": 0.0
+      },
+      "mean_pass_hat": [
+        0.0
+      ],
+      "cost_usd": 0.2394125,
+      "cost_per_success_usd": null,
+      "wall_mean_s": 39.542584833,
+      "tool_calls_mean": 9.0,
+      "edits_behind": 0
+    },
+    {
+      "name": "place",
+      "tasks": 1,
+      "trials": 1,
+      "successes": 0,
+      "harness_errors": 0,
+      "mean_success": 0.0,
+      "interval": {
+        "lo": 0.0,
+        "hi": 0.0
+      },
+      "mean_pass_hat": [
+        0.0
+      ],
+      "cost_usd": 0.2683455,
+      "cost_per_success_usd": null,
+      "wall_mean_s": 97.206387083,
+      "tool_calls_mean": 25.0,
+      "edits_behind": 0
+    },
+    {
+      "name": "style",
+      "tasks": 2,
+      "trials": 2,
+      "successes": 0,
+      "harness_errors": 1,
+      "mean_success": 0.0,
+      "interval": {
+        "lo": 0.0,
+        "hi": 0.0
+      },
+      "mean_pass_hat": [
+        0.0
+      ],
+      "cost_usd": 0.507758,
+      "cost_per_success_usd": null,
+      "wall_mean_s": 68.374485958,
+      "tool_calls_mean": 17.0,
+      "edits_behind": 0
+    }
+  ],
+  "tasks": [
+    {
+      "task": "dress-the-market-area",
+      "title": "Dress the market area of the courtyard",
+      "tags": [
+        "style",
+        "place"
+      ],
+      "trials": 1,
+      "successes": 0,
+      "harness_errors": 0,
+      "outcomes": [
+        "fail"
+      ],
+      "success_rate": 0.0,
+      "pass_hat": [
+        0.0
+      ],
+      "wall_median_s": 97.206387083,
+      "wall_p90_s": 97.206387083,
+      "tool_calls_mean": 25.0,
+      "refusals": 0,
+      "undos": 0,
+      "edits_behind": 0,
+      "trials_with_edits_behind": 0,
+      "tokens_in": 28,
+      "tokens_out": 9159,
+      "tokens_cache_read": 489670,
+      "tokens_cache_write": 51093,
+      "cost_usd": 0.2683455,
+      "wishes": 0,
+      "failures": [
+        {
+          "trial": 1,
+          "check": "placements_within",
+          "wanted": "3 × a `market_stall`, all inside x -10.00..-2.00, z 8.50..9.50",
+          "measured": "3 × a `market_stall` on the map, 0 of them inside x -10.00..-2.00, z 8.50..9.50, and the task wants 3 all inside; outside: `market_stall@2` at (-8.50, 3.50), `market_stall@3` at (-6.00, 3.50), `market_stall@4` at (-3.50, 3.50)",
+          "last_calls": [
+            "grimoire_apply_operation {\"operation\":\"placement_add\",\"parameters\":{\"at\":[-6,7.5],\"piece\":\"lantern_oil\"}}",
+            "grimoire_apply_operation {\"operation\":\"placement_add\",\"parameters\":{\"at\":[-9.3,9.3],\"piece\":\"crate_wood\"}}",
+            "grimoire_apply_operation {\"operation\":\"placement_add\",\"parameters\":{\"at\":[-8.4,9.3],\"piece\":\"barrel_oak\"}}",
+            "grimoire_apply_operation {\"operation\":\"placement_add\",\"parameters\":{\"at\":[-3,9.3],\"piece\":\"sack_grain\"}}",
+            "grimoire_present {\"check\":[{\"placements\":[\"market_stall@2\",\"market_stall@3\",\"market_stall@4\"],\"what\":\"Stall facing: yaw 0 assumed, goods placed on the south side\"},{\"placements\"…"
+          ]
+        }
+      ],
+      "budget_exhausted": 0,
+      "budget_exhausted_trials": []
+    },
+    {
+      "task": "light-the-gate-at-night",
+      "title": "Light the gate at night",
+      "tags": [
+        "style",
+        "light"
+      ],
+      "trials": 1,
+      "successes": 0,
+      "harness_errors": 0,
+      "outcomes": [
+        "fail"
+      ],
+      "success_rate": 0.0,
+      "pass_hat": [
+        0.0
+      ],
+      "wall_median_s": 39.542584833,
+      "wall_p90_s": 39.542584833,
+      "tool_calls_mean": 9.0,
+      "refusals": 1,
+      "undos": 0,
+      "edits_behind": 0,
+      "trials_with_edits_behind": 0,
+      "tokens_in": 28,
+      "tokens_out": 4267,
+      "tokens_cache_read": 572265,
+      "tokens_cache_write": 55784,
+      "cost_usd": 0.2394125,
+      "wishes": 0,
+      "failures": [
+        {
+          "trial": 1,
+          "check": "file_value",
+          "wanted": "`gate_light.radius_m` in `furniture/data/gate_light.yaml` ≥ 2 and ≤ 5",
+          "measured": "`gate_light.radius_m` in `furniture/data/gate_light.yaml` is 8.0, and it should be at most 5",
+          "last_calls": [
+            "grimoire_apply_operation {\"operation\":\"data_set\",\"parameters\":{\"file\":\"lighting/gate\",\"path\":\"gate_light.flicker\",\"value\":true}}",
+            "grimoire_apply_operation {\"operation\":\"data_set\",\"parameters\":{\"file\":\"lighting/gate\",\"path\":\"gate_light.tint\",\"value\":\"amber\"}}",
+            "grimoire_apply_operation (refused) {\"operation\":\"data_set\",\"parameters\":{\"file\":\"lighting/gate\",\"path\":\"gate_light.ambient_lux\",\"value\":2}}",
+            "grimoire_apply_operation {\"operation\":\"data_set\",\"parameters\":{\"file\":\"lighting/gate\",\"path\":\"gate_light.ambient_lux\",\"value\":2.5}}",
+            "grimoire_present {\"check\":[{\"what\":\"tint 'amber' is a value the game reads (no list of allowed tints exists in the project)\"},{\"what\":\"1500 lm / 8 m radius is bright and wide en…"
+          ]
+        }
+      ],
+      "budget_exhausted": 0,
+      "budget_exhausted_trials": []
+    },
+    {
+      "task": "write-the-gatekeepers-greeting",
+      "title": "Write the gatekeeper's greeting",
+      "tags": [
+        "style",
+        "dialogue"
+      ],
+      "trials": 0,
+      "successes": 0,
+      "harness_errors": 1,
+      "outcomes": [
+        "harness_error"
+      ],
+      "success_rate": null,
+      "pass_hat": [],
+      "wall_median_s": null,
+      "wall_p90_s": null,
+      "tool_calls_mean": null,
+      "refusals": 0,
+      "undos": 0,
+      "edits_behind": 0,
+      "trials_with_edits_behind": 0,
+      "tokens_in": null,
+      "tokens_out": null,
+      "tokens_cache_read": null,
+      "tokens_cache_write": null,
+      "cost_usd": null,
+      "wishes": 0,
+      "failures": [],
+      "budget_exhausted": 0,
+      "budget_exhausted_trials": []
+    }
+  ],
+  "tool_counts": {
+    "grimoire_apply_operation": 25,
+    "grimoire_guide": 2,
+    "grimoire_list_operations": 2,
+    "grimoire_list_pieces": 1,
+    "grimoire_present": 2,
+    "grimoire_state": 2
+  },
+  "refusals_by_tool": {
+    "grimoire_apply_operation": 1
+  },
+  "wishes_by_tool": {},
+  "harness_error_reasons": [
+    {
+      "task": "write-the-gatekeepers-greeting",
+      "trial": 1,
+      "reason": "the transcript shows a tool `xd__mcp__cauldron_grimoire_guide` that is neither the editor's nor the harness's own set, so the profile was not isolated"
+    }
+  ],
+  "preflight": {
+    "tokens_in": 4,
+    "tokens_out": 4,
+    "tokens_cache_read": 10698,
+    "tokens_cache_write": 330,
+    "cost_usd": 0.0019428
+  },
+  "cost_total_usd": 0.5097008000000001
+}

@@ -1,0 +1,22 @@
+{
+  "name": "theme_changes_the_ui",
+  "fps": 10,
+  "scale": 1,
+  "width": 960,
+  "crop": [0, 0, 1088, 640],
+  "setup": [],
+  "chunks": [{"seconds": 8.0}, {"seconds": 8.0}],
+  "steps": [
+    {"at": 1.2, "key": "KeyJ", "mods": ["ControlLeft"], "caption": "person: Ctrl+J raises the terminal"},
+    {"at": 2.4, "click_label": "+", "within": [1000, 395, 1070, 440], "caption": "person: a shell tab"},
+    {"at": 3.6, "type": "ls --color=always design", "caption": "a shell, in colour"},
+    {"at": 4.2, "key": "Enter"},
+    {"at": 5.4, "key": "Comma", "mods": ["ControlLeft"], "caption": "person: Settings"},
+    {"at": 6.6, "click_label": "Appearance"},
+    {"at": 7.8, "click": [744, 211], "caption": "Theme: next, Parchment"},
+    {"at": 9.4, "click_label": "Close", "caption": "the panels, the text and the terminal followed at once"},
+    {"at": 11.0, "key": "Comma", "mods": ["ControlLeft"], "caption": "person: Settings again"},
+    {"at": 12.2, "click": [744, 211], "caption": "Theme: next, High contrast"},
+    {"at": 13.8, "click_label": "Close", "caption": "High contrast, everywhere"}
+  ]
+}

@@ -1,0 +1,27 @@
+##### ALL 8 ROUNDS (5 registered + 3 make-up)
+harness errors (not scored): 18
+dress-the-market-area: without 4.50/9  with 9.00/9  (2 and 7 runs)
+light-the-gate-at-night: without 3.00/9  with 9.00/9  (7 and 8 runs)
+write-the-gatekeepers-greeting: without 3.00/6  with 6.00/6  (1 and 5 runs)
+lines satisfied per task-triple (max 24): without 10.50  with 24.00
+PRIMARY  difference with - without: +13.50  95% bootstrap interval [+13.00, +14.00]  ->  better
+second reading, exact permutation test (arm labels exchanged within a task), two-sided p = 0.0000
+route of the with-style runs: tool 17, file 0, both 3, neither 0  (called grimoire_style, with or without a page: 100%; the tool alone, no page: 85%; needed 70% of the first)
+  D over the 17 with-style runs by route `tool` (3 tasks): +13.50  [+13.00, +14.00]  (descriptive, a thin cell)
+  D over the 3 with-style runs by route `both` (2 tasks): +7.50  [+7.00, +8.00]  (descriptive, a thin cell)
+CLAIM: `grimoire_style` changes what an agent builds: the tool share was met and D is better
+with-style runs that called grimoire_style before their first edit: 20 of 20
+with-style runs whose own grimoire_present call cited followed lines: 20 of 20
+without-style runs offered grimoire_style (must be 0): 0
+without-style runs that tried the hidden grimoire_style by its device path: 0 of 10 (0 writes, 0 reads)
+wishes made by with-style runs: 2
+  - dress-the-market-area {"after": {"presentation": "present-1"}, "example_call": "grimoire_preview_operation {\"operation\":\"placement_add\",\"parameters\":{\"piece\":\"awning_canvas\",\"at\":[-8.8,9.0]}}", "hardship": "Placing an awning on a stall's spot silently replaced the stall (two apply+undo rounds), and nothing said placement_add replaces overlapping pieces. I had to remove and re-place all three stalls to make room.", "task": "Dressed the market rectangle with 3 stalls, awnings, lanterns, stock", "tool": "grimoire_preview_operation reporting, for placement_add, which existing placements the new piece would replace, before anything is applied."}
+  - dress-the-market-area {"after": {"presentation": "present-1"}, "example_call": "grimoire_apply_operation {\"operation\":\"placement_move\",\"parameters\":{\"id\":\"market_stall@4\",\"at\":[-3.5,8.5]},\"dry_run\":true}", "hardship": "An awning placed over a stall silently replaced the stall, and a dry run only showed it in 'replaces'. I had to undo, remove a stall and re-place it, because there is no move operation.", "task": "dressed the market rectangle with stalls, awnings, lanterns, barrels and sacks", "tool": "placement_move: change a placement's x,z by id, with a dry run listing what it would replace or overlap."}
+assembled style-without-style: {'dress-the-market-area': 8, 'light-the-gate-at-night': 8, 'write-the-gatekeepers-greeting': 8} trials per task, header trials = 8, commit c16441584c0eef5cc03aff187ad02124bfa71b28, date 2026-11-14
+
+published: docs/bench/runs/2026-11-14-style-without-style.md and docs/bench/runs/2026-11-14-style-without-style.json
+assembled style-with-style: {'dress-the-market-area': 8, 'light-the-gate-at-night': 8, 'write-the-gatekeepers-greeting': 8} trials per task, header trials = 8, commit c16441584c0eef5cc03aff187ad02124bfa71b28, date 2026-11-14
+
+published: docs/bench/runs/2026-11-14-style-with-style.md and docs/bench/runs/2026-11-14-style-with-style.json
+##### compare
+cauldron-bench: the first run (`style-without-style`) is unfit for comparison and will not be compared: 14 of 24 trials are harness errors (58%), over the 10% a comparison tolerates: these numbers are about the harness, not the agent. Rerun it; a run is fit when at most 10% of its trials are harness errors

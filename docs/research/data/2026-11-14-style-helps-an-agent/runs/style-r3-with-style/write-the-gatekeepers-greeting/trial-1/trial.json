@@ -1,0 +1,39 @@
+{
+  "agent": "omp",
+  "call_budget_exhausted": false,
+  "checks": [],
+  "cost_reported_usd": null,
+  "edits_behind": [],
+  "model": "anthropic/claude-sonnet-5-5",
+  "outcome": "harness_error",
+  "prompt": "The gatekeeper stands at the courtyard's gate. A visitor has just walked up to it, and the gatekeeper speaks first.\n\nWrite what the gatekeeper says to greet the visitor, in the game's data for the gatekeeper (the registered file `dialogue/gatekeeper`, the leaf `gatekeeper.greeting.text`).\n\nWhen it is written, hand the result back with grimoire_present.\n",
+  "reason": "the transcript shows a tool `xd__mcp__cauldron_grimoire_guide` that is neither the editor's nor the harness's own set, so the profile was not isolated",
+  "refusals": 0,
+  "refusals_by_tool": {},
+  "score": {
+    "passed": 0,
+    "total": 0
+  },
+  "sentence": "the transcript shows a tool `xd__mcp__cauldron_grimoire_guide` that is neither the editor's nor the harness's own set, so the profile was not isolated",
+  "split": "dev",
+  "tags": [
+    "style",
+    "dialogue"
+  ],
+  "task": "write-the-gatekeepers-greeting",
+  "title": "Write the gatekeeper's greeting",
+  "tokens": null,
+  "tokens_cache_read": null,
+  "tokens_cache_write": null,
+  "tokens_in": null,
+  "tokens_out": null,
+  "tool_call_count": 0,
+  "tool_calls": [],
+  "tool_log": [],
+  "tools_offered": [],
+  "trial": 1,
+  "undos": 0,
+  "variant": "with-style",
+  "wall_s": 0.0,
+  "wishes": []
+}

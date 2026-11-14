@@ -11,6 +11,7 @@ use bevy::ui::UiStack;
 use bevy::window::PrimaryWindow;
 
 use bevy_cauldron::chrome::COMPASS_Z;
+use bevy_cauldron::keymap_screen::OpenKeymap;
 use bevy_cauldron::terminal::Terminal;
 use bevy_cauldron::terminal_pane::TerminalPaneRoot;
 
@@ -90,4 +91,29 @@ fn a_maximised_terminal_is_painted_over_the_maps_overlays() {
     assert!(!app.world().resource::<Terminal>().is_maximised());
     let (_, _, drawn_back) = paint_order(&mut app);
     assert_eq!(drawn_back, drawn, "given back its height, the map's overlays are drawn as before");
+}
+
+/// gooey's own `dialog()` layer, which Settings, Keymap, project config and New project use unraised.
+const GOOEY_DIALOG_Z: i32 = 100;
+
+/// **A dialog opened over a maximised terminal is painted over it**: the Keymap's dialog (a bare gooey `dialog()`) and everything in it come after the pane in
+/// the paint order, and the map's overlays are still before it.
+#[test]
+fn a_dialog_opened_over_a_maximised_terminal_is_painted_over_it() {
+    let mut app = editor("maximised_under_dialog");
+    app.world_mut().resource_mut::<Terminal>().set_collapsed(false);
+    app.world_mut().resource_mut::<Terminal>().toggle_maximised();
+    settle(&mut app, 6);
+    app.world_mut().write_message(OpenKeymap);
+    settle(&mut app, 8);
+    let world = app.world_mut();
+    let dialog: Vec<Entity> = world.query::<(Entity, &GlobalZIndex)>().iter(world).filter(|(_, z)| z.0 == GOOEY_DIALOG_Z).map(|(e, _)| e).collect();
+    assert!(!dialog.is_empty(), "the Keymap's dialog is up");
+    let pane = world.query_filtered::<Entity, With<TerminalPaneRoot>>().single(world).expect("the terminal's pane");
+    let stack = world.resource::<UiStack>();
+    let pane_at = stack.uinodes.iter().position(|e| *e == pane).expect("the pane is in the paint stack");
+    let first_dialog = stack.uinodes.iter().position(|e| dialog.contains(e)).expect("the dialog is in the paint stack");
+    assert!(first_dialog > pane_at, "the dialog (stack position {first_dialog}) is painted under the maximised terminal (position {pane_at})");
+    let (_, top_overlay, _) = paint_order(&mut app);
+    assert!(top_overlay.is_none_or(|top| top < pane_at), "and the map's overlays are still under the terminal");
 }

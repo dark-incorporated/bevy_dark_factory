@@ -1,0 +1,116 @@
+{
+  "name": "workbench_motion",
+  "fps": 15,
+  "scale": 1,
+  "width": 960,
+  "crop": [
+    0,
+    0,
+    1088,
+    640
+  ],
+  "setup": [],
+  "chunks": [
+    {
+      "seconds": 7.0
+    },
+    {
+      "seconds": 8.4
+    }
+  ],
+  "steps": [
+    {
+      "at": 1.0,
+      "key": "KeyB",
+      "mods": [
+        "ControlLeft"
+      ],
+      "caption": "person: Ctrl+B, the left panel slides shut"
+    },
+    {
+      "at": 2.4,
+      "cursor": [
+        40,
+        375
+      ],
+      "caption": "the pointer rests on its edge: it peeks over the view, the view stays"
+    },
+    {
+      "at": 4.0,
+      "cursor": [
+        700,
+        250
+      ],
+      "caption": "the pointer leaves: the peek slides away"
+    },
+    {
+      "at": 5.0,
+      "key": "KeyB",
+      "mods": [
+        "ControlLeft"
+      ],
+      "caption": "Ctrl+B again: it slides open"
+    },
+    {
+      "at": 6.4,
+      "click_label": "Move",
+      "within": [
+        60,
+        55,
+        330,
+        105
+      ],
+      "caption": "person: Move; the tool light slides"
+    },
+    {
+      "at": 7.4,
+      "click_label": "Erase",
+      "within": [
+        60,
+        55,
+        330,
+        105
+      ]
+    },
+    {
+      "at": 8.4,
+      "click_label": "Place",
+      "within": [
+        0,
+        55,
+        330,
+        105
+      ]
+    },
+    {
+      "at": 9.6,
+      "mcp": "grimoire_apply_operation",
+      "args": {
+        "operation": "placement_add",
+        "parameters": {
+          "piece": "no_such_piece",
+          "at": [
+            1.0,
+            1.0
+          ]
+        }
+      },
+      "caption": "agent: a refused change; its toast enters from the top"
+    },
+    {
+      "at": 11.4,
+      "click_label": "Dismiss",
+      "caption": "person: Dismiss; the toast leaves"
+    },
+    {
+      "at": 12.8,
+      "click_label": "View",
+      "caption": "person: a menu opens"
+    },
+    {
+      "at": 14.0,
+      "key": "Escape",
+      "caption": "and closes"
+    }
+  ]
+}

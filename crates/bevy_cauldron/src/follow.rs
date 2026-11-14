@@ -69,6 +69,10 @@ pub const FOLLOW_IDLE_S: f32 = 2.0;
 /// (a change far across the map) is never cut short.
 pub const FOLLOW_DWELL_S: f32 = 0.6;
 
+/// **How many frames the follow waits for the Map camera's viewport** before it drops the requests it holds and says so (#439): ten seconds at 60 frames a
+/// second. A viewport appears in a frame or two after the Map is shown, so this is far past any switch, and it cannot starve the follow for ever.
+pub const DEFERRED_FRAMES_MAX: u32 = 600;
+
 /// **How long the changed pieces stay ringed**, seconds. Long enough to catch the eye once the camera
 /// has arrived, short enough not to become decoration.
 pub const FOLLOW_OUTLINE_S: f32 = 1.5;
@@ -163,9 +167,11 @@ pub struct Following {
     /// how it is drawn — a **preview** is followed exactly as a change is, in a colour that says it is
     /// not one yet (AF-05, #361).
     queue: VecDeque<(FollowRequest, Option<String>, Manner)>,
-    /// **The request that was due while the Map camera had no viewport** (#439): held here, off the queue, and put back at its head the frame a viewport
-    /// exists. Dropped with the queue by every rule that drops it.
-    deferred: Option<(FollowRequest, Option<String>, Manner)>,
+    /// **The requests that were due while the Map camera had no viewport** (#439), in the order they were due: held here, off the queue, and put back at its
+    /// head the frame a viewport exists, or dropped with the one sentence after [`DEFERRED_FRAMES_MAX`] frames. Dropped with the queue by every rule that drops it.
+    deferred: VecDeque<(FollowRequest, Option<String>, Manner)>,
+    /// How many frames in a row the deferred requests have waited for a viewport.
+    deferred_for: u32,
     ease: Option<Ease>,
     /// **Whether the person is using the view** (AF-04, #360): input within [`FOLLOW_IDLE_S`].
     ///
@@ -452,7 +458,7 @@ fn a_persons_input_takes_the_camera_back(
     following.ease = None;
     following.outline.clear();
     following.queue.clear();
-    following.deferred = None;
+    following.deferred.clear();
     following.asked_for_the_map = false;
     following.waiting = None;
     if let Some(revealing) = revealing.as_mut() {
@@ -480,7 +486,7 @@ fn clear_the_follow_when_the_project_changes(
     }
     *seen = root;
     following.queue.clear();
-    following.deferred = None;
+    following.deferred.clear();
     following.waiting = None;
 
     following.ease = None;
@@ -756,11 +762,23 @@ fn take_the_follow_request(
         // arrivals.
         return;
     }
-    if following.deferred.is_some()
-        && cameras.single().ok().and_then(crate::editor::aspect_of).is_some()
-        && let Some(item) = following.deferred.take()
-    {
-        following.queue.push_front(item);
+    if !following.deferred.is_empty() {
+        if cameras.single().ok().and_then(crate::editor::aspect_of).is_some() {
+            following.deferred_for = 0;
+            while let Some(item) = following.deferred.pop_back() {
+                following.queue.push_front(item);
+            }
+        } else {
+            following.deferred_for += 1;
+            if following.deferred_for > DEFERRED_FRAMES_MAX {
+                // **A viewport that never comes is a failure to say, once**: the held requests are dropped so they cannot wait for ever.
+                following.deferred.clear();
+                following.deferred_for = 0;
+                if let Some(state) = state.as_mut() {
+                    state.status.problem(format!("{FAMILIAR}'s change could not be framed: the Map camera has no viewport"));
+                }
+            }
+        }
     }
     if following.queue.is_empty() {
         following.waiting = None;
@@ -888,7 +906,7 @@ fn take_the_follow_request(
         // A follow with no map has nothing to look at. It is dropped rather than held: the editor is
         // between projects, and the next request is not this one's business.
         following.queue.clear();
-        following.deferred = None;
+        following.deferred.clear();
         return;
     };
     // **A Map camera with no viewport yet is a camera that is not ready, not a refusal** (#439). A change made while another door is open asks for the Map
@@ -898,7 +916,9 @@ fn take_the_follow_request(
         return;
     }
     let Some(aspect) = cameras.single().ok().and_then(crate::editor::aspect_of) else {
-        following.deferred = following.queue.pop_front();
+        if let Some(item) = following.queue.pop_front() {
+            following.deferred.push_back(item);
+        }
         return;
     };
     // **Whether a burst is running**, read *before* this request leaves the queue: more than one

@@ -150,14 +150,23 @@ impl Driver {
     /// not have. The project carries a tile and two compositions as well as two placed pieces, so the
     /// Tiles and Compose rows select something real rather than an empty panel.
     fn on(tag: &str, mode: Mode) -> Driver {
-        let root = fixtures::Fixture::new(&format!("nav_{tag}_{}", std::process::id()))
+        Driver::open(Driver::fixture(tag), mode)
+    }
+
+    /// **The fixture project every row starts from** (see [`Driver::on`]), built and left on disk.
+    fn fixture(tag: &str) -> PathBuf {
+        fixtures::Fixture::new(&format!("nav_{tag}_{}", std::process::id()))
             .descriptor("alpha/floor", "alpha")
             .descriptor("alpha/wall", "alpha")
             .place("alpha/floor", (0.0, 0.0))
             .place("alpha/wall", (2.0, 0.0))
             .bounded_composition("crate", (1.0, 1.0, 1.0), &[("body", "alpha/floor", (0.0, 0.0))])
             .bounded_composition("barrel", (1.0, 1.0, 1.0), &[("body", "alpha/wall", (2.0, 0.0))])
-            .build("m");
+            .build("m")
+    }
+
+    /// **The editor opened on `root`** on a named panel, warmed up.
+    fn open(root: PathBuf, mode: Mode) -> Driver {
         let mut app = bevy_cauldron::harness::build_headless_at(&root, "m", None, mode).unwrap_or_else(|e| panic!("{e}"));
         app.add_plugins((
             bevy_cauldron::launcher::LauncherPlugin,
@@ -215,6 +224,28 @@ impl Driver {
         self.settle();
         self.cost.pointer += 1;
         self.steps.push(format!("click `{label}`"));
+    }
+
+    /// **A click on the row of a table or tree that reads `label`**, counted as one pointer action.
+    ///
+    /// Not [`Driver::click`]: `find_by_label` answers with the nearest ancestor of the words that takes focus, and a table's *rows* do not, the table does, so
+    /// it is the whole table and a click at its centre lands on its middle row (measured, #404). A person clicks the row they read, so this does.
+    fn click_row(&mut self, label: &str) {
+        let texts: Vec<Entity> = {
+            let world = self.app.world_mut();
+            world.query::<(Entity, &Text, &InheritedVisibility)>().iter(world).filter(|(_, text, shown)| text.0.trim() == label && shown.get()).map(|(e, ..)| e).collect()
+        };
+        let mut rows: Vec<Entity> = texts
+            .into_iter()
+            .filter_map(|text| std::iter::successors(Some(text), |e| self.app.world().get::<ChildOf>(*e).map(ChildOf::parent)).find(|e| self.app.world().get::<bevy_gooey::TableRow>(*e).is_some()))
+            .collect();
+        rows.sort();
+        rows.dedup();
+        let [row] = rows.as_slice() else { panic!("{} rows read `{label}`, wanted one: {:#?}", rows.len(), self.words()) };
+        click(&mut self.app, *row);
+        self.settle();
+        self.cost.pointer += 1;
+        self.steps.push(format!("click the row `{label}`"));
     }
 
     /// **The words a person can see.** `InheritedVisibility` is not enough: the inspector is one long
@@ -640,11 +671,56 @@ fn the_games_log() -> Destination {
     Destination { what: "The running game's log", steps: d.steps, cost: d.cost, reach }
 }
 
+/// **The page of a level's style**, where the Design workspace keeps it.
+const LEVEL_STYLE: &str = "design/levels/m/style.md";
+
+/// What it says: a heading a person reads it by.
+const LEVEL_STYLE_TEXT: &str = "# Yard\n\n## Light\n\nSodium light on wet concrete.\n";
+
+/// **A level's style**, in the Design workspace (`Cmd`/`Ctrl`+`0`, SG-05 #404): the design tree on the left, the level's page rendered in the
+/// middle. The project has what a game has once its style is begun: the game's page, and the level `m`'s (the open map's own).
+///
+/// The window is the size of a real one, because on the harness's default surface the Design workspace lays its tree out where a pointer cannot
+/// reach it. The route is what a person does: open the workspace, look at the page it opens on, and when that is not the level's, click the
+/// level's row in the tree.
+fn a_levels_style() -> Destination {
+    let root = Driver::fixture("level_style");
+    for (rel, text) in [("design/style.md", "# The game\n\nGrey concrete, sodium light.\n"), (LEVEL_STYLE, LEVEL_STYLE_TEXT)] {
+        let full = root.join(rel);
+        std::fs::create_dir_all(full.parent().expect("a folder")).unwrap_or_else(|e| panic!("{e}"));
+        std::fs::write(&full, text).unwrap_or_else(|e| panic!("{}: {e}", full.display()));
+    }
+    let mut d = Driver::open(root.clone(), Mode::Map);
+    bevy_cauldron::harness::resize_surface(&mut d.app, 1536, 1400).unwrap_or_else(|e| panic!("{e}"));
+    d.settle();
+    d.chord(&[primary(), KeyCode::Digit0], "press Cmd/Ctrl+0 (the Design workspace)");
+    assert_eq!(*d.app.world().resource::<Workspace>(), Workspace::Design, "Cmd/Ctrl+0 opens the Design workspace");
+    // The person's own trust store is not read by a test: the workspace's state is rebuilt by the switch, so the test's store is named after it.
+    let store = root.join("trusted.yaml");
+    bevy_grimoire_core::trust::TrustStore::default().save(&store).unwrap_or_else(|e| panic!("{e}"));
+    d.app.world_mut().resource_mut::<bevy_cauldron::editor::EditorState>().trust.file = Some(store);
+    d.settle();
+    let selected = |d: &Driver| d.app.world().resource::<bevy_cauldron::design_view::DesignView>().selected().map(str::to_owned);
+    if selected(&d).as_deref() != Some(LEVEL_STYLE) {
+        d.click_row("m");
+    }
+    let source = {
+        let world = d.app.world_mut();
+        world.query::<&bevy_gooey::MarkdownView>().single(world).map(|v| v.source().to_owned()).unwrap_or_default()
+    };
+    let reach = if selected(&d).as_deref() == Some(LEVEL_STYLE) && source == LEVEL_STYLE_TEXT {
+        Reach::Arrived
+    } else {
+        Reach::Unreachable(format!("the Design workspace is open and the page showing is {:?}, with {} bytes of text", selected(&d), source.len()))
+    };
+    Destination { what: "A level's style", steps: d.steps, cost: d.cost, reach }
+}
+
 // ───────────────────────────── the document ─────────────────────────────
 
 /// **Every row, in the issue's order.** The names are fixed here so a row that disappeared is a
 /// failure rather than a shorter document.
-const ROWS: [&str; 20] = [
+const ROWS: [&str; 21] = [
     "The open map",
     "A named map",
     "A named piece on the open map",
@@ -665,7 +741,15 @@ const ROWS: [&str; 20] = [
     "The AGENT block",
     "The settings",
     "The running game's log",
+    "A level's style",
 ];
+
+/// **The rows the series added after NV-01 froze its baseline**: nothing in `navigation-baseline.md` to compare them with (owner exception,
+/// 2026-11-14, #404: the Design workspace is a destination NV-01 could not list).
+const AFTER_THE_BASELINE: [&str; 1] = ["A level's style"];
+
+/// **The most presses and pointer actions a level's style may cost** from a cold start (SG-05, #404).
+const LEVEL_STYLE_PRESSES: u32 = 3;
 
 /// **The fewest rows that must actually arrive**, so a driver that stopped driving cannot pass this
 /// test by reporting absences.
@@ -719,6 +803,7 @@ fn table() -> Vec<Destination> {
         the_agent_block(),
         the_settings(),
         the_games_log(),
+        a_levels_style(),
     ]
 }
 
@@ -792,7 +877,13 @@ fn baseline() -> Vec<(String, Was)> {
         let (Ok(keys), Ok(pointer)) = (cells[2].parse::<u32>(), cells[3].parse::<u32>()) else { continue };
         rows.push((cells[0].to_owned(), Was { keys, pointer, arrives: cells[4] == "yes" }));
     }
-    assert!(rows.len() >= ROWS.len(), "the baseline lists {} destinations and this test measures {}", rows.len(), ROWS.len());
+    assert!(
+        rows.len() >= ROWS.len() - AFTER_THE_BASELINE.len(),
+        "the baseline lists {} destinations and this test measures {} of them (and {} the series added)",
+        rows.len(),
+        ROWS.len() - AFTER_THE_BASELINE.len(),
+        AFTER_THE_BASELINE.len()
+    );
     rows
 }
 
@@ -803,6 +894,8 @@ enum Target {
     OnePress,
     /// `Cmd+P`, its name, `Enter`: met when the finder is *driven* with the thing's name and arrives at its page.
     Finder,
+    /// **At most this many presses and pointer actions together**, and it must arrive.
+    Presses(u32),
 }
 
 /// Which target a destination is held to.
@@ -816,6 +909,7 @@ fn target_of(what: &str) -> Target {
         | "One of a rig's clips"
         | "A game data file"
         | "The notes" => Target::Finder,
+        "A level's style" => Target::Presses(LEVEL_STYLE_PRESSES),
         _ => Target::OnePress,
     }
 }
@@ -1024,6 +1118,20 @@ fn target_met(row: &Destination, finder: &[(&'static str, Result<Cost, String>)]
                 ))
             }
         }
+        Target::Presses(most) => {
+            let arrived = matches!(row.reach, Reach::Arrived);
+            let spent = row.cost.presses + row.cost.pointer;
+            if arrived && spent <= most {
+                Ok(format!("{} press(es) and {} pointer action(s)", row.cost.presses, row.cost.pointer))
+            } else {
+                Err(format!(
+                    "{} press(es) and {} pointer action(s) against {most} in all{}",
+                    row.cost.presses,
+                    row.cost.pointer,
+                    if arrived { "" } else { ", and it does not arrive" }
+                ))
+            }
+        }
         Target::Finder => match finder.iter().find(|(what, _)| *what == row.what) {
             Some((_, Ok(cost))) => Ok(format!("driven: Cmd+P, the name, Enter, {} presses", cost.presses)),
             Some((_, Err(why))) => Err(format!("driving the finder failed: {why}")),
@@ -1060,6 +1168,7 @@ fn render(rows: &[Destination], was: &[(String, Was)], finder: &[(&'static str, 
          \x20 thing's name (`Cmd+P`, the characters, `Enter`) on a project that holds one — a piece, a placed piece, a lattice, a composition, a registered\n\
          \x20 data file and a note — and arrives at its page. The cost shown is that route's presses.\n\
          - Back to where you were in **1 press**: held by `back_and_forward_across_workspaces`, not a row here.\n\
+         - A level's style in at most **3 presses**, from a cold start (SG-05, #404): *met* when the Design workspace shows the level's page after at most three key presses and pointer actions together, which is stricter than the issue's word.\n\
          - **Never worse than the baseline**: a destination that arrived then still arrives, and costs no more keys and pointer actions together.\n\
          \n\
          A target that is *missed* is filed as its own issue, naming the destination and the route; the issue is cited in the Target column and\n\
@@ -1131,7 +1240,12 @@ fn every_destination_is_measured_and_the_baseline_says_so() {
     // **Never worse than the baseline** (NV-11, #388): what arrived then arrives now, at no more keys and pointer actions together.
     let was = baseline();
     for row in &rows {
-        let (_, old) = was.iter().find(|(name, _)| name == row.what).unwrap_or_else(|| panic!("`{}` is not in the frozen baseline", row.what));
+        // **A destination the series added** has no row in the frozen baseline, so there is nothing for it to be worse than; it is named in
+        // [`AFTER_THE_BASELINE`] and is held to its own target (which requires it to arrive), and a row that is neither is a failure.
+        let Some((_, old)) = was.iter().find(|(name, _)| name == row.what) else {
+            assert!(AFTER_THE_BASELINE.contains(&row.what), "`{}` is not in the frozen baseline", row.what);
+            continue;
+        };
         let arrives = matches!(row.reach, Reach::Arrived);
         assert!(!(old.arrives && !arrives), "reachability got worse: `{}` arrived in the baseline and does not now", row.what);
         if old.arrives && arrives {

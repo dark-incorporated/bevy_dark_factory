@@ -144,23 +144,6 @@ fn the_selected_row_of_the_design_tree_reads_at_aa_contrast_in_every_skin() {
         open_design(&mut app);
         assert_eq!(*app.world().resource::<Workspace>(), Workspace::Design, "{theme:?}: the Design workspace is open");
         assert!(app.world().resource::<DesignView>().selected().is_some(), "{theme:?}: a page is selected");
-        {
-            let world = app.world_mut();
-            let rows: Vec<Entity> = world.query_filtered::<Entity, (With<TableRow>, With<Selected>)>().iter(world).collect();
-            for row in rows {
-                let mut at = Some(row);
-                while let Some(e) = at {
-                    eprintln!("  DBG {theme:?} {e}: bg={:?} role={:?} hovered={:?}", world.get::<BackgroundColor>(e).map(|b| Srgba::from(b.0)), world.get::<bevy_gooey::Role>(e), world.get::<bevy::picking::hover::Hovered>(e).map(|h| h.get()));
-                    at = world.get::<ChildOf>(e).map(ChildOf::parent);
-                    if at.is_some_and(|a| world.get::<TableRow>(a).is_none() && world.get::<Table>(a).is_some()) { break; }
-                }
-                let mut kids = vec![row];
-                while let Some(k) = kids.pop() {
-                    if let Some(c) = world.get::<Children>(k) { kids.extend(c.iter()); }
-                    if let Some(t) = world.get::<Text>(k) { eprintln!("  DBG text {:?} color={:?} role={:?}", t.0, world.get::<TextColor>(k).map(|c| Srgba::from(c.0)), world.get::<bevy_gooey::Role>(k)); }
-                }
-            }
-        }
         let words = selected_words(&mut app);
         assert!(!words.is_empty(), "{theme:?}: the tree's selected row draws a label");
         for (text, ink, ground) in words {

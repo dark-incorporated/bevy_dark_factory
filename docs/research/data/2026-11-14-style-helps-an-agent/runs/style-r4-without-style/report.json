@@ -1,0 +1,229 @@
+{
+  "header": {
+    "version": 1,
+    "label": "style-r4-without-style",
+    "commit": "c16441584c0eef5cc03aff187ad02124bfa71b28",
+    "guide_sha256": "58bdbbdf8bf7904d734d16ac22d410c10d38ed5232b31a11ccb7ac7eb6c766d5",
+    "agent": "omp",
+    "agent_version": "omp/18.16.0",
+    "model": "anthropic/claude-sonnet-5-5",
+    "variant": "without-style",
+    "suite": "bench/tasks",
+    "trials": 1,
+    "host": "bmb",
+    "date": "2026-11-14",
+    "price": {
+      "input": 2.0,
+      "output": 10.0,
+      "cache_read": 0.1,
+      "cache_write": 2.5
+    }
+  },
+  "unfit": "3 of 3 trials are harness errors (100%), over the 10% a comparison tolerates: these numbers are about the harness, not the agent",
+  "trials_total": 3,
+  "harness_errors": 3,
+  "dev": {
+    "name": "dev",
+    "tasks": 0,
+    "trials": 0,
+    "successes": 0,
+    "harness_errors": 3,
+    "mean_success": null,
+    "interval": null,
+    "mean_pass_hat": [],
+    "cost_usd": null,
+    "cost_per_success_usd": null,
+    "wall_mean_s": null,
+    "tool_calls_mean": null,
+    "edits_behind": 0
+  },
+  "held_out": null,
+  "tags": [
+    {
+      "name": "dialogue",
+      "tasks": 0,
+      "trials": 0,
+      "successes": 0,
+      "harness_errors": 1,
+      "mean_success": null,
+      "interval": null,
+      "mean_pass_hat": [],
+      "cost_usd": null,
+      "cost_per_success_usd": null,
+      "wall_mean_s": null,
+      "tool_calls_mean": null,
+      "edits_behind": 0
+    },
+    {
+      "name": "light",
+      "tasks": 0,
+      "trials": 0,
+      "successes": 0,
+      "harness_errors": 1,
+      "mean_success": null,
+      "interval": null,
+      "mean_pass_hat": [],
+      "cost_usd": null,
+      "cost_per_success_usd": null,
+      "wall_mean_s": null,
+      "tool_calls_mean": null,
+      "edits_behind": 0
+    },
+    {
+      "name": "place",
+      "tasks": 0,
+      "trials": 0,
+      "successes": 0,
+      "harness_errors": 1,
+      "mean_success": null,
+      "interval": null,
+      "mean_pass_hat": [],
+      "cost_usd": null,
+      "cost_per_success_usd": null,
+      "wall_mean_s": null,
+      "tool_calls_mean": null,
+      "edits_behind": 0
+    },
+    {
+      "name": "style",
+      "tasks": 0,
+      "trials": 0,
+      "successes": 0,
+      "harness_errors": 3,
+      "mean_success": null,
+      "interval": null,
+      "mean_pass_hat": [],
+      "cost_usd": null,
+      "cost_per_success_usd": null,
+      "wall_mean_s": null,
+      "tool_calls_mean": null,
+      "edits_behind": 0
+    }
+  ],
+  "tasks": [
+    {
+      "task": "dress-the-market-area",
+      "title": "Dress the market area of the courtyard",
+      "tags": [
+        "style",
+        "place"
+      ],
+      "trials": 0,
+      "successes": 0,
+      "harness_errors": 1,
+      "outcomes": [
+        "harness_error"
+      ],
+      "success_rate": null,
+      "pass_hat": [],
+      "wall_median_s": null,
+      "wall_p90_s": null,
+      "tool_calls_mean": null,
+      "refusals": 0,
+      "undos": 0,
+      "edits_behind": 0,
+      "trials_with_edits_behind": 0,
+      "tokens_in": null,
+      "tokens_out": null,
+      "tokens_cache_read": null,
+      "tokens_cache_write": null,
+      "cost_usd": null,
+      "wishes": 0,
+      "failures": [],
+      "budget_exhausted": 0,
+      "budget_exhausted_trials": []
+    },
+    {
+      "task": "light-the-gate-at-night",
+      "title": "Light the gate at night",
+      "tags": [
+        "style",
+        "light"
+      ],
+      "trials": 0,
+      "successes": 0,
+      "harness_errors": 1,
+      "outcomes": [
+        "harness_error"
+      ],
+      "success_rate": null,
+      "pass_hat": [],
+      "wall_median_s": null,
+      "wall_p90_s": null,
+      "tool_calls_mean": null,
+      "refusals": 0,
+      "undos": 0,
+      "edits_behind": 0,
+      "trials_with_edits_behind": 0,
+      "tokens_in": null,
+      "tokens_out": null,
+      "tokens_cache_read": null,
+      "tokens_cache_write": null,
+      "cost_usd": null,
+      "wishes": 0,
+      "failures": [],
+      "budget_exhausted": 0,
+      "budget_exhausted_trials": []
+    },
+    {
+      "task": "write-the-gatekeepers-greeting",
+      "title": "Write the gatekeeper's greeting",
+      "tags": [
+        "style",
+        "dialogue"
+      ],
+      "trials": 0,
+      "successes": 0,
+      "harness_errors": 1,
+      "outcomes": [
+        "harness_error"
+      ],
+      "success_rate": null,
+      "pass_hat": [],
+      "wall_median_s": null,
+      "wall_p90_s": null,
+      "tool_calls_mean": null,
+      "refusals": 0,
+      "undos": 0,
+      "edits_behind": 0,
+      "trials_with_edits_behind": 0,
+      "tokens_in": null,
+      "tokens_out": null,
+      "tokens_cache_read": null,
+      "tokens_cache_write": null,
+      "cost_usd": null,
+      "wishes": 0,
+      "failures": [],
+      "budget_exhausted": 0,
+      "budget_exhausted_trials": []
+    }
+  ],
+  "tool_counts": {},
+  "refusals_by_tool": {},
+  "wishes_by_tool": {},
+  "harness_error_reasons": [
+    {
+      "task": "dress-the-market-area",
+      "trial": 1,
+      "reason": "the transcript shows a tool `xd___mcp__cauldron_grimoire_guide` that is neither the editor's nor the harness's own set, so the profile was not isolated"
+    },
+    {
+      "task": "light-the-gate-at-night",
+      "trial": 1,
+      "reason": "the transcript shows a tool `xd__mcp__cauldron_grimoire_guide` that is neither the editor's nor the harness's own set, so the profile was not isolated"
+    },
+    {
+      "task": "write-the-gatekeepers-greeting",
+      "trial": 1,
+      "reason": "the transcript shows a tool `xd___mcp__cauldron_grimoire_guide` that is neither the editor's nor the harness's own set, so the profile was not isolated"
+    }
+  ],
+  "preflight": {
+    "tokens_in": 4,
+    "tokens_out": 4,
+    "tokens_cache_read": 10698,
+    "tokens_cache_write": 330,
+    "cost_usd": 0.0019428
+  },
+  "cost_total_usd": null
+}

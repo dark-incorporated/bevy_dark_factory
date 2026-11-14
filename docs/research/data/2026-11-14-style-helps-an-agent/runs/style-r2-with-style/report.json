@@ -1,0 +1,261 @@
+{
+  "header": {
+    "version": 1,
+    "label": "style-r2-with-style",
+    "commit": "c16441584c0eef5cc03aff187ad02124bfa71b28",
+    "guide_sha256": "58bdbbdf8bf7904d734d16ac22d410c10d38ed5232b31a11ccb7ac7eb6c766d5",
+    "agent": "omp",
+    "agent_version": "omp/18.16.0",
+    "model": "anthropic/claude-sonnet-5-5",
+    "variant": "with-style",
+    "suite": "bench/tasks",
+    "trials": 1,
+    "host": "bmb",
+    "date": "2026-11-14",
+    "price": {
+      "input": 2.0,
+      "output": 10.0,
+      "cache_read": 0.1,
+      "cache_write": 2.5
+    }
+  },
+  "unfit": null,
+  "trials_total": 3,
+  "harness_errors": 0,
+  "dev": {
+    "name": "dev",
+    "tasks": 3,
+    "trials": 3,
+    "successes": 3,
+    "harness_errors": 0,
+    "mean_success": 1.0,
+    "interval": {
+      "lo": 1.0,
+      "hi": 1.0
+    },
+    "mean_pass_hat": [
+      1.0
+    ],
+    "cost_usd": 0.8249341000000001,
+    "cost_per_success_usd": 0.27497803333333337,
+    "wall_mean_s": 67.76399747233333,
+    "tool_calls_mean": 16.0,
+    "edits_behind": 0
+  },
+  "held_out": null,
+  "tags": [
+    {
+      "name": "dialogue",
+      "tasks": 1,
+      "trials": 1,
+      "successes": 1,
+      "harness_errors": 0,
+      "mean_success": 1.0,
+      "interval": {
+        "lo": 1.0,
+        "hi": 1.0
+      },
+      "mean_pass_hat": [
+        1.0
+      ],
+      "cost_usd": 0.1119615,
+      "cost_per_success_usd": 0.1119615,
+      "wall_mean_s": 33.07026875,
+      "tool_calls_mean": 7.0,
+      "edits_behind": 0
+    },
+    {
+      "name": "light",
+      "tasks": 1,
+      "trials": 1,
+      "successes": 1,
+      "harness_errors": 0,
+      "mean_success": 1.0,
+      "interval": {
+        "lo": 1.0,
+        "hi": 1.0
+      },
+      "mean_pass_hat": [
+        1.0
+      ],
+      "cost_usd": 0.2098942,
+      "cost_per_success_usd": 0.2098942,
+      "wall_mean_s": 44.267827542,
+      "tool_calls_mean": 15.0,
+      "edits_behind": 0
+    },
+    {
+      "name": "place",
+      "tasks": 1,
+      "trials": 1,
+      "successes": 1,
+      "harness_errors": 0,
+      "mean_success": 1.0,
+      "interval": {
+        "lo": 1.0,
+        "hi": 1.0
+      },
+      "mean_pass_hat": [
+        1.0
+      ],
+      "cost_usd": 0.5030784,
+      "cost_per_success_usd": 0.5030784,
+      "wall_mean_s": 125.953896125,
+      "tool_calls_mean": 26.0,
+      "edits_behind": 0
+    },
+    {
+      "name": "style",
+      "tasks": 3,
+      "trials": 3,
+      "successes": 3,
+      "harness_errors": 0,
+      "mean_success": 1.0,
+      "interval": {
+        "lo": 1.0,
+        "hi": 1.0
+      },
+      "mean_pass_hat": [
+        1.0
+      ],
+      "cost_usd": 0.8249341000000001,
+      "cost_per_success_usd": 0.27497803333333337,
+      "wall_mean_s": 67.76399747233333,
+      "tool_calls_mean": 16.0,
+      "edits_behind": 0
+    }
+  ],
+  "tasks": [
+    {
+      "task": "dress-the-market-area",
+      "title": "Dress the market area of the courtyard",
+      "tags": [
+        "style",
+        "place"
+      ],
+      "trials": 1,
+      "successes": 1,
+      "harness_errors": 0,
+      "outcomes": [
+        "pass"
+      ],
+      "success_rate": 1.0,
+      "pass_hat": [
+        1.0
+      ],
+      "wall_median_s": 125.953896125,
+      "wall_p90_s": 125.953896125,
+      "tool_calls_mean": 26.0,
+      "refusals": 1,
+      "undos": 1,
+      "edits_behind": 0,
+      "trials_with_edits_behind": 0,
+      "tokens_in": 48,
+      "tokens_out": 14320,
+      "tokens_cache_read": 1381874,
+      "tokens_cache_write": 88638,
+      "cost_usd": 0.5030784,
+      "wishes": 0,
+      "failures": [],
+      "budget_exhausted": 0,
+      "budget_exhausted_trials": []
+    },
+    {
+      "task": "light-the-gate-at-night",
+      "title": "Light the gate at night",
+      "tags": [
+        "style",
+        "light"
+      ],
+      "trials": 1,
+      "successes": 1,
+      "harness_errors": 0,
+      "outcomes": [
+        "pass"
+      ],
+      "success_rate": 1.0,
+      "pass_hat": [
+        1.0
+      ],
+      "wall_median_s": 44.267827542,
+      "wall_p90_s": 44.267827542,
+      "tool_calls_mean": 15.0,
+      "refusals": 2,
+      "undos": 0,
+      "edits_behind": 0,
+      "trials_with_edits_behind": 0,
+      "tokens_in": 36,
+      "tokens_out": 4766,
+      "tokens_cache_read": 633722,
+      "tokens_cache_write": 39516,
+      "cost_usd": 0.2098942,
+      "wishes": 0,
+      "failures": [],
+      "budget_exhausted": 0,
+      "budget_exhausted_trials": []
+    },
+    {
+      "task": "write-the-gatekeepers-greeting",
+      "title": "Write the gatekeeper's greeting",
+      "tags": [
+        "style",
+        "dialogue"
+      ],
+      "trials": 1,
+      "successes": 1,
+      "harness_errors": 0,
+      "outcomes": [
+        "pass"
+      ],
+      "success_rate": 1.0,
+      "pass_hat": [
+        1.0
+      ],
+      "wall_median_s": 33.07026875,
+      "wall_p90_s": 33.07026875,
+      "tool_calls_mean": 7.0,
+      "refusals": 1,
+      "undos": 0,
+      "edits_behind": 0,
+      "trials_with_edits_behind": 0,
+      "tokens_in": 20,
+      "tokens_out": 3743,
+      "tokens_cache_read": 197490,
+      "tokens_cache_write": 21897,
+      "cost_usd": 0.1119615,
+      "wishes": 0,
+      "failures": [],
+      "budget_exhausted": 0,
+      "budget_exhausted_trials": []
+    }
+  ],
+  "tool_counts": {
+    "grimoire_apply_operation": 26,
+    "grimoire_capture_still": 1,
+    "grimoire_guide": 3,
+    "grimoire_list_operations": 3,
+    "grimoire_list_pieces": 1,
+    "grimoire_present": 3,
+    "grimoire_preview_operation": 2,
+    "grimoire_schema": 1,
+    "grimoire_state": 3,
+    "grimoire_style": 4,
+    "grimoire_undo_operation": 1
+  },
+  "refusals_by_tool": {
+    "grimoire_apply_operation": 1,
+    "grimoire_preview_operation": 1,
+    "grimoire_schema": 1,
+    "grimoire_style": 1
+  },
+  "wishes_by_tool": {},
+  "harness_error_reasons": [],
+  "preflight": {
+    "tokens_in": 4,
+    "tokens_out": 4,
+    "tokens_cache_read": 10698,
+    "tokens_cache_write": 330,
+    "cost_usd": 0.0019428
+  },
+  "cost_total_usd": 0.8268769000000001
+}

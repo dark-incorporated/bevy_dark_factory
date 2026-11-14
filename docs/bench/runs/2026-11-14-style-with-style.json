@@ -1,0 +1,343 @@
+{
+  "header": {
+    "version": 1,
+    "label": "style-with-style",
+    "commit": "c16441584c0eef5cc03aff187ad02124bfa71b28",
+    "guide_sha256": "58bdbbdf8bf7904d734d16ac22d410c10d38ed5232b31a11ccb7ac7eb6c766d5",
+    "agent": "omp",
+    "agent_version": "omp/18.16.0",
+    "model": "anthropic/claude-sonnet-5-5",
+    "variant": "with-style",
+    "suite": "bench/tasks",
+    "trials": 8,
+    "host": "bmb",
+    "date": "2026-11-14",
+    "price": {
+      "input": 2.0,
+      "output": 10.0,
+      "cache_read": 0.1,
+      "cache_write": 2.5
+    }
+  },
+  "unfit": "4 of 24 trials are harness errors (17%), over the 10% a comparison tolerates: these numbers are about the harness, not the agent",
+  "trials_total": 24,
+  "harness_errors": 4,
+  "dev": {
+    "name": "dev",
+    "tasks": 3,
+    "trials": 20,
+    "successes": 20,
+    "harness_errors": 4,
+    "mean_success": 1.0,
+    "interval": {
+      "lo": 1.0,
+      "hi": 1.0
+    },
+    "mean_pass_hat": [
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "cost_usd": 5.0605317,
+    "cost_per_success_usd": 0.253026585,
+    "wall_mean_s": 63.7436499625,
+    "tool_calls_mean": 18.55,
+    "edits_behind": 0
+  },
+  "held_out": null,
+  "tags": [
+    {
+      "name": "dialogue",
+      "tasks": 1,
+      "trials": 5,
+      "successes": 5,
+      "harness_errors": 3,
+      "mean_success": 1.0,
+      "interval": {
+        "lo": 1.0,
+        "hi": 1.0
+      },
+      "mean_pass_hat": [
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ],
+      "cost_usd": 0.6811797,
+      "cost_per_success_usd": 0.13623594,
+      "wall_mean_s": 30.621789433599996,
+      "tool_calls_mean": 6.8,
+      "edits_behind": 0
+    },
+    {
+      "name": "light",
+      "tasks": 1,
+      "trials": 8,
+      "successes": 8,
+      "harness_errors": 0,
+      "mean_success": 1.0,
+      "interval": {
+        "lo": 1.0,
+        "hi": 1.0
+      },
+      "mean_pass_hat": [
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ],
+      "cost_usd": 1.6751754,
+      "cost_per_success_usd": 0.209396925,
+      "wall_mean_s": 45.135833682375,
+      "tool_calls_mean": 17.0,
+      "edits_behind": 0
+    },
+    {
+      "name": "place",
+      "tasks": 1,
+      "trials": 7,
+      "successes": 7,
+      "harness_errors": 1,
+      "mean_success": 1.0,
+      "interval": {
+        "lo": 1.0,
+        "hi": 1.0
+      },
+      "mean_pass_hat": [
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ],
+      "cost_usd": 2.7041766000000003,
+      "cost_per_success_usd": 0.3863109428571429,
+      "wall_mean_s": 108.66819751757141,
+      "tool_calls_mean": 28.714285714285715,
+      "edits_behind": 0
+    },
+    {
+      "name": "style",
+      "tasks": 3,
+      "trials": 20,
+      "successes": 20,
+      "harness_errors": 4,
+      "mean_success": 1.0,
+      "interval": {
+        "lo": 1.0,
+        "hi": 1.0
+      },
+      "mean_pass_hat": [
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ],
+      "cost_usd": 5.0605317,
+      "cost_per_success_usd": 0.253026585,
+      "wall_mean_s": 63.7436499625,
+      "tool_calls_mean": 18.55,
+      "edits_behind": 0
+    }
+  ],
+  "tasks": [
+    {
+      "task": "dress-the-market-area",
+      "title": "Dress the market area of the courtyard",
+      "tags": [
+        "style",
+        "place"
+      ],
+      "trials": 7,
+      "successes": 7,
+      "harness_errors": 1,
+      "outcomes": [
+        "pass",
+        "pass",
+        "harness_error",
+        "pass",
+        "pass",
+        "pass",
+        "pass",
+        "pass"
+      ],
+      "success_rate": 1.0,
+      "pass_hat": [
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ],
+      "wall_median_s": 119.754404208,
+      "wall_p90_s": 129.594286475,
+      "tool_calls_mean": 28.714285714285715,
+      "refusals": 4,
+      "undos": 9,
+      "edits_behind": 0,
+      "trials_with_edits_behind": 0,
+      "tokens_in": 278,
+      "tokens_out": 91844,
+      "tokens_cache_read": 6311206,
+      "tokens_cache_write": 461624,
+      "cost_usd": 2.7041766000000003,
+      "wishes": 2,
+      "failures": [],
+      "budget_exhausted": 0,
+      "budget_exhausted_trials": []
+    },
+    {
+      "task": "light-the-gate-at-night",
+      "title": "Light the gate at night",
+      "tags": [
+        "style",
+        "light"
+      ],
+      "trials": 8,
+      "successes": 8,
+      "harness_errors": 0,
+      "outcomes": [
+        "pass",
+        "pass",
+        "pass",
+        "pass",
+        "pass",
+        "pass",
+        "pass",
+        "pass"
+      ],
+      "success_rate": 1.0,
+      "pass_hat": [
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ],
+      "wall_median_s": 44.678852083500004,
+      "wall_p90_s": 47.424252604500005,
+      "tool_calls_mean": 17.0,
+      "refusals": 28,
+      "undos": 0,
+      "edits_behind": 0,
+      "trials_with_edits_behind": 0,
+      "tokens_in": 222,
+      "tokens_out": 42907,
+      "tokens_cache_read": 3741739,
+      "tokens_cache_write": 348595,
+      "cost_usd": 1.6751754,
+      "wishes": 0,
+      "failures": [],
+      "budget_exhausted": 0,
+      "budget_exhausted_trials": []
+    },
+    {
+      "task": "write-the-gatekeepers-greeting",
+      "title": "Write the gatekeeper's greeting",
+      "tags": [
+        "style",
+        "dialogue"
+      ],
+      "trials": 5,
+      "successes": 5,
+      "harness_errors": 3,
+      "outcomes": [
+        "pass",
+        "pass",
+        "harness_error",
+        "pass",
+        "harness_error",
+        "pass",
+        "pass",
+        "harness_error"
+      ],
+      "success_rate": 1.0,
+      "pass_hat": [
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ],
+      "wall_median_s": 30.670429292,
+      "wall_p90_s": 32.3516427168,
+      "tool_calls_mean": 6.8,
+      "refusals": 5,
+      "undos": 0,
+      "edits_behind": 0,
+      "trials_with_edits_behind": 0,
+      "tokens_in": 102,
+      "tokens_out": 15626,
+      "tokens_cache_read": 1279882,
+      "tokens_cache_write": 158691,
+      "cost_usd": 0.6811797,
+      "wishes": 0,
+      "failures": [],
+      "budget_exhausted": 0,
+      "budget_exhausted_trials": []
+    }
+  ],
+  "tool_counts": {
+    "grimoire_apply_operation": 228,
+    "grimoire_capture_still": 5,
+    "grimoire_guide": 20,
+    "grimoire_list_operations": 22,
+    "grimoire_list_pieces": 7,
+    "grimoire_present": 20,
+    "grimoire_preview_operation": 7,
+    "grimoire_schema": 3,
+    "grimoire_state": 19,
+    "grimoire_style": 29,
+    "grimoire_undo_operation": 9,
+    "grimoire_wish": 2
+  },
+  "refusals_by_tool": {
+    "grimoire_apply_operation": 26,
+    "grimoire_preview_operation": 2,
+    "grimoire_schema": 3,
+    "grimoire_style": 6
+  },
+  "wishes_by_tool": {
+    "grimoire_preview_operation reporting, for placement_add, which existing placements the new piece would replace, before anything is applied.": 1,
+    "placement_move: change a placement's x,z by id, with a dry run listing what it would replace or overlap.": 1
+  },
+  "harness_error_reasons": [
+    {
+      "task": "dress-the-market-area",
+      "trial": 3,
+      "reason": "the transcript shows a tool `xd__mcp__cauldron_grimoire_guide` that is neither the editor's nor the harness's own set, so the profile was not isolated"
+    },
+    {
+      "task": "write-the-gatekeepers-greeting",
+      "trial": 3,
+      "reason": "the transcript shows a tool `xd__mcp__cauldron_grimoire_guide` that is neither the editor's nor the harness's own set, so the profile was not isolated"
+    },
+    {
+      "task": "write-the-gatekeepers-greeting",
+      "trial": 5,
+      "reason": "the transcript shows a tool `xd__mcp__cauldron_grimoire_guide` that is neither the editor's nor the harness's own set, so the profile was not isolated"
+    },
+    {
+      "task": "write-the-gatekeepers-greeting",
+      "trial": 8,
+      "reason": "the transcript shows a tool `xd___mcp__cauldron_grimoire_guide` that is neither the editor's nor the harness's own set, so the profile was not isolated"
+    }
+  ],
+  "preflight": null,
+  "cost_total_usd": 5.0605317
+}

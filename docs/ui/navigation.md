@@ -23,6 +23,7 @@ did, in order.
   thing's name (`Cmd+P`, the characters, `Enter`) on a project that holds one — a piece, a placed piece, a lattice, a composition, a registered
   data file and a note — and arrives at its page. The cost shown is that route's presses.
 - Back to where you were in **1 press**: held by `back_and_forward_across_workspaces`, not a row here.
+- A level's style in at most **3 presses**, from a cold start (SG-05, #404): *met* when the Design workspace shows the level's page after at most three key presses and pointer actions together, which is stricter than the issue's word.
 - **Never worse than the baseline**: a destination that arrived then still arrives, and costs no more keys and pointer actions together.
 
 A target that is *missed* is filed as its own issue, naming the destination and the route; the issue is cited in the Target column and
@@ -52,7 +53,8 @@ the test fails for a miss with none.
 | The AGENT block | press Cmd/Ctrl+9 (the Agent workspace) | 1 | 0 | yes | 0, 2, yes | met — 1 press(es) |
 | The settings | Cmd+, | 1 | 0 | yes | 1, 0, yes | met — 1 press(es) |
 | The running game's log | press Cmd/Ctrl+8 (the Game workspace) | 1 | 0 | yes | 1, 0, no | met — 1 press(es) |
+| A level's style | press Cmd/Ctrl+0 (the Design workspace), click the row `m` | 1 | 1 | yes | not in the baseline | met — 1 press(es) and 1 pointer action(s) |
 
 ## What the numbers say
 
-1 of 20 destinations cannot be reached at all. Of the 19 that can, 2 are where the editor already starts, 10 are reached by keys alone, and 7 need the pointer. The inspector moves only by the wheel, so scrolling to a heading costs between 1 and 2 notches. Set against that, a workspace model asks for any workspace in one press, any named thing in at most `Cmd+P`, its name and `Enter`, and one press back: 1 of these 19 cost more than one press and 7 of them need the pointer.
+1 of 21 destinations cannot be reached at all. Of the 20 that can, 2 are where the editor already starts, 10 are reached by keys alone, and 8 need the pointer. The inspector moves only by the wheel, so scrolling to a heading costs between 1 and 2 notches. Set against that, a workspace model asks for any workspace in one press, any named thing in at most `Cmd+P`, its name and `Enter`, and one press back: 1 of these 20 cost more than one press and 8 of them need the pointer.

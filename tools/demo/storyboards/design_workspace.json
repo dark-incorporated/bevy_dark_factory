@@ -1,0 +1,111 @@
+{
+  "name": "design_workspace",
+  "fps": 10,
+  "scale": 1,
+  "width": 960,
+  "crop": [
+    0,
+    0,
+    1088,
+    640
+  ],
+  "setup": [],
+  "chunks": [
+    {
+      "seconds": 7.0
+    },
+    {
+      "seconds": 4.8
+    }
+  ],
+  "steps": [
+    {
+      "at": 0.2,
+      "cursor": [
+        700,
+        560
+      ],
+      "caption": "person: Ctrl+0 (Cmd+0 on a Mac) opens Design"
+    },
+    {
+      "at": 1.0,
+      "key": "Digit0",
+      "mods": [
+        "ControlLeft"
+      ]
+    },
+    {
+      "at": 1.8,
+      "cursor": [
+        166,
+        285
+      ],
+      "caption": "the tree, the page drawn, the board beside it"
+    },
+    {
+      "at": 2.4,
+      "click_label": "courtyard",
+      "within": [
+        40,
+        230,
+        240,
+        320
+      ],
+      "caption": "person: a click on the level's row"
+    },
+    {
+      "at": 3.9,
+      "wheel": {
+        "y": -1,
+        "n": 4,
+        "at": [
+          600,
+          450
+        ]
+      },
+      "caption": "its headings and pictures; its board"
+    },
+    {
+      "at": 5.3,
+      "click_label": "Edit page",
+      "caption": "person: Edit page"
+    },
+    {
+      "at": 6.5,
+      "click": [
+        720,
+        336
+      ]
+    },
+    {
+      "at": 6.9,
+      "key": "ArrowDown"
+    },
+    {
+      "at": 7.0,
+      "type": "Dusk.",
+      "caption": "person: types"
+    },
+    {
+      "at": 8.1,
+      "click_label": "Done",
+      "caption": "Done: written, and drawn again"
+    },
+    {
+      "at": 9.5,
+      "click_label": "New topic",
+      "caption": "person: New topic"
+    },
+    {
+      "at": 10.9,
+      "click_label": "dialogue",
+      "within": [
+        380,
+        230,
+        700,
+        290
+      ],
+      "caption": "a topic button writes its page"
+    }
+  ]
+}

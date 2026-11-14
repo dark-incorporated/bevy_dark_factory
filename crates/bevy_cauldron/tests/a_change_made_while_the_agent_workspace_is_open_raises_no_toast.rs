@@ -105,3 +105,25 @@ fn a_placement_made_while_the_agent_workspace_is_open_raises_no_toast_and_is_fol
         focus.distance(target)
     );
 }
+
+/// Where the second change is made, in map metres: far from the first and from the camera.
+const SECOND_AT: [f32; 2] = [9.5, 9.5];
+
+/// **A second change made while the first still waits for a viewport does not replace it**: both are followed, in order, so the view ends at the second.
+#[test]
+fn two_changes_made_while_the_agent_workspace_is_open_are_both_held_and_the_view_ends_at_the_second() {
+    let mut app = editor("agent_open_follow_two");
+    switch_to(&mut app, Workspace::Agent);
+    let origin = app.world().resource::<bevy_cauldron::project::OpenMap>().map.origin;
+    let before = problems(&app);
+    for at in [AT, SECOND_AT] {
+        let answer = apply(&mut app, "placement_add", serde_json::json!({"piece": "wall", "at": at}));
+        assert_ne!(answer["outcome"], "previewed", "the placement is applied: {answer}");
+    }
+    updates(&mut app, frames_of(2.0 * FOLLOW_SECONDS));
+    let said: Vec<String> = problems(&app).into_iter().filter(|p| !before.contains(p)).collect();
+    assert!(said.iter().all(|p| !p.contains("viewport")), "no problem about the viewport: {said:?}");
+    let focus = app.world().resource::<Rig>().focus;
+    let target = Vec3::new(origin.0 + SECOND_AT[0], origin.1, origin.2 + SECOND_AT[1]);
+    assert!(focus.distance(target) <= FRAMED_WITHIN_M, "the view ends at the second change {target:?}, focus {focus:?}");
+}

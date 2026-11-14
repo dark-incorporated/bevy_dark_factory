@@ -1,0 +1,76 @@
+selftest passed
+--- step 0
+light-the-gate-at-night trial 1: PASS 11/11 checks, 9 call(s), 1 s
+write-the-gatekeepers-greeting trial 1: PASS 7/7 checks, 2 call(s), 0 s
+
+3 trial(s): 3 passed, 0 failed, 0 harness error(s). Files are under /Users/rebekahbrittain/.local/state/cauldron-bench/rehearse-r1-without-style
+report: /Users/rebekahbrittain/.local/state/cauldron-bench/rehearse-r1-without-style/report.md
+report: /Users/rebekahbrittain/.local/state/cauldron-bench/rehearse-r1-without-style/report.json
+light-the-gate-at-night trial 1: PASS 11/11 checks, 9 call(s), 0 s
+write-the-gatekeepers-greeting trial 1: PASS 7/7 checks, 2 call(s), 0 s
+
+3 trial(s): 3 passed, 0 failed, 0 harness error(s). Files are under /Users/rebekahbrittain/.local/state/cauldron-bench/rehearse-r1-with-style
+report: /Users/rebekahbrittain/.local/state/cauldron-bench/rehearse-r1-with-style/report.md
+report: /Users/rebekahbrittain/.local/state/cauldron-bench/rehearse-r1-with-style/report.json
+light-the-gate-at-night trial 1: PASS 11/11 checks, 9 call(s), 0 s
+write-the-gatekeepers-greeting trial 1: PASS 7/7 checks, 2 call(s), 0 s
+
+3 trial(s): 3 passed, 0 failed, 0 harness error(s). Files are under /Users/rebekahbrittain/.local/state/cauldron-bench/rehearse-r2-without-style
+report: /Users/rebekahbrittain/.local/state/cauldron-bench/rehearse-r2-without-style/report.md
+report: /Users/rebekahbrittain/.local/state/cauldron-bench/rehearse-r2-without-style/report.json
+light-the-gate-at-night trial 1: PASS 11/11 checks, 9 call(s), 0 s
+write-the-gatekeepers-greeting trial 1: PASS 7/7 checks, 2 call(s), 0 s
+
+3 trial(s): 3 passed, 0 failed, 0 harness error(s). Files are under /Users/rebekahbrittain/.local/state/cauldron-bench/rehearse-r2-with-style
+report: /Users/rebekahbrittain/.local/state/cauldron-bench/rehearse-r2-with-style/report.md
+report: /Users/rebekahbrittain/.local/state/cauldron-bench/rehearse-r2-with-style/report.json
+assembled rehearse-without-style: {'dress-the-market-area': 2, 'light-the-gate-at-night': 2, 'write-the-gatekeepers-greeting': 2} trials per task, header trials = 2, commit c16441584c0eef5cc03aff187ad02124bfa71b28, date 2026-11-14
+- wishes, by the tool wished for: none
+
+published: /tmp/rehearse/bench/runs/2026-11-14-rehearse-without-style.md and /tmp/rehearse/bench/runs/2026-11-14-rehearse-without-style.json
+assembled rehearse-with-style: {'dress-the-market-area': 2, 'light-the-gate-at-night': 2, 'write-the-gatekeepers-greeting': 2} trials per task, header trials = 2, commit c16441584c0eef5cc03aff187ad02124bfa71b28, date 2026-11-14
+- wishes, by the tool wished for: none
+
+published: /tmp/rehearse/bench/runs/2026-11-14-rehearse-with-style.md and /tmp/rehearse/bench/runs/2026-11-14-rehearse-with-style.json
+# rehearse-without-style (oracle) against rehearse-with-style (oracle)
+
+**no measurable change.** Over 3 task(s) both runs scored, `b`'s mean success is +0.0 points against `a`'s, with a paired 95% bootstrap interval of [+0.0, +0.0] points.
+
+No task's success count moved.
+
+harness errors (not scored): 0
+dress-the-market-area: without 9.00/9  with 9.00/9  (2 and 2 runs)
+light-the-gate-at-night: without 9.00/9  with 9.00/9  (2 and 2 runs)
+write-the-gatekeepers-greeting: without 6.00/6  with 6.00/6  (2 and 2 runs)
+lines satisfied per task-triple (max 24): without 24.00  with 24.00
+PRIMARY  difference with - without: +0.00  95% bootstrap interval [+0.00, +0.00]  ->  no measurable change
+second reading, exact permutation test (arm labels exchanged within a task), two-sided p = 1.0000
+route of the with-style runs: tool 0, file 0, both 0, neither 6  (called grimoire_style, with or without a page: 0%; the tool alone, no page: 0%; needed 70% of the first)
+  D over the 6 with-style runs by route `neither` (3 tasks): +0.00  [+0.00, +0.00]  (descriptive, a thin cell)
+CLAIM: the style, available to the agent, did not measurably change what it built; nothing is claimed about the tool in particular
+with-style runs that called grimoire_style before their first edit: 0 of 6
+with-style runs whose own grimoire_present call cited followed lines: 0 of 6
+without-style runs offered grimoire_style (must be 0): 0
+without-style runs that tried the hidden grimoire_style by its device path: 0 of 6 (0 writes, 0 reads)
+wishes made by with-style runs: 0
+  "trials": 2,
+--- step 1
+light-the-gate-at-night trial 1: FAIL 1/11 checks — oplog_has, file_value, file_value, file_value, file_value, file_value, file_value, file_value, file_value, handback_contains failed
+write-the-gatekeepers-greeting trial 1: FAIL 3/7 checks — oplog_has, file_value, file_value, file_value failed
+
+3 trial(s): 0 passed, 3 failed, 0 harness error(s). Files are under /Users/rebekahbrittain/.local/state/cauldron-bench/1794682846
+report: /Users/rebekahbrittain/.local/state/cauldron-bench/1794682846/report.md
+report: /Users/rebekahbrittain/.local/state/cauldron-bench/1794682846/report.json
+light-the-gate-at-night trial 1: PASS 11/11 checks, 9 call(s), 0 s
+write-the-gatekeepers-greeting trial 1: PASS 7/7 checks, 2 call(s), 0 s
+
+3 trial(s): 3 passed, 0 failed, 0 harness error(s). Files are under /Users/rebekahbrittain/.local/state/cauldron-bench/1794682848
+report: /Users/rebekahbrittain/.local/state/cauldron-bench/1794682848/report.md
+report: /Users/rebekahbrittain/.local/state/cauldron-bench/1794682848/report.json
+light-the-gate-at-night trial 1: PASS 11/11 checks, 9 call(s), 0 s
+write-the-gatekeepers-greeting trial 1: PASS 7/7 checks, 2 call(s), 0 s
+
+3 trial(s): 3 passed, 0 failed, 0 harness error(s). Files are under /Users/rebekahbrittain/.local/state/cauldron-bench/1794682851
+report: /Users/rebekahbrittain/.local/state/cauldron-bench/1794682851/report.md
+report: /Users/rebekahbrittain/.local/state/cauldron-bench/1794682851/report.json
+rc=done
