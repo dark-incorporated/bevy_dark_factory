@@ -29,7 +29,7 @@ use serde_json::Value;
 
 use crate::check::Verdict;
 use crate::grade::Outcome;
-use crate::run::CallLog;
+use crate::run::{AgentError, CallLog};
 use crate::stats::{self, Interval, BOOTSTRAP_RESAMPLES, BOOTSTRAP_SEED, WALL_SLOW_PERCENTILE};
 use crate::task::Split;
 
@@ -213,6 +213,13 @@ pub struct TrialData {
     /// recorded, which reads as not stopped.
     #[serde(default)]
     pub call_budget_exhausted: bool,
+    /// **How many calls the agent made to a tool that does not exist** (#441); absent from a `trial.json` written before it,
+    /// which reads as none.
+    #[serde(default)]
+    pub agent_errors: u32,
+    /// **Those calls**, with what the harness answered; empty for a held-out trial, which records only the count.
+    #[serde(default)]
+    pub agent_error_calls: Vec<AgentError>,
 }
 
 fn dev_split() -> Split {
@@ -385,6 +392,12 @@ pub struct TaskReport {
     /// Which trials those were, in order.
     #[serde(default)]
     pub budget_exhausted_trials: Vec<u32>,
+    /// **Calls the agent made to a tool that does not exist** (#441), over the scored trials of this task.
+    #[serde(default)]
+    pub agent_errors: u32,
+    /// Which trials made one, in order.
+    #[serde(default)]
+    pub agent_error_trials: Vec<u32>,
 }
 
 /// **A group of tasks stated as one**: the suite, a tag, or the held-out total.
@@ -465,6 +478,13 @@ pub struct Report {
     /// (never `0` for unknown). Absent from an older report.
     #[serde(default)]
     pub cost_total_usd: Option<f64>,
+    /// **The calls the agent made to a tool that does not exist** (#441), over every scored trial: an agent mistake, never a
+    /// harness error. Absent from an older report, which reads as none.
+    #[serde(default)]
+    pub agent_errors: u32,
+    /// **Those calls by the name the agent used**, over the trials that name them.
+    #[serde(default)]
+    pub agent_errors_by_tool: BTreeMap<String, u32>,
 }
 
 /// **The sum of the counts that were reported**, or `None` when none was: a trial that reported no tokens
@@ -536,6 +556,8 @@ impl TaskReport {
             failures,
             budget_exhausted: scored.iter().filter(|t| t.call_budget_exhausted).count() as u32,
             budget_exhausted_trials: scored.iter().filter(|t| t.call_budget_exhausted).map(|t| t.trial).collect(),
+            agent_errors: scored.iter().map(|t| t.agent_errors).sum(),
+            agent_error_trials: scored.iter().filter(|t| t.agent_errors > 0).map(|t| t.trial).collect(),
         }
     }
 
@@ -672,6 +694,13 @@ impl Report {
         });
         let dev = Aggregate::of("dev", &dev_refs, &dev_trials, price);
         let held_out = (!held_trials.is_empty()).then(|| Aggregate::of("held-out", &held_refs, &held_trials, price));
+        // **The agent's calls to a tool that does not exist** (#441), over every scored trial.
+        let scored_all = run.trials.iter().filter(|t| !t.harness_error());
+        let agent_errors: u32 = scored_all.clone().map(|t| t.agent_errors).sum();
+        let mut agent_errors_by_tool: BTreeMap<String, u32> = BTreeMap::new();
+        for call in scored_all.flat_map(|t| &t.agent_error_calls) {
+            *agent_errors_by_tool.entry(call.tool.clone()).or_default() += 1;
+        }
         let preflight = run.preflight.map(|usage| PreflightCost {
             tokens_in: usage.input,
             tokens_out: usage.output,
@@ -710,6 +739,8 @@ impl Report {
                 .collect(),
             preflight,
             cost_total_usd,
+            agent_errors,
+            agent_errors_by_tool,
         }
     }
 
@@ -841,6 +872,31 @@ impl Report {
         )
     }
 
+    /// **The "Agent errors" section: the calls the agent made to a tool that does not exist** (#441).
+    ///
+    /// Empty when there were none. Each is the agent's own mistake: its harness answered "not found", nothing ran, and the agent
+    /// went on, so the trial is scored and is in no "Harness errors" row. They are listed so an arm that provokes them more is
+    /// seen to (the style study's without-style arm made 14 against 4).
+    fn agent_errors_markdown(&self) -> String {
+        if self.agent_errors == 0 {
+            return String::new();
+        }
+        let which: Vec<String> = self
+            .tasks
+            .iter()
+            .flat_map(|t| t.agent_error_trials.iter().map(move |n| format!("`{}` trial {n}", t.task)))
+            .collect();
+        let named = if which.is_empty() { String::new() } else { format!(" in {}", which.join(", ")) };
+        let tools: BTreeMap<String, u32> =
+            self.agent_errors_by_tool.iter().map(|(name, n)| (name.replace('`', "'"), *n)).collect();
+        format!(
+            "## Agent errors\n\n{} call(s) to a tool that does not exist{named}. The agent was told so by its harness and went on, so \
+             each trial is scored: these are the agent's own mistakes and not the harness's. By the name called: {}.\n\n",
+            self.agent_errors,
+            top(&tools, TOP_TOOLS_SHOWN)
+        )
+    }
+
     /// **The "Harness errors" section: every distinct cause, how many trials had it, and which** (#432, D1).
     ///
     /// Empty for a run with none. Trials with the same reason are one row (a hundred refused turns are one
@@ -928,6 +984,7 @@ impl Report {
             ));
         }
         out.push_str(&self.budget_markdown());
+        out.push_str(&self.agent_errors_markdown());
         out.push_str(&self.harness_errors_markdown());
 
         out.push_str("## The suite\n\n");

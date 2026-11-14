@@ -103,6 +103,12 @@ pub struct Comparison {
     pub a_held_out: Option<f64>,
     /// `b`'s held-out mean success, as a total.
     pub b_held_out: Option<f64>,
+    /// **The calls `a`'s agent made to a tool that does not exist** (#441), which the run scored anyway.
+    #[serde(default)]
+    pub a_agent_errors: u32,
+    /// **The calls `b`'s agent made to a tool that does not exist.**
+    #[serde(default)]
+    pub b_agent_errors: u32,
 }
 
 /// **What differs between two reports' suites, agents and trial counts.**
@@ -184,6 +190,8 @@ pub fn compare(a: &Report, b: &Report, across: bool) -> Result<Comparison, Strin
         moved,
         a_held_out: a.held_out.as_ref().and_then(|h| h.mean_success),
         b_held_out: b.held_out.as_ref().and_then(|h| h.mean_success),
+        a_agent_errors: a.agent_errors,
+        b_agent_errors: b.agent_errors,
     })
 }
 
@@ -223,6 +231,13 @@ impl Comparison {
                 "\nHeld-out tasks, as a total on each side and not paired: `a` {}, `b` {}.\n",
                 pct(self.a_held_out),
                 pct(self.b_held_out)
+            ));
+        }
+        if self.a_agent_errors > 0 || self.b_agent_errors > 0 {
+            out.push_str(&format!(
+                "\nAgent errors, the calls each run's agent made to a tool that does not exist (each was told so and went on, and \
+                 the trials are scored): `a` {}, `b` {}.\n",
+                self.a_agent_errors, self.b_agent_errors
             ));
         }
         out

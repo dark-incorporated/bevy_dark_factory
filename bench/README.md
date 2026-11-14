@@ -73,6 +73,9 @@ An editor that did not start, a port that did not open, a transcript that could 
 name this build has no tool for: those are facts about the harness, with the reason in the record, and the
 run exits non-zero so a script notices.
 
+**A call to a tool that does not exist is none of these.** It is the agent's mistake, counted as an agent error beside a
+trial that is scored (BM-11, below).
+
 ## The report, and what changed between two runs (BM-03)
 
 Every run ends with a report, `report.md` and `report.json` beside its trials. **Name a run with `--label`**
@@ -94,6 +97,8 @@ cauldron-bench compare <a> <b> --across                # a different suite, agen
   editor's back** (files changed that no operation-log line explains: the agent went around the tools),
   tokens, cost and wishes; and for each failed trial the **first failing check** with what it wanted and
   measured, and the agent's **last five tool calls**.
+- **Agent errors**: calls the agent made to a tool that does not exist, which its harness refused by name and the agent
+  went on from. They are scored trials; the report counts them per task and per tool, and `compare` says each arm's count.
 - **Per suite and per tag** (dev tasks): mean success with a 95% bootstrap interval (tasks, then trials within
   tasks, resampled `BOOTSTRAP_RESAMPLES = 10_000` times from a fixed seed), mean `pass^k`, cost, cost per
   success and the harness-error count.
@@ -156,6 +161,10 @@ A trial whose agent was **offered** a tool outside that set (the editor's `grimo
 `run::BUILTIN_TOOLS`) is a harness error naming the tool, as is one that was offered none of the
 editor's, and so is one whose model provider refused a turn (an HTTP 429 or 402): the provider's answer is
 not a result about the agent.
+
+A tool the agent **called** outside that set is a harness error when it ran, or when the transcript shows no answer to it. A
+name that does not exist (omp answers `Tool <name> not found`) is the agent's own mistake and the trial is scored (see "A tool
+name that does not exist is the agent's mistake", below).
 
 ## Held-out tasks (BM-04)
 
@@ -237,14 +246,43 @@ includes them.
 
 ## How an omp agent's calls are read
 
-omp reaches an editor tool two ways, and the runner reads both. `write xd://mcp__<server>_<tool>` carries the tool
-and its arguments in the transcript. **`eval`** (`await tool.mcp__<server>_<tool>(...)`) carries only the names of the
+omp reaches an editor tool three ways, and the runner reads all three. `write xd://mcp__<server>_<tool>` carries the tool
+and its arguments in the transcript, and so does **a call by the tool's own name**, `mcp__<server>_<tool>` (arguments in the
+call's `tool_execution_start`). **`eval`** (`await tool.mcp__<server>_<tool>(...)`) carries only the names of the
 tools a cell called (`result.details.cells[*].statusEvents[*].op`): each is a call in the trial's call list, its tool-call
 budget counts each, and what it was given is not in the transcript. So after the agent is done the runner asks the
 editor (`grimoire/state`'s `presentation` holds the hand-back's title, summary and lists): a hand-back the transcript
 did not show is graded from the editor's, and a trial in which the agent called `grimoire_present` through `eval`
 and the editor holds none, or cannot be asked, is a **harness error naming "tool calls the transcript did not show"**,
 never "no hand-back was made". A wish made through `eval` is counted, with its content unknown.
+
+## A tool name that does not exist is the agent's mistake (BM-11, #441)
+
+The style study (#409) lost 18 of its 48 trials (14 of 24 without the style tool, 4 of 24 with it) to one call: the model's
+first move was a tool named `xd__mcp__cauldron_grimoire_guide` or `xd___mcp__cauldron_grimoire_guide`, omp answered `Tool
+xd__mcp__cauldron_grimoire_guide not found. Did you mean mcp__cauldron_grimoire_guide?`, the agent recovered and finished,
+and the runner then threw the whole trial away as "the profile was not isolated".
+
+**Why the model makes the call.** omp mounts MCP tools as `xd://` devices, so the request it sends declares only the ten
+built-ins and no `mcp__` function at all. The editor's tools reach the model as a list of routes in the system prompt (`-
+"grimoire_guide" → xd://mcp__cauldron_grimoire_guide`) and the MCP server's own instructions (`Call grimoire_guide first`).
+The model reads a tool it is told to call by name and a path that names it, and writes the path as a function name, which
+cannot hold `:` or `/`: `xd://` becomes `xd__` or `xd___`. The study's trials made it as the first call every time it was made
+(18 of 18). The without-style arm's prompt differs from the with-style arm's by exactly one route line, `grimoire_style`;
+why that moves the rate from 4 of 24 to 14 of 24 is not established (one line of a prompt is the only difference, and the
+rate also moves with the task).
+
+**The right treatment.** The call ran nothing. omp refused it by name and the agent saw the refusal, so it is a mistake of the
+agent's own, and the runner records it as an **agent error** (`AgentError`: the name called and omp's answer) and reads the
+rest of the trial: `trial.json` has `agent_errors` (a count) and `agent_error_calls`, a report counts them per task and per
+tool and lists them in an "Agent errors" section, and `compare` says each arm's count. The trial is scored and is in no
+"Harness errors" row. **A name omp refused is the only thing taken for a mistake.** A call to a tool outside the harness's
+and the editor's that *ran* is a leak and stays a harness error, and so is one whose answer is not in the transcript, because
+then the runner cannot say nothing ran.
+
+**The editor's tool called by its own name is a call** (`mcp__<server>_<tool>`): after "Did you mean" five of the study's
+agents used it, omp ran it, and it is counted with its arguments and its answer like a `write xd://` call. A hand-back made
+that way is graded as any other.
 
 ## What the agent inside a trial can read
 

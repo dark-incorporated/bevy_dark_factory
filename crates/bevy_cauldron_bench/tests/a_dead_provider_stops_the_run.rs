@@ -115,6 +115,7 @@ fn record(task: &str, trial: u32, outcome: Outcome, reason: &str) -> TrialRecord
         dir: PathBuf::new(),
         held_out: false,
         call_budget_exhausted: false,
+        agent_errors: Vec::new(),
     }
 }
 

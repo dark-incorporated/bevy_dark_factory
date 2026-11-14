@@ -243,6 +243,20 @@ impl CallLog {
     }
 }
 
+/// **A call to a tool that does not exist** (#441, BM-11): the agent asked for `tool`, and its harness answered `said`
+/// (omp: `Tool xd__mcp__cauldron_grimoire_guide not found. Did you mean mcp__cauldron_grimoire_guide?`).
+///
+/// **An agent's mistake, not a harness's.** The tool never ran, so nothing was reached that the trial should have fenced
+/// off; the agent saw the refusal and went on. It is counted (per trial, per task, per arm) and never scored as a harness
+/// error, which is what a tool the agent *ran* outside the Dark Factory's set still is (see [`read_transcript`]).
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct AgentError {
+    /// The name the agent called, as it spelled it.
+    pub tool: String,
+    /// What its harness answered.
+    pub said: String,
+}
+
 /// **Whether a tool's answer is the editor refusing.**
 ///
 /// An MCP tool reports a refusal two ways: the envelope's own `isError`, or a payload that says so in
@@ -325,6 +339,9 @@ pub struct TrialRecord {
     /// **Whether the agent was stopped because it made a call beyond its task's `budget.tool_calls`** (#433): such a trial
     /// was cut off, and what it left was graded as it stood.
     pub call_budget_exhausted: bool,
+    /// **The calls the agent made to a tool that does not exist** (#441), which is an agent mistake and not a harness error:
+    /// the trial is scored, and a report counts these per task and per arm.
+    pub agent_errors: Vec<AgentError>,
 }
 
 impl TrialRecord {
@@ -376,6 +393,8 @@ impl TrialRecord {
             "tools_offered": self.tools_offered,
             "wishes": self.wishes,
             "call_budget_exhausted": self.call_budget_exhausted,
+            "agent_errors": self.agent_errors.len(),
+            "agent_error_calls": self.agent_errors,
         })
     }
 }
@@ -1678,6 +1697,7 @@ fn blank_record(
         dir: trial_dir(options, label, trial),
         held_out: task.split == crate::task::Split::HeldOut,
         call_budget_exhausted: false,
+        agent_errors: Vec::new(),
     }
 }
 
@@ -1825,6 +1845,7 @@ fn one_trial(options: &Options, task: &Task, label: &str, trial: u32, variant: O
     record.tools_offered = run.tools_offered.clone();
     record.wishes = run.wishes.clone();
     record.call_budget_exhausted = run.call_budget_exhausted;
+    record.agent_errors = run.agent_errors.clone();
     let reason = graded.sentence();
     write_record(&record, task, &reason);
     record
@@ -1859,6 +1880,9 @@ pub struct AgentRun {
     pub decisions: std::collections::BTreeMap<String, Decision>,
     /// **Whether the agent was stopped at its tool-call budget** (#433).
     pub call_budget_exhausted: bool,
+    /// **The calls the agent made to a tool that does not exist** (#441): omp answered "not found", nothing ran, and the agent
+    /// went on. A mistake of the agent's own, so the trial is scored and these are counted beside it.
+    pub agent_errors: Vec<AgentError>,
 }
 
 /// **An agent that connects and stops**, which must pass no task.
@@ -2339,6 +2363,11 @@ fn import_credentials(omp: &str, home: &Path, file: &Path, carried: &Value) -> R
 /// says so: omp writes "No API key found" or "No such model" to its stderr, and a run whose transcript
 /// holds no assistant message at all is a run of nothing. Scoring that as an agent failure would be a
 /// result about the harness with the wrong name on it  -  measured on this host, 2026-11-13.
+///
+/// **A tool name that does not exist is the agent's mistake** (#441): omp answers `Tool <name> not found` and the agent goes
+/// on, so the call is an [`AgentError`] and the trial is read and scored. The isolation check is for a LEAK: a tool outside
+/// the harness's and the editor's that RAN, or whose answer is not in the transcript, is still a harness error. **An editor
+/// tool called directly** (`mcp__<server>_<tool>`, which omp's own "Did you mean" suggests) is a call like any other.
 pub fn read_transcript(path: &Path, dir: &Path, server: &str) -> Result<AgentRun, String> {
     let text = std::fs::read_to_string(path)
         .map_err(|e| format!("the transcript at {} could not be read: {e}", path.display()))?;
@@ -2348,6 +2377,11 @@ pub fn read_transcript(path: &Path, dir: &Path, server: &str) -> Result<AgentRun
     // 5xx itself, and says so with `auto_retry_end{success: true}` once an answer came. A refusal is held
     // against the trial only if the stream ends with it still standing.
     let mut standing_refusal: Option<String> = None;
+    let editor_prefix = format!("mcp__{server}_");
+    // **The arguments of each call, by call id**, from `tool_execution_start`: a tool called directly shows them nowhere else.
+    let mut started: std::collections::HashMap<String, Value> = std::collections::HashMap::new();
+    // **Calls to a name outside the harness's and the editor's, by call id, until their answer is read** (#441).
+    let mut outside: std::collections::BTreeMap<String, String> = std::collections::BTreeMap::new();
     for line in text.lines() {
         let Ok(event) = serde_json::from_str::<Value>(line) else {
             continue;
@@ -2356,6 +2390,26 @@ pub fn read_transcript(path: &Path, dir: &Path, server: &str) -> Result<AgentRun
         if kind == "auto_retry_end" && event.get("success").and_then(Value::as_bool) == Some(true) {
             standing_refusal = None;
         }
+        // **The call's id is what ties a name to its answer** (#441), and its arguments are only in `tool_execution_start`.
+        let call_id = event.get("toolCallId").and_then(Value::as_str).unwrap_or_default();
+        if kind == "tool_execution_start" {
+            started.insert(call_id.to_owned(), event.get("args").cloned().unwrap_or(Value::Null));
+        }
+        // **omp's answer to a tool it has no tool for** (#441): `Tool xd__mcp__cauldron_grimoire_guide not found. Did you
+        // mean mcp__cauldron_grimoire_guide?`. Nothing ran, so it is the agent's mistake, recorded and not scored against
+        // the harness. Any OTHER answer to a name held in `outside` means that tool ran, and that is a leak.
+        if kind == "tool_execution_end" {
+            let name = event.get("toolName").and_then(Value::as_str).unwrap_or_default();
+            let answer = answer_text(&event);
+            if event.get("isError").and_then(Value::as_bool) == Some(true) && is_unknown_tool_answer(name, &answer) {
+                outside.remove(call_id);
+                run.agent_errors.push(AgentError { tool: name.to_owned(), said: answer });
+                continue;
+            }
+            if let Some(leaked) = outside.remove(call_id) {
+                return Err(outside_tool_sentence(&leaked, true));
+            }
+        }
         // **A call through omp's `eval` tool** (#434): a `tool_execution_end` whose `result.details.cells[*].statusEvents[*].op`
         // names each editor tool the cell called (`mcp__<server>_<tool>`), and which carries no arguments. Each is a call in
         // the list and the log; the transcript cannot say what it was given or what it answered, so a hand-back's words and
@@ -2363,9 +2417,8 @@ pub fn read_transcript(path: &Path, dir: &Path, server: &str) -> Result<AgentRun
         if kind == "tool_execution_end"
             && let Some(ops) = eval_ops(&event)
         {
-            let prefix = format!("mcp__{server}_");
             for op in ops {
-                let name = op.strip_prefix(&prefix).unwrap_or(&op).to_owned();
+                let name = op.strip_prefix(&editor_prefix).unwrap_or(&op).to_owned();
                 run.tool_calls.push(name.clone());
                 run.tool_log.push(CallLog::new(&name, &Value::Null, false));
                 if name == "grimoire_wish" {
@@ -2415,18 +2468,29 @@ pub fn read_transcript(path: &Path, dir: &Path, server: &str) -> Result<AgentRun
                 inner.and_then(|i| i.get("isError")).and_then(Value::as_bool).unwrap_or(false),
                 &answer,
             );
-            run.tool_calls.push(name.to_owned());
-            run.tool_log.push(CallLog::new(name, &args, refused));
-            if name == "grimoire_present" {
-                run.handbacks.push(handback_of(&args));
-            }
-            if name == "grimoire_wish" {
-                run.wishes.push(args);
-            }
+            record_editor_call(&mut run, name, args, refused);
         }
-        // **A `toolcall_end` inside a `message_update`** is a tool the model called by name, and a name
-        // that is not one of the harness's own is a tool the benchmark did not hand out  -  which means
-        // something outside the isolated set was loaded.
+        // **The editor's tool called directly** (#441): `mcp__<server>_<tool>`, a name omp registers beside the devices and
+        // runs when it is called, which is the route omp's own "Did you mean mcp__cauldron_grimoire_guide?" points an agent
+        // to. Five of the study's agents took it; the runner knew two routes (`write xd://` and `eval`), so those calls were
+        // in no trial. The tool's own name is the part after the prefix, its arguments are the call's, and its answer is the
+        // text content.
+        if kind == "tool_execution_end"
+            && let Some(name) = event.get("toolName").and_then(Value::as_str).and_then(|n| n.strip_prefix(&editor_prefix))
+        {
+            let args = event
+                .get("toolCallId")
+                .and_then(Value::as_str)
+                .and_then(|id| started.get(id))
+                .cloned()
+                .unwrap_or(Value::Null);
+            let refused = is_refusal(event.get("isError").and_then(Value::as_bool).unwrap_or(false), &answer_text(&event));
+            record_editor_call(&mut run, name, args, refused);
+        }
+        // **A `toolcall_end` inside a `message_update`** is a tool the model called by name. A name that is neither the harness's
+        // own nor the editor's is held until its answer arrives (#441): omp's "not found" says nothing ran, which is the
+        // agent's own mistake ([`AgentError`], taken where the answer is read above), and any other answer says a tool
+        // outside the isolated set RAN, which is a leak and a harness error.
         if kind == "message_update"
             && let Some(inner) = event.get("assistantMessageEvent")
             && inner.get("type").and_then(Value::as_str) == Some("toolcall_end")
@@ -2434,17 +2498,20 @@ pub fn read_transcript(path: &Path, dir: &Path, server: &str) -> Result<AgentRun
             && let Some(name) = call.get("name").and_then(Value::as_str)
         {
             // **`read`/`write` against `xd://mcp__…` are the device path**, counted above from their
-            // execution; the built-ins are the harness's own.
+            // execution; the built-ins are the harness's own, and `mcp__<server>_<tool>` is the editor's tool called
+            // directly, which omp runs and answers (counted where its answer is read).
             let is_device = call
                 .get("arguments")
                 .and_then(|a| a.get("path"))
                 .and_then(Value::as_str)
                 .is_some_and(|p| p.starts_with("xd://mcp__"));
-            if !is_device && !BUILTIN_TOOLS.contains(&name) {
-                return Err(format!(
-                    "the transcript shows a tool `{name}` that is neither the editor's nor the harness's \
-                     own set, so the profile was not isolated"
-                ));
+            if !is_device && !BUILTIN_TOOLS.contains(&name) && !name.starts_with(&editor_prefix) {
+                match call.get("id").and_then(Value::as_str) {
+                    Some(id) => {
+                        outside.insert(id.to_owned(), name.to_owned());
+                    }
+                    None => return Err(outside_tool_sentence(name, false)),
+                }
             }
         }
         // **A model turn**, and the tokens it cost.
@@ -2495,6 +2562,11 @@ pub fn read_transcript(path: &Path, dir: &Path, server: &str) -> Result<AgentRun
             lines[from..].join(" | ")
         ));
     }
+    // **A call to an outside name whose answer never came** (#441): the runner cannot say it did not run, so it is the harness
+    // error it always was. An agent's mistake is a name omp answered "not found".
+    if let Some(name) = outside.values().next() {
+        return Err(outside_tool_sentence(name, false));
+    }
     // **What the agent was offered, not what it called.** The list is the sidecar the trial's extension
     // writes (`tools_offered_path`), because a `hide_tools` arm is a fact about the list and calling
     // nothing would otherwise read as offering nothing. It is read after the check above: a harness that
@@ -2504,6 +2576,46 @@ pub fn read_transcript(path: &Path, dir: &Path, server: &str) -> Result<AgentRun
         .map_err(|e| format!("the tool list the harness records could not be read at {}: {e}", sidecar.display()))?;
     run.tools_offered = parse_tools_offered(&text, server)?;
     Ok(run)
+}
+
+/// **The text of a tool's answer** in a `tool_execution_end`: every text block of `result.content`, joined.
+fn answer_text(event: &Value) -> String {
+    event
+        .get("result")
+        .and_then(|r| r.get("content"))
+        .and_then(Value::as_array)
+        .map(|blocks| blocks.iter().filter_map(|b| b.get("text").and_then(Value::as_str)).collect::<Vec<_>>().join(" "))
+        .unwrap_or_default()
+}
+
+/// **Whether `answer` is omp saying it has no tool called `name`** (#441): `Tool <name> not found`, with or without a
+/// `. Did you mean <other>?` after it. Measured in 18 transcripts of the style study (omp 18.16.0, 2026-11-14); the name is
+/// part of the match, so an answer about another name is not taken for this call's.
+pub fn is_unknown_tool_answer(name: &str, answer: &str) -> bool {
+    answer.trim_start().starts_with(&format!("Tool {name} not found"))
+}
+
+/// **Why a call to a name outside the harness's and the editor's is a harness error**: the tool ran (`answered`), or nothing
+/// says it did not.
+fn outside_tool_sentence(name: &str, answered: bool) -> String {
+    let because = if answered { "" } else { ", and the transcript shows no answer to it, so it cannot be said that nothing ran" };
+    format!(
+        "the transcript shows a tool `{name}` that is neither the editor's nor the harness's own set, so the profile was not \
+         isolated{because}"
+    )
+}
+
+/// **One call to an editor tool that ran**, as every route to one records it: in the call list and the log, with the
+/// hand-back a `grimoire_present` made and the wish a `grimoire_wish` made.
+fn record_editor_call(run: &mut AgentRun, name: &str, args: Value, refused: bool) {
+    run.tool_calls.push(name.to_owned());
+    run.tool_log.push(CallLog::new(name, &args, refused));
+    if name == "grimoire_present" {
+        run.handbacks.push(handback_of(&args));
+    }
+    if name == "grimoire_wish" {
+        run.wishes.push(args);
+    }
 }
 
 /// **The hand-back a `grimoire_present` call makes**, from its parameters.
@@ -2570,6 +2682,7 @@ pub fn record_json(record: &TrialRecord, task: &Task, sentence: &str) -> Value {
             object.insert("split".to_owned(), json!(task.split.name()));
             object.insert("tool_calls".to_owned(), json!(vec![HELD_OUT_BLANK; calls]));
             object.insert("tool_log".to_owned(), json!([]));
+            object.insert("agent_error_calls".to_owned(), json!([]));
             object.insert("edits_behind".to_owned(), json!(vec![HELD_OUT_BLANK; behind]));
             object.insert("wishes".to_owned(), json!(vec![json!({ "tool": HELD_OUT_BLANK }); wishes]));
             object.insert("refusals_by_tool".to_owned(), json!({}));

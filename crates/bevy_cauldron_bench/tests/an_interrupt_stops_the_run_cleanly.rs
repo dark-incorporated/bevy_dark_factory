@@ -40,6 +40,7 @@ fn record(task: &str, trial: u32, reason: &str) -> TrialRecord {
         tools_offered: Vec::new(),
         wishes: Vec::new(),
         call_budget_exhausted: false,
+        agent_errors: Vec::new(),
         dir: std::path::PathBuf::new(),
         held_out: false,
     }
