@@ -16,7 +16,7 @@ The server speaks the Model Context Protocol over **stdio**, and reaches the run
 
 ## Know the style before you shape a place
 
-**Call `grimoire_style` for a place before you shape it.** The game's look and feel is written down in `design/`, one folder per place: the whole game, a region, a level (named after its map) and an area of a level. The tool returns the chain an agent reads, the game's files first and the most specific place last, each file under a heading naming its path. Pass `map` for a level, `at` (`[x, z]` in map metres) for the area that holds that point, and `topic` (`dialogue`, `sound`, `ui`) when the task is about one of them; with no `map` you get the game's files alone. The pictures the text cites come back as images, each after its caption, at most eight; one it left out is named with its path and its caption, so the words are still yours.
+**Call `grimoire_style` for a place before you shape it.** The game's look and feel is written down in `design/`, one folder per place: the whole game, a region, a level (named after its map) and an area of a level. The tool returns the chain an agent reads, the game's files first and the most specific place last, each file under a heading naming its path. Pass `map` for a level, `at` (`[x, z]` in map metres) for the area that holds that point, and `topic` (such as `dialogue`, `sound` or `ui`, when the game has that file) when the task is about one of them; a topic the game does not have is refused with the topics that exist, so a guess costs one call, not a wrong answer. With no `map` you get the game's files alone. The pictures the text cites come back as images, each after its caption, at most eight; one it left out is named with its path and its caption, so the words are still yours.
 
 **A style file that says it is waiting for the person is not yours to read.** The person allows a project's style the way they allow its guide: that exact content, or the whole project, and one changed byte asks again. Until then the tool gives you one line in the file's place and never its text, so do not go round it with a shell: say in your hand-back that you worked without that file.
 
@@ -31,6 +31,10 @@ The server speaks the Model Context Protocol over **stdio**, and reaches the run
 ## Change
 
 **Four tools, in this order.** `grimoire_list_operations` says what operations exist and what parameters each takes — call it first, because a parameter name you guessed is a refused operation. `grimoire_preview_operation` runs the operation's own check and returns what would change while changing nothing. `grimoire_apply_operation` makes the change and records it in the operation log, returning the id you cite later. `grimoire_undo_operation` takes one change back by that id, and `dry_run` on either of the middle two previews without writing.
+
+**Learn one operation without reading them all.** With no `query`, `grimoire_list_operations` is every operation and every schema, tens of kilobytes. Pass `operation` with an exact name, `{"operation": "data_set"}`, and it returns only that operation: each parameter (its name, whether it is required, its description) and one example call, a few hundred bytes. `query` searches by words; `operation` is the name, and a name that is not an operation is refused with the closest ones. Ask one or the other.
+
+**`placement_add` refuses to land on a piece unless you say so.** A piece whose footprint overlaps one already there is refused, naming both pieces, and nothing changes; add `replace: true` to replace it on purpose. The answer to a replacing add names what it replaced (id, kind, at, cell), and the person's hand-back card lists it as a replacement, so an add is never a silent loss. A person's click on the map still replaces what it lands on, because they see the piece go.
 
 **Your own default is `dry_run: true` for a change to the map's shape.** A `map_set_settings`, a `map_create`, a `fill` or a `layout_accept` moves ground the person is standing on, so preview it before you apply it and say in your summary that you did. The tool's own `dry_run` defaults to false; it is your habit, not the tool's, that has to be safe.
 
@@ -153,7 +157,7 @@ After a grimoire_present hand-back (or a note you resolved), propose one line fo
 
 ### `grimoire_list_operations`
 
-Every operation the running bevy_grimoire editor knows, with each one's parameters' JSON schema and how it is undone. Call this before grimoire_apply_operation so the parameters are the ones the operation actually takes. Returns the list; it does not change anything. The undo column names the strategy an operation declares; grimoire_undo_operation performs it. Pass query (words such as "carve" or "note") to get only the operations whose name or parameters match, best first, and total, the number of operations there are.
+Every operation the running bevy_grimoire editor knows, with each one's parameters' JSON schema and how it is undone. Call this before grimoire_apply_operation so the parameters are the ones the operation actually takes. Returns the list; it does not change anything. The undo column names the strategy an operation declares; grimoire_undo_operation performs it. Pass query (words such as "carve" or "note") to get only the operations whose name or parameters match, best first, and total, the number of operations there are. Pass operation (an operation's exact name, such as data_set) to get only that one operation: each parameter with its description, and one example call, in a few hundred bytes rather than the whole list. Ask with query or with operation, not both.
 
 | annotation | value |
 |---|---|

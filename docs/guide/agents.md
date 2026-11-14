@@ -96,13 +96,15 @@ If it goes wrong: `placement_remove` takes away any piece standing on the placem
 
 An agent never writes a file itself. The server passes each call to the editor, and the editor does the work.
 
-1. The agent lists the operations with `grimoire_list_operations`. The names are the same as in the table below.
+1. The agent lists the operations with `grimoire_list_operations`. The names are the same as in the table below. To learn one operation without reading the whole list, it passes `operation`, such as `{"operation": "data_set"}`: the answer is that operation's parameters and one example call, a few hundred bytes.
 2. The agent previews one with `grimoire_preview_operation`. A preview refuses bad input and says what would change, and it writes nothing.
 3. The agent applies it with `grimoire_apply_operation`. The editor changes the open map or the library in memory.
 4. The editor writes the file it changed under `assets/grimoire/`, and appends one line to `assets/grimoire/oplog.jsonl`. The editor watches the project files, so the open editor shows the new state.
 5. To take a change back, the agent calls `grimoire_undo_operation`. The undo is a new log line.
 
 Each apply answers with an `operation_id`, which names its line in the log.
+
+`placement_add` onto a footprint that overlaps a piece already there is refused, naming both pieces, and changes nothing. Add `"replace": true` to replace the piece on purpose: the answer names what it replaced (id, kind, at, cell), and the hand-back lists it as a replacement. A person's click on the map still replaces what it lands on.
 
 A refused preview or apply answers with `outcome: "refused"`, `refusal` (the sentence) and `problem`, the same facts the editor shows its user in the toast and the journal. `problem.what` is the sentence; `where` names the `file`, `field` or `entity` it is about; `why` is the cause when the sentence does not already say it; `fix` says what to do. A part a refusal does not have is left out, so a refusal that is only a sentence has only `what`. `placement_remove` of an id the map does not have names the entity and says to name a placement that is on the map; the other refusals gain their parts the same way, one at a time.
 

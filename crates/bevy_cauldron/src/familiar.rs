@@ -583,6 +583,8 @@ fn follow_the_hand_back(
                             });
                         for (name, text) in [
                             ("MADE", presented.summary.clone()),
+                            // **A replacement is its own row** (#443): the pieces the turn took out, so they never read as additions.
+                            ("REPLACED", presented.replaced.join("; ")),
                             ("SAID", presented.specified.join("; ")),
                             ("ASSUMED", presented.inferred.join("; ")),
                             ("CHECK", presented.check.join("; ")),

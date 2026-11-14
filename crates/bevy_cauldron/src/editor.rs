@@ -11789,8 +11789,9 @@ fn place_one(
 pub(crate) struct PlannedPlacement {
     /// The row that would be appended.
     pub placed: Placed,
-    /// The rows it would replace, ascending. Occupied space is replaced rather than refused; a piece
-    /// that carries another is still refused, and that happens here.
+    /// The rows it would replace, ascending. Occupied space is replaced rather than refused, by the click; **the
+    /// `placement_add` operation refuses unless the call says `replace: true`** (#443), because an agent that asked to
+    /// ADD must be told what it would take out. A piece that carries another is still refused, and that happens here.
     pub replaces: Vec<usize>,
     /// **The height it would sit at.** The solver lays pieces on the floor grid; how high one ends up
     /// is a question about the finished map, so the click needs this to draw it and the operation

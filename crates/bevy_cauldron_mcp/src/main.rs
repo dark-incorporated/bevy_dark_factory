@@ -85,6 +85,11 @@ pub struct ListParams {
     /// Without them, every operation.
     #[serde(default)]
     pub query: Option<String>,
+    /// **One operation's exact name**, such as `data_set` (#444). With it, only that operation: each parameter with its
+    /// description, and one example call, a few hundred bytes where the whole list is tens of kilobytes. An unknown name is
+    /// refused naming the closest operations. Ask with `query` or with `operation`, not both.
+    #[serde(default)]
+    pub operation: Option<String>,
 }
 
 /// **The parameters of `grimoire_schema`.**
@@ -883,7 +888,10 @@ impl Grimoire {
                        column names the strategy an operation declares; grimoire_undo_operation \
                        performs it. Pass query (words such as \"carve\" or \"note\") to get only \
                        the operations whose name or parameters match, best first, and total, the \
-                       number of operations there are.",
+                       number of operations there are. Pass operation (an operation's exact name, \
+                       such as data_set) to get only that one operation: each parameter with its \
+                       description, and one example call, in a few hundred bytes rather than the \
+                       whole list. Ask with query or with operation, not both.",
         annotations(
             title = "List the editor's operations",
             read_only_hint = true,
@@ -896,7 +904,7 @@ impl Grimoire {
         &self,
         Parameters(p): Parameters<ListParams>,
     ) -> Result<CallToolResult, ErrorData> {
-        match self.editor.call("grimoire/operation_list", json!({"query": p.query})).await {
+        match self.editor.call("grimoire/operation_list", json!({"query": p.query, "operation": p.operation})).await {
             Ok(v) => Ok(CallToolResult::structured(v)),
             Err(e) => Ok(refusal(&e)),
         }

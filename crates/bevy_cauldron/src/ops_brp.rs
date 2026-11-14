@@ -1236,6 +1236,8 @@ fn editor_state(
             "check": p.check,
             // **The style lines the hand-back followed**: path and line only, never the line's text (a page is a prompt, and the state is the agent's).
             "followed": p.followed.iter().map(|f| json!({"path": f.path, "line": f.line})).collect::<Vec<_>>(),
+            // **The pieces the turn replaced** (#443), one sentence each, so an agent reading its own hand-back sees a replacement as one.
+            "replaced": p.replaced,
         })
     });
     // **The pins, named by id and reason.** A pin is the one thing an agent cannot see in the state
@@ -2046,6 +2048,10 @@ fn staged_panels(_: In<Value>, screen: Option<Res<State<crate::screen::Screen>>>
 /// **`{"query": "..."}` searches instead of listing** (#141): only the operations `ops::search`
 /// finds, best first, with the query and the registry's `total` beside them, so a caller knows how
 /// much it did not read. No query, or a blank one, lists every operation as before.
+///
+/// **`{"operation": "data_set"}` answers for one operation** (#444): its parameters and one example call
+/// ([`crate::ops_help::help`]), a few hundred bytes where the whole list is tens of kilobytes. The name is exact; one that is
+/// not an operation is refused naming the closest ones. `operation` and `query` are two ways to ask, and asking both is refused.
 fn operation_list(In(p): In<serde_json::Value>) -> Result<Value, String> {
     let query = match p.get("query") {
         None | Some(Value::Null) => None,
@@ -2053,6 +2059,23 @@ fn operation_list(In(p): In<serde_json::Value>) -> Result<Value, String> {
         Some(Value::String(q)) => Some(q.clone()),
         Some(other) => return Err(format!("`query` is text to search for, not {other}.")),
     };
+    let operation = match p.get("operation") {
+        None | Some(Value::Null) => None,
+        Some(Value::String(name)) if name.trim().is_empty() => {
+            return Err("`operation` is the name of one operation, such as `data_set`, and it is blank.".to_owned());
+        }
+        Some(Value::String(name)) => Some(name.trim().to_owned()),
+        Some(other) => return Err(format!("`operation` is the name of one operation, not {other}.")),
+    };
+    if let Some(name) = operation {
+        if query.is_some() {
+            return Err("`operation` names one operation and `query` searches them all: ask one or the other.".to_owned());
+        }
+        let Some(op) = ops::find(&name) else {
+            return Err(crate::ops_help::unknown(&name));
+        };
+        return Ok(crate::ops_help::help(op.as_ref()));
+    }
     let row = |op: &dyn ops::Operation| {
         json!({
             "operation": op.name(),
@@ -3697,7 +3720,9 @@ fn editor_present(
         }
         (false, None) => return Err("no project is open, so there are no served style lines to cite".to_owned()),
     };
-    let body = crate::present::body_with_followed(&p, &steps, &followed);
+    // **A replacement is listed as one** (#443): the pieces the covered operations took out, read from the log's own answers.
+    let replaced = crate::present::replacements(&log, &p.operation_ids);
+    let body = crate::present::body_with_followed(&p, &steps, &replaced, &followed);
     // **With the AGENT block open and "Answer hand-backs here" on, the question is asked there**, beside the rest of what the
     // agent did; otherwise in the modal, as it always was. A block closed on a waiting question hands it to the modal.
     let inline = here.is_some_and(|here| here.0) && !block.is_empty();
@@ -3758,6 +3783,7 @@ fn editor_present(
         body,
         inline,
         followed,
+        replaced,
     });
     // **The turn is one undo step from here on (E-071).** Done at presentation rather than at the
     // answer, so Cmd+Z during the conversation takes the turn back — a person who does not want the
