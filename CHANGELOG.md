@@ -4,6 +4,7 @@ What each change added, newest first. A visible change has a clip: click the sti
 
 ## 2026-11-14
 
+- **sg-05-a-levels-style-in-three-presses** `615fe451a` A level's style is a measured destination: Cmd/Ctrl+0 and one click on its row, two actions of the three allowed (SG-05, #404) *No clip: a measurement row; proved by navigation::every_destination_is_measured_and_the_baseline_says_so*
 - **ui-99-gooey-g92** `aeb23e871` The terminal's pane root and self-test card are laid out with bevy_gooey instead of raw nodes: the editor has no hand-built node left outside the viewport (#260 done) *No clip: nobody can see this change; proved by the_editor_keeps_its_raw_nodes_counted and the_g91_the_pane_root_and_the_agent_card_are_gooeys*
 - **terminal-find-box-opens** `e3cda3e9` Opening the terminal's find box no longer crashes on Linux (a duplicate Pickable in its spawn), and LinesRoom is retired (#260 review) *No clip: a crash fix behind an existing key; proved by the_terminal_finds_in_its_scrollback and the_terminal_overlays_block_the_clicks_on_their_own_ground*
 - **ui-99-gooey-g91** `02f602e4` The editor's panels are bevy_gooey boxes whose width the editor writes through the interface library (UI-99, #260 part) *No clip: no visible change intended; proved by the_g89_nodes_are_gooeys and the whole editor binary*
