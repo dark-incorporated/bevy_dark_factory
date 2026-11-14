@@ -778,7 +778,6 @@ pub fn resize_the_labels(
     settings: Option<Res<crate::settings::EditorSettings>>,
     mut applied: Local<Option<f32>>,
     mut labels: Query<(&TypeRole, &mut TextFont)>,
-    mut rooms: Query<(&LinesRoom, &mut Node), Without<TypeRole>>,
 ) {
     let Some(settings) = settings else { return };
     if applied.is_some_and(|last| (last - settings.text_scale).abs() < f32::EPSILON) {
@@ -790,18 +789,6 @@ pub fn resize_the_labels(
         let want = FontSize::Px(role.0.px() * scale);
         if font.font_size != want {
             font.font_size = want;
-        }
-    }
-    // **The room the labels are drawn in follows them**, or the label that grew is clipped by the
-    // box that did not. Same one comparison, same frame.
-    for (room, mut node) in &mut rooms {
-        let want = Val::Px(room.at(scale));
-        if room.fixed {
-            if node.height != want {
-                node.height = want;
-            }
-        } else if node.min_height != want {
-            node.min_height = want;
         }
     }
 }
@@ -865,38 +852,10 @@ pub const BODY_LINE_H: f32 = text::BODY.px() * 1.2;
 /// A box that reserves room for text has to reserve it at the size the text is drawn, or a person
 /// at 200% gets a row one line tall holding a two-line-tall label: the text is clipped, and
 /// `every_label_fits_its_panel_at_two_hundred_percent_text` measures exactly that. Spawn sites use
-/// this; a box that has to follow a *live* change carries [`LinesRoom`] and [`resize_the_labels`]
-/// rewrites it.
+/// this; a box that has to follow a *live* change asks gooey for `Extent::LinesCeil`, which tracks the
+/// running text size itself.
 pub fn body_line_h() -> f32 {
     BODY_LINE_H * text_scale()
-}
-
-/// **A box that reserves room for `lines` lines of [`text::BODY`]** (UI-73, #251).
-///
-/// [`body_line_h`] is read when the box is spawned; a person who changes the text size afterwards
-/// would leave the box the height it was built at, and the label inside it — which *does* resize,
-/// because it carries a [`TypeRole`] — would be clipped by its own room. So the reserve is a
-/// component too, and [`resize_the_labels`] rewrites it from the role-like numbers it holds.
-///
-/// **The padding is a number of its own**, because spacing does not follow the text size: a row
-/// inset is the interface's rhythm (`interface_scale`'s job), and scaling it with the type would
-/// double-thicken a row a person only asked to read better.
-#[derive(Component, Clone, Copy, Debug, PartialEq)]
-pub struct LinesRoom {
-    /// How many lines of [`text::BODY`] the box reserves.
-    pub lines: f32,
-    /// Vertical padding added to the reserve, in logical pixels — not scaled with the text.
-    pub pad: f32,
-    /// Fill `Node::height` (a clipped row that keeps one height) rather than `Node::min_height`
-    /// (a box that may grow past its reserve).
-    pub fixed: bool,
-}
-
-impl LinesRoom {
-    /// The height this room is worth at `scale`.
-    pub fn at(self, scale: f32) -> f32 {
-        (self.lines * BODY_LINE_H * scale + self.pad).ceil()
-    }
 }
 
 // ── spacing ──────────────────────────────────────────────────────────────────────────────────────
@@ -966,11 +925,6 @@ pub const NUM_FIELD_W: f32 = 62.0;
 /// the same row, told apart only by an ink that also meant three other things, so the way to learn
 /// which was which was to press one.
 pub const BUTTON_PAD: UiRect = UiRect::axes(Val::Px(10.0), Val::Px(GAP_ROW));
-
-/// **A modal card's inset.** Roomier than a panel's [`PAD`], because a card is one question with
-/// nothing else on it and the air is what makes it read as lifted rather than as a small panel.
-/// Stated once so the three modals stop disagreeing — they ran 20 / 18 / 18 with gaps of 12 / 10 / 10.
-pub const MODAL_PAD: f32 = 20.0;
 
 /// **The label column of a `LABEL  value` row.**
 ///
@@ -1060,28 +1014,6 @@ pub fn panel_root<'a>(
     // draws — so this is never a second copy of a name (see `headless::the_tab_strip_describes_itself`).
     label: &str,
 ) -> EntityCommands<'a> {
-    let mut node = Node {
-        width: Val::Px(width),
-        flex_direction: FlexDirection::Column,
-        // `GAP_ROW`, not the bare `6.0` that stood here until 2026-09-03 — the one gap every panel in
-        // the editor uses was the one gap that was not on the scale.
-        row_gap: Val::Px(GAP_ROW),
-        padding: UiRect::all(Val::Px(PAD)),
-        margin: UiRect::all(Val::Px(MARGIN)),
-        border: UiRect::all(Val::Px(EDGE_W)),
-        border_radius: BorderRadius::all(Val::Px(RADIUS_PANEL)),
-        ..default()
-    };
-    if full_height {
-        node.flex_grow = 1.0;
-        node.min_height = Val::Px(0.0);
-    }
-    if hidden {
-        // `Display::None`, never `Visibility`: a visibility-hidden UI node still occupies layout and
-        // still answers hover, which would leave a hidden tab's rows eating clicks aimed at the
-        // world — and in a dock it would also hold the dock open at its width.
-        node.display = Display::None;
-    }
     let dock = match side {
         Side::Left => frame.left,
         Side::Right => frame.right,
@@ -1093,7 +1025,23 @@ pub fn panel_root<'a>(
     // walks every ground is what makes it the skin's, once per frame, comparing before it writes.
     let panel = commands
         .spawn((
-            node,
+            // A panel: a gooey sized box laid out as a column, `width` wide (`fit_docks_to_the_window` and the left pane write that `Sizing` width, so the skin never fights them), `GAP_ROW` px
+            // between its parts, `PAD` in all round, `MARGIN` out all round, a 1 px edge and a panel radius; it grows into what the dock leaves when `full_height`. Its fill and edge are
+            // the editor's (`InkFollow`: `Ground`, `PanelEdge` lit by focus and the theme move them). `display` is the tabs' to write (`ShownFollow`), and a hidden panel starts closed.
+            bevy_gooey::sized(bevy_gooey::Sizing {
+                width: Some(bevy_gooey::Extent::Px(width)),
+                min_height: full_height.then_some(bevy_gooey::Extent::Px(0.0)),
+                ..default()
+            }),
+            (
+                bevy_gooey::RowLayout { direction: Some(FlexDirection::Column), ..default() },
+                bevy_gooey::TextFlow { grow: full_height.then_some(1.0), ..default() },
+                bevy_gooey::GapPx(GAP_ROW),
+                bevy_gooey::Spacing { padding: bevy_gooey::Sides::all(STEP_PAD), margin: bevy_gooey::Sides::all(STEP_PAD) },
+                bevy_gooey::BorderPx(bevy_gooey::Sides::all(EDGE_W)),
+                bevy_gooey::Shape { radius: Some(bevy_gooey::Radius::Step(1)), ..default() },
+                bevy_gooey::InkFollow,
+            ),
             PanelWidth { preferred: width, side },
             // **The panel's name, for something that cannot see it** (UI-30, #224). A `Role::Panel` is a
             // box in the accessibility tree with no name on it, so a reader meets the editor as a set of
@@ -1112,6 +1060,13 @@ pub fn panel_root<'a>(
             Hovered::default(),
         ))
         .id();
+    if hidden {
+        // `Display::None`, never `Visibility` alone: a visibility-hidden UI node still occupies layout and still answers hover, which would leave a hidden tab's rows eating clicks aimed at the
+        // world, and in a dock it would hold the dock open at its width. `ShownFollow` leaves `display` to the tabs that open and close it, and starts it closed.
+        commands.entity(panel).insert(bevy_gooey::ShownFollow::closed());
+    } else {
+        commands.entity(panel).insert(bevy_gooey::ShownFollow);
+    }
     commands.entity(dock).add_child(panel);
     commands.entity(panel)
 }
@@ -1345,7 +1300,7 @@ fn light_the_focused_panel(mut panels: Query<(&mut BorderColor, Has<Focused>), W
 fn fit_docks_to_the_window(
     windows: Query<&Window, With<bevy::window::PrimaryWindow>>,
     ui_scale: Res<UiScale>,
-    mut panels: Query<(&PanelWidth, &mut Node, &ComputedNode), Without<ViewportSlot>>,
+    mut panels: Query<(&PanelWidth, &Node, &mut bevy_gooey::Sizing, &ComputedNode), Without<ViewportSlot>>,
     owned: Query<(), (With<ShellSplit>, Without<SplitUnsized>)>,
     collapsed: Query<(), (With<ShellSplit>, With<bevy_gooey::SplitSaved>)>,
     bars: Query<&ComputedNode, With<crate::activity_bar::ActivityBar>>,
@@ -1374,7 +1329,7 @@ fn fit_docks_to_the_window(
     // collapse and move the viewport again when a peek showed the panel. The panel is out of the layout (its dock is
     // `Display::None`) and is what the right dock's share was worked out against, so that is still the answer.
     let left_stands = !collapsed.is_empty();
-    for (want, node, computed) in &panels {
+    for (want, node, _, computed) in &panels {
         let counted = node.display != Display::None && (computed.size().x > 0.0 || (left_stands && want.side == Side::Left));
         if !counted {
             continue;
@@ -1421,16 +1376,16 @@ fn fit_docks_to_the_window(
     let squeeze = squeeze.max(floor_fraction.min(1.0));
 
     let person_owns_the_split = !owned.is_empty();
-    for (want, mut node, _) in &mut panels {
+    for (want, _, mut sizing, _) in &mut panels {
         // **The left panel is the pane's once a person has dragged the divider**
         // ([`the_left_panel_follows_its_pane`]); writing its width here too would be two systems
         // disagreeing about one number every frame.
         if person_owns_the_split && want.side == Side::Left {
             continue;
         }
-        let width = want.preferred * squeeze;
-        if node.width != Val::Px(width) {
-            node.width = Val::Px(width);
+        let width = Some(bevy_gooey::Extent::Px(want.preferred * squeeze));
+        if sizing.width != width {
+            sizing.width = width;
         }
     }
 }
@@ -1458,25 +1413,22 @@ pub fn spawn_frame(
         .as_deref()
         .and_then(|s| s.workspace_layout.get(workspace.id()).cloned())
         .unwrap_or_else(|| crate::ui::shell_layout(workspace));
-    let bar = |extra: Node| -> Node {
-        Node {
-            width: Val::Percent(100.0),
-            height: Val::Px(BAR_H),
-            flex_direction: FlexDirection::Row,
-            align_items: AlignItems::Center,
-            column_gap: Val::Px(GAP_GROUP),
-            padding: UiRect::axes(Val::Px(MARGIN), Val::Px(0.0)),
-            flex_shrink: 0.0,
-            ..extra
-        }
+    // **A bar** (G-87): a gooey row `BAR_H` tall and the window wide, its parts centred and `GAP_GROUP` px apart, `MARGIN` in from each end, that never shrinks, with a 1 px edge along
+    // the one side that faces the rest of the screen. Its colours are the editor's (`InkFollow`): `Ground`/`BandGround` paint the fill and the theme moves them.
+    let bar = |border: bevy_gooey::Sides<f32>| {
+        (
+            bevy_gooey::row_with(0.0, bevy_gooey::RowLayout { align: Some(AlignItems::Center), shrink: Some(0.0), ..default() }),
+            bevy_gooey::GapPx(GAP_GROUP),
+            bevy_gooey::Sizing { width: Some(bevy_gooey::Extent::Percent(100.0)), height: Some(bevy_gooey::Extent::Px(BAR_H)), ..default() },
+            bevy_gooey::Spacing { padding: bevy_gooey::Sides::x(STEP_PAD), ..default() },
+            bevy_gooey::BorderPx(border),
+            bevy_gooey::InkFollow,
+        )
     };
 
     let chrome_bar = commands
         .spawn((
-            bar(Node {
-                border: UiRect::bottom(Val::Px(1.0)),
-                ..default()
-            }),
+            bar(bevy_gooey::Sides { bottom: Some(1.0), ..default() }),
             BackgroundColor(ink().bar_bg),
             Ground(ink().bar_bg),
             BandGround,
@@ -1489,15 +1441,11 @@ pub fn spawn_frame(
     // how tall the band is and where it starts.
     let door_strip = commands
         .spawn((
-            Node {
-                width: Val::Percent(100.0),
-                flex_direction: FlexDirection::Row,
-                align_items: AlignItems::Stretch,
-                column_gap: Val::Px(2.0),
-                padding: UiRect::left(Val::Px(MARGIN)),
-                flex_shrink: 0.0,
-                ..default()
-            },
+            // The door strip: a row the window wide with its tabs 2 px apart (`GapPx`), `MARGIN` in from the left, stretched to the strip's height, never shrinking.
+            bevy_gooey::row_with(0.0, bevy_gooey::RowLayout { align: Some(AlignItems::Stretch), shrink: Some(0.0), ..default() }),
+            bevy_gooey::GapPx(2.0),
+            bevy_gooey::Sizing { width: Some(bevy_gooey::Extent::Percent(100.0)), ..default() },
+            bevy_gooey::Spacing { padding: bevy_gooey::Sides { left: Some(STEP_PAD), ..default() }, ..default() },
             bevy::picking::Pickable::IGNORE,
         ))
         .id();
@@ -1507,12 +1455,10 @@ pub fn spawn_frame(
     // (`CONTROLS_W` vs `TILES_CONTROLS_W`) without a dock-level table saying it twice.
     let dock = || {
         (
-            Node {
-                flex_direction: FlexDirection::Column,
-                align_items: AlignItems::FlexStart,
-                flex_shrink: 0.0,
-                ..default()
-            },
+            // A column of its panels to the start that never shrinks. A `sized` box, not a gooey column: `Role::Column` gives a node a least width of 0, and a dock's width is its widest
+            // panel (its automatic minimum), which is what keeps a panel from being squeezed by the pane it stands in.
+            bevy_gooey::sized(bevy_gooey::Sizing::default()),
+            bevy_gooey::RowLayout { direction: Some(FlexDirection::Column), align: Some(AlignItems::FlexStart), shrink: Some(0.0), ..default() },
             bevy::picking::Pickable::IGNORE,
         )
     };
@@ -1550,15 +1496,11 @@ pub fn spawn_frame(
             // first widget, so a click or F6 puts focus here.
             bevy_gooey::FocusRegion::host(),
             bevy::input_focus::tab_navigation::TabIndex(0),
-            Node {
-                // **The centre is what is left**, which is the whole idea. `min_width: 0` because a
-                // flex item's automatic minimum size is its content, and without it a wide panel
-                // would push the viewport off the window instead of narrowing it.
-                flex_grow: 1.0,
-                min_width: Val::Px(0.0),
-                min_height: Val::Px(0.0),
-                ..default()
-            },
+            // **The centre is what is left**, which is the whole idea: a gooey fill column (it grows and never has a least width of its own, so a wide panel narrows it instead of pushing it
+            // off the window), still a row of what it holds.
+            bevy_gooey::fill_column(0.0),
+            bevy_gooey::RowLayout { direction: Some(FlexDirection::Row), align: Some(AlignItems::Stretch), ..default() },
+            bevy_gooey::Sizing { min_height: Some(bevy_gooey::Extent::Px(0.0)), ..default() },
             // No `BackgroundColor` at all: this is the hole the world shows through.
             bevy::picking::Pickable::IGNORE,
         ))
@@ -1566,14 +1508,10 @@ pub fn spawn_frame(
 
     let body = commands
         .spawn((
-            Node {
-                width: Val::Percent(100.0),
-                flex_direction: FlexDirection::Row,
-                align_items: AlignItems::Stretch,
-                flex_grow: 1.0,
-                min_height: Val::Px(0.0),
-                ..default()
-            },
+            // The body: what the bars leave, a row of the docks and the viewport.
+            bevy_gooey::fill_region(),
+            bevy_gooey::RowLayout { direction: Some(FlexDirection::Row), align: Some(AlignItems::Stretch), ..default() },
+            bevy_gooey::Sizing { width: Some(bevy_gooey::Extent::Percent(100.0)), min_height: Some(bevy_gooey::Extent::Px(0.0)), ..default() },
             bevy::picking::Pickable::IGNORE,
         ))
         .id();
@@ -1609,24 +1547,17 @@ pub fn spawn_frame(
     // 1280-px body; with the adoption it measures 724. The zero basis below is the same shape every
     // other centre in this frame uses — a flex item's basis is its content when it is `Auto`, so the
     // split would otherwise take a width of its own rather than the room the docks leave.
-    commands.entity(split).insert(Node {
-        flex_direction: FlexDirection::Row,
-        flex_grow: 1.0,
-        width: Val::Auto,
-        height: Val::Percent(100.0),
-        min_width: Val::Px(0.0),
-        min_height: Val::Px(0.0),
-        ..default()
-    });
+    // A filling split (G-88): as tall as the body, as wide as what the right dock leaves (`Extent::Auto` + `grow`), with no least size of its own.
+    commands.entity(split).insert((
+        bevy_gooey::Sizing { width: Some(bevy_gooey::Extent::Auto), height: Some(bevy_gooey::Extent::Percent(100.0)), min_height: Some(bevy_gooey::Extent::Px(0.0)), ..default() },
+        bevy_gooey::TextFlow { grow: Some(1.0), min_width: Some(bevy_gooey::Extent::Px(0.0)), ..default() },
+    ));
     commands.entity(body).add_children(&[split, right]);
     let _ = (left, viewport);
 
     let status = commands
         .spawn((
-            bar(Node {
-                border: UiRect::top(Val::Px(1.0)),
-                ..default()
-            }),
+            bar(bevy_gooey::Sides { top: Some(1.0), ..default() }),
             AccessibleLabel::new("Status bar"),
             BackgroundColor(ink().bar_bg),
             Ground(ink().bar_bg),
@@ -1663,7 +1594,7 @@ pub fn spawn_frame(
             // **The map is where a library piece may be let go** (UI-52, #238): the dock covers the viewport, so it is
             // the drop target, and `editor::drop_a_piece_on_the_map` places what lands on it.
             bevy_gooey::DropTarget::<crate::editor::PieceDrag>::new(),
-            Node { width: Val::Percent(100.0), height: Val::Percent(100.0), ..default() },
+            bevy_gooey::sized(bevy_gooey::Sizing { width: Some(bevy_gooey::Extent::Percent(100.0)), height: Some(bevy_gooey::Extent::Percent(100.0)), ..default() }),
         ))
         .id();
     // **The dock's own body is the host's, and it is not laid out** (bevy-coven/bevy_gooey#85).
@@ -1686,12 +1617,10 @@ pub fn spawn_frame(
     // layout is built into. A `Display::None` node has a zero rect, so nothing under it is laid out, drawn
     // or picked: the pages exist and are inert. **When the panels themselves move into this dock** (the rest
     // of UI-30, #224) this node becomes the real body and this paragraph goes with the change.
+    // A gooey box with the dock body's role put over its own (`dock_body()` is not public), hidden through `Shown`, which writes both `Display::None` and `Visibility::Hidden`.
     let silent_body = commands
-        .spawn((
-            Node { display: Display::None, ..default() },
-            Visibility::Hidden,
-            bevy_gooey::Role::DockBody,
-        ))
+        .spawn((bevy_gooey::sized(bevy_gooey::Sizing::default()), bevy_gooey::Shown(false)))
+        .insert(bevy_gooey::Role::DockBody)
         .id();
     commands.entity(dock).add_child(silent_body);
     commands.entity(viewport).add_child(dock);
@@ -1713,18 +1642,15 @@ pub fn spawn_frame(
             bevy::picking::Pickable::IGNORE,
         ))
         .id();
+    // The window wide and `BOTTOM_DOCK_H` tall, never shrinking, with a 1 px edge along its top, in the editor's colours (`InkFollow`). **Not shown until there is room**
+    // ([`crate::shell_view::give_the_bottom_dock_its_room`] opens it, writing `display` itself: `ShownFollow`): a dock that is never laid out has no text for a label census to
+    // find drawn outside it, and takes nothing from the workbench.
     commands.entity(bottom).insert((
-        Node {
-            width: Val::Percent(100.0),
-            height: Val::Px(BOTTOM_DOCK_H),
-            flex_shrink: 0.0,
-            // **Not shown until there is room** ([`crate::shell_view::give_the_bottom_dock_its_room`]
-            // opens it): a dock that is never laid out has no text for a label census to find drawn
-            // outside it, and takes nothing from the workbench.
-            display: Display::None,
-            border: UiRect::top(Val::Px(EDGE_W)),
-            ..default()
-        },
+        bevy_gooey::Sizing { width: Some(bevy_gooey::Extent::Percent(100.0)), height: Some(bevy_gooey::Extent::Px(BOTTOM_DOCK_H)), ..default() },
+        bevy_gooey::TextFlow { shrink: Some(0.0), ..default() },
+        bevy_gooey::BorderPx(bevy_gooey::Sides { top: Some(EDGE_W), ..default() }),
+        bevy_gooey::InkFollow,
+        bevy_gooey::ShownFollow::closed(),
         BorderColor::all(ink().panel_edge),
     ));
 
@@ -2188,29 +2114,23 @@ pub fn problem_toast(mut commands: Commands, frame: Res<Frame>) {
     let stack = commands
         .spawn((
             Name::new("ToastStack"),
-            Node { width: Val::Percent(100.0), height: Val::Percent(100.0), ..default() },
-            bevy_gooey::Role::ToastStack,
+            // The stack is gooey's: a window-sized box (`sized`) with the toast stack's role put over its own.
+            bevy_gooey::sized(bevy_gooey::Sizing { width: Some(bevy_gooey::Extent::Percent(100.0)), height: Some(bevy_gooey::Extent::Percent(100.0)), ..default() }),
             bevy_gooey::ToastStack,
             bevy::picking::Pickable::IGNORE,
             GlobalZIndex(TOAST_Z),
         ))
+        .insert(bevy_gooey::Role::ToastStack)
         .id();
     commands
         .spawn((
-            Node {
-                // PLACES-ITSELF-OK: a toast is not a panel. It is over the viewport rather than in
-                // the layout, which is the whole point — `Frame` owns where panels go and this is
-                // deliberately not one of them.
-                position_type: PositionType::Absolute,
-                top: Val::Px(GAP_GROUP),
-                left: Val::Px(0.0),
-                width: Val::Percent(100.0),
-                justify_content: JustifyContent::Center,
-                display: Display::None,
-                ..default()
-            },
+            // A toast is not a panel. It is over the viewport rather than in the layout, which is the whole point: `Frame` owns where panels go and this is deliberately not
+            // one of them. Placed `GAP_GROUP` down and the viewport wide with its stack centred, and hidden (through `Shown`) until a toast is raised.
+            bevy_gooey::placed(UiRect { left: Val::Px(0.0), top: Val::Px(GAP_GROUP), ..UiRect::all(Val::Auto) }),
+            bevy_gooey::Sizing { width: Some(bevy_gooey::Extent::Percent(100.0)), ..default() },
+            bevy_gooey::RowLayout { justify: Some(JustifyContent::Center), ..default() },
+            bevy_gooey::Shown(false),
             ToastLayer,
-            bevy::picking::Pickable::IGNORE,
         ))
         .add_child(stack)
         .insert(ChildOf(frame.viewport));
@@ -2272,21 +2192,16 @@ pub struct ProblemLogLine;
 pub fn journal_panel(mut commands: Commands, frame: Res<Frame>) {
     let panel = commands
         .spawn((
-            Node {
-                // PLACES-ITSELF-OK: an overlay, not a panel in the frame's flow. It is asked for,
-                // read, and dismissed — `Frame` owns the docks and this is deliberately not one.
-                position_type: PositionType::Absolute,
-                top: Val::Percent(8.0),
-                left: Val::Percent(10.0),
-                width: Val::Percent(80.0),
-                max_height: Val::Percent(76.0),
-                flex_direction: FlexDirection::Column,
-                row_gap: Val::Px(GAP_ROW),
-                padding: UiRect::all(Val::Px(PAD)),
-                border: UiRect::all(Val::Px(1.0)),
-                display: Display::None,
-                ..default()
-            },
+            // An overlay, not a panel in the frame's flow: it is asked for, read, and dismissed, and `Frame` owns the docks. Placed 8% down and 10% in, 80% wide and at most 76% tall, its lines
+            // `GAP_ROW` apart and `PAD` in, a 1 px edge, in the editor's own colours (`InkFollow`); closed until `Cmd+E`, and `display` is the notices' to write (`ShownFollow`).
+            bevy_gooey::placed(UiRect { left: Val::Percent(10.0), top: Val::Percent(8.0), ..UiRect::all(Val::Auto) }),
+            bevy_gooey::Sizing { width: Some(bevy_gooey::Extent::Percent(80.0)), max_height: Some(bevy_gooey::Extent::Percent(76.0)), ..default() },
+            bevy_gooey::RowLayout { direction: Some(FlexDirection::Column), ..default() },
+            bevy_gooey::GapPx(GAP_ROW),
+            bevy_gooey::Spacing { padding: bevy_gooey::Sides::all(STEP_PAD), ..default() },
+            bevy_gooey::BorderPx(bevy_gooey::Sides::all(1.0)),
+            bevy_gooey::InkFollow,
+            bevy_gooey::ShownFollow::closed(),
             BackgroundColor(ink().panel_bg),
             BorderColor::all(ink().key),
             JournalPanel,
@@ -2307,6 +2222,8 @@ pub fn journal_panel(mut commands: Commands, frame: Res<Frame>) {
             // the picking backend and `over_ui` skip for the same reason.
             Hovered::default(),
         ))
+        // `placed` is `Pickable::IGNORE`; the journal is the opposite (see above), so it is put back over it.
+        .insert(Pickable::default())
         .id();
     commands.entity(panel).with_children(|p| {
         title(p, "EVERY ERROR THIS SESSION");
@@ -2328,13 +2245,12 @@ pub fn journal_panel(mut commands: Commands, frame: Res<Frame>) {
         // arrows to move and no row to keep on screen, so the scroll exists for HEIGHT alone. The
         // detail pane makes the same declaration for the same reason.
         scroll_list(p, JournalList)
-            .entry::<Node>()
             // **Room for the bar, because here the bar lands on words.** `scroll_list` overlays its
             // scrollbar rather than reserving a gutter — right for a list of short rows, and wrong
             // for wrapped prose, which runs under it. Measured in a frame: `…choose a piece in the
             // list|` with the thumb through the last word. Stated at this call site rather than in
             // the builder, because it is a fact about what THIS list holds.
-            .and_modify(|mut n| n.padding.right = Val::Px(BAR_W + BAR_INSET * 2.0));
+            .insert(bevy_gooey::ScrollGutter(Some(bevy_gooey::Space::Px(BAR_W + BAR_INSET * 2.0))));
     });
     commands.entity(panel).insert(ChildOf(frame.viewport));
 }
@@ -2557,7 +2473,7 @@ pub fn scroll_bounds(list: &ComputedNode) -> (f32, f32) {
 /// the eye asks it to.
 const CONTEXT_ROWS: f32 = 2.0;
 
-/// The scrollbar's track. Marked so [`hide_idle_scrollbars`] can find it and its own width is
+/// The scrollbar's track. Marked so [`forward_a_wheel_over_a_scrollbar`] can find it and its own width is
 /// stated once.
 #[derive(Component)]
 pub struct ScrollTrack;
@@ -2565,9 +2481,6 @@ pub struct ScrollTrack;
 /// Width of the bar, and how far it is inset from the panel's inner edge.
 const BAR_W: f32 = 5.0;
 const BAR_INSET: f32 = 1.0;
-/// The thumb never shrinks below this, or a long list makes it a dot nobody can grab (Fitts, and
-/// upstream's own reason for the parameter).
-const MIN_THUMB: f32 = 18.0;
 /// **What the bar reserves.** Derived from the bar rather than picked, so the lane and the thing it
 /// is a lane for cannot drift apart — the failure this module exists to prevent, one more time.
 pub const SCROLL_GUTTER: f32 = BAR_W + BAR_INSET;
@@ -2610,117 +2523,21 @@ pub fn scroll_list<'a>(
     parent: &'a mut ChildSpawnerCommands,
     marker: impl Bundle,
 ) -> EntityCommands<'a> {
-    let viewport = parent
-        .commands_mut()
-        .spawn((
-            Node {
-                flex_direction: FlexDirection::Column,
-                row_gap: Val::Px(GAP_TIGHT),
-                flex_grow: 1.0,
-                min_height: Val::Px(0.0),
-                // **The bar's own lane, so nothing is drawn under it.** The scrollbar is an overlay
-                // at `BAR_W` inset by `BAR_INSET`, and until 2026-09-03 the content ran straight
-                // beneath it: on the Meshes tab the last chip of a wrapped tag row rendered half
-                // behind the bar (the audit's F7). Padding rather than margin, because a scroll
-                // viewport's padding is *inside* the clip — so the content stops short of the bar
-                // and `content_size` still counts it, which is what `hide_idle_scrollbars` reads.
-                padding: UiRect::right(Val::Px(SCROLL_GUTTER)),
-                overflow: Overflow::scroll_y(),
-                ..default()
-            },
-            ScrollArea,
-            // **Glide and fade, from gooey (UI-R05, #335).** A scroll the crate makes (a key, the pad, Tab onto
-            // a card) travels there instead of jumping, and an edge that hides content fades: two overlays beside
-            // this viewport, in its wrapper, each as opaque as the content under its edge, and none at an edge
-            // with nothing hidden. The wheel, a trackpad and the bar still move it 1:1.
-            bevy_gooey::ScrollGlide::default(),
-            bevy_gooey::ScrollEdgeFade::default(),
-            marker,
-        ))
-        .id();
-
-    let thumb = parent
-        .commands_mut()
-        .spawn((
-            bevy::ui_widgets::ScrollbarThumb {
-                border_radius: BorderRadius::all(Val::Px(BAR_W / 2.0)),
-                border: UiRect::ZERO,
-            },
-            BackgroundColor(scaled(ink().row_selected, 0.9)),
-        ))
-        .id();
-
-    let track = parent
-        .commands_mut()
-        .spawn((
-            ScrollTrack,
-            bevy::ui_widgets::Scrollbar::new(
-                viewport,
-                bevy::ui_widgets::ControlOrientation::Vertical,
-                MIN_THUMB,
-            ),
-            Node {
-                position_type: PositionType::Absolute,
-                right: Val::Px(BAR_INSET),
-                top: Val::Px(0.0),
-                bottom: Val::Px(0.0),
-                width: Val::Px(BAR_W),
-                // Hidden until there is somewhere to scroll — see [`hide_idle_scrollbars`].
-                display: Display::None,
-                ..default()
-            },
-            // The track is a drag target; the content under it is not. The panel root is
-            // `Pickable::IGNORE`, so this narrows that for the one node here that is grabbable.
-            bevy::picking::Pickable::default(),
-        ))
-        .id();
-    parent.commands_mut().entity(track).add_child(thumb);
-
-    let wrapper = parent
-        .spawn(Node {
-            flex_direction: FlexDirection::Column,
-            flex_grow: 1.0,
-            min_height: Val::Px(0.0),
-            ..default()
-        })
-        .id();
-    parent
-        .commands_mut()
-        .entity(wrapper)
-        .add_children(&[viewport, track]);
-
-    parent.commands_mut().entity(viewport)
+    // **gooey's scroll viewport** (G-90): one bundle that IS the scrolling viewport (the wheel, a drag on the rail, glide and edge fade, keyboard focus followed into view, Page/Home/End),
+    // filling the room its parent leaves and able to be nothing tall. Its children are `GAP_TIGHT` px apart (`GapPx`, not a skin multiple), and `SCROLL_GUTTER` px on its right stay clear
+    // for the rail, so nothing is drawn under it (the audit's F7). The rail is gooey's, a sibling of the viewport in its parent; [`tag_the_scroll_rails`] gives it the editor's `ScrollTrack`.
+    parent.spawn((
+        bevy_gooey::scroll_viewport(0.0, Some(bevy_gooey::Space::Px(SCROLL_GUTTER))),
+        bevy_gooey::GapPx(GAP_TIGHT),
+        marker,
+    ))
 }
 
-/// **A bar only while there is somewhere to scroll** — the browser default, and the reason a panel
-/// that fits its content shows no furniture at all.
-///
-/// `Display::None` rather than alpha, so a bar nobody needs costs no draw and no hit test.
-///
-/// **Compares before writing**, per the standing rule this crate keeps: `chrome::Follow`'s doc
-/// records what unconditional per-frame writes cost, and `Node` is change-detected by the layout
-/// system. Reading the target's `ComputedNode` from the track side is deliberate — the link runs
-/// track → viewport and only that way, so a `Changed<ComputedNode>` filter here would be watching
-/// the wrong entity.
-pub fn hide_idle_scrollbars(
-    mut tracks: Query<(&mut Node, &bevy::ui_widgets::Scrollbar), With<ScrollTrack>>,
-    viewports: Query<&bevy::ui::ComputedNode>,
-) {
-    for (mut node, bar) in &mut tracks {
-        let Ok(view) = viewports.get(bar.target) else {
-            continue;
-        };
-        // The same clamp upstream uses, so the bar appears exactly when the wheel has somewhere to
-        // go rather than one pixel before or after.
-        let visible = view.size().y - view.scrollbar_size.y;
-        let want = if view.content_size().y > visible + 0.5 {
-            Display::Flex
-        } else {
-            Display::None
-        };
-        if node.display != want {
-            node.display = want;
-        }
+/// **A rail gooey spawned is a scroll track** to the editor's tests and to [`forward_a_wheel_over_a_scrollbar`]: the same marker the hand-built track carried, put on the rail the frame it
+/// appears. The rail shows only while the content does not fit (gooey's own rule, which replaced `hide_idle_scrollbars`).
+pub fn tag_the_scroll_rails(rails: Query<Entity, Added<bevy_gooey::ScrollRailOf>>, mut commands: Commands) {
+    for rail in &rails {
+        commands.entity(rail).insert(ScrollTrack);
     }
 }
 
@@ -2923,18 +2740,57 @@ pub fn the_words_of_a_quiet_item_are_a_control(commands: &mut Commands, item: En
     });
 }
 
-/// **The shape of a small box that holds one edge colour** (#260): a row of gooey's own with a row radius and a `px` border in `edge`, which is passed as `InkOverride` because the skin
+/// **The shape of a small box that holds one edge colour** (#260): a sized box laid out as a row, with a row radius and a `px` border in `edge`, which is passed as `InkOverride` because the skin
 /// paints any `BorderPx` edge in its outline unless the host's colour is pinned (so a box whose edge the host changes by state cannot be this: see the chip's GAP4). A row writes only what it is
 /// asked to, so a caller's `entry::<Node>()` stands; `shrink` is `Some(0.0)` for a box that never gives way to its neighbours.
 pub fn small_box(spacing: bevy_gooey::Spacing, border: bevy_gooey::Sides<f32>, edge: Color, shrink: Option<f32>) -> impl Bundle {
     (
-        bevy_gooey::row_with(0.0, bevy_gooey::RowLayout { shrink, ..default() }),
+        bevy_gooey::sized(bevy_gooey::Sizing::default()),
+        bevy_gooey::RowLayout { direction: Some(FlexDirection::Row), shrink, ..default() },
         spacing,
         bevy_gooey::BorderPx(border),
         bevy_gooey::InkOverride { edge: Some(edge), ..default() },
         bevy_gooey::Shape { radius: Some(bevy_gooey::Radius::Step(0)), ..default() },
     )
 }
+
+/// **The shape of a small box whose colours the editor paints** (#260, G-87): a sized box laid out as a row, with a row radius and a `px` border, marked `InkFollow`, so the skin writes neither its fill nor
+/// its edge and the editor's `RowRest`/`style_list_rows`, tag painters and `theme_ink::follow_the_skin` stay the one thing that colours it (by state: rest, hover, press, held, selected). A row writes
+/// only what it is asked to, so a caller's `entry::<Node>()` (a margin, a centred `align_items`) stands; `shrink` is `Some(0.0)` for a box that never gives way to its neighbours.
+pub fn held_box(spacing: bevy_gooey::Spacing, border: bevy_gooey::Sides<f32>, shrink: Option<f32>, sizing: bevy_gooey::Sizing) -> impl Bundle {
+    (
+        // A gooey `sized` box that is laid out as a row. Not a gooey row: `Role::Row` gives a node a least width of 0, and a chip, a button or a list row keeps its automatic least
+        // width (its content), so a row in a narrow lane is as wide as what it holds rather than squeezed under it.
+        bevy_gooey::sized(sizing),
+        bevy_gooey::RowLayout { direction: Some(FlexDirection::Row), shrink, ..default() },
+        spacing,
+        bevy_gooey::BorderPx(border),
+        bevy_gooey::InkFollow,
+        bevy_gooey::Shape { radius: Some(bevy_gooey::Radius::Step(0)), ..default() },
+    )
+}
+
+/// **A text field's inset as gooey's `Spacing`** (#260): 4 px across and 2 px down, the same box as [`FIELD_PAD`] (neither is a step of the skin's scale).
+pub const FIELD_SPACING: bevy_gooey::Spacing = bevy_gooey::Spacing {
+    margin: NO_MARGIN,
+    padding: bevy_gooey::Sides {
+        top: Some(bevy_gooey::Space::Px(2.0)),
+        right: Some(bevy_gooey::Space::Px(4.0)),
+        bottom: Some(bevy_gooey::Space::Px(2.0)),
+        left: Some(bevy_gooey::Space::Px(4.0)),
+    },
+};
+
+/// **A button's inset as gooey's `Spacing`** (#260): 10 px across and a row step down, the same box as [`BUTTON_PAD`].
+pub const BUTTON_SPACING: bevy_gooey::Spacing = bevy_gooey::Spacing {
+    margin: NO_MARGIN,
+    padding: bevy_gooey::Sides {
+        top: Some(STEP_ROW),
+        right: Some(bevy_gooey::Space::Px(10.0)),
+        bottom: Some(STEP_ROW),
+        left: Some(bevy_gooey::Space::Px(10.0)),
+    },
+};
 
 /// **A chip's inset as gooey's `Spacing`** (#260): 6 px a side and a tight step above and below, the same box as [`CHIP_PAD`]. The 6 px is not a step of the skin's scale, so it is a literal `Space::Px`.
 pub const CHIP_SPACING: bevy_gooey::Spacing = bevy_gooey::Spacing {
@@ -3069,14 +2925,7 @@ pub fn chip<'a>(
         // `style_list_rows` already keys on it and has never needed to know what it is painting.
         RowRest(fill),
         marker,
-        // GAP4: a raw node. A `BorderPx` edge is painted in the skin's outline over any `BorderColor` the host wrote (an `InkOverride` pins one colour), and a chip's
-        // edge is the host's to paint by state (a held chip's accent, a ghost proposal's suggest, hover): `style_list_rows` and the tag painters write it every frame.
-        Node {
-            padding: CHIP_PAD,
-            border: UiRect::all(Val::Px(EDGE_W)),
-            border_radius: BorderRadius::all(Val::Px(RADIUS_ROW)),
-            ..default()
-        },
+        held_box(CHIP_SPACING, bevy_gooey::Sides::all(EDGE_W), Some(0.0), bevy_gooey::Sizing::default()),
         BorderColor::all(border),
         BackgroundColor(fill),
     ));
@@ -3155,14 +3004,7 @@ fn row_shape(selected: bool) -> impl Bundle {
         Hovered::default(),
         RowRest(rest),
         RowSelected(selected),
-        // GAP4: a raw node, for the reason `chip` gives (the rail is an edge the host paints by selection).
-        Node {
-            width: Val::Percent(100.0),
-            padding: CHIP_PAD,
-            border: UiRect::left(Val::Px(SELECT_RAIL_W)),
-            border_radius: BorderRadius::all(Val::Px(RADIUS_ROW)),
-            ..default()
-        },
+        held_box(CHIP_SPACING, bevy_gooey::Sides { left: Some(SELECT_RAIL_W), ..default() }, None, bevy_gooey::Sizing { width: Some(bevy_gooey::Extent::Percent(100.0)), ..default() }),
         BorderColor::all(if selected { ink().accent } else { Color::NONE }),
         BackgroundColor(rest),
     )
@@ -3313,14 +3155,7 @@ pub fn button<'a>(
         Hovered::default(),
         RowRest(ink().row_bg),
         marker,
-        // GAP4: a raw node, for the reason `chip` gives (the host paints the edge by state).
-        Node {
-            padding: BUTTON_PAD,
-            border: UiRect::all(Val::Px(EDGE_W)),
-            border_radius: BorderRadius::all(Val::Px(RADIUS_ROW)),
-            flex_shrink: 0.0,
-            ..default()
-        },
+        held_box(BUTTON_SPACING, bevy_gooey::Sides::all(EDGE_W), Some(0.0), bevy_gooey::Sizing::default()),
         BorderColor::all(ink().panel_edge),
         BackgroundColor(ink().row_bg),
     ));
@@ -3333,60 +3168,6 @@ pub fn button<'a>(
         ));
     });
     b
-}
-
-/// **One card for every question this application asks.**
-///
-/// Three modals shipped three contracts — the confirm dialog with real buttons, a `TabGroup`, z 900,
-/// a border and `padding: 20`; the token prompt with none of those at z 400 and `padding: 18`; the
-/// name box with a fourth scrim written inline at `srgba(0, 0, 0, 0.72)` next to a constant whose own
-/// doc says it exists so *"a second modal cannot dim by a different amount"*. This is that amount,
-/// that z, that padding, and that card, stated once.
-///
-/// Returns the **card**, not the scrim: the caller fills the card and never sees the layer.
-pub fn modal_card<'a>(commands: &'a mut Commands, root: impl Bundle) -> EntityCommands<'a> {
-    let layer = commands
-        .spawn((
-            Node {
-                position_type: PositionType::Absolute,
-                width: Val::Percent(100.0),
-                height: Val::Percent(100.0),
-                align_items: AlignItems::Center,
-                justify_content: JustifyContent::Center,
-                // **Hidden until something shows it, and that is the shell's decision.** Every modal
-                // here is spawned once at `OnEnter` and revealed on demand, so all three callers
-                // used to state this themselves — and a caller cannot state it now, because `root`
-                // may not contain a `Node` (two of one component is a spawn panic in Bevy 0.19) and
-                // this builder returns the *card*, which leaves the layer unreachable.
-                //
-                // `Display::None`, never `Visibility`: a visibility-hidden node still lays out and
-                // still answers hover, and the card carries `Hovered` — so the world would stop
-                // taking clicks for a modal nobody had opened. To show it, flip `Node::display` on
-                // the entity carrying your own `root` marker, which is this layer.
-                display: Display::None,
-                ..default()
-            },
-            BackgroundColor(ink().scrim),
-            GlobalZIndex(MODAL_Z),
-            root,
-        ))
-        .id();
-    let card = commands
-        .spawn((
-            // The card: a gooey column a group step between its parts, `MODAL_PAD` all round (not a step of the scale, so a literal), a 1 px edge and a panel radius.
-            bevy_gooey::column(GAP_GROUP_STEPS),
-            bevy_gooey::Sizing { min_width: Some(bevy_gooey::Extent::Px(MODAL_MIN_W)), max_width: Some(bevy_gooey::Extent::Px(MODAL_MAX_W)), ..default() },
-            bevy_gooey::Spacing { padding: bevy_gooey::Sides::all(bevy_gooey::Space::Px(MODAL_PAD)), ..default() },
-            bevy_gooey::BorderPx(bevy_gooey::Sides::all(EDGE_W)),
-            bevy_gooey::InkOverride { edge: Some(ink().panel_edge), ..default() },
-            bevy_gooey::Shape { radius: Some(bevy_gooey::Radius::Step(1)), ..default() },
-            BackgroundColor(ink().overlay_bg),
-            BorderColor::all(ink().panel_edge),
-            Hovered::default(),
-        ))
-        .id();
-    commands.entity(layer).add_child(card);
-    commands.entity(card)
 }
 
 // ── the overlay stack, in one place ──────────────────────────────────────────────────────────────
@@ -3416,11 +3197,6 @@ pub const NOTICE_Z: i32 = 300;
 /// **The compass**, a persistent readout in the corner of the viewport. Lowest, because it is the
 /// one overlay that is never the thing you are looking at.
 pub const COMPASS_Z: i32 = 100;
-/// A card is at least this wide, so a one-word question does not render as a one-word box.
-pub const MODAL_MIN_W: f32 = 360.0;
-/// And at most this wide, so a refusal naming three descriptors stays a paragraph rather than a line.
-pub const MODAL_MAX_W: f32 = 560.0;
-
 /// **A text field's box** — [`MIN_FIELD_H`] floor, [`FIELD_PAD`] inset, `Ink::row_bg` fill, with its
 /// readout text spawned inside. The audit found this shape six times with three paddings.
 pub fn text_field<'a>(
@@ -3435,13 +3211,20 @@ pub fn text_field<'a>(
         bevy::ui_widgets::Button,
         Hovered::default(),
         field,
-        Node {
-            width,
-            min_height: Val::Px(MIN_FIELD_H),
-            padding: FIELD_PAD,
-            flex_shrink: 0.0,
+        // The field's box (G-87): a gooey row that never shrinks, as wide as asked (`Auto` hugs its readout), `MIN_FIELD_H` tall at least, `FIELD_PAD` in from the edge (4 x 2 px, not
+        // a step of the scale). Its fill is the editor's (`InkFollow`), `Ink::row_bg`.
+        bevy_gooey::sized(bevy_gooey::Sizing {
+            width: match width {
+                Val::Px(px) => Some(bevy_gooey::Extent::Px(px)),
+                Val::Percent(percent) => Some(bevy_gooey::Extent::Percent(percent)),
+                _ => None,
+            },
+            min_height: Some(bevy_gooey::Extent::Px(MIN_FIELD_H)),
             ..default()
-        },
+        }),
+        bevy_gooey::RowLayout { direction: Some(FlexDirection::Row), shrink: Some(0.0), ..default() },
+        FIELD_SPACING,
+        bevy_gooey::InkFollow,
         BackgroundColor(ink().row_bg),
     ));
     boxed.with_children(|f| {
@@ -3527,21 +3310,13 @@ fn spawn_name_box(mut commands: Commands) {
     commands
         .spawn((
             NameBox,
-            Node {
-                position_type: PositionType::Absolute,
-                left: Val::Px(0.0),
-                top: Val::Px(0.0),
-                width: Val::Percent(100.0),
-                height: Val::Percent(100.0),
-                align_items: AlignItems::Center,
-                justify_content: JustifyContent::Center,
-                display: Display::None,
-                ..default()
-            },
-            // **Per `docs/ui.md` §5 trap 7.** A full-screen container without this eats every world
-            // click. It also means a click while naming falls through to the stage, which is right:
-            // the box is a prompt, not a modal that has to be dismissed before anything else works.
-            bevy::picking::Pickable::IGNORE,
+            // **Per `docs/ui.md` §5 trap 7.** A full-screen container without this eats every world click: gooey's `cover` is `Pickable::IGNORE`, so a click while naming
+            // falls through to the stage, which is right: the box is a prompt, not a modal that has to be dismissed before anything else works. Its card is centred in it,
+            // and it is hidden through `Shown` until a tab asks a name (`paint_name_box`). The dim is the editor's own (`InkFollow`), not the skin's scrim.
+            bevy_gooey::cover(),
+            bevy_gooey::RowLayout { align: Some(AlignItems::Center), justify: Some(JustifyContent::Center), ..default() },
+            bevy_gooey::Shown(false),
+            bevy_gooey::InkFollow,
             // Above the panels and the tab strip (101), and below the key badges (500) and the
             // confirm prompt (900) — the tier for "the screen is asking you something", which
             // outranks a panel and is outranked by a question you have to answer.
@@ -3550,13 +3325,12 @@ fn spawn_name_box(mut commands: Commands) {
         ))
         .with_children(|p| {
             p.spawn((
-                Node {
-                    flex_direction: FlexDirection::Column,
-                    padding: UiRect::all(Val::Px(PAD * 1.5)),
-                    row_gap: Val::Px(GAP_ROW * 2.0),
-                    min_width: Val::Px(360.0),
-                    ..default()
-                },
+                // The dialog card: a column 10 px between its lines (`GapPx`), 18 px in all round (neither is a step of the scale), 360 px at least, in the editor's panel colour.
+                bevy_gooey::column(0.0),
+                bevy_gooey::GapPx(GAP_ROW * 2.0),
+                bevy_gooey::Spacing { padding: bevy_gooey::Sides::all(bevy_gooey::Space::Px(PAD * 1.5)), ..default() },
+                bevy_gooey::Sizing { min_width: Some(bevy_gooey::Extent::Px(360.0)), ..default() },
+                bevy_gooey::InkFollow,
                 BackgroundColor(ink().panel_bg),
                 // **The dialog itself is UI; the dimmed backdrop behind it is not.**
                 //
@@ -3608,7 +3382,7 @@ fn paint_name_box(
     editor: Res<crate::editor::EditorState>,
     build: Res<crate::build::Build>,
     compose: Res<crate::compose::ComposeState>,
-    mut roots: Query<&mut Node, With<NameBox>>,
+    mut roots: Query<&mut bevy_gooey::Shown, With<NameBox>>,
     mut titles: NameLine<'_, '_, (With<NameBoxTitle>, Without<NameBoxValue>, Without<NameBoxHint>)>,
     mut values: NameLine<'_, '_, (With<NameBoxValue>, Without<NameBoxTitle>, Without<NameBoxHint>)>,
     mut hints: NameLine<'_, '_, (With<NameBoxHint>, Without<NameBoxTitle>, Without<NameBoxValue>)>,
@@ -3667,14 +3441,10 @@ fn paint_name_box(
                 )
             })
         });
-    let display = if asking.is_some() {
-        Display::Flex
-    } else {
-        Display::None
-    };
-    for mut node in &mut roots {
-        if node.display != display {
-            node.display = display;
+    let shown = asking.is_some();
+    for mut root in &mut roots {
+        if root.0 != shown {
+            root.0 = shown;
         }
     }
     let Some((title, value, hint)) = asking else {
@@ -3810,7 +3580,7 @@ fn size_the_shell_split(
     mut commands: Commands,
     mut splits: Query<(Entity, &mut bevy_gooey::SplitFraction, &mut SplitUnsized, &ComputedNode, &Children)>,
     dividers: Query<&ComputedNode, With<bevy_gooey::SplitDivider>>,
-    panels: Query<(&PanelWidth, &Node, &ComputedNode)>,
+    panels: Query<(&PanelWidth, &Node, &bevy_gooey::Sizing, &ComputedNode)>,
     windows: Query<(), With<bevy::window::PrimaryWindow>>,
 ) {
     // **No window, no room to answer for**: [`fit_docks_to_the_window`] returns here too, so a panel's
@@ -3819,11 +3589,11 @@ fn size_the_shell_split(
         return;
     }
     let mut want = 0.0f32;
-    for (panel, node, computed) in &panels {
+    for (panel, node, sizing, computed) in &panels {
         if panel.side != Side::Left || node.display == Display::None || computed.size().x <= 0.0 {
             continue;
         }
-        if let Val::Px(w) = node.width {
+        if let Some(bevy_gooey::Extent::Px(w)) = sizing.width {
             want = want.max(w);
         }
     }
@@ -3875,7 +3645,7 @@ fn the_left_panel_follows_its_pane(
     owned: Query<(), (With<ShellSplit>, Without<SplitUnsized>)>,
     parents: Query<&ChildOf>,
     panes: Query<&ComputedNode>,
-    mut panels: Query<(&PanelWidth, &mut Node)>,
+    mut panels: Query<(&PanelWidth, &mut bevy_gooey::Sizing)>,
     windows: Query<(), With<bevy::window::PrimaryWindow>>,
     moving: Query<(), CollapsedOrGliding>,
 ) {
@@ -3889,10 +3659,10 @@ fn the_left_panel_follows_its_pane(
     if wide <= 0.0 {
         return;
     }
-    let width = Val::Px((wide - 2.0 * MARGIN).max(DOCK_MIN_W));
-    for (panel, mut n) in &mut panels {
-        if panel.side == Side::Left && n.width != width {
-            n.width = width;
+    let width = Some(bevy_gooey::Extent::Px((wide - 2.0 * MARGIN).max(DOCK_MIN_W)));
+    for (panel, mut sizing) in &mut panels {
+        if panel.side == Side::Left && sizing.width != width {
+            sizing.width = width;
         }
     }
 }
@@ -3943,7 +3713,7 @@ impl Plugin for ChromePlugin {
                 Update,
                 (
                     style_list_rows,
-                    hide_idle_scrollbars,
+                    tag_the_scroll_rails,
                     repaint_where_you_are,
                     // Ungated for the same reason: both screens have panels, and which one holds
                     // the keyboard is a question the menu asks louder than the editor does.
@@ -3953,7 +3723,7 @@ impl Plugin for ChromePlugin {
             // **After `Phase::Text`, not in it.** The field consumes the keystroke there; painting
             // before it would show the box one character behind what has been typed.
             .add_systems(Update,
-                (paint_name_box.after(keys::Phase::Text))
+                (paint_name_box.after(keys::Phase::Text).before(bevy_gooey::GooeySystems::Style))
                     .run_if(in_state(crate::screen::Screen::Editor)),
             )
             // B-014: the docks answer to the window. Editor-only, because the menu's own columns
@@ -3962,6 +3732,8 @@ impl Plugin for ChromePlugin {
                 Update,
                 fit_docks_to_the_window
                     .after(FrameSystems)
+                    // The width is a `Sizing`, which the skin turns into the node's width in the same frame.
+                    .before(bevy_gooey::GooeySystems::Style)
                     .run_if(in_state(crate::screen::Screen::Editor)),
             )
             .add_systems(
@@ -3975,6 +3747,7 @@ impl Plugin for ChromePlugin {
                 Update,
                 the_left_panel_follows_its_pane
                     .after(size_the_shell_split)
+                    .before(bevy_gooey::GooeySystems::Style)
                     .run_if(in_state(crate::screen::Screen::Editor)),
             )
             .add_systems(Update,
@@ -4396,13 +4169,11 @@ pub fn spawn_chrome_bar(
         bar.spawn((
             BackButton,
             Control(keys::ControlId::Back),
-            Node {
-                flex_direction: FlexDirection::Row,
-                align_items: AlignItems::Center,
-                column_gap: Val::Px(GAP_ROW),
-                padding: CHIP_PAD,
-                ..default()
-            },
+            // A chip-sized row: its words a row step apart, a chip's inset, never shrinking, in the editor's own fill (`InkFollow`).
+            bevy_gooey::row_with(0.0, bevy_gooey::RowLayout { align: Some(AlignItems::Center), shrink: Some(0.0), ..default() }),
+            bevy_gooey::GapPx(GAP_ROW),
+            CHIP_SPACING,
+            bevy_gooey::InkFollow,
             BackgroundColor(ink().slot_bg),
             // The bar is `Pickable::IGNORE` so the frame answers no clicks; this narrows that for
             // the one node on it that is a button — the same move `spawn_name_box` makes.
@@ -4427,13 +4198,7 @@ pub fn spawn_chrome_bar(
 
         // Pushes the subject to the far end. A spacer rather than `SpaceBetween` on the bar, so a
         // third thing added later lands where it is put rather than being redistributed.
-        bar.spawn((
-            Node {
-                flex_grow: 1.0,
-                ..default()
-            },
-            bevy::picking::Pickable::IGNORE,
-        ));
+        bar.spawn(bevy_gooey::spacer());
 
         if let Some(here) = here {
             bar.spawn((
@@ -4541,13 +4306,7 @@ pub fn spawn_status_band(mut commands: Commands, frame: Res<Frame>, project: Opt
             typed(text::LABEL),
             bevy::picking::Pickable::IGNORE,
         ));
-        band.spawn((
-            Node {
-                flex_grow: 1.0,
-                ..default()
-            },
-            bevy::picking::Pickable::IGNORE,
-        ));
+        band.spawn(bevy_gooey::spacer());
         shortcut_hint(band, &back);
     });
 }

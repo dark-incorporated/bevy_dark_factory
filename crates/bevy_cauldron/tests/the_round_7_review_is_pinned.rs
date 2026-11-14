@@ -24,7 +24,11 @@ fn the_compass_arms_and_dots_are_laid_out_at_their_size() {
     }
     let world = app.world_mut();
     let (mut arms, mut dots) = (0, 0);
-    for (entity, computed, node, kids) in world.query_filtered::<(Entity, &ComputedNode, &Node, Option<&Children>), With<bevy_gooey::HostGeometry>>().iter(world) {
+    // Owner exception (2026-11-14): the terminal's pane root is `HostGeometry` too since #260 round 12 (its height, position and insets are the host's), and it has children; like the caret it is not a compass part, so the query leaves it out. Every compass assertion is kept.
+    for (entity, computed, node, kids) in world
+        .query_filtered::<(Entity, &ComputedNode, &Node, Option<&Children>), (With<bevy_gooey::HostGeometry>, Without<bevy_cauldron::terminal_pane::TerminalCaret>, Without<bevy_cauldron::terminal_pane::TerminalPaneRoot>)>()
+        .iter(world)
+    {
         let size = logical(computed);
         if kids.is_some() {
             dots += 1;
