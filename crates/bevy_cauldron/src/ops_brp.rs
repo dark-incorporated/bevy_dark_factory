@@ -785,7 +785,7 @@ struct Gates<'w, 's> {
     rung: Option<ResMut<'w, crate::editor::Rung>>,
     snip: Option<ResMut<'w, crate::snip::SnipEdit>>,
     ghost: Option<ResMut<'w, crate::anim_stage::BenchAb>>,
-    journal: Query<'w, 's, &'static mut Node, With<crate::chrome::JournalPanel>>,
+    journal: Query<'w, 's, &'static mut Node, With<crate::chrome::NotificationsOverlay>>,
     /// **The outliner's eye and locks** (UI-51, #237): what `placement_set_hidden`, `layer_set_visible` and
     /// `placement_set_locked` change, carried by the same view as the rest.
     eyes: Option<ResMut<'w, crate::outliner::Eyes>>,
@@ -2700,6 +2700,16 @@ pub(crate) fn refused_answer(operation: &str, refusal: &ops::Refusal) -> Value {
         "refusal": refusal.0,
         "problem": refusal.problem().to_json(),
     })
+}
+
+/// **Take one logged change back, by its operation id, as a person's press on a journal row's Undo does** (UI-100, #442): the same system
+/// `grimoire/operation_undo` runs for the id form with `dry_run: false`, so the inverse the change recorded is dispatched, one line is appended to
+/// the operation log, the map is put back and drawn again, the receipt names it and a refusal is raised as any other.
+pub(crate) fn undo_logged_change(world: &mut World, operation_id: &str) {
+    let params = UndoParams { operation_id: Some(operation_id.to_owned()), turn: false, dry_run: false };
+    if let Err(e) = world.run_system_cached_with(operation_undo, params) {
+        error!("the journal's Undo could not run: {e}");
+    }
 }
 
 /// **`grimoire/operation_undo` — take one change back, by its id.**

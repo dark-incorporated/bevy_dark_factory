@@ -463,6 +463,7 @@ mod the_ground_clears_the_bounds_floor;
 mod the_guides_examples_run;
 mod the_interface_does_not_write_the_ground_back_over_the_world;
 mod the_journal_draws_the_agents_steps;
+mod the_journal_is_gooeys_notification_centre;
 mod the_launcher_and_the_command_line_agree;
 mod the_launcher_lists_what_the_changelog_added_since_you_last_opened;
 mod the_launcher_opens_a_project_by_its_name;

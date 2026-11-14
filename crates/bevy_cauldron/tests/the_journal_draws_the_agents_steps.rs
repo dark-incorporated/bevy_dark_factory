@@ -2,20 +2,25 @@
 //!
 //! `an_agents_steps_are_on_screen.rs` proves the data: one row per applied operation, the log's own
 //! sentence, a capture hung on the step that made it, the cap. **This proves the surface** — that the
-//! journal panel actually renders those rows, because a resource nobody draws is the same defect the
+//! journal actually renders those rows, because a resource nobody draws is the same defect the
 //! item describes: the steps existed in the log and were not on a surface the person watches.
+//!
+//! **Since UI-100 (#442) the surface is `bevy_gooey`'s notification centre**: each step is a
+//! `NotificationRow` of its list, newest first. The facts are the ones this file always pinned: the same
+//! steps, with the log's own words, in the order they happened.
 //!
 //! # Why a headless `App` is the right instrument
 //!
-//! The assertion is on `Text` entities under the journal's list, which is the same thing a still would
+//! The assertion is on `Text` entities under the journal's rows, which is the same thing a still would
 //! show and is not subject to the toast's seven-second life or to a window size. The brief's own note
 //! says it: *"a toast is on for seven seconds and is a centred card in the viewport, so a screenshot
 //! cannot settle 'is it visible' — measure the layout instead, which is stronger evidence than a
 //! capture."*
 
 use bevy::prelude::*;
-use bevy_cauldron::chrome::{Journal, JournalList, JournalPanel, ProblemLogLine};
+use bevy_cauldron::chrome::{Journal, NotificationsOverlay};
 use bevy_cauldron::harness;
+use bevy_gooey::NotificationRow;
 
 use crate::fixtures;
 
@@ -46,16 +51,17 @@ fn call(app: &mut App, method: &str, params: serde_json::Value) -> serde_json::V
         .unwrap_or_else(|e| panic!("{method}: {e:?}"))
 }
 
-/// **Every `Text` under the journal's list**, in spawn order.
+/// **Every `Text` under the journal's rows**, in the order the steps happened: the centre draws the newest first, so
+/// the rows are read from the last to the first (it was the list's spawn order, oldest first, before).
 fn drawn_lines(app: &mut App) -> Vec<String> {
     let world = app.world_mut();
-    let lists: Vec<Entity> = world
-        .query_filtered::<Entity, With<JournalList>>()
+    let rows: Vec<Entity> = world
+        .query_filtered::<Entity, With<NotificationRow>>()
         .iter(world)
         .collect();
     let mut out = Vec::new();
-    for list in lists {
-        let mut stack = vec![list];
+    for row in rows {
+        let mut stack = vec![row];
         while let Some(e) = stack.pop() {
             if let Some(text) = world.get::<Text>(e) {
                 out.push(text.0.clone());
@@ -71,7 +77,7 @@ fn drawn_lines(app: &mut App) -> Vec<String> {
 
 /// **The panel draws the agent's steps, in the order they happened, with the log's own words.**
 ///
-/// The panel is opened the way `Cmd+E` opens it — its `Display` set off `None` — and the paint runs on
+/// The panel is opened the way `Cmd+E` opens it — its `Display` set off `None` — and the draw runs on
 /// the next frame.
 #[test]
 fn the_journal_draws_the_agents_steps() {
@@ -93,13 +99,13 @@ fn the_journal_draws_the_agents_steps() {
     let steps = app.world().resource::<Journal>().steps.clone();
     assert_eq!(steps.len(), 3, "three applied operations, three steps: {steps:#?}");
 
-    // **And they are drawn.** Open the panel the way `Cmd+E` does and let the paint run.
+    // **And they are drawn.** Open the panel the way `Cmd+E` does and let the draw run.
     let panel = app
         .world_mut()
-        .query_filtered::<Entity, With<JournalPanel>>()
+        .query_filtered::<Entity, With<NotificationsOverlay>>()
         .iter(app.world())
         .next()
-        .expect("the journal panel is spawned on the Editor screen");
+        .expect("the journal's overlay is spawned on the Editor screen");
     app.world_mut()
         .get_mut::<Node>(panel)
         .expect("the panel is a node")
@@ -111,11 +117,6 @@ fn the_journal_draws_the_agents_steps() {
     assert!(
         !lines.is_empty(),
         "the journal drew nothing with three steps in it"
-    );
-    // A header naming the section, because the steps read downward and the refusals read upward.
-    assert!(
-        lines.iter().any(|l| l.starts_with("STEPS (")),
-        "the panel does not label the steps section: {lines:#?}"
     );
     // **Each step's own sentence, from the log.** The assertion is on the operation's text, which is
     // what `steps::Step::text` holds verbatim.
@@ -139,10 +140,10 @@ fn the_journal_draws_the_agents_steps() {
         first < last,
         "the steps are not in the order they happened: {lines:#?}"
     );
-    // **And no refusal line is invented**: nothing went wrong, so the list is steps only.
+    // **And no refusal line is invented**: nothing went wrong, so the list is steps only (and gooey's
+    // line for an empty list is not drawn under three steps).
     assert!(
-        !lines.iter().any(|l| l.contains("nothing has gone wrong")),
+        !lines.iter().any(|l| l.contains("No notifications yet")),
         "the empty-journal message is drawn under three steps: {lines:#?}"
     );
-    let _ = app.world().get::<ProblemLogLine>(Entity::PLACEHOLDER);
 }

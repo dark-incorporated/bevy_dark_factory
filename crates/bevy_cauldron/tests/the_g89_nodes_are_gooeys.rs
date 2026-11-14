@@ -5,7 +5,7 @@
 
 use bevy::prelude::*;
 use bevy::ui::ComputedNode;
-use bevy_cauldron::chrome::{self, BottomDock, Frame, JournalPanel};
+use bevy_cauldron::chrome::{self, BottomDock, Frame, NotificationsOverlay};
 use bevy_cauldron::harness;
 use bevy_cauldron::tiles::Mode;
 use bevy_gooey::ShownFollow;
@@ -26,7 +26,7 @@ fn editor(tag: &str) -> App {
 fn the_journal_starts_closed_and_is_placed() {
     let mut app = editor("journal");
     let world = app.world_mut();
-    let journal = world.query_filtered::<Entity, With<JournalPanel>>().iter(world).next().expect("the journal panel");
+    let journal = world.query_filtered::<Entity, With<NotificationsOverlay>>().iter(world).next().expect("the journal's overlay");
     let n = world.get::<Node>(journal).expect("a Node");
     assert_eq!((n.display, n.position_type), (Display::None, PositionType::Absolute), "closed until Cmd+E, out of the flow");
     assert_eq!(world.get::<Visibility>(journal), Some(&Visibility::Hidden), "and hidden from focus");

@@ -36,6 +36,8 @@ pub const CAP: usize = 120;
 pub struct Step {
     /// The log sequence this row is, which is what a capture is hung on.
     pub seq: u64,
+    /// **The operation's id**, which is what a step's **Undo** names (`grimoire/operation_undo`) and what its row in the journal is kept by.
+    pub operation_id: String,
     /// **The operation's name**, so a caller can filter or colour by what was done.
     pub op: String,
     /// **The operation's own sentence**, verbatim from [`crate::ops::Entry::result`].
@@ -77,6 +79,7 @@ pub fn from_oplog(text: &str, captures: &[Capture]) -> Vec<Step> {
             let text = entry.result?;
             Some(Step {
                 seq: entry.seq,
+                operation_id: entry.operation_id,
                 op: entry.op,
                 text,
                 capture: None,

@@ -75,6 +75,8 @@ pub(crate) struct Toast {
     cause: Option<String>,
     /// The line or the tab changed since the toast was last raised: [`raise_toast`] answers it once.
     fresh: bool,
+    /// The refusal's own text (the journal row's), without the tally, which is what finds the journal's row for it.
+    text: Option<String>,
 }
 
 /// A toast this module raised for the live tab's newest refusal, and what that refusal names.
@@ -94,26 +96,26 @@ impl Plugin for NoticePlugin {
             .init_resource::<Toast>()
             .init_resource::<crate::chrome::Journal>()
             .add_observer(show_the_cause)
+            .add_observer(on_notification_action)
             .add_systems(
                 OnEnter(crate::screen::Screen::Editor),
-                crate::chrome::journal_panel.after(crate::chrome::FrameSystems),
+                crate::chrome::notifications_overlay.after(crate::chrome::FrameSystems),
             )
             .add_systems(
                 Update,
                 ((
                     (dismiss, copy_out, toggle_journal).in_set(keys::Phase::Act),
-                    // **Before the paint**, so a refusal raised this frame is in the journal before
-                    // anything reads it — and outside `Phase::Act`, because it watches state rather
-                    // than keys.
+                    // **Before the sync**, so a refusal raised this frame is in the journal before it is written into the log — and outside
+                    // `Phase::Act`, because it watches state rather than keys.
                     record_problems.after(keys::Phase::Act),
                     record_steps.after(keys::Phase::Act),
-                    paint_journal.after(record_problems).after(record_steps),
+                    sync_the_log.after(record_problems).after(record_steps),
                     // After the verbs, so a problem raised this frame is on screen this frame.
                     paint_notices.after(keys::Phase::Act),
-                    // And after the paint, so a toast is raised in the frame its refusal is. **Before gooey's style set** (UI-R06, #336):
+                    // And after the paint and the sync, so a toast is raised in the frame its refusal is, as the row the sync wrote. **Before gooey's style set** (UI-R06, #336):
                     // gooey gives a toast its entrance (the slide in from its edge, `begin_entrances`) in the frame it first sees it, and a
                     // toast raised after that set stood at its place for one drawn frame and then jumped to where the slide begins.
-                    (raise_toast, mark_the_words).chain().after(paint_notices).before(bevy_gooey::GooeySystems::Style),
+                    (raise_toast, mark_the_words).chain().after(paint_notices).after(sync_the_log).before(bevy_gooey::GooeySystems::Style),
                     finish_show,
                 ),)
                     .run_if(in_state(crate::screen::Screen::Editor)),
@@ -180,6 +182,7 @@ fn paint_notices(mode: Res<Mode>, tabs: TabStatuses, mut showing: ResMut<Showing
     let newest = status.problems().last().map(|p| p.line());
     if toast.shown != newest || showing.source != Some(source_of(tab)) {
         toast.cause = status.problems().last().and_then(|p| p.cause()).map(str::to_owned);
+        toast.text = status.problems().last().map(|p| p.text.clone());
         toast.shown = newest;
         toast.fresh = true;
     }
@@ -283,7 +286,7 @@ fn dismiss(
     mut import: ResMut<crate::tiles::ImportState>,
     mut bench: ResMut<crate::anim_tab::BenchState>,
     mut compose: ResMut<crate::compose::ComposeState>,
-    mut journal: Query<&mut Node, With<crate::chrome::JournalPanel>>,
+    mut journal: Query<&mut Node, With<crate::chrome::NotificationsOverlay>>,
 ) {
     if !keys::just_pressed(&keyboard, *live, Action::Cancel) {
         return;
@@ -378,6 +381,13 @@ fn copy_out(
     }
 }
 
+/// **What a refusal can be about**, for the toast's Show button: the project's library and the open map. One param, so the system stays within clippy's limit.
+#[derive(bevy::ecs::system::SystemParam)]
+struct Where<'w> {
+    project: Option<Res<'w, crate::project::Project>>,
+    open: Option<Res<'w, crate::project::OpenMap>>,
+}
+
 /// **The toast a refusal raises, and the layer it stands in** (UI-39, #233).
 ///
 /// The newest refusal of the live tab, when it is new, becomes one `bevy_gooey` alert toast that
@@ -391,11 +401,11 @@ fn copy_out(
 fn raise_toast(
     mut commands: Commands,
     mut raised: ResMut<Toast>,
-    project: Option<Res<crate::project::Project>>,
-    open: Option<Res<crate::project::OpenMap>>,
-    journals: Query<&Node, With<crate::chrome::JournalPanel>>,
+    there: Where,
+    journals: Query<&Node, With<crate::chrome::NotificationsOverlay>>,
     standing: Query<Entity, With<RefusalToast>>,
-    mut layers: Query<&mut bevy_gooey::Shown, (With<crate::chrome::ToastLayer>, Without<crate::chrome::JournalPanel>)>,
+    mut layers: Query<&mut bevy_gooey::Shown, (With<crate::chrome::ToastLayer>, Without<crate::chrome::NotificationsOverlay>)>,
+    journal: Res<crate::chrome::Journal>,
 ) {
     let journal_open = journals.iter().any(|n| n.display != Display::None);
     let mut up = !standing.is_empty();
@@ -407,10 +417,16 @@ fn raise_toast(
         up = false;
         if let (Some(line), false) = (raised.shown.as_deref(), journal_open) {
             let mut bundle = bevy_gooey::toast_alert(line).sticky();
+            // **The toast is the journal's row**: the refusal was written into the log by `sync_the_log` in this frame, and the toast stands for
+            // that row instead of adding a second line for the same refusal. A refusal the journal has not got (it cannot be: the sync runs first)
+            // would log itself.
+            if let Some(id) = raised.text.as_deref().and_then(|text| journal.log_id_of(text)) {
+                bundle = bundle.logged_as(id);
+            }
             // Show only for a thing that is there: a refusal about one that is already gone has nowhere to go.
             let is_there = |id: &str| {
-                project.as_ref().is_some_and(|p| p.library.get(id).is_some())
-                    || open.as_ref().is_some_and(|o| o.map.placements.iter().any(|p| p.id == id))
+                there.project.as_ref().is_some_and(|p| p.library.get(id).is_some())
+                    || there.open.as_ref().is_some_and(|o| o.map.placements.iter().any(|p| p.id == id))
             };
             if raised.cause.as_deref().is_some_and(is_there) {
                 bundle = bundle.action("Show", SHOW);
@@ -530,6 +546,7 @@ fn finish_show(world: &mut World) {
 /// on disk; a watermark on a resource would miss every operation a person took between two frames.
 fn record_steps(
     project: Option<Res<crate::project::Project>>,
+    open: Option<Res<crate::project::OpenMap>>,
     mut journal: ResMut<crate::chrome::Journal>,
     mut seen: Local<usize>,
 ) {
@@ -556,9 +573,22 @@ fn record_steps(
         .filter_map(|l| serde_json::from_str::<crate::ops::Entry>(l).ok())
         .filter(|e| e.result.is_some())
         .count();
+    // **The step that can be taken back** (UI-100, #442): what a bare `operation_undo` would take back, read the way it reads it. A put-back (a
+    // redo) is not an Undo, so it has no button; a change a newer one blocks, or a state the log did not leave, has none either.
+    let undoable = open.as_ref().and_then(|open| {
+        let ctx = crate::ops::Ctx {
+            project: Some(project.as_ref().clone()),
+            open: Some(open.as_ref().clone()),
+            source: crate::ops::Source::Human,
+            session: crate::ops::session_id(),
+            ..crate::ops::Ctx::default()
+        };
+        crate::ops::undo_target(&ctx, None).ok().filter(|plan| !plan.restores).map(|plan| plan.line.operation_id)
+    });
     journal.steps_dropped = applied.saturating_sub(rows.len());
     journal.steps_unreadable = crate::steps::unreadable_lines(&text);
     journal.steps = rows;
+    journal.undoable = undoable;
 }
 
 /// **Everything that has gone wrong, kept where `Esc` cannot reach it.**
@@ -638,7 +668,7 @@ fn record_problems(
 fn toggle_journal(
     keyboard: Res<ButtonInput<KeyCode>>,
     live: Res<keys::Live>,
-    mut panels: Query<&mut Node, With<crate::chrome::JournalPanel>>,
+    mut panels: Query<&mut Node, With<crate::chrome::NotificationsOverlay>>,
 ) {
     // **Behind a key EDGE, and the lint can see that now.** `just_pressed` is false on every frame
     // but the one where `Cmd+E` went down, so the one write below happens once per press and the
@@ -667,109 +697,129 @@ fn toggle_journal(
     }
 }
 
-/// **Rebuild the list when the journal changes or the panel opens**, and not on a frame.
+/// **Write the journal into gooey's log, so the notification centre draws it** (UI-100, #442).
 ///
-/// `chrome::Follow`'s argument: static text respawned sixty times a second is sixty times the work
-/// for one picture. The guard is what it would produce, exactly as the old per-panel log's was.
-fn paint_journal(
-    mut commands: Commands,
-    journal: Res<crate::chrome::Journal>,
-    panels: Query<&Node, With<crate::chrome::JournalPanel>>,
-    lists: Query<Entity, With<crate::chrome::JournalList>>,
-    lines: Query<Entity, With<crate::chrome::ProblemLogLine>>,
-    // **The journal's ink, from the editor's skin** (UI-02, #210).
-    skin: Option<Res<bevy_gooey::GooeySkin>>,
-    mut was_open: Local<bool>,
-) {
-    let ink = crate::compose::PanelInk::of(skin.as_deref());
-    let open = panels.iter().any(|n| n.display != Display::None);
-    if !open {
-        // Nothing to draw and nothing to keep: the next open rebuilds from the journal, which is the
-        // only copy that matters.
-        *was_open = false;
+/// The editor keeps its own data as the truth — the operation log's steps and every refusal of the session ([`crate::chrome::Journal`]) — and
+/// gooey draws it through ONE [`bevy_gooey::ToastLog`], newest first. A refusal is an alert row, a step a note row, kept by the ids the log gave them
+/// ([`crate::chrome::Journal::log_ids`], `step_rows`): a repeat sets the row's count (`text  (x3)`), a step that falls off the front is taken out,
+/// and the one step that can be taken back ([`crate::chrome::Journal::undoable`]) carries an **Undo** button. The refusal toast is raised as the
+/// same row ([`bevy_gooey::ToastBundle::logged_as`]), so the toast and the journal agree because they are one line.
+///
+/// **Written when the journal changed, and not on a frame**: the ids are bookkeeping written past the change flag, so a settled editor costs a
+/// comparison and the log is not touched.
+fn sync_the_log(mut journal: ResMut<crate::chrome::Journal>, log: Option<ResMut<bevy_gooey::ToastLog>>, time: Res<Time<Real>>) {
+    let Some(mut log) = log else { return };
+    if !journal.is_changed() {
         return;
     }
-    // **Rebuilt when the journal changed or the panel just opened — never on a count.** This
-    // guarded on the line count once, and a count is exactly what the journal keeps constant: a
-    // repeat folds into the last entry's `(xN)` without adding a line, and at [`crate::chrome::JOURNAL_CAP`]
-    // every new entry replaces an old one — so an open panel showed stale tallies and, at the cap,
-    // froze for the rest of the session. `Journal` is only dereferenced mutably when a refusal was
-    // recorded, so its change flag is the honest clock — and cheaper than rendering 200 lines a
-    // frame to compare them.
-    // A project that restyles itself while the journal is up repaints it, so the refusals a reader is
-    // looking at do not keep the old skin's ink until the next refusal arrives.
-    let reskinned = skin.as_ref().is_some_and(|s| s.is_changed());
-    let rebuild = journal.is_changed() || !*was_open || reskinned;
-    *was_open = true;
-    if !rebuild {
-        return;
+    let now = time.elapsed_secs();
+    let journal = journal.bypass_change_detection();
+    // The rows of refusals that fell off the front go with them.
+    for id in journal.forgotten.drain(..) {
+        log.remove(id);
     }
-    // **The steps first, newest last, then a rule, then the refusals (E-068).** One column, because
-    // a person watching an agent wants the two together: a refusal is a step that did not happen.
-    // The steps read downward in the order they happened — the opposite of the refusal list, which
-    // is newest-first because a toast just showed its head — so the section is labelled rather than
-    // left to be inferred from the order.
-    let mut want: Vec<String> = Vec::new();
-    if !journal.steps.is_empty() {
-        want.push(format!("STEPS ({} this session)", journal.steps.len()));
-        want.extend(journal.steps.iter().map(|s| {
-            let mark = if s.capture.is_some() { " ▪" } else { "" };
-            format!("  {}{mark}", s.text)
-        }));
-        if journal.steps_dropped > 0 {
-            want.push(format!(
-                "  +{} earlier, dropped at {}",
-                journal.steps_dropped,
-                crate::steps::CAP
-            ));
-        }
-        if journal.steps_unreadable > 0 {
-            // **Said, not swallowed.** A feed shorter than the file reads as a complete session.
-            want.push(format!(
-                "  {} line(s) of the log could not be read",
-                journal.steps_unreadable
-            ));
-        }
-        if !journal.entries().is_empty() {
-            want.push(String::new());
-        }
-    }
-    want.extend(
-        journal
-            .entries()
-            .iter()
-            .rev()
-            .map(|p| p.line())
-            .chain(match journal.dropped() {
-                0 => None,
-                n => Some(format!(
-                    "+{n} earlier, dropped at {}",
-                    crate::chrome::JOURNAL_CAP
-                )),
-            }),
-    );
-    for e in &lines {
-        commands.entity(e).despawn();
-    }
-    for list in &lists {
-        commands.entity(list).with_children(|p| {
-            if want.is_empty() {
-                p.spawn((
-                    bevy::prelude::Text::new("no steps and nothing has gone wrong yet".to_owned()),
-                    bevy::prelude::TextColor(ink.quiet),
-                    crate::chrome::typed(crate::chrome::text::LABEL),
-                    crate::chrome::ProblemLogLine,
-                ));
-                return;
+    // **Refusals**, oldest first: a new one is a row of its own, and one that repeated sets its count.
+    for i in 0..journal.entries().len() {
+        let (text, count) = {
+            let entry = &journal.entries()[i];
+            (entry.text.clone(), u32::try_from(entry.count).unwrap_or(u32::MAX))
+        };
+        match journal.log_ids[i] {
+            Some(id) => {
+                if log.get(id).is_some_and(|row| row.count() != count)
+                    && let Some(row) = log.get_mut(id)
+                {
+                    row.set_count(count);
+                }
             }
-            for (i, line) in want.iter().enumerate() {
-                // Newest first, and the newest is the one the toast just showed — so the top of this
-                // list and the thing that interrupted you agree.
-                let colour = if i == 0 { ink.danger } else { ink.quiet };
-                crate::chrome::problem_log_line(p, line, colour);
+            None => {
+                let id = log.push(bevy_gooey::ToastLogEntry { seconds: now, kind: bevy_gooey::ToastKind::Alert, text });
+                if count > 1
+                    && let Some(row) = log.get_mut(id)
+                {
+                    row.set_count(count);
+                }
+                journal.log_ids[i] = Some(id);
             }
-        });
+        }
     }
+    // **Steps**: a row for each the operation log holds, in the order it holds them, and none for one it no longer does.
+    let held: Vec<String> = journal.steps.iter().map(|s| s.operation_id.clone()).collect();
+    let gone: Vec<u64> = journal.step_rows.iter().filter(|(op, _)| !held.contains(op)).map(|(_, id)| *id).collect();
+    for id in gone {
+        log.remove(id);
+    }
+    journal.step_rows.retain(|(op, _)| held.contains(op));
+    for i in 0..journal.steps.len() {
+        if journal.step_rows.iter().any(|(op, _)| *op == journal.steps[i].operation_id) {
+            continue;
+        }
+        let step = &journal.steps[i];
+        let mark = if step.capture.is_some() { " ▪" } else { "" };
+        let id = log.push(bevy_gooey::ToastLogEntry { seconds: now, kind: bevy_gooey::ToastKind::Note, text: format!("{}{mark}", step.text) });
+        let operation_id = step.operation_id.clone();
+        journal.step_rows.push((operation_id, id));
+    }
+    // **The Undo button is on the one step that can be taken back** and on no other.
+    let want = journal.undoable.clone();
+    for (op, id) in &journal.step_rows {
+        let wanted = want.as_deref() == Some(op.as_str());
+        let has = log.get(*id).is_some_and(|row| !row.actions().is_empty());
+        if wanted != has
+            && let Some(row) = log.get_mut(*id)
+        {
+            row.clear_actions();
+            if wanted {
+                row.add_action("Undo", format!("{UNDO_PREFIX}{op}"));
+            }
+        }
+    }
+    // **What the lists left out is said**, once, as a note: a feed shorter than the file reads as a complete session.
+    let facts = [
+        (
+            crate::chrome::Said::StepsDropped,
+            (journal.steps_dropped > 0).then(|| format!("+{} earlier steps, dropped at {}", journal.steps_dropped, crate::steps::CAP)),
+        ),
+        (
+            crate::chrome::Said::StepsUnreadable,
+            (journal.steps_unreadable > 0).then(|| format!("{} line(s) of the log could not be read", journal.steps_unreadable)),
+        ),
+        (
+            crate::chrome::Said::RefusalsDropped,
+            (journal.dropped() > 0).then(|| format!("+{} earlier refusals, dropped at {}", journal.dropped(), crate::chrome::JOURNAL_CAP)),
+        ),
+    ];
+    for (which, sentence) in facts {
+        let at = journal.said.iter().position(|(w, ..)| *w == which);
+        match (at, sentence) {
+            (Some(i), Some(now_says)) if journal.said[i].1 == now_says => {}
+            (Some(i), Some(now_says)) => {
+                log.remove(journal.said[i].2);
+                let id = log.push(bevy_gooey::ToastLogEntry { seconds: now, kind: bevy_gooey::ToastKind::Note, text: now_says.clone() });
+                journal.said[i] = (which, now_says, id);
+            }
+            (Some(i), None) => {
+                log.remove(journal.said[i].2);
+                journal.said.remove(i);
+            }
+            (None, Some(now_says)) => {
+                let id = log.push(bevy_gooey::ToastLogEntry { seconds: now, kind: bevy_gooey::ToastKind::Note, text: now_says.clone() });
+                journal.said.push((which, now_says, id));
+            }
+            (None, None) => {}
+        }
+    }
+}
+
+/// **What an action id of a journal row starts with when it is an Undo**: the rest is the operation id of the step to take back.
+const UNDO_PREFIX: &str = "undo:";
+
+/// **A press on a row's Undo takes that step back**, through the one door every undo by id goes through (`grimoire/operation_undo`): the inverse the
+/// step recorded is dispatched, one new line is written to the operation log, and the map is put back. A refusal (a newer change in effect, a file
+/// that moved) is raised as any other and lands in the journal.
+fn on_notification_action(action: On<bevy_gooey::NotificationAction>, mut commands: Commands) {
+    let Some(operation_id) = action.id.strip_prefix(UNDO_PREFIX).map(str::to_owned) else { return };
+    commands.queue(move |world: &mut World| crate::ops_brp::undo_logged_change(world, &operation_id));
 }
 
 #[cfg(test)]

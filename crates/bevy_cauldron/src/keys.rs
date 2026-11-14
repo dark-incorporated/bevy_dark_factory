@@ -3831,7 +3831,7 @@ pub enum Holder {
     /// The session journal is up. A row fires only if it opted in with [`Draft::also_journal`], and
     /// the tab is deliberately not consulted: the journal is a panel over the whole viewport and its
     /// three keys ([`Action::Cancel`], [`Action::CopyInfo`], [`Action::ShowErrors`]) are the panel's
-    /// own, named in its footer by `chrome::journal_panel`.
+    /// own, named in its footer by `chrome::notifications_overlay`.
     Journal,
 }
 

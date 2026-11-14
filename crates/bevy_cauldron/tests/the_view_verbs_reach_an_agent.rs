@@ -177,7 +177,7 @@ fn the_ghost_has_no_second_toggle_in_the_source() {
 fn an_agent_toggles_the_journal_and_the_panel_moves() {
     let mut app = editor("agent_journal");
     let display = |app: &mut App| {
-        let mut panels = app.world_mut().query_filtered::<&Node, With<bevy_cauldron::chrome::JournalPanel>>();
+        let mut panels = app.world_mut().query_filtered::<&Node, With<bevy_cauldron::chrome::NotificationsOverlay>>();
         let all: Vec<Display> = panels.iter(app.world()).map(|n| n.display).collect();
         assert!(!all.is_empty(), "the editor has a journal panel to toggle");
         all[0]
