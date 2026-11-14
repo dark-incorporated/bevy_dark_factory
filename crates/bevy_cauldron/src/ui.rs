@@ -326,15 +326,20 @@ struct SelectedRail;
 fn paint_marked_buttons(
     skin: Res<bevy_gooey::GooeySkin>,
     mut buttons: Query<
-        (Entity, &mut BackgroundColor, Has<bevy::ui::Pressed>, Has<bevy::ui::InteractionDisabled>, Option<&Children>),
-        (With<bevy_gooey::Role>, With<bevy::ui::Selected>),
+        (Entity, &mut BackgroundColor, Has<bevy::ui::Pressed>, Has<bevy::ui::InteractionDisabled>, Option<&Children>, &bevy_gooey::Role),
+        With<bevy::ui::Selected>,
     >,
     mut rails: Query<&mut BackgroundColor, (With<SelectedRail>, Without<bevy_gooey::Role>)>,
     parents: Query<&ChildOf>,
     opacities: Query<&bevy_gooey::Opacity>,
     mut commands: Commands,
 ) {
-    for (entity, mut fill, pressed, disabled, children) in &mut buttons {
+    for (entity, mut fill, pressed, disabled, children, role) in &mut buttons {
+        // **A selected table row is gooey's own** (#436): the accent fill with the skin's `accent_text` on it, which gooey draws as one pair. This painted it
+        // the skin's hovered grey under that same dark `accent_text` (1.5:1 in Tool dark, 1.2:1 in Parchment), and a rail the accent's own colour on it.
+        if matches!(role, bevy_gooey::Role::TableRow) {
+            continue;
+        }
         // **A button in a dialog that is fading out fades with it.** gooey multiplies the colours it writes by
         // the `Opacity` at and above a node; these are written after it, so they take the same factor, or the
         // chosen tab would stand solid in a card that is going.
