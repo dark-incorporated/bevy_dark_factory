@@ -242,7 +242,8 @@ fn a_drawing_system_writes_only_when_something_changed() {
 fn the_scan_actually_finds_drawing_systems() {
     // Measured, then floored just under: `chrome.rs` carries six and `badges.rs` two. `chrome.rs` carries four since #260 round 11: `hide_idle_scrollbars` is gone (gooey owns the rail) and the two
     // panel-width writers write gooey's `Sizing`, not a `Node`; the floor goes down with them (Owner exception, 2026-11-14).
-    for (file, floor) in [("chrome.rs", 4usize), ("badges.rs", 2)] {
+    // `chrome.rs` carries three since `LinesRoom` went: `resize_the_labels` no longer writes a `Node`, only the labels' fonts; the floor goes down with it (Owner exception, 2026-11-14).
+    for (file, floor) in [("chrome.rs", 3usize), ("badges.rs", 2)] {
         let src = std::fs::read_to_string(src_dir().join(file))
             .unwrap_or_else(|e| panic!("{file}: {e}"));
         let found: Vec<String> = functions(&src)

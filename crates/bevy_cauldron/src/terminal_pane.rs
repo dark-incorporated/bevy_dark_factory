@@ -331,31 +331,10 @@ const LED_DOT_SIZES: f32 = 1.1;
 
 /// The least the card is wide, logical pixels: wide enough for the first check's row (`OK Tools server: bevy_cauldron_mcp
 /// on port 15702`), so the card does not start narrower than that and grow row by row.
+///
+/// **The card takes the width its longest row needs** (feedback-1794089256357): from this up to the terminal's own width (`max_width` 100%), so every row is one line while there is
+/// room for it, and only in a terminal narrower than a row does a row wrap, as any text does. It was a fixed 320 px, and a longer row broke onto a second line.
 const AGENT_CARD_MIN_W: f32 = 320.0;
-
-/// **The card takes the width its longest row needs** (feedback-1794089256357: *"Each item should fit on one line, or be
-/// handled appropriately"*). It was a fixed 320 px, and a row longer than that (`OK Agent connected: omp-coding-agent 1.0.0 ·
-/// 22 tools`, `OK Agent self test: the editor is on launcher · 88 operations · a 2560x1406 picture`) broke onto a second line
-/// whose last word stood alone at the card's left edge, under the mark. Now the card is as wide as its content, from
-/// [`AGENT_CARD_MIN_W`] up to the terminal's own width, so every row is one line while there is room for it. Only in a
-/// terminal narrower than a row does a row wrap, as any text does.
-fn agent_card_node() -> Node {
-    Node {
-        // PLACES-ITSELF-OK: the self-test card floats over the terminal it reports on, as the
-        // find box does; it is not a panel `chrome::Frame` places.
-        position_type: PositionType::Absolute,
-        top: Val::Px(crate::terminal_view::BODY_INSET.y),
-        right: Val::Px(chrome::MARGIN),
-        width: Val::Auto,
-        min_width: Val::Px(AGENT_CARD_MIN_W),
-        max_width: Val::Percent(100.0),
-        flex_direction: FlexDirection::Column,
-        row_gap: Val::Px(chrome::GAP_TIGHT),
-        padding: UiRect::all(Val::Px(chrome::GAP_TIGHT)),
-        border: UiRect::all(Val::Px(chrome::EDGE_W)),
-        ..default()
-    }
-}
 
 /// **The terminal has the keyboard**, which is the one state this feature must not get wrong.
 ///
@@ -530,6 +509,8 @@ impl Plugin for TerminalPanePlugin {
                 )
                     .in_set(crate::terminal_view::TerminalChordSet),
             )
+            // **The pane's geometry is the host's once gooey has styled it** (see [`host_the_pane_geometry`]).
+            .add_systems(Update, host_the_pane_geometry.after(bevy_gooey::GooeySystems::Style))
             .add_systems(Update, resume_the_agent_that_was_running)
             // **The status bar carries the terminal's label, and the choice a person makes is kept** (#424).
             .add_systems(
@@ -644,21 +625,20 @@ fn build_the_pane(
 ) -> Entity {
     let root = commands
         .spawn((
-            Node {
-                width: Val::Percent(100.0),
-                height: Val::Px(height),
-                min_height: Val::Px(TERMINAL_MIN_H),
-                flex_direction: FlexDirection::Column,
-                // **Never shrinks.** The height is the person's, and a body that shrank it would turn
-                // a remembered 320 px into whatever the docks left over.
-                flex_shrink: 0.0,
-                border: UiRect::top(Val::Px(chrome::EDGE_W)),
-                // **Collapsed is `Display::None`** rather than `Visibility`, because a hidden-but-laid-
-                // out pane would still take its height out of the screen, and the person collapsed it
-                // to get that room back.
-                display: if terminal.is_collapsed() { Display::None } else { Display::Flex },
+            // The pane root: a gooey sized column the window wide, `height` tall (at least `TERMINAL_MIN_H`), that never shrinks (the height is the person's, and a body that
+            // shrank it would turn a remembered 320 px into whatever the docks left over), with a 1 px edge on top. The initial lengths are gooey's (`Sizing`); from the first
+            // frame on the host owns them (`HostGeometry`, added by [`host_the_pane_geometry`]), because the grip, the window's fit and the maximise write `height` and the
+            // maximise writes `position_type` and the insets. **Collapsed is `Display::None`, written by the host's systems and followed by gooey (`ShownFollow`)**, and it
+            // starts closed when the person left it so: a hidden-but-laid-out pane would still take its height out of the screen.
+            bevy_gooey::sized(bevy_gooey::Sizing {
+                width: Some(bevy_gooey::Extent::Percent(100.0)),
+                height: Some(bevy_gooey::Extent::Px(height)),
+                min_height: Some(bevy_gooey::Extent::Px(TERMINAL_MIN_H)),
                 ..default()
-            },
+            }),
+            bevy_gooey::RowLayout { shrink: Some(0.0), ..default() },
+            bevy_gooey::BorderPx(bevy_gooey::Sides { top: Some(chrome::EDGE_W), ..default() }),
+            bevy_gooey::InkFollow,
             BackgroundColor(chrome::ink().panel_bg),
             BorderColor::all(chrome::ink().panel_edge),
             // **`Pickable::default()`, not `IGNORE`.** The body has to be clickable to take the
@@ -671,6 +651,11 @@ fn build_the_pane(
             Name::new("terminal"),
         ))
         .id();
+    if terminal.is_collapsed() {
+        commands.entity(root).insert(bevy_gooey::ShownFollow::closed());
+    } else {
+        commands.entity(root).insert(bevy_gooey::ShownFollow);
+    }
 
     let grip = commands
         .spawn((
@@ -1216,6 +1201,19 @@ fn apply_the_maximise(
         }
     }
 }
+
+/// **Hand the pane's geometry to the host once gooey has laid it out** (G-86/G-89): the first restyle writes the lengths `Sizing` names (width, height, least height), and
+/// from then on `HostGeometry` leaves `width`, `height`, `min_*` and the insets alone, so `height` (the grip, the fit, the maximise) and `position_type`/the insets (the
+/// maximise) are the host's to write without gooey restyling them back. The marker is added after the node has been styled, as gooey's docs ask, not at spawn, because
+/// at spawn the lengths would never be written at all.
+#[allow(clippy::type_complexity)]
+fn host_the_pane_geometry(mut commands: Commands, panes: Query<(Entity, &Node), (With<TerminalPaneRoot>, Without<bevy_gooey::HostGeometry>)>) {
+    for (pane, node) in &panes {
+        if node.width == Val::Percent(100.0) {
+            commands.entity(pane).insert(bevy_gooey::HostGeometry);
+        }
+    }
+}
 /// **Primary+J collapses the pane, or restores it**, on every screen (#315).
 ///
 /// Two cases, VS Code's: a raised pane collapses and gives the screen its keys back, wherever the keys
@@ -1438,13 +1436,20 @@ fn spawn_the_agent_card(commands: &mut Commands, body: Entity, post: &crate::ter
     };
     let card = commands
         .spawn((
-            agent_card_node(),
+            // The self-test card floats over the terminal it reports on, as the find box does; it is not a panel `chrome::Frame` places: placed at the body's top right
+            // (`BODY_INSET.y` down, a margin in), as wide as its content from `AGENT_CARD_MIN_W` up to the terminal's own width, its rows a tight step apart and a tight
+            // step in, a 1 px edge, in the editor's own colours (`InkFollow`). **`placed` is `Pickable::IGNORE`, which the card is**: the pointer goes through it to the shell.
+            bevy_gooey::placed(UiRect { top: Val::Px(crate::terminal_view::BODY_INSET.y), right: Val::Px(chrome::MARGIN), ..UiRect::all(Val::Auto) }),
+            bevy_gooey::Sizing { min_width: Some(bevy_gooey::Extent::Px(AGENT_CARD_MIN_W)), max_width: Some(bevy_gooey::Extent::Percent(100.0)), ..default() },
+            bevy_gooey::GapPx(chrome::GAP_TIGHT),
+            bevy_gooey::Spacing { padding: bevy_gooey::Sides::all(chrome::STEP_TIGHT), ..default() },
+            bevy_gooey::BorderPx(bevy_gooey::Sides::all(chrome::EDGE_W)),
+            bevy_gooey::InkFollow,
             BackgroundColor(chrome::ink().bar_bg),
             BorderColor::all(chrome::ink().panel_edge),
             // Above the rows and the caret, which are its siblings.
             ZIndex(2),
             TerminalAgentCard,
-            Pickable::IGNORE,
             Name::new("terminal agent card"),
         ))
         .with_children(|card| {
@@ -2628,16 +2633,5 @@ mod tests {
         terminal.spawn(80, 24, std::path::Path::new("/tmp"));
         assert!(!terminal.invites_the_agent());
         assert!(offers_another_agent(&terminal), "with a tab open the chip adds another agent beside it");
-    }
-
-    /// **The self-test card's width follows its content** (feedback-1794089256357; oracle `containment`). A constant width is
-    /// what made `OK Agent connected: omp-coding-agent 1.0.0 · 22 tools` wrap onto a second line: the card has no fixed width,
-    /// is never narrower than its first row needs, and never wider than the terminal it floats over.
-    #[test]
-    fn the_agent_card_is_as_wide_as_its_content_within_the_terminal() {
-        let card = agent_card_node();
-        assert_eq!(card.width, Val::Auto, "its width is its content's, not a constant");
-        assert_eq!(card.min_width, Val::Px(AGENT_CARD_MIN_W), "and never less than the first row needs");
-        assert_eq!(card.max_width, Val::Percent(100.0), "and never more than the terminal's body");
     }
 }

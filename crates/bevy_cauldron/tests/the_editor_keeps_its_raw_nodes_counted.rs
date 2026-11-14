@@ -27,12 +27,12 @@
 use crate::fixtures;
 
 /// The files that may still carry raw `Node` literals, with the number each carries (production code only). Sorted by path.
-const NODES_LEFT: &[(&str, usize)] = &[
-    ("terminal_pane.rs", 2),
-];
+// 2 -> 0: #260 round 12: the terminal's pane root (a sized column with ShownFollow and HostGeometry) and its self-test card (a placed column) are gooey's; no raw `Node` is left outside the viewport surface.
+// Owner exception (2026-11-14): a ratchet tightened to the real count.
+const NODES_LEFT: &[(&str, usize)] = &[];
 
-/// The sum of [`NODES_LEFT`]: the crate's raw `Node` literals outside the viewport surface. #260 closes when it is 0.
-const TOTAL_NODES_LEFT: usize = 2;
+/// The sum of [`NODES_LEFT`]: the crate's raw `Node` literals outside the viewport surface. #260 closes when it is 0, and it is.
+const TOTAL_NODES_LEFT: usize = 0;
 
 /// The viewport surface: the files where a raw `Node` is allowed to stay and is not counted.
 const SURFACE_FILES: [&str; 2] = ["surface.rs", "view.rs"];
