@@ -64,6 +64,10 @@ use crate::project::{OpenMap, Project};
 use crate::screen::Screen;
 use crate::workspace::Workspace;
 
+/// **The room a page keeps clear on its right for gooey's scrollbar rail**, in logical px (#437): a picture ends this far inside the column, so the rail
+/// never lies over it. The page's picture overlapped the rail by about 12 px when this was measured (#437); this is that and a margin.
+pub const PAGE_GUTTER_PX: f32 = 16.0;
+
 /// **How often the design tree, the selected page and its board are read again, in seconds.** Half a second is "at once" to a person, and the
 /// tree is a few small files (the reader refuses one over [`design::STYLE_FILE_MAX_BYTES`]).
 pub const REFRESH_S: f32 = 0.5;
@@ -420,6 +424,7 @@ impl Plugin for DesignViewPlugin {
                     keep_the_body,
                     keep_the_board,
                     make_the_pictures_clickable,
+                    fit_the_pictures_to_the_page,
                     scroll_the_page,
                     take_the_address_answer,
                     drop_to_the_selected_board,
@@ -972,6 +977,40 @@ fn keep_the_body(
             commands.entity(body).with_children(|b| {
                 b.spawn((markdown_view(text, base), DesignPage, observe(on_link)));
             });
+        }
+    }
+}
+
+/// **A picture on the page is scaled down to the page, never wider** (#437). gooey draws a picture at its own size up to 40 body text sizes, a fixed box that
+/// the column's width does not reach, so a picture wider than the column stood over the scrollbar's rail (and past the page's edge in the smallest
+/// window). Each picture becomes gooey's own aspect picture ([`bevy_gooey::Role::AspectImage`]): the size gooey measured is its width and its ratio, and the
+/// height follows the width, so it shrinks with the column and does not distort. Its greatest width is the page's laid-out width less [`PAGE_GUTTER_PX`]. Each
+/// write is compared first; a page that is not laid out yet (no width) is left alone.
+fn fit_the_pictures_to_the_page(
+    mut commands: Commands,
+    pages: Query<&ComputedNode, With<DesignPage>>,
+    pictures: Query<(Entity, &bevy_gooey::BoxSize, &bevy_gooey::Role, Option<&bevy_gooey::AspectBox>, Option<&bevy_gooey::Sizing>), (With<MarkdownPicture>, With<ImageNode>)>,
+) {
+    let Ok(page) = pages.single() else { return };
+    let width = page.size().x * page.inverse_scale_factor();
+    if width <= PAGE_GUTTER_PX {
+        return;
+    }
+    let widest = width - PAGE_GUTTER_PX;
+    for (picture, size, role, aspect, sizing) in &pictures {
+        if size.0.x <= 0.0 || size.0.y <= 0.0 {
+            continue;
+        }
+        let want_aspect = bevy_gooey::AspectBox { width: size.0.x, ratio: size.0.x / size.0.y };
+        let want_sizing = bevy_gooey::Sizing { max_width: Some(bevy_gooey::Extent::Px(widest)), ..default() };
+        if !matches!(role, bevy_gooey::Role::AspectImage) {
+            commands.entity(picture).insert(bevy_gooey::Role::AspectImage);
+        }
+        if aspect != Some(&want_aspect) {
+            commands.entity(picture).insert(want_aspect);
+        }
+        if sizing != Some(&want_sizing) {
+            commands.entity(picture).insert(want_sizing);
         }
     }
 }

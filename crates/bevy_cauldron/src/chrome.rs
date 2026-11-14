@@ -1663,7 +1663,11 @@ pub fn spawn_frame(
             // **The map is where a library piece may be let go** (UI-52, #238): the dock covers the viewport, so it is
             // the drop target, and `editor::drop_a_piece_on_the_map` places what lands on it.
             bevy_gooey::DropTarget::<crate::editor::PieceDrag>::new(),
-            Node { width: Val::Percent(100.0), height: Val::Percent(100.0), ..default() },
+            // **It covers the viewport and takes no room in it** (#437, #438). In the flow it was a `width: 100%` sibling of whatever a workspace puts in
+            // the viewport slot (the Design page, the Files editor), which shared the row with it: a page stood in the slot's right-hand part and the rest was
+            // empty, or ran past the window's edge. Absolute, it is still the whole of the hole the world is drawn through, for the drop to land on.
+            // PLACES-ITSELF-OK: a drop target over the viewport, not a panel `Frame` places.
+            Node { position_type: PositionType::Absolute, left: Val::Px(0.0), top: Val::Px(0.0), width: Val::Percent(100.0), height: Val::Percent(100.0), ..default() },
         ))
         .id();
     // **The dock's own body is the host's, and it is not laid out** (bevy-coven/bevy_gooey#85).
