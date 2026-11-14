@@ -2013,19 +2013,55 @@ impl Status {
 pub struct Journal {
     entries: Vec<Problem>,
     dropped: usize,
+    /// **The [`bevy_gooey::ToastLog`] id of each entry's row**, parallel to `entries` (`None` until `notice::sync_the_log` has written it), so a
+    /// repeat folds into the row it belongs to and the refusal's toast can be the same row ([`bevy_gooey::ToastBundle::logged_as`]).
+    pub(crate) log_ids: Vec<Slot>,
     /// **The agent's steps for this session (E-068)**, oldest first, capped by
     /// [`crate::steps::CAP`]. Read from the operation log's own `result` lines rather than written
     /// here, so a row cannot claim more than the log says.
     ///
-    /// **Behind a toggle.** The journal is opened with `Cmd+E` and read by scrolling; the steps are
-    /// one more list in it rather than a second panel, because a person watching an agent wants the
-    /// steps and the refusals in one column — a refusal is a step that did not happen.
+    /// **One list with the refusals.** The journal is opened with `Cmd+E` and read by scrolling; a person watching an agent wants the steps and
+    /// the refusals in one column — a refusal is a step that did not happen.
     pub steps: Vec<crate::steps::Step>,
     /// How many steps fell off the front at the cap, so the list can say so rather than looking
     /// complete.
     pub steps_dropped: usize,
     /// How many log lines are not entries — a log torn by a crash, or a file edited by hand.
     pub steps_unreadable: usize,
+    /// **The one step that can be taken back now** (UI-100, #442): the operation id of the newest change in effect, which `ops::undo_target`
+    /// names. Its row carries the **Undo** button; every other row is history.
+    pub undoable: Option<String>,
+    /// The log rows of the steps drawn, by operation id.
+    pub(crate) step_rows: Vec<(String, u64)>,
+    /// The log rows that say what the lists left out (steps dropped at the cap, lines of the log that could not be read, refusals dropped), by
+    /// what they say, with the sentence each was written as.
+    pub(crate) said: Vec<(Said, String, u64)>,
+    /// The log rows of refusals that fell off the front of `entries` at the cap, taken out of the log on the next sync.
+    pub(crate) forgotten: Vec<u64>,
+    /// The steps whose rows the log had no room for (the oldest), by operation id: not written again, and said in the note of what was left out.
+    pub(crate) left_steps: Vec<String>,
+}
+
+/// Which fact a row of the centre states about the lists themselves.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Said {
+    StepsDropped,
+    StepsUnreadable,
+    RefusalsDropped,
+    /// Rows of the journal the log had no room to keep (the oldest), which the centre says it left out.
+    LeftOut,
+}
+
+/// **Where a refusal of the journal stands in gooey's log.**
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Slot {
+    /// Not written yet.
+    Unwritten,
+    /// **Written and then left out** because the log holds [`bevy_gooey::ToastLog::CAPACITY`] rows and this one was the oldest; the number is the tally it had, so a repeat
+    /// (a different tally) is written again as a row of its own, and nothing else is.
+    Left(u32),
+    /// The row it is, by the id the log gave it.
+    Row(u64),
 }
 
 /// How many the journal keeps. Ten times a panel's [`MAX_PROBLEMS`], because this one is read by
@@ -2059,8 +2095,13 @@ impl Journal {
             return;
         }
         self.entries.push(Problem { text: text.to_owned(), count: times, problem: problem.cloned() });
+        self.log_ids.push(Slot::Unwritten);
         if self.entries.len() > JOURNAL_CAP {
             self.entries.remove(0);
+            if let Slot::Row(id) = self.log_ids.remove(0) {
+                // The row of a refusal that fell off the front goes with it, on the next sync.
+                self.forgotten.push(id);
+            }
             self.dropped += 1;
         }
     }
@@ -2068,6 +2109,14 @@ impl Journal {
     /// Oldest first, the order they happened in.
     pub fn entries(&self) -> &[Problem] {
         &self.entries
+    }
+
+    /// **The log row of the newest refusal that said `text`**, for the toast that raised it to be the same row.
+    pub fn log_id_of(&self, text: &str) -> Option<u64> {
+        self.entries.iter().zip(&self.log_ids).rev().find(|(e, _)| e.text == text).and_then(|(_, slot)| match slot {
+            Slot::Row(id) => Some(*id),
+            Slot::Unwritten | Slot::Left(_) => None,
+        })
     }
 
     /// Named rather than silently forgotten — [`Status::dropped`]'s argument, one scope up.
@@ -2182,25 +2231,26 @@ pub fn keep_toasts_under_the_menu_bar(
 #[derive(Component)]
 pub struct ToastLayer;
 
-/// One line of it. Rebuilt wholesale, so it carries nothing — `compose::ComposeLine`'s argument.
-#[derive(Component)]
-pub struct ProblemLogLine;
-
-/// **Everything that has gone wrong on this tab, at the bottom of its panel.**
+/// **The dialog the session's notification centre stands in, hidden until `Cmd+E`** (UI-100, #442).
 ///
-/// The banner answers *"what just happened"*; this answers *"what has gone wrong here"*, which was
-/// unanswerable — each refusal replaced the last, so a session that raised five could only show the
-/// fifth. Bulleted and one line each, because it is a list to scan rather than prose to read.
+/// The journal is **`bevy_gooey`'s [`bevy_gooey::notification_center`]**: every line of it (an agent's step, a refusal, a note) is a
+/// [`bevy_gooey::NotificationRow`] of the one [`bevy_gooey::ToastLog`], drawn by gooey, newest first, with its **Undo** button when the step can
+/// be taken back. `notice::sync_the_log` writes the log from [`Journal`]; nothing here draws a line. This is only where the centre stands, which
+/// gooey's own guide asks of a game ("put it in a panel or a dialog of your own"): an overlay placed 8% down and 10% in, 80% wide and at most 76%
+/// tall, with the key hint and the after-edit check beside the centre.
 ///
-/// **A centred overlay, not a panel in the frame's flow.** It used to be pinned to the bottom of
-/// whatever panel held it with `margin-top: auto`; it is absolutely positioned now — 8% down, 10% in,
-/// 80% wide — so a journal of five refusals is read at a width that fits them rather than in a dock
-/// column. Nothing here needs to know which panels are `full_height`.
-pub fn journal_panel(mut commands: Commands, frame: Res<Frame>) {
-    let panel = commands
+/// **An overlay, not a panel in the frame's flow**: it is asked for, read and dismissed, and `Frame` owns the docks. Its lines are `GAP_ROW` apart
+/// and `PAD` in, a 1 px edge, in the editor's own colours (`InkFollow`); closed until `Cmd+E`, and `display` is the notices' to write (`ShownFollow`).
+///
+/// No `CopyPane` marker: `notice::copy_out` harvests the TEXT of every visible node by walking the roots, so an open centre is carried by `Cmd+C`
+/// already.
+///
+/// **`Hovered`, and deliberately not `Pickable::IGNORE`** — the rule [`panel_root`] states, for a panel that is not in a dock: an opaque box that
+/// no "is the pointer on UI" gate could see made a click on the open journal stamp or delete a placement on the map behind it, and the wheel zoom
+/// the world instead of scrolling the list. A `Display::None` node has a zero rect, which both the picking backend and `over_ui` skip.
+pub fn notifications_overlay(mut commands: Commands, frame: Res<Frame>) {
+    let overlay = commands
         .spawn((
-            // An overlay, not a panel in the frame's flow: it is asked for, read, and dismissed, and `Frame` owns the docks. Placed 8% down and 10% in, 80% wide and at most 76% tall, its lines
-            // `GAP_ROW` apart and `PAD` in, a 1 px edge, in the editor's own colours (`InkFollow`); closed until `Cmd+E`, and `display` is the notices' to write (`ShownFollow`).
             bevy_gooey::placed(UiRect { left: Val::Percent(10.0), top: Val::Percent(8.0), ..UiRect::all(Val::Auto) }),
             bevy_gooey::Sizing { width: Some(bevy_gooey::Extent::Percent(80.0)), max_height: Some(bevy_gooey::Extent::Percent(76.0)), ..default() },
             bevy_gooey::RowLayout { direction: Some(FlexDirection::Column), ..default() },
@@ -2211,113 +2261,30 @@ pub fn journal_panel(mut commands: Commands, frame: Res<Frame>) {
             bevy_gooey::ShownFollow::closed(),
             BackgroundColor(ink().panel_bg),
             BorderColor::all(ink().key),
-            JournalPanel,
-            // No `CopyPane` marker: `notice::copy_out` harvests the TEXT of every visible node by
-            // walking the roots, so an open journal is carried by `Cmd+C` already — the marker
-            // decides nothing there any more, and stamping it here would read as a second path.
-            //
-            // **`Hovered`, and deliberately not `Pickable::IGNORE`** — the rule [`panel_root`]
-            // states, for a panel that is not in a dock. This was an opaque 80%x76% box that no
-            // "is the pointer on UI" gate could see: neither `view::over_ui`, which filters to the
-            // nodes carrying `Hovered`, nor the mouse verbs, which read a true one. So a click on
-            // the open journal stamped or deleted a placement on the map behind it — invisibly,
-            // under a solid panel — and the wheel zoomed the world instead of scrolling this list.
-            // Exactly the pair the name box's inner box carries a `Hovered` to close, and the same
-            // pair `panel_root`'s own note records from when only the rows had one.
-            //
-            // Nothing changes while it is away: a `Display::None` node has a zero rect, which both
-            // the picking backend and `over_ui` skip for the same reason.
+            NotificationsOverlay,
             Hovered::default(),
         ))
         // `placed` is `Pickable::IGNORE`; the journal is the opposite (see above), so it is put back over it.
         .insert(Pickable::default())
         .id();
-    commands.entity(panel).with_children(|p| {
+    commands.entity(overlay).with_children(|p| {
         title(p, "EVERY ERROR THIS SESSION");
         p.spawn((
-            Text::new(format!(
-                "{} closes  ·  {} copies this list",
-                keys::chord(keys::Action::Cancel),
-                keys::chord(keys::Action::CopyInfo)
-            )),
+            Text::new(format!("{} closes  ·  {} copies this list", keys::chord(keys::Action::Cancel), keys::chord(keys::Action::CopyInfo))),
             TextColor(ink().dim),
             typed(text::LABEL),
         ));
-        // Asks the project's after-edit checks about the picture on screen now. A person's click only:
-        // nothing runs while they are simply editing.
+        // Asks the project's after-edit checks about the picture on screen now. A person's click only: nothing runs while they are simply editing.
         button(p, crate::after_edit::CheckViewButton, "Check view", Severity::Plain);
-        // A list to scroll: a session's worth of refusals is longer than a screen by design.
-        //
-        // FOLLOW-OK: prose, not a selection. Nothing walks this — there is no highlight for the
-        // arrows to move and no row to keep on screen, so the scroll exists for HEIGHT alone. The
-        // detail pane makes the same declaration for the same reason.
-        scroll_list(p, JournalList)
-            // **Room for the bar, because here the bar lands on words.** `scroll_list` overlays its
-            // scrollbar rather than reserving a gutter — right for a list of short rows, and wrong
-            // for wrapped prose, which runs under it. Measured in a frame: `…choose a piece in the
-            // list|` with the thumb through the last word. Stated at this call site rather than in
-            // the builder, because it is a fact about what THIS list holds.
-            .insert(bevy_gooey::ScrollGutter(Some(bevy_gooey::Space::Px(BAR_W + BAR_INSET * 2.0))));
+        p.spawn(bevy_gooey::notification_center());
     });
-    commands.entity(panel).insert(ChildOf(frame.viewport));
+    commands.entity(overlay).insert(ChildOf(frame.viewport));
 }
 
-/// **The session journal's panel**, hidden until `Cmd+E`. See [`Journal`] for why it is not four
-/// panels, and [`journal_panel`] for where it sits.
+/// **The dialog the session's notification centre stands in.** See [`notifications_overlay`]: its `display` is the open/closed state of the
+/// journal, written by `notice::toggle_journal`, `Esc` and the `view_toggle_journal` operation.
 #[derive(Component)]
-pub struct JournalPanel;
-
-/// The scrolling list inside it, rebuilt from [`Journal`] by `notice::paint_journal`.
-#[derive(Component)]
-pub struct JournalList;
-
-/// One bullet. `•` and not `-`: the shipped face has U+2022 (checked, as U+26A0 was not), and a
-/// bullet reads as a list where a hyphen reads as a range.
-///
-/// # The bullet and the text are siblings, so it can wrap
-///
-/// This was one `Text` reading `"• {text}"` with `LineBreak::NoWrap`, on the argument that a wrapped
-/// continuation restarts at column zero and breaks the bullet column. The argument was right and the
-/// remedy was wrong: refusing to wrap does not keep a long refusal inside the panel, it runs it out
-/// through the side of the box, which is what an author reported. This tab's messages name
-/// descriptors, compositions and counts, so they are routinely longer than 380 px.
-///
-/// A row with the bullet as its own child fixes both at once: the text wraps, and its continuations
-/// align under the text rather than under the bullet, because the bullet is not in that column.
-///
-/// `min_width: 0` is load-bearing. A flex item will not shrink below its min-content width by
-/// default, and for text that is the longest word — so without it the row grows to fit and the
-/// wrapping never happens. Same trick as `min_height: 0` on the scroll areas above.
-pub fn problem_log_line(parent: &mut ChildSpawnerCommands, text: &str, colour: Color) {
-    parent
-        .spawn((
-            // A bullet and the line, 4 px apart (0.8 of the skin's 5 px gap), as wide as the list.
-            bevy_gooey::row(PROBLEM_LOG_GAP_STEPS),
-            bevy_gooey::Sizing { width: Some(bevy_gooey::Extent::Percent(100.0)), ..default() },
-            ProblemLogLine,
-        ))
-        .with_children(|row| {
-            row.spawn((
-                Text::new("•"),
-                TextColor(colour),
-                typed(text::LABEL),
-                TextLayout::new(Justify::Left, LineBreak::NoWrap),
-            ));
-            row.spawn((
-                // `flex_grow` hands the text the row's remaining width as a DEFINITE size —
-                // without it a wrapping text item's flex base can resolve to zero width and lay
-                // out one glyph per line, clipped to nothing (measured live in the Compose pane,
-                // 2026-08-17). `min_width: 0` is what then lets it shrink below its longest word.
-                text_narrows(),
-                Text::new(text.to_owned()),
-                TextColor(colour),
-                typed(text::LABEL),
-            ));
-        });
-}
-
-/// The gap between a problem line's bullet and its words, in steps of the skin's gap: 4 px of the editor skin's 5.
-const PROBLEM_LOG_GAP_STEPS: f32 = 0.8;
+pub struct NotificationsOverlay;
 
 
 /// **A scrolling list that fills what is left of its panel.**

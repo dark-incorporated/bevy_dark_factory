@@ -9103,7 +9103,7 @@ pub fn sense_context(
     // The panel, so the journal can be told it owns the keyboard. A `Query` rather than a resource
     // because `Display::None` on the node *is* the open/closed state — `notice::toggle_journal`
     // writes exactly that, and a second flag beside it would be a second answer.
-    journal: Query<&Node, With<crate::chrome::JournalPanel>>,
+    journal: Query<&Node, With<crate::chrome::NotificationsOverlay>>,
     // **The command palette's field takes the keys** (UI-32). It is gooey's own text field, which none
     // of [`Fields`] knows about, so "a palette is open" is asked of the palette's marker: without
     // it, typing `undo` in the palette would also press U, N, D and O on the tab behind it.

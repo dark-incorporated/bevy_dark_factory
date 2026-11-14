@@ -2712,7 +2712,7 @@ fn split_indent(text: &str) -> (usize, &str) {
 ///
 /// A bare `Text` per row wraps its continuation to column zero, which throws away the leading-space
 /// indent — a long fault message or hex STALE line restarted at the left margin, mid-scheme
-/// (captured, 2026-08-17 audit). `chrome::problem_log_line` is the precedent and states both halves:
+/// (captured, 2026-08-17 audit). The journal's old line row was the precedent and stated both halves:
 /// the gutter must not be in the wrapping column, and `min_width: 0` is load-bearing because a flex
 /// item will not shrink below its min-content width by default.
 ///

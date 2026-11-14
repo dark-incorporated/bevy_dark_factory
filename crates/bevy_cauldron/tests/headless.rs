@@ -2908,7 +2908,7 @@ fn the_open_journal_answers_the_over_ui_question() {
         let mut q = app
             .world_mut()
             .query_filtered::<(&ComputedNode, &UiGlobalTransform), (
-                bevy::prelude::With<bevy_cauldron::chrome::JournalPanel>,
+                bevy::prelude::With<bevy_cauldron::chrome::NotificationsOverlay>,
                 bevy::prelude::With<bevy::picking::hover::Hovered>,
             )>();
         q.iter(app.world())
@@ -12672,7 +12672,7 @@ fn a_refusal_toasts_and_the_journal_keeps_it_after_esc() {
             _ => {
                 let mut q = app
                     .world_mut()
-                    .query::<(Entity, &bevy_cauldron::chrome::JournalPanel)>();
+                    .query::<(Entity, &bevy_cauldron::chrome::NotificationsOverlay)>();
                 q.iter(app.world()).map(|(e, _)| e).next()
             }
         };
