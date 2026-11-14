@@ -1,0 +1,8 @@
+cauldron-bench: no environment variable is withheld from the omp agent (none of the runner's looks like a credential)
+dress-the-market-area trial 1: PASS 11/11 checks, 22 call(s), 99 s
+light-the-gate-at-night trial 1: PASS 11/11 checks, 18 call(s), 50 s
+write-the-gatekeepers-greeting trial 1: PASS 7/7 checks, 9 call(s), 33 s
+
+3 trial(s): 3 passed, 0 failed, 0 harness error(s). Files are under /Users/rebekahbrittain/.local/state/cauldron-bench/rep-r1-with-style
+report: /Users/rebekahbrittain/.local/state/cauldron-bench/rep-r1-with-style/report.md
+report: /Users/rebekahbrittain/.local/state/cauldron-bench/rep-r1-with-style/report.json

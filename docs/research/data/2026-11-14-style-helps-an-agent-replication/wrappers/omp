@@ -1,0 +1,6 @@
+#!/bin/bash
+# The study's launch condition (registered-equivalent): omp runs with eval disabled, so every editor tool call goes through the xd:// route the analysis script reads.
+# Only an agent run (first argument -p) gets the overlay; auth import, models find and --version pass through untouched.
+REAL=/Users/rebekahbrittain/.local/bin/omp
+if [ "$1" = "-p" ]; then exec "$REAL" --config /tmp/studyrun-cfg/no-eval.yml "$@"; fi
+exec "$REAL" "$@"

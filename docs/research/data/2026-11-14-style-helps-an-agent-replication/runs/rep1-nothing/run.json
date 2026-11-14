@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "label": "rep1-nothing",
+  "commit": "dc3a2d26ed55f3d4e64ba52352e60c31fe73a15b",
+  "guide_sha256": "58bdbbdf8bf7904d734d16ac22d410c10d38ed5232b31a11ccb7ac7eb6c766d5",
+  "agent": "nothing",
+  "agent_version": "scripted",
+  "model": null,
+  "variant": null,
+  "suite": "bench/tasks",
+  "trials": 1,
+  "host": "bmb",
+  "date": "2026-11-14",
+  "price": null
+}

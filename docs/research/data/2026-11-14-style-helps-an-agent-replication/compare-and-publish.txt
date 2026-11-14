@@ -1,0 +1,18 @@
+assembled rep-without-style: {'dress-the-market-area': 5, 'light-the-gate-at-night': 5, 'write-the-gatekeepers-greeting': 5} trials per task, header trials = 5, commit dc3a2d26ed55f3d4e64ba52352e60c31fe73a15b, date 2026-11-14
+published: docs/bench/runs/2026-11-14-rep-without-style.md and docs/bench/runs/2026-11-14-rep-without-style.json
+assembled rep-with-style: {'dress-the-market-area': 5, 'light-the-gate-at-night': 5, 'write-the-gatekeepers-greeting': 5} trials per task, header trials = 5, commit dc3a2d26ed55f3d4e64ba52352e60c31fe73a15b, date 2026-11-14
+published: docs/bench/runs/2026-11-14-rep-with-style.md and docs/bench/runs/2026-11-14-rep-with-style.json
+# rep-without-style (omp:anthropic/claude-sonnet-5-5) against rep-with-style (omp:anthropic/claude-sonnet-5-5)
+
+**better.** Over 3 task(s) both runs scored, `b`'s mean success is +100.0 points against `a`'s, with a paired 95% bootstrap interval of [+100.0, +100.0] points.
+
+Tasks whose success moved. **Each is a single task and is not significant on its own**; the verdict above is about the suite.
+
+| task | a | b |
+|---|---|---|
+| `dress-the-market-area` | 0/5 | 5/5 |
+| `light-the-gate-at-night` | 0/5 | 5/5 |
+| `write-the-gatekeepers-greeting` | 0/5 | 5/5 |
+
+Agent errors, the calls each run's agent made to a tool that does not exist (each was told so and went on, and the trials are scored): `a` 3, `b` 3.
+

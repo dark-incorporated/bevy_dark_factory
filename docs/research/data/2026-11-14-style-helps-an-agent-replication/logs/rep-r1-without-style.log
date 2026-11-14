@@ -1,0 +1,8 @@
+cauldron-bench: no environment variable is withheld from the omp agent (none of the runner's looks like a credential)
+dress-the-market-area trial 1: FAIL 7/11 checks — placements_within, placement_at, placements_within, placement_exists failed
+light-the-gate-at-night trial 1: FAIL 5/11 checks — file_value, file_value, file_value, file_value, file_value, file_value failed
+write-the-gatekeepers-greeting trial 1: FAIL 4/7 checks — file_value, file_value, file_value failed
+
+3 trial(s): 0 passed, 3 failed, 0 harness error(s). Files are under /Users/rebekahbrittain/.local/state/cauldron-bench/rep-r1-without-style
+report: /Users/rebekahbrittain/.local/state/cauldron-bench/rep-r1-without-style/report.md
+report: /Users/rebekahbrittain/.local/state/cauldron-bench/rep-r1-without-style/report.json

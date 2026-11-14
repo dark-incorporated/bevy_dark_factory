@@ -1,0 +1,41 @@
+selftest passed
+selftest passed
+--- step 0 rehearsal
+3 trial(s): 3 passed, 0 failed, 0 harness error(s). Files are under /Users/rebekahbrittain/.local/state/cauldron-bench/rep0-r1-without-style
+3 trial(s): 3 passed, 0 failed, 0 harness error(s). Files are under /Users/rebekahbrittain/.local/state/cauldron-bench/rep0-r1-with-style
+3 trial(s): 3 passed, 0 failed, 0 harness error(s). Files are under /Users/rebekahbrittain/.local/state/cauldron-bench/rep0-r2-without-style
+3 trial(s): 3 passed, 0 failed, 0 harness error(s). Files are under /Users/rebekahbrittain/.local/state/cauldron-bench/rep0-r2-with-style
+assembled rep0-without-style: {'dress-the-market-area': 2, 'light-the-gate-at-night': 2, 'write-the-gatekeepers-greeting': 2} trials per task, header trials = 2, commit dc3a2d26ed55f3d4e64ba52352e60c31fe73a15b, date 2026-11-14
+published: /tmp/rep0/bench/runs/2026-11-14-rep0-without-style.md and /tmp/rep0/bench/runs/2026-11-14-rep0-without-style.json
+assembled rep0-with-style: {'dress-the-market-area': 2, 'light-the-gate-at-night': 2, 'write-the-gatekeepers-greeting': 2} trials per task, header trials = 2, commit dc3a2d26ed55f3d4e64ba52352e60c31fe73a15b, date 2026-11-14
+published: /tmp/rep0/bench/runs/2026-11-14-rep0-with-style.md and /tmp/rep0/bench/runs/2026-11-14-rep0-with-style.json
+**no measurable change.** Over 3 task(s) both runs scored, `b`'s mean success is +0.0 points against `a`'s, with a paired 95% bootstrap interval of [+0.0, +0.0] points.
+harness errors (not scored): 0
+dress-the-market-area: without 9.00/9  with 9.00/9  (2 and 2 runs)
+light-the-gate-at-night: without 9.00/9  with 9.00/9  (2 and 2 runs)
+write-the-gatekeepers-greeting: without 6.00/6  with 6.00/6  (2 and 2 runs)
+lines satisfied per task-triple (max 24): without 24.00  with 24.00
+PRIMARY  difference with - without: +0.00  95% bootstrap interval [+0.00, +0.00]  ->  no measurable change
+--- step 1
+dress-the-market-area trial 1: FAIL 5/11 checks — oplog_has, placements_within, placement_at, placements_within, placements_within, handback_contains failed
+light-the-gate-at-night trial 1: FAIL 1/11 checks — oplog_has, file_value, file_value, file_value, file_value, file_value, file_value, file_value, file_value, handback_contains failed
+write-the-gatekeepers-greeting trial 1: FAIL 3/7 checks — oplog_has, file_value, file_value, file_value failed
+3 trial(s): 0 passed, 3 failed, 0 harness error(s). Files are under /Users/rebekahbrittain/.local/state/cauldron-bench/rep1-nothing
+3 trial(s): 3 passed, 0 failed, 0 harness error(s). Files are under /Users/rebekahbrittain/.local/state/cauldron-bench/rep1-oracle-with-style
+3 trial(s): 3 passed, 0 failed, 0 harness error(s). Files are under /Users/rebekahbrittain/.local/state/cauldron-bench/rep1-oracle-without-style
+--- probe
+light-the-gate-at-night trial 1: PASS 11/11 checks, 13 call(s), 38 s
+1 trial(s): 1 passed, 0 failed, 0 harness error(s). Files are under /Users/rebekahbrittain/.local/state/cauldron-bench/rep-probe
+rep-probe/light-the-gate-at-night/trial-1: route both, followed True, hidden-tool attempts (1, 0), 35 calls: device:read, device:read, device:write, generic:glob, mcp:grimoire_guide, generic:read, generic:read, generic:read, device:read, device:write, generic:read, device:write, mcp:grimoire_list_operations, mcp:grimoire_style, device:write, mcp:grimoire_apply_operation, device:write, mcp:grimoire_apply_operation, device:write, mcp:grimoire_apply_operation, device:write, mcp:grimoire_apply_operation, device:write, mcp:grimoire_apply_operation, device:write, device:write, mcp:grimoire_apply_operation, mcp:grimoire_apply_operation, device:write, device:write, mcp:grimoire_apply_operation, mcp:grimoire_apply_operation, device:read, device:write, mcp:grimoire_present
+--- 30 runs
+round 1 without-style done at 21:33:21 spend 0.9289
+round 1 with-style done at 21:35:04 spend 1.7640
+round 2 with-style done at 21:36:39 spend 2.5236
+round 2 without-style done at 21:38:02 spend 3.1256
+round 3 without-style done at 21:39:20 spend 3.7086
+round 3 with-style done at 21:41:36 spend 4.5527
+round 4 with-style done at 21:43:05 spend 5.2060
+round 4 without-style done at 21:44:03 spend 5.8231
+round 5 without-style done at 21:45:17 spend 6.5004
+round 5 with-style done at 21:47:05 spend 7.2805
+rc=done
