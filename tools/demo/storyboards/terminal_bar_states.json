@@ -1,0 +1,83 @@
+{
+  "name": "terminal_bar_states",
+  "fps": 10,
+  "scale": 1,
+  "width": 960,
+  "crop": [
+    0,
+    0,
+    1088,
+    640
+  ],
+  "setup": [],
+  "chunks": [
+    {
+      "seconds": 7.0
+    },
+    {
+      "seconds": 7.5
+    }
+  ],
+  "steps": [
+    {
+      "at": 1.0,
+      "key": "KeyJ",
+      "mods": [
+        "ControlLeft"
+      ],
+      "caption": "no agent chosen: a shell tab and no light"
+    },
+    {
+      "at": 2.4,
+      "write": {
+        "path": "assets/grimoire/editor.yaml",
+        "text": "version: 1\nterminal_agent: Custom\nterminal_agent_command: standin\n"
+      },
+      "caption": "an agent is chosen: the light is off"
+    },
+    {
+      "at": 3.8,
+      "click_label": "Start agent",
+      "within": [
+        850,
+        395,
+        1088,
+        440
+      ],
+      "caption": "person: Start agent. The light is busy"
+    },
+    {
+      "at": 5.4,
+      "cursor": [
+        600,
+        250
+      ]
+    },
+    {
+      "at": 7.0,
+      "caption": "the agent answered: live"
+    },
+    {
+      "at": 8.4,
+      "click_label": "Start agent",
+      "within": [
+        850,
+        395,
+        1088,
+        440
+      ],
+      "caption": "again, with an agent whose self test fails"
+    },
+    {
+      "at": 9.6,
+      "cursor": [
+        600,
+        250
+      ]
+    },
+    {
+      "at": 12.6,
+      "caption": "the self test failed: failed"
+    }
+  ]
+}
