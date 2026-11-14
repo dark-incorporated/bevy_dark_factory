@@ -104,6 +104,8 @@ An agent never writes a file itself. The server passes each call to the editor, 
 
 Each apply answers with an `operation_id`, which names its line in the log.
 
+`placement_add` onto a footprint that overlaps a piece already there is refused, naming both pieces, and changes nothing. Add `"replace": true` to replace the piece on purpose: the answer names what it replaced (id, kind, at, cell), and the hand-back lists it as a replacement. A person's click on the map still replaces what it lands on.
+
 A refused preview or apply answers with `outcome: "refused"`, `refusal` (the sentence) and `problem`, the same facts the editor shows its user in the toast and the journal. `problem.what` is the sentence; `where` names the `file`, `field` or `entity` it is about; `why` is the cause when the sentence does not already say it; `fix` says what to do. A part a refusal does not have is left out, so a refusal that is only a sentence has only `what`. `placement_remove` of an id the map does not have names the entity and says to name a placement that is on the map; the other refusals gain their parts the same way, one at a time.
 
 ## Operations
