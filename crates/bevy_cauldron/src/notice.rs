@@ -822,9 +822,11 @@ fn sync_the_log(mut journal: ResMut<crate::chrome::Journal>, log: Option<ResMut<
     }
     // **Last, because writing the notes above can leave one more row out**: the count is read after them.
     let left_out = journal.log_ids.iter().filter(|slot| matches!(slot, Slot::Left(_))).count() + journal.left_steps.len();
+    // **The number is the rows the journal holds now**, not the log's capacity: the log keeps `CAPACITY` rows, notes included, so the journal's own are fewer.
+    let kept = journal.log_ids.iter().filter(|slot| matches!(slot, Slot::Row(_))).count() + journal.step_rows.len();
     let sentence = (left_out > 0).then(|| {
         format!(
-            "{left_out} older line(s) are left out of this list, which keeps the newest {}; the operation log holds every step",
+            "{left_out} older line(s) are left out of this list, which holds the newest {kept} (the log keeps {} rows, the notes among them); the operation log holds every step",
             bevy_gooey::ToastLog::CAPACITY
         )
     });

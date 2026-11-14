@@ -285,6 +285,7 @@ fn a_journal_longer_than_the_log_says_what_it_left_out_and_keeps_no_stale_id() {
     assert!(left > 0, "the journal is longer than the log, so something is left out");
     assert!(left_note[0].starts_with(&format!("{left} older line(s) are left out")), "the note counts what is left out ({left}): {left_note:?}");
     assert!(left_note[0].contains("operation log"), "and says where the whole record is: {left_note:?}");
+    assert!(left_note[0].contains(&format!("holds the newest {notes} ")), "and the number it keeps is the rows the journal holds ({notes}), not the log's capacity: {left_note:?}");
     {
         // **No stale id**: a refusal the log holds is found by its id, one it left out is found by none.
         let journal = app.world().resource::<Journal>();
