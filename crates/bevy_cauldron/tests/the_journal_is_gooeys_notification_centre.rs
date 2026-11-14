@@ -209,7 +209,7 @@ fn a_persons_undo_press_works_while_the_agent_is_paused_and_is_written_human() {
     assert_eq!(after.len(), lines_before + 1, "the press undid the step although the agent is paused");
     let undo = after.last().expect("the undo's line");
     assert_eq!(undo.undoes.as_deref(), Some(ids[2].as_str()));
-    assert_eq!(serde_json::to_value(&undo.source).unwrap_or_default(), "human", "a person's press is written human: {undo:?}");
+    assert_eq!(serde_json::to_value(undo.source).unwrap_or_default(), "human", "a person's press is written human: {undo:?}");
     assert_eq!(app.world().resource::<bevy_cauldron::project::OpenMap>().map.placements.len(), placed_before - 1, "the map is back by that step");
     assert_eq!(app.world().get_resource::<AgentActivity>().map(AgentActivity::heard), heard, "the agent was not called, so the AGENT block does not say it was heard");
     let status = &app.world().resource::<bevy_cauldron::editor::EditorState>().status;
@@ -291,12 +291,9 @@ fn a_journal_longer_than_the_log_says_what_it_left_out_and_keeps_no_stale_id() {
         let log = app.world().resource::<ToastLog>();
         let mut some = 0;
         for entry in journal.entries() {
-            match journal.log_id_of(&entry.text) {
-                Some(id) => {
-                    some += 1;
-                    assert!(log.get(id).is_some(), "`{}` keeps the id {id} of a row the log no longer holds", entry.text);
-                }
-                None => {}
+            if let Some(id) = journal.log_id_of(&entry.text) {
+                some += 1;
+                assert!(log.get(id).is_some(), "`{}` keeps the id {id} of a row the log no longer holds", entry.text);
             }
         }
         assert!(some > 0 && some < bevy_cauldron::chrome::JOURNAL_CAP, "some refusals are rows and the oldest are left out: {some}");
