@@ -169,6 +169,10 @@ impl Plugin for LoadingPlugin {
             .add_systems(Update, settle_the_view.run_if(in_state(Screen::Editor)).run_if(resource_exists::<Settling>))
             .add_systems(
                 Update,
+                lift_the_band_over_the_status_bar.before(bevy_gooey::GooeySystems::Style).run_if(in_state(Screen::Editor)).run_if(resource_exists::<Settling>),
+            )
+            .add_systems(
+                Update,
                 (poll_the_load, show_the_report, show_the_phase, enter_the_editor).chain().before(bevy_gooey::GooeySystems::Style).run_if(in_state(Screen::Loading)),
             );
     }
@@ -367,6 +371,24 @@ fn enter_the_editor(
                 });
             });
         next.set(Screen::Editor);
+    }
+}
+
+/// **The band stands above the status bar, never over it** (#440). It is a corner of the window, and the corner is where the status bar is: the band covered
+/// the bar's "Baking previews" text. Its bottom inset is the bar's height and [`BAND_INSET_PX`] more, read from the bar as laid out, so the bar's own
+/// height (the text scale, a wrapped line) is what the band clears.
+fn lift_the_band_over_the_status_bar(
+    frame: Option<Res<crate::chrome::Frame>>,
+    nodes: Query<&bevy::ui::ComputedNode>,
+    mut bands: Query<&mut bevy_gooey::PlacedAt, With<PreparingBand>>,
+) {
+    let Some(bar) = frame.and_then(|frame| nodes.get(frame.status).ok()) else { return };
+    let height = bar.size().y * bar.inverse_scale_factor();
+    let want = UiRect { left: Val::Px(BAND_INSET_PX), bottom: Val::Px(height + BAND_INSET_PX), ..UiRect::all(Val::Auto) };
+    for mut at in &mut bands {
+        if at.0 != want {
+            at.0 = want;
+        }
     }
 }
 

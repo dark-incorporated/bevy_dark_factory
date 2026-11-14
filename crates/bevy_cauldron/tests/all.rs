@@ -670,3 +670,4 @@ mod tile_pieces_are_operations;
 mod a_maximised_terminal_is_painted_over_the_maps_overlays;
 mod the_design_trees_selected_row_reads_at_aa_contrast_in_every_skin;
 mod the_design_pages_pictures_and_edit_mode_fit_the_column;
+mod the_preparing_band_stands_clear_of_the_status_bar;
