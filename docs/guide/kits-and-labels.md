@@ -183,4 +183,4 @@ What you see: the labels row reads `agent set look`, in the unchecked colour, un
 
 `grimoire_list_pieces` also takes these filters: `with_mesh` leaves out pieces with no mesh, `unlabelled` lists pieces with no labels, `confidence` takes `high`, `medium` or `low`, and `id_contains` matches part of an id. The filters combine.
 
-To list every operation and its parameters, call `grimoire_list_operations`.
+To list every operation and its parameters, call `grimoire_list_operations`. To read one operation alone (its parameters and an example call), pass its name: `{"operation": "data_set"}`.
