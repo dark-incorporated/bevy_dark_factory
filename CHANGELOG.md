@@ -4,6 +4,7 @@ What each change added, newest first. A visible change has a clip: click the sti
 
 ## 2026-11-14
 
+- **sg-10-style-replication** `66ae03740` The style measurement was replicated on the fixed runner with all 30 runs scored: the with-style agent satisfied 24 of 24 style lines, the without-style agent 10.4, and the harness-error attrition of the first run is gone (SG-10, #409) *No clip: a measurement; proved by the replication report and the registered analysis script run on its raw data*
 - **sg-05-a-levels-style-in-three-presses** `615fe451a` A level's style is a measured destination: Cmd/Ctrl+0 and one click on its row, two actions of the three allowed (SG-05, #404) *No clip: a measurement row; proved by navigation::every_destination_is_measured_and_the_baseline_says_so*
 - **ui-99-gooey-g92** `aeb23e871` The terminal's pane root and self-test card are laid out with bevy_gooey instead of raw nodes: the editor has no hand-built node left outside the viewport (#260 done) *No clip: nobody can see this change; proved by the_editor_keeps_its_raw_nodes_counted and the_g91_the_pane_root_and_the_agent_card_are_gooeys*
 - **terminal-find-box-opens** `e3cda3e9` Opening the terminal's find box no longer crashes on Linux (a duplicate Pickable in its spawn), and LinesRoom is retired (#260 review) *No clip: a crash fix behind an existing key; proved by the_terminal_finds_in_its_scrollback and the_terminal_overlays_block_the_clicks_on_their_own_ground*
