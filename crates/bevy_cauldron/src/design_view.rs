@@ -981,6 +981,9 @@ fn keep_the_body(
     }
 }
 
+/// What [`fit_the_pictures_to_the_page`] reads of a picture: its node, the size gooey measured, its role and the two components it writes.
+type PageImage = (Entity, &'static bevy_gooey::BoxSize, &'static bevy_gooey::Role, Option<&'static bevy_gooey::AspectBox>, Option<&'static bevy_gooey::Sizing>);
+
 /// **A picture on the page is scaled down to the page, never wider** (#437). gooey draws a picture at its own size up to 40 body text sizes, a fixed box that
 /// the column's width does not reach, so a picture wider than the column stood over the scrollbar's rail (and past the page's edge in the smallest
 /// window). Each picture becomes gooey's own aspect picture ([`bevy_gooey::Role::AspectImage`]): the size gooey measured is its width and its ratio, and the
@@ -989,7 +992,7 @@ fn keep_the_body(
 fn fit_the_pictures_to_the_page(
     mut commands: Commands,
     pages: Query<&ComputedNode, With<DesignPage>>,
-    pictures: Query<(Entity, &bevy_gooey::BoxSize, &bevy_gooey::Role, Option<&bevy_gooey::AspectBox>, Option<&bevy_gooey::Sizing>), (With<MarkdownPicture>, With<ImageNode>)>,
+    pictures: Query<PageImage, (With<MarkdownPicture>, With<ImageNode>)>,
 ) {
     let Ok(page) = pages.single() else { return };
     let width = page.size().x * page.inverse_scale_factor();

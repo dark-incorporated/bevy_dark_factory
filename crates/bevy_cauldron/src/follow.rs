@@ -756,10 +756,11 @@ fn take_the_follow_request(
         // arrivals.
         return;
     }
-    if following.deferred.is_some() && cameras.single().ok().and_then(crate::editor::aspect_of).is_some() {
-        if let Some(item) = following.deferred.take() {
-            following.queue.push_front(item);
-        }
+    if following.deferred.is_some()
+        && cameras.single().ok().and_then(crate::editor::aspect_of).is_some()
+        && let Some(item) = following.deferred.take()
+    {
+        following.queue.push_front(item);
     }
     if following.queue.is_empty() {
         following.waiting = None;
