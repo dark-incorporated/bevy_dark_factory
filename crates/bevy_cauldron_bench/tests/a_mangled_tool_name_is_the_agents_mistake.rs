@@ -38,7 +38,7 @@ fn read(test: &str, transcript: &str) -> Result<AgentRun, String> {
         .iter()
         .map(|t| (*t).to_owned())
         .chain(
-            ["guide", "state", "list_operations", "apply_operation", "present", "style_propose"]
+            ["guide", "state", "list_operations", "apply_operation", "present", "style", "style_propose"]
                 .iter()
                 .map(|t| format!("mcp__{SERVER}_grimoire_{t}")),
         )
@@ -162,4 +162,37 @@ fn a_not_found_for_another_name_does_not_excuse_a_leak() {
     let text = events.iter().map(Value::to_string).collect::<Vec<_>>().join("\n");
     let said = read("other", &text).expect_err("web_fetch ran");
     assert!(said.contains("web_fetch"), "{said}");
+}
+
+/// **A built-in's own output is not omp's refusal** (review of #441): a `bash` whose output says `Tool bash not found` ran, and
+/// is no call to a tool that does not exist.
+#[test]
+fn a_built_ins_output_is_not_an_agent_error() {
+    let said = "Tool bash not found in this image";
+    let events = [
+        turn(),
+        asks("e", "bash", json!({"command": "which tool"})),
+        json!({"type": "tool_execution_end", "toolCallId": "e", "toolName": "bash", "isError": true,
+            "result": {"content": [{"type": "text", "text": said}]}}),
+    ];
+    let text = events.iter().map(Value::to_string).collect::<Vec<_>>().join("\n");
+    let run = read("builtin", &text).unwrap_or_else(|e| panic!("a bash call reads: {e}"));
+    assert!(run.agent_errors.is_empty(), "{:?}", run.agent_errors);
+}
+
+/// **Another server whose name starts with ours is not the editor** (review of #441): `mcp__cauldron_x_search` shares the prefix
+/// `mcp__cauldron_`, is in no list the Dark Factory offered, and when it ran it is a leak.
+#[test]
+fn a_server_whose_name_starts_with_ours_is_a_leak_when_it_ran() {
+    let events = [turn(), asks("x", "mcp__cauldron_x_search", json!({})), ran("x", "mcp__cauldron_x_search")];
+    let text = events.iter().map(Value::to_string).collect::<Vec<_>>().join("\n");
+    let said = read("sibling", &text).expect_err("the agent reached a server that is not the editor's");
+    assert!(said.contains("mcp__cauldron_x_search") && said.contains("not isolated"), "{said}");
+}
+
+/// **An agent error is no editor call, but the live tool-call budget still counts it** (it was a call the agent made).
+#[test]
+fn the_budget_counts_an_agent_error_as_a_call() {
+    let end = not_found("a", "xd__mcp__cauldron_grimoire_guide", None);
+    assert_eq!(bevy_cauldron_bench::run::omp_calls(&end), 1);
 }

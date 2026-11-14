@@ -284,6 +284,12 @@ then the runner cannot say nothing ran.
 agents used it, omp ran it, and it is counted with its arguments and its answer like a `write xd://` call. A hand-back made
 that way is graded as any other.
 
+The name is matched exactly against the editor's tools in the tool list omp recorded for the trial, so another server whose
+name merely starts with the editor's is not the editor's. **An agent error is not an editor call**, so it is not in the
+trial's call list and does not count against the task's `budget.tool_calls` there; the live budget stop that ends an agent
+which has gone over (`ToolBudget`) still counts every call omp finished, a refused name included, because it was a call the
+agent made.
+
 ## What the agent inside a trial can read
 
 **A trial's agent can read its own provider credential.** The trial's isolated `HOME` holds the one credential its

@@ -2378,6 +2378,9 @@ pub fn read_transcript(path: &Path, dir: &Path, server: &str) -> Result<AgentRun
     // against the trial only if the stream ends with it still standing.
     let mut standing_refusal: Option<String> = None;
     let editor_prefix = format!("mcp__{server}_");
+    // **The editor's tools by their exact registry names** (`mcp__<server>_<tool>`), from the tool list the harness recorded
+    // (#441 review): a name that only SHARES the prefix, another server called `cauldron_x`, is not the editor's.
+    let editor_tools = offered_editor_tools(dir, &editor_prefix);
     // **The arguments of each call, by call id**, from `tool_execution_start`: a tool called directly shows them nowhere else.
     let mut started: std::collections::HashMap<String, Value> = std::collections::HashMap::new();
     // **Calls to a name outside the harness's and the editor's, by call id, until their answer is read** (#441).
@@ -2401,7 +2404,8 @@ pub fn read_transcript(path: &Path, dir: &Path, server: &str) -> Result<AgentRun
         if kind == "tool_execution_end" {
             let name = event.get("toolName").and_then(Value::as_str).unwrap_or_default();
             let answer = answer_text(&event);
-            if event.get("isError").and_then(Value::as_bool) == Some(true) && is_unknown_tool_answer(name, &answer) {
+            let asked_for_by_name = outside.get(call_id).is_some_and(|asked| asked == name) || editor_tools.contains(name);
+            if asked_for_by_name && event.get("isError").and_then(Value::as_bool) == Some(true) && is_unknown_tool_answer(name, &answer) {
                 outside.remove(call_id);
                 run.agent_errors.push(AgentError { tool: name.to_owned(), said: answer });
                 continue;
@@ -2476,7 +2480,11 @@ pub fn read_transcript(path: &Path, dir: &Path, server: &str) -> Result<AgentRun
         // in no trial. The tool's own name is the part after the prefix, its arguments are the call's, and its answer is the
         // text content.
         if kind == "tool_execution_end"
-            && let Some(name) = event.get("toolName").and_then(Value::as_str).and_then(|n| n.strip_prefix(&editor_prefix))
+            && let Some(name) = event
+                .get("toolName")
+                .and_then(Value::as_str)
+                .filter(|n| editor_tools.contains(*n))
+                .and_then(|n| n.strip_prefix(&editor_prefix))
         {
             let args = event
                 .get("toolCallId")
@@ -2505,7 +2513,7 @@ pub fn read_transcript(path: &Path, dir: &Path, server: &str) -> Result<AgentRun
                 .and_then(|a| a.get("path"))
                 .and_then(Value::as_str)
                 .is_some_and(|p| p.starts_with("xd://mcp__"));
-            if !is_device && !BUILTIN_TOOLS.contains(&name) && !name.starts_with(&editor_prefix) {
+            if !is_device && !BUILTIN_TOOLS.contains(&name) && !editor_tools.contains(name) {
                 match call.get("id").and_then(Value::as_str) {
                     Some(id) => {
                         outside.insert(id.to_owned(), name.to_owned());
@@ -2576,6 +2584,24 @@ pub fn read_transcript(path: &Path, dir: &Path, server: &str) -> Result<AgentRun
         .map_err(|e| format!("the tool list the harness records could not be read at {}: {e}", sidecar.display()))?;
     run.tools_offered = parse_tools_offered(&text, server)?;
     Ok(run)
+}
+
+/// **The editor's tools as omp registered them** (`mcp__<server>_<tool>`, exact), from the last line of the tool-list sidecar
+/// ([`tools_offered_path`]). Empty when the sidecar cannot be read: [`parse_tools_offered`] says why, once the transcript is read.
+fn offered_editor_tools(dir: &Path, prefix: &str) -> std::collections::HashSet<String> {
+    let Ok(text) = std::fs::read_to_string(tools_offered_path(dir)) else {
+        return std::collections::HashSet::new();
+    };
+    text.lines()
+        .filter_map(|line| serde_json::from_str::<Value>(line).ok())
+        .filter_map(|event| event.get("tools").and_then(Value::as_array).cloned())
+        .next_back()
+        .unwrap_or_default()
+        .iter()
+        .filter_map(Value::as_str)
+        .filter(|tool| tool.starts_with(prefix))
+        .map(str::to_owned)
+        .collect()
 }
 
 /// **The text of a tool's answer** in a `tool_execution_end`: every text block of `result.content`, joined.
