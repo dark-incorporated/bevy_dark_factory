@@ -1,0 +1,82 @@
+{
+  "name": "terminal_collapsed_maximise",
+  "fps": 10,
+  "scale": 1,
+  "width": 960,
+  "crop": [
+    0,
+    0,
+    1088,
+    640
+  ],
+  "setup": [],
+  "chunks": [
+    {
+      "seconds": 5.0
+    },
+    {
+      "seconds": 5.0
+    }
+  ],
+  "steps": [
+    {
+      "at": 0.2,
+      "cursor": [
+        1010,
+        617
+      ],
+      "caption": "the terminal starts collapsed; its label is in the status bar"
+    },
+    {
+      "at": 1.2,
+      "key": "KeyJ",
+      "mods": [
+        "ControlLeft"
+      ],
+      "caption": "Ctrl+J (Cmd+J on a Mac) raises it"
+    },
+    {
+      "at": 2.6,
+      "key": "KeyJ",
+      "mods": [
+        "ControlLeft",
+        "ShiftLeft"
+      ],
+      "caption": "Shift+Ctrl+J: the whole window"
+    },
+    {
+      "at": 4.0,
+      "key": "KeyJ",
+      "mods": [
+        "ControlLeft",
+        "ShiftLeft"
+      ],
+      "caption": "again: its own height"
+    },
+    {
+      "at": 5.4,
+      "key": "KeyJ",
+      "mods": [
+        "ControlLeft"
+      ],
+      "caption": "Ctrl+J puts it away"
+    },
+    {
+      "at": 6.8,
+      "key": "KeyJ",
+      "mods": [
+        "ControlLeft",
+        "ShiftLeft"
+      ],
+      "caption": "Shift+Ctrl+J from collapsed: straight to full"
+    },
+    {
+      "at": 8.2,
+      "key": "KeyJ",
+      "mods": [
+        "ControlLeft"
+      ],
+      "caption": "Ctrl+J lowers it, the label stays"
+    }
+  ]
+}
