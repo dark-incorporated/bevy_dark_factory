@@ -80,3 +80,26 @@ fn the_pane_s_grip_bar_body_and_caret_are_gooey_nodes() {
     assert_eq!(world.get::<Pickable>(caret), Some(&Pickable::IGNORE), "and it is never a target");
     let _ = world.get::<ComputedNode>(grip);
 }
+
+/// **A panel is a gooey sized column whose width the editor writes through `Sizing`**: its gap, padding, margin, edge and radius are the raw node's, a hidden one starts closed (no open frame) and
+/// hidden from focus, and the one on screen is open. (The doubled-scale snip and library tests, which a first try broke, are the other evidence.)
+#[test]
+fn a_panel_is_a_sized_column_that_follows_the_editors_display() {
+    let mut app = editor("panel");
+    let world = app.world_mut();
+    let (mut open, mut closed) = (0, 0);
+    for (entity, node, vis) in world.query_filtered::<(Entity, &Node, &Visibility), With<bevy_cauldron::chrome::PanelEdge>>().iter(world) {
+        assert_eq!(world.get::<bevy_gooey::Role>(entity), Some(&bevy_gooey::Role::Sized), "a panel is a gooey sized box");
+        assert!(world.get::<ShownFollow>(entity).is_some(), "whose `display` is the editor's to write");
+        assert_eq!((node.flex_direction, node.row_gap), (FlexDirection::Column, Val::Px(5.0)), "a column, 5 px between its parts");
+        assert_eq!((node.padding.left, node.margin.left, node.border.left), (Val::Px(12.0), Val::Px(12.0), Val::Px(1.0)), "12 px in, 12 px out, a 1 px edge");
+        if node.display == Display::None {
+            closed += 1;
+            assert_eq!(*vis, Visibility::Hidden, "a closed panel is hidden from focus and sight");
+        } else {
+            open += 1;
+            assert!(matches!(node.width, Val::Px(w) if w > 100.0), "an open panel is as wide as it asked: {:?}", node.width);
+        }
+    }
+    assert!(open >= 1 && closed >= 1, "{open} open, {closed} closed");
+}

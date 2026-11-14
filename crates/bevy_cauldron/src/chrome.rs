@@ -1014,28 +1014,6 @@ pub fn panel_root<'a>(
     // draws — so this is never a second copy of a name (see `headless::the_tab_strip_describes_itself`).
     label: &str,
 ) -> EntityCommands<'a> {
-    let mut node = Node {
-        width: Val::Px(width),
-        flex_direction: FlexDirection::Column,
-        // `GAP_ROW`, not the bare `6.0` that stood here until 2026-09-03 — the one gap every panel in
-        // the editor uses was the one gap that was not on the scale.
-        row_gap: Val::Px(GAP_ROW),
-        padding: UiRect::all(Val::Px(PAD)),
-        margin: UiRect::all(Val::Px(MARGIN)),
-        border: UiRect::all(Val::Px(EDGE_W)),
-        border_radius: BorderRadius::all(Val::Px(RADIUS_PANEL)),
-        ..default()
-    };
-    if full_height {
-        node.flex_grow = 1.0;
-        node.min_height = Val::Px(0.0);
-    }
-    if hidden {
-        // `Display::None`, never `Visibility`: a visibility-hidden UI node still occupies layout and
-        // still answers hover, which would leave a hidden tab's rows eating clicks aimed at the
-        // world — and in a dock it would also hold the dock open at its width.
-        node.display = Display::None;
-    }
     let dock = match side {
         Side::Left => frame.left,
         Side::Right => frame.right,
@@ -1047,9 +1025,23 @@ pub fn panel_root<'a>(
     // walks every ground is what makes it the skin's, once per frame, comparing before it writes.
     let panel = commands
         .spawn((
-            // **A raw node, and why** (GAP7): the panel's width is written by three systems (`fit_docks_to_the_window` and the left pane's two), which a skin-written `Sizing` width
-            // would fight; the gooey form broke the snip and library layout tests at a doubled scale (a split clamp panicked), found by the whole run.
-            node,
+            // A panel: a gooey sized box laid out as a column, `width` wide (`fit_docks_to_the_window` and the left pane write that `Sizing` width, so the skin never fights them), `GAP_ROW` px
+            // between its parts, `PAD` in all round, `MARGIN` out all round, a 1 px edge and a panel radius; it grows into what the dock leaves when `full_height`. Its fill and edge are
+            // the editor's (`InkFollow`: `Ground`, `PanelEdge` lit by focus and the theme move them). `display` is the tabs' to write (`ShownFollow`), and a hidden panel starts closed.
+            bevy_gooey::sized(bevy_gooey::Sizing {
+                width: Some(bevy_gooey::Extent::Px(width)),
+                min_height: full_height.then_some(bevy_gooey::Extent::Px(0.0)),
+                ..default()
+            }),
+            (
+                bevy_gooey::RowLayout { direction: Some(FlexDirection::Column), ..default() },
+                bevy_gooey::TextFlow { grow: full_height.then_some(1.0), ..default() },
+                bevy_gooey::GapPx(GAP_ROW),
+                bevy_gooey::Spacing { padding: bevy_gooey::Sides::all(STEP_PAD), margin: bevy_gooey::Sides::all(STEP_PAD) },
+                bevy_gooey::BorderPx(bevy_gooey::Sides::all(EDGE_W)),
+                bevy_gooey::Shape { radius: Some(bevy_gooey::Radius::Step(1)), ..default() },
+                bevy_gooey::InkFollow,
+            ),
             PanelWidth { preferred: width, side },
             // **The panel's name, for something that cannot see it** (UI-30, #224). A `Role::Panel` is a
             // box in the accessibility tree with no name on it, so a reader meets the editor as a set of
@@ -1068,6 +1060,13 @@ pub fn panel_root<'a>(
             Hovered::default(),
         ))
         .id();
+    if hidden {
+        // `Display::None`, never `Visibility` alone: a visibility-hidden UI node still occupies layout and still answers hover, which would leave a hidden tab's rows eating clicks aimed at the
+        // world, and in a dock it would hold the dock open at its width. `ShownFollow` leaves `display` to the tabs that open and close it, and starts it closed.
+        commands.entity(panel).insert(bevy_gooey::ShownFollow::closed());
+    } else {
+        commands.entity(panel).insert(bevy_gooey::ShownFollow);
+    }
     commands.entity(dock).add_child(panel);
     commands.entity(panel)
 }
@@ -1301,7 +1300,7 @@ fn light_the_focused_panel(mut panels: Query<(&mut BorderColor, Has<Focused>), W
 fn fit_docks_to_the_window(
     windows: Query<&Window, With<bevy::window::PrimaryWindow>>,
     ui_scale: Res<UiScale>,
-    mut panels: Query<(&PanelWidth, &mut Node, &ComputedNode), Without<ViewportSlot>>,
+    mut panels: Query<(&PanelWidth, &Node, &mut bevy_gooey::Sizing, &ComputedNode), Without<ViewportSlot>>,
     owned: Query<(), (With<ShellSplit>, Without<SplitUnsized>)>,
     collapsed: Query<(), (With<ShellSplit>, With<bevy_gooey::SplitSaved>)>,
     bars: Query<&ComputedNode, With<crate::activity_bar::ActivityBar>>,
@@ -1330,7 +1329,7 @@ fn fit_docks_to_the_window(
     // collapse and move the viewport again when a peek showed the panel. The panel is out of the layout (its dock is
     // `Display::None`) and is what the right dock's share was worked out against, so that is still the answer.
     let left_stands = !collapsed.is_empty();
-    for (want, node, computed) in &panels {
+    for (want, node, _, computed) in &panels {
         let counted = node.display != Display::None && (computed.size().x > 0.0 || (left_stands && want.side == Side::Left));
         if !counted {
             continue;
@@ -1377,16 +1376,16 @@ fn fit_docks_to_the_window(
     let squeeze = squeeze.max(floor_fraction.min(1.0));
 
     let person_owns_the_split = !owned.is_empty();
-    for (want, mut node, _) in &mut panels {
+    for (want, _, mut sizing, _) in &mut panels {
         // **The left panel is the pane's once a person has dragged the divider**
         // ([`the_left_panel_follows_its_pane`]); writing its width here too would be two systems
         // disagreeing about one number every frame.
         if person_owns_the_split && want.side == Side::Left {
             continue;
         }
-        let width = want.preferred * squeeze;
-        if node.width != Val::Px(width) {
-            node.width = Val::Px(width);
+        let width = Some(bevy_gooey::Extent::Px(want.preferred * squeeze));
+        if sizing.width != width {
+            sizing.width = width;
         }
     }
 }
@@ -2246,13 +2245,12 @@ pub fn journal_panel(mut commands: Commands, frame: Res<Frame>) {
         // arrows to move and no row to keep on screen, so the scroll exists for HEIGHT alone. The
         // detail pane makes the same declaration for the same reason.
         scroll_list(p, JournalList)
-            .entry::<Node>()
             // **Room for the bar, because here the bar lands on words.** `scroll_list` overlays its
             // scrollbar rather than reserving a gutter — right for a list of short rows, and wrong
             // for wrapped prose, which runs under it. Measured in a frame: `…choose a piece in the
             // list|` with the thumb through the last word. Stated at this call site rather than in
             // the builder, because it is a fact about what THIS list holds.
-            .and_modify(|mut n| n.padding.right = Val::Px(BAR_W + BAR_INSET * 2.0));
+            .insert(bevy_gooey::ScrollGutter(Some(bevy_gooey::Space::Px(BAR_W + BAR_INSET * 2.0))));
     });
     commands.entity(panel).insert(ChildOf(frame.viewport));
 }
@@ -2475,7 +2473,7 @@ pub fn scroll_bounds(list: &ComputedNode) -> (f32, f32) {
 /// the eye asks it to.
 const CONTEXT_ROWS: f32 = 2.0;
 
-/// The scrollbar's track. Marked so [`hide_idle_scrollbars`] can find it and its own width is
+/// The scrollbar's track. Marked so [`forward_a_wheel_over_a_scrollbar`] can find it and its own width is
 /// stated once.
 #[derive(Component)]
 pub struct ScrollTrack;
@@ -2483,9 +2481,6 @@ pub struct ScrollTrack;
 /// Width of the bar, and how far it is inset from the panel's inner edge.
 const BAR_W: f32 = 5.0;
 const BAR_INSET: f32 = 1.0;
-/// The thumb never shrinks below this, or a long list makes it a dot nobody can grab (Fitts, and
-/// upstream's own reason for the parameter).
-const MIN_THUMB: f32 = 18.0;
 /// **What the bar reserves.** Derived from the bar rather than picked, so the lane and the thing it
 /// is a lane for cannot drift apart — the failure this module exists to prevent, one more time.
 pub const SCROLL_GUTTER: f32 = BAR_W + BAR_INSET;
@@ -2528,117 +2523,21 @@ pub fn scroll_list<'a>(
     parent: &'a mut ChildSpawnerCommands,
     marker: impl Bundle,
 ) -> EntityCommands<'a> {
-    let viewport = parent
-        .commands_mut()
-        .spawn((
-            Node {
-                flex_direction: FlexDirection::Column,
-                row_gap: Val::Px(GAP_TIGHT),
-                flex_grow: 1.0,
-                min_height: Val::Px(0.0),
-                // **The bar's own lane, so nothing is drawn under it.** The scrollbar is an overlay
-                // at `BAR_W` inset by `BAR_INSET`, and until 2026-09-03 the content ran straight
-                // beneath it: on the Meshes tab the last chip of a wrapped tag row rendered half
-                // behind the bar (the audit's F7). Padding rather than margin, because a scroll
-                // viewport's padding is *inside* the clip — so the content stops short of the bar
-                // and `content_size` still counts it, which is what `hide_idle_scrollbars` reads.
-                padding: UiRect::right(Val::Px(SCROLL_GUTTER)),
-                overflow: Overflow::scroll_y(),
-                ..default()
-            },
-            ScrollArea,
-            // **Glide and fade, from gooey (UI-R05, #335).** A scroll the crate makes (a key, the pad, Tab onto
-            // a card) travels there instead of jumping, and an edge that hides content fades: two overlays beside
-            // this viewport, in its wrapper, each as opaque as the content under its edge, and none at an edge
-            // with nothing hidden. The wheel, a trackpad and the bar still move it 1:1.
-            bevy_gooey::ScrollGlide::default(),
-            bevy_gooey::ScrollEdgeFade::default(),
-            marker,
-        ))
-        .id();
-
-    let thumb = parent
-        .commands_mut()
-        .spawn((
-            bevy::ui_widgets::ScrollbarThumb {
-                border_radius: BorderRadius::all(Val::Px(BAR_W / 2.0)),
-                border: UiRect::ZERO,
-            },
-            BackgroundColor(scaled(ink().row_selected, 0.9)),
-        ))
-        .id();
-
-    let track = parent
-        .commands_mut()
-        .spawn((
-            ScrollTrack,
-            bevy::ui_widgets::Scrollbar::new(
-                viewport,
-                bevy::ui_widgets::ControlOrientation::Vertical,
-                MIN_THUMB,
-            ),
-            Node {
-                position_type: PositionType::Absolute,
-                right: Val::Px(BAR_INSET),
-                top: Val::Px(0.0),
-                bottom: Val::Px(0.0),
-                width: Val::Px(BAR_W),
-                // Hidden until there is somewhere to scroll — see [`hide_idle_scrollbars`].
-                display: Display::None,
-                ..default()
-            },
-            // The track is a drag target; the content under it is not. The panel root is
-            // `Pickable::IGNORE`, so this narrows that for the one node here that is grabbable.
-            bevy::picking::Pickable::default(),
-        ))
-        .id();
-    parent.commands_mut().entity(track).add_child(thumb);
-
-    let wrapper = parent
-        .spawn(Node {
-            flex_direction: FlexDirection::Column,
-            flex_grow: 1.0,
-            min_height: Val::Px(0.0),
-            ..default()
-        })
-        .id();
-    parent
-        .commands_mut()
-        .entity(wrapper)
-        .add_children(&[viewport, track]);
-
-    parent.commands_mut().entity(viewport)
+    // **gooey's scroll viewport** (G-90): one bundle that IS the scrolling viewport (the wheel, a drag on the rail, glide and edge fade, keyboard focus followed into view, Page/Home/End),
+    // filling the room its parent leaves and able to be nothing tall. Its children are `GAP_TIGHT` px apart (`GapPx`, not a skin multiple), and `SCROLL_GUTTER` px on its right stay clear
+    // for the rail, so nothing is drawn under it (the audit's F7). The rail is gooey's, a sibling of the viewport in its parent; [`tag_the_scroll_rails`] gives it the editor's `ScrollTrack`.
+    parent.spawn((
+        bevy_gooey::scroll_viewport(0.0, Some(bevy_gooey::Space::Px(SCROLL_GUTTER))),
+        bevy_gooey::GapPx(GAP_TIGHT),
+        marker,
+    ))
 }
 
-/// **A bar only while there is somewhere to scroll** — the browser default, and the reason a panel
-/// that fits its content shows no furniture at all.
-///
-/// `Display::None` rather than alpha, so a bar nobody needs costs no draw and no hit test.
-///
-/// **Compares before writing**, per the standing rule this crate keeps: `chrome::Follow`'s doc
-/// records what unconditional per-frame writes cost, and `Node` is change-detected by the layout
-/// system. Reading the target's `ComputedNode` from the track side is deliberate — the link runs
-/// track → viewport and only that way, so a `Changed<ComputedNode>` filter here would be watching
-/// the wrong entity.
-pub fn hide_idle_scrollbars(
-    mut tracks: Query<(&mut Node, &bevy::ui_widgets::Scrollbar), With<ScrollTrack>>,
-    viewports: Query<&bevy::ui::ComputedNode>,
-) {
-    for (mut node, bar) in &mut tracks {
-        let Ok(view) = viewports.get(bar.target) else {
-            continue;
-        };
-        // The same clamp upstream uses, so the bar appears exactly when the wheel has somewhere to
-        // go rather than one pixel before or after.
-        let visible = view.size().y - view.scrollbar_size.y;
-        let want = if view.content_size().y > visible + 0.5 {
-            Display::Flex
-        } else {
-            Display::None
-        };
-        if node.display != want {
-            node.display = want;
-        }
+/// **A rail gooey spawned is a scroll track** to the editor's tests and to [`forward_a_wheel_over_a_scrollbar`]: the same marker the hand-built track carried, put on the rail the frame it
+/// appears. The rail shows only while the content does not fit (gooey's own rule, which replaced `hide_idle_scrollbars`).
+pub fn tag_the_scroll_rails(rails: Query<Entity, Added<bevy_gooey::ScrollRailOf>>, mut commands: Commands) {
+    for rail in &rails {
+        commands.entity(rail).insert(ScrollTrack);
     }
 }
 
@@ -3681,7 +3580,7 @@ fn size_the_shell_split(
     mut commands: Commands,
     mut splits: Query<(Entity, &mut bevy_gooey::SplitFraction, &mut SplitUnsized, &ComputedNode, &Children)>,
     dividers: Query<&ComputedNode, With<bevy_gooey::SplitDivider>>,
-    panels: Query<(&PanelWidth, &Node, &ComputedNode)>,
+    panels: Query<(&PanelWidth, &Node, &bevy_gooey::Sizing, &ComputedNode)>,
     windows: Query<(), With<bevy::window::PrimaryWindow>>,
 ) {
     // **No window, no room to answer for**: [`fit_docks_to_the_window`] returns here too, so a panel's
@@ -3690,11 +3589,11 @@ fn size_the_shell_split(
         return;
     }
     let mut want = 0.0f32;
-    for (panel, node, computed) in &panels {
+    for (panel, node, sizing, computed) in &panels {
         if panel.side != Side::Left || node.display == Display::None || computed.size().x <= 0.0 {
             continue;
         }
-        if let Val::Px(w) = node.width {
+        if let Some(bevy_gooey::Extent::Px(w)) = sizing.width {
             want = want.max(w);
         }
     }
@@ -3746,7 +3645,7 @@ fn the_left_panel_follows_its_pane(
     owned: Query<(), (With<ShellSplit>, Without<SplitUnsized>)>,
     parents: Query<&ChildOf>,
     panes: Query<&ComputedNode>,
-    mut panels: Query<(&PanelWidth, &mut Node)>,
+    mut panels: Query<(&PanelWidth, &mut bevy_gooey::Sizing)>,
     windows: Query<(), With<bevy::window::PrimaryWindow>>,
     moving: Query<(), CollapsedOrGliding>,
 ) {
@@ -3760,10 +3659,10 @@ fn the_left_panel_follows_its_pane(
     if wide <= 0.0 {
         return;
     }
-    let width = Val::Px((wide - 2.0 * MARGIN).max(DOCK_MIN_W));
-    for (panel, mut n) in &mut panels {
-        if panel.side == Side::Left && n.width != width {
-            n.width = width;
+    let width = Some(bevy_gooey::Extent::Px((wide - 2.0 * MARGIN).max(DOCK_MIN_W)));
+    for (panel, mut sizing) in &mut panels {
+        if panel.side == Side::Left && sizing.width != width {
+            sizing.width = width;
         }
     }
 }
@@ -3814,7 +3713,7 @@ impl Plugin for ChromePlugin {
                 Update,
                 (
                     style_list_rows,
-                    hide_idle_scrollbars,
+                    tag_the_scroll_rails,
                     repaint_where_you_are,
                     // Ungated for the same reason: both screens have panels, and which one holds
                     // the keyboard is a question the menu asks louder than the editor does.
@@ -3833,6 +3732,8 @@ impl Plugin for ChromePlugin {
                 Update,
                 fit_docks_to_the_window
                     .after(FrameSystems)
+                    // The width is a `Sizing`, which the skin turns into the node's width in the same frame.
+                    .before(bevy_gooey::GooeySystems::Style)
                     .run_if(in_state(crate::screen::Screen::Editor)),
             )
             .add_systems(
@@ -3846,6 +3747,7 @@ impl Plugin for ChromePlugin {
                 Update,
                 the_left_panel_follows_its_pane
                     .after(size_the_shell_split)
+                    .before(bevy_gooey::GooeySystems::Style)
                     .run_if(in_state(crate::screen::Screen::Editor)),
             )
             .add_systems(Update,

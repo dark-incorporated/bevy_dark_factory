@@ -247,6 +247,7 @@ mod the_borders_and_paddings_are_gooeys;
 mod the_cards_and_rows_are_button_boxes;
 mod the_g87_nodes_are_gooeys;
 mod the_g89_nodes_are_gooeys;
+mod the_g90_scroll_viewport_is_the_list;
 mod the_round_7_review_is_pinned;
 mod the_small_files_are_built_from_gooey_widgets;
 mod shift_click_selects_pieces_beside_each_other;
