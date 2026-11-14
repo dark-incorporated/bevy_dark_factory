@@ -2287,13 +2287,12 @@ pub fn journal_panel(mut commands: Commands, frame: Res<Frame>) {
         // arrows to move and no row to keep on screen, so the scroll exists for HEIGHT alone. The
         // detail pane makes the same declaration for the same reason.
         scroll_list(p, JournalList)
-            .entry::<Node>()
             // **Room for the bar, because here the bar lands on words.** `scroll_list` overlays its
             // scrollbar rather than reserving a gutter — right for a list of short rows, and wrong
             // for wrapped prose, which runs under it. Measured in a frame: `…choose a piece in the
             // list|` with the thumb through the last word. Stated at this call site rather than in
             // the builder, because it is a fact about what THIS list holds.
-            .and_modify(|mut n| n.padding.right = Val::Px(BAR_W + BAR_INSET * 2.0));
+            .insert(bevy_gooey::ScrollGutter(Some(bevy_gooey::Space::Px(BAR_W + BAR_INSET * 2.0))));
     });
     commands.entity(panel).insert(ChildOf(frame.viewport));
 }
@@ -2516,7 +2515,7 @@ pub fn scroll_bounds(list: &ComputedNode) -> (f32, f32) {
 /// the eye asks it to.
 const CONTEXT_ROWS: f32 = 2.0;
 
-/// The scrollbar's track. Marked so [`hide_idle_scrollbars`] can find it and its own width is
+/// The scrollbar's track. Marked so [`forward_a_wheel_over_a_scrollbar`] can find it and its own width is
 /// stated once.
 #[derive(Component)]
 pub struct ScrollTrack;
@@ -2524,9 +2523,6 @@ pub struct ScrollTrack;
 /// Width of the bar, and how far it is inset from the panel's inner edge.
 const BAR_W: f32 = 5.0;
 const BAR_INSET: f32 = 1.0;
-/// The thumb never shrinks below this, or a long list makes it a dot nobody can grab (Fitts, and
-/// upstream's own reason for the parameter).
-const MIN_THUMB: f32 = 18.0;
 /// **What the bar reserves.** Derived from the bar rather than picked, so the lane and the thing it
 /// is a lane for cannot drift apart — the failure this module exists to prevent, one more time.
 pub const SCROLL_GUTTER: f32 = BAR_W + BAR_INSET;
@@ -2569,117 +2565,21 @@ pub fn scroll_list<'a>(
     parent: &'a mut ChildSpawnerCommands,
     marker: impl Bundle,
 ) -> EntityCommands<'a> {
-    let viewport = parent
-        .commands_mut()
-        .spawn((
-            Node {
-                flex_direction: FlexDirection::Column,
-                row_gap: Val::Px(GAP_TIGHT),
-                flex_grow: 1.0,
-                min_height: Val::Px(0.0),
-                // **The bar's own lane, so nothing is drawn under it.** The scrollbar is an overlay
-                // at `BAR_W` inset by `BAR_INSET`, and until 2026-09-03 the content ran straight
-                // beneath it: on the Meshes tab the last chip of a wrapped tag row rendered half
-                // behind the bar (the audit's F7). Padding rather than margin, because a scroll
-                // viewport's padding is *inside* the clip — so the content stops short of the bar
-                // and `content_size` still counts it, which is what `hide_idle_scrollbars` reads.
-                padding: UiRect::right(Val::Px(SCROLL_GUTTER)),
-                overflow: Overflow::scroll_y(),
-                ..default()
-            },
-            ScrollArea,
-            // **Glide and fade, from gooey (UI-R05, #335).** A scroll the crate makes (a key, the pad, Tab onto
-            // a card) travels there instead of jumping, and an edge that hides content fades: two overlays beside
-            // this viewport, in its wrapper, each as opaque as the content under its edge, and none at an edge
-            // with nothing hidden. The wheel, a trackpad and the bar still move it 1:1.
-            bevy_gooey::ScrollGlide::default(),
-            bevy_gooey::ScrollEdgeFade::default(),
-            marker,
-        ))
-        .id();
-
-    let thumb = parent
-        .commands_mut()
-        .spawn((
-            bevy::ui_widgets::ScrollbarThumb {
-                border_radius: BorderRadius::all(Val::Px(BAR_W / 2.0)),
-                border: UiRect::ZERO,
-            },
-            BackgroundColor(scaled(ink().row_selected, 0.9)),
-        ))
-        .id();
-
-    let track = parent
-        .commands_mut()
-        .spawn((
-            ScrollTrack,
-            bevy::ui_widgets::Scrollbar::new(
-                viewport,
-                bevy::ui_widgets::ControlOrientation::Vertical,
-                MIN_THUMB,
-            ),
-            Node {
-                position_type: PositionType::Absolute,
-                right: Val::Px(BAR_INSET),
-                top: Val::Px(0.0),
-                bottom: Val::Px(0.0),
-                width: Val::Px(BAR_W),
-                // Hidden until there is somewhere to scroll — see [`hide_idle_scrollbars`].
-                display: Display::None,
-                ..default()
-            },
-            // The track is a drag target; the content under it is not. The panel root is
-            // `Pickable::IGNORE`, so this narrows that for the one node here that is grabbable.
-            bevy::picking::Pickable::default(),
-        ))
-        .id();
-    parent.commands_mut().entity(track).add_child(thumb);
-
-    let wrapper = parent
-        .spawn(Node {
-            flex_direction: FlexDirection::Column,
-            flex_grow: 1.0,
-            min_height: Val::Px(0.0),
-            ..default()
-        })
-        .id();
-    parent
-        .commands_mut()
-        .entity(wrapper)
-        .add_children(&[viewport, track]);
-
-    parent.commands_mut().entity(viewport)
+    // **gooey's scroll viewport** (G-90): one bundle that IS the scrolling viewport (the wheel, a drag on the rail, glide and edge fade, keyboard focus followed into view, Page/Home/End),
+    // filling the room its parent leaves and able to be nothing tall. Its children are `GAP_TIGHT` px apart (`GapPx`, not a skin multiple), and `SCROLL_GUTTER` px on its right stay clear
+    // for the rail, so nothing is drawn under it (the audit's F7). The rail is gooey's, a sibling of the viewport in its parent; [`tag_the_scroll_rails`] gives it the editor's `ScrollTrack`.
+    parent.spawn((
+        bevy_gooey::scroll_viewport(0.0, Some(bevy_gooey::Space::Px(SCROLL_GUTTER))),
+        bevy_gooey::GapPx(GAP_TIGHT),
+        marker,
+    ))
 }
 
-/// **A bar only while there is somewhere to scroll** — the browser default, and the reason a panel
-/// that fits its content shows no furniture at all.
-///
-/// `Display::None` rather than alpha, so a bar nobody needs costs no draw and no hit test.
-///
-/// **Compares before writing**, per the standing rule this crate keeps: `chrome::Follow`'s doc
-/// records what unconditional per-frame writes cost, and `Node` is change-detected by the layout
-/// system. Reading the target's `ComputedNode` from the track side is deliberate — the link runs
-/// track → viewport and only that way, so a `Changed<ComputedNode>` filter here would be watching
-/// the wrong entity.
-pub fn hide_idle_scrollbars(
-    mut tracks: Query<(&mut Node, &bevy::ui_widgets::Scrollbar), With<ScrollTrack>>,
-    viewports: Query<&bevy::ui::ComputedNode>,
-) {
-    for (mut node, bar) in &mut tracks {
-        let Ok(view) = viewports.get(bar.target) else {
-            continue;
-        };
-        // The same clamp upstream uses, so the bar appears exactly when the wheel has somewhere to
-        // go rather than one pixel before or after.
-        let visible = view.size().y - view.scrollbar_size.y;
-        let want = if view.content_size().y > visible + 0.5 {
-            Display::Flex
-        } else {
-            Display::None
-        };
-        if node.display != want {
-            node.display = want;
-        }
+/// **A rail gooey spawned is a scroll track** to the editor's tests and to [`forward_a_wheel_over_a_scrollbar`]: the same marker the hand-built track carried, put on the rail the frame it
+/// appears. The rail shows only while the content does not fit (gooey's own rule, which replaced `hide_idle_scrollbars`).
+pub fn tag_the_scroll_rails(rails: Query<Entity, Added<bevy_gooey::ScrollRailOf>>, mut commands: Commands) {
+    for rail in &rails {
+        commands.entity(rail).insert(ScrollTrack);
     }
 }
 
@@ -3855,7 +3755,7 @@ impl Plugin for ChromePlugin {
                 Update,
                 (
                     style_list_rows,
-                    hide_idle_scrollbars,
+                    tag_the_scroll_rails,
                     repaint_where_you_are,
                     // Ungated for the same reason: both screens have panels, and which one holds
                     // the keyboard is a question the menu asks louder than the editor does.
