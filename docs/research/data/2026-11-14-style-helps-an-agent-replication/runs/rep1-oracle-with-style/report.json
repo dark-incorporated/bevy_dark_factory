@@ -1,0 +1,244 @@
+{
+  "header": {
+    "version": 1,
+    "label": "rep1-oracle-with-style",
+    "commit": "dc3a2d26ed55f3d4e64ba52352e60c31fe73a15b",
+    "guide_sha256": "58bdbbdf8bf7904d734d16ac22d410c10d38ed5232b31a11ccb7ac7eb6c766d5",
+    "agent": "oracle",
+    "agent_version": "scripted",
+    "model": null,
+    "variant": "with-style",
+    "suite": "bench/tasks",
+    "trials": 1,
+    "host": "bmb",
+    "date": "2026-11-14",
+    "price": null
+  },
+  "unfit": null,
+  "trials_total": 3,
+  "harness_errors": 0,
+  "dev": {
+    "name": "dev",
+    "tasks": 3,
+    "trials": 3,
+    "successes": 3,
+    "harness_errors": 0,
+    "mean_success": 1.0,
+    "interval": {
+      "lo": 1.0,
+      "hi": 1.0
+    },
+    "mean_pass_hat": [
+      1.0
+    ],
+    "cost_usd": null,
+    "cost_per_success_usd": null,
+    "wall_mean_s": 0.228729361,
+    "tool_calls_mean": 7.666666666666667,
+    "edits_behind": 0
+  },
+  "held_out": null,
+  "tags": [
+    {
+      "name": "dialogue",
+      "tasks": 1,
+      "trials": 1,
+      "successes": 1,
+      "harness_errors": 0,
+      "mean_success": 1.0,
+      "interval": {
+        "lo": 1.0,
+        "hi": 1.0
+      },
+      "mean_pass_hat": [
+        1.0
+      ],
+      "cost_usd": null,
+      "cost_per_success_usd": null,
+      "wall_mean_s": 0.040582541,
+      "tool_calls_mean": 2.0,
+      "edits_behind": 0
+    },
+    {
+      "name": "light",
+      "tasks": 1,
+      "trials": 1,
+      "successes": 1,
+      "harness_errors": 0,
+      "mean_success": 1.0,
+      "interval": {
+        "lo": 1.0,
+        "hi": 1.0
+      },
+      "mean_pass_hat": [
+        1.0
+      ],
+      "cost_usd": null,
+      "cost_per_success_usd": null,
+      "wall_mean_s": 0.274747,
+      "tool_calls_mean": 9.0,
+      "edits_behind": 0
+    },
+    {
+      "name": "place",
+      "tasks": 1,
+      "trials": 1,
+      "successes": 1,
+      "harness_errors": 0,
+      "mean_success": 1.0,
+      "interval": {
+        "lo": 1.0,
+        "hi": 1.0
+      },
+      "mean_pass_hat": [
+        1.0
+      ],
+      "cost_usd": null,
+      "cost_per_success_usd": null,
+      "wall_mean_s": 0.370858542,
+      "tool_calls_mean": 12.0,
+      "edits_behind": 0
+    },
+    {
+      "name": "style",
+      "tasks": 3,
+      "trials": 3,
+      "successes": 3,
+      "harness_errors": 0,
+      "mean_success": 1.0,
+      "interval": {
+        "lo": 1.0,
+        "hi": 1.0
+      },
+      "mean_pass_hat": [
+        1.0
+      ],
+      "cost_usd": null,
+      "cost_per_success_usd": null,
+      "wall_mean_s": 0.228729361,
+      "tool_calls_mean": 7.666666666666667,
+      "edits_behind": 0
+    }
+  ],
+  "tasks": [
+    {
+      "task": "dress-the-market-area",
+      "title": "Dress the market area of the courtyard",
+      "tags": [
+        "style",
+        "place"
+      ],
+      "trials": 1,
+      "successes": 1,
+      "harness_errors": 0,
+      "outcomes": [
+        "pass"
+      ],
+      "success_rate": 1.0,
+      "pass_hat": [
+        1.0
+      ],
+      "wall_median_s": 0.370858542,
+      "wall_p90_s": 0.370858542,
+      "tool_calls_mean": 12.0,
+      "refusals": 0,
+      "undos": 0,
+      "edits_behind": 0,
+      "trials_with_edits_behind": 0,
+      "tokens_in": null,
+      "tokens_out": null,
+      "tokens_cache_read": null,
+      "tokens_cache_write": null,
+      "cost_usd": null,
+      "wishes": 0,
+      "failures": [],
+      "budget_exhausted": 0,
+      "budget_exhausted_trials": [],
+      "agent_errors": 0,
+      "agent_error_trials": []
+    },
+    {
+      "task": "light-the-gate-at-night",
+      "title": "Light the gate at night",
+      "tags": [
+        "style",
+        "light"
+      ],
+      "trials": 1,
+      "successes": 1,
+      "harness_errors": 0,
+      "outcomes": [
+        "pass"
+      ],
+      "success_rate": 1.0,
+      "pass_hat": [
+        1.0
+      ],
+      "wall_median_s": 0.274747,
+      "wall_p90_s": 0.274747,
+      "tool_calls_mean": 9.0,
+      "refusals": 0,
+      "undos": 0,
+      "edits_behind": 0,
+      "trials_with_edits_behind": 0,
+      "tokens_in": null,
+      "tokens_out": null,
+      "tokens_cache_read": null,
+      "tokens_cache_write": null,
+      "cost_usd": null,
+      "wishes": 0,
+      "failures": [],
+      "budget_exhausted": 0,
+      "budget_exhausted_trials": [],
+      "agent_errors": 0,
+      "agent_error_trials": []
+    },
+    {
+      "task": "write-the-gatekeepers-greeting",
+      "title": "Write the gatekeeper's greeting",
+      "tags": [
+        "style",
+        "dialogue"
+      ],
+      "trials": 1,
+      "successes": 1,
+      "harness_errors": 0,
+      "outcomes": [
+        "pass"
+      ],
+      "success_rate": 1.0,
+      "pass_hat": [
+        1.0
+      ],
+      "wall_median_s": 0.040582541,
+      "wall_p90_s": 0.040582541,
+      "tool_calls_mean": 2.0,
+      "refusals": 0,
+      "undos": 0,
+      "edits_behind": 0,
+      "trials_with_edits_behind": 0,
+      "tokens_in": null,
+      "tokens_out": null,
+      "tokens_cache_read": null,
+      "tokens_cache_write": null,
+      "cost_usd": null,
+      "wishes": 0,
+      "failures": [],
+      "budget_exhausted": 0,
+      "budget_exhausted_trials": [],
+      "agent_errors": 0,
+      "agent_error_trials": []
+    }
+  ],
+  "tool_counts": {
+    "grimoire_apply_operation": 20,
+    "grimoire_present": 3
+  },
+  "refusals_by_tool": {},
+  "wishes_by_tool": {},
+  "harness_error_reasons": [],
+  "preflight": null,
+  "cost_total_usd": null,
+  "agent_errors": 0,
+  "agent_errors_by_tool": {}
+}
