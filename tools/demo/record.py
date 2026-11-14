@@ -125,7 +125,12 @@ class McpClient:
         text = next((c["text"] for c in result["content"] if c["type"] == "text"), None)
         if result.get("isError"):
             return {"refused": text}
-        return json.loads(text)
+        try:
+            return json.loads(text)
+        except json.JSONDecodeError:
+            # A tool that answers in prose (`grimoire_style` returns the style's Markdown): a storyboard step that
+            # calls it needs the call made, not its answer parsed.
+            return {"text": text}
 
     def close(self):
         self.proc.kill()

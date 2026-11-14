@@ -1,0 +1,102 @@
+{
+  "name": "areas_on_the_map",
+  "fps": 10,
+  "scale": 1,
+  "width": 960,
+  "crop": [
+    0,
+    0,
+    1088,
+    640
+  ],
+  "setup": [],
+  "chunks": [
+    {
+      "seconds": 4.2
+    },
+    {
+      "seconds": 2.6,
+      "operation": {
+        "name": "design_area_set",
+        "parameters": {
+          "name": "market",
+          "rect": [
+            -10.0,
+            -10.0,
+            -1.0,
+            -1.0
+          ]
+        }
+      }
+    },
+    {
+      "seconds": 2.6,
+      "operation": {
+        "name": "design_area_set",
+        "parameters": {
+          "name": "gate",
+          "rect": [
+            1.0,
+            1.0,
+            10.0,
+            10.0
+          ]
+        }
+      }
+    },
+    {
+      "seconds": 5.0
+    }
+  ],
+  "steps": [
+    {
+      "at": 1.2,
+      "click_label": "View",
+      "caption": "person: View > Show style areas"
+    },
+    {
+      "at": 2.2,
+      "wheel": {
+        "y": -1,
+        "n": 8,
+        "at": [
+          280,
+          400
+        ]
+      }
+    },
+    {
+      "at": 3.3,
+      "click_label": "Show style areas"
+    },
+    {
+      "at": 4.4,
+      "caption": "agent: design_area_set makes the area market"
+    },
+    {
+      "at": 5.6,
+      "write": {
+        "path": "design/levels/courtyard/areas/market/style.md",
+        "text": "# The market\n\n## Light\n\nOne oil lantern to a stall, nothing else.\n"
+      }
+    },
+    {
+      "at": 7.0,
+      "caption": "agent: and the area gate"
+    },
+    {
+      "at": 9.6,
+      "cursor": [
+        650,
+        340
+      ],
+      "caption": "the cursor over an area: the inspector names it"
+    },
+    {
+      "at": 11.0,
+      "click_label": "Open style of",
+      "prefix": true,
+      "caption": "person: the Style link opens that area's page"
+    }
+  ]
+}

@@ -1,0 +1,78 @@
+{
+  "name": "handback_task_draft",
+  "fps": 10,
+  "scale": 1,
+  "width": 960,
+  "crop": [
+    0,
+    0,
+    1088,
+    640
+  ],
+  "setup": [],
+  "chunks": [
+    {
+      "seconds": 6.0
+    },
+    {
+      "seconds": 6.2
+    }
+  ],
+  "steps": [
+    {
+      "at": 1.2,
+      "mcp": "grimoire_apply_operation",
+      "args": {
+        "operation": "placement_add",
+        "parameters": {
+          "piece": "wall",
+          "at": [
+            6.0,
+            6.0
+          ]
+        }
+      },
+      "as": "made",
+      "caption": "agent: places a wall"
+    },
+    {
+      "at": 3.2,
+      "key": "Digit9",
+      "mods": [
+        "ControlLeft"
+      ],
+      "caption": "person: the Agent workspace"
+    },
+    {
+      "at": 4.4,
+      "click_label": "Answer hand-backs here",
+      "caption": "person: Answer hand-backs here"
+    },
+    {
+      "at": 5.6,
+      "mcp": "grimoire_present",
+      "args": {
+        "title": "a wall piece",
+        "summary": "Added a wall.",
+        "operation_ids": [
+          "$made"
+        ]
+      },
+      "caption": "agent: hands the change back"
+    },
+    {
+      "at": 7.0,
+      "click_label": "Accept",
+      "caption": "person: Accept"
+    },
+    {
+      "at": 8.4,
+      "click_label": "Make a benchmark task",
+      "caption": "person: Make a benchmark task"
+    },
+    {
+      "at": 10.2,
+      "caption": "the draft: task, scene and checks, opened in Files"
+    }
+  ]
+}
