@@ -2,6 +2,10 @@
 
 What each change added, newest first. A visible change has a clip: click the still to play it. `python3 tools/changelog/changelog.py page --open` plays them all in one page.
 
+## 2026-11-15
+
+- **458-agent-stays-open** `4447322cb` The Agent workspace stays open while an agent edits the map and hand-backs are answered there; the view follows when you return to the Map (#458) *For you: With Answer hand-backs here on, the Agent workspace no longer jumps to the Map when the agent changes something, so you can answer its card where you are.* *No clip: visible, not yet recorded: fleet worker*
+
 ## 2026-11-14
 
 - **445-selected-rows** `f9e455d8` Selected dock tabs and the armed library row read at AA contrast in every theme *For you: Selected tabs and the chosen library row are readable in all three themes.* *No clip: visible, not yet recorded: fleet worker*
