@@ -1,6 +1,6 @@
 [package]
 name = "bevy_grimoire_rhai"
-version = "0.1.1"
+version = "0.2.0"
 edition = "2024"
 rust-version = "1.97.1"
 description = "Rhai scripts on entities, reloaded live: the one Rhai host a bevy_grimoire game runs its scripts on."
@@ -15,7 +15,7 @@ categories = ["game-development"]
 bevy = { workspace = true, features = ["serialize"] }
 # **For `Problem`, and nothing else.** It is the workspace's one refusal shape, so a script's fault reaches a
 # game's log the way a refused project file does. Engine-free, so nothing new is drawn in.
-bevy_grimoire_core = { path = "../bevy_grimoire_core", version = "0.11.0" }
+bevy_grimoire_core = { path = "../bevy_grimoire_core", version = "0.12.0" }
 # **The one Rhai host** (GD-06, #368). The owner decided it lives in this workspace rather than in
 # `bevy_society`: that crate's `ScriptEngine` registers only society types and keeps its entry points
 # `pub(crate)`, so it is not a general host, and building a second one beside it is the two-paths shape
