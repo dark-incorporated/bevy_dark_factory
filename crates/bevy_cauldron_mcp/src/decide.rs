@@ -139,6 +139,25 @@ pub fn load_checks(project: &Path) -> Result<Checks, String> {
     Checks::for_project(project)
 }
 
+/// **What the editor is told about one `grimoire_decide` call** (DL-01, #460), for the turn ledger's `decisions`: the call's parameters (its
+/// questions, its check, its facts; pictures by name only), what came back or why it did not, the model, where it ran and how long it took.
+///
+/// **Pure and complete**: the editor files it as it is, so nothing the ledger needs is read from anywhere else.
+pub fn report(params: &DecideParams, answer: &Result<Value, String>, model: Option<&str>, endpoint: &str, latency_ms: u64) -> Value {
+    let (answer, error) = match answer {
+        Ok(v) => (Some(v), None),
+        Err(e) => (None, Some(e.as_str())),
+    };
+    json!({
+        "params": params,
+        "answer": answer,
+        "error": error,
+        "model": model,
+        "endpoint": endpoint,
+        "latency_ms": latency_ms,
+    })
+}
+
 /// **Whether the server must take the editor's picture before deciding.**
 pub fn needs_view(params: &DecideParams, checks: &Checks) -> bool {
     if params.images.iter().any(|i| i.name == VIEW) {

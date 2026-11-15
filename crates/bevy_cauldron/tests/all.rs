@@ -687,3 +687,4 @@ mod a_change_made_while_the_agent_workspace_is_open_raises_no_toast;
 mod every_files_panel_fits_inside_the_window;
 mod placement_add_refuses_an_overlap_unless_told_to_replace;
 mod an_agent_can_ask_for_one_operations_help;
+mod a_turn_is_recorded_for_learning;

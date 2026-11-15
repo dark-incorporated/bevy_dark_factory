@@ -824,6 +824,8 @@ struct Gates<'w, 's> {
     /// **The person's trust store, where it is**, for the operations that grant (`style_edit`): the [`crate::trusted::StoreRoot`] a test or the
     /// binary names, when the editor's state names no file.
     store_root: Option<Res<'w, crate::trusted::StoreRoot>>,
+    /// **The turn ledger** (DL-01, #460), asked for here for `following`'s reason: `operation_apply` is at the limit of sixteen parameters.
+    turns: Option<ResMut<'w, crate::turn_ledger::TurnLedger>>,
 }
 
 impl Gates<'_, '_> {
@@ -1062,6 +1064,21 @@ impl Gates<'_, '_> {
     fn hear(&mut self, method: &'static str) {
         if let (Some(activity), Some(time)) = (self.activity.as_mut(), self.time.as_deref()) {
             activity.hear(method, time.elapsed_secs_f64());
+        }
+    }
+
+    /// **A write of the agent's is arriving** (DL-01, #460): the turn ledger opens a turn and asks for its before picture, unless a turn is open.
+    /// Called before the operation runs, so the picture is of what the person was looking at.
+    fn turn_begins(&mut self, root: Option<&std::path::Path>) {
+        if let Some(turns) = self.turns.as_mut() {
+            turns.turn_begins(root);
+        }
+    }
+
+    /// **An operation of the agent's was applied**: the ledger keeps it, and where it was shown, with the turn that is open.
+    fn turn_sees(&mut self, entry: &ops::Entry, shown: &ops::Shown) {
+        if let Some(turns) = self.turns.as_mut() {
+            turns.operation_seen(entry, shown);
         }
     }
 
@@ -2366,6 +2383,10 @@ fn operation_apply(
             Err(e) => Ok(refused_answer(&p.operation, &e)),
         };
     }
+    // **A write of the agent's is arriving** (DL-01, #460): an operation that writes no file (a camera move, a piece armed) is not one.
+    if !op.writes().is_empty() {
+        gates.turn_begins(project.as_deref().map(|record| record.root.as_path()));
+    }
     // **And the real thing**, which takes the editor's own map and project and gives them back.
     let mut ctx = take(&project, &open);
     // **`style_edit` reads the person's store to refuse a page they have not allowed, and writes it for the text it leaves**: the store is where the
@@ -2677,6 +2698,7 @@ fn operation_apply(
             // an agent comes through, and never inside `dispatch` — a person's key goes through the
             // same dispatch and must not move the camera under their hands.
             gates.follow(&p.operation, &shown, &outcome.summary);
+            gates.turn_sees(&entry, &shown);
             // **A door the editor will ask about is not yet open (cycle 8, gap 4).** The outcome is a
             // stable word, `waiting`, and `waiting_on` names what it waits for, so nobody reads "applied"
             // as "the door is open" and a caller can branch on the word.
@@ -2784,6 +2806,10 @@ fn undo_by_id(p: UndoParams, person: bool, world: UndoWorld) -> Result<Value, St
             "refusal": why,
         }));
     }
+    // **An agent's undo is a write too** (DL-01, #460): it can be the first of a turn.
+    if !person && !p.dry_run {
+        gates.turn_begins(project.as_deref().map(|record| record.root.as_path()));
+    }
     // **`turn: true` takes back what was presented (E-084)**, newest first, so the agent's door and
     // the person's Cmd+Z take back the same amount. It is a loop over the id form rather than a
     // second undo mechanism: each step is the same `ops::undo(ctx, Some(id))` the id form makes, and
@@ -2831,7 +2857,8 @@ fn undo_by_id(p: UndoParams, person: bool, world: UndoWorld) -> Result<Value, St
             let undone = ops::undo(&mut ctx, Some(id));
             put_back(&mut project, &mut open, ctx);
             match undone {
-                Ok((plan, ops::Applied::Done { outcome, operation_id, .. })) => {
+                Ok((plan, ops::Applied::Done { outcome, operation_id, entry, shown })) => {
+                    gates.turn_sees(&entry, &shown);
                     took_back += 1;
                     if let Some(due) = due.as_mut() {
                         due.map_replaced |= outcome.saved;
@@ -3014,6 +3041,7 @@ fn undo_by_id(p: UndoParams, person: bool, world: UndoWorld) -> Result<Value, St
             // **A person's press is not followed**: the camera is the agent's to move; a person who pressed Undo is already looking at the row.
             if !person {
                 gates.follow(&entry.op, &shown, &outcome.summary);
+                gates.turn_sees(&entry, &shown);
             }
             json!({
                 "operation": entry.op,
@@ -3617,6 +3645,24 @@ impl Plugin for OpsBridgePlugin {
         );
         app.add_debug_command(
             DebugCommandInfo::new(
+                "grimoire/decide_report",
+                "An MCP server tells the editor about a grimoire_decide call it just answered, so the editor — the one writer \
+                 of the turn ledger — can keep it with the agent turn that is open: the questions, the answers, the model, where \
+                 it ran and how long it took. Not a tool an agent calls itself. Answers whether it was recorded; nothing is \
+                 recorded with collection off or when no turn is open.",
+            )
+            .params("A JSON object: the call's params, its answer or error, model, endpoint and latency_ms.")
+            .example(json!({
+                "params": {"check": "floating"},
+                "answer": {"check": "floating", "finding": {"check": "floating", "p_yes": 0.02, "threshold": 0.7, "found": false}},
+                "model": "clef-flash",
+                "endpoint": "http://127.0.0.1:8093/v1/systemone",
+                "latency_ms": 412,
+            })),
+            editor_decide_report,
+        );
+        app.add_debug_command(
+            DebugCommandInfo::new(
                 "grimoire/wish",
                 "The one tool that would most have helped with the task just handed back: the \
                  hand-back it follows, what the task was, what cost steps, the tool and a call to \
@@ -3702,6 +3748,9 @@ fn editor_present(
     // the camera the moment an agent placed something and then handed back.
     mut following: Option<ResMut<crate::follow::Following>>,
     served: Option<Res<crate::style_followed::StyleServed>>,
+    // **The turn ledger** (DL-01, #460) and who is talking, so the hand-back's record names the agent.
+    mut ledger: Option<ResMut<crate::turn_ledger::TurnLedger>>,
+    client: Option<Res<crate::present::AgentClient>>,
 ) -> Result<Value, String> {
     if let (Some(mut activity), Some(time)) = (activity, time) {
         activity.hear("present", time.elapsed_secs_f64());
@@ -3810,6 +3859,23 @@ fn editor_present(
             .to_owned());
     };
     let id = handbacks.ask(&record.root, p.title.clone(), p.specified.clone(), p.operation_ids.clone());
+    // **The turn is handed back to the ledger** (DL-01, #460), which finishes the record once the view has settled.
+    if let Some(ledger) = ledger.as_mut() {
+        ledger.hand_back(crate::turn_ledger::HandBackInput {
+            kind: crate::present::HandBackKind::Presentation,
+            id: &id,
+            title: &p.title,
+            summary: &p.summary,
+            specified: &p.specified,
+            inferred: &p.inferred,
+            check: p.check.iter().map(|item| item.what.clone()).collect(),
+            note: None,
+            listed: &p.operation_ids,
+            log: &log,
+            root: &record.root,
+            agent: crate::turn_ledger::agent_of(client.as_deref()),
+        });
+    }
     presenting.0 = Some(crate::present::Presented {
         id: id.clone(),
         title: p.title.clone(),
@@ -3840,6 +3906,24 @@ fn editor_present(
         // claiming a single step it did not make.
         "grouped": grouped,
     }))
+}
+
+/// **`grimoire/decide_report` — an MCP server tells the editor about a `grimoire_decide` call** (DL-01, #460).
+///
+/// The editor is the one writer of the turn ledger, and several MCP servers can run at once, so none of them writes it: each reports its decisions
+/// here and the editor files them under the turn that is open.
+fn editor_decide_report(In(report): In<Value>, ledger: Option<ResMut<crate::turn_ledger::TurnLedger>>) -> Result<Value, String> {
+    if !report.is_object() {
+        return Err("a decision report is a JSON object: the call's params, its answer or error, model, endpoint and latency_ms".to_owned());
+    }
+    let Some(mut ledger) = ledger else {
+        return Ok(json!({"recorded": false, "why": "this editor keeps no turn ledger"}));
+    };
+    if ledger.decision_reported(report) {
+        Ok(json!({"recorded": true}))
+    } else {
+        Ok(json!({"recorded": false, "why": "collection is off or no agent turn is open, so the decision belongs to no record"}))
+    }
 }
 
 /// **`grimoire/wish` — the one tool that would have helped** (#353).

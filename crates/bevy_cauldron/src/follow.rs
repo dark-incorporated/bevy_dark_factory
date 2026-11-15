@@ -346,6 +346,12 @@ impl Following {
     pub fn settling(&self) -> bool {
         self.ease.is_some()
     }
+
+    /// **Whether the camera has nothing left to do for the agent's changes** (DL-01, #460): no request waiting, none held for a viewport, no ease in
+    /// flight. The turn ledger's after picture waits for this, so it is never taken mid-transition.
+    pub fn at_rest(&self) -> bool {
+        self.queue.is_empty() && self.deferred.is_empty() && self.ease.is_none()
+    }
 }
 
 /// **A person's own input takes the camera back, and the follow yields.**

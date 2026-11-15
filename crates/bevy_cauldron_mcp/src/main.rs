@@ -1614,12 +1614,31 @@ impl Grimoire {
         } else {
             None
         };
+        // **What the editor is told about this call** (DL-01, #460), taken before `p` moves into the thread that asks the model.
+        let asked = p.clone();
+        let config = bevy_oracle::Config::from_env();
+        let started = std::time::Instant::now();
         let answer = tokio::task::spawn_blocking(move || {
             let http = bevy_oracle::Http::new(bevy_oracle::Config::from_env());
             bevy_cauldron_mcp::decide::decide_with(&p, &project, view.as_deref(), game.as_ref(), &http)
         })
         .await
         .map_err(|e| ErrorData::internal_error(e.to_string(), None))?;
+        // **The editor is the one writer of the turn ledger**, so this server reports the call and keeps nothing. It is sent on its own task:
+        // an editor that is busy or not running must never delay the answer the agent is waiting for.
+        let report = bevy_cauldron_mcp::decide::report(
+            &asked,
+            &answer,
+            config.model.as_deref(),
+            &config.endpoint,
+            u64::try_from(started.elapsed().as_millis()).unwrap_or(u64::MAX),
+        );
+        let editor = self.editor.clone();
+        tokio::spawn(async move {
+            if let Err(why) = editor.call("grimoire/decide_report", report).await {
+                eprintln!("bevy_cauldron_mcp: could not tell the editor about a decision: {why}");
+            }
+        });
         Ok(match answer {
             Ok(v) => CallToolResult::structured(v),
             Err(e) => refusal(&e),

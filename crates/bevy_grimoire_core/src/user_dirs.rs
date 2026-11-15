@@ -21,6 +21,9 @@ const CAPTURES_DIR: &str = "captures";
 /// The folder under [`data_dir`] the reports about the editor itself go to (`crate::feedback`).
 const FEEDBACK_DIR: &str = "feedback";
 
+/// The folder under [`data_dir`] the turn ledger is kept in (`crate::turn_ledger`, DL-01, #460).
+const LABELS_DIR: &str = "labels";
+
 /// `<data_dir>/Grimoire`, or `None` on a platform with no data directory.
 pub fn data_dir() -> Option<PathBuf> {
     dirs::data_dir().map(|d| d.join(APP_DIR))
@@ -48,4 +51,12 @@ pub fn captures_dir() -> Option<PathBuf> {
 /// rather than an open thing, must be able to file one.
 pub fn feedback_dir() -> Option<PathBuf> {
     data_dir().map(|d| d.join(FEEDBACK_DIR))
+}
+
+/// `<data_dir>/Grimoire/labels`: the turn ledger, `turns.jsonl`, and the pictures it names.
+///
+/// **Never inside a project or its `assets/`** (owner decision on #459): what the ledger holds is about the person's
+/// use of the editor, not about a game, and a project is a folder that is shared.
+pub fn labels_dir() -> Option<PathBuf> {
+    data_dir().map(|d| d.join(LABELS_DIR))
 }

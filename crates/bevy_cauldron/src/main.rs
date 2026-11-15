@@ -178,6 +178,11 @@ fn main() -> AppExit {
     if let Some(dir) = bevy_grimoire_core::user_dirs::data_dir() {
         app.insert_resource(bevy_cauldron::session::SessionStore(dir));
     }
+    // **The turn ledger's folder** (`turn_ledger.rs`, DL-01, #460): only the binary names it, as with the recent list, so no test writes a record
+    // into the real data directory. A turn is recorded unless Settings ▸ Privacy says otherwise.
+    if let Some(dir) = bevy_grimoire_core::user_dirs::labels_dir() {
+        app.insert_resource(bevy_cauldron::turn_ledger::LabelsDir(dir));
+    }
     // **What this machine has** (#341): the terminal starts with the agent chosen on a machine whose
     // login shell finds `omp`, and with a plain shell on one whose does not — the shell the `Invoke
     // Agent` press types into, not this process's `PATH`, which a Finder-launched app is not given. A

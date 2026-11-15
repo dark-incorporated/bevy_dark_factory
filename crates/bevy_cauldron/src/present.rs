@@ -767,6 +767,9 @@ pub fn record_handed_back_notes(
     view: Option<Res<crate::notes_view::NotesView>>,
     mut handbacks: Option<ResMut<HandBacks>>,
     mut seen: Local<Option<HandedBackBefore>>,
+    // **The turn ledger** (DL-01, #460): a resolved note ends a turn as a `grimoire_present` does.
+    mut ledger: Option<ResMut<crate::turn_ledger::TurnLedger>>,
+    client: Option<Res<AgentClient>>,
 ) {
     // **Every one of these is `Option`**: a build without the editor's own plugins has no notes
     // view and no open map, and in Bevy a missing `Res<T>` panics its system rather than skipping it.
@@ -818,7 +821,25 @@ pub fn record_handed_back_notes(
         };
         // **The key is the map file, not the notes file.** A wish cites the open map
         // (`OpenMap::map_path`), so a record keyed on `m.notes.yaml` could never be found by it.
-        handbacks.record_note(&project.root, &open.map_path, &note.id, note.text.clone(), ops);
+        handbacks.record_note(&project.root, &open.map_path, &note.id, note.text.clone(), ops.clone());
+        // **A resolved note is a hand-back too** (DL-01, #460): the turn it ends is recorded with the note's text as its request.
+        if let Some(ledger) = ledger.as_mut().filter(|ledger| ledger.collecting()) {
+            let log = crate::ops::read_entries(&crate::ops::oplog_path(&project));
+            ledger.hand_back(crate::turn_ledger::HandBackInput {
+                kind: HandBackKind::Note,
+                id: &note.id,
+                title: &note.text,
+                summary: "",
+                specified: &[],
+                inferred: &[],
+                check: Vec::new(),
+                note: Some(&note.text),
+                listed: &ops,
+                log: &log,
+                root: &project.root,
+                agent: crate::turn_ledger::agent_of(client.as_deref()),
+            });
+        }
         // **It is this session's now**, so the baseline cannot claim it again if the clock is read
         // again at the same second.
         before.remove(&note.id);

@@ -677,6 +677,9 @@ pub fn start_editor(editor: &Path, project: &Path, map: &str, dir: &Path) -> Res
         // **The project's own data, not the developer's**: a trial must not read or write the real
         // settings, recent list or trust store.
         .env("HOME", dir.join("home"))
+        // **A benchmark's turns are recorded as the benchmark's** (DL-01, #460): the editor's turn ledger marks every record `bench` when it
+        // sees this, so DL-06 keeps them out of a split. The name is `bevy_cauldron::turn_ledger::BENCH_ENV`.
+        .env("GRIMOIRE_BENCH_RUN", "1")
         .stdin(Stdio::null())
         .stdout(stdout)
         .stderr(stderr);
