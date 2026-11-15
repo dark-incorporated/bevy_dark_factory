@@ -34,6 +34,7 @@ name, a key a type does not have is refused at its line, and a refusal changes n
 |`StateMachine`|`initial` and `state`, stepped along `transitions` by signals|`Transitioned`|
 |`Body`|Marks an entity a `Trigger` notices|—|
 |`Collector`|Marks an entity that takes a `Pickup`|—|
+|`Walker`|Moves with the arrow keys and WASD across the ground at `speed_m_s` (4.0 metres a second when the file does not say); two keys at once are one step, not two|its local `Transform`|
 
 `Signal { name }` is the one message every named thing listens for, and **the behaviours write it as well as
 read it**: a `Trigger` a body **enters** and a `Countdown` that rings each write a `Signal` named by their own
