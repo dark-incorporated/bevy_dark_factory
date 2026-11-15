@@ -5,7 +5,7 @@ What each change added, newest first. A visible change has a clip: click the sti
 ## 2026-11-14
 
 - **445-selected-rows** `f9e455d8` Selected dock tabs and the armed library row read at AA contrast in every theme *For you: Selected tabs and the chosen library row are readable in all three themes.* *No clip: visible, not yet recorded: fleet worker*
-- **446-escape-dialogs** `3f4124b0` Escape closes Settings, the keymap and the other dialogs while the terminal has the keyboard *For you: Pressing Escape now closes a dialog even when the terminal had the keyboard.* *No clip: visible, not yet recorded: fleet worker*
+- **446-escape-dialogs** `3f4124b0` Escape closes Settings, the keymap and the other dialogs while the terminal has the keyboard *For you: Pressing Escape now closes a dialog even when the terminal had the keyboard.*<br><a href="docs/changelog/media/2026-11-14-escape-closes-dialogs.mp4"><img src="docs/changelog/media/2026-11-14-escape-closes-dialogs.png" width="320" alt="clip"></a>
 - **450-replaced-row** `3f9cb703` The hand-back lists only replacements that still stand *For you: A hand-back no longer says a piece was replaced when the agent has since taken that change back.* *No clip: visible, not yet recorded: fleet worker*
 - **449-held-follow** `b0bcd049` A held follow waits for the Map door, and a held request keeps a pending Look *No clip: behaviour of the follow; proved by a_held_follow_survives_the_person_leaving_the_map*
 - **447-journal-title** `cda47ac3` The notification centre is titled Notifications, and the Cmd+E legend says so *For you: The panel on Cmd+E is now called Notifications instead of every error this session.* *No clip: visible, not yet recorded: fleet worker*
