@@ -6,10 +6,10 @@
  "crop": [
   0,
   0,
-  1280,
-  703
+  1088,
+  640
  ],
- "setup": [{"key": "KeyJ", "mods": ["ControlLeft"]}],
+ "setup": [],
  "chunks": [
   {
    "seconds": 6.5

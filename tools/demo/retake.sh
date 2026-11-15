@@ -19,7 +19,7 @@ REPO=${REPO:-$(git rev-parse --show-toplevel)}
 : "${EDITOR_BIN:?path to bevy_cauldron}" "${MCP_BIN:?path to bevy_cauldron_mcp}" "${WORK:?scratch directory}"
 PORT=${PORT:-15710}
 mkdir -p "$WORK/home"
-SPECS=("hero hero 600" "agent_drives agent-drives 600" "agent_removes_then_undo agent-removes-then-undo 600"
+SPECS=("hero hero 600" "agent_drives agent-drives 900" "agent_removes_then_undo agent-removes-then-undo 600"
        "build_a_map build-a-map 760" "frame_the_map frame-the-map 520" "move_the_camera move-the-camera 600"
        "place_and_undo place-and-undo 760" "review_labels review-labels 900")
 kill_editors() { for p in $(pgrep -f "$EDITOR_BIN \\. bedroom"); do kill "$p"; done; sleep 3; }
@@ -31,7 +31,7 @@ for spec in "${SPECS[@]}"; do
   ok=0
   for take in 1 2 3 4; do
     kill_editors
-    rm -rf "$WORK/proj" && mkdir -p "$WORK/proj" && cp -r "$REPO/assets" "$WORK/proj/assets"
+    rm -rf "$WORK/proj" "$WORK/home" && mkdir -p "$WORK/proj" "$WORK/home" && cp -r "$REPO/assets" "$WORK/proj/assets"
     (cd "$WORK/proj" && HOME="$WORK/home" BEVY_BRP_PORT=$PORT exec "$EDITOR_BIN" . bedroom > "$WORK/editor.log" 2>&1 < /dev/null) &
     for i in $(seq 1 60); do curl -s -X POST "http://127.0.0.1:$PORT" -d '{"jsonrpc":"2.0","id":1,"method":"rpc.discover"}' | grep -q Bevy && break; sleep 1; done
     sleep 45   # the palette's thumbnails bake for about 40 s after the editor opens
