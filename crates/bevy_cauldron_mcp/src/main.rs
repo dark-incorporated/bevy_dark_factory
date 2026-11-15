@@ -1561,7 +1561,14 @@ impl Grimoire {
     /// anything. The endpoint is one per run, from `GRIMOIRE_DECIDE_ENDPOINT`, `_MODEL` and `_KEY`.
     #[tool(
         name = "grimoire_decide",
-        description = "Ask a decision model a typed question about the editor's pictures and facts, and get a \
+        description = concat!(
+                       "The fastest way to check how your work looks: one still and up to eight questions, answered ",
+                       bevy_cauldron_mcp::decide_latency!(),
+                       " with a probability each. Call it after every change the person will see, before you hand back: \
+                       pass view: true to take the still yourself, or give a still from grimoire_capture_still in images \
+                       (its path or its fingerprint), and ask four or five typed questions about what was asked for. The \
+                       answer names the model that answered (and model_source, reported by the endpoint or configured), where it ran (local, or remote when pictures may have left the \
+                       LAN) and latency_ms. Ask a decision model a typed question about the editor's pictures and facts, and get a \
                        probability for every allowed answer, with nothing to parse. Two forms. check: a \
                        named check such as floating, clipping, outside_area, blank_frame or toast_visible \
                        (the editor's own, with the project's assets/grimoire/checks.yaml over them, read on every \
@@ -1569,7 +1576,7 @@ impl Grimoire {
                        found, and takes the editor's current picture itself when it needs view. questions: \
                        ad-hoc typed questions by id, each noul (yes or no, P(yes)), choice (named options, \
                        each one's probability) or score (levels, a weighted score), with state in words, \
-                       images (project files, at most four) and facts (JSON). A check that needs a picture or \
+                       images (stills from grimoire_capture_still, at most four, each at most 8 MiB) and facts (JSON). A check that needs a picture or \
                        facts it was not given is refused and names what is missing; it never answers from \
                        less. game: also look at the running game that play started: a frame from its \
                        bevy_fairy, named game, on the port in play.yaml or game.port, and one BRP call's \
@@ -1577,7 +1584,7 @@ impl Grimoire {
                        itself, and a game's own checks live in the project's assets/grimoire/checks.yaml. \
                        Advisory: it changes no map data and a finding never blocks or undoes an \
                        operation. The endpoint is one per run, local by default; a Cloudflare endpoint sends \
-                       pictures off the LAN and is opt-in.",
+                       pictures off the LAN and is opt-in."),
         annotations(
             title = "Ask a decision model",
             read_only_hint = true,
@@ -1615,8 +1622,12 @@ impl Grimoire {
             None
         };
         let answer = tokio::task::spawn_blocking(move || {
-            let http = bevy_oracle::Live::new(bevy_oracle::Config::from_env());
-            bevy_cauldron_mcp::decide::decide_with(&p, &project, view.as_deref(), game.as_ref(), &http)
+            let config = bevy_oracle::Config::from_env();
+            let configured_model = config.model.clone();
+            let http = bevy_oracle::Live::new(config);
+            let mut answer = bevy_cauldron_mcp::decide::decide_with(&p, &project, view.as_deref(), game.as_ref(), &http)?;
+            bevy_cauldron_mcp::decide::name_the_model(&mut answer, configured_model.as_deref());
+            Ok::<_, String>(answer)
         })
         .await
         .map_err(|e| ErrorData::internal_error(e.to_string(), None))?;
@@ -2695,7 +2706,9 @@ impl rmcp::ServerHandler for Grimoire {
              which tools come in what order, what a person expects back, and what to do when they \
              pause your writes. Then grimoire_list_operations to learn the operations and their \
              parameters, grimoire_preview_operation to check a change, and grimoire_apply_operation \
-             to make it. Every applied operation is recorded in the editor's operation log.",
+             to make it. Every applied operation is recorded in the editor's operation log. After \
+             every change the person will see, take a still and check it with grimoire_decide: the \
+             guide says how.",
         )
     }
 }

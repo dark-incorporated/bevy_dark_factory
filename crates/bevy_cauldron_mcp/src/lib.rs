@@ -17,6 +17,20 @@ pub mod decide;
 pub mod docs;
 pub mod sequence;
 
+/// **How fast `grimoire_decide` answers, in the words the tool's description uses** (#456).
+///
+/// **The one place the latency is written**, so the figure DM-01 (#452) measures on the local model is
+/// changed here and nowhere else: the server's tool description (`main.rs`) and the reference's copy of it
+/// (`docs.rs`) both build their sentence from this. A macro, not a `const`, because an attribute's
+/// description is assembled with `concat!`, which takes literals. Then regenerate `docs/mcp-tools.md`
+/// (`cargo run -q -p bevy_cauldron_mcp -- --emit-docs > docs/mcp-tools.md`).
+#[macro_export]
+macro_rules! decide_latency {
+    () => {
+        "in about a second"
+    };
+}
+
 /// **The version, for the server's own handshake.**
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
