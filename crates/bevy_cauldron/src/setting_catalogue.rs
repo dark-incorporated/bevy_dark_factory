@@ -150,6 +150,13 @@ pub const CATALOGUE: &[Setting] = &[
         kind: Kind::Scale { min: GRID_STRENGTH_RANGE.0, max: GRID_STRENGTH_RANGE.1 },
     },
     Setting {
+        key: "decision_model",
+        label: "Decision model",
+        category: "Decisions",
+        description: "The model that answers the editor's decision questions, an agent's grimoire_decide and the labeller. Local asks d3-flash on this network, and nothing leaves it. Remote asks Perplexity's model through OpenRouter. Remote sends screenshots of this project to OpenRouter and Perplexity. Remote is your own choice, made here for just you (a project's settings file cannot make it), and it needs OPENROUTER_API_KEY in the environment.",
+        kind: Kind::Options(DECISION_MODELS),
+    },
+    Setting {
         key: "terminal_text_scale",
         label: "Terminal text size",
         category: "Terminal",
@@ -183,13 +190,6 @@ pub const CATALOGUE: &[Setting] = &[
         category: "Terminal",
         description: "The agent the terminal's Start agent button starts, connected to the editor's tools and checked with a self test. The terminal starts no agent by itself: a session costs tokens to warm up. Custom command runs terminal_agent_command from settings.yaml, and is offered once a command is set.",
         kind: Kind::Options(TERMINAL_AGENTS),
-    },
-    Setting {
-        key: "decision_model",
-        label: "Decision model",
-        category: "Decisions",
-        description: "The model that answers the editor's decision questions, an agent's grimoire_decide and the labeller. Local asks d3-flash on this network, and nothing leaves it. Remote asks Perplexity's model through OpenRouter. Remote sends screenshots of this project to OpenRouter and Perplexity. Remote is your own choice, made here for just you (a project's settings file cannot make it), and it needs OPENROUTER_API_KEY in the environment.",
-        kind: Kind::Options(DECISION_MODELS),
     },
 ];
 
