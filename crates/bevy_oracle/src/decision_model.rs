@@ -160,3 +160,11 @@ pub fn probe(transport: &dyn crate::Transport) -> Result<Answered, Error> {
     let site = transport.site();
     Ok(Answered { model: response.model.unwrap_or_else(|| site.name().to_owned()), site, latency })
 }
+
+/// **The first IPv4 address of `host`** (DM-01 review): requests dial IPv4 only (`big.local` also resolves to IPv6 addresses big's
+/// firewall drops), so a preflight that dialled the first address of any family would test a path no request takes. `None` when
+/// the name does not resolve or has no IPv4 address. The one helper the editor's probe and its remedy share.
+pub fn first_ipv4(host: &str, port: u16) -> Option<std::net::SocketAddr> {
+    use std::net::ToSocketAddrs;
+    (host, port).to_socket_addrs().ok()?.find(std::net::SocketAddr::is_ipv4)
+}

@@ -238,8 +238,8 @@ pub fn label_with_decisions(
         .collect();
     let mut responses = Vec::new();
     for request in build_requests(vocab, ctx, &images) {
-        let endpoint = transport.endpoint();
-        responses.push(ask(transport, &request).map_err(|e| failure(&endpoint, e))?);
+        let (site, endpoint) = (transport.site(), transport.endpoint());
+        responses.push(ask(transport, &request).map_err(|e| failure(site, &endpoint, e))?);
     }
     let model = responses
         .iter()
@@ -261,27 +261,30 @@ pub fn label_with_decisions(
 /// layer — so a remote endpoint gets the transport's own words and nothing else. This is the same
 /// judgement [`probe`] makes when it declines to dial a remote address at all, and it is why
 /// [`remedy_for`] exists rather than one sentence for every failure.
-fn failure(endpoint: &str, e: Error) -> LabelFailure {
+fn failure(site: bevy_oracle::DecisionModel, endpoint: &str, e: Error) -> LabelFailure {
     match e {
         Error::Unreachable { .. } => LabelFailure::Unreachable {
             transport: e.to_string(),
-            remedy: remedy_for(endpoint),
+            remedy: remedy_for(site, endpoint),
         },
         other => LabelFailure::Refused(other.to_string()),
     }
 }
 
-/// **What to do about a refused connection to this URL**, or `None` when the answer would be a
-/// guess. `None` for an address [`is_near`] rejects: out there the transport's own words are the
-/// better message, and naming a local service would send the reader at the wrong layer.
-fn remedy_for(url: &str) -> Option<String> {
+/// **What to do about an unreachable model**, from the person's choice (DM-03, #454): Local is d3-flash on big, which a GPU lease
+/// unloads, so the advice is to look at who holds the card and retry; **Remote gets the transport's own words and nothing else**
+/// (`None`): out there a refusal folds DNS, TLS, a proxy and the provider's own health together, and local advice would send the
+/// reader at the wrong layer. A Local endpoint no machine on this LAN answers for (an address [`is_near`] rejects) gets none either.
+fn remedy_for(site: bevy_oracle::DecisionModel, url: &str) -> Option<String> {
+    if site == bevy_oracle::DecisionModel::Remote {
+        return None;
+    }
     let (host, port) = host_port(url)?;
-    use std::net::ToSocketAddrs;
-    let ip = (host.as_str(), port).to_socket_addrs().ok()?.next()?.ip();
-    is_near(ip).then(|| {
+    let addr = bevy_oracle::first_ipv4(&host, port)?;
+    is_near(addr.ip()).then(|| {
         format!(
-            "start the decision service there (tools/decide/serve-clef-flash.sh) or change the Decision model in Settings \
-             — nothing is serving {host}:{port}"
+            "the local decision model (d3-flash on big) is not loaded: a GPU lease unloads it; `gpu-tenant status` names the holder, \
+             retry in a minute, or change the Decision model in Settings — nothing is serving {host}:{port}"
         )
     })
 }
@@ -320,14 +323,10 @@ pub fn probe(cfg: &Config) -> Reach {
         // An address this cannot parse is not evidence of anything; let the real request judge it.
         return Reach::Ready;
     };
-    use std::net::ToSocketAddrs;
-    let Ok(mut addrs) = (host.as_str(), port).to_socket_addrs() else {
+    let Some(addr) = bevy_oracle::first_ipv4(&host, port) else {
         return Reach::Unreachable(format!(
-            "`{host}` does not resolve — check the machine serving the model, or change the Decision model in Settings"
+            "`{host}` does not resolve to an IPv4 address — check the machine serving the model, or change the Decision model in Settings"
         ));
-    };
-    let Some(addr) = addrs.next() else {
-        return Reach::Unreachable(format!("`{host}` resolves to nothing"));
     };
     if !is_near(addr.ip()) {
         return Reach::Ready;
@@ -337,7 +336,7 @@ pub fn probe(cfg: &Config) -> Reach {
         Err(e) if e.kind() == std::io::ErrorKind::ConnectionRefused => {
             Reach::Unreachable(format!(
                 "nothing is listening on {host}:{port} — start the decision service there \
-                 (tools/decide/serve-clef-flash.sh), or change the Decision model in Settings \
+                 (tools/decide/serve-d3-flash.sh), or change the Decision model in Settings \
                  to one that is serving"
             ))
         }
@@ -389,7 +388,7 @@ fn is_near(ip: std::net::IpAddr) -> bool {
 /// answer, and the content is irrelevant to the point, which is to make the server load the model.
 pub fn warm(transport: &dyn Transport) -> Result<(), LabelFailure> {
     let request = Request::new("ready").with_question("ready", Question::noul("Answer yes."));
-    ask(transport, &request).map_err(|e| failure(&transport.endpoint(), e))?;
+    ask(transport, &request).map_err(|e| failure(transport.site(), &transport.endpoint(), e))?;
     Ok(())
 }
 
@@ -580,7 +579,7 @@ mod tests {
         match probe(&cfg) {
             Reach::Unreachable(why) => {
                 assert!(why.contains("Decision model in Settings"), "the remedy travels with the verdict: {why}");
-                assert!(why.contains("serve-clef-flash"), "and names how to serve it: {why}");
+                assert!(why.contains("serve-d3-flash"), "and names how to serve it: {why}");
             }
             other => panic!("a dead port must refuse, got {other:?}"),
         }
@@ -668,6 +667,9 @@ mod tests {
             fn endpoint(&self) -> String {
                 "http://127.0.0.1:1/v1/systemone".into()
             }
+            fn site(&self) -> bevy_oracle::DecisionModel {
+                bevy_oracle::DecisionModel::Local
+            }
             fn send(&self, _: &Request) -> Result<Response, Error> {
                 Err(Error::Unreachable {
                     endpoint: self.endpoint(),
@@ -699,6 +701,10 @@ mod tests {
             fn endpoint(&self) -> String {
                 self.0.to_owned()
             }
+            // The choice is the person's, not read off the address: the Cloudflare-looking stand-in is the Remote choice.
+            fn site(&self) -> bevy_oracle::DecisionModel {
+                if self.0.starts_with("https://") { bevy_oracle::DecisionModel::Remote } else { bevy_oracle::DecisionModel::Local }
+            }
             fn send(&self, _: &Request) -> Result<Response, Error> {
                 Err(Error::Unreachable { endpoint: self.0.to_owned(), detail: "Connection refused".into() })
             }
@@ -718,7 +724,7 @@ mod tests {
             panic!("a local refusal is unreachable WITH a remedy, got {local:?}");
         };
         assert!(remedy.contains("Decision model in Settings"), "{remedy}");
-        assert!(remedy.contains("serve-clef-flash"), "{remedy}");
+        assert!(remedy.contains("gpu-tenant status"), "{remedy}");
 
         // A remote endpoint: the transport's own words, and no local advice at all.
         let remote = label_with_decisions(
@@ -738,7 +744,7 @@ mod tests {
             "a remote endpoint was handed local advice: {remedy:?}"
         );
         assert!(
-            !remote.to_string().contains("serve-clef-flash")
+            !remote.to_string().contains("gpu-tenant")
                 && !remote.to_string().contains("Decision model in Settings"),
             "and the sentence carries none either: {remote}"
         );

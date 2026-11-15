@@ -98,7 +98,7 @@ The labeller sends two photographs of a piece to a decision model and asks one y
 
 Set this up once, in Settings: open Settings (Cmd+, or Ctrl+,) and choose **Decision model** under *Decisions*.
 
-- **Local** (the default) asks d3-flash on this network (`http://127.0.0.1:8093/v1/systemone`; serve it with `tools/decide/serve-clef-flash.sh`). Nothing leaves the network.
+- **Local** (the default) asks d3-flash on this network (`http://big.local:8081/upstream/d3-flash/v1/systemone`, big's llama-swap; see `docs/decide/serving-d3-flash.md`). Nothing leaves the network.
 - **Remote** asks Perplexity's model through OpenRouter and **sends screenshots of this project to OpenRouter and Perplexity**. It is your own choice, made in your own settings file (`decision_model: remote` in `settings.yaml`, which the Settings screen writes); a project's `editor.yaml` cannot make it and is told so. It needs `OPENROUTER_API_KEY` in the environment, which is a key and not a setting, never read from a file. With Remote chosen and no key, decisions are refused with that sentence and the local model is not asked instead. See `docs/decide/openrouter.md`.
 
 The old endpoint, model, key, timeout and protocol variables and the project `.env` that held them are retired.

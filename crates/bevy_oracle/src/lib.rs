@@ -34,7 +34,7 @@ pub use config::{
     Config, DecisionModel, Endpoints, LOCAL_ENDPOINT, LOCAL_MODEL_NAME, OPENROUTER_ENDPOINT, OPENROUTER_KEY_VAR, OPENROUTER_MODEL, Protocol,
     REMOTE_WITHOUT_KEY, TIMEOUT_SECS,
 };
-pub use decision_model::{Answered, Chosen, Resolved, SETTING_KEY, SettingsProblem, choose, probe, project_file, project_may_not_choose, user_file};
+pub use decision_model::{Answered, first_ipv4, Chosen, Resolved, SETTING_KEY, SettingsProblem, choose, probe, project_file, project_may_not_choose, user_file};
 pub use openrouter::{FREE_REQUESTS_PER_MINUTE, OpenRouterDecisions, OpenRouterFailure, wire_request};
 pub use run::{Verdict, evidence_from, run_checks};
 pub use transport::{Http, Live, Recorder, Replay, Transport};

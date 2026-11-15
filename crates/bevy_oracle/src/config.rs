@@ -113,8 +113,10 @@ impl fmt::Debug for Config {
     }
 }
 
-/// d3-flash on this LAN: `tools/decide/serve-d3-flash.sh` on big.
-pub const LOCAL_ENDPOINT: &str = "http://127.0.0.1:8093/v1/systemone";
+/// d3-flash on this LAN, the same endpoint from every editor: big's llama-swap (`:8081`) starts the model
+/// on the first request and proxies `/v1/systemone` through `/upstream/d3-flash`. `big.local` is the name
+/// every LAN host resolves (mDNS); a bare `big` resolves only on big itself. `docs/decide/serving-d3-flash.md`.
+pub const LOCAL_ENDPOINT: &str = "http://big.local:8081/upstream/d3-flash/v1/systemone";
 
 /// What the local model is called before an answer has named it.
 pub const LOCAL_MODEL_NAME: &str = "d3-flash";

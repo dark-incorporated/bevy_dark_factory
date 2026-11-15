@@ -153,6 +153,59 @@ fn a_refused_request_is_an_error_with_endpoint_status_and_body() {
     }
 }
 
+/// llama-swap answers when it cannot start the model (a GPU lease on big evicted it and its launch script
+/// refused to load it again): measured 2026-11-15 on big, HTTP 500 in 0.25 s with the body below. That is not
+/// a refusal of the request: the server cannot serve right now, so it is `Unreachable`, with the status, the
+/// gateway's own words and what to do about it. Any 502, 503 or 504 says the same.
+#[test]
+fn a_gateway_that_cannot_run_the_model_is_unreachable_with_the_remedy() {
+    const LLAMA_SWAP_500: &str = r#"{"error":"unspecific error: upstream command exited prematurely","src":"llama-swap"}"#;
+    for (status, body) in [(500, LLAMA_SWAP_500), (502, "x"), (503, "x"), (504, "x")] {
+        let url = serve_once(status, body);
+        let cfg = Config { endpoint: url.clone(), ..Config::default() };
+        match ask(&Http::new(cfg), &fixture_request()) {
+            Err(e @ Error::Unreachable { .. }) => {
+                let said = e.to_string();
+                assert!(said.contains(&url), "names the endpoint: {said}");
+                assert!(said.contains(&status.to_string()), "names the status: {said}");
+                assert!(said.contains(body), "keeps the gateway's words: {said}");
+                assert!(said.contains("gpu-tenant status"), "names the remedy: {said}");
+            }
+            other => panic!("{status}: {other:?}"),
+        }
+    }
+}
+
+#[test]
+fn a_server_error_from_the_model_itself_is_still_a_refusal() {
+    let url = serve_once(500, r#"{"error":"out of memory"}"#);
+    let cfg = Config { endpoint: url, ..Config::default() };
+    assert!(matches!(ask(&Http::new(cfg), &fixture_request()), Err(Error::Refused { status: 500, .. })));
+}
+
+/// `big.local` resolves to link-local and global IPv6 addresses as well as the LAN's IPv4 one, and big's
+/// firewall drops IPv6 SYNs to :8081. A client that tries the addresses in order sat 56.9 s on the two
+/// dead IPv6 ones before the answer came from IPv4 (0.44 s by literal IP), a whole 60 s timeout spent on a
+/// name. Decisions are asked over IPv4: here `localhost` has a server on `::1` only, and it is not reached.
+#[test]
+fn a_name_is_resolved_to_its_ipv4_address_only() {
+    use std::io::{Read, Write};
+    let l = std::net::TcpListener::bind("[::1]:0").unwrap();
+    let port = l.local_addr().unwrap().port();
+    std::thread::spawn(move || {
+        if let Ok((mut s, _)) = l.accept() {
+            let mut buf = [0u8; 8192];
+            let _ = s.read(&mut buf);
+            let _ = s.write_all(b"HTTP/1.1 401 X\r\nContent-Length: 2\r\nConnection: close\r\n\r\n{}");
+        }
+    });
+    let cfg = Config { endpoint: format!("http://localhost:{port}/v1/systemone"), timeout_secs: 5, ..Config::default() };
+    match ask(&Http::new(cfg), &fixture_request()) {
+        Err(Error::Unreachable { .. }) => {}
+        other => panic!("reached the IPv6-only server: {other:?}"),
+    }
+}
+
 #[test]
 fn http_round_trips_the_recorded_response() {
     let body: &'static str =
@@ -165,7 +218,7 @@ fn http_round_trips_the_recorded_response() {
 #[test]
 fn config_defaults_local_and_the_environment_names_only_the_remote_key() {
     let d = Endpoints::default().config(DecisionModel::Local).unwrap();
-    assert!(d.endpoint.starts_with("http://127.0.0.1:") && d.key.is_none() && d.model.is_none());
+    assert!(d.endpoint == "http://big.local:8081/upstream/d3-flash/v1/systemone" && d.key.is_none() && d.model.is_none());
     assert_eq!(d, Config::default());
     // Where each choice goes is the `Endpoints` value, so a test (or a stand-in server) names both.
     let e = Endpoints { local: "http://lan.example:8093/v1/systemone".into(), remote: "https://router.example/decisions".into(), key: Some("k".into()) };
