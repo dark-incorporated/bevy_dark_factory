@@ -2,6 +2,11 @@
 
 What each change added, newest first. A visible change has a clip: click the still to play it. `python3 tools/changelog/changelog.py page --open` plays them all in one page.
 
+## 2026-11-15
+
+- **core-0-12-upgrade** Upgrading bevy_grimoire_core from 0.11 to 0.12: the references module is removed (the board module replaces it: every place of the design tree has a dream board at <place>/board/board.yaml, and bevy_cauldron migrate moves an old references file to the level's board with the same captions), trust::GuideGrant is removed (one trust::TextGrant per file replaces it: use TrustStore::text_decision, trust_text and revoke_text; a version 1 or 2 trust store is still read, so what a person allowed stays allowed), and a style module is added *No clip: an API change in a library crate, written down for the release; proved by the_design_tree_is_in_the_editors_state, a_dream_board_for_every_place and the trust tests that read a version 2 store*
+- **docs-factory-readmes** `c66761fe` The README, the guide, PROJECT.md and every crate README describe the editor as it is: ten workspaces, the Design workspace and style, the terminal, the hand-back and wishes, the benchmark; bevy_grimoire_core's README says what 0.12.0 breaks (the references module is replaced by board, trust::GuideGrant by TextGrant) *No clip: a README and docs change; proved by every relative and own-repository link in the touched documents resolving, docs/mcp-tools.md matching the server's own --emit-docs, and the rng and solver README doctests passing*
+
 ## 2026-11-14
 
 - **445-selected-rows** `f9e455d8` Selected dock tabs and the armed library row read at AA contrast in every theme *For you: Selected tabs and the chosen library row are readable in all three themes.*<br><a href="docs/changelog/media/2026-11-14-445-selected-rows.mp4"><img src="docs/changelog/media/2026-11-14-445-selected-rows.png" width="320" alt="clip"></a>

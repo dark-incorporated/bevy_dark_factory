@@ -9,7 +9,7 @@ Some terms used on this page:
 - A **placement** is one piece at one spot on a map.
 - A **composition** is a named group of pieces that belong together, such as a wall with its door and lamp.
 - A **stamp** is one composition placed on a map. The map keeps the stamp, and the game expands it into placements when it loads.
-- A **door** is one of the editor's main areas. The map door edits a map. The kit door edits a kit.
+- A **workspace** is one of the editor's ten jobs. The Map workspace edits a map and the Kit workspace edits a kit ([keys](keys.md) lists them all).
 - **bash** is a named group of bound kits. A map can belong to one bash.
 
 ## Project layout
@@ -100,7 +100,7 @@ editor's YAML extension offers completion and hover from the same types the edit
 
 **Goal:** the game loads one map and spawns its pieces when it starts.
 
-1. Add `bevy`, `bevy_grimoire` and `bevy_grimoire_core` to your game's `Cargo.toml`, by path or git to follow this repository's `main`; `bevy_grimoire_core = "0.6"` and `bevy_grimoire = "0.3"` are also on crates.io. `bevy_grimoire` is the runtime crate: `GrimoirePlugin` and the spawn helpers. `bevy_grimoire_core` loads and checks the data, with no engine dependency. A game that uses only the data, and spawns its own entities, can depend on `bevy_grimoire_core` alone.
+1. Add `bevy`, `bevy_grimoire` and `bevy_grimoire_core` to your game's `Cargo.toml`, by path or git to follow this repository's `main`, or from crates.io (`cargo add bevy_grimoire bevy_grimoire_core`). `bevy_grimoire` is the runtime crate: `GamePlugin`, `GrimoirePlugin` and the spawn helpers. `bevy_grimoire_core` loads and checks the data, with no engine dependency. A game that uses only the data, and spawns its own entities, can depend on `bevy_grimoire_core` alone. A game made only of YAML and scripts needs `GamePlugin` and nothing else: `games/sample/src/main.rs` is `App::new().add_plugins((DefaultPlugins, GamePlugin)).run();`, and `GamePlugin` reads the project from the working directory, or from the folder `GRIMOIRE_ROOT` names.
 2. Put your data files under `assets/grimoire/`, as shown above.
 3. At start-up, call `project_data::load` with the `assets/grimoire` path and the names of the maps you need. The path is read from the working directory, so start the game from the game's root.
 4. Take the map out of the loaded project. Build an `GrimoireWorld` from the merged library, the map, the vocabulary, the compositions, and the lattice.
@@ -189,7 +189,7 @@ It needs an `GrimoireWorld` resource, which `GrimoirePlugin` spawns from. About 
 - If the project does not load, the plugin logs why, keeps every entity and the last good `GrimoireWorld`, and writes no `ProjectReloaded`. The reason goes to `.live/game.yaml`, where the editor shows it: which file, which field of it and why (`maps/town.map.yaml (placements[3].at[1]): map: 1:47: Expected float`), with an `applied` or `refused` entry for every file the load reads and a `seq` that counts one edit once. [The reload contract](reload-contract.md) has the detail.
 - The map in the `GrimoireWorld` resource is the one that is redrawn. Other maps in `maps` are diffed but not drawn.
 - The game's own derived data, such as a navmesh built from the map, is yours to rebuild when `ProjectReloaded` arrives.
-- **Your own tuning files follow too.** List a file in `assets/grimoire/data.yaml` (an id, its path relative to that folder, and bounds for the leaves the editor may tune), keep the file outside that folder (beside it, say `assets/data`), and register its reader once, before the first frame: `app.reload_data_file("tuning/mob", |world, text| { let tuning: MobTuning = ron::from_str(text).map_err(|e| e.to_string())?; world.insert_resource(tuning); Ok(()) });`. About a second after the file is written, it is checked against its `data.yaml` entry (it reads, every bounded leaf is there, a number and in range) and handed to your reader, which is your own parse of your own type. A file that does not read, or that your reader refuses, keeps the value you had, and `.live/game.yaml` says which file and which leaf; one that reads is `applied`. The first look at the file is the baseline and decides nothing, so load it yourself at start.
+- **Your own tuning files follow too.** List a file in `assets/grimoire/data.yaml` (an id, its path relative to that folder, and bounds for the leaves the editor may tune), keep the file outside that folder (beside it, say `assets/data`), and register its reader once, before the first frame: `app.reload_data_file("tuning/mob", |world, text| { let tuning: MobTuning = bevy_grimoire_core::yaml::from_str(text, "tuning/mob.yaml").map_err(|p| p.line())?; world.insert_resource(tuning); Ok(()) });`. About a second after the file is written, it is checked against its `data.yaml` entry (it reads, every bounded leaf is there, a number and in range) and handed to your reader, which is your own parse of your own type. A file that does not read, or that your reader refuses, keeps the value you had, and `.live/game.yaml` says which file and which leaf; one that reads is `applied`. The first look at the file is the baseline and decides nothing, so load it yourself at start.
 
 ## Generate a map
 
@@ -214,14 +214,18 @@ Use `bevy_grimoire_rng::seeded(seed)` for any randomness in your game. It return
 
 | Crate | What it does |
 |---|---|
-| `bevy_devshot` | A frame on demand: touch a sentinel file and the next frame writes a PNG, straight from the GPU. |
+| `bevy_devshot` | A frame on demand: touch a sentinel file and the next frame writes a PNG, straight from the GPU. Not on crates.io. |
 | `bevy_grimoire` | The runtime half of grimoire: load a library and a map, and put it in a Bevy world. |
 | `bevy_grimoire_anim` | Blends a skinned model's clip weights on its AnimationPlayer, in place of transitions. |
-| `bevy_grimoire_core` | Engine-free world-building core: constraint IR, solvers, WFC, deterministic RNG. |
-| `bevy_cauldron` | A standalone world-building editor: author maps from an asset library, save what a game can load. |
-| `bevy_cauldron_mcp` | An MCP server for the bevy_grimoire world editor: typed operations over stdio, and a BRP client for the running editor. |
+| `bevy_grimoire_core` | Engine-free world-building core: the project's file types and YAML reader, the design tree, solvers, WFC, the grammar learner. |
+| `bevy_grimoire_rhai` | The one Rhai host a game's scripts run on, reloaded live. |
+| `bevy_cauldron` | A standalone world-building editor: author maps from an asset library, save what a game can load. Not on crates.io. |
+| `bevy_cauldron_mcp` | An MCP server for the editor: typed operations over stdio, and a BRP client for the running editor. Not on crates.io. |
+| `bevy_cauldron_bench` | `cauldron-bench`: runs a real agent against a real editor and grades the files it leaves ([the benchmark](../../bench/README.md)). Not on crates.io. |
+| `bevy_grimoire_migrate` | Moves a project's files from RON to YAML, losslessly (`bevy_cauldron migrate`). Not on crates.io. |
+| `bevy_oracle` | Typed questions to a decision model, at authoring time only. Not on crates.io. |
 | `bevy_grimoire_rng` | One deterministic RNG for a whole simulation: a seeded ChaCha8 stream plus the unbiased integer and float draws generators actually need, reproducible from a single u64 across platforms and thread counts. |
-| `bevy_grimoire_snip` | Cutting one rectangle out of a PNG of the bevy_grimoire editor, shared by the editor and the MCP server. |
+| `bevy_grimoire_snip` | Cutting one rectangle out of a PNG of the editor, shared by the editor and the MCP server. |
 | `bevy_grimoire_solver` | A Boolean satisfiability back-end that answers the same way every run, on every machine: no clock, no threads, no entropy, and a give-up budget counted in conflicts rather than seconds. |
 
 `bevy_grimoire_core` has no engine dependency. A test in that crate fails the build if one is added.

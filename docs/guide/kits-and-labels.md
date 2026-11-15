@@ -158,11 +158,11 @@ A kit that caps every opening can still fail to build. Two stress tests in `bevy
 
 An agent reads both in `grimoire_state.stress`, from the library on every call, so an edit to a piece's tokens is in the next answer: `ring` is the loop's four pieces (north-west, north-east, south-west, south-east) and `room` three rows of three, north to south and west to east with the middle at `[1][1]`, each piece as `{piece, turn}` with its turn in degrees, or `null` when the kit cannot build it. `declared` counts the pieces that carry an edge token: at `0` the kit is unlabelled, and its nulls say nothing about it. The editor's panels do not show them yet.
 
-## Undo on the kit door
+## Undo in the Kit workspace
 
 Goal: take back the newest change to a piece.
 
-On the Meshes panel, press `Cmd+Z` to undo the newest change to a piece. Press `Shift+Cmd+Z` to redo it. Undo here is separate from the Map door's undo.
+On the Meshes panel, press `Cmd+Z` to undo the newest change to a piece. Press `Shift+Cmd+Z` to redo it. Undo here is separate from the Map workspace's undo.
 
 ## Let an agent do it
 
@@ -170,7 +170,7 @@ Goal: have an agent find unchecked labels and set them.
 
 The agent uses three operations and one read. It calls them through `grimoire_apply_operation`, which takes `operation`, `parameters` and `dry_run`. On this tool `dry_run` defaults to `false`; set it to `true` to preview a change without making it.
 
-![An agent lists the pieces a model labelled, the editor crosses to the kit door's Meshes panel, the arrow keys walk the piece list, and the labels row reads confidence high · the model · date.](../media/review-labels.gif)
+![An agent lists the pieces a model labelled, the editor crosses to the Kit workspace's Meshes panel, the arrow keys walk the piece list, and the labels row reads confidence high · the model · date.](../media/review-labels.gif)
 
 Steps:
 
