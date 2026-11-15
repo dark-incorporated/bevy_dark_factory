@@ -4,6 +4,7 @@ What each change added, newest first. A visible change has a clip: click the sti
 
 ## 2026-11-14
 
+- **term-448-tab-names** `8db656522` A terminal tab named by a long path is cut with an ellipsis in the bar, so no chip beside it is crowded (#448) *No clip: visible, not yet recorded: fleet worker*
 - **vis-agent-workspace-change-no-toast** `35d87b9a` A change made while the Agent workspace is open is framed when the Map shows and raises no viewport toast (#439) *No clip: visible, not yet recorded: fleet worker*
 - **vis-preparing-band-above-status-bar** `bf74df26` The Preparing the view band stands above the status bar and no longer covers its text (#440) *No clip: visible, not yet recorded: fleet worker*
 - **vis-design-page-fits-its-column** `972e3502` A Design page's pictures fit the column and clear the scrollbar, and Edit mode keeps the page's width (#437, #438) *No clip: visible, not yet recorded: fleet worker*
