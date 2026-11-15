@@ -149,8 +149,8 @@ pub fn evidence(dir: &Path) -> Evidence {
 ///
 /// This is the one function a calibration run needs and a pass without a model cannot finish: it makes the
 /// request for each sample (the still, three frames and the title), asks, and returns P(yes) beside the
-/// sample's truth. Keeping it here rather than in the binary is what lets the request and its evidence be
-/// tested without a model.
+/// right answer to the question (yes for a mismatch). Keeping it here rather than in the binary is what
+/// lets the request and its evidence be tested without a model.
 pub fn score_set(
     check: &Check,
     samples: &[Labelled],
@@ -181,7 +181,11 @@ pub fn score_set(
                     response.answers.keys().collect::<Vec<_>>()
                 ),
             })?;
-        out.push(crate::Sample { p_yes, truth: s.truth });
+        // **The sample's truth is the right answer to the question, and "yes" means the clip FAILS its
+        // line** (#455). A match (`s.truth`) is a clip that shows its line, whose right answer is no; a
+        // mismatch's is yes. Handing `calibrate` `s.truth` itself paired "is a match" with P(fails to
+        // show), so a model that was right scored at best the 50 % all-yes threshold.
+        out.push(crate::Sample { p_yes, truth: !s.truth });
     }
     Ok(out)
 }
@@ -249,7 +253,7 @@ mod tests {
         let scored = score_set(&clip_check("clip"), &samples, &transport)
             .expect("an answer under `check` is the answer this check asked for");
         assert_eq!(scored.len(), 1);
-        assert!(scored[0].truth, "the sample is a match and must score as one");
+        assert!(!scored[0].truth, "the sample is a match: the right answer to \"does it fail its line?\" is no");
         assert!((scored[0].p_yes - 0.9).abs() < 1e-9, "p_yes was {}", scored[0].p_yes);
     }
 
