@@ -286,7 +286,13 @@ fn main() {
         eprintln!("no checks: neither a project checks.yaml nor the built-in set");
         std::process::exit(2);
     }
-    println!("\n{} check(s); nothing was asked. Pass --ask to send them to {}", listed, transport.endpoint());
+    // **A choice that cannot be asked is said, not hidden behind the default endpoint**: the listing names where `--ask` would go,
+    // or why it would go nowhere.
+    let goes_to = match &resolved {
+        Ok(_) => transport.endpoint(),
+        Err(e) => format!("nowhere: {e}"),
+    };
+    println!("\n{listed} check(s); nothing was asked. Pass --ask to send them to {goes_to}");
 }
 
 fn print_verdict(verdict: &Verdict, json: bool) {

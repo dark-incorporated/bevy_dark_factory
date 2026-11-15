@@ -68,7 +68,7 @@ No hidden retries: whatever OpenRouter says comes back once, named, with its rea
 |404|`Error::OpenRouter { failure: NoEndpoint }`|No endpoint satisfies the `provider` filter (`zdr`, `data_collection`, `only`) or the account's privacy settings (https://openrouter.ai/settings/privacy). **Report to the person; the filter is never relaxed.**|
 |429|`Error::OpenRouter { failure: RateLimited { retry_after } }`|Free tier: 20 requests a minute, 50 a day (1000 once $10 of credits were ever bought). `Retry-After` is carried as sent. The caller paces (3 s apart is under the minute limit) and waits; nothing here sleeps.|
 |502/503/524/529|`Error::Refused`|Provider error, overload or timeout. Report; at most one explicit, logged retry by the person.|
-|no key|`Error::Invalid` naming `OPENROUTER_API_KEY`|Nothing was sent.|
+|no key|`Error::RemoteWithoutKey` from `Endpoints::config` (its sentence, `REMOTE_WITHOUT_KEY`, names `OPENROUTER_API_KEY`); a `Config` built by hand without a key is `Error::Invalid` naming it|Nothing was sent, and the local model is not asked instead.|
 
 ## Quota check
 
