@@ -4,7 +4,7 @@ What each change added, newest first. A visible change has a clip: click the sti
 
 ## 2026-11-14
 
-- **vis-agent-workspace-change-no-toast** `35d87b9a` A change made while the Agent workspace is open is framed when the Map shows and raises no viewport toast (#439) *No clip: visible, not yet recorded: fleet worker*
+- **vis-agent-workspace-change-no-toast** `35d87b9a` A change made while the Agent workspace is open is framed when the Map shows and raises no viewport toast (#439)<br><a href="docs/changelog/media/2026-11-14-visual-fixes-files-agent.mp4"><img src="docs/changelog/media/2026-11-14-visual-fixes-files-agent.png" width="320" alt="clip"></a>
 - **vis-preparing-band-above-status-bar** `bf74df26` The Preparing the view band stands above the status bar and no longer covers its text (#440) *No clip: visible, not yet recorded: fleet worker*
 - **vis-design-page-fits-its-column** `972e3502` A Design page's pictures fit the column and clear the scrollbar, and Edit mode keeps the page's width (#437, #438)<br><a href="docs/changelog/media/2026-11-14-visual-fixes-design.mp4"><img src="docs/changelog/media/2026-11-14-visual-fixes-design.png" width="320" alt="clip"></a>
 - **vis-design-tree-selected-row-reads** `37f7eee9` The Design tree's selected row reads at 4.5:1 or better in every skin: gooey's accent and accent text (#436)<br><a href="docs/changelog/media/2026-11-14-visual-fixes-design.mp4"><img src="docs/changelog/media/2026-11-14-visual-fixes-design.png" width="320" alt="clip"></a>
