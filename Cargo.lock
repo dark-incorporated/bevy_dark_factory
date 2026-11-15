@@ -723,7 +723,7 @@ dependencies = [
 
 [[package]]
 name = "bevy_cauldron"
-version = "0.6.7"
+version = "0.6.8"
 dependencies = [
  "accesskit",
  "alacritty_terminal",
@@ -1253,7 +1253,7 @@ dependencies = [
 
 [[package]]
 name = "bevy_grimoire"
-version = "0.5.1"
+version = "0.6.0"
 dependencies = [
  "bevy",
  "bevy_grimoire_core",
@@ -1265,7 +1265,7 @@ dependencies = [
 
 [[package]]
 name = "bevy_grimoire_anim"
-version = "0.2.1"
+version = "0.3.0"
 dependencies = [
  "bevy",
  "bevy_grimoire_core",
@@ -1273,7 +1273,7 @@ dependencies = [
 
 [[package]]
 name = "bevy_grimoire_core"
-version = "0.11.0"
+version = "0.12.0"
 dependencies = [
  "bevy_grimoire_migrate",
  "bevy_grimoire_rng",
@@ -1307,7 +1307,7 @@ dependencies = [
 
 [[package]]
 name = "bevy_grimoire_rhai"
-version = "0.1.1"
+version = "0.2.0"
 dependencies = [
  "bevy",
  "bevy_grimoire_core",
