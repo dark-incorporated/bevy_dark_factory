@@ -53,7 +53,7 @@ pub fn clip_check(name: &str) -> Check {
         // than not". It is advisory until the labelled set moves it.
         threshold: 0.5,
         after_edit: false,
-        calibration: None,
+        calibrations: Vec::new(),
     }
 }
 

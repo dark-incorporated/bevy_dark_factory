@@ -30,7 +30,7 @@ impl Transport for Fixed {
     }
     fn send(&self, request: &Request) -> Result<Response, Error> {
         let answers = request.questions.keys().map(|id| (id.clone(), Answer::Noul { noul: self.0 })).collect();
-        Ok(Response { model: None, answers, usage: None })
+        Ok(Response { model: Some("clef-flash".into()), answers, usage: None })
     }
 }
 
@@ -38,13 +38,13 @@ fn replay() -> Fixed {
     Fixed(P_YES)
 }
 
-fn calibration(agreement: f64) -> Calibration {
+fn calibration(agreement: f64, threshold: f64) -> Calibration {
     Calibration {
         check: "floating".into(),
         model: "clef-flash".into(),
         set_size: 1,
         agreement,
-        threshold: 0.5,
+        threshold,
         date: "2026-11-02".into(),
         // owner exception, schema field: the two counts `agreement` is made of (#112).
         correct: (agreement * 1.0).round() as usize,
@@ -66,7 +66,7 @@ fn checks(threshold: f64, agreement: Option<f64>) -> Checks {
             facts: false,
             threshold,
             after_edit: false,
-            calibration: agreement.map(calibration),
+            calibrations: agreement.map(|a| calibration(a, threshold)).into_iter().collect(),
         }],
     }
 }

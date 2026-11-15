@@ -18,6 +18,93 @@ impl Http {
     }
 }
 
+impl Http {
+    /// **The models this endpoint says it serves** (`GET /v1/models`, System One's sibling path on the
+    /// same host: llama.cpp answers `{"data":[{"id": <alias>}]}`). A calibration run reads it before the
+    /// first sample, so a record is never labelled with a model the endpoint is not serving (#455).
+    pub fn served_models(&self) -> Result<Vec<String>, Error> {
+        let endpoint = self.config.endpoint.clone();
+        let url = match endpoint.rsplit_once('/') {
+            Some((base, _)) => format!("{base}/models"),
+            None => {
+                return Err(Error::BadResponse { endpoint, detail: "the endpoint has no path to take /models from".into() });
+            }
+        };
+        let agent: ureq::Agent = ureq::Agent::config_builder()
+            .timeout_global(Some(std::time::Duration::from_secs(self.config.timeout_secs)))
+            .http_status_as_error(false)
+            .build()
+            .into();
+        let mut req = agent.get(&url);
+        if let Some(key) = &self.config.key {
+            req = req.header("Authorization", &format!("Bearer {key}"));
+        }
+        let mut resp =
+            req.call().map_err(|e| Error::Unreachable { endpoint: endpoint.clone(), detail: e.to_string() })?;
+        let status = resp.status().as_u16();
+        let text = resp
+            .body_mut()
+            .read_to_string()
+            .map_err(|e| Error::Unreachable { endpoint: endpoint.clone(), detail: e.to_string() })?;
+        if !(200..300).contains(&status) {
+            return Err(Error::Refused { endpoint: url, status, body: text.chars().take(500).collect() });
+        }
+        #[derive(serde::Deserialize)]
+        struct Model {
+            id: String,
+        }
+        #[derive(serde::Deserialize)]
+        struct List {
+            data: Vec<Model>,
+        }
+        let list: List = serde_json::from_str(&text)
+            .map_err(|e| Error::BadResponse { endpoint, detail: format!("{url}: {e}") })?;
+        Ok(list.data.into_iter().map(|m| m.id).collect())
+    }
+}
+
+/// Refuse a calibration labelled `label` when the endpoint's served models (see [`Http::served_models`])
+/// do not include it.
+pub fn verify_served(label: &str, endpoint: &str, served: &[String]) -> Result<(), Error> {
+    if served.iter().any(|m| m == label) {
+        Ok(())
+    } else {
+        Err(Error::ModelMismatch { endpoint: endpoint.to_owned(), label: label.to_owned(), served: served.to_vec() })
+    }
+}
+
+/// **Refuses an answer from any model but the one a run is labelled with** (#455). Wraps the run's
+/// transport: a response that names a different model is an [`Error::ModelMismatch`], never a sample
+/// scored into a record labelled for another model. A response that names none passes: it is the
+/// preflight ([`verify_served`]) that vouches for such an endpoint.
+pub struct Expecting<'a> {
+    inner: &'a dyn Transport,
+    model: &'a str,
+}
+
+impl<'a> Expecting<'a> {
+    pub fn new(inner: &'a dyn Transport, model: &'a str) -> Self {
+        Expecting { inner, model }
+    }
+}
+
+impl Transport for Expecting<'_> {
+    fn endpoint(&self) -> String {
+        self.inner.endpoint()
+    }
+    fn send(&self, request: &Request) -> Result<Response, Error> {
+        let response = self.inner.send(request)?;
+        match response.model.as_deref() {
+            Some(answered) if answered != self.model => Err(Error::ModelMismatch {
+                endpoint: self.inner.endpoint(),
+                label: self.model.to_owned(),
+                served: vec![answered.to_owned()],
+            }),
+            _ => Ok(response),
+        }
+    }
+}
+
 impl Transport for Http {
     fn endpoint(&self) -> String {
         self.config.endpoint.clone()

@@ -40,7 +40,7 @@ impl Transport for Replay {
             .keys()
             .map(|id| (id.clone(), Answer::Noul { noul: p }))
             .collect();
-        Ok(Response { model: None, answers, usage: None })
+        Ok(Response { model: Some("clef-flash".into()), answers, usage: None })
     }
 }
 
@@ -54,7 +54,7 @@ fn fixture(path: &str) -> PathBuf {
 fn checks(p: f64, calibration: Option<bevy_oracle::Calibration>) -> Checks {
     let mut set = Checks::builtin();
     set.checks.retain(|c| c.name == "blank_frame");
-    set.checks[0].calibration = calibration;
+    set.checks[0].calibrations = calibration.into_iter().collect();
     let _ = p;
     set
 }

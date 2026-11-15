@@ -238,7 +238,9 @@ pub fn decide_with(
                 "check": name,
                 "finding": finding,
                 "message": finding.message(),
-                "calibrated": check.calibration.is_some(),
+                "calibrated": finding.is_calibrated(),
+                "model": finding.model,
+                "note": finding.uncalibrated_note(),
                 "advisory": true,
                 "endpoint": transport.endpoint(),
             });

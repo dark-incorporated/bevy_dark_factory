@@ -15,7 +15,8 @@ use bevy_oracle::{Checks, Config, Evidence, Http, Transport, Verdict, evidence_f
 
 fn usage() -> String {
     "usage: decide_check --captures DIR [--project DIR] [--bar F] [--ask] [--no-builtin] [--json] [--facts FILE]\n\
-     \x20      decide_check --calibrate SET.yaml [--check NAME] [--project DIR] [--model NAME]".to_owned()
+     \x20      decide_check --calibrate SET.yaml [--check NAME] [--project DIR] [--model NAME] [--out FILE]\n\
+     \x20      (--model is a label: the endpoint must serve that model, or the run is refused)".to_owned()
 }
 
 struct Args {
@@ -38,7 +39,7 @@ struct Args {
     /// number printed to a terminal is a claim nobody can check: `tools/decide/check.py` reads this
     /// file to decide whether a check may block the gate, and
     /// `crates/bevy_oracle/tests/the_clips_calibration_is_recorded.rs` keeps the record's arithmetic
-    /// honest. Written as RON, beside the labelled set it measured.
+    /// honest. Written as YAML: one file per model (`fixtures/calibrations/<model>.yaml`).
     out: Option<PathBuf>,
 }
 
@@ -161,8 +162,18 @@ fn main() {
                 std::process::exit(2);
             }
         };
+        // **`--model` labels the record, and the endpoint must be that model** (#455). The endpoint comes
+        // from the environment, not from this flag, so the two can disagree; a record labelled for a model
+        // that did not answer is the defect a per-model calibration exists to prevent. Refuse before the
+        // first sample when the endpoint does not list the label, and refuse any answer that names another.
+        let served = transport.served_models().and_then(|m| bevy_oracle::verify_served(&args.model, &transport.endpoint(), &m));
+        if let Err(e) = served {
+            eprintln!("{e}");
+            std::process::exit(2);
+        }
+        let expecting = bevy_oracle::Expecting::new(&transport, &args.model);
         let check = bevy_oracle::clip_check(&args.check);
-        let scored = match bevy_oracle::score_set(&check, &samples, &transport) {
+        let scored = match bevy_oracle::score_set(&check, &samples, &expecting) {
             Ok(s) => s,
             Err(e) => {
                 eprintln!("{e}");
@@ -245,11 +256,9 @@ fn main() {
     // runs, and it is also what makes the "uncalibrated checks only print" rule visible.
     let mut listed = 0;
     for check in &project.checks {
-        let authority = if check.calibration.as_ref().is_some_and(|c| c.is_blocking(args.bar)) {
-            "blocking"
-        } else {
-            "advisory"
-        };
+        let earned: Vec<&str> =
+            check.calibrations.iter().filter(|c| c.is_blocking(args.bar)).map(|c| c.model.as_str()).collect();
+        let authority = if earned.is_empty() { "advisory".to_owned() } else { format!("blocking for {}", earned.join(", ")) };
         let images = if check.images.is_empty() { "facts".to_owned() } else { check.images.join(", ") };
         println!("{:10} {}: {images} — {}", authority, check.name, check.question);
         listed += 1;
@@ -269,7 +278,8 @@ fn print_verdict(verdict: &Verdict, json: bool) {
             .map(|f| {
                 serde_json::json!({
                     "check": f.check, "p_yes": f.p_yes, "threshold": f.threshold,
-                    "found": f.found,
+                    "found": f.found, "model": f.model, "agreement": f.agreement,
+                    "uncalibrated": f.uncalibrated_note(),
                     "authority": if verdict.blocking.iter().any(|b| b.check == f.check) { "blocking" } else { "advisory" },
                 })
             })

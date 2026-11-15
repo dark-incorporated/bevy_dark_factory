@@ -30,9 +30,10 @@ pub struct Verdict {
     /// Checks that could not run (a refused request, a missing capture), by name and why. These never
     /// fail a gate: an error is not evidence of a problem in the picture.
     pub errors: Vec<(String, String)>,
-    /// The calibrated checks that found something — the only findings that may fail a run.
+    /// The findings of checks calibrated **for the model that answered** — the only findings that may fail a run.
     pub blocking: Vec<Finding>,
-    /// Findings from checks that have not earned the bar: printed, never fatal.
+    /// Findings from checks that have not earned the bar for the model that answered, or are not
+    /// calibrated for it at all: printed, never fatal.
     pub advisory: Vec<Finding>,
     /// The bar a check must meet to block. Passed in so a test can move it without editing a constant.
     pub bar: f64,
@@ -58,8 +59,10 @@ impl Verdict {
             } else {
                 "advisory"
             };
+            let model = f.model.as_deref().map(|m| format!(" [{m}]")).unwrap_or_default();
+            let note = f.uncalibrated_note().map(|n| format!(", {n}")).unwrap_or_default();
             out.push_str(&format!(
-                "{:10} {}: p(yes) {:.2} vs {:.2} ({authority})\n",
+                "{:10} {}: p(yes) {:.2} vs {:.2} ({authority}{note}){model}\n",
                 earned, f.check, f.p_yes, f.threshold
             ));
         }
@@ -88,7 +91,7 @@ pub fn run_checks(checks: &Checks, transport: &dyn Transport, evidence_for: &dyn
         };
         match check.run(transport, &evidence) {
             Ok(finding) if finding.found => {
-                if check.may_block(bar) {
+                if finding.is_blocking(bar) {
                     verdict.blocking.push(finding.clone());
                 } else {
                     verdict.advisory.push(finding.clone());

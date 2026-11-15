@@ -27,7 +27,7 @@ pub use clip::{FRAMES, LABELLED_FILE, Labelled, clip_check, load_labelled, score
 pub use b64::data_url;
 pub use run::{Verdict, evidence_from, run_checks};
 pub use config::Config;
-pub use transport::{Http, Recorder, Replay, Transport};
+pub use transport::{Expecting, Http, Recorder, Replay, Transport, verify_served};
 pub use types::{Answer, MAX_IMAGES, MAX_QUESTIONS, Question, Request, Response, Usage};
 
 use std::fmt;
@@ -49,6 +49,9 @@ pub enum Error {
     Calibration(String),
     /// A `checks.yaml` that does not parse or breaks a rule (duplicate name, threshold outside 0..=1).
     Checks(String),
+    /// A calibration was labelled for one model and the endpoint serves, or answered as, another. The
+    /// record would name a model that did not answer (#455), so the run is refused.
+    ModelMismatch { endpoint: String, label: String, served: Vec<String> },
     /// A check was asked without an image or the facts it needs; it does not answer from less.
     MissingEvidence { check: String, missing: String },
 }
@@ -69,6 +72,12 @@ impl fmt::Display for Error {
             Error::Fixture(m) => write!(f, "decision fixture: {m}"),
             Error::Calibration(m) => write!(f, "decision calibration: {m}"),
             Error::Checks(m) => write!(f, "checks.yaml: {m}"),
+            Error::ModelMismatch { endpoint, label, served } => write!(
+                f,
+                "the run is labelled `{label}` but decision endpoint {endpoint} serves {}; a calibration belongs to one \
+                 model, so point the endpoint at `{label}` or label the run with the model that answers",
+                if served.is_empty() { "no named model".to_owned() } else { served.join(", ") }
+            ),
             Error::MissingEvidence { check, missing } => {
                 write!(f, "check `{check}` needs {missing}, which was not captured; it does not answer from less")
             }
