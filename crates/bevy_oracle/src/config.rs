@@ -1,6 +1,6 @@
 /// Where decisions are asked. **One endpoint per run**: there is no fallback chain.
 ///
-/// Local clef-flash is the default. Clef 27B (bmb) and Cloudflare Workers AI are values of the same
+/// Local d3-flash on big is the default. Clef 27B (bmb) and Cloudflare Workers AI are values of the same
 /// three fields. Cloudflare sends screenshots off the LAN, so it is opt-in: only by setting these.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Config {
@@ -13,8 +13,10 @@ pub struct Config {
     pub timeout_secs: u64,
 }
 
-/// clef-flash on this LAN: `tools/decide/serve-clef-flash.sh` on big.
-pub const LOCAL_ENDPOINT: &str = "http://127.0.0.1:8093/v1/systemone";
+/// d3-flash on this LAN, the same endpoint from every editor: big's llama-swap (`:8081`) starts the model
+/// on the first request and proxies `/v1/systemone` through `/upstream/d3-flash`. `big.local` is the name
+/// every LAN host resolves (mDNS); a bare `big` resolves only on big itself. `docs/decide/serving-d3-flash.md`.
+pub const LOCAL_ENDPOINT: &str = "http://big.local:8081/upstream/d3-flash/v1/systemone";
 
 impl Default for Config {
     fn default() -> Self {

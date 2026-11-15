@@ -7,6 +7,28 @@ pub trait Transport {
     fn send(&self, request: &Request) -> Result<Response, Error>;
 }
 
+/// What a gateway in front of the model answers when it is up but cannot run the model: 502, 503 and 504
+/// from any proxy, and the 500 llama-swap itself sends (`"src":"llama-swap"`) when the model's launch script
+/// exits, as `tools/decide/serve-d3-flash.sh` does while a GPU lease holds the card (measured 2026-11-15:
+/// HTTP 500 in 0.25 s, `{"error":"unspecific error: upstream command exited prematurely","src":"llama-swap"}`).
+/// The request was not refused; nothing served it, so it is [`Error::Unreachable`], not [`Error::Refused`].
+const GATEWAY_STATUSES: [u16; 3] = [502, 503, 504];
+
+/// The marker llama-swap puts in its own error bodies, to tell its 500 from the model server's.
+const LLAMA_SWAP_MARK: &str = "\"src\":\"llama-swap\"";
+
+fn gateway_cannot_serve(status: u16, body: &str) -> bool {
+    GATEWAY_STATUSES.contains(&status) || (status == 500 && body.contains(LLAMA_SWAP_MARK))
+}
+
+/// What to do about [`GATEWAY_STATUSES`] on big's local endpoint (`docs/decide/serving-d3-flash.md`): the
+/// model is evicted while a GPU lease or the coding model holds the card, and it loads again on the first
+/// request after the card is free and home-still's olmocr is back, so the remedy is to look at who holds the
+/// card and ask again after.
+const GATEWAY_REMEDY: &str = "the server is up but its model is not loaded: a GPU lease or the coding model \
+    evicts it, and it reloads on the first request after the card is free and home-still's olmocr is back (a \
+    minute or two); on big, `gpu-tenant status` names the holder and `gpu-tenant board -n 10` says since when";
+
 /// A live endpoint over HTTP.
 pub struct Http {
     pub config: Config,
@@ -31,6 +53,8 @@ impl Transport for Http {
         }
         let agent: ureq::Agent = ureq::Agent::config_builder()
             .timeout_global(Some(std::time::Duration::from_secs(self.config.timeout_secs)))
+            // `big.local` also resolves to IPv6 addresses big's firewall drops: 56.9 s of the 60 s timeout.
+            .ip_family(ureq::config::IpFamily::Ipv4Only)
             // A refusal carries the endpoint's own complaint in its body.
             .http_status_as_error(false)
             .build()
@@ -47,6 +71,10 @@ impl Transport for Http {
             .body_mut()
             .read_to_string()
             .map_err(|e| Error::Unreachable { endpoint: endpoint.clone(), detail: e.to_string() })?;
+        if gateway_cannot_serve(status, &text) {
+            let said: String = text.chars().take(500).collect();
+            return Err(Error::Unreachable { endpoint, detail: format!("status {status}: {said}; {GATEWAY_REMEDY}") });
+        }
         if !(200..300).contains(&status) {
             return Err(Error::Refused { endpoint, status, body: text.chars().take(500).collect() });
         }
