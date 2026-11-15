@@ -1,0 +1,77 @@
+{
+  "version": 2,
+  "stem": "feedback-1794783594150",
+  "taken_at_ms": 1794783594150,
+  "audience": "developers",
+  "app_version": "0.6.8",
+  "screen": "editor",
+  "project": "/Users/ladvien/Documents/Cauldron Projects/lavender_hills",
+  "map": "deadite_caverns",
+  "tool": "Place",
+  "window": {
+    "physical": [
+      2560,
+      1406
+    ],
+    "logical": [
+      1280.0,
+      703.0
+    ],
+    "scale_factor": 2.0,
+    "ui_scale": 2.4
+  },
+  "picks": [
+    {
+      "subject": {
+        "kind": "scene",
+        "world": [
+          -315.85577,
+          0.0,
+          379.98196
+        ],
+        "map": [
+          -315.85577,
+          379.98196
+        ],
+        "cell": [
+          -316,
+          379
+        ],
+        "placement": null,
+        "camera": {
+          "translation": [
+            11.999999,
+            32.0,
+            11.999999
+          ],
+          "forward": [
+            -0.57735026,
+            -0.5773504,
+            -0.5773503
+          ]
+        }
+      },
+      "at": [
+        1338.3516,
+        634.58594
+      ]
+    }
+  ],
+  "relations": [],
+  "note": "What's going on here?",
+  "picture": {
+    "file": "feedback-1794783594150.png",
+    "size": [
+      2560,
+      1406
+    ]
+  },
+  "picks_picture": {
+    "file": "feedback-1794783594150_picks.png",
+    "size": [
+      2560,
+      1406
+    ]
+  },
+  "log": "feedback-1794783594150.log"
+}

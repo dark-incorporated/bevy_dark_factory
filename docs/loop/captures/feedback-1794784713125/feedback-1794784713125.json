@@ -1,0 +1,77 @@
+{
+  "version": 2,
+  "stem": "feedback-1794784713125",
+  "taken_at_ms": 1794784713125,
+  "audience": "developers",
+  "app_version": "0.6.8",
+  "screen": "editor",
+  "project": "/Users/ladvien/Documents/Cauldron Projects/lavender_hills",
+  "map": "deadite_caverns",
+  "tool": "Place",
+  "window": {
+    "physical": [
+      2560,
+      1406
+    ],
+    "logical": [
+      1280.0,
+      703.0
+    ],
+    "scale_factor": 2.0,
+    "ui_scale": 2.4
+  },
+  "picks": [
+    {
+      "subject": {
+        "kind": "scene",
+        "world": [
+          -291.39148,
+          0.0,
+          15.996277
+        ],
+        "map": [
+          -291.39148,
+          15.996277
+        ],
+        "cell": [
+          -292,
+          15
+        ],
+        "placement": null,
+        "camera": {
+          "translation": [
+            11.999999,
+            32.0,
+            11.999999
+          ],
+          "forward": [
+            -0.57735026,
+            -0.5773504,
+            -0.5773503
+          ]
+        }
+      },
+      "at": [
+        878.33594,
+        662.375
+      ]
+    }
+  ],
+  "relations": [],
+  "note": "Can we replace this with a mix of custom widgets, but also markdown? My idea is to have generic widgets to generate markdown.  But also parsing markdown (proper markdown) back into those control widgets.  And those that don't map directly, get a custom widget wrapper.  Or maybe this is dumb and needs to be YAML and properly parsed with an LSP.  Let's research this thoroughly as what fits best.  I feel like probably a mix of markdown and YAML, with a parser and LSP to guide users and agents.",
+  "picture": {
+    "file": "feedback-1794784713125.png",
+    "size": [
+      2560,
+      1406
+    ]
+  },
+  "picks_picture": {
+    "file": "feedback-1794784713125_picks.png",
+    "size": [
+      2560,
+      1406
+    ]
+  },
+  "log": "feedback-1794784713125.log"
+}
