@@ -1,29 +1,22 @@
-# bevy_grimoire: what it is, why it exists, and what is wrong with it
+# What the Dark Factory is, why it exists, and what is wrong with it
 
-One document, written 2026-10-26 at commit `f2c5b34`, after 56 recorded loop iterations. It is an
-outside-in description of the project as it actually stands — including the parts that do not work and
-the parts I would not defend.
+An outside-in description of the project, measured on 2026-11-15 at commit `198b82ae` (2,055 commits). Everything here is checkable against the repository: the numbers were counted with the commands named beside them, and where a sentence is a judgement and not a count it says so. It is the one page that lists what does not work.
 
-Everything here is checkable against the repository. Numbers are measured, and where I am reasoning
-rather than reporting I say so.
+The names: the editor is the Dark Factory (this repository, `bevy_dark_factory`). Its binary, window and crates are still named for its earlier name, the Cauldron (`bevy_cauldron`), and what it writes and a game loads is still a grimoire (`bevy_grimoire*`, `assets/grimoire/`).
 
 ---
 
 ## 1. The one-sentence version
 
-**bevy_grimoire is a world editor for Bevy games in which a person and an AI agent edit the same map
-through the same named operations, with one undo history between them.**
+**The Dark Factory is a world editor for Bevy games in which a person and an AI agent edit the same map through the same named operations, with one undo history between them.**
 
-That is not a feature list. It is the design constraint everything else follows from, and it is the
-thing that makes this different from a level editor with an AI chat box bolted on.
+That is the design constraint everything else follows from, and what makes it different from a level editor with an AI chat box bolted on.
 
 ---
 
 ## 2. The problem it is trying to solve
 
-A game developer building a world has two tools that do not talk to each other: the editor, where
-things get placed, and the agent, which can reason about what should be placed. Every existing bridge
-between them is lossy in the same way:
+A game developer building a world has two tools that do not talk to each other: the editor, where things get placed, and the agent, which can reason about what should be placed. Every existing bridge between them is lossy in the same way:
 
 | The usual arrangement | What goes wrong |
 |---|---|
@@ -32,302 +25,110 @@ between them is lossy in the same way:
 | Agent describes a change in prose | A person retypes it, and the retyping is where it goes wrong |
 | Agent uses a separate "AI" path | Two implementations of "place a crate" that drift, and the AI path is always the worse one |
 
-bevy_grimoire's answer is structural: **there is exactly one way to change anything**, a typed operation
-in a single registry, and both the keyboard and the agent dispatch it. Everything else — undo, the log,
-the validators, the parity test — falls out of that one decision.
+The answer is structural: **there is one way to change anything**, a typed operation in a single registry, and the keyboard, the menus and the agent all dispatch it. Undo, the log, the validators and the parity test follow from that one decision.
 
 ---
 
 ## 3. What it is made of
 
-168,569 lines of Rust in nine crates, 818 commits, 122 integration test files, 20 registered
-operations, 14 MCP tools, 56 recorded loop iterations.
+About 405,000 lines of Rust (`find crates -name '*.rs' | xargs cat | wc -l` per crate: source, tests and examples) in 13 crates, 844 integration-test files under `crates/*/tests/`, 28 MCP tools, and 137 entries in the operation registry (`ops::registry()`; 130 in a default build, because the family crates' operations are behind cargo features: `bevy_cauldron --print-operations` lists the ones a build has).
 
-| Crate | Lines | What it is |
-|---|---:|---|
-| `bevy_cauldron` | 122,506 | The editor application. Opens a project directory, writes `<root>/assets/grimoire`. |
-| `bevy_grimoire_core` | 37,058 | The engine-free schema, grammar learner, WFC, validators. No Bevy. |
-| `bevy_cauldron_mcp` | 4,016 | The MCP server: 14 tools over stdio, talking to the running editor over BRP. |
-| `bevy_grimoire_anim` | 1,327 | Clip-weight blending on a skinned rig. |
-| `bevy_grimoire_solver` | 1,304 | A deterministic SAT back-end. |
-| `bevy_grimoire` | 1,275 | The runtime: load a library and a map into a game. |
-| `bevy_grimoire_snip` | 581 | Cuts one rectangle out of a picture of the editor. |
-| `bevy_grimoire_rng` | 368 | One seeded ChaCha8 stream for the whole simulation. |
-| `bevy_devshot` | 134 | A frame on demand, from the GPU. |
+| Crate | Lines | On crates.io | What it is |
+|---|---:|---|---|
+| `bevy_cauldron` | 294,204 | no | The editor. Opens a project directory, writes `<root>/assets/grimoire`. |
+| `bevy_grimoire_core` | 67,339 | 0.11.0 | The engine-free core: the project's file types and its one YAML reader and writer, the design tree, the grammar learner, WFC (wave function collapse), validators. No Bevy. |
+| `bevy_cauldron_bench` | 16,330 | no | The benchmark runner and grader, `cauldron-bench`. |
+| `bevy_cauldron_mcp` | 8,337 | no | The MCP server: 28 tools over stdio, talking to the running editor over BRP (the Bevy Remote Protocol). |
+| `bevy_grimoire` | 8,200 | 0.5.1 | The runtime: loads a project into a game (`GamePlugin`, `GrimoirePlugin`, `GrimoireLivePlugin`). |
+| `bevy_grimoire_migrate` | 3,155 | no | Moves a project's files from RON to YAML. |
+| `bevy_oracle` | 2,218 | no | Typed questions to a decision model, authoring time only. |
+| `bevy_grimoire_rhai` | 1,877 | 0.1.1 | The Rhai script host a game's scripts run on. |
+| `bevy_grimoire_anim` | 1,327 | 0.2.1 | Clip-weight blending on a skinned rig. |
+| `bevy_grimoire_solver` | 1,304 | 0.1.2 | A deterministic SAT back-end. |
+| `bevy_grimoire_snip` | 581 | 0.1.0 | Cuts one rectangle out of a picture of the editor. |
+| `bevy_grimoire_rng` | 368 | 0.1.0 | One seeded ChaCha8 stream for the whole simulation. |
+| `bevy_devshot` | 134 | no | A frame on demand, from the GPU. |
 
-**The 122k/37k split is the architecture in one number.** The editor is a Bevy app and cannot be
-unit-tested headless in the ordinary way; the core is engine-free and can. `engine_free.rs` fails the
-build if a Bevy dependency appears in core.
+`games/sample/` is a small game made of YAML and Rhai whose Rust is one line; its tests play it.
+
+**The editor-to-core split is the architecture in one number.** The editor is a Bevy app and is tested headless only through a harness (`bevy_cauldron::harness::build_headless`); the core is engine-free and is tested directly. `bevy_grimoire_core/tests/engine_free.rs` fails the build if a Bevy dependency appears in it.
 
 ### The operation registry
 
-Twenty operations, and they are the whole vocabulary of what an agent can do:
-
-```
-map_create  map_open  map_save  map_rename  map_set_settings
-placement_add  placement_remove  placement_set_yaw  placement_set_pin
-layout_propose  layout_accept  layout_discard  fill
-label_set  piece_import  piece_select  brush_arm  door_open
-rules_set  stamp_remove
-```
-
-Each one declares four things: its parameters (a JSON schema an agent reads), a **plan** that is pure
-and changes nothing (this is what preview is), a **commit** that is the only code that writes, and an
-**undo strategy** (`None`, `Inverse`, or `Snapshot`). A parity test enumerates the registry and fails if
-an operation lacks an MCP tool or a UI entry point, or if the two expose different parameters.
+An operation is a trait object (`ops::Operation`) that declares four things: its parameters (a JSON schema an agent reads, `schema()`), a **plan** that is pure and changes nothing (`plan()`, which is what a preview is), a **commit** that is the only code that writes (`commit()`), and an **undo strategy** (`Undo::None`, `Undo::Inverse` or `Undo::Snapshot`). An agent lists them with `grimoire_list_operations` (or one with `{"operation": "<name>"}`), previews with `grimoire_preview_operation` and applies with `grimoire_apply_operation`. Two tests keep the registry honest: `operations_have_two_front_ends` enumerates it and fails when an operation lacks an entry point on either side, and `every_operation_has_a_row_in_the_agent_guide` fails when an operation has no row in [`docs/guide/agents.md`](guide/agents.md).
 
 ---
 
-## 4. Every feature, honestly described
+## 4. What the editor does today
 
-### 4.1 Authoring a map
+- **Ten workspaces**, one job each, in a fixed order on `Cmd/Ctrl+1` to `0`: Project, Map, World, Kit, Animation, Sound, Files, Game, Agent and Design. A workspace is what is drawn; the project, the open map and the selection stay put when you switch ([`docs/ui/vision.md`](ui/vision.md)).
+- **Authoring a map**: a palette, a ghost that shows what a click will place, fill, remove, turn, tip and lift; layers that pass each other (a floor tile under a crate is not in the crate's way: `stack::same_layer`); flush is legal and inside is refused (`OVERLAP_EPS`); and a continuation of a layout you started with WFC, drawn as a proposal before you keep it ([building maps](guide/building-maps.md)).
+- **Kits and labels**: import a `.glb`, measure it, admit or refuse it; a vision model may propose labels, every proposal is marked unchecked and a person toggles each one ([kits and labels](guide/kits-and-labels.md)).
+- **The game's style**: the Design workspace shows `design/` as a tree of places (the game, regions, levels, areas drawn on a map), each with Markdown style pages and a dream board of pictures ([agents](guide/agents.md#the-games-style)).
+- **Files and the game**: every project file is YAML and the Files workspace edits them; the Game workspace plays and stops the game and shows its log and its state; `bevy_cauldron bake` turns the data into a release, proved against the YAML ([data files](guide/data-files.md), [your game](guide/your-game.md)).
+- **A terminal on every screen**, which starts collapsed (`Cmd/Ctrl+J`), and starts a connected agent when you ask; **three themes** (Tool dark, Parchment, High contrast) that recolour everything live; **a notification centre** on `Cmd/Ctrl+E` where each step and refusal is a row and the newest step has an Undo ([keys](guide/keys.md)).
 
-- **Palette, ghost, place, fill, remove.** A translucent ghost follows the cursor showing exactly what
-  a click will place, turned the way the brush is turned. `G` proposes and draws a whole generated
-  layout as ghosts before `Enter` keeps it.
-- **Layers that pass each other.** A floor tile under a crate is not in the crate's way; two lamps on
-  one table contest that table and not every table; two wall pieces contest a face only at the same
-  height. The rule is `stack::same_layer`, and it is a table, not a judgement.
-- **Flush legal, inside refused.** Kitbashing wants wall segments exactly end to end, so touching
-  passes and interpenetration refuses (`OVERLAP_EPS`).
-- **Overlaps on disk are now visible.** `stack::overlaps` is a whole-map pass, reported on every
-  mutating answer. On Sanctuary's real 720-placement town it found **781 interpenetrating pairs** that
-  nothing could see before — cross-checked against the click path's own rule, 781/781 agreeing.
+### What an agent sees
 
-### 4.2 Kits, labels, and a vision model that is not trusted
-
-- Import a `.glb`, measure it, admit or refuse it, and commit a library descriptor — a person
-  accepting a scan and an agent calling `piece_import` go through the same four admission checks.
-- A VLM can propose labels per axis. **Every proposal is marked unchecked, and no button confirms one
-  in place**: you toggle a chip, which marks that axis as yours. That is a deliberate refusal to let a
-  model's confidence become a person's.
-
-### 4.3 Generation that continues *your* layout
-
-- `grammar::learn` derives a grammar from an arrangement you already made, then WFC continues it. The
-  result is more of your layout, not a generic one.
-- Compositions are a second, stronger source: groups with rules, whose edge tokens are derived from
-  their members' geometry rather than declared.
-- **The proposal is drawn before it is committed**, and `Enter` keeps exactly what was on screen.
-- **Enclosure is measurable**: `range::measure` scores a solved grid on Smith & Whitehead's
-  expressive-range axes, and a proposal now answers with its own measurement.
-
-### 4.4 The agent interface
-
-- 14 tools, `grimoire_`-prefixed, domain-worded (`grimoire_apply_operation`, not "run tool 7").
-- **Every mutating answer carries an operation id** an agent cites and a person reverts by.
-- **Every map change reports what it broke**: edge faults and overlapping placements the change
-  introduced, with the whole map's totals beside them, and a standing fault is never renamed "new".
-- **`dry_run` previews** anything; the preview is the operation's own pure `plan`, so it cannot
-  half-apply.
-- **A presented turn is one undo step**, from either door — `Cmd+Z` and `grimoire_undo_operation {turn:
-  true}` take back the same amount.
-
-### 4.5 The person's half of the collaboration
-
-- **Snips**: `Cmd+\`, drag a rectangle, type one line. The agent can list them, read the note, and open
-  the crop — this is the "click, write a note, the agent picks it up" loop, and it exists.
-- **The steps panel** (shipped this iteration): the journal now shows the agent's operations as rows,
-  each reading the operation log's own `result` sentence verbatim, with a capture marked on the row
-  that made it.
-- **The receipt and the journal**: one row for what just happened, and a scrolling list of refusals
-  that `Esc` cannot clear.
-- **One undo history.** The agent's change joins yours; `Cmd+Z` reaches the newest change still in
-  effect, whoever made it.
-
-### 4.6 Data and hot reload
-
-- Everything authored is RON/JSON in the project directory, versioned with migrations.
-- The editor checks the project every quarter second and re-reads what changed — no restart.
-- A live change is written back to the file, so nothing exists only in memory.
-- Bad data never takes the editor down: a malformed file is refused with its file, field and line, and
-  the last good state stays loaded.
+- **28 tools**, `grimoire_`-prefixed and domain-worded (`grimoire_apply_operation`, not "run tool 7"), listed in [the MCP reference](mcp-tools.md), which is generated from the server and checked by a test (`docs_are_current`). `grimoire_guide` returns the shipped guide first; the server's instructions say to call it.
+- **Every mutating answer carries an operation id** the agent cites and a person reverts by, and a change comes back with what it broke.
+- **`dry_run` previews** anything; the preview is the operation's own pure `plan`, so it cannot half-apply.
+- **`placement_add` refuses to land on a piece** unless told `replace: true`, and the answer to a replacing add names what it replaced.
+- **A hand-back is the end of every task** (`grimoire_present`): a card the person keeps or undoes in one click, listing the style lines the agent followed. After it the agent may make one wish for a tool it lacked (`grimoire_wish`) and propose one line for the project's guide (`grimoire_lesson`), which the person keeps or discards.
+- **One undo history.** The agent's change joins yours, and `Cmd+Z` takes back the newest change still in effect, whoever made it.
 
 ---
 
-## 5. The competitive advantage
+## 5. How it is measured
 
-I will separate what I think is genuinely durable from what is merely unusual.
-
-### Durable
-
-**1. One operation layer is an architectural moat, not a feature.**
-
-Every capability an agent gains is a capability a person gains, by construction, and the parity test
-enforces it. In every competing arrangement — an agent that scripts the app, an agent that writes files
-— the agent path and the human path are separate code, and the weaker one rots. Here they cannot
-diverge without a test failing.
-
-The measured consequence: **`reached 11/11`** — an outside agent goes from the sentence *"a mossy ruined
-courtyard with two exits"* to a made map, placed pieces, a proposed layout, a kept layout, a saved file
-and a presentation waiting on the person, with no project knowledge beyond the tool descriptions.
-
-**2. The operation log is a replayable record, not a debug print.**
-
-Every change records its source, session, parameters, seed, rules hash and result. That is what makes
-"what did the agent do while I was away" answerable, and it is the foundation an agent needs to *inspect*
-its own work rather than guess.
-
-**3. Validation is part of the answer, not a separate tool.**
-
-An agent's change comes back with what it broke. That is the difference between an agent that can be
-trusted to touch a 720-placement map and one that cannot — and the 781 overlapping pairs it found on
-the only real project in this repo is the evidence that this was not a theoretical concern.
-
-**4. The engine-free core is portable.**
-
-`bevy_grimoire_core` has no Bevy dependency, so the grammar learner, the WFC and the validators can run
-in a game, a test, a CI job or a server. Sanctuary — the shipping game this was built for — uses it
-without the editor.
-
-### Unusual but fragile
-
-- **A VLM labeller that refuses to confirm its own guesses.** Right, and expensive.
-- **Determinism everywhere**: `bevy_grimoire_solver` reads no clock and uses no threads; `bevy_grimoire_rng`
-  is one seeded stream. A generated layout is reproducible from its seed.
-- **The editor is driveable with no window raised** (an offscreen mirror camera plus BRP), which is
-  what makes the loop's own visual verification possible.
-
-### What is *not* an advantage
-
-The line count. 122k lines of editor is not a moat; it is the cost of the thing that is.
+`cauldron-bench` runs a real agent against a real editor: each trial copies a fixture project, starts the editor on its own port and display, hands the agent the MCP config the editor itself gives a person's agent, and grades the files left behind with no model in the loop. There are 20 development tasks in `bench/tasks/` and eight held-out tasks outside every repository. `oracle` (the task's own solution) must pass every task and `nothing` must pass none, which is what proves the pipe. `compare` says `better`, `worse` or `no measurable change` with a paired 95% bootstrap interval, and a release needs a committed report for its code that is not worse than the previous release's (`tools/release/bench_gate.py`). See [`bench/README.md`](../bench/README.md), [`docs/bench/README.md`](bench/README.md) for the committed runs, and the pre-registered study of whether the style helps an agent ([`docs/research/`](research/README.md)): on the sample game an agent with `grimoire_style` satisfied 24.0 of 24 style lines and one without it 10.4 (30 scored runs, one model, the report lists the limits).
 
 ---
 
 ## 6. What is wrong with it
 
-This is the section I would want if I were reading someone else's project.
+This is the section to read if you are reading someone else's project.
 
 ### Structural problems
 
-**1. The editor crate is enormous and unaudited.**
+**1. The editor crate is enormous and unaudited.** `bevy_cauldron` is 294,204 lines of Rust with its tests, written by AI agents working from a human's direction (the Vibe Coded banner on the README says so). It is covered by tests, and the tests are good, but a test suite proves the properties someone thought to assert, not that the code is comprehensible to the next person.
 
-122,506 lines in `bevy_cauldron`, and the README says it plainly: *"Vibe Coded — written by an AI
-agent working from a human's direction… no line-by-line human audit."* I think that is the single
-biggest risk in the repository. It is covered by tests, and the tests are good, but a test suite proves
-the properties someone thought to assert — not that the code is comprehensible to the next person.
+**2. Two copies of each tool's parameters.** The MCP server cannot depend on the editor crate (it is the bridge's client), so each tool's parameter struct in `bevy_cauldron_mcp` and the editor's own in `bevy_cauldron::ops_brp` are separate and kept in step by a hand-written `json!` body. They drifted once (B-052, a `turn` field accepted by the server and never sent) and the fix is a source-text ratchet, `a_tools_body_names_every_field`, which catches the drift and does not remove the duplication. A shared parameters crate would.
 
-**2. Two copies of the tool parameter structs.**
+### Things that are limited by design
 
-The MCP server cannot depend on the editor crate (it is the bridge's client), so each tool's params and
-the editor's params are separate structs, kept in step by a hand-written `json!` body. They drifted in
-E-084 and it took a live run to find. I added a source-text ratchet, which catches the drift but does
-not remove the duplication. **A shared params crate would.**
+**3. Overlaps are only checked within a layer.** `stack::same_layer` is a table: a 2.2 m cabinet and a sconce at 1.8 m on the wall behind it can interpenetrate, and a door and a crate in its doorway do not conflict. Whether to refuse them is a decision about what an author wants refused.
 
-**3. The editor and the game load the same data through two implementations.**
+**4. A style is advice, and what an agent does with it is measured on one game.** The style study is one sample game, one model and three tasks, and its with-style arm is told by the shipped guide to read the style and cite it, so a ceiling of 24 of 24 is the guide at work as much as a finding. Whether the style helps a person's game is not measured.
 
-`bevy_grimoire` (the runtime) and `bevy_cauldron` (the editor) both read a library and a map. The
-repo's own convention is "consistent and wrong beats inconsistent", which is true, but it means a
-schema change has two readers to update and one of them is checked less often.
+**5. The model's tool-name habit is not fixed.** omp mounts the editor's tools as `xd://` routes, and the model sometimes writes the route as a function name (`xd__mcp__cauldron_grimoire_guide`), which omp refuses by name. The benchmark counts it as an agent error and scores the trial; nothing in the editor changes what the model writes ([`bench/README.md`](../bench/README.md), BM-11).
 
-**4. The workspace has 43 open backlog items and 11 of them are in `editor`.**
+### Process
 
-The backlog is honest, which is good. It is also long. Several items are years of ordinary work:
-doorway clearance detection, variety measurement on real content, the session panel's remaining beats,
-`map_remove`, redo for an agent's undo.
-
-### Things that are genuinely limited, by design
-
-**5. Overlaps are only checked *within* a layer.** A 2.2 m cabinet and a sconce at 1.8 m on the wall
-behind it interpenetrate silently. A door and a crate in the doorway cannot conflict. The code says so
-in its own doc (`stack.rs`:589-596); the information to close it exists and closing it is a decision
-about what an author wants refused. Filed as E-079.
-
-**6. Variety measurement cannot run on the only real project.** Sanctuary's 16 compositions are all
-`Anchored`, and a tile grammar skips those (`"presents no edge to match"`). So the composed source is
-refused there and the learned source derives no wall interfaces — `variety` answers `null` on `town`.
-The metric is proved on crate fixtures. Filed as E-083.
-
-**7. One undo semantics question is still open.** An agent's id-less undo walks the *log* and takes back
-one logged change; `Cmd+Z` takes the turn. I made the agent's door able to take the turn (`turn: true`)
-rather than changing what its existing call means, which I think is right — but it means an agent has
-to know which of two verbs it wants.
-
-### Process honesty
-
-**8. The independent review has failed five iterations running.**
-
-The loop contract says an iteration without an independent review "does not merge". For five
-consecutive iterations the `reviewer` subagent died on a cloud rate limit, and I performed the review
-myself and said so in each report. That is a weaker review. It is recorded rather than papered over, and
-it is the process gap I would fix first.
-
-**9. Every iteration measures `perf.py` on a shared machine and the numbers are frequently
-incomparable.** Load moved between 3 and 49 across a single afternoon; a before/after pair has
-repeatedly shown a "regression" that was the machine. Recent reports state the load beside every number
-and sometimes decline to draw a conclusion. That is the honest response, and it means **there is no
-trustworthy long-run performance trend for this project.**
+**6. Reviews are by model.** The loop's contract is an independent review before a change merges, and the reviewer is another model reading the diff. That finds defects, and it is not a human audit.
 
 ---
 
 ## 7. What is right with it
 
-**1. The one-operation rule is real and it is enforced.**
-
-Not a convention, not a code review habit — a test. I trust this more than anything else in the repo.
-
-**2. The repository writes down *why*.**
-
-Module docs here argue rather than describe. `stack.rs` states the bounded claim of its overlap rule
-and names the two cases it misses. `descriptor.rs` records a ruling that nothing reads `Clearance`.
-`borrowing-from-mixar.md` has a licence rule, a pinned commit, a procedure and a catalogue with
-statuses. This is the rarest thing in the repository and the most valuable.
-
-**3. Refusal over degradation, everywhere.**
-
-A headless editor refuses a snip rather than writing an empty picture. A `variety` that cannot be
-measured is `null`, not `0.0`. A blank `rules.yaml` is refused rather than read as "no rules". A save is
-a hard link that fails rather than a rename that overwrites. When the code had to choose between a
-plausible answer and no answer, it chose no answer, and it says why at the site.
-
-**4. The failing-before discipline held.**
-
-122 integration test files, and the iterations I ran all produced tests that failed on the base commit
-and passed after. The reports quote the failing assertion. Where a test was vacuous — a `contains
-("renam")` that could never match — it was found by reverting the fix and watching the test stay green,
-and the test was rewritten.
-
-**5. The loop leaves an honest trail.**
-
-55 log lines, 94 archived backlog items, and iteration reports that name their own defects. When a claim
-turned out false, the record says so. That is a working memory, and it is why an iteration can start
-cold and be useful within twenty minutes.
-
-**6. The data is the project, and it hot-reloads.**
-
-No rebuild to change content. That sounds like a checkbox; it is the difference between a person who
-tunes a courtyard in ten minutes and one who gives up.
+- **The one-operation rule is enforced by tests, not by convention** (`operations_have_two_front_ends`, `every_operation_has_a_row_in_the_agent_guide`, the parity of MCP and UI).
+- **The repository writes down why.** Module docs argue rather than describe: `stack.rs` states the bounded claim of its overlap rule, and the changelog says for every change whether someone can see it and what proves it.
+- **Refusal over degradation.** A file that does not read is refused with its file, field and line and the last good state stays loaded; a baked release refuses stale data naming the file; a blank `rules.yaml` is refused instead of read as "no rules".
+- **The data is the project, and it hot-reloads.** The editor checks the project every quarter of a second and re-reads what changed; a running game can follow ([the reload contract](guide/reload-contract.md)).
+- **Failing-before discipline.** A change's test is written first and its failing text is quoted in the report; a release is stopped by the benchmark.
 
 ---
 
-## 8. If I were to change one thing
-
-**Split the tool parameter structs into a shared crate.**
-
-It is the smallest item on the "wrong" list and the one with the clearest failure: a hand-written body
-that silently drops a field, found only by a live run, after every deterministic check passed. A shared
-`bevy_grimoire_protocol` crate would make it a compile error instead of a ratchet, and it would shrink the
-surface where two copies of one contract exist anywhere in the workspace.
-
-The bigger items — the 122k-line unaudited editor, the performance trend nobody can measure — are real
-and are not one-iteration fixes. This one is.
-
----
-
-## 9. Where it stands
+## 8. Where it stands
 
 | | |
 |---|---|
-| Operations | 20, all with both front ends, enforced |
-| MCP tools | 14 |
-| `accept.py` reached | 11 / 11 |
-| Integration test files | 122 |
-| `cargo test --workspace` | 142 test binaries, 0 failures |
-| Open backlog | 43 items |
-| Shipped in the last 24 hours | a whole-map overlap pass, the rules reader, the rules writer, the variety measurement, turn grouping, turn undo from the agent's door, the steps panel, and a ratchet on the tool bodies |
-| Published | nothing — E-006 is open, and the first publication is still undecided |
+| Workspaces | 10 |
+| Operations | 137 in the registry, 130 in a default build |
+| MCP tools | 28 |
+| Integration-test files | 844 |
+| Published | `bevy_grimoire` 0.5.1, `bevy_grimoire_core` 0.11.0 (the next release, 0.12.0, removes the `references` module and `trust::GuideGrant`), `_solver` 0.1.2, `_rng` 0.1.0, `_anim` 0.2.1, `_rhai` 0.1.1, `_snip` 0.1.0 |
+| Editor release | `0.6.7` (the macOS app, [releases](https://github.com/dark-incorporated/bevy_dark_factory/releases)) |
+| Open issues | 7 |
 
-It runs, it is used by a shipping game, and it can be driven end to end by an agent that has read
-nothing but the tool descriptions. It also has an unaudited 122k-line editor at its centre and a review
-process that has not run in five iterations. Both of those are true at once, and a document that said
-only one of them would be lying.
+It runs, a game can load what it writes, and an agent can drive it end to end from the shipped guide alone. It also has an unaudited 294,000-line editor at its centre and a review process that is a model reading a diff. Both are true at once, and a document that said only one of them would be lying.
