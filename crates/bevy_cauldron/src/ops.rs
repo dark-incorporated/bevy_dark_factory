@@ -8661,6 +8661,34 @@ pub struct UndoPlan {
     pub restores: bool,
 }
 
+/// **The chains of changes in a log, and which stand.** A change is a chain: the line that made it, then any undo of it, then any undo of that (a redo), and so on.
+/// `chain_of` maps a line's operation id to its chain (the id of the line that began it), `in_effect` holds the chains that stand, and `newest` the position, in
+/// `lines`, of each chain's newest line. A new change starts in effect and each undo line flips its chain. The one rule [`undo_target`] picks what to take back
+/// by, and [`crate::present::replacements`] decides which replacements still stand by.
+pub(crate) struct Chains<'a> {
+    pub chain_of: std::collections::HashMap<&'a str, &'a str>,
+    pub in_effect: std::collections::HashSet<&'a str>,
+    pub newest: std::collections::HashMap<&'a str, usize>,
+}
+
+/// [`Chains`] of `lines`, which are the applied lines of the log in the order they were written.
+pub(crate) fn chains_of<'a>(lines: impl IntoIterator<Item = &'a Entry>) -> Chains<'a> {
+    let mut chains = Chains { chain_of: Default::default(), in_effect: Default::default(), newest: Default::default() };
+    for (i, line) in lines.into_iter().enumerate() {
+        let chain = match line.undoes.as_deref() {
+            None => line.operation_id.as_str(),
+            Some(undone) => chains.chain_of.get(undone).copied().unwrap_or(undone),
+        };
+        chains.chain_of.insert(line.operation_id.as_str(), chain);
+        // A new change starts in effect; an undo line flips its chain.
+        if line.undoes.is_none() || !chains.in_effect.remove(chain) {
+            chains.in_effect.insert(chain);
+        }
+        chains.newest.insert(chain, i);
+    }
+    chains
+}
+
 /// **Which change an undo takes back, and the parameters that do it.**
 ///
 /// **Pure: it reads the log and changes nothing**, so a preview and an undo resolve the same way.
@@ -8677,7 +8705,7 @@ pub struct UndoPlan {
 ///   something changed it outside the log (a hand-edited file the watcher adopted, the menu, or a
 ///   different map open), and the undo is refused, naming what differs.
 pub fn undo_target(ctx: &Ctx, target: Option<&str>) -> Result<UndoPlan, Refusal> {
-    use std::collections::{HashMap, HashSet};
+    use std::collections::HashMap;
     let Some(project) = ctx.project.as_ref() else {
         return Err(Refusal::new(
             "no project is open, so there is no log to undo from.",
@@ -8699,21 +8727,7 @@ pub fn undo_target(ctx: &Ctx, target: Option<&str>) -> Result<UndoPlan, Refusal>
         }
     }
     // **Each line's chain, whether each chain is in effect, and each chain's newest line.**
-    let mut chain_of: HashMap<&str, &str> = HashMap::new();
-    let mut in_effect: HashSet<&str> = HashSet::new();
-    let mut newest: HashMap<&str, usize> = HashMap::new();
-    for (i, line) in lines.iter().enumerate() {
-        let chain = match line.undoes.as_deref() {
-            None => line.operation_id.as_str(),
-            Some(undone) => chain_of.get(undone).copied().unwrap_or(undone),
-        };
-        chain_of.insert(line.operation_id.as_str(), chain);
-        // A new change starts in effect; an undo line flips its chain.
-        if line.undoes.is_none() || !in_effect.remove(chain) {
-            in_effect.insert(chain);
-        }
-        newest.insert(chain, i);
-    }
+    let Chains { chain_of, in_effect, newest } = chains_of(&lines);
     // **The log is the project's; a change belongs to one map.** A line's map is the one its
     // recorded state names, and only changes to the open map are picked, or can block.
     let here = ctx.open.as_ref().map(|o| o.map.name.as_str());

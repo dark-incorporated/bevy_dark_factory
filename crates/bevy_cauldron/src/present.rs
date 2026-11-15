@@ -182,9 +182,16 @@ pub fn body_with_followed(
 ///
 /// Read from the log's own `after` of each applied `placement_add`: its `replaced` rows (id, kind, at, cell) and the id that took their
 /// place, so the card and the modal say what the person lost without the agent having to remember to.
+///
+/// **Only a replacement that still stands** (#450): an add the agent undid since has its piece back on the map, so it is not listed. Whether a change stands is the
+/// undo's own rule ([`crate::ops::chains_of`]): an undo takes it out of effect, and an undo of that undo puts it back.
 pub fn replacements(log: &[crate::ops::Entry], operation_ids: &[String]) -> Vec<String> {
+    let chains = crate::ops::chains_of(log.iter().filter(|e| e.outcome == "applied"));
     let mut lines = Vec::new();
     for id in operation_ids {
+        if !chains.chain_of.get(id.as_str()).is_some_and(|chain| chains.in_effect.contains(chain)) {
+            continue;
+        }
         let Some(after) = log.iter().find(|e| &e.operation_id == id && e.outcome == "applied").and_then(|e| e.after.as_ref()) else { continue };
         let by = after.get("id").and_then(serde_json::Value::as_str).unwrap_or("the new piece");
         for row in after.get("replaced").and_then(serde_json::Value::as_array).into_iter().flatten() {
