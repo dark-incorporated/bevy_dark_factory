@@ -121,7 +121,7 @@ fn items(app: &mut App) -> (Rect, Vec<Item>, Option<Rect>) {
                 Some((layout.size.x, node.size().x, world.get::<bevy::ui::widget::Text>(kid)?.0.clone()))
             })
         });
-        let inner = world.get::<ComputedNode>(chip).map(|n| (n.size().x - n.padding().min_inset.x - n.padding().max_inset.x - n.border().min_inset.x - n.border().max_inset.x));
+        let inner = world.get::<ComputedNode>(chip).map(|n| n.size().x - n.padding().min_inset.x - n.padding().max_inset.x - n.border().min_inset.x - n.border().max_inset.x);
         out.push(Item { name, rect: r, word: text.as_ref().map(|(_, _, word)| word.clone()), text: text.map(|(needs, _, _)| (needs, inner.unwrap_or(0.0))) });
     }
     (bar_rect, out, led.and_then(|led| rect(world, led)))
