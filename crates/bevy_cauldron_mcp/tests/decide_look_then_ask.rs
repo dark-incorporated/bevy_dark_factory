@@ -18,15 +18,20 @@ use serde_json::{Value, json};
 const ENDPOINT_DELAY: Duration = Duration::from_millis(40);
 
 /// **A recorded endpoint at a chosen address**, slow enough to measure. [`Replay`] answers from the
-/// recording; the address is what the answer's `where` is read from.
+/// recording; `site` is the model the person chose, which is what the answer's `where` is read from (DM-03, #454): an address
+/// decides nothing.
 struct Recorded {
     endpoint: String,
+    site: bevy_oracle::DecisionModel,
     replay: Replay,
 }
 
 impl Transport for Recorded {
     fn endpoint(&self) -> String {
         self.endpoint.clone()
+    }
+    fn site(&self) -> bevy_oracle::DecisionModel {
+        self.site
     }
     fn send(&self, request: &Request) -> Result<Response, Error> {
         std::thread::sleep(ENDPOINT_DELAY);
@@ -116,7 +121,7 @@ fn project(tag: &str) -> PathBuf {
 #[test]
 fn one_call_with_view_and_five_questions_returns_five_answers_and_names_the_model_where_and_latency() {
     let dir = project("five");
-    let local = Recorded { endpoint: Config::default().endpoint, replay: recording() };
+    let local = Recorded { endpoint: Config::default().endpoint, site: bevy_oracle::DecisionModel::Local, replay: recording() };
     let out = decide(&forest_params(), &dir, Some(&view_png()), &local).unwrap();
 
     assert_eq!(out["answers"].as_object().unwrap().len(), 5, "{out}");
@@ -132,11 +137,14 @@ fn one_call_with_view_and_five_questions_returns_five_answers_and_names_the_mode
 }
 
 #[test]
-fn an_endpoint_other_than_the_local_default_is_where_remote() {
+fn the_remote_choice_is_where_remote_and_a_lan_address_chosen_as_local_is_still_local() {
     let dir = project("remote");
-    let remote = Recorded { endpoint: "https://openrouter.ai/api/alpha/decisions".into(), replay: recording() };
+    let remote = Recorded { endpoint: "https://openrouter.ai/api/alpha/decisions".into(), site: bevy_oracle::DecisionModel::Remote, replay: recording() };
     let out = decide(&forest_params(), &dir, Some(&view_png()), &remote).unwrap();
-    assert_eq!(out["where"], "remote", "screenshots may leave the LAN, so anything but the local default says so: {out}");
+    assert_eq!(out["where"], "remote", "screenshots may leave the LAN, so the Remote choice says so: {out}");
+    let lan = Recorded { endpoint: "http://192.168.1.50:8093/v1/systemone".into(), site: bevy_oracle::DecisionModel::Local, replay: recording() };
+    let out = decide(&forest_params(), &dir, Some(&view_png()), &lan).unwrap();
+    assert_eq!(out["where"], "local", "a LAN address chosen as Local reads local: {out}");
     std::fs::remove_dir_all(dir).unwrap();
 }
 
@@ -147,6 +155,9 @@ struct Keeps {
 impl Transport for Keeps {
     fn endpoint(&self) -> String {
         Config::default().endpoint
+    }
+    fn site(&self) -> bevy_oracle::DecisionModel {
+        bevy_oracle::DecisionModel::Local
     }
     fn send(&self, r: &Request) -> Result<Response, Error> {
         self.sent.lock().unwrap().push(r.clone());
@@ -262,7 +273,7 @@ fn a_model_the_endpoint_did_not_name_is_named_by_the_configured_one_and_says_so(
 #[test]
 fn an_answer_says_the_model_was_reported_by_the_endpoint() {
     let dir = project("reported");
-    let local = Recorded { endpoint: Config::default().endpoint, replay: recording() };
+    let local = Recorded { endpoint: Config::default().endpoint, site: bevy_oracle::DecisionModel::Local, replay: recording() };
     let out = decide(&forest_params(), &dir, Some(&view_png()), &local).unwrap();
     assert_eq!(out["model_source"], "reported", "{out}");
     std::fs::remove_dir_all(dir).unwrap();
