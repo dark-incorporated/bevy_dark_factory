@@ -1,0 +1,21 @@
+{
+  "name": "terminal_tab_names",
+  "fps": 10,
+  "scale": 1,
+  "width": 960,
+  "crop": [0, 0, 1088, 640],
+  "setup": [],
+  "chunks": [{"seconds": 8.0}, {"seconds": 8.0}],
+  "steps": [
+    {"at": 1.0, "key": "KeyJ", "mods": ["ControlLeft"], "caption": "person: Ctrl+J raises the terminal"},
+    {"at": 2.2, "write": {"path": "assets/grimoire/editor.yaml", "text": "version: 1\nterminal_agent: Custom\nterminal_agent_command: /home/ladvien/clip/bin/standin/standin\n"}, "caption": "a custom agent, started by a long path"},
+    {"at": 3.4, "click_label": "Start agent", "within": [850, 395, 1088, 440]},
+    {"at": 4.8, "cursor": [600, 250], "caption": "the tab is cut to 16 characters with an ellipsis (#448)"},
+    {"at": 7.0, "click_label": "+", "within": [950, 395, 1088, 440], "caption": "person: a second tab"},
+    {"at": 8.4, "click_label": "+", "within": [950, 395, 1088, 440], "caption": "a third: the bar still holds every chip"},
+    {"at": 10.0, "click_label": "+", "within": [950, 395, 1088, 440], "caption": "four, five, six tabs"},
+    {"at": 11.0, "click_label": "+", "within": [950, 395, 1088, 440]},
+    {"at": 12.0, "click_label": "+", "within": [950, 395, 1088, 440]},
+    {"at": 13.4, "cursor": [600, 250], "caption": "six tabs, the bar whole"}
+  ]
+}

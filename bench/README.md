@@ -1,11 +1,15 @@
 # `cauldron-bench`: a real agent against a real editor
 
 ```sh
-cargo run -p bevy_cauldron_bench -- run --suite dev --trials 5
+cargo build -p bevy_cauldron -p bevy_cauldron_mcp -p bevy_cauldron_bench   # the runner finds the editor and the MCP server beside itself
+cargo run -p bevy_cauldron_bench -- run --trials 5                         # the 20 dev tasks, a real agent (omp), five trials each
 cargo run -p bevy_cauldron_bench -- run --agent oracle     # no model, must pass every task
 cargo run -p bevy_cauldron_bench -- run --agent nothing    # connects and stops, must pass none
 cargo run -p bevy_cauldron_bench -- run --variant no-frame-view --agent oracle
+cargo run -p bevy_cauldron_bench -- --help                 # every option
 ```
+
+Each trial opens the editor in a window of its own, so run it where one can open (on Linux each trial starts its own `Xvfb`). The default suite is `bench/tasks/`; `--suite <dir>` names another, such as a game's own `.dark_factory/bench`.
 
 `run` takes every task of a suite `n` times. One trial:
 

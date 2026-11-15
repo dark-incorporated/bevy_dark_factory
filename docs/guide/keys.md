@@ -6,11 +6,9 @@ This page lists the keys the editor answers to, grouped by where they work. It i
 
 Cmd means the Command key on a Mac. Shift and Alt keep their names. Alt is Option on a Mac. A row with two chords, such as `Cmd+Z` and `Cmd+Shift+Z`, is two bindings that do opposite jobs.
 
-The editor has three doors. A door is one of its three workspaces:
+The editor has ten **workspaces**, one job each: **Project** (the project's maps, kits and agent guide), **Map** (builds a level out of pieces), **World** (the world under the level: terrain, water, forest, lights), **Kit** (makes the reusable content: meshes, tiles and compositions), **Animation** (the rig bench), **Sound** (cues and music scores), **Files** (the project's files and an editor for them), **Game** (the running game, beside its own window), **Agent** (what the agent is doing and what waits on you) and **Design** (the game's style). Switching workspaces changes what is drawn and nothing else: the project, the open map and the selection stay where they are.
 
-- **Map** builds a level out of pieces.
-- **Kit** makes the reusable content: meshes, tiles, and compositions.
-- **Rigs** checks the animation rigs.
+Some tables below say a panel of a workspace: the Meshes, Tiles and Compose panels are the Kit workspace's, and the Anim panel is the Animation workspace's rig bench.
 
 A piece is one placed item on a map. A composition is a named group of pieces that you place as one. A kit is the set of meshes, tiles, and compositions you make once and reuse.
 
@@ -37,22 +35,29 @@ An agent runs a command by its id with `grimoire_run_command`, and it presses th
 
 `Cmd+Shift+P` (`Ctrl+Shift+P` elsewhere) or `Cmd+K` (`Ctrl+K`) opens a box over every command. Type a few letters ("undo", or "opn prj" for "File: Open Project") and the list narrows; the commands you ran last come first. `Up` and `Down` move the lit row, `Enter` or a click runs it, and `Esc`, a click outside, or the same chord again closes it. Each row shows its shortcut at the end, and a command that cannot run now stays in the list with the reason where the shortcut would be ("Not on this tab", "Only while holding a piece"), judged in the tab you were on when you opened it. A command from the palette runs as its shortcut would: the same undo step, the same line in the history, the same refusals.
 
+`Cmd+P` (`Ctrl+P`) opens the same box over **everything the project names**: maps, pieces, placed pieces, compositions, rigs and their clips, cues, scripts, files, data files and notes. Type a name and press `Enter`, and the editor opens the workspace and the thing in it. Start the text with `>` to search commands instead.
+
 The palette does not open while a text field has the keys, because `Cmd+K` there is the field's.
 
 ## Everywhere
 
-These keys work on every tab.
+These keys work in every workspace.
 
 | Key | Works when | Does |
 | --- | --- | --- |
-| `Cmd+1` to `Cmd+9`, `Cmd+0` | Any time | Go to a workspace: 1 Project, 2 Map, 3 World, 4 Kit, 5 Animation, 6 Sound, 7 Files, 8 Game, 9 Agent, 0 Design. Only Map, Kit and Animation are built today; the others say which issue brings them. The Kit panels (Meshes, Tiles, Compose) have no key: click their chips on the strip. |
+| `Cmd+1` to `Cmd+9`, `Cmd+0` | Any time | Go to a workspace: 1 Project, 2 Map, 3 World, 4 Kit, 5 Animation, 6 Sound, 7 Files, 8 Game, 9 Agent, 0 Design. The order is fixed, so a number is always the same workspace. The Kit panels (Meshes, Tiles, Compose) have no key: click their chips on the strip. |
 | `Cmd+Delete` | Any time | Define this piece. On a Mac, the Delete key sends Backspace. |
 | `K` (held) | Any time | Show every key and what it does. Release to hide it. |
 | `Cmd+S` | Any time | Save. |
 | `Cmd+\` | Any time | Snip an area. |
-| `Cmd+O` | Any time | Go back to the menu. |
+| `Cmd+O` | Any time | Go back to the project page (it asks first when the map has unsaved changes). |
 | `Cmd+,` | Any time | Open the settings screen, or close it: every setting with its default, a search, and Reset. It is also the launcher's Settings button; its Project configuration button lists the family crates the project uses and the packs the kit leaves out (a switch each), and its Keymap button rebinds a command (a chord another command has is refused). A rebound command answers to its new chord at once; this page lists the chords it ships with. |
-| `Cmd+E` | Any time | Show the notifications: every step the agent took and every refusal this session. |
+| `Cmd+E` | Any time | Show the **Notifications** panel: every step and refusal of this session, newest first, each with the time it happened. The newest step that can be taken back has an **Undo** button, which works while the agent's writes are paused. `Esc` closes it and `Cmd+C` copies the list. |
+| `Cmd+J` | Any time | Show or hide the terminal (`Ctrl+J` elsewhere). It starts collapsed; the status band's **Terminal Cmd+J** label does the same. |
+| `Shift+Cmd+J` | Any time | Make the terminal cover the whole window below the menu bar, and again give back its height (`Shift+Ctrl+J` elsewhere; View ▸ Maximise terminal). |
+| `Cmd+P` | Any time | Go to anything: one finder over everything the project names. `>` first searches commands. |
+| `Cmd+[` / `Cmd+]` | Any time | Back and forward across workspaces and camera positions, up to 100 places (the mouse's back and forward buttons do the same). |
+| `Cmd+W` | Any time | Close the active document tab (`Ctrl+W` elsewhere). `Shift+Cmd+T` opens the one you closed last. |
 | `Cmd+C` | Any time | Copy this tab's text. |
 | `Cmd+F` | Any time | Filter the list. |
 | `Esc` | Any time | Back out of the current state. |
@@ -61,7 +66,7 @@ These keys work on every tab.
 
 ## Map
 
-These keys work on the Map tab.
+These keys work in the Map workspace.
 
 | Key | Works when | Does |
 | --- | --- | --- |
@@ -99,7 +104,7 @@ These keys work on the Map tab.
 
 ## Meshes
 
-These keys work on the Meshes panel of the Kit door.
+These keys work on the Meshes panel of the Kit workspace.
 
 | Key | Works when | Does |
 | --- | --- | --- |
@@ -135,7 +140,7 @@ These keys work on the Meshes panel of the Kit door.
 
 ## Tiles
 
-These keys work on the Tiles panel of the Kit door.
+These keys work on the Tiles panel of the Kit workspace.
 
 | Key | Works when | Does |
 | --- | --- | --- |
@@ -163,7 +168,7 @@ These keys work on the Tiles panel of the Kit door.
 
 ## Anim
 
-These keys work on the Rigs door's Anim tab.
+These keys work on the Animation workspace's rig bench (the Anim panel).
 
 | Key | Works when | Does |
 | --- | --- | --- |
@@ -179,7 +184,7 @@ These keys work on the Rigs door's Anim tab.
 
 ## Compose
 
-These keys work on the Compose tab of the Kit door.
+These keys work on the Compose panel of the Kit workspace.
 
 | Key | Works when | Does |
 | --- | --- | --- |
@@ -188,6 +193,18 @@ These keys work on the Compose tab of the Kit door.
 | `I` | Any time | Rename this composition. |
 | `Left` / `Right` | Any time | Choose which list the arrow keys walk. |
 | `O` / `P` | Any time | Previous / next composition. |
+
+## The terminal
+
+A real shell is docked across the bottom of every screen, already in your project's folder: `cargo`, `git` and your agent run there. It starts collapsed. `Cmd+J` (`Ctrl+J` elsewhere) raises and collapses it and `Shift+Cmd+J` makes it fill the window below the menu bar; the status band's **Terminal Cmd+J** label raises it too, and a raise is kept across a relaunch. Click it to put the keyboard in the shell, and click anywhere else to give the keys back to the screen. A shell that ends (`exit`, `Ctrl+D`) closes its tab, and `+` in the bar opens another.
+
+- **The shell holds its keys.** While it has the keyboard, typing a `d` does not move the camera and an arrow does not move the screen's focus. Command chords stay the editor's, except the few that mean a line-editing action on a Mac: `Cmd+Backspace` clears the line the shell is reading back to its start, `Cmd+Left` and `Cmd+Right` go to its start and end (the control codes `^U`, `^A` and `^E`), and `Cmd+K` clears the terminal and leaves the prompt at the top (`Ctrl+K` still belongs to the shell). `Esc` closes a dialog over a terminal that holds the keys.
+- **Find in the scrollback.** `Cmd+F` (`Ctrl+F` elsewhere) opens a find box: every match is lit, `Enter` walks to older ones and `Shift+Enter` to newer, the box counts them, and `Esc` hands the keys back to the shell.
+- **Scrolling and the mouse.** The wheel scrolls the terminal's output while the pointer is over it, and over the menu bar, the status band or any panel it leaves the map alone; the map zooms only when the pointer is over the map itself. Typing while you are scrolled back brings you to the prompt. Full-screen programs get their keys and mouse the way they ask: the wheel scrolls `less`, `man` and `git log`, a click reaches a program that asks for the mouse (`htop` sorts by the column you click), and `Shift`+drag still selects.
+- **Links.** `Cmd+click` (`Ctrl+click` elsewhere) on an `http://` or `https://` address in the output opens it in your browser, even over a program that asked for the mouse.
+- **What it draws.** Colours, inverse text and coloured backgrounds the way a program asks; a drag shows what it selects; icons a prompt or tool prints (starship, powerline, `eza --icons`) as icons, one cell wide, in FiraMono Nerd Font Mono. The caret is a block over its cell, takes the shape a program asks for (vim's block and bar), and is an outline while the keys are elsewhere. Its default text, ground and sixteen ANSI colours follow the theme the frame it changes.
+- **What the shell is told.** `TERM_PROGRAM=Cauldron` and the version, `CAULDRON_PROJECT` (the open project's folder), and a UTF-8 locale when it would have none.
+- **Settings.** Text size, cursor style, blinking and how many lines of scrollback are kept are on the Settings screen's Terminal tab (`Cmd+,`) and reach a running terminal at once; the program a tab runs and its arguments are `terminal_shell` and `terminal_shell_args`, and the agent is `terminal_agent` ([data files](data-files.md#editoryaml-and-settingsyaml), [agents](agents.md#start-an-agent-in-cauldrons-terminal)).
 
 ## Text fields and menus
 

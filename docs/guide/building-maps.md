@@ -1,8 +1,8 @@
 # Building maps
 
-The Map door is one of the editor's three workspaces. It is where you lay pieces on the ground. A **piece** is one kit item you place. A **placement** is one piece on the map. A **stamp** is a composition laid down as one unit. A **composition** is a named group of pieces that you keep for reuse. This page covers the tasks you do on the Map. For the file formats, see [data files](data-files.md). For every key, see [keys](keys.md).
+The Map workspace (`Cmd+2`, or `Ctrl+2` elsewhere) is where you lay pieces on the ground. A **piece** is one kit item you place. A **placement** is one piece on the map. A **stamp** is a composition laid down as one unit. A **composition** is a named group of pieces that you keep for reuse. This page covers the tasks you do on the Map. For the file formats, see [data files](data-files.md). For every key, see [keys](keys.md).
 
-![The Map door's 3D view of the bedroom map: a sofa is armed from the PLACE list, R turns it a quarter turn, a click places it, X and a click remove it, and Ctrl+Z puts it back](../media/build-a-map.gif)
+![The Map workspace's 3D view of the bedroom map: a sofa is armed from the PLACE list, R turns it a quarter turn, a click places it, X and a click remove it, and Ctrl+Z puts it back](../media/build-a-map.gif)
 
 The clip shows the jobs below in one pass: arm a piece from the PLACE list, set its facing with `R` while it is armed, click to place, `X` and a click to remove, and Cmd+Z to undo (the clip was recorded on Linux, where the key is Ctrl+Z). The INSPECTOR on the left, outside the clip's frame, names each step: BRUSH and YAW for the armed piece, MAP for the count, LAST for the newest change, and the history list with who made each one.
 
@@ -62,7 +62,7 @@ Or right-click the piece's row in the palette: its menu opens with Place, Mount 
 
 **Goal:** Correct a note you left, with room for more than one line.
 
-1. Open the Map door's INSPECTOR and find **NOTES**. Every note is a row, with its buttons under it.
+1. Open the Map workspace's INSPECTOR and find **NOTES**. Every note is a row, with its buttons under it.
 2. Press **Edit** on the note. A text area opens under the list holding the note's text.
 3. Type. Enter adds a line. Press Ctrl+Enter (Cmd+Enter on a Mac) to save, or move to another field.
 
@@ -198,6 +198,18 @@ An agent can lay only part of the map: `layout_propose` takes an `area`, `[x0, z
 2. Say what to take from a dropped picture with `ref <path> <caption>` (a picture already on the board is re-captioned), and type `ref <path> remove` to take one off.
 
 **What you see:** The status line says `added <path> to the board of design/levels/<map>`. A picture from outside the project is copied into that place's `board/` folder first; one already inside the project stays where it is. A dropped picture carries `(caption needed: ...)` until you say what to take from it. The pictures are kept in `design/levels/<map>/board/board.yaml`, and an agent reads them in `grimoire_state.board` and cites a picture by its path (`board picture <path>: <caption>`). `Cmd+Z` takes the change back and leaves the copied file. A file that is not an image, a different picture under a name `board/` already holds, or a restricted picture under `assets/` is refused and nothing changes.
+
+## Draw a style area on the map
+
+**Goal:** Name a rectangle of a level, such as a market square, so it can carry a style page of its own.
+
+1. Type `area <name> <x0> <z0> <x1> <z1>` in the terrain field, with the corners in map metres (`area market -8 4 -2 10`). The name is letters, digits, `_` and `-`; it is the area's folder.
+2. Choose **View ▸ Show style areas** to outline every area of the open map on its floor, with its name beside the outline. The outlines are off until you choose it, and showing them writes nothing.
+3. Type `area <name> remove` to remove an area.
+
+**What you see:** the status band's UNDER CURSOR line names the area the pointer is in (the smallest one that holds it), shown or not. The INSPECTOR's **Style** link opens the page of the area the pointer was last over, or the level's own page when it was over none, in the Design workspace. An area is a folder, `areas/<name>/` inside its level's folder under `design/` (`design/levels/<map>/areas/<name>/`), holding an `area.yaml` with its rectangle and its style pages. It belongs to the design tree and not to the map, so drawing one does not mark the map changed.
+
+**If it goes wrong:** an area that overlaps another area of the level is refused and nothing changes (an overlap written by hand is listed as a problem of the design tree instead, as is an area outside the map's bounds). A removed area's pages are kept on disk. Each line is one log line and one undo step, the same as an agent's `design_area_set`, so `Cmd+Z` takes it back. [The game's style](agents.md#the-games-style) says how an agent reads the page of the area a point is in.
 
 ## Move the camera
 

@@ -1,0 +1,80 @@
+{
+  "name": "escape_closes_settings",
+  "fps": 10,
+  "scale": 1,
+  "width": 960,
+  "crop": [
+    0,
+    0,
+    1088,
+    640
+  ],
+  "setup": [],
+  "chunks": [
+    {
+      "seconds": 6.0
+    },
+    {
+      "seconds": 6.0
+    }
+  ],
+  "steps": [
+    {
+      "at": 1.0,
+      "key": "KeyJ",
+      "mods": [
+        "ControlLeft"
+      ],
+      "caption": "person: Ctrl+J raises the terminal"
+    },
+    {
+      "at": 2.2,
+      "click_label": "+",
+      "within": [
+        1000,
+        395,
+        1070,
+        440
+      ],
+      "caption": "a shell tab"
+    },
+    {
+      "at": 3.4,
+      "click": [
+        400,
+        500
+      ],
+      "caption": "person: a click in the shell; it holds the keys"
+    },
+    {
+      "at": 4.6,
+      "key": "Comma",
+      "mods": [
+        "ControlLeft"
+      ],
+      "caption": "person: Settings (Ctrl+,) while the shell holds the keys"
+    },
+    {
+      "at": 6.8,
+      "key": "Escape",
+      "caption": "Escape closes it, with the terminal holding the keys (#446)"
+    },
+    {
+      "at": 8.4,
+      "click": [
+        400,
+        500
+      ],
+      "caption": "a click in the terminal gives it the keys back"
+    },
+    {
+      "at": 9.4,
+      "type": "echo keys-are-back",
+      "caption": "typing reaches the shell"
+    },
+    {
+      "at": 10.4,
+      "key": "Enter"
+    }
+  ]
+}

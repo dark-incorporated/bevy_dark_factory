@@ -1,6 +1,6 @@
 # The editor's UI: vision, principles and architecture
 
-Status: owner-directed series, 2026-11-01. The work is tracked by the issue labelled `ui` titled "UI-00: The editor's UI, on bevy_gooey — the series". Every widget the editor needs comes from `bevy_gooey` (`bevy-coven/bevy_gooey`); a missing widget is a `G-NN` request filed there, never code written here.
+Status: owner-directed series, 2026-11-01. The work is tracked by the issue labelled `ui` titled "UI-00: The editor's UI, on bevy_gooey — the series". Every widget the editor needs comes from `bevy_gooey` ([`dark-incorporated/bevy_gooey`](https://github.com/dark-incorporated/bevy_gooey)); a missing widget is a `G-NN` request filed there, never code written here.
 
 ## 1. What the UI is for
 
@@ -12,7 +12,7 @@ So the UI has three jobs:
 2. Show what the Familiar is doing, let the person stop, correct or undo it, and say why it did it.
 3. Make the project's files the truth: nothing is only in memory, and every setting is a file that can be read, diffed and committed.
 
-Today the UI is hand-built on `bevy_ui` in `crates/bevy_cauldron/src/` (`chrome.rs`, 3,531 lines, and 168 raw `Node {` constructions across the crate). `bevy_gooey` is an optional feature used only to preview a game's skin. The series ends with every widget of the editor on gooey, one skin, one command registry and one settings system.
+At the start of the series (2026-11-01) the UI was hand-built on `bevy_ui` in `crates/bevy_cauldron/src/` (`chrome.rs` was 3,531 lines, and the crate had 168 raw `Node {` constructions), with `bevy_gooey` an optional feature used only to preview a game's skin. Today the editor has no raw `Node` left outside the viewport surface (`surface.rs`, `view.rs`): `the_editor_keeps_its_raw_nodes_counted` counts them per file, the count may only fall, and it is 0 (UI-99, #260). The series continues with one skin, one command registry and one settings system.
 
 ## 2. Principles
 
@@ -45,9 +45,9 @@ flowchart LR
     W -- Cmd/Ctrl+, --> S
 ```
 
-- **Launcher** (replaces `Screen::Menu` and the kit/map lists of `chooser.rs`): recent projects with name, path, last opened and thumbnail; Open folder…, New project…, Open example, Settings, and what is new since the user last opened Grimoire.
+- **Launcher** (replaces `Screen::Menu` and the kit/map lists of `chooser.rs`): recent projects with name, path, last opened and thumbnail, with a filter; **Open folder…** (the system's chooser), **New project**, Settings, and what is new since the user last opened Grimoire. On a first run it is a welcome with **Open the example**, which the Learn page also has.
 - **Loader** (a new `Screen::Loading`): the project open as named stages: read project, kits, measure meshes, thumbnails, family crates, maps. Under 1 s nothing shows; from 1 s a spinner; once the stage count is known and 10 s have passed, a percent-done bar with "N of M: stage". Cancel returns to the launcher and writes nothing. When it ends, a report card lists every refused file with its problem.
-- **Workbench** (replaces `Screen::Editor`): where the work happens (section 4). It holds **nine workspaces**, and moving between them is not a screen change: the project, the open map and the selection stay where they are.
+- **Workbench** (replaces `Screen::Editor`): where the work happens (section 4). It holds **ten workspaces**, and moving between them is not a screen change: the project, the open map and the selection stay where they are.
 - **Settings** is a workbench tab, opened with Cmd/Ctrl+, and from the launcher.
 
 ## 4. Workbench anatomy
@@ -55,8 +55,8 @@ flowchart LR
 **Two axes.** Since NV-02 (#379) the editor's navigation is two independent axes, and keeping them
 independent is what makes moving around cheap:
 
-- **The workspace** is the *job*: Project, Map, World, Kit, Animation, Sound, Files, Game, Agent. It is
-  a fixed list in a fixed order, so `Cmd`/`Ctrl`+`1` is Project today and Project in five releases.
+- **The workspace** is the *job*: Project, Map, World, Kit, Animation, Sound, Files, Game, Agent, Design. It is
+  a fixed list in a fixed order, so `Cmd`/`Ctrl`+`1` is Project today and Project in five releases (`0` is Design).
 - **The layout** is *what is on screen*: a `DockLayout` tree, saved per workspace. A divider moved in
   Map is where it was left in Map, and has moved nothing in Kit.
 
@@ -66,7 +66,7 @@ changes which panels are drawn and nothing else — **one viewport is shared by 
 shows the world** (Map, World, Kit, Animation), so switching never reloads a map or drops a selection.
 
 **A workspace whose part is not built is not registered.** Such a workspace has its chord and its command, and the command says which
-issue brings it (`workspace::WAITING` is that table). All nine are built now: the Project workspace (NV-08, #385) draws the project's page
+issue brings it (`workspace::WAITING` is that table, empty since the Project workspace). All ten are built now: the Project workspace (NV-08, #385) draws the project's page
 inside the workbench, while `Screen::Project` stays the page of a project with no door open (a project chosen on the launcher, Close project), reached by
 Cmd/Ctrl+O. There are no placeholder screens: a workspace either does its job or says what it is waiting for.
 
@@ -102,7 +102,8 @@ layouts are per workspace rather than one shared one:
 | Sound | inspector and viewport | the audio panel (`bevy_siren`; a build without it says so, NV-08, #385) |
 | Files | inspector and viewport | the file tree (GD-11) |
 | Game | viewport and inspector | Play, Stop, Build, the build's errors, the game's log, a read-only view of its state over BRP, frame time and memory, Show window; a crash stays on screen and badges the icon (NV-09, #386) |
-| Agent | inspector and viewport | the AGENT block at full size with the waiting wishes and lessons, and the agent's last changes with Look (NV-10, #387); the compact block stays a toggle of Map |
+| Agent | inspector and viewport | the AGENT block at full size with the waiting wishes and lessons, and the agent's recent changes with Look and Undo (NV-10, #387); the compact block stays a toggle of Map |
+| Design | design tree, rendered page, board | the game's style (SG-05, #404): the tree of places on the left, the selected page rendered with its pictures in the middle (Edit swaps it for the file editor) and the place's dream board as cards on the right |
 
 **Document tabs** (NV-04, #381) are the third thing, beside the workspace and the layout: *what you are
 working on*. Inside a workspace the things you open are tabs: maps in Map and World, files in Files,
@@ -125,9 +126,9 @@ tab, `Cmd/Ctrl+Shift+T` reopens the last one closed, and `Ctrl+Tab` (with Shift,
 - The docks hold **panels**. Each panel has an id, a title and a spawn function in a `PanelRegistry`.
   The layout of a dock is data (`DockLayout`: a tree of splits and tab groups), saved in settings under
   the workspace's id. There are no floating windows.
-- **A panel lives in one workspace by default**, and Window ▸ Panels can add any panel to any
-  workspace's dock. The default says where it belongs; it is not a cage.
-- **Reset layout** restores the *current* workspace's default and takes that one key out of the file,
+- **A panel lives in one workspace by default.** The default says where it belongs; it is not a cage, and the
+  layout is the person's to arrange.
+- **Reset layout** (View ▸ Reset layout) restores the *current* workspace's default and takes that one key out of the file,
   leaving the others alone.
 - The **status bar** left side shows the project, map, workspace and selection count. The right side
   shows the live link, the reload state, background jobs and the problems count.
@@ -144,8 +145,8 @@ tab, `Cmd/Ctrl+Shift+T` reopens the last one closed, and `Ctrl+Tab` (with Shift,
 There is one registry. A command has an `id` (`map.place`, `edit.undo`), a title, a category, a default shortcut and an enabled-or-why answer (a disabled command says why). Every `keys::Action` becomes a command.
 
 - Keys, menus, the palette, the toolbar, context menus and MCP (`grimoire_run_command { id }`) all dispatch through it.
-- The menu bar is generated from the categories: File, Edit, View, Map, Kit, Rigs, Tools, Window and Help. Every command appears in exactly one menu.
-- The palette (Cmd/Ctrl+Shift+P and Cmd/Ctrl+K) lists every command, recently run first, then by fuzzy score.
+- The menu bar is generated from the categories (`menu_bar::MENUS`): File, Edit, View, Workspace, Map, Meshes, Tiles, Compose, Rigs, Tools and Help. Every command appears in exactly one menu.
+- The palette (Cmd/Ctrl+Shift+P and Cmd/Ctrl+K) lists every command, recently run first, then by fuzzy score; Cmd/Ctrl+P is the same box over everything the project names (maps, pieces, rigs, cues, scripts, files, notes), and a leading `>` returns to commands.
 - A test proves every command has a unique id and title, and that no two default shortcuts conflict.
 
 ## 6. Settings layers
@@ -160,7 +161,7 @@ The settings screen is searchable with categories as tabs. Each setting shows it
 
 ## 7. Component inventory
 
-What the editor needs, which gooey widget provides it, and the gooey request that asks for it. A request is `G-NN` in its title on `bevy-coven/bevy_gooey`, labelled `grimoire-ui`; the tracking issue maps each id to its number.
+What the editor needs, which gooey widget provides it, and the gooey request that asks for it. A request is `G-NN` in its title on `dark-incorporated/bevy_gooey`, labelled `grimoire-ui`; the tracking issue maps each id to its number.
 
 | Editor need | gooey widget | Request |
 |---|---|---|

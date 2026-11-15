@@ -1,6 +1,6 @@
-# bevy_grimoire
+# bevy_dark_factory
 
-The Cauldron (the editor), learned grammar and WFC for Bevy games. A grimoire is the book the Cauldron writes and a game loads (`bevy_grimoire`, `bevy_grimoire_core`, `assets/grimoire/`). Workspace of crates under `crates/`; fixtures under `assets/`.
+The Dark Factory, the world editor (the editor's binary, window and crates are still named for its earlier name, the Cauldron: `bevy_cauldron`), learned grammar and WFC for Bevy games. A grimoire is the book the editor writes and a game loads (`bevy_grimoire`, `bevy_grimoire_core`, `assets/grimoire/`). Workspace of crates under `crates/`; fixtures under `assets/`.
 
 ## Force pushes and deletions need the user's express permission
 
@@ -27,7 +27,7 @@ counter. `python3 tools/loop/version.py` owns the rule, and `version.py check` r
   decision in a conversation, never a pass's.
 - **A version comes from the previous one alone** — never a date, a build id, a run id or a commit count.
   `version.py next` prints the one legal answer.
-- **A bump is its own commit**, `release: <version>`, carrying the manifest and `Cargo.lock` and nothing
+- **A bump is its own commit**, `release: <version>`, carrying the manifests (the editor's, and the library crates released with it) and `Cargo.lock` and nothing
   else. No pre-release or build metadata in a release tag: the updater compares tags exactly.
 
 `docs/loop/RUNNING-A-LOOP.md`, "A version is released, not counted", carries the reasoning and the
@@ -52,14 +52,14 @@ Consumers: Sanctuary (`/Users/ladvien/sanctuary`, decision 0087).
 
 A game asks for what it needs here through GitHub issues, and that is the only coupling between its loop and this repo's: neither loop reads the other's code or backlog to decide what to build, so any game can join the same way.
 
-- **The game files** an issue on `bevy-coven/bevy_grimoire` with the labels `consumer`, `consumer:<game>` (create it the first time) and `bug` or `enhancement`: what the game needs and why, current behaviour, proposed API, edge cases, and acceptance criteria this repo can prove with its own test. It searches its open `consumer:<game>` issues first, so a need is filed once.
+- **The game files** an issue on `dark-incorporated/bevy_dark_factory` with the labels `consumer`, `consumer:<game>` (create it the first time) and `bug` or `enhancement`: what the game needs and why, current behaviour, proposed API, edge cases, and acceptance criteria this repo can prove with its own test. It searches its open `consumer:<game>` issues first, so a need is filed once.
 - **This repo's loop** (`.omp/commands/build-loop.md`) takes an open `consumer` issue right after bug issues and ahead of the owner's focus. It builds the general form (the game is the example, never a name in the API), proves it with a test here, and closes the issue only through a verified fix (`Fixes #N`). One it cannot work gets a comment saying what it needs.
-- **The game waits** with `Needs: bevy_grimoire#N` on its own item and takes it up again when the issue is closed as completed and its checkout of this repo has the fix. Closed as not planned means declined: that is a question for the owner, not a retry.
+- **The game waits** with `Needs: bevy_dark_factory#N` on its own item and takes it up again when the issue is closed as completed and its checkout of this repo has the fix. Closed as not planned means declined: that is a question for the owner, not a retry.
 
 ### The two-way street, both ways
 
 **A consumer that needs something files it here, and this loop builds it here.** A game or a family crate opens an
-issue on `bevy-coven/bevy_grimoire` labelled `enhancement` (or `bug`), `consumer` and `consumer:<project>`, whose body
+issue on `dark-incorporated/bevy_dark_factory` labelled `enhancement` (or `bug`), `consumer` and `consumer:<project>`, whose body
 says why, the proposed API, the edge cases, and an acceptance this repo can prove with its own test. An open
 `consumer` issue is taken right after bug issues and ahead of the owner's focus; the fix is made here, in its own
 commit with its own test, as the general form (a project is the example, never a name in the API), and the issue is

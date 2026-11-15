@@ -1,11 +1,10 @@
 {
   "name": "agent_drives",
-  "fps": 15,
+  "fps": 10,
   "scale": 1,
-  "width": 600,
-  "crop": [420, 240, 810, 575],
-  "setup": [{"key": "KeyJ", "mods": ["ControlLeft"]}, 
-    {
+  "width": 900,
+  "crop": [0, 150, 1088, 610],
+  "setup": [{
       "mcp": "grimoire_frame_view",
       "args": {
         "target": {

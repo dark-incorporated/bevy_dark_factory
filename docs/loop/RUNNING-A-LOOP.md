@@ -328,8 +328,8 @@ A loop releases, so a loop is what turns a version into a counter when nobody st
   says so rather than pretending to describe them.
 - **A version comes from nowhere but the previous one.** Never a date, a build number, a CI run id, a
   commit count, or a lint. `version.py next` prints the one legal answer.
-- **A bump is its own commit**, `release: <version>`, carrying `crates/bevy_cauldron/Cargo.toml` and
-  `Cargo.lock` and nothing else, so the tag's source is exactly what was tested.
+- **A bump is its own commit**, `release: <version>`, carrying the manifests (`crates/bevy_cauldron/Cargo.toml`, and the library crates released with it) and
+  `Cargo.lock` and nothing else, so the tag's source is exactly what was tested; `tools/release/bench_gate.py` judges it as the commit it bumps.
 - **No pre-release or build metadata in a release tag**: the updater compares tags exactly, and
   `0.2.6-rc1` makes two downloads of the same code look different. `version.py check` refuses one.
 - **Only `bevy_emerge_loop` releases** (already the rule in `build-loop.md`); every other worker never
