@@ -77,7 +77,7 @@ fn earned() -> bevy_oracle::Calibration {
 
 #[test]
 fn a_calibrated_blank_frame_check_fails_the_run_and_passes_on_a_good_capture() {
-    // **The blank frame.** The model said blank (P = 0.97, over the check's own 0.70 threshold).
+    // **The blank frame.** The model said blank (P = 0.97, over the threshold the calibration earned for this model).
     let blank = run_checks(
         &checks(0.0, Some(earned())),
         &Replay { p: BTreeMap::from([("blank_frame".to_owned(), 0.97)]) },

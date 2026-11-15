@@ -1651,6 +1651,7 @@ checksum = "bff34eb29ff4b8a8688bc7299f14fb6b597461ca80fec03ed7d22939ab33e48f"
 name = "bevy_oracle"
 version = "0.1.0"
 dependencies = [
+ "bevy_grimoire_core",
  "serde",
  "serde_json",
  "serde_yaml_ng",

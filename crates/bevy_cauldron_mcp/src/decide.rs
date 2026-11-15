@@ -276,7 +276,7 @@ impl<'a> Measured<'a> {
         json!({
             "model_source": model.as_ref().map(|_| REPORTED),
             "model": model,
-            "where": where_of(&self.inner.endpoint()),
+            "where": self.inner.site().where_ran(),
             "latency_ms": u64::try_from(self.spent.get().as_millis()).unwrap_or(u64::MAX),
         })
     }
@@ -285,6 +285,9 @@ impl<'a> Measured<'a> {
 impl Transport for Measured<'_> {
     fn endpoint(&self) -> String {
         self.inner.endpoint()
+    }
+    fn site(&self) -> bevy_oracle::DecisionModel {
+        self.inner.site()
     }
     fn send(&self, request: &Request) -> Result<Response, Error> {
         let started = Instant::now();
@@ -299,23 +302,15 @@ impl Transport for Measured<'_> {
     }
 }
 
-/// **`local` only for the editor's own default endpoint**; any other is `remote`, which says that the
-/// pictures may have left the LAN. Reading it the other way round would let a mistyped endpoint pass as local.
-pub const LOCAL: &str = "local";
 /// **`model_source` when the endpoint's own response named the model.**
 pub const REPORTED: &str = "reported";
-/// **`model_source` when the endpoint named none and the person's `GRIMOIRE_DECIDE_MODEL` did.**
+/// **`model_source` when the endpoint named none and the configuration did** (the remote model's name is one the
+/// request itself carried).
 pub const CONFIGURED: &str = "configured";
-/// What `where` says of any endpoint but the editor's own default.
-pub const REMOTE: &str = "remote";
-
-fn where_of(endpoint: &str) -> &'static str {
-    if endpoint == bevy_oracle::Config::default().endpoint { LOCAL } else { REMOTE }
-}
 
 /// **Name the model the endpoint did not name**: a server that answers without a `model` is named by the
-/// one the person configured (`GRIMOIRE_DECIDE_MODEL`), when there is one, and the answer's `model_source`
-/// says `configured` rather than `reported`. A model the endpoint named is never replaced.
+/// one the configuration sent, when there is one, and the answer's `model_source` says `configured` rather
+/// than `reported`. A model the endpoint named is never replaced.
 pub fn name_the_model(answer: &mut Value, configured: Option<&str>) {
     if answer["model"].is_null()
         && let Some(name) = configured
@@ -432,5 +427,61 @@ pub fn decide_with(
             merge(&mut answer, measured.about());
             Ok(answer)
         }
+    }
+}
+
+/// **Decide as the person's settings say** (DM-03, #454): read the layers (`user_settings` is the person's
+/// `settings.yaml`, and the project's own `editor.yaml` is looked at too), build the endpoint they choose and ask it.
+///
+/// **One endpoint per call, no fallback.** Remote with no `OPENROUTER_API_KEY` is refused with that sentence and
+/// the local model is not asked instead; a settings file that does not read is refused naming the file. A project file that
+/// names the choice is ignored and said in the answer's `settings_problems`, naming the file.
+pub fn decide_asked(
+    params: &DecideParams,
+    project: &Path,
+    view: Option<&str>,
+    game: Option<&GameEvidence>,
+    user_settings: Option<&Path>,
+    endpoints: &bevy_oracle::Endpoints,
+) -> Result<Value, String> {
+    let resolved = endpoints.resolve(user_settings, Some(&bevy_oracle::project_file(project))).map_err(|e| e.to_string())?;
+    let configured = resolved.config.model.clone();
+    let transport = bevy_oracle::Live::new(resolved.config);
+    let mut answer = decide_with(params, project, view, game, &transport)?;
+    name_the_model(&mut answer, configured.as_deref());
+    if !resolved.chosen.problems.is_empty() {
+        answer["settings_problems"] = json!(resolved.chosen.problems.iter().map(ToString::to_string).collect::<Vec<_>>());
+    }
+    Ok(answer)
+}
+
+/// **The name of the self test's decision-model check**: the editor's card gives it a row of its own.
+pub const SELF_TEST_CHECK: &str = "decision_model";
+
+/// **How long the self test waits for the model**, in seconds. The default wait is a minute, which would hold an agent's first
+/// call that long; a model that has not answered a one-word question in this long is not available to a check that wants
+/// to be fast.
+pub const SELF_TEST_PATIENCE_SECS: u64 = 20;
+
+/// **The decision model's check for `grimoire_self_test`**, as `{name, ok, detail}`: ask the chosen model one text-only `noul` and
+/// say which model answered, where it ran (`local` or `remote`) and how long it took, or why it did not answer. An agent
+/// learns at start-up whether its fastest check is there.
+///
+/// Resolved exactly as `grimoire_decide` is ([`decide_asked`]): one endpoint, no fallback, and Remote with no key fails
+/// with that sentence rather than asking the local model. Nothing of the project goes in the question.
+pub fn self_test_check(project: Option<&Path>, user_settings: Option<&Path>, endpoints: &bevy_oracle::Endpoints) -> Value {
+    let project_file = project.map(bevy_oracle::project_file);
+    let result = endpoints.resolve(user_settings, project_file.as_deref()).and_then(|resolved| {
+        let mut config = resolved.config;
+        config.timeout_secs = SELF_TEST_PATIENCE_SECS;
+        bevy_oracle::probe(&bevy_oracle::Live::new(config))
+    });
+    match result {
+        Ok(a) => json!({
+            "name": SELF_TEST_CHECK,
+            "ok": true,
+            "detail": format!("{} · {} · {} ms", a.model, a.site, a.latency.as_millis()),
+        }),
+        Err(e) => json!({"name": SELF_TEST_CHECK, "ok": false, "detail": e.to_string()}),
     }
 }

@@ -82,8 +82,9 @@ manifest, so a committed set works from any clone.
 another line's mismatch), at a chosen threshold of 0.241:
 
 ```sh
-GRIMOIRE_DECIDE_ENDPOINT=http://127.0.0.1:8093/v1/systemone \
-  cargo run -q -p bevy_oracle --bin decide_check -- \
+# as run on 2026-11-02, when the local server was clef-flash on 127.0.0.1:8093; today `decision_model: local`
+# asks d3-flash and `--model` (default d3-flash) must name the model the endpoint serves
+cargo run -q -p bevy_oracle --bin decide_check -- \
   --calibrate crates/bevy_oracle/fixtures/clip_samples.yaml
 # clip_shows_its_title   agreement 61.5% on 122 samples, threshold 0.241, model clef-flash
 ```

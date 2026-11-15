@@ -11,7 +11,7 @@
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
-use bevy_oracle::{Checks, Config, Evidence, Live, Transport, Verdict, evidence_from, run_checks};
+use bevy_oracle::{Checks, Config, Endpoints, Evidence, Live, Transport, Verdict, evidence_from, run_checks};
 
 fn usage() -> String {
     "usage: decide_check --captures DIR [--project DIR] [--bar F] [--ask] [--no-builtin] [--json] [--facts FILE]\n\
@@ -55,7 +55,7 @@ fn parse(argv: Vec<String>) -> Result<Args, String> {
         calibrate: None,
         out: None,
         check: "clip_shows_its_title".to_owned(),
-        model: "clef-flash".to_owned(),
+        model: bevy_oracle::LOCAL_MODEL_NAME.to_owned(),
     };
     let mut it = argv.into_iter();
     while let Some(arg) = it.next() {
@@ -126,7 +126,24 @@ fn main() {
         }
     };
 
-    let transport = Live::new(Config::from_env());
+    // **The model asked is the person's setting** (`decision_model`, read from their settings file and the project's
+    // layers like every other surface): one endpoint per run. A listing asks nothing, so a setting that cannot be
+    // resolved (Remote with no key) stops only the runs that would ask.
+    let resolved = Endpoints::from_env().resolve_for_project(&args.project);
+    let asking = args.ask || args.calibrate.is_some();
+    let transport = match &resolved {
+        Ok(r) => Live::new(r.config.clone()),
+        Err(e) if asking => {
+            eprintln!("{e}");
+            std::process::exit(2);
+        }
+        Err(_) => Live::new(Config::default()),
+    };
+    if let Ok(r) = &resolved {
+        for problem in &r.chosen.problems {
+            eprintln!("settings problem: {problem}");
+        }
+    }
     let evidence_for = |check: &bevy_oracle::Check| -> Result<Evidence, String> {
         let mut images = BTreeMap::new();
         for name in &check.images {
@@ -162,10 +179,12 @@ fn main() {
                 std::process::exit(2);
             }
         };
-        // **`--model` labels the record, and the endpoint must be that model** (#455). The endpoint comes
-        // from the environment, not from this flag, so the two can disagree; a record labelled for a model
-        // that did not answer is the defect a per-model calibration exists to prevent. Refuse before the
-        // first sample when the endpoint does not list the label, and refuse any answer that names another.
+        // **`--model` labels the record, and the endpoint must be that model** (#455). The endpoint is the
+        // person's `decision_model` setting, not this flag (the default label is the local model's), so the
+        // two can disagree; a record labelled for a model that did not answer is the defect a per-model
+        // calibration exists to prevent. Refuse before the first sample when the endpoint does not list the
+        // label (for Remote, the one model it sends: `perplexity/pplx-decider-v1.3:free`), and refuse any
+        // answer that names another.
         let served = transport.served_models().and_then(|m| bevy_oracle::verify_served(&args.model, &transport.endpoint(), &m));
         if let Err(e) = served {
             eprintln!("{e}");

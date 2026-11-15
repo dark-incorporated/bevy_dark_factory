@@ -102,6 +102,8 @@ pub fn add_editor_plugins(app: &mut App) -> &mut App {
             crate::token_prompt::TokenPromptPlugin,
             // **The after-edit checks owed** for each agent operation, never for a person's.
             crate::after_edit::AfterEditPlugin,
+            // **The decision model's status LED and the state its requests write** (DM-03, #454).
+            crate::decision_model::DecisionModelPlugin,
             // Two plugins, two jobs: the capture rig is the shared crate, the verbs are ours.
             bevy_devshot::DevShotPlugin,
             crate::devshot::DrivePlugin,

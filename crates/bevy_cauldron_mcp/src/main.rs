@@ -1558,7 +1558,7 @@ impl Grimoire {
     /// **`grimoire_decide` -- ask a decision model, and get a probability back.**
     ///
     /// **Advisory and authoring-time**: it changes no map data, and a finding never blocks or undoes
-    /// anything. The endpoint is one per run, from `GRIMOIRE_DECIDE_ENDPOINT`, `_MODEL` and `_KEY`.
+    /// anything. Which model answers is the person's `decision_model` setting, read from the settings layers.
     #[tool(
         name = "grimoire_decide",
         description = concat!(
@@ -1583,8 +1583,10 @@ impl Grimoire {
                        answer (game.state) as facts.game; a check that asks for the image game takes it \
                        itself, and a game's own checks live in the project's assets/grimoire/checks.yaml. \
                        Advisory: it changes no map data and a finding never blocks or undoes an \
-                       operation. The endpoint is one per run, local by default; a Cloudflare endpoint sends \
-                       pictures off the LAN and is opt-in."),
+                       operation. Which model answers is the person's decision_model setting: Local (d3-flash \
+                       on the LAN, the default) or Remote (Perplexity's, through OpenRouter, which sends \
+                       pictures off the LAN and is the person's own choice). It is one per call with no \
+                       fallback: Remote with no OPENROUTER_API_KEY is refused, never asked of the local model."),
         annotations(
             title = "Ask a decision model",
             read_only_hint = true,
@@ -1622,12 +1624,14 @@ impl Grimoire {
             None
         };
         let answer = tokio::task::spawn_blocking(move || {
-            let config = bevy_oracle::Config::from_env();
-            let configured_model = config.model.clone();
-            let http = bevy_oracle::Live::new(config);
-            let mut answer = bevy_cauldron_mcp::decide::decide_with(&p, &project, view.as_deref(), game.as_ref(), &http)?;
-            bevy_cauldron_mcp::decide::name_the_model(&mut answer, configured_model.as_deref());
-            Ok::<_, String>(answer)
+            bevy_cauldron_mcp::decide::decide_asked(
+                &p,
+                &project,
+                view.as_deref(),
+                game.as_ref(),
+                bevy_oracle::user_file().as_deref(),
+                &bevy_oracle::Endpoints::from_env(),
+            )
         })
         .await
         .map_err(|e| ErrorData::internal_error(e.to_string(), None))?;
@@ -2500,8 +2504,10 @@ impl Grimoire {
     #[tool(
         name = "grimoire_self_test",
         description = "Cauldron's power-on self test, for an agent started in Cauldron's terminal: \
-                       reads the editor's state, counts its operations and takes one picture of the \
-                       editor, tells the editor how each went (it shows them to the person), and \
+                       reads the editor's state, counts its operations, takes one picture of the \
+                       editor and asks the decision model one text-only question (which model \
+                       answered, where it ran and how long it took, or why it did not answer), tells \
+                       the editor how each went (it shows them to the person), and \
                        returns the picture and the results. Call it once when asked to run the self \
                        test; it changes nothing.",
         annotations(
@@ -2547,10 +2553,23 @@ impl Grimoire {
             }
             Err(e) => (false, e),
         };
+        // **The decision model, asked once** (DM-03, #454): the one setting's model answers one text-only question, so an
+        // agent learns at start-up whether its fastest check is available, which model it is and where it runs.
+        let project = self.project.clone();
+        let decision = tokio::task::spawn_blocking(move || {
+            bevy_cauldron_mcp::decide::self_test_check(
+                project.as_deref(),
+                bevy_oracle::user_file().as_deref(),
+                &bevy_oracle::Endpoints::from_env(),
+            )
+        })
+        .await
+        .unwrap_or_else(|e| json!({"name": bevy_cauldron_mcp::decide::SELF_TEST_CHECK, "ok": false, "detail": e.to_string()}));
         let checks = vec![
             self_test_check("state", state),
             self_test_check("operations", operations),
             self_test_check("picture", picture),
+            decision,
         ];
         let told_the_editor = self
             .editor

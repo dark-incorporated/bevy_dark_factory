@@ -17,6 +17,7 @@
 use std::path::Path;
 
 use crate::settings::{EditorSettings, GRID_STRENGTH_RANGE, KIND, SettingsLayer, TerminalAgent, TerminalCursor, Theme};
+use bevy_oracle::DecisionModel;
 
 /// One key's value: what a control shows and what a write carries.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -60,7 +61,7 @@ pub const SIZE_SLIDER: (f32, f32) = (0.75, 2.0);
 pub const SCALE_STEP: f32 = 0.05;
 
 /// The categories, in the order the screen's tabs show them.
-pub const CATEGORIES: &[&str] = &["Appearance", "Accessibility", "Map", "Terminal"];
+pub const CATEGORIES: &[&str] = &["Appearance", "Accessibility", "Map", "Terminal", "Decisions"];
 
 /// The names of [`Theme`]'s variants, in declaration order.
 pub const THEMES: &[&str] = &["Tool dark", "Parchment", "High contrast"];
@@ -70,6 +71,13 @@ pub const TERMINAL_CURSORS: &[&str] = &["Block", "Underline", "Bar"];
 
 /// The names of [`TerminalAgent`]'s variants, in declaration order.
 pub const TERMINAL_AGENTS: &[&str] = &["Off", "Oh My Pi", "Custom command"];
+
+/// The names of [`DecisionModel`]'s variants, in declaration order.
+pub const DECISION_MODELS: &[&str] = &["Local", "Remote"];
+
+/// **What the Remote choice says before it is chosen** (DM-03, #454): where the pictures go, whose choice it is, and what it needs.
+/// Part of the row's description, so it is read, and found by a search for `openrouter`.
+pub const REMOTE_DISCLOSURE: &str = "Remote sends screenshots of this project to OpenRouter and Perplexity.";
 
 /// **The scrollback lengths the screen offers** (#324), and their words. A file may set any length
 /// [`crate::settings::SCROLLBACK_RANGE`] allows; the screen shows the nearest of these for one between.
@@ -140,6 +148,13 @@ pub const CATALOGUE: &[Setting] = &[
         category: "Map",
         description: "How strongly the grid is drawn; less is fainter.",
         kind: Kind::Scale { min: GRID_STRENGTH_RANGE.0, max: GRID_STRENGTH_RANGE.1 },
+    },
+    Setting {
+        key: "decision_model",
+        label: "Decision model",
+        category: "Decisions",
+        description: "The model that answers the editor's decision questions, an agent's grimoire_decide and the labeller. Local asks d3-flash on this network, and nothing leaves it. Remote asks Perplexity's model through OpenRouter. Remote sends screenshots of this project to OpenRouter and Perplexity. Remote is your own choice, made here for just you (a project's settings file cannot make it), and it needs OPENROUTER_API_KEY in the environment.",
+        kind: Kind::Options(DECISION_MODELS),
     },
     Setting {
         key: "terminal_text_scale",
@@ -247,6 +262,21 @@ fn agent_at(index: usize) -> TerminalAgent {
     }
 }
 
+/// Where a decision model sits in [`DECISION_MODELS`], for the row that shows or writes the choice.
+pub fn decision_index(model: DecisionModel) -> usize {
+    match model {
+        DecisionModel::Local => 0,
+        DecisionModel::Remote => 1,
+    }
+}
+
+fn decision_at(index: usize) -> DecisionModel {
+    match index {
+        1 => DecisionModel::Remote,
+        _ => DecisionModel::Local,
+    }
+}
+
 /// The offered scrollback length nearest `lines`.
 fn scrollback_index(lines: usize) -> usize {
     SCROLLBACK_CHOICES
@@ -286,6 +316,7 @@ impl EditorSettings {
             "terminal_cursor_blink" => Value::On(self.terminal_cursor_blink),
             "terminal_scrollback" => Value::Option(scrollback_index(self.terminal_scrollback)),
             "terminal_agent" => Value::Option(agent_index(self.terminal_agent)),
+            "decision_model" => Value::Option(decision_index(self.decision_model)),
             _ => return None,
         })
     }
@@ -324,6 +355,7 @@ impl SettingsLayer {
             "terminal_cursor_blink" => self.terminal_cursor_blink.map(Value::On),
             "terminal_scrollback" => self.terminal_scrollback.map(|lines| Value::Option(scrollback_index(lines))),
             "terminal_agent" => self.terminal_agent.map(|a| Value::Option(agent_index(a))),
+            "decision_model" => self.decision_model.map(|m| Value::Option(decision_index(m))),
             _ => None,
         }
     }
@@ -345,6 +377,7 @@ impl SettingsLayer {
             ("terminal_cursor_blink", Value::On(on)) => self.terminal_cursor_blink = Some(on),
             ("terminal_scrollback", Value::Option(i)) => self.terminal_scrollback = Some(scrollback_at(i)),
             ("terminal_agent", Value::Option(i)) => self.terminal_agent = Some(agent_at(i)),
+            ("decision_model", Value::Option(i)) => self.decision_model = Some(decision_at(i)),
             _ => return false,
         }
         true
@@ -367,6 +400,7 @@ impl SettingsLayer {
             "terminal_cursor_blink" => self.terminal_cursor_blink = None,
             "terminal_scrollback" => self.terminal_scrollback = None,
             "terminal_agent" => self.terminal_agent = None,
+            "decision_model" => self.decision_model = None,
             _ => {}
         }
     }

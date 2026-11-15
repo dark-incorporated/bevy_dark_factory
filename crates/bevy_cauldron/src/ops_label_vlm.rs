@@ -4,7 +4,7 @@
 //! (`tiles::apply_suggestion`). An agent has no booth, so it brings its own two shots (project-relative
 //! PNGs, e.g. from `bevy_devshot`) and the two halves of that walk become two operations:
 //!
-//! - `label_suggest` asks the configured decision endpoint (`GRIMOIRE_DECIDE_*`, as the editor does)
+//! - `label_suggest` asks the chosen decision model (the `decision_model` setting, as the editor does)
 //!   about one library piece and **returns the validated proposal without writing anything**, so an
 //!   agent reads it, edits it, or throws it away. Undo: none, it only reads.
 //! - `label_apply` writes a proposal onto the piece through `labels::apply_fields`, the same field copy
@@ -22,7 +22,7 @@ use serde_json::json;
 
 use crate::ops::{Ctx, Operation, Outcome, Refusal, Shown, Undo};
 use crate::project::Project;
-use crate::decide_labels::{DEFAULT_THRESHOLD, endpoint_of, label_with_decisions};
+use crate::decide_labels::{DEFAULT_THRESHOLD, label_with_decisions};
 use crate::label_suggestion::{Provenance, Suggestion};
 
 fn piece<'a>(project: &'a Project, id: &str) -> Result<&'a Descriptor, Refusal> {
@@ -133,7 +133,8 @@ impl Operation for LabelSuggest {
         let mesh = d.mesh.clone().unwrap_or_default();
         let prompt = crate::labels::prompt_ctx(d, &mesh, project);
         let date: String = crate::ops::now_rfc3339().chars().take(10).collect();
-        let http = bevy_oracle::Live::new(endpoint_of(&project.root));
+        let source = ctx.decisions.clone().unwrap_or_else(crate::decision_model::Source::process);
+        let http = source.transport(&project.root).map_err(|e| Refusal::new(e.to_string()))?;
         let (suggestion, provenance) =
             label_with_decisions(&http, &pngs, &project.vocab, &prompt, DEFAULT_THRESHOLD, date)
                 .map_err(|e| Refusal::new(e.to_string()))?;

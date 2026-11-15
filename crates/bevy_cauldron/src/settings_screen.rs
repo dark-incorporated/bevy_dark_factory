@@ -172,6 +172,42 @@ struct Rows(usize);
 #[derive(Component)]
 struct ProblemLine;
 
+/// **The line a Decision model row says what needs saying in** (DM-03, #454): that Remote is chosen with no key, or that this project's
+/// file cannot choose it. Empty when there is nothing to say; kept current in place.
+#[derive(Component)]
+struct DecisionNote;
+
+/// The text of the dialog's problem line, which is neither a row's default nor the Decision model's note.
+type ProblemText = (With<ProblemLine>, Without<LineDefault>, Without<DecisionNote>);
+/// The text of the Decision model row's note.
+type DecisionText = (With<DecisionNote>, Without<ProblemLine>, Without<LineDefault>);
+
+/// **The screen's two kinds of line, as one parameter**: the dialog's problem line and the Decision model row's note.
+#[derive(SystemParam)]
+struct Notes<'w, 's> {
+    problem: Query<'w, 's, &'static mut Text, ProblemText>,
+    decision: Query<'w, 's, &'static mut Text, DecisionText>,
+}
+
+/// **Why a write of the decision model into the project's file is refused** (DM-03, #454).
+const PROJECT_CANNOT_CHOOSE_THE_MODEL: &str =
+    "Which decision model is used is your own choice: this project's file cannot make it, so nothing was written. Set Applies to Just me";
+
+/// **What the Decision model row says on the project's tab**, where it cannot be changed.
+const PROJECT_TAB_NOTE: &str = "This is the project's file, which cannot choose the decision model: it is set only in your own file (Applies to Just me).";
+
+/// **What the Decision model row says under its description**: the sentence a decision is refused with when Remote is chosen and no key is set,
+/// or, on the project's tab, that it cannot be set there. `shown` is what the row shows.
+fn decision_note(shown: Value, scope: Scope, key_set: bool) -> String {
+    if scope == Scope::Project {
+        return PROJECT_TAB_NOTE.to_owned();
+    }
+    if shown == Value::Option(setting_catalogue::decision_index(bevy_oracle::DecisionModel::Remote)) && !key_set {
+        return bevy_oracle::REMOTE_WITHOUT_KEY.to_owned();
+    }
+    String::new()
+}
+
 /// The control of a setting's row and the value the row shows it with, so a change moves it in place
 /// and a click on a slider's rail is compared with what the row shows now.
 #[derive(Component)]
@@ -210,6 +246,8 @@ pub(crate) struct Files<'w> {
     /// What the binary asked this machine's login shell at start-up. Absent in a test, and absent is
     /// `Off` — the same answer the terminal's own resolution gives for an app that never asked.
     pub(crate) machine: Option<Res<'w, crate::settings::MachineAgent>>,
+    /// Where each choice of the decision model goes, and the key Remote needs (DM-03, #454). Absent in a test, and absent is no key.
+    pub(crate) decisions: Option<Res<'w, crate::decision_model::DecisionState>>,
 }
 
 impl Files<'_> {
@@ -246,6 +284,13 @@ impl Writer<'_, '_> {
     /// Sets `key` in the edited file, or takes it out with `None`; a refusal is kept for the screen to say.
     fn set(&mut self, key: &'static str, value: Option<Value>) {
         let Ok(mut dialog) = self.dialog.single_mut() else { return };
+        // **The decision model is the person's own choice** (DM-03, #454): the project's file cannot make it, so a project-scope write
+        // is refused here and says why, and nothing is written.
+        if key == "decision_model" && dialog.scope == Scope::Project {
+            dialog.problem = Some(PROJECT_CANNOT_CHOOSE_THE_MODEL.to_owned());
+            dialog.writes += 1;
+            return;
+        }
         let outcome = match self.files.path(dialog.scope) {
             Some(path) => setting_catalogue::write_key(&path, key, value),
             None => Err("there is no file to write this to".to_owned()),
@@ -487,7 +532,7 @@ fn refresh(
     files: Files,
     mut dialogs: Query<(Ref<SettingsDialog>, &mut Built)>,
     pages: Query<(Entity, &Rows)>,
-    mut problem_line: Query<&mut Text, (With<ProblemLine>, Without<LineDefault>)>,
+    mut notes: Notes,
     mut controls: Query<ControlState>,
     mut lines: Query<(Entity, &mut SettingLine, &Children)>,
     mut defaults: Query<&mut Text, (With<LineDefault>, Without<ProblemLine>)>,
@@ -526,7 +571,7 @@ fn refresh(
             _ => None,
         })
         .unwrap_or_default();
-    for mut text in &mut problem_line {
+    for mut text in &mut notes.problem {
         if text.0 != said {
             text.0 = said.clone();
         }
@@ -553,7 +598,12 @@ fn refresh(
             Scope::User => snapshot.project.get(setting.key),
             Scope::Project => None,
         };
-        (own, below.unwrap_or(Value::On(false)), overridden, default_of(setting.key))
+        (own, below.unwrap_or(Value::On(false)), overridden.filter(|_| setting.key != "decision_model"), default_of(setting.key))
+    };
+    // **The Decision model row's note**, from what the row shows, the tab, and whether a key is set.
+    let key_set = files.decisions.as_deref().is_some_and(|d| d.endpoints.key.is_some());
+    let note_of = |setting: &'static Setting, shown: Value| -> String {
+        if setting.key == "decision_model" { decision_note(shown, dialog.scope, key_set) } else { String::new() }
     };
 
     // **The Terminal agent row's extras** (#425): a problem line, a `Use Oh My Pi` button, the command and its field, and a choice
@@ -639,7 +689,7 @@ fn refresh(
                 .into_iter()
                 .map(|setting| {
                     let (own, below, overridden, default_value) = view(setting);
-                    setting_row(setting, own, below, overridden, default_value, agent_of(setting))
+                    setting_row(setting, own, below, overridden, default_value, agent_of(setting), note_of(setting, own.unwrap_or(below)))
                 })
                 .collect();
             // A list, so a tab with more settings than the window is tall scrolls instead of running off it.
@@ -649,6 +699,15 @@ fn refresh(
         }
         built.query = Some(dialog.query.clone());
     } else {
+        if let Some(setting) = setting_catalogue::find("decision_model") {
+            let (own, below, ..) = view(setting);
+            let want = note_of(setting, own.unwrap_or(below));
+            for mut text in &mut notes.decision {
+                if text.0 != want {
+                    text.0.clone_from(&want);
+                }
+            }
+        }
         for (entity, n) in sliders {
             commands.entity(entity).insert(SliderValue(n));
         }
@@ -884,6 +943,7 @@ fn setting_row(
     overridden: Option<Value>,
     default_value: Option<Value>,
     agent: Option<AgentRow>,
+    note: String,
 ) -> impl Bundle {
     let shown = own.unwrap_or(below);
     let key = setting.key;
@@ -951,6 +1011,9 @@ fn setting_row(
                 ));
             }
             row.spawn(label(setting.description));
+            if key == "decision_model" {
+                row.spawn((label(note), DecisionNote));
+            }
             row.spawn((
                 bevy_gooey::row_with(crate::chrome::GAP_GROUP_STEPS, bevy_gooey::RowLayout { align: Some(AlignItems::Center), wrap: Some(FlexWrap::Wrap), ..default() }),
                 SettingLine { key, own: own.is_some(), overridden, default: default_value },

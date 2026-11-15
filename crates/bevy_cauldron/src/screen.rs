@@ -622,6 +622,10 @@ pub const OWNERSHIP: &[(&str, Ownership)] = &[
     // across would leave the band naming a model this project never asked for. The link state goes
     // with it, which is right: it is evidence about a round trip that was made for that project.
     ("bevy_cauldron::labels::Labeler", Ownership::Project),
+    // **The decision model's endpoints, the key from the environment and the last round trip's light** (DM-03, #454): true for as long
+    // as the app runs, and the choice itself is the person's setting. The light is kept per choice, so a door change cannot make it
+    // name a model nobody asked.
+    ("bevy_cauldron::decision_model::DecisionState", Ownership::Session),
     (
         "bevy_cauldron::anim_watch::BenchReports",
         Ownership::Project,

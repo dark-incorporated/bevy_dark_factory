@@ -351,8 +351,10 @@ pub const TOOLS: &[ToolDoc] = &[
                       answer (game.state) as facts.game; a check that asks for the image game takes it \
                       itself, and a game's own checks live in the project's assets/grimoire/checks.yaml. \
                       Advisory: it changes no map data and a finding never blocks or undoes an \
-                      operation. The endpoint is one per run, local by default; a Cloudflare endpoint sends \
-                      pictures off the LAN and is opt-in."),
+                      operation. Which model answers is the person's decision_model setting: Local (d3-flash \
+                      on the LAN, the default) or Remote (Perplexity's, through OpenRouter, which sends \
+                      pictures off the LAN and is the person's own choice). It is one per call with no \
+                      fallback: Remote with no OPENROUTER_API_KEY is refused, never asked of the local model."),
         read_only: true,
         destructive: false,
         idempotent: false,
@@ -545,8 +547,10 @@ pub const TOOLS: &[ToolDoc] = &[
     ToolDoc {
         name: "grimoire_self_test",
         description: "Cauldron's power-on self test, for an agent started in Cauldron's terminal: \
-                      reads the editor's state, counts its operations and takes one picture of the \
-                      editor, tells the editor how each went (it shows them to the person), and \
+                      reads the editor's state, counts its operations, takes one picture of the \
+                      editor and asks the decision model one text-only question (which model \
+                      answered, where it ran and how long it took, or why it did not answer), tells \
+                      the editor how each went (it shows them to the person), and \
                       returns the picture and the results. Call it once when asked to run the self \
                       test; it changes nothing.",
         read_only: true,

@@ -194,3 +194,10 @@ fn an_answer_from_another_model_than_the_label_is_refused() {
         other => panic!("{other:?}"),
     }
 }
+
+#[test]
+fn the_guard_does_not_change_where_the_model_ran() {
+    // A wrapper that forgot `site` would read as Remote (the trait's default) and say pictures left the LAN.
+    let replay = bevy_oracle::Replay::load(&std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("fixtures")).unwrap();
+    assert_eq!(Expecting::new(&replay, "clef-flash").site(), bevy_oracle::DecisionModel::Local);
+}

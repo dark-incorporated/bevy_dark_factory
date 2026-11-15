@@ -15,6 +15,11 @@ pub const APP_DIR: &str = "Grimoire";
 /// The editor's log, inside [`data_dir`].
 pub const LOG_FILE: &str = "cauldron.log";
 
+/// **The person's settings file**, inside [`config_dir`]. The editor reads and writes it (UI-70, #248) and so does
+/// anything engine-free that must obey one of its keys (the decision model, DM-03, #454): the name is here so both name
+/// the same file.
+pub const SETTINGS_FILE: &str = "settings.yaml";
+
 /// The folder under [`data_dir`] a capture goes to when no project is named.
 const CAPTURES_DIR: &str = "captures";
 
@@ -29,6 +34,11 @@ pub fn data_dir() -> Option<PathBuf> {
 /// `<config_dir>/Grimoire`, or `None` on a platform with no config directory.
 pub fn config_dir() -> Option<PathBuf> {
     dirs::config_dir().map(|d| d.join(APP_DIR))
+}
+
+/// `<config_dir>/Grimoire/settings.yaml`: the person's settings, for every project.
+pub fn settings_file() -> Option<PathBuf> {
+    config_dir().map(|d| d.join(SETTINGS_FILE))
 }
 
 /// `<data_dir>/Grimoire/cauldron.log`: the file the editor logs to and the MCP server reads.

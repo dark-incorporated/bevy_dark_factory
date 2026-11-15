@@ -15,7 +15,7 @@ and a `noul`, a `choice` and a `score`), five warm calls after the first, by
 |---|---|---|---|---|---|---|---|
 | clef-flash Q4_K_M | local, big | 0.929 | map_view 0.978 | 2.15 | 620 | 0.213 s | 0 |
 | d3-flash Q4_K_M | local, big | 0.920 | map_view 0.900 | 2.64 | 1074 | 0.779 s | 0 |
-| pplx-decider-v1.3:free | OpenRouter | waiting | waiting | waiting | waiting | waiting | waiting |
+| perplexity/pplx-decider-v1.3:free | OpenRouter | waiting | waiting | waiting | waiting | waiting | waiting |
 
 * **Latency is not a like-for-like column.** clef-flash was reached through an `ssh -L` tunnel to a server
   started by hand under a GPU lease (the committed measurement on big itself, 2026-11-02, is 0.187 s on 619
@@ -40,7 +40,7 @@ and a `noul`, a `choice` and a `score`), five warm calls after the first, by
 | clef-flash (committed, 2026-11-03) | 0.6148 | 0.241 | 75 / 47 | `clip_calibration.yaml`, untouched |
 | clef-flash (this code, 2026-11-15) | 0.5328 | 0.530 | 65 / 57 | `calibrations/clef-flash.yaml` |
 | d3-flash (this code, 2026-11-15) | **0.8607** | 0.737 | 105 / 17 | `calibrations/d3-flash.yaml` |
-| pplx-decider-v1.3:free | waiting | | | needs the key, the consent and the quota above |
+| perplexity/pplx-decider-v1.3:free | waiting | | | needs the key, the consent and the quota above |
 
 **The 0.6148 is not comparable with the other rows, and the reason is a defect found while taking them.**
 `score_set` handed `calibrate` the label "its frames match its line" beside P(yes), but the check's yes means
@@ -68,12 +68,15 @@ python3 tools/decide/clip_set.py --out crates/bevy_oracle/fixtures/clips     # t
 # d3-flash: nothing to start, the default endpoint serves it (llama-swap loads it on the first request).
 cargo run -q -p bevy_oracle --bin decide_check -- --calibrate crates/bevy_oracle/fixtures/clip_samples.yaml \
     --model d3-flash --out crates/bevy_oracle/fixtures/calibrations/d3-flash.yaml
-# clef-flash: a lease evicts d3-flash and olmocr; serve it (tools/decide/serve-clef-flash.sh), point
-# GRIMOIRE_DECIDE_ENDPOINT at it, label the run `clef-flash`, release the lease after.
+# clef-flash: the endpoint is the `decision_model: local` setting's (bevy_oracle::LOCAL_ENDPOINT), not a flag,
+# so clef-flash has to be what that route reaches: under a gpu-tenant lease (which evicts d3-flash and olmocr)
+# serve tools/decide/serve-clef-flash.sh's server behind it (alias clef-flash), label the run `clef-flash`,
+# release the lease after. (The 2026-11-15 clef-flash record was taken through an ssh tunnel to a server started
+# by hand, before DM-03 retired the endpoint variable; the run refused every label but the served model's.)
 ```
 
 `--model` is only a label, and the run refuses when the label and the endpoint disagree: before the first
-sample it reads `GET /v1/models` from the endpoint's host and stops unless that list names the label, and it
+sample it reads `GET /v1/models` from the endpoint of the `decision_model` setting and stops unless that list names the label (for `remote`, the one model it sends, `perplexity/pplx-decider-v1.3:free`), and it
 stops on any response whose `model` is another. A record can no longer be made for a model that did not
 answer. From a Mac, name the host `big.local` (a bare `big` only resolves on big); the transport asks for
 IPv4 only, because `big.local` also resolves to addresses its firewall drops.

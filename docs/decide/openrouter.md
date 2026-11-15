@@ -1,25 +1,25 @@
 # OpenRouter Decisions as the remote decision model (DM-02, #453)
 
-`bevy_oracle` can ask OpenRouter's Decisions API instead of a local System One server. **One protocol per run, chosen by the person, never tried in turn:** a failing endpoint fails loudly and is never swapped for the other. **Screenshots leave the LAN on this path, so it is opt-in**: nothing selects it but `GRIMOIRE_DECIDE_PROTOCOL=openrouter`.
+`bevy_oracle` can ask OpenRouter's Decisions API instead of a local System One server. **One model per run, chosen by the person, never tried in turn:** a failing endpoint fails loudly and is never swapped for the other. **Screenshots leave the LAN on this path, so it is opt-in**: nothing selects it but the person's own `decision_model: remote` in their own `settings.yaml` (Settings, Decisions, Decision model: Remote; DM-03, #454).
 
-|Variable|Meaning|
+|Where|Meaning|
 |---|---|
-|`GRIMOIRE_DECIDE_PROTOCOL`|`systemone` (default: a llama.cpp server, Cloudflare) or `openrouter`. Anything else is kept as given and refused on the first request, naming it.|
-|`OPENROUTER_API_KEY`|The key. **From the process environment only**: never read from a project's `.env`, a settings file or omp's database; never logged, written or recorded. `GRIMOIRE_DECIDE_KEY` is not read for this protocol, so another endpoint's token is never sent to OpenRouter.|
-|`GRIMOIRE_DECIDE_ENDPOINT`|Defaults to `https://openrouter.ai/api/alpha/decisions` for this protocol.|
-|`GRIMOIRE_DECIDE_MODEL`|Defaults to `perplexity/pplx-decider-v1.3:free`. The paid sibling `perplexity/pplx-decider-v1.2` is an explicit alternative value, never an automatic fallback.|
+|`decision_model` in the person's `settings.yaml`|`local` (default: d3-flash, System One on the LAN) or `remote` (this page). Read by the editor and by the MCP server from the same file (`bevy_oracle::Endpoints::resolve`). A project's `editor.yaml` that names the key is a settings problem naming that file, and is ignored: the choice is the person's.|
+|`OPENROUTER_API_KEY`|The key. **From the process environment only**: never read from a settings file, a project's `.env` or omp's database; never logged, written or recorded. With Remote chosen and no key, decisions are refused with a sentence naming it; the local model is not asked instead.|
+|Endpoint and model|Fixed: `https://openrouter.ai/api/alpha/decisions` and `perplexity/pplx-decider-v1.3:free`. The paid sibling `perplexity/pplx-decider-v1.2` is not selectable.|
 
 ```sh
-OPENROUTER_API_KEY=... GRIMOIRE_DECIDE_PROTOCOL=openrouter cargo run -q -p bevy_oracle --bin decide_check -- ...
+# decide_check asks the model the settings choose; set decision_model: remote in your settings.yaml first.
+OPENROUTER_API_KEY=... cargo run -q -p bevy_oracle --bin decide_check -- ...
 ```
 
-`grimoire_decide` (MCP) and the editor read the same variables when the process starts; switching endpoints means restarting it. Every caller builds its transport with `bevy_oracle::Live::new(config)`, which picks `Http` (System One) or `OpenRouterDecisions` by `Config::protocol`. `Http` and `OpenRouterDecisions` each refuse a config of the other protocol.
+**Migration (2026-11-15):** the old decision environment variables (endpoint, model, key, timeout, protocol) and the project `.env` that held them are retired, with no compatibility read. Every caller builds its transport with `bevy_oracle::Live::new(config)`, which picks `Http` (System One) or `OpenRouterDecisions` by `Config::protocol`, and the config comes from `Endpoints::config(choice)`. `Http` and `OpenRouterDecisions` each refuse a config of the other protocol.
 
-## Why `GRIMOIRE_DECIDE_ENDPOINT` alone cannot reach it
+## Why the local endpoint alone cannot reach it
 
 |Difference|Where it is handled|
 |---|---|
-|The path is `/api/alpha/decisions`.|`Config::from_lookup` defaults it for `openrouter`.|
+|The path is `/api/alpha/decisions`.|`Endpoints::config` gives the Remote choice its own endpoint.|
 |A top-level `images` field is a 400. Images are `image_url` parts inside `state`.|`bevy_oracle::wire_request` (in `openrouter.rs`). `Request` keeps one shape (text in `state`, images in `images`), so `Replay` and `Recorder` wrap the transport unchanged and `fixtures/request.json` is untouched.|
 |An answer can be a `refusal`.|`Answer::Refusal`, turned by `ask` into `Error::Refusal { question }`: never a number.|
 |A `provider` block pins who may see the screenshot.|`wire_request`, for `perplexity/*` models only.|

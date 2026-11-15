@@ -796,6 +796,10 @@ pub struct Ctx {
     /// dispatch it" untrue for them. `None` means "no view is in hand" and an operation that needs one
     /// says so, exactly as [`Ctx::open`] does for a map.
     pub view: Option<crate::ops_view::View>,
+    /// **Which decision model is asked, and where each choice goes** (DM-03, #454), when the front end has the editor's own
+    /// ([`crate::decision_model::Decisions`]). `None` is the process's: the person's settings file, the shipped endpoints and the key
+    /// in the environment, exactly what the editor binary builds. A test points it at stand-in servers.
+    pub decisions: Option<crate::decision_model::Source>,
 }
 
 /// **A rung's name on the wire**, so an operation's answer and its parameter speak one vocabulary.

@@ -58,7 +58,7 @@
 
 **Example.** The person asks: "plant a dense pine forest on the north hill, and keep the path to the shrine clear". You grow it, and then make one call, `grimoire_decide` with `view: true` and five questions:
 
-```json
+```
 {"view": true,
  "state": "The person asked for a dense pine forest on the north hill, with the path to the shrine kept clear.",
  "questions": {

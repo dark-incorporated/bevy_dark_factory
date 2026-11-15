@@ -173,6 +173,12 @@ fn main() -> AppExit {
     if let Some(file) = bevy_cauldron::settings::user_file() {
         app.insert_resource(bevy_cauldron::settings::UserSettingsFile(file));
     }
+    // **Where each choice of the decision model goes, and the key Remote needs** (DM-03, #454): the shipped endpoints and
+    // `OPENROUTER_API_KEY` from the environment, the one thing the environment says. Only the binary reads it, so no test does.
+    app.insert_resource(bevy_cauldron::decision_model::DecisionState {
+        endpoints: bevy_oracle::Endpoints::from_env(),
+        ..Default::default()
+    });
     // **The open tabs are the person's, not the project's** (`session.rs`, NV-04): they are kept under the
     // user's data directory, and only the binary names it, as with the recent list.
     if let Some(dir) = bevy_grimoire_core::user_dirs::data_dir() {

@@ -10,19 +10,14 @@ fn lookup<'a>(pairs: &'a [(&'a str, &'a str)]) -> impl Fn(&str) -> Option<String
 
 #[test]
 fn the_default_protocol_is_system_one_and_nothing_leaves_the_lan() {
-    let c = Config::from_lookup(|_| None);
+    let c = Endpoints::default().config(DecisionModel::Local).unwrap();
     assert_eq!(c.protocol, Protocol::SystemOne);
     assert!(c.endpoint.starts_with("http://big.local:"), "{c:?}");
 }
 
 #[test]
-fn one_variable_chooses_openrouter_with_its_endpoint_model_and_key() {
-    let c = Config::from_lookup(lookup(&[
-        ("GRIMOIRE_DECIDE_PROTOCOL", "OpenRouter"),
-        ("OPENROUTER_API_KEY", "sk-or-test"),
-        // A key meant for another endpoint kind is never sent to OpenRouter.
-        ("GRIMOIRE_DECIDE_KEY", "cloudflare-token"),
-    ]));
+fn the_remote_choice_gets_openrouter_with_its_endpoint_model_and_key() {
+    let c = Endpoints::with_key_from(lookup(&[("OPENROUTER_API_KEY", "sk-or-test")])).config(DecisionModel::Remote).unwrap();
     assert_eq!(c.protocol, Protocol::OpenRouter);
     assert_eq!(c.endpoint, "https://openrouter.ai/api/alpha/decisions");
     assert_eq!(c.model.as_deref(), Some("perplexity/pplx-decider-v1.3:free"));
@@ -31,14 +26,8 @@ fn one_variable_chooses_openrouter_with_its_endpoint_model_and_key() {
 
 #[test]
 fn system_one_never_reads_the_openrouter_key() {
-    let c = Config::from_lookup(lookup(&[("OPENROUTER_API_KEY", "sk-or-test")]));
+    let c = Endpoints::with_key_from(lookup(&[("OPENROUTER_API_KEY", "sk-or-test")])).config(DecisionModel::Local).unwrap();
     assert_eq!(c.key, None);
-}
-
-#[test]
-fn an_unknown_protocol_is_kept_so_the_first_request_can_refuse_it() {
-    let c = Config::from_lookup(lookup(&[("GRIMOIRE_DECIDE_PROTOCOL", "openrouterr")]));
-    assert_eq!(c.protocol, Protocol::Unrecognised("openrouterr".into()));
 }
 
 #[test]
@@ -383,9 +372,6 @@ fn live_speaks_the_protocol_the_config_names_and_the_wrong_transport_refuses() {
     assert!(matches!(ask(&wrong, &asked()), Err(Error::Invalid(m)) if m.contains("openrouter")));
     let wrong = OpenRouterDecisions::new(Config::default());
     assert!(matches!(ask(&wrong, &asked()), Err(Error::Invalid(m)) if m.contains("systemone")));
-    // A typo in the protocol sends nothing at all.
-    let typo = Config { protocol: Protocol::parse("openrouterr"), ..Config::default() };
-    assert!(matches!(ask(&Live::new(typo), &asked()), Err(Error::Invalid(m)) if m.contains("openrouterr")));
 }
 
 // ---- the recorded exchange ----
@@ -421,27 +407,16 @@ fn the_recorded_openrouter_exchange_replays_with_no_network() {
 }
 
 #[test]
-fn the_openrouter_key_comes_from_the_environment_never_from_a_project_file() {
-    let env = |k: &str| match k {
-        "GRIMOIRE_DECIDE_PROTOCOL" => Some("openrouter".to_owned()),
-        _ => None,
-    };
-    let file = |k: &str| match k {
-        "OPENROUTER_API_KEY" => Some("sk-or-from-a-file".to_owned()),
-        "GRIMOIRE_DECIDE_MODEL" => Some("perplexity/pplx-decider-v1.2".to_owned()),
-        _ => None,
-    };
-    let c = Config::from_env_then_file(env, file);
-    assert_eq!(c.key, None, "a key in a project file must be ignored: {c:?}");
-    // Everything else still layers: the file supplies what the environment lacks.
-    assert_eq!(c.model.as_deref(), Some("perplexity/pplx-decider-v1.2"));
-    let c = Config::from_env_then_file(
-        |k| match k {
-            "GRIMOIRE_DECIDE_PROTOCOL" => Some("openrouter".to_owned()),
-            "OPENROUTER_API_KEY" => Some("sk-or-from-env".to_owned()),
-            _ => None,
-        },
-        file,
-    );
-    assert_eq!(c.key.as_deref(), Some("sk-or-from-env"));
+fn the_openrouter_key_comes_from_the_environment_never_from_a_settings_file() {
+    let dir = std::env::temp_dir().join(format!("oracle-key-from-env-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let user = dir.join("settings.yaml");
+    std::fs::write(&user, "version: 1\ndecision_model: remote\nOPENROUTER_API_KEY: sk-or-from-a-file\n").unwrap();
+
+    let without = Endpoints::with_key_from(|_| None);
+    assert!(matches!(without.resolve(Some(&user), None), Err(Error::RemoteWithoutKey)), "a key in a settings file must be ignored");
+    let with = Endpoints::with_key_from(lookup(&[("OPENROUTER_API_KEY", "sk-or-from-env")]));
+    let resolved = with.resolve(Some(&user), None).unwrap();
+    assert_eq!(resolved.config.key.as_deref(), Some("sk-or-from-env"));
+    std::fs::remove_dir_all(dir).unwrap();
 }

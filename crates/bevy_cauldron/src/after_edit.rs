@@ -18,7 +18,7 @@ use std::sync::Mutex;
 use std::sync::mpsc::{Receiver, Sender, channel};
 
 use bevy::prelude::*;
-use bevy_oracle::{Checks, Config, Error as DecideError, Evidence, Finding, Live, Transport};
+use bevy_oracle::{Checks, Error as DecideError, Evidence, Finding, Transport};
 
 use crate::ops::{Entry, Source};
 
@@ -391,10 +391,18 @@ fn frames_of(
 }
 
 /// Ask the checks about `edits` on a thread, with the editor's picture and each operation's close-up.
-fn spawn_checks(edits: Vec<AgentEdit>, checks: Checks, pictures: Pictures, tx: Sender<Vec<EditReport>>) {
+fn spawn_checks(
+    edits: Vec<AgentEdit>,
+    checks: Checks,
+    pictures: Pictures,
+    tx: Sender<Vec<EditReport>>,
+    asks: (crate::decision_model::Source, std::path::PathBuf),
+) {
     std::thread::spawn(move || {
-        let http = Live::new(Config::from_env());
-        let done = run_due(&edits, &checks, &http, &|e| {
+        // **The person's `decision_model`, read when the checks run** (DM-03, #454): one endpoint, and a choice that cannot be asked
+        // (Remote with no key) fails each check with that sentence instead of asking the other model.
+        let http = asks.0.asking(&asks.1);
+        let done = run_due(&edits, &checks, &*http, &|e| {
             let mut out: BTreeMap<String, String> = pictures.view.iter().map(|v| ("view".to_string(), v.clone())).collect();
             if let Some(v) = &pictures.view {
                 out.insert("after".into(), v.clone());
@@ -428,6 +436,7 @@ fn start_checks(
     mut wait: ResMut<ShotWait>,
     mut journal: ResMut<crate::chrome::Journal>,
     view: Option<Res<crate::checks_view::ChecksView>>,
+    decisions: crate::decision_model::Decisions,
 ) {
     // A headless app has no window and so no picture of the editor to ask about: the owed checks stay
     // queued for whoever drains them, rather than every image check being reported as skipped.
@@ -449,7 +458,7 @@ fn start_checks(
         return;
     };
     if !wants_picture(&checks) {
-        spawn_checks(edits, checks, Pictures::default(), tx);
+        spawn_checks(edits, checks, Pictures::default(), tx, (decisions.source(), project.root.clone()));
         return;
     }
     let Ok(shot_tx) = shots.tx.lock().map(|t| t.clone()) else {
@@ -484,6 +493,7 @@ fn launch_shot_checks(
     mut wait: ResMut<ShotWait>,
     mut memory: ResMut<PictureMemory>,
     view: Option<Res<crate::checks_view::ChecksView>>,
+    decisions: crate::decision_model::Decisions,
 ) {
     let mut ready: Vec<(Vec<AgentEdit>, Pictures)> = wait.tick().into_iter().map(|e| (e, Pictures::default())).collect();
     if let Ok(rx) = shots.rx.lock() {
@@ -502,7 +512,7 @@ fn launch_shot_checks(
         let (Ok(checks), Ok(tx)) = (crate::checks_view::checks_for(view.as_deref(), &project.root), reports.tx.lock().map(|t| t.clone())) else {
             continue;
         };
-        spawn_checks(edits, checks, pictures, tx);
+        spawn_checks(edits, checks, pictures, tx, (decisions.source(), project.root.clone()));
     }
 }
 
