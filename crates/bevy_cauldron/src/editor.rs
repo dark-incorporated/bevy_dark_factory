@@ -2942,7 +2942,8 @@ impl Plugin for EditorPlugin {
                     // Nested: the tuple is at Bevy 0.19's cap of 20. `walk_palette` is a census
                     // action, so it goes in `Act` with the rest of them.
                     (
-                        arm_palette_rows,
+                        // The armed row's cost is inked after the row is armed, in the frame it is.
+                        (arm_palette_rows, ink_the_cost_on_the_armed_row).chain(),
                         redraw_edited,
                         // **In `Act`, and not in the default set.** The watcher's `adopt_changes`
                         // raises the flag in `Phase::Sense`, and a system in no set has **no
@@ -4278,7 +4279,8 @@ fn rebuild_palette(
                                 crate::chrome::text_keeps_its_width(),
                                 crate::chrome::spacing(crate::chrome::margin_left(crate::chrome::STEP_ROW)),
                                 Text::new(brief_count(tris)),
-                                TextColor(cost_tint(tris)),
+                                TextColor(cost_ink(tris, state.brush == Some(ix))),
+                                PaletteCost(tris),
                                 crate::chrome::typed(crate::chrome::text::LABEL),
                                 TextLayout::new(Justify::Left, LineBreak::NoWrap),
                             ));
@@ -9549,6 +9551,28 @@ fn cost_tint(triangles: usize) -> Color {
         crate::chrome::ink().accent
     } else {
         crate::chrome::ink().label
+    }
+}
+
+/// **The ink of a palette row's triangle cost**: [`cost_tint`], except that the quiet `label` ink is read on the row's own ground and the armed row's ground is the
+/// selected fill, which it does not clear in Tool dark (3.93:1; #445). On the armed row a quiet cost is the skin's `text`; the accent and the danger tints stand.
+fn cost_ink(triangles: usize, armed: bool) -> Color {
+    let tint = cost_tint(triangles);
+    if armed && tint == crate::chrome::ink().label { crate::chrome::ink().text } else { tint }
+}
+
+/// **The triangle-cost text of a palette row**, with the count it was spawned with, so [`ink_the_cost_on_the_armed_row`] can tell which ink it wants.
+#[derive(Component)]
+struct PaletteCost(usize);
+
+/// **A palette row's cost follows whether the row is armed** ([`cost_ink`]). Compares before writing: this runs every frame over every row's cost.
+fn ink_the_cost_on_the_armed_row(mut costs: Query<(&PaletteCost, &ChildOf, &mut TextColor)>, rows: Query<&crate::chrome::RowSelected, With<PaletteRow>>) {
+    for (cost, parent, mut ink) in &mut costs {
+        let Ok(armed) = rows.get(parent.parent()) else { continue };
+        let want = cost_ink(cost.0, armed.0);
+        if ink.0 != want {
+            ink.0 = want;
+        }
     }
 }
 

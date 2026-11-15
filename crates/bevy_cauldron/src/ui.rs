@@ -335,9 +335,11 @@ fn paint_marked_buttons(
     mut commands: Commands,
 ) {
     for (entity, mut fill, pressed, disabled, children, role) in &mut buttons {
-        // **A selected table row is gooey's own** (#436): the accent fill with the skin's `accent_text` on it, which gooey draws as one pair. This painted it
-        // the skin's hovered grey under that same dark `accent_text` (1.5:1 in Tool dark, 1.2:1 in Parchment), and a rail the accent's own colour on it.
-        if matches!(role, bevy_gooey::Role::TableRow) {
+        // **A selected table row or dock tab is gooey's own** (#436, #445): the accent fill with the skin's `accent_text` on it, which gooey draws as one pair for
+        // each. This painted them the skin's hovered grey under that same `accent_text` (a row: 1.5:1 in Tool dark, 1.2:1 in Parchment; a dock tab such as VIEWPORT
+        // or INSPECTOR: 1.5:1, 1.2:1 and 1.8:1 in High contrast), and a rail the accent's own colour on it. The roles gooey does not light for selection (a plain button)
+        // keep this system's fill and rail.
+        if matches!(role, bevy_gooey::Role::TableRow | bevy_gooey::Role::Tab) {
             continue;
         }
         // **A button in a dialog that is fading out fades with it.** gooey multiplies the colours it writes by
