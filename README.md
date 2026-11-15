@@ -8,7 +8,7 @@ The Dark Factory is a world editor for Bevy games, for developers who build leve
 
 ![The editor's 3D view of the bedroom map that ships in this repository: an AI agent removes the bed and then turns the sofa 90 degrees through MCP calls; then the person presses Ctrl+Z twice and takes both back](https://raw.githubusercontent.com/dark-incorporated/bevy_dark_factory/main/docs/media/agent-drives.gif)
 
-*An agent calls `grimoire_apply_operation` twice, a removal and then a turn, and two presses of Cmd+Z (Ctrl+Z on Linux and Windows, as recorded here) take them back. Every change in the history list says who made it.*
+*An agent calls `grimoire_apply_operation` twice, a removal and then a turn, and two presses of Cmd+Z (Ctrl+Z on Linux and Windows, as recorded here) take them back. The inspector on the left names each change and who made it.*
 
 **Status:** usable · Bevy 0.20 · MSRV 1.97.1 for the runtime crates · toolchain 1.98.1 (pinned in `rust-toolchain.toml`)
 
@@ -61,9 +61,9 @@ cargo run -p bevy_cauldron -- . bedroom --kit furniture
 
 Opens the repository's own project on the one-room `bedroom` map and its `furniture` kit (the project binds `furniture` and `scp`), which is the scene of the clips on this page. [The MCP tools](https://github.com/dark-incorporated/bevy_dark_factory/blob/main/docs/mcp-tools.md) list what an agent can call.
 
-![The whole editor window on the Map workspace with the bedroom map, after an agent removed the bed and turned the sofa 90 degrees: the inspector's MAP line reads 11 placed and its LAST line names the agent's change, the PLACE palette lists the furniture kit, and the terminal is docked across the bottom](https://raw.githubusercontent.com/dark-incorporated/bevy_dark_factory/main/docs/media/editor.png)
+![The whole editor window on the Map workspace with the bedroom map, after an agent removed the bed and turned the sofa 90 degrees: the inspector's MAP line reads 11 placed, its UNDO line names turned sofa to 90 deg and the history beneath lists removed bed and turned sofa; the PLACE palette lists the furniture kit on the right, the activity bar of workspace icons runs down the left edge, and the status band at the bottom carries the Terminal Ctrl+J label that raises the collapsed terminal](https://raw.githubusercontent.com/dark-incorporated/bevy_dark_factory/main/docs/media/editor.png)
 
-*The same window mid-clip. Every change in the history list says who made it.*
+*The same window after those two changes. Every change in the history list says who made it. Each GIF and still in [`docs/media/`](https://github.com/dark-incorporated/bevy_dark_factory/blob/main/docs/media/README.md) is listed there with the command that regenerates it.*
 
 ## What you can do
 
@@ -75,9 +75,13 @@ Opens the repository's own project on the one-room `bedroom` map and its `furnit
 
   ![The person presses Ctrl+\ and drags a snip box round the bed, writing the note "remove the bed"; the agent reads the snip and removes the bed with placement_remove; the person's Ctrl+Z takes the removal back](https://raw.githubusercontent.com/dark-incorporated/bevy_dark_factory/main/docs/media/hero.gif)
 
+  ![The Agent workspace: the person switches on Answer hand-backs here, an agent turns the sofa 90 degrees and hands the turn back, the view goes to the Map and the question appears as the Keep or Undo card, and a click on Undo 1 operation takes the turn back](https://raw.githubusercontent.com/dark-incorporated/bevy_dark_factory/main/docs/media/agent-hands-back.gif)
+
+  *Known issue: with Answer hand-backs here on, the agent's change moves the view to the Map and the hand-back falls back to the modal Keep or Undo card instead of staying in the Agent workspace ([#458](https://github.com/dark-incorporated/bevy_dark_factory/issues/458)).*
+
 - **Write down a game's style, and have the agent follow it**: the Design workspace (Cmd+0) is the style as a tree of pages, one per place (the game, a region, a level, an area drawn on the map), each with a dream board of pictures. The agent reads a place's style with `grimoire_style` before it shapes the place, and its hand-back names the style lines it followed: [agents](https://github.com/dark-incorporated/bevy_dark_factory/blob/main/docs/guide/agents.md#the-games-style).
 
-  ![The Design workspace: the design tree on the left, the level's dialogue page rendered in the middle with its Edit page button, and the place's dream board of two picture cards on the right](https://github.com/dark-incorporated/bevy_dark_factory/raw/main/docs/changelog/media/2026-11-14-sg-05-design-workspace.png)
+  ![The Design workspace on the sample game's courtyard level: the design tree on the left, the level's style page in the middle with Edit page turning it into text, a line typed and Done drawing the page again, and the place's dream board on the right](https://raw.githubusercontent.com/dark-incorporated/bevy_dark_factory/main/docs/media/design-workspace.gif)
 
 - **Work in one window**: ten workspaces from one key each (Project, Map, World, Kit, Animation, Sound, Files, Game, Agent and Design), a terminal under every screen (Cmd+J raises it), a finder for anything the project names (Cmd+P), Cmd+E for everything that happened with an Undo on the newest step, and three themes that recolour the editor live: [keys](https://github.com/dark-incorporated/bevy_dark_factory/blob/main/docs/guide/keys.md).
 - **Make kits and labels**: bring in meshes, group them into kits and confirm the labels a vision model proposes: [kits and labels](https://github.com/dark-incorporated/bevy_dark_factory/blob/main/docs/guide/kits-and-labels.md).
