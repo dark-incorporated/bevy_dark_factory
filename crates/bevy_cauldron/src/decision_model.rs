@@ -302,11 +302,24 @@ pub fn paint_the_led(
     }
 }
 
+/// **The LED draws its dot and the model's name, not its state word**: the hover says the state in a sentence, and the bar beside it
+/// has little room. The word stays in the world (hidden, not removed), so the LED keeps its accessible state name and a test reads it.
+fn quiet_the_word(leds: Query<&Children, Added<DecisionLed>>, mut words: Query<&mut Node, With<LedWord>>) {
+    for children in &leds {
+        for child in children.iter() {
+            if let Ok(mut word) = words.get_mut(child) {
+                word.display = Display::None;
+            }
+        }
+    }
+}
+
 /// Registers the state and paints the LED.
 pub struct DecisionModelPlugin;
 
 impl Plugin for DecisionModelPlugin {
     fn build(&self, app: &mut App) {
-        app.init_resource::<DecisionState>().add_systems(Update, paint_the_led.after(crate::settings::sync_settings));
+        app.init_resource::<DecisionState>()
+            .add_systems(Update, (paint_the_led.after(crate::settings::sync_settings), quiet_the_word));
     }
 }

@@ -4179,6 +4179,10 @@ pub fn spawn_chrome_bar(
         // Pushes the subject to the far end. A spacer rather than `SpaceBetween` on the bar, so a
         // third thing added later lands where it is put rather than being redistributed.
         bar.spawn(bevy_gooey::spacer());
+        // **Which decision model is asked, and whether it answers** (DM-03, #454): one LED with the model's name, from
+        // `decision_model` and the round trips that happened, beside where you are. It is the decision model's, not the labeller's
+        // in the status band, which is crowded enough that anything added there pushes the hint's key badge onto its neighbours.
+        bar.spawn(crate::decision_model::chip());
 
         if let Some(here) = here {
             bar.spawn((
@@ -4288,10 +4292,6 @@ pub fn spawn_status_band(mut commands: Commands, frame: Res<Frame>, project: Opt
         ));
         band.spawn(bevy_gooey::spacer());
         shortcut_hint(band, &back);
-        // **Which decision model is asked, and whether it answers** (DM-03, #454): one LED with the model's name, from
-        // `decision_model` and the round trips that happened, at the band's far end beyond the hint (whose key badge sits to the
-        // hint's left, so nothing of the LED is under it). It is the decision model's, not the labeller's above.
-        band.spawn(crate::decision_model::chip());
     });
 }
 
