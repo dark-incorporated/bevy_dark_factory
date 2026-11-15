@@ -1,0 +1,93 @@
+{
+  "name": "agent_workspace_stays_open",
+  "fps": 10,
+  "scale": 1,
+  "width": 960,
+  "crop": [
+    0,
+    0,
+    1088,
+    640
+  ],
+  "setup": [],
+  "chunks": [
+    {
+      "seconds": 6.0
+    },
+    {
+      "seconds": 8.0
+    }
+  ],
+  "steps": [
+    {
+      "at": 1.0,
+      "key": "Digit9",
+      "mods": [
+        "ControlLeft"
+      ],
+      "caption": "person: the Agent workspace"
+    },
+    {
+      "at": 2.0,
+      "click_label": "Answer hand-backs here",
+      "caption": "Answer hand-backs here: on"
+    },
+    {
+      "at": 3.0,
+      "mcp": "grimoire_apply_operation",
+      "args": {
+        "operation": "placement_add",
+        "parameters": {
+          "piece": "wall",
+          "at": [
+            -4.0,
+            -4.0
+          ]
+        }
+      },
+      "as": "made",
+      "caption": "agent: a change to the map. The view stays"
+    },
+    {
+      "at": 4.2,
+      "mcp": "grimoire_present",
+      "args": {
+        "title": "a wall piece",
+        "summary": "Added a wall.",
+        "operation_ids": [
+          "$made"
+        ]
+      },
+      "caption": "agent: hands it back; the card is here"
+    },
+    {
+      "at": 5.8,
+      "click_label": "Accept",
+      "caption": "person: Accept, in the workspace"
+    },
+    {
+      "at": 7.2,
+      "click_label": "Answer hand-backs here",
+      "caption": "Answer hand-backs here: off"
+    },
+    {
+      "at": 8.4,
+      "mcp": "grimoire_apply_operation",
+      "args": {
+        "operation": "placement_add",
+        "parameters": {
+          "piece": "wall",
+          "at": [
+            5.0,
+            -5.0
+          ]
+        }
+      },
+      "caption": "agent: another change; now the view follows to the Map"
+    },
+    {
+      "at": 11.4,
+      "caption": "with it off, the view follows the agent to the Map"
+    }
+  ]
+}
