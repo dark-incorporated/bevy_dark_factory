@@ -1,54 +1,92 @@
 # bevy_cauldron
 
-> ⚠️ **Vibe Coded** — written by an AI agent working from a human's direction. It is used in a shipping game and covered by tests, but it has had no line-by-line human audit. Read it before you trust it.
+> ⚠️ **Vibe Coded.** Written by AI agents working from a human's direction, covered by tests rather than a line-by-line human review. Read the code before you rely on it for something you care about.
 
-A standalone world-building editor: open a project directory, author a map from an asset library, save something any engine can load. A Bevy application in its own right, not a mode of a game.
+The Cauldron, a standalone world-building editor for Bevy games, for developers who build levels with an AI agent working beside them: open a project folder, author maps from a library of pieces, and save plain YAML that your game loads.
 
-> **Part of [`bevy-coven/bevy_grimoire`](https://github.com/bevy-coven/bevy_grimoire)** (`crates/bevy_cauldron/`), MIT OR Apache-2.0, Bevy 0.20. It began as `crates/emerge-mapper/` in [`Ladvien/foundation_vs_slop`](https://github.com/Ladvien/foundation_vs_slop) with the history kept; that repo still carries the GPL Bevy 0.19 original until it ports to this one. Issues and PRs belong in `bevy_grimoire`.
+![The editor's 3D view of the bedroom map that ships in this repository: a snip box is dragged round the bed and the dresser beside it, "remove the bed" is typed, the agent reads the snip and removes the bed through an MCP call, and the person presses Ctrl+Z to put it back](https://raw.githubusercontent.com/dark-incorporated/bevy_dark_factory/main/docs/media/hero.gif)
 
-Started with no project, it opens on a launcher: a pixel-art splash of a murder of crows (made with Retro Diffusion, `tools/ui/splash-jobs.json`), the recent projects, and the changelog entries added since you last opened one.
+*A person snips part of the map and writes "remove the bed"; the agent reads the snip, removes the bed with `placement_remove`, and Ctrl+Z puts it back.*
 
-## Four tabs
+![The whole editor window on the Map workspace with the bedroom map, after an agent removed the bed and turned the sofa 90 degrees: the inspector names the agent's change, the palette lists the furniture kit, and the terminal is docked across the bottom](https://raw.githubusercontent.com/dark-incorporated/bevy_dark_factory/main/docs/media/editor.png)
 
-- **Map** — palette, ghost, place, fill, undo.
-- **Tiles** — mesh import, measurement review, descriptor authoring, and a vision-LLM labeler whose suggestions stage behind the same commit door a human edit goes through.
-- **Compose** — reusable groups a map holds a *reference* to rather than a copy of: members, the edge tokens their boundary derives, where those members disagree, and which were built against a descriptor that has since changed.
-- **Anim** — a rig bench: measure GLB clips, compare against `rigs.yaml`, plot diagnostics, and scrub a staged figure driven by the **real** `bevy_grimoire_anim` blender rather than a preview copy of it. Last, because the other three are three views of building a level and this is a different job.
+**Status:** experimental · Bevy 0.20
 
-## Every refusal sticks, and can be copied
+**Why:** an agent's change is the same kind of change as yours, through the same named operations and in the same undo history, so you can let it build while you watch and take back what you do not want. The editor is a Bevy application in its own right, not a mode of a game.
 
-Each tab keeps a list of what has gone wrong on it. The newest is a filled block under the title; the
-run is a bulleted log at the bottom of the panel. Severity is declared at the ~210 write sites rather
-than guessed at render time — which is how `NOT WRITTEN:` used to draw in the same grey as a receipt.
-`Cmd/Ctrl+C` copies the live tab's text, problems first, for handing to somebody else; `Esc` clears
-them.
+## Quick start
 
-## Driveable by an agent, without taking your screen
+`bevy_cauldron` is not on crates.io (`publish = false`). From a clone of the [repository](https://github.com/dark-incorporated/bevy_dark_factory):
 
-`--features debugger` adds the companion BRP plugin and an offscreen mirror camera, so an agent can
-press keys and take framed captures of the map with no window raised and no OS screen capture. The
-mirror renders the map only — Bevy draws a UI tree to one camera — so `bevy_devshot`'s whole-frame
-sentinel capture (`touch screenshot.request`) remains the way to see a panel.
+```sh
+cargo run -p bevy_cauldron -- <project-root>
+```
 
-The same feature lets an agent **guide you** rather than the other way round. `bevy_fairy/guide`
-posts a walkthrough, the editor shows one step at a time over the map, and `bevy_fairy/guide+watch`
-waits on a named condition — *the tile has two pieces*, *the tile is saved* — advancing itself and
-recording how many attempts each step took. `src/guided.rs` holds the editor's ten conditions;
-`guides/` holds the scripts. A step with no checkpoint (*"does this look right?"*) waits for you to
-say so, which is the half no machine can answer and the reason a person is in the loop at all.
+`<project-root>` is your game's root, the folder that holds `assets/grimoire`. The repository's own example project is its root, so `cargo run -p bevy_cauldron -- .` opens it, and `cargo run -p bevy_cauldron -- . bedroom` goes straight to its one-room map.
+
+**On a Mac with Apple Silicon**, the [releases](https://github.com/dark-incorporated/bevy_dark_factory/releases) carry `Cauldron-<version>-macos-arm64.dmg`: the same editor with every family crate built in, signed with a Developer ID and notarized. The installed app checks the releases feed for a newer version and can update itself. The release workflow is [`release-macos.yml`](https://github.com/dark-incorporated/bevy_dark_factory/blob/main/.github/workflows/release-macos.yml).
+
+With no argument the editor opens on the launcher. Its sidebar holds Projects, Learn and What's new, Settings, the version and the updater. Projects lists the projects you opened before, most recent first, as cards with a filter, and offers **New project…** and **Open folder…**; on a first run it is a welcome with an **Open the example** button. Opening a project starts the editor on it, in the same window.
+
+```text
+bevy_cauldron [ROOT] [MAP] [--workspace <id>] [--kit NAME] [--live]
+bevy_cauldron migrate <project folder>
+bevy_cauldron bake <project folder> --out <folder>
+bevy_cauldron --print-operations
+```
+
+| argument | meaning |
+|---|---|
+| `ROOT`, `MAP` | the project's root (default: the current folder) and the map to open on the Map workspace; naming a map or a `--workspace` skips the launcher |
+| `--workspace <id>` | open a workspace directly: `project`, `map`, `world`, `kit`, `animation`, `sound`, `files`, `game`, `agent` or `design` |
+| `--kit NAME` | the kit to author in, when the project binds more than one |
+| `--live` | write every committed change to disk at once, for a game that watches the project and reloads it |
+| `migrate` | move a project's files from RON to YAML and exit, without opening the editor |
+| `bake` | turn every YAML file a game loads into binaries for a release, proved against the YAML, and exit |
+| `--print-operations` | print every operation this build has, one a line, and exit |
+
+## What is in it
+
+The editor has ten workspaces, one per job, and crossing between them keeps the project, the open map and the selection:
+
+- **Map**: build the level from the library, placing, filling, turning and removing pieces, with undo.
+- **World**: the terrain, water, forest and lights under the level.
+- **Kit**: make reusable content, from meshes to tiles to compositions (named groups of placements a map refers to rather than copies).
+- **Animation**: a rig bench that stages a figure through the real [`bevy_grimoire_anim`](https://crates.io/crates/bevy_grimoire_anim) blender.
+- **Sound**, **Files** and **Game**: cue tables and scores, the project's files with an editor for each, and the running game beside its own window.
+- **Agent** and **Design**: what the agent is doing and waiting on, and the game's style as a tree of pages with a dream board of pictures per place.
+- **Project**: the project's maps and kits, the guide and what is new.
+
+A terminal is docked across the bottom of every screen, already in the project's directory, and can start your agent already connected to the editor. Pressing `Cmd+\` (`Ctrl+\` elsewhere) snips a rectangle of the editor with a note the agent can read and see.
+
+## Driving it from an agent
+
+The default `debugger` feature serves the Bevy Remote Protocol (BRP, Bevy's JSON-over-HTTP interface) on `BEVY_BRP_PORT` (default 15702). The companion MCP server [`bevy_cauldron_mcp`](https://github.com/dark-incorporated/bevy_dark_factory/blob/main/crates/bevy_cauldron_mcp/README.md) speaks the Model Context Protocol on stdio and turns that into 28 typed tools; the same operations are what a key press runs.
+
+```sh
+cargo run -p bevy_cauldron -- <project-root>                       # the editor
+cargo run -p bevy_cauldron_mcp -- --project <project-root>          # the server, for your MCP client
+```
 
 ## Testable without a GPU
 
-`harness::build_headless` builds the same plugin graph with `WgpuSettings { backends: None }` and no window, so `tests/headless.rs` can step frames and assert. That matters more than usual here: in Bevy 0.19 a missing `Res<T>` **panics its system**, and no unit test can answer "does this app survive its first frame".
-
-## Examples
+`harness::build_headless` builds the same plugin graph the binary ships, with `WgpuSettings { backends: None }` and no window, so tests can step frames and assert. That matters here because a missing `Res<T>` panics its system and no unit test could otherwise answer "does the editor survive its first frame". The example boots it:
 
 ```sh
 cargo run -p bevy_cauldron --example boot_headless -- <project-root> [map-name]
 ```
 
-Boots the shipped editor plugin graph with no window and no wgpu device, steps frames, and reports that nothing panicked. That question has teeth in Bevy 0.19, where a missing `Res<T>` panics its system rather than skipping it. A real project directory is required — inventing one here would be a second source of truth for what a project looks like.
+It needs a real project directory: nothing here invents one, so there is a single source of truth for what a project looks like.
 
-## License
+## Learn more
 
-MIT OR Apache-2.0, see the repository root's `LICENSE-MIT` and `LICENSE-APACHE`.
+- [Getting started](https://github.com/dark-incorporated/bevy_dark_factory/blob/main/docs/guide/getting-started.md) makes your first map; the rest of the [guide](https://github.com/dark-incorporated/bevy_dark_factory/blob/main/docs/guide/README.md): [building maps](https://github.com/dark-incorporated/bevy_dark_factory/blob/main/docs/guide/building-maps.md), [kits and labels](https://github.com/dark-incorporated/bevy_dark_factory/blob/main/docs/guide/kits-and-labels.md), [agents](https://github.com/dark-incorporated/bevy_dark_factory/blob/main/docs/guide/agents.md), [your game](https://github.com/dark-incorporated/bevy_dark_factory/blob/main/docs/guide/your-game.md), [keys](https://github.com/dark-incorporated/bevy_dark_factory/blob/main/docs/guide/keys.md), [data files](https://github.com/dark-incorporated/bevy_dark_factory/blob/main/docs/guide/data-files.md).
+- [The MCP tool reference](https://github.com/dark-incorporated/bevy_dark_factory/blob/main/docs/mcp-tools.md), and [`guides/`](https://github.com/dark-incorporated/bevy_dark_factory/tree/main/crates/bevy_cauldron/guides) for the scripted walkthroughs the editor can show.
+- [Changelog](https://github.com/dark-incorporated/bevy_dark_factory/blob/main/CHANGELOG.md): what each change added, newest first.
+- Part of Dark Inc.: the [family table](https://github.com/dark-incorporated) lists the other crates, and [the book page for this repository](https://dark-incorporated.github.io/crates/bevy_grimoire.html) says how they fit together. The game-side crates are [`bevy_grimoire`](https://crates.io/crates/bevy_grimoire) and [`bevy_grimoire_core`](https://crates.io/crates/bevy_grimoire_core).
+
+## Who and licence
+
+Maintained by [@Ladvien](https://github.com/Ladvien). Issues go to the [issue tracker](https://github.com/dark-incorporated/bevy_dark_factory/issues); see the organisation's [`CONTRIBUTING.md`](https://github.com/dark-incorporated/.github/blob/main/CONTRIBUTING.md).
+
+MIT OR Apache-2.0, at your option: [`LICENSE-MIT`](https://github.com/dark-incorporated/bevy_dark_factory/blob/main/LICENSE-MIT) and [`LICENSE-APACHE`](https://github.com/dark-incorporated/bevy_dark_factory/blob/main/LICENSE-APACHE).
