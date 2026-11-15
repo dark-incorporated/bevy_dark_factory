@@ -46,8 +46,11 @@ problem in a picture.*
 ## Calibrating a check
 
 A check earns the right to block by being measured against a labelled set of real captures; the result is
-written into its `calibration` in `checks.yaml` (`agreement`, `set_size`, `model`, `date`). `--bar` (default
-0.9) is the agreement a check must reach. Until a check has one, it is **advisory** — printed every run,
+written into its `calibrations` in `checks.yaml`: **one record per model** (`model`, `agreement`, `threshold`,
+`set_size`, `date`), because a model's P(yes) is on its own scale. A finding names the model that answered; a
+check with no record for that model still answers, with `uncalibrated for <model>`, and cannot block. A
+calibrated model uses the threshold it earned, any other the check's own. `--bar` (default
+0.9) is the agreement a check must reach. Until a check has one for the model asked, it is **advisory** — printed every run,
 never fatal — which is what lets a new check be added to a project on its first day.
 
 The calibration run itself needs a served model: see `serving-clef-flash.md`. `check.py --ask` against a
@@ -112,7 +115,12 @@ light") against a still that shows a room — the mismatch pairs are often about
 A clip check that asks about a short, concrete claim is a different measurement, and it is the next step
 before any threshold is trusted.
 
-Until then the check carries no `calibration` and is **advisory**.
+Until then the check carries no `calibrations` and is **advisory**.
+
+**Later (#455):** the measurement above paired each sample with "its frames match its line" where the check's
+yes means they do not, so it was made against the opposite label; `score_set` is fixed and each model has its
+own record under `fixtures/calibrations/`. `models.md` has the numbers (d3-flash 0.861, clef-flash 0.533 on the
+fixed pairing) and why the 61.5 % above is not comparable with them.
 
 What the set *can* be proved for without a model is that it is well formed, and a test does
 (`checks_that_earn_their_authority.rs::the_committed_clip_set_is_two_sided_and_well_formed`): it must hold at
@@ -126,7 +134,7 @@ The two classes separated cleanly — **blanks scored at least 0.923, every real
 threshold of 0.475 agrees with all 60.
 
 Writing that into `fixtures/checks.yaml` is **blocked by a protected assertion**:
-`checks::builtin_checks_parse_and_name_the_five` ends `assert!(c.checks.iter().all(|c| c.calibration.is_none()),
+`checks::builtin_checks_parse_and_name_the_five` ends `assert!(c.checks.iter().all(|c| c.calibrations.is_empty()),
 "none has earned a calibration yet")`. That assertion is the right one for the day it was written and it is
 now false in fact. Changing it is a re-pin of an existing assertion, which a pass may not do; the owner makes
 it in an evaluator pass, together with the decision to add `blank_frame` to the gate. Until then the check is

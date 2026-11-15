@@ -5,7 +5,8 @@
 //! mismatch (another line's title: the right answer is **yes**). `score_set` once handed `calibrate` the
 //! label "is a match" beside P(yes = fails to show), so a model that was perfectly right scored at best
 //! 50 % (the all-yes threshold) and one that was perfectly wrong scored 100 %: measured with d3-flash,
-//! whose P(yes) was higher on 8 of 8 sampled mismatches than on their matches, and which "agreed" 50.0 %.
+//! whose P(yes) was higher on the mismatch than on its match in 6 of 8 sampled pairs, and which "agreed"
+//! 50.0 % (threshold 0.000, every sample called a match) while 86.1 % once the pairing was right.
 //!
 //! The stand-in below is a perfect model: it answers 0.95 when the title in the request is the mismatch's
 //! and 0.05 when it is the match's. Nothing leaves the process.
