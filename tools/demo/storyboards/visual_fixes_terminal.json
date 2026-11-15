@@ -1,0 +1,50 @@
+{
+  "name": "visual_fixes_terminal",
+  "fps": 10,
+  "scale": 1,
+  "width": 960,
+  "crop": [
+    0,
+    0,
+    1088,
+    640
+  ],
+  "setup": [],
+  "chunks": [
+    {
+      "seconds": 6.4
+    }
+  ],
+  "steps": [
+    {
+      "at": 1.0,
+      "key": "KeyJ",
+      "mods": [
+        "ControlLeft"
+      ],
+      "caption": "person: Ctrl+J raises the terminal"
+    },
+    {
+      "at": 2.2,
+      "key": "KeyJ",
+      "mods": [
+        "ControlLeft",
+        "ShiftLeft"
+      ],
+      "caption": "Shift+Ctrl+J: the whole window; no gizmo over it (#435)"
+    },
+    {
+      "at": 3.6,
+      "key": "Comma",
+      "mods": [
+        "ControlLeft"
+      ],
+      "caption": "person: Settings, opened over the maximised terminal"
+    },
+    {
+      "at": 5.0,
+      "caption": "closed: the terminal is still maximised",
+      "click_label": "Close"
+    }
+  ]
+}
