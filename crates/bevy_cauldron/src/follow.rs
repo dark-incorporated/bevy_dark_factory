@@ -762,12 +762,18 @@ fn take_the_follow_request(
         // arrivals.
         return;
     }
+    // **The camera is the Map door's** (below), and so is the wait for its viewport.
+    let on_the_map = door.as_deref().is_none_or(|door| *door == Workspace::Map);
     if !following.deferred.is_empty() {
         if cameras.single().ok().and_then(crate::editor::aspect_of).is_some() {
             following.deferred_for = 0;
             while let Some(item) = following.deferred.pop_back() {
                 following.queue.push_front(item);
             }
+        } else if !on_the_map {
+            // **The Map camera has no viewport while another door is open, and nothing is wrong** (#449): the count starts again when the Map is shown, so a person
+            // who left it with a request held is not told ten seconds later that it could not be framed.
+            following.deferred_for = 0;
         } else {
             following.deferred_for += 1;
             if following.deferred_for > DEFERRED_FRAMES_MAX {
@@ -782,8 +788,11 @@ fn take_the_follow_request(
     }
     if following.queue.is_empty() {
         following.waiting = None;
-        // **A Look with nothing to look at is spent**, so a later change is not shown without asking.
-        following.look_now = false;
+        // **A Look with nothing to look at is spent**, so a later change is not shown without asking. **A request held for a viewport is something to look at** (#449):
+        // the queue reads empty while it waits, and the Look is still the person's when the viewport comes.
+        if following.deferred.is_empty() {
+            following.look_now = false;
+        }
         return;
     }
     // **A Look is the person's own instruction to show it now**, so it skips the person's gesture and
@@ -877,7 +886,6 @@ fn take_the_follow_request(
     // finds the door still not the Map — the switching was refused, or a question on screen held it —
     // **drops the request** rather than asking again every frame. Asking again would be a switching
     // asked for by a camera move nobody is waiting on any more, and it would never end.
-    let on_the_map = door.as_deref().is_none_or(|door| *door == Workspace::Map);
     if !on_the_map {
         if following.asked_for_the_map {
             following.queue.pop_front();
