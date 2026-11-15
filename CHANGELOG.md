@@ -2,6 +2,10 @@
 
 What each change added, newest first. A visible change has a clip: click the still to play it. `python3 tools/changelog/changelog.py page --open` plays them all in one page.
 
+## 2026-11-15
+
+- **dm-01-d3-flash** `e1019ed8` d3-flash answers decisions on big's GPU for every editor on the LAN: bevy_oracle's default endpoint is http://big.local:8081/upstream/d3-flash/v1/systemone, a lease evicts the model and a request then names it unreachable with the remedy, and a name is resolved over IPv4 (#452) *No clip: a served model; proved by the A.4 checks recorded in docs/decide/serving-d3-flash.md and a_gateway_that_cannot_run_the_model_is_unreachable_with_the_remedy, a_name_is_resolved_to_its_ipv4_address_only*
+
 ## 2026-11-14
 
 - **445-selected-rows** `f9e455d8` Selected dock tabs and the armed library row read at AA contrast in every theme *For you: Selected tabs and the chosen library row are readable in all three themes.* *No clip: visible, not yet recorded: fleet worker*
