@@ -4,18 +4,12 @@
  "scale": 1,
  "width": 600,
  "crop": [
-  390,
-  130,
-  1020,
-  664
+  334,
+  150,
+  1088,
+  610
  ],
  "setup": [
-  {
-   "key": "KeyJ",
-   "mods": [
-    "ControlLeft"
-   ]
-  },
   {
    "mcp": "grimoire_frame_view",
    "args": {
