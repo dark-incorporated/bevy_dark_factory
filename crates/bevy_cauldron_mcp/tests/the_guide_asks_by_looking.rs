@@ -154,6 +154,8 @@ fn the_tool_description_leads_with_the_use() {
     let description = decide["description"].as_str().expect("the tool has a description");
     assert!(description.starts_with(LEAD), "the description leads with the mechanism, not the use: {description}");
     assert!(description.contains("in about a second"), "{description}");
+    let cap_mib = bevy_cauldron_mcp::decide::IMAGE_BYTES_MAX / (1024 * 1024);
+    assert!(description.contains(&format!("at most {cap_mib} MiB")), "the description states the picture cap: {description}");
 }
 
 #[test]

@@ -1567,7 +1567,7 @@ impl Grimoire {
                        " with a probability each. Call it after every change the person will see, before you hand back: \
                        pass view: true to take the still yourself, or give a still from grimoire_capture_still in images \
                        (its path or its fingerprint), and ask four or five typed questions about what was asked for. The \
-                       answer names the model that answered, where it ran (local, or remote when pictures may have left the \
+                       answer names the model that answered (and model_source, reported by the endpoint or configured), where it ran (local, or remote when pictures may have left the \
                        LAN) and latency_ms. Ask a decision model a typed question about the editor's pictures and facts, and get a \
                        probability for every allowed answer, with nothing to parse. Two forms. check: a \
                        named check such as floating, clipping, outside_area, blank_frame or toast_visible \
@@ -1576,7 +1576,7 @@ impl Grimoire {
                        found, and takes the editor's current picture itself when it needs view. questions: \
                        ad-hoc typed questions by id, each noul (yes or no, P(yes)), choice (named options, \
                        each one's probability) or score (levels, a weighted score), with state in words, \
-                       images (project files, at most four) and facts (JSON). A check that needs a picture or \
+                       images (stills from grimoire_capture_still, at most four, each at most 8 MiB) and facts (JSON). A check that needs a picture or \
                        facts it was not given is refused and names what is missing; it never answers from \
                        less. game: also look at the running game that play started: a frame from its \
                        bevy_fairy, named game, on the port in play.yaml or game.port, and one BRP call's \

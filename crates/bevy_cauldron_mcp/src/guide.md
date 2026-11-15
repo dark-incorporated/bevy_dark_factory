@@ -50,7 +50,7 @@
 
 ## Check your work by asking
 
-**After every change the person will see, and before `grimoire_present`, look and then ask.** `grimoire_decide` is the fastest way to answer a question about how your work looks, quicker and more reliable than reading a picture yourself. One call does it: pass `view: true` and the server takes the still itself, puts your questions to a decision model and returns a probability for each. To ask about a before-and-after pair without a second capture, give a still from `grimoire_capture_still` in `images`, by its `path` or its `fingerprint`. The answer names the `model` that answered, `where` it ran (`local`, or `remote` when the picture may have left the LAN) and its `latency_ms`.
+**After every change the person will see, and before `grimoire_present`, look and then ask.** `grimoire_decide` is the fastest way to answer a question about how your work looks, quicker and more reliable than reading a picture yourself. One call does it: pass `view: true` and the server takes the still itself, puts your questions to a decision model and returns a probability for each. To ask about a before-and-after pair without a second capture, give a still from `grimoire_capture_still` in `images`, by its `path` or its `fingerprint` (only stills are accepted, not other files). The answer names the `model` that answered (`model_source` says whether the endpoint `reported` it or it is the `configured` one), `where` it ran (`local`, or `remote` when the picture may have left the LAN) and its `latency_ms`.
 
 **Ask four or five questions.** One is a guess; more than eight costs time, because the model runs one pass per question.
 

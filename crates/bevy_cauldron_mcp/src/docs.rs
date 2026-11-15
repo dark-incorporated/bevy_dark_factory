@@ -335,7 +335,7 @@ pub const TOOLS: &[ToolDoc] = &[
                       " with a probability each. Call it after every change the person will see, before you hand back: \
                       pass view: true to take the still yourself, or give a still from grimoire_capture_still in images \
                       (its path or its fingerprint), and ask four or five typed questions about what was asked for. The \
-                      answer names the model that answered, where it ran (local, or remote when pictures may have left the \
+                      answer names the model that answered (and model_source, reported by the endpoint or configured), where it ran (local, or remote when pictures may have left the \
                       LAN) and latency_ms. Ask a decision model a typed question about the editor's pictures and facts, and get a \
                       probability for every allowed answer, with nothing to parse. Two forms. check: a \
                       named check such as floating, clipping, outside_area, blank_frame or toast_visible \
@@ -344,7 +344,7 @@ pub const TOOLS: &[ToolDoc] = &[
                       found, and takes the editor's current picture itself when it needs view. questions: \
                       ad-hoc typed questions by id, each noul (yes or no, P(yes)), choice (named options, \
                       each one's probability) or score (levels, a weighted score), with state in words, \
-                      images (project files, at most four) and facts (JSON). A check that needs a picture or \
+                      images (stills from grimoire_capture_still, at most four, each at most 8 MiB) and facts (JSON). A check that needs a picture or \
                       facts it was not given is refused and names what is missing; it never answers from \
                       less. game: also look at the running game that play started: a frame from its \
                       bevy_fairy, named game, on the port in play.yaml or game.port, and one BRP call's \
@@ -824,7 +824,7 @@ pub fn schemas() -> Value {
                 "check": {"type": "string", "description": "A named check, such as floating. Give this or questions."},
                 "questions": {"type": "object", "description": "Ad-hoc typed questions by id: {\"type\": \"noul\", \"instructions\": ...}, {\"type\": \"choice\", \"instructions\": ..., \"criteria\": {option: meaning}} or {\"type\": \"score\", \"instructions\": ..., \"criteria\": [levels, lowest first]}."},
                 "state": {"type": "string", "description": "What the ad-hoc questions are about, in words."},
-                "images": {"type": "array", "maxItems": 4, "items": {"type": "object", "additionalProperties": false, "required": ["name", "path"], "properties": {"name": {"type": "string"}, "path": {"type": "string", "description": "A PNG or JPEG file under the project, relative or absolute, or the fingerprint (16 lowercase hex digits) grimoire_capture_still returned for a still."}}}, "description": "Pictures, files under the project, each with the name a check asks for. A still from grimoire_capture_still is accepted by its path or its fingerprint."},
+                "images": {"type": "array", "maxItems": 4, "items": {"type": "object", "additionalProperties": false, "required": ["name", "path"], "properties": {"name": {"type": "string"}, "path": {"type": "string", "description": "A still from grimoire_capture_still: its path, or the fingerprint (16 lowercase hex digits) it returned. Only files under the project's target/loop/captures, at most 8 MiB, are sent."}}}, "description": "Pictures, stills from grimoire_capture_still, each with the name a check asks for."},
                 "view": {"type": "boolean", "default": false, "description": "Also take the editor's current picture, named view."},
                 "facts": {"description": "The JSON facts: the operations run, the pieces, the camera."},
                 "game": {"type": "object", "additionalProperties": false, "description": "Also look at the running game: a frame from its bevy_fairy, named game, and one BRP call's answer as facts.game.", "properties": {

@@ -10,7 +10,7 @@ use std::sync::Mutex;
 use std::time::Duration;
 
 use base64::Engine as _;
-use bevy_cauldron_mcp::decide::{DecideParams, NamedImage, decide, name_the_model};
+use bevy_cauldron_mcp::decide::{DecideParams, IMAGE_BYTES_MAX, NamedImage, decide, name_the_model};
 use bevy_oracle::{Answer, Config, Error, Question, Replay, Request, Response, Transport};
 use serde_json::{Value, json};
 
@@ -165,7 +165,7 @@ fn a_named_check_names_the_model_where_and_latency_too() {
     let model = keeps();
     let p = DecideParams {
         check: Some("blank_frame".into()),
-        images: vec![NamedImage { name: "view".into(), path: write(&dir, "view.png", b"a view") }],
+        images: vec![NamedImage { name: "view".into(), path: write(&dir, "target/loop/captures/view/still-1.png", b"a view") }],
         ..Default::default()
     };
     let out = decide(&p, &dir, None, &model).unwrap();
@@ -245,14 +245,87 @@ fn a_fingerprint_names_only_stills_under_the_projects_captures() {
 }
 
 #[test]
-fn a_model_the_endpoint_did_not_name_is_named_by_the_configured_one_and_never_overwritten() {
-    let mut unnamed = json!({"answers": {}, "model": null});
+fn a_model_the_endpoint_did_not_name_is_named_by_the_configured_one_and_says_so() {
+    let mut unnamed = json!({"answers": {}, "model": null, "model_source": null});
     name_the_model(&mut unnamed, Some("configured-model"));
     assert_eq!(unnamed["model"], "configured-model");
-    let mut named = json!({"answers": {}, "model": MODEL});
+    assert_eq!(unnamed["model_source"], "configured");
+    let mut named = json!({"answers": {}, "model": MODEL, "model_source": "reported"});
     name_the_model(&mut named, Some("configured-model"));
     assert_eq!(named["model"], MODEL);
-    let mut neither = json!({"answers": {}, "model": null});
+    assert_eq!(named["model_source"], "reported", "a model the endpoint named is never relabelled");
+    let mut neither = json!({"answers": {}, "model": null, "model_source": null});
     name_the_model(&mut neither, None);
-    assert!(neither["model"].is_null());
+    assert!(neither["model"].is_null() && neither["model_source"].is_null());
+}
+
+#[test]
+fn an_answer_says_the_model_was_reported_by_the_endpoint() {
+    let dir = project("reported");
+    let local = Recorded { endpoint: Config::default().endpoint, replay: recording() };
+    let out = decide(&forest_params(), &dir, Some(&view_png()), &local).unwrap();
+    assert_eq!(out["model_source"], "reported", "{out}");
+    std::fs::remove_dir_all(dir).unwrap();
+}
+
+/// **A request whose one image is `path`.**
+fn one_image(path: &str) -> DecideParams {
+    DecideParams {
+        questions: Some(one_question()),
+        images: vec![NamedImage { name: "after".into(), path: path.into() }],
+        ..Default::default()
+    }
+}
+
+#[test]
+fn a_picture_elsewhere_in_the_project_is_refused_naming_the_captures_folder_and_never_sent() {
+    let dir = project("elsewhere");
+    let relative = write(&dir, "assets/secret.png", b"a file the agent merely named");
+    let model = keeps();
+    for path in ["assets/secret.png", relative.as_str()] {
+        let err = decide(&one_image(path), &dir, None, &model).unwrap_err();
+        assert!(err.contains("target/loop/captures"), "{err}");
+    }
+    assert!(model.sent.lock().unwrap().is_empty(), "nothing was sent to the model");
+    std::fs::remove_dir_all(dir).unwrap();
+}
+
+#[cfg(unix)]
+#[test]
+fn a_link_inside_the_captures_folder_to_a_file_outside_it_is_refused() {
+    let dir = project("link");
+    let target = write(&dir, "assets/secret.png", b"a file the agent merely named");
+    std::fs::create_dir_all(dir.join("target/loop/captures/x")).unwrap();
+    std::os::unix::fs::symlink(&target, dir.join("target/loop/captures/x/still-1.png")).unwrap();
+    let err = decide(&one_image("target/loop/captures/x/still-1.png"), &dir, None, &keeps()).unwrap_err();
+    assert!(err.contains("target/loop/captures"), "{err}");
+    std::fs::remove_dir_all(dir).unwrap();
+}
+
+#[test]
+fn a_picture_over_the_byte_cap_is_refused_naming_the_cap() {
+    let dir = project("big");
+    let path = dir.join("target/loop/captures/big/still-1.png");
+    std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+    std::fs::File::create(&path).unwrap().set_len(IMAGE_BYTES_MAX + 1).unwrap();
+    let model = keeps();
+    let err = decide(&one_image(&path.to_string_lossy()), &dir, None, &model).unwrap_err();
+    assert!(err.contains(&IMAGE_BYTES_MAX.to_string()), "{err}");
+    assert!(model.sent.lock().unwrap().is_empty());
+    std::fs::remove_dir_all(dir).unwrap();
+}
+
+#[cfg(unix)]
+#[test]
+fn a_fingerprint_is_not_looked_for_behind_a_linked_folder() {
+    let dir = project("cycle");
+    let bytes = b"a still behind a link".to_vec();
+    write(&dir, "assets/elsewhere/still-1.png", &bytes);
+    std::fs::create_dir_all(dir.join("target/loop/captures")).unwrap();
+    // One link into the project, one back up to the captures folder itself (a cycle).
+    std::os::unix::fs::symlink(dir.join("assets/elsewhere"), dir.join("target/loop/captures/linked")).unwrap();
+    std::os::unix::fs::symlink(dir.join("target/loop/captures"), dir.join("target/loop/captures/again")).unwrap();
+    let err = decide(&one_image(&bevy_cauldron_mcp::fingerprint(&bytes)), &dir, None, &keeps()).unwrap_err();
+    assert!(err.contains("no still under the project"), "the search does not follow a linked folder: {err}");
+    std::fs::remove_dir_all(dir).unwrap();
 }
