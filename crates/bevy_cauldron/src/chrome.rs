@@ -4180,9 +4180,12 @@ pub fn spawn_chrome_bar(
         // third thing added later lands where it is put rather than being redistributed.
         bar.spawn(bevy_gooey::spacer());
         // **Which decision model is asked, and whether it answers** (DM-03, #454): one LED with the model's name, from
-        // `decision_model` and the round trips that happened, beside where you are. It is the decision model's, not the labeller's
-        // in the status band, which is crowded enough that anything added there pushes the hint's key badge onto its neighbours.
+        // `decision_model` and the round trips that happened, in the middle of the bar. Not beside the title or the way out, whose
+        // key badges stand next to them and would cover it; and not in the status band, which is crowded enough that anything added
+        // there pushes the hint's badge onto its neighbours.
         bar.spawn(crate::decision_model::chip());
+        bar.spawn(bevy_gooey::spacer());
+        bar.spawn(bevy_gooey::spacer());
 
         if let Some(here) = here {
             bar.spawn((
