@@ -17,7 +17,7 @@ cargo add bevy_oracle --git https://github.com/dark-incorporated/bevy_dark_facto
 ```
 
 ```rust,no_run
-use bevy_oracle::{Config, Http, Question, Request, ask};
+use bevy_oracle::{DecisionModel, Endpoints, Http, Question, Request, ask};
 
 fn main() -> Result<(), bevy_oracle::Error> {
     let request = Request::new("The bedroom map, after the bed was removed.")
@@ -30,8 +30,9 @@ fn main() -> Result<(), bevy_oracle::Error> {
             ),
         );
 
-    // One endpoint per run, from GRIMOIRE_DECIDE_ENDPOINT or the local default.
-    let response = ask(&Http::new(Config::from_env()), &request)?;
+    // One endpoint per run, chosen by the person's decision-model setting (Local or Remote).
+    let config = Endpoints::from_env().config(DecisionModel::Local)?;
+    let response = ask(&Http::new(config), &request)?;
 
     let p_bed = response.answers["bed"].p_yes();
     println!("P(bed) = {p_bed:?}");
