@@ -2,6 +2,10 @@
 
 What each change added, newest first. A visible change has a clip: click the still to play it. `python3 tools/changelog/changelog.py page --open` plays them all in one page.
 
+## 2026-11-15
+
+- **docs-factory-readmes** `c66761fe` The README, the guide, PROJECT.md and every crate README describe the editor as it is: ten workspaces, the Design workspace and style, the terminal, the hand-back and wishes, the benchmark; bevy_grimoire_core's README says what 0.12.0 breaks (the references module is replaced by board, trust::GuideGrant by TextGrant) *No clip: a README and docs change; proved by every relative and own-repository link in the touched documents resolving, docs/mcp-tools.md matching the server's own --emit-docs, and the rng and solver README doctests passing*
+
 ## 2026-11-14
 
 - **445-selected-rows** `f9e455d8` Selected dock tabs and the armed library row read at AA contrast in every theme *For you: Selected tabs and the chosen library row are readable in all three themes.* *No clip: visible, not yet recorded: fleet worker*
