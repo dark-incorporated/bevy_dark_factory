@@ -1,0 +1,146 @@
+{
+ "name": "themes_selected_rows",
+ "fps": 15,
+ "scale": 1,
+ "width": 960,
+ "crop": [
+  0,
+  0,
+  1088,
+  640
+ ],
+ "setup": [],
+ "chunks": [
+  {
+   "seconds": 9.0
+  },
+  {
+   "seconds": 9.5
+  }
+ ],
+ "steps": [
+  {
+   "click_label": "View",
+   "caption": "Tool dark: the RELOAD tab, the armed row",
+   "at": 1.0
+  },
+  {
+   "wheel": {
+    "y": -1,
+    "n": 8,
+    "at": [
+     280,
+     400
+    ]
+   },
+   "at": 1.9
+  },
+  {
+   "click_label": "Show reload panel",
+   "at": 2.7
+  },
+  {
+   "mcp": "grimoire_run_command",
+   "args": {
+    "id": "workspace.design"
+   },
+   "caption": "the Design tree row",
+   "at": 4.0
+  },
+  {
+   "click_label": "courtyard",
+   "within": [
+    40,
+    230,
+    240,
+    320
+   ],
+   "at": 4.8
+  },
+  {
+   "mcp": "grimoire_run_command",
+   "args": {
+    "id": "workspace.files"
+   },
+   "caption": "the Files tree row",
+   "at": 6.0
+  },
+  {
+   "click": [
+    84,
+    321
+   ],
+   "at": 6.7
+  },
+  {
+   "click_label": "style.md",
+   "at": 7.5
+  },
+  {
+   "mcp": "grimoire_run_command",
+   "args": {
+    "id": "workspace.map"
+   },
+   "caption": "the armed palette row, the RELOAD tab",
+   "at": 8.8
+  },
+  {
+   "write": {
+    "path": "assets/grimoire/editor.yaml",
+    "text": "version: 1\ntheme: Parchment\n"
+   },
+   "caption": "Parchment",
+   "at": 9.8
+  },
+  {
+   "mcp": "grimoire_run_command",
+   "args": {
+    "id": "workspace.design"
+   },
+   "at": 10.4
+  },
+  {
+   "mcp": "grimoire_run_command",
+   "args": {
+    "id": "workspace.files"
+   },
+   "at": 11.600000000000001
+  },
+  {
+   "mcp": "grimoire_run_command",
+   "args": {
+    "id": "workspace.map"
+   },
+   "at": 12.8
+  },
+  {
+   "write": {
+    "path": "assets/grimoire/editor.yaml",
+    "text": "version: 1\ntheme: HighContrast\n"
+   },
+   "caption": "HighContrast",
+   "at": 13.8
+  },
+  {
+   "mcp": "grimoire_run_command",
+   "args": {
+    "id": "workspace.design"
+   },
+   "at": 14.4
+  },
+  {
+   "mcp": "grimoire_run_command",
+   "args": {
+    "id": "workspace.files"
+   },
+   "at": 15.600000000000001
+  },
+  {
+   "mcp": "grimoire_run_command",
+   "args": {
+    "id": "workspace.map"
+   },
+   "at": 16.8
+  }
+ ]
+}
