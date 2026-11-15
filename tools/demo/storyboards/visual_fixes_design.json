@@ -1,0 +1,23 @@
+{
+  "name": "visual_fixes_design",
+  "fps": 10,
+  "scale": 1,
+  "width": 960,
+  "crop": [0, 0, 1088, 640],
+  "setup": [],
+  "chunks": [{"seconds": 9.0}, {"seconds": 8.5}],
+  "steps": [
+    {"at": 1.0, "key": "Digit0", "mods": ["ControlLeft"], "caption": "person: the Design workspace"},
+    {"at": 2.0, "click_label": "courtyard", "within": [40, 230, 240, 320], "caption": "a selected row reads clearly (#436): Tool dark"},
+    {"at": 3.4, "wheel": {"y": -1, "n": 4, "at": [600, 450]}, "caption": "a picture fits the page column (#437)"},
+    {"at": 4.8, "click_label": "Edit page", "caption": "person: Edit page; the page keeps its width (#437)"},
+    {"at": 6.2, "click_label": "Done"},
+    {"at": 7.0, "key": "Comma", "mods": ["ControlLeft"], "caption": "person: Settings, Appearance"},
+    {"at": 8.0, "click_label": "Appearance"},
+    {"at": 9.0, "click": [744, 211], "caption": "Parchment"},
+    {"at": 10.4, "click_label": "Close", "caption": "the selected row, in Parchment (#436)"},
+    {"at": 12.2, "key": "Comma", "mods": ["ControlLeft"]},
+    {"at": 13.4, "click": [744, 211], "caption": "High contrast"},
+    {"at": 14.8, "click_label": "Close", "caption": "the selected row, in High contrast (#436)"}
+  ]
+}
