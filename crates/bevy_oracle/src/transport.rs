@@ -1,9 +1,20 @@
-use crate::{Config, Error, OpenRouterDecisions, Protocol, Request, Response};
+use crate::{Config, DecisionModel, Error, OpenRouterDecisions, Protocol, Request, Response};
 use std::path::{Path, PathBuf};
 
 /// Something that answers a [`Request`]. [`Live`] for a live endpoint, [`Replay`] for a recorded one.
 pub trait Transport {
     fn endpoint(&self) -> String;
+
+    /// **Where this transport's answers are made**: [`DecisionModel::Local`] when nothing leaves the LAN,
+    /// [`DecisionModel::Remote`] when pictures may have. `grimoire_decide` says it in its answer's `where`.
+    ///
+    /// It is the person's choice, not a guess from an address, so a LAN address chosen as Local reads `local`. **The
+    /// default is Remote**: a transport that does not say is read as the one that may have sent pictures away, never
+    /// the other way round.
+    fn site(&self) -> DecisionModel {
+        DecisionModel::Remote
+    }
+
     fn send(&self, request: &Request) -> Result<Response, Error>;
 }
 
@@ -54,19 +65,15 @@ impl Transport for Http {
         self.config.endpoint.clone()
     }
 
+    fn site(&self) -> DecisionModel {
+        self.config.protocol.site()
+    }
+
     fn send(&self, request: &Request) -> Result<Response, Error> {
-        match &self.config.protocol {
-            Protocol::SystemOne => {}
-            Protocol::OpenRouter => {
-                return Err(Error::Invalid(
-                    "`Http` speaks systemone only, but the config's protocol is `openrouter`; one protocol per run: build the transport with `Live::new`".into(),
-                ));
-            }
-            Protocol::Unrecognised(v) => {
-                return Err(Error::Invalid(format!(
-                    "GRIMOIRE_DECIDE_PROTOCOL is `{v}`; it must be `systemone` or `openrouter`, and nothing is sent until it is one of them"
-                )));
-            }
+        if self.config.protocol != Protocol::SystemOne {
+            return Err(Error::Invalid(
+                "`Http` speaks systemone only, but the config's protocol is `openrouter`; one protocol per run: build the transport with `Live::new`".into(),
+            ));
         }
         let endpoint = self.config.endpoint.clone();
         let mut body = request.clone();
@@ -82,9 +89,8 @@ impl Transport for Http {
 }
 
 /// The live transport a [`Config`] names: **one protocol per run, chosen by the config, never tried in
-/// turn**. Callers build this instead of [`Http`] or [`OpenRouterDecisions`] so that
-/// `GRIMOIRE_DECIDE_PROTOCOL` is honoured everywhere. An unrecognised protocol builds an [`Http`] that
-/// refuses every request, naming the value.
+/// turn**. Callers build this instead of [`Http`] or [`OpenRouterDecisions`] so that the person's
+/// `decision_model` setting is honoured everywhere.
 pub enum Live {
     SystemOne(Http),
     OpenRouter(OpenRouterDecisions),
@@ -94,7 +100,7 @@ impl Live {
     pub fn new(config: Config) -> Self {
         match config.protocol {
             Protocol::OpenRouter => Live::OpenRouter(OpenRouterDecisions::new(config)),
-            Protocol::SystemOne | Protocol::Unrecognised(_) => Live::SystemOne(Http::new(config)),
+            Protocol::SystemOne => Live::SystemOne(Http::new(config)),
         }
     }
 }
@@ -104,6 +110,12 @@ impl Transport for Live {
         match self {
             Live::SystemOne(t) => t.endpoint(),
             Live::OpenRouter(t) => t.endpoint(),
+        }
+    }
+    fn site(&self) -> DecisionModel {
+        match self {
+            Live::SystemOne(t) => t.site(),
+            Live::OpenRouter(t) => t.site(),
         }
     }
     fn send(&self, request: &Request) -> Result<Response, Error> {
@@ -140,6 +152,10 @@ impl Transport for Replay {
     fn endpoint(&self) -> String {
         "replay".into()
     }
+    /// A recording makes no request at all, so nothing leaves the machine.
+    fn site(&self) -> DecisionModel {
+        DecisionModel::Local
+    }
     fn send(&self, request: &Request) -> Result<Response, Error> {
         if *request != self.request {
             return Err(Error::Fixture("the request is not the one this fixture was recorded for".into()));
@@ -164,6 +180,9 @@ impl<T: Transport> Recorder<T> {
 impl<T: Transport> Transport for Recorder<T> {
     fn endpoint(&self) -> String {
         self.inner.endpoint()
+    }
+    fn site(&self) -> DecisionModel {
+        self.inner.site()
     }
     fn send(&self, request: &Request) -> Result<Response, Error> {
         let response = self.inner.send(request)?;

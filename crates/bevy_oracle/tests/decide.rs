@@ -163,18 +163,15 @@ fn http_round_trips_the_recorded_response() {
 }
 
 #[test]
-fn config_defaults_local_and_reads_the_environment() {
-    let d = Config::from_lookup(|_| None);
+fn config_defaults_local_and_the_environment_names_only_the_remote_key() {
+    let d = Endpoints::default().config(DecisionModel::Local).unwrap();
     assert!(d.endpoint.starts_with("http://127.0.0.1:") && d.key.is_none() && d.model.is_none());
-    let c = Config::from_lookup(|k| match k {
-        "GRIMOIRE_DECIDE_ENDPOINT" => Some("https://api.cloudflare.com/x".into()),
-        "GRIMOIRE_DECIDE_MODEL" => Some("@cf/cloudflare/clef".into()),
-        "GRIMOIRE_DECIDE_KEY" => Some("k".into()),
-        "GRIMOIRE_DECIDE_TIMEOUT_SECS" => Some("5".into()),
-        _ => None,
-    });
-    assert_eq!((c.endpoint.as_str(), c.model.as_deref(), c.key.as_deref(), c.timeout_secs),
-        ("https://api.cloudflare.com/x", Some("@cf/cloudflare/clef"), Some("k"), 5));
+    assert_eq!(d, Config::default());
+    // Where each choice goes is the `Endpoints` value, so a test (or a stand-in server) names both.
+    let e = Endpoints { local: "http://lan.example:8093/v1/systemone".into(), remote: "https://router.example/decisions".into(), key: Some("k".into()) };
+    let (local, remote) = (e.config(DecisionModel::Local).unwrap(), e.config(DecisionModel::Remote).unwrap());
+    assert_eq!((local.endpoint.as_str(), local.key.as_deref()), ("http://lan.example:8093/v1/systemone", None));
+    assert_eq!((remote.endpoint.as_str(), remote.model.as_deref(), remote.key.as_deref()), ("https://router.example/decisions", Some("perplexity/pplx-decider-v1.3:free"), Some("k")));
 }
 
 fn s(p_yes: f64, truth: bool) -> Sample {

@@ -14,24 +14,14 @@
 //! mentions was withdrawn with pass 277's duplicate labeller and never re-made, because it would
 //! need a live chat model. The owner approved the removal without it on 2026-11-11, so the chat path
 //! is deleted in the same change as this note: there is no configuration that selects between two
-//! labellers and none that falls back. The endpoint is one per run, from `GRIMOIRE_DECIDE_*`
-//! ([`bevy_oracle::Config`]).
+//! labellers and none that falls back. Which model is asked is the person's `decision_model` setting
+//! ([`crate::decision_model::Source`]).
 
 use crate::label_suggestion::{LabelFailure, PromptCtx, Provenance, Suggestion, face_token, mount_meaning};
 use bevy_grimoire_core::descriptor::{Confidence, Face, Mount, mount_label, mount_options};
 use bevy_grimoire_core::vocab::{Vocabularies, Vocabulary};
 use bevy_oracle::{Config, Error, MAX_QUESTIONS, Question, Request, Response, Transport, ask};
 use std::collections::{BTreeMap, BTreeSet};
-
-/// **Where the decisions are asked.** One endpoint and one protocol per run: the process environment
-/// first, then the project root's `.env`, which is what a session loads on start and what a project
-/// carries with it. There is no fallback and no second endpoint to fall back to. **The OpenRouter key
-/// is the exception: `OPENROUTER_API_KEY` comes from the process environment only**, never from a file
-/// a project carries (and so never from a repository); `Config::from_env_then_file` is that rule.
-pub fn endpoint_of(root: &std::path::Path) -> Config {
-    let file = crate::label_suggestion::dotenv(root);
-    Config::from_env_then_file(|k| std::env::var(k).ok(), |k| file.get(k).cloned())
-}
 
 /// A token is suggested when the model's P(yes) reaches this. The default is the even bet; the
 /// threshold a calibration on a labelled kit picks replaces it.
@@ -290,8 +280,8 @@ fn remedy_for(url: &str) -> Option<String> {
     let ip = (host.as_str(), port).to_socket_addrs().ok()?.next()?.ip();
     is_near(ip).then(|| {
         format!(
-            "set GRIMOIRE_DECIDE_ENDPOINT to a running decision endpoint \
-             (tools/decide/serve-clef-flash.sh) — nothing is serving {host}:{port}"
+            "start the decision service there (tools/decide/serve-clef-flash.sh) or change the Decision model in Settings \
+             — nothing is serving {host}:{port}"
         )
     })
 }
@@ -333,7 +323,7 @@ pub fn probe(cfg: &Config) -> Reach {
     use std::net::ToSocketAddrs;
     let Ok(mut addrs) = (host.as_str(), port).to_socket_addrs() else {
         return Reach::Unreachable(format!(
-            "`{host}` does not resolve — set GRIMOIRE_DECIDE_ENDPOINT to the machine serving the model"
+            "`{host}` does not resolve — check the machine serving the model, or change the Decision model in Settings"
         ));
     };
     let Some(addr) = addrs.next() else {
@@ -347,8 +337,8 @@ pub fn probe(cfg: &Config) -> Reach {
         Err(e) if e.kind() == std::io::ErrorKind::ConnectionRefused => {
             Reach::Unreachable(format!(
                 "nothing is listening on {host}:{port} — start the decision service there \
-                 (tools/decide/serve-clef-flash.sh), or point GRIMOIRE_DECIDE_ENDPOINT at the \
-                 machine that is serving it"
+                 (tools/decide/serve-clef-flash.sh), or change the Decision model in Settings \
+                 to one that is serving"
             ))
         }
         // Reachable-but-not-answering. A host that is up with a model still loading times out here,
@@ -357,7 +347,7 @@ pub fn probe(cfg: &Config) -> Reach {
             "{host}:{port} is slow to answer — the model may still be loading"
         )),
         Err(e) => Reach::Unreachable(format!(
-            "{host}:{port} cannot be reached: {e} — check GRIMOIRE_DECIDE_ENDPOINT"
+            "{host}:{port} cannot be reached: {e} — check the Decision model in Settings"
         )),
     }
 }
@@ -482,10 +472,15 @@ mod tests {
         std::fs::create_dir_all(&dir).unwrap_or_else(|e| panic!("{e}"));
         std::fs::write(dir.join(".env"), "GRIMOIRE_LABEL_PATH=chat\n")
             .unwrap_or_else(|e| panic!("{e}"));
-        let endpoint = endpoint_of(&dir);
+        let source = crate::decision_model::Source {
+            user_file: None,
+            endpoints: bevy_oracle::Endpoints::default(),
+            link: crate::decision_model::DecisionLink::default(),
+        };
+        let endpoint = source.config(&dir).unwrap_or_else(|e| panic!("{e}"));
         assert_eq!(
             endpoint.endpoint,
-            bevy_oracle::Config::from_lookup(|_| None).endpoint,
+            bevy_oracle::Config::default().endpoint,
             "`GRIMOIRE_LABEL_PATH=chat` selected nothing: the decision endpoint is the one path"
         );
         std::fs::remove_dir_all(&dir).ok();
@@ -584,7 +579,7 @@ mod tests {
         let cfg = Config { endpoint: "http://127.0.0.1:1/v1/systemone".to_owned(), ..Config::default() };
         match probe(&cfg) {
             Reach::Unreachable(why) => {
-                assert!(why.contains("GRIMOIRE_DECIDE_ENDPOINT"), "the remedy travels with the verdict: {why}");
+                assert!(why.contains("Decision model in Settings"), "the remedy travels with the verdict: {why}");
                 assert!(why.contains("serve-clef-flash"), "and names how to serve it: {why}");
             }
             other => panic!("a dead port must refuse, got {other:?}"),
@@ -682,12 +677,12 @@ mod tests {
         }
         let e = warm(&Down).expect_err("a dead endpoint must refuse the warm-up");
         assert!(e.is_unreachable(), "so the batch stops rather than reporting it per mesh: {e}");
-        assert!(e.to_string().contains("GRIMOIRE_DECIDE_ENDPOINT"), "{e}");
+        assert!(e.to_string().contains("Decision model in Settings"), "{e}");
     }
 
     /// **A refusal against a remote endpoint must not be handed local advice.**
     ///
-    /// Every `Error::Unreachable` used to get the same remedy — *"set GRIMOIRE_DECIDE_ENDPOINT to a
+    /// Every `Error::Unreachable` used to get the same remedy — *"set the endpoint variable to a
     /// running decision endpoint (tools/decide/serve-clef-flash.sh)"* — and for a Cloudflare or
     /// Ollama endpoint that is advice about a machine the reader is not on. It is the same judgement
     /// [`probe`] already makes by refusing to dial a remote address at all: out there a refusal folds
@@ -722,7 +717,7 @@ mod tests {
         let LabelFailure::Unreachable { remedy: Some(remedy), .. } = &local else {
             panic!("a local refusal is unreachable WITH a remedy, got {local:?}");
         };
-        assert!(remedy.contains("GRIMOIRE_DECIDE_ENDPOINT"), "{remedy}");
+        assert!(remedy.contains("Decision model in Settings"), "{remedy}");
         assert!(remedy.contains("serve-clef-flash"), "{remedy}");
 
         // A remote endpoint: the transport's own words, and no local advice at all.
@@ -744,7 +739,7 @@ mod tests {
         );
         assert!(
             !remote.to_string().contains("serve-clef-flash")
-                && !remote.to_string().contains("GRIMOIRE_DECIDE_ENDPOINT"),
+                && !remote.to_string().contains("Decision model in Settings"),
             "and the sentence carries none either: {remote}"
         );
     }

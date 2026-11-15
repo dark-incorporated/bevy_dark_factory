@@ -4286,6 +4286,9 @@ pub fn spawn_status_band(mut commands: Commands, frame: Res<Frame>, project: Opt
             typed(text::LABEL),
             bevy::picking::Pickable::IGNORE,
         ));
+        // **Which decision model is asked, and whether it answers** (DM-03, #454): one LED with the model's name, from
+        // `decision_model` and the round trips that happened. It is the decision model's, not the labeller's above.
+        band.spawn(crate::decision_model::chip());
         band.spawn(bevy_gooey::spacer());
         shortcut_hint(band, &back);
     });

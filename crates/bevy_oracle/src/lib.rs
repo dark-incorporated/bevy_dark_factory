@@ -1,4 +1,4 @@
-//! Typed questions to a decision model (Cloudflare's Clef and clef-flash).
+//! Typed questions to a decision model (d3-flash on the LAN, or Perplexity's through OpenRouter).
 //!
 //! A decision model answers questions about a state (text, JSON, up to [`MAX_IMAGES`] images) with a
 //! probability for every allowed answer and generates nothing, so there is nothing to parse. Three
@@ -9,16 +9,18 @@
 //! recorded exchanges ([`Replay`]); a live call happens only through [`Live`], in calibration runs and
 //! smoke checks.
 //!
-//! **One endpoint and one protocol per run, no fallback.** [`Config::protocol`] is System One (a local
-//! llama.cpp server, Cloudflare) or OpenRouter Decisions (`docs/decide/openrouter.md`); [`Live::new`]
-//! builds the transport the config names, and nothing is ever tried in turn. A wrong endpoint or a
-//! refused request is an [`Error`] naming the endpoint, never a default answer.
+//! **One endpoint and one protocol per run, no fallback.** The person's `decision_model` setting (`local` or `remote`,
+//! [`DecisionModel`]) chooses between System One on the LAN and OpenRouter Decisions (`docs/decide/openrouter.md`);
+//! [`Endpoints::resolve`] reads the settings layers and builds the [`Config`], [`Live::new`] builds the transport it
+//! names, and nothing is ever tried in turn. A wrong endpoint or a refused request is an [`Error`] naming the
+//! endpoint, never a default answer.
 
 mod b64;
 mod calibrate;
 mod check;
 mod clip;
 mod config;
+mod decision_model;
 mod openrouter;
 mod run;
 mod transport;
@@ -28,7 +30,11 @@ pub use b64::data_url;
 pub use calibrate::{Calibration, Sample, calibrate};
 pub use check::{BUILTIN_CHECKS_YAML, CHECKS_VERSION, Check, PROJECT_CHECKS_FILE, Checks, Evidence, Finding};
 pub use clip::{FRAMES, LABELLED_FILE, Labelled, clip_check, load_labelled, score_set};
-pub use config::{Config, LOCAL_ENDPOINT, OPENROUTER_ENDPOINT, OPENROUTER_KEY_VAR, OPENROUTER_MODEL, PROTOCOL_VAR, Protocol};
+pub use config::{
+    Config, DecisionModel, Endpoints, LOCAL_ENDPOINT, LOCAL_MODEL_NAME, OPENROUTER_ENDPOINT, OPENROUTER_KEY_VAR, OPENROUTER_MODEL, Protocol,
+    REMOTE_WITHOUT_KEY, TIMEOUT_SECS,
+};
+pub use decision_model::{Answered, Chosen, Resolved, SETTING_KEY, SettingsProblem, choose, probe, project_file, project_may_not_choose, user_file};
 pub use openrouter::{FREE_REQUESTS_PER_MINUTE, OpenRouterDecisions, OpenRouterFailure, wire_request};
 pub use run::{Verdict, evidence_from, run_checks};
 pub use transport::{Http, Live, Recorder, Replay, Transport};
@@ -60,6 +66,11 @@ pub enum Error {
     Refusal { endpoint: String, question: String },
     /// OpenRouter refused with a status that has its own meaning (402, 404, 429), carrying its reason.
     OpenRouter { endpoint: String, failure: OpenRouterFailure, reason: String },
+    /// Remote is chosen and `OPENROUTER_API_KEY` is not in the environment. It is refused, never answered by the
+    /// local model: the sentence is [`REMOTE_WITHOUT_KEY`].
+    RemoteWithoutKey,
+    /// The person's settings file does not read, so which model decides is not known and nothing is asked.
+    Settings(SettingsProblem),
 }
 
 impl fmt::Display for Error {
@@ -101,6 +112,8 @@ impl fmt::Display for Error {
                     FREE_REQUESTS_PER_MINUTE
                 ),
             },
+            Error::RemoteWithoutKey => f.write_str(REMOTE_WITHOUT_KEY),
+            Error::Settings(problem) => write!(f, "which decision model is chosen cannot be read, so nothing was asked: {problem}"),
         }
     }
 }

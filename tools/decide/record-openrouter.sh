@@ -26,5 +26,5 @@ if q.get("remaining") == 0:
     sys.exit("no free-model requests left today: wait, or ask the owner (credits, or the paid pplx-decider-v1.2)")
 '
 
-GRIMOIRE_DECIDE_PROTOCOL=openrouter cargo run -q -p bevy_oracle --example record_openrouter -- \
+cargo run -q -p bevy_oracle --example record_openrouter -- \
   crates/bevy_oracle/fixtures/openrouter

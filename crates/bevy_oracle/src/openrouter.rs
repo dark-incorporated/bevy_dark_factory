@@ -1,8 +1,8 @@
 //! **OpenRouter Decisions as a second protocol** (#453): `POST https://openrouter.ai/api/alpha/decisions`.
 //!
-//! Why `GRIMOIRE_DECIDE_ENDPOINT` alone cannot reach it, and what this module does about each reason:
+//! Why the local endpoint alone cannot reach it, and what this module does about each reason:
 //!
-//! 1. The path differs: [`Config::from_lookup`] defaults the endpoint for `GRIMOIRE_DECIDE_PROTOCOL=openrouter`.
+//! 1. The path differs: [`Endpoints::config`](crate::Endpoints::config) gives the Remote choice its own endpoint.
 //! 2. OpenRouter rejects a top-level `images` field with 400. Images go **inside `state`**, as
 //!    `{"type": "image_url", ...}` parts after the text: [`wire_request`]. [`Request`] keeps its one shape
 //!    (text in `state`, images in `images`), so [`Replay`](crate::Replay) and [`Recorder`](crate::Recorder)
@@ -114,6 +114,10 @@ impl OpenRouterDecisions {
 impl Transport for OpenRouterDecisions {
     fn endpoint(&self) -> String {
         self.config.endpoint.clone()
+    }
+
+    fn site(&self) -> crate::DecisionModel {
+        self.config.protocol.site()
     }
 
     fn send(&self, request: &Request) -> Result<Response, Error> {
