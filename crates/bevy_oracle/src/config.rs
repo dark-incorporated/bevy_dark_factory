@@ -124,4 +124,17 @@ impl Config {
     pub fn from_env() -> Self {
         Self::from_lookup(|k| std::env::var(k).ok())
     }
+
+    /// The environment first, then a project's own file (`env` and `file` are lookups, so tests pass
+    /// maps). **`OPENROUTER_API_KEY` is read from `env` alone**: a key must never come from a file a
+    /// project carries, and so never from a repository. An empty value counts as unset.
+    pub fn from_env_then_file(
+        env: impl Fn(&str) -> Option<String>,
+        file: impl Fn(&str) -> Option<String>,
+    ) -> Self {
+        Self::from_lookup(|k| {
+            let from_env = env(k).filter(|v| !v.is_empty());
+            if k == OPENROUTER_KEY_VAR { from_env } else { from_env.or_else(|| file(k)) }
+        })
+    }
 }

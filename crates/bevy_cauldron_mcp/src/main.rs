@@ -1615,7 +1615,7 @@ impl Grimoire {
             None
         };
         let answer = tokio::task::spawn_blocking(move || {
-            let http = bevy_oracle::Http::new(bevy_oracle::Config::from_env());
+            let http = bevy_oracle::Live::new(bevy_oracle::Config::from_env());
             bevy_cauldron_mcp::decide::decide_with(&p, &project, view.as_deref(), game.as_ref(), &http)
         })
         .await

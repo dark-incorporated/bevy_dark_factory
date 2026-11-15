@@ -11,7 +11,7 @@
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
-use bevy_oracle::{Checks, Config, Evidence, Http, Transport, Verdict, evidence_from, run_checks};
+use bevy_oracle::{Checks, Config, Evidence, Live, Transport, Verdict, evidence_from, run_checks};
 
 fn usage() -> String {
     "usage: decide_check --captures DIR [--project DIR] [--bar F] [--ask] [--no-builtin] [--json] [--facts FILE]\n\
@@ -125,7 +125,7 @@ fn main() {
         }
     };
 
-    let transport = Http::new(Config::from_env());
+    let transport = Live::new(Config::from_env());
     let evidence_for = |check: &bevy_oracle::Check| -> Result<Evidence, String> {
         let mut images = BTreeMap::new();
         for name in &check.images {

@@ -541,7 +541,7 @@ pub(crate) fn spawn_request(
             let pngs = [encode_png(&images[0])?, encode_png(&images[1])?];
             // **One path.** The endpoint is read once per request from the project's own `.env` and
             // the process environment, and there is nothing to fall back to.
-            let http = bevy_oracle::Http::new(endpoint_of(&root));
+            let http = bevy_oracle::Live::new(endpoint_of(&root));
             let (suggestion, provenance) =
                 label_with_decisions(&http, &pngs, &vocab, &ctx, DEFAULT_THRESHOLD, date)?;
             Ok::<_, LabelFailure>((suggestion, provenance, fingerprint))
@@ -920,7 +920,7 @@ fn arm_batch(queue: &mut LabelQueue, targets: Vec<EditTarget>, root: &std::path:
     let root = root.to_path_buf();
     queue.warming = Some(Warming {
         task: AsyncComputeTaskPool::get().spawn(async move {
-            let http = bevy_oracle::Http::new(endpoint_of(&root));
+            let http = bevy_oracle::Live::new(endpoint_of(&root));
             crate::decide_labels::warm(&http)
         }),
         since: now,

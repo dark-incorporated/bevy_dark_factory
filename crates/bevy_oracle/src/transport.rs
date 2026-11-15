@@ -1,13 +1,14 @@
-use crate::{Config, Error, Protocol, Request, Response};
+use crate::{Config, Error, OpenRouterDecisions, Protocol, Request, Response};
 use std::path::{Path, PathBuf};
 
-/// Something that answers a [`Request`]. [`Http`] for a live endpoint, [`Replay`] for a recorded one.
+/// Something that answers a [`Request`]. [`Live`] for a live endpoint, [`Replay`] for a recorded one.
 pub trait Transport {
     fn endpoint(&self) -> String;
     fn send(&self, request: &Request) -> Result<Response, Error>;
 }
 
-/// A live endpoint over HTTP.
+/// A System One endpoint over HTTP (`POST /v1/systemone`). It speaks no other protocol: build the
+/// transport for a run with [`Live::new`], which picks by [`Config::protocol`].
 pub struct Http {
     pub config: Config,
 }
@@ -18,45 +19,98 @@ impl Http {
     }
 }
 
+/// What a POST came back with, before anyone decided what it means.
+pub(crate) struct Reply {
+    pub status: u16,
+    /// The `Retry-After` header as sent (seconds or an HTTP date), if any.
+    pub retry_after: Option<String>,
+    pub body: String,
+}
+
+/// POST `body` as JSON to the config's endpoint, with the bearer token when one is set. **No retry**:
+/// whatever the endpoint says comes back as it was said. Non-2xx statuses are a [`Reply`], not an error,
+/// because the endpoint's own complaint is in the body.
+pub(crate) fn post_json(config: &Config, body: &impl serde::Serialize) -> Result<Reply, Error> {
+    let endpoint = &config.endpoint;
+    let unreachable = |e: ureq::Error| Error::Unreachable { endpoint: endpoint.clone(), detail: e.to_string() };
+    let agent: ureq::Agent = ureq::Agent::config_builder()
+        .timeout_global(Some(std::time::Duration::from_secs(config.timeout_secs)))
+        .http_status_as_error(false)
+        .build()
+        .into();
+    let mut req = agent.post(endpoint);
+    if let Some(key) = &config.key {
+        req = req.header("Authorization", &format!("Bearer {key}"));
+    }
+    let mut resp = req.send_json(body).map_err(unreachable)?;
+    let status = resp.status().as_u16();
+    let retry_after = resp.headers().get("retry-after").and_then(|v| v.to_str().ok()).map(str::to_owned);
+    let body = resp.body_mut().read_to_string().map_err(unreachable)?;
+    Ok(Reply { status, retry_after, body })
+}
+
 impl Transport for Http {
     fn endpoint(&self) -> String {
         self.config.endpoint.clone()
     }
 
     fn send(&self, request: &Request) -> Result<Response, Error> {
-        if self.config.protocol != Protocol::SystemOne {
-            return Err(Error::Invalid(format!(
-                "`Http` speaks systemone only, but the config's protocol is `{}`; one protocol per run, never tried in turn",
-                self.config.protocol
-            )));
+        match &self.config.protocol {
+            Protocol::SystemOne => {}
+            Protocol::OpenRouter => {
+                return Err(Error::Invalid(
+                    "`Http` speaks systemone only, but the config's protocol is `openrouter`; one protocol per run: build the transport with `Live::new`".into(),
+                ));
+            }
+            Protocol::Unrecognised(v) => {
+                return Err(Error::Invalid(format!(
+                    "GRIMOIRE_DECIDE_PROTOCOL is `{v}`; it must be `systemone` or `openrouter`, and nothing is sent until it is one of them"
+                )));
+            }
         }
         let endpoint = self.config.endpoint.clone();
         let mut body = request.clone();
         if body.model.is_none() {
             body.model = self.config.model.clone();
         }
-        let agent: ureq::Agent = ureq::Agent::config_builder()
-            .timeout_global(Some(std::time::Duration::from_secs(self.config.timeout_secs)))
-            // A refusal carries the endpoint's own complaint in its body.
-            .http_status_as_error(false)
-            .build()
-            .into();
-        let mut req = agent.post(&endpoint);
-        if let Some(key) = &self.config.key {
-            req = req.header("Authorization", &format!("Bearer {key}"));
+        let reply = post_json(&self.config, &body)?;
+        if !(200..300).contains(&reply.status) {
+            return Err(Error::Refused { endpoint, status: reply.status, body: reply.body.chars().take(500).collect() });
         }
-        let mut resp = req
-            .send_json(&body)
-            .map_err(|e| Error::Unreachable { endpoint: endpoint.clone(), detail: e.to_string() })?;
-        let status = resp.status().as_u16();
-        let text = resp
-            .body_mut()
-            .read_to_string()
-            .map_err(|e| Error::Unreachable { endpoint: endpoint.clone(), detail: e.to_string() })?;
-        if !(200..300).contains(&status) {
-            return Err(Error::Refused { endpoint, status, body: text.chars().take(500).collect() });
+        serde_json::from_str(&reply.body).map_err(|e| Error::BadResponse { endpoint, detail: e.to_string() })
+    }
+}
+
+/// The live transport a [`Config`] names: **one protocol per run, chosen by the config, never tried in
+/// turn**. Callers build this instead of [`Http`] or [`OpenRouterDecisions`] so that
+/// `GRIMOIRE_DECIDE_PROTOCOL` is honoured everywhere. An unrecognised protocol builds an [`Http`] that
+/// refuses every request, naming the value.
+pub enum Live {
+    SystemOne(Http),
+    OpenRouter(OpenRouterDecisions),
+}
+
+impl Live {
+    pub fn new(config: Config) -> Self {
+        match config.protocol {
+            Protocol::OpenRouter => Live::OpenRouter(OpenRouterDecisions::new(config)),
+            Protocol::SystemOne | Protocol::Unrecognised(_) => Live::SystemOne(Http::new(config)),
         }
-        serde_json::from_str(&text).map_err(|e| Error::BadResponse { endpoint, detail: e.to_string() })
+    }
+}
+
+impl Transport for Live {
+    fn endpoint(&self) -> String {
+        match self {
+            Live::SystemOne(t) => t.endpoint(),
+            Live::OpenRouter(t) => t.endpoint(),
+        }
+    }
+    fn send(&self, request: &Request) -> Result<Response, Error> {
+        match self {
+            Live::SystemOne(t) => t.send(request),
+            Live::OpenRouter(t) => t.send(request),
+        }
     }
 }
 

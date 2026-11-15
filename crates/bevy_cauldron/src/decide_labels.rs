@@ -23,12 +23,14 @@ use bevy_grimoire_core::vocab::{Vocabularies, Vocabulary};
 use bevy_oracle::{Config, Error, MAX_QUESTIONS, Question, Request, Response, Transport, ask};
 use std::collections::{BTreeMap, BTreeSet};
 
-/// **Where the decisions are asked.** One endpoint per run: the process environment first, then the
-/// project root's `.env`, which is what a session loads on start and what a project carries with it.
-/// There is no fallback and no second endpoint to fall back to.
+/// **Where the decisions are asked.** One endpoint and one protocol per run: the process environment
+/// first, then the project root's `.env`, which is what a session loads on start and what a project
+/// carries with it. There is no fallback and no second endpoint to fall back to. **The OpenRouter key
+/// is the exception: `OPENROUTER_API_KEY` comes from the process environment only**, never from a file
+/// a project carries (and so never from a repository); `Config::from_env_then_file` is that rule.
 pub fn endpoint_of(root: &std::path::Path) -> Config {
     let file = crate::label_suggestion::dotenv(root);
-    Config::from_lookup(|k| std::env::var(k).ok().filter(|v| !v.is_empty()).or_else(|| file.get(k).cloned()))
+    Config::from_env_then_file(|k| std::env::var(k).ok(), |k| file.get(k).cloned())
 }
 
 /// A token is suggested when the model's P(yes) reaches this. The default is the even bet; the
