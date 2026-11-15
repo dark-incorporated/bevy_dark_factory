@@ -854,15 +854,27 @@ fn project_folder(terminal: &Terminal) -> String {
         .map_or_else(|| "the open project".to_owned(), |name| name.to_string_lossy().into_owned())
 }
 
+/// The most characters a tab's name takes in the bar (#448): a longer name is cut and ends in an ellipsis, so one tab, named by a whole path (a custom agent's
+/// command), cannot crowd the chips beside it. The full name stays in the tab's tooltip.
+pub const TAB_NAME_MAX_CHARS: usize = 16;
+
 /// **Each tab's words** (#423): the program that runs in it, and a number from the second of the same name on (`sh`, `sh 2`), so
-/// no two tabs of the bar read alike.
+/// no two tabs of the bar read alike; a name longer than [`TAB_NAME_MAX_CHARS`] is cut with an ellipsis (#448).
 pub fn tab_names(labels: &[&str]) -> Vec<String> {
     labels
         .iter()
         .enumerate()
-        .map(|(at, label)| match labels[..at].iter().filter(|earlier| *earlier == label).count() {
-            0 => (*label).to_owned(),
-            before => format!("{label} {}", before + 1),
+        .map(|(at, label)| {
+            let name = match labels[..at].iter().filter(|earlier| *earlier == label).count() {
+                0 => (*label).to_owned(),
+                before => format!("{label} {}", before + 1),
+            };
+            if name.chars().count() > TAB_NAME_MAX_CHARS {
+                let kept: String = name.chars().take(TAB_NAME_MAX_CHARS - 1).collect();
+                format!("{kept}\u{2026}")
+            } else {
+                name
+            }
         })
         .collect()
 }
