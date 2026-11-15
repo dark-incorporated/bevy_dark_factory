@@ -2,6 +2,10 @@
 
 What each change added, newest first. A visible change has a clip: click the still to play it. `python3 tools/changelog/changelog.py page --open` plays them all in one page.
 
+## 2026-11-15
+
+- **ci-daily-run-memory-limits** `67713a83` The daily CI run takes the memory-safe limits of the pre-push gate (3 build jobs, 2 test threads, 60 minute timeout), so it is no longer killed mid nextest on big *No clip: ci; proved by the workflow diff and the next scheduled run*
+
 ## 2026-11-14
 
 - **445-selected-rows** `f9e455d8` Selected dock tabs and the armed library row read at AA contrast in every theme *For you: Selected tabs and the chosen library row are readable in all three themes.* *No clip: visible, not yet recorded: fleet worker*
