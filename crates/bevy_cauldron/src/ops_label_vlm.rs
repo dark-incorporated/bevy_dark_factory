@@ -133,7 +133,7 @@ impl Operation for LabelSuggest {
         let mesh = d.mesh.clone().unwrap_or_default();
         let prompt = crate::labels::prompt_ctx(d, &mesh, project);
         let date: String = crate::ops::now_rfc3339().chars().take(10).collect();
-        let http = bevy_oracle::Http::new(endpoint_of(&project.root));
+        let http = bevy_oracle::Live::new(endpoint_of(&project.root));
         let (suggestion, provenance) =
             label_with_decisions(&http, &pngs, &project.vocab, &prompt, DEFAULT_THRESHOLD, date)
                 .map_err(|e| Refusal::new(e.to_string()))?;

@@ -14,7 +14,7 @@
 //! code.
 //!
 //! **Nothing here calls a model.** `run_checks` takes a [`Transport`]; a test passes a [`Replay`], and
-//! the CLI passes an [`Http`] only when it is asked to (`--ask`). That is the same split
+//! the CLI passes a [`Live`](crate::Live) only when it is asked to (`--ask`). That is the same split
 //! `crate::Check::run` already draws, lifted to the whole set.
 
 use std::collections::BTreeMap;

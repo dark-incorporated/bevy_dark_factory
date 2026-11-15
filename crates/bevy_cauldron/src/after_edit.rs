@@ -18,7 +18,7 @@ use std::sync::Mutex;
 use std::sync::mpsc::{Receiver, Sender, channel};
 
 use bevy::prelude::*;
-use bevy_oracle::{Checks, Config, Error as DecideError, Evidence, Finding, Http, Transport};
+use bevy_oracle::{Checks, Config, Error as DecideError, Evidence, Finding, Live, Transport};
 
 use crate::ops::{Entry, Source};
 
@@ -393,7 +393,7 @@ fn frames_of(
 /// Ask the checks about `edits` on a thread, with the editor's picture and each operation's close-up.
 fn spawn_checks(edits: Vec<AgentEdit>, checks: Checks, pictures: Pictures, tx: Sender<Vec<EditReport>>) {
     std::thread::spawn(move || {
-        let http = Http::new(Config::from_env());
+        let http = Live::new(Config::from_env());
         let done = run_due(&edits, &checks, &http, &|e| {
             let mut out: BTreeMap<String, String> = pictures.view.iter().map(|v| ("view".to_string(), v.clone())).collect();
             if let Some(v) = &pictures.view {

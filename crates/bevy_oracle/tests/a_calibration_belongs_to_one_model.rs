@@ -160,7 +160,7 @@ fn stub(body: &'static str) -> (String, std::thread::JoinHandle<String>) {
 }
 
 fn http(base: &str) -> Http {
-    Http::new(Config { endpoint: format!("{base}/v1/systemone"), model: None, key: None, timeout_secs: 5 })
+    Http::new(Config { endpoint: format!("{base}/v1/systemone"), timeout_secs: 5, ..Config::default() })
 }
 
 #[test]

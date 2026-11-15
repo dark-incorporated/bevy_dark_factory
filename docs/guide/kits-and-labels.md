@@ -102,6 +102,7 @@ Set this up once. Put the endpoint in the project root's `.env` file, which is g
 - `GRIMOIRE_DECIDE_MODEL`: the model to ask, when the endpoint serves more than one. A `llama.cpp` server names none and needs none.
 - `GRIMOIRE_DECIDE_KEY`: sent as a bearer token when the endpoint wants one. Cloudflare Workers AI needs it; a local server does not.
 - `GRIMOIRE_DECIDE_TIMEOUT_SECS`: how long to wait for an answer. The default is 60.
+- `GRIMOIRE_DECIDE_PROTOCOL`: `systemone` (the default) or `openrouter`. `openrouter` asks OpenRouter's Decisions API (`perplexity/pplx-decider-v1.3:free` unless `GRIMOIRE_DECIDE_MODEL` says otherwise) and **sends the photographs off this machine**, so it is only ever on when you set it. Its key is `OPENROUTER_API_KEY`, read from the environment alone and never from `.env`. See `docs/decide/openrouter.md`.
 
 There is one labelling path. There is no setting that chooses a second one and no fallback endpoint.
 

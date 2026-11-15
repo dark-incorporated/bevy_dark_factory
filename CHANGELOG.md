@@ -2,6 +2,11 @@
 
 What each change added, newest first. A visible change has a clip: click the still to play it. `python3 tools/changelog/changelog.py page --open` plays them all in one page.
 
+## 2026-11-15
+
+- **453-openrouter-decisions** `1994618e` OpenRouter Decisions is a second protocol for the decision model, chosen by GRIMOIRE_DECIDE_PROTOCOL and never tried after the local one (#453) *No clip: a transport, not on screen; proved by crates/bevy_oracle/tests/openrouter.rs (request shaping, refusal, 402/404/429, key handling; the recorded Replay test waits for OPENROUTER_API_KEY)*
+- **dm-456-look-then-ask** `322634b87` An agent checks its work by asking: grimoire_decide with view: true takes the still, answers four or five questions with the model, where it ran and the latency, and accepts a capture_still's path or fingerprint (#456) *For you: Agents now check what they made by asking a decision model about a fresh still before they hand back.* *No clip: visible, not yet recorded: fleet worker*
+
 ## 2026-11-14
 
 - **445-selected-rows** `f9e455d8` Selected dock tabs and the armed library row read at AA contrast in every theme *For you: Selected tabs and the chosen library row are readable in all three themes.* *No clip: visible, not yet recorded: fleet worker*

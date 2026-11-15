@@ -116,12 +116,17 @@ pub enum Answer {
     Score {
         /// The probability-weighted level index.
         score: f64,
-        /// Level index -> level name.
+        /// Level index -> level name. Absent from some providers; the probabilities are keyed by index.
+        #[serde(default)]
         legend: BTreeMap<String, String>,
         probabilities: BTreeMap<String, f64>,
         #[serde(default)]
         confidence: f64,
     },
+    /// The provider declined this question and returned no value (OpenRouter's `refusal`). It is kept as
+    /// an answer so a recorded exchange round-trips, and [`ask`](crate::ask) turns it into
+    /// [`Error::Refusal`](crate::Error::Refusal): never into a probability.
+    Refusal,
 }
 
 impl Answer {
@@ -144,16 +149,29 @@ impl Answer {
             Answer::Noul { .. } => "noul",
             Answer::Choice { .. } => "choice",
             Answer::Score { .. } => "score",
+            Answer::Refusal => "refusal",
         }
     }
 }
 
+/// What a call consumed, and who served and billed it. Only the fields the endpoint sent are set:
+/// a llama.cpp server sends the two token counts; OpenRouter also names the `provider` that answered,
+/// the generation `id` and the `cost` in credits (0 on a free model).
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 pub struct Usage {
     #[serde(default)]
     pub input_tokens: u64,
     #[serde(default)]
     pub output_tokens: u64,
+    /// What OpenRouter charged for the request, in credits.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cost: Option<f64>,
+    /// The provider that answered (OpenRouter's `provider`, e.g. `Perplexity`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub provider: Option<String>,
+    /// OpenRouter's generation id (`gen-dec-...`), for looking a call up in its activity log.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub id: Option<String>,
 }
 
 /// A response body: answers keyed by question id.
@@ -172,6 +190,10 @@ impl Response {
         let bad = |detail: String| Error::BadResponse { endpoint: endpoint.to_string(), detail };
         for (id, q) in &request.questions {
             let a = self.answers.get(id).ok_or_else(|| bad(format!("no answer for question `{id}`")))?;
+            // A refusal is not a verdict: it never becomes a number, and it names the question.
+            if matches!(a, Answer::Refusal) {
+                return Err(Error::Refusal { endpoint: endpoint.to_string(), question: id.clone() });
+            }
             let want = match q {
                 Question::Noul { .. } => "noul",
                 Question::Choice { .. } => "choice",
