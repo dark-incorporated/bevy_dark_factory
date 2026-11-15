@@ -2268,7 +2268,7 @@ pub fn notifications_overlay(mut commands: Commands, frame: Res<Frame>) {
         .insert(Pickable::default())
         .id();
     commands.entity(overlay).with_children(|p| {
-        title(p, "EVERY ERROR THIS SESSION");
+        title(p, "NOTIFICATIONS");
         p.spawn((
             Text::new(format!("{} closes  ·  {} copies this list", keys::chord(keys::Action::Cancel), keys::chord(keys::Action::CopyInfo))),
             TextColor(ink().dim),

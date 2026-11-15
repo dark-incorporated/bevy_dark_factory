@@ -1670,7 +1670,7 @@ pub const BINDINGS: &[Binding] = &[
         true,
         Context::Global,
         "E",
-        "every error this session",
+        "notifications this session",
     )
     .also_journal()
     .at(Home::Legend),

@@ -47,7 +47,7 @@
     },
     {
       "at": 0.8,
-      "caption": "person: Cmd+E, every error this session",
+      "caption": "person: Cmd+E, the notifications this session",
       "mcp": "grimoire_run_command",
       "args": {
         "id": "view.show_errors"
