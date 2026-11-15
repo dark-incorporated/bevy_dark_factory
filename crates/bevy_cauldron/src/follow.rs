@@ -375,6 +375,7 @@ pub fn answering_in_the_agent_workspace(door: Option<&Workspace>, here: Option<&
 ///
 /// **What this does not touch**: an agent's operation raises no input event, so an agent's change is
 /// still followed, and a person who does nothing is still shown it.
+#[allow(clippy::too_many_arguments)]
 fn a_persons_input_takes_the_camera_back(
     keys: Option<Res<ButtonInput<KeyCode>>>,
     // **The one press that is not a gesture**: Look asks the camera to move, so reading its own chord
