@@ -4,6 +4,8 @@
 
 Clip-weight blending on a skinned rig's `AnimationPlayer`, for Bevy developers who want a walk to turn into a run without the feet sliding: no transitions, and one shared gait phase.
 
+[![crates.io](https://img.shields.io/crates/v/bevy_grimoire_anim.svg)](https://crates.io/crates/bevy_grimoire_anim) [![docs.rs](https://img.shields.io/docsrs/bevy_grimoire_anim)](https://docs.rs/bevy_grimoire_anim) [![CI](https://github.com/dark-incorporated/bevy_dark_factory/actions/workflows/ci.yml/badge.svg)](https://github.com/dark-incorporated/bevy_dark_factory/actions/workflows/ci.yml) [![Bevy 0.20](https://img.shields.io/badge/bevy-0.20-purple.svg)](https://bevyengine.org) [![licence](https://img.shields.io/badge/licence-MIT%20OR%20Apache--2.0-blue.svg)](#who-and-licence)
+
 **Status:** usable · Bevy 0.20 · MSRV 1.97.1
 
 **Why:** Bevy's `AnimationTransitions::play` ends by rewinding the incoming clip to time zero, so cross-fading a mid-stride walk against a run that starts from scratch makes the legs scissor. Here no clip is ever restarted, so the planted foot stays planted through the change.
@@ -62,6 +64,12 @@ cargo run -p bevy_grimoire_anim --example blend_weights
 ```
 
 Prints the whole locomotion weight vector across the speed and heading domain, with no rig, no asset and no window. Watch idle, walk and run hand off while the weights sum to exactly 1.000 the entire way.
+
+## Bevy compatibility
+
+| `bevy_grimoire_anim` | Bevy |
+|---|---|
+| 0.1 to 0.3 | 0.20 |
 
 ## Learn more
 

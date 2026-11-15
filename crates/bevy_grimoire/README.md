@@ -4,6 +4,8 @@
 
 The runtime half of grimoire, for Bevy developers whose levels are authored in the Cauldron editor: load a library of pieces and a map from a project's YAML and put them in a Bevy world, with the game's own behaviours and scripts defined in data.
 
+[![crates.io](https://img.shields.io/crates/v/bevy_grimoire.svg)](https://crates.io/crates/bevy_grimoire) [![docs.rs](https://img.shields.io/docsrs/bevy_grimoire)](https://docs.rs/bevy_grimoire) [![CI](https://github.com/dark-incorporated/bevy_dark_factory/actions/workflows/ci.yml/badge.svg)](https://github.com/dark-incorporated/bevy_dark_factory/actions/workflows/ci.yml) [![Bevy 0.20](https://img.shields.io/badge/bevy-0.20-purple.svg)](https://bevyengine.org) [![licence](https://img.shields.io/badge/licence-MIT%20OR%20Apache--2.0-blue.svg)](#who-and-licence)
+
 **Status:** usable · Bevy 0.20 · MSRV 1.97.1
 
 **Why:** the editor shows a map and the game plays it, and they must agree down to the last degree of yaw. `spawn_descriptor` is the single shared spawner, so a map cannot look one way in the editor and another in the game. This is the only crate in the grimoire set that knows what a renderer is, on purpose: the schema and the checks live in the engine-free [`bevy_grimoire_core`](https://crates.io/crates/bevy_grimoire_core).
@@ -51,6 +53,12 @@ cargo run -p bevy_grimoire --example spawn_headless
 ```
 
 Builds a library and a map in code, shows a map naming an undefined piece being refused at load, then hands the valid one to `GrimoirePlugin` and counts the spawned entities. It runs with `WgpuSettings { backends: None }`, so it needs no GPU and no asset on disk: what it demonstrates is placement, not pixels.
+
+## Bevy compatibility
+
+| `bevy_grimoire` | Bevy |
+|---|---|
+| 0.1 to 0.6 | 0.20 |
 
 ## Learn more
 

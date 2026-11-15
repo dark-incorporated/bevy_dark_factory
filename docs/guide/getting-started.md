@@ -8,7 +8,7 @@ You need a Rust toolchain and a clone of this repo. Run every command from the r
 
 ## Start the editor
 
-With no argument, `cargo run -p bevy_cauldron` opens the **launcher** before any project: your recent projects (a missing folder is listed as missing, not dropped), a field to type a project's folder, **Open example**, **New project…** (a name, a place and a template; a name that is already a folder is refused beside the field and Create stays off until it is free) and, when the changelog has grown since you last opened a project, what it added. Choosing a project opens its **project page**, as step 1 below does by hand. **Copy command line** on a recent project puts the line that opens it on your clipboard. One press (or Enter) on a card opens it, and typing a project's first letters moves to it.
+With no argument, `cargo run -p bevy_cauldron` opens the **launcher** before any project: your recent projects as cards (a missing folder is listed as missing, not dropped) with a **Filter projects** box, **New project** (a name, a place and a template; a name that is already a folder is refused beside the field and Create stays off until it is free), **Open folder…** (the system's own folder chooser) and, when the changelog has grown since you last opened a project, what it added. On a first run, with nothing opened yet, the launcher is a welcome with an **Open the example** button (the Learn page has the same button). Choosing a project opens its **project page**, as step 1 below does by hand. **Copy command line** on a recent project puts the line that opens it on your clipboard. One press (or Enter) on a card opens it.
 
 A project named on the command line with a map or a workspace (`cargo run -p bevy_cauldron -- . bedroom`) skips the project page and opens on a **loading screen**: nothing for the first second, then the stage it is in with a spinner, and from ten seconds a bar that says `N of M` and the stage. **Cancel** goes back to the launcher and writes nothing. When it has loaded, any file of the project that does not read is listed on a card, one row each with the file, the field and why; **Open anyway** goes on into the editor and **Back** returns to the launcher. `GRIMOIRE_LOAD_STAGE_DELAY_MS=3000` pauses after each stage if you want to see the screen on a project that opens too fast to.
 
@@ -24,7 +24,7 @@ A project written before the YAML cutover holds `.ron` files and is refused at o
 
 The page's sidebar has **Projects**, **Learn**, **What's new** and **Settings**, with the editor's version under them. The page itself has three sections: **Maps** (each map a card, and **+ New map**), **Kits** (each kit a card, and **+ New kit**) and **Agent guide** (the project's `.dark_factory/AGENTS.md`, which an agent reads first; **Create guide** writes one). The terminal is collapsed: the status band's **Terminal Cmd+J** label raises it.
 
-A **kit** is a folder of pieces. A **piece** is one thing you can place on a map, such as a wall, a table, or a sofa. In this repo the kits are `furniture`, `site` and `scp`, and the first, `furniture`, is where new work lands.
+A **kit** is a folder of pieces. A **piece** is one thing you can place on a map, such as a wall, a table, or a sofa. This repo's project binds two kits, `furniture` and `scp` (the folder `site` is a third kit that is not bound), and the first, `furniture`, is where new work lands.
 
 ## Make a map
 

@@ -26,7 +26,7 @@ cargo run -p bevy_cauldron -- <project-root>
 
 **On a Mac with Apple Silicon**, the [releases](https://github.com/dark-incorporated/bevy_dark_factory/releases) carry `Cauldron-<version>-macos-arm64.dmg`: the same editor with every family crate built in, signed with a Developer ID and notarized. The installed app checks the releases feed for a newer version and can update itself. The release workflow is [`release-macos.yml`](https://github.com/dark-incorporated/bevy_dark_factory/blob/main/.github/workflows/release-macos.yml).
 
-With no argument the editor opens on the launcher. Its sidebar holds Projects, Learn and What's new, Settings, the version and the updater. Projects lists the projects you opened before, most recent first, as cards with a filter, and offers **New project…** and **Open folder…**; on a first run it is a welcome with an **Open the example** button. Opening a project starts the editor on it, in the same window.
+With no argument the editor opens on the launcher. Its sidebar holds Projects, Learn and What's new, Settings, the version and the updater. Projects lists the projects you opened before, most recent first, as cards with a filter, and offers **New project** and **Open folder…**; on a first run it is a welcome with an **Open the example** button, which the Learn page also has. Opening a project starts the editor on it, in the same window.
 
 ```text
 bevy_cauldron [ROOT] [MAP] [--workspace <id>] [--kit NAME] [--live]

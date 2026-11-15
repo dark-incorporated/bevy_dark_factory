@@ -4,6 +4,8 @@
 
 A Boolean satisfiability (SAT) back-end for generators that must answer the same way every run, on every machine: no clock, no threads, no entropy, and a give-up budget counted in conflicts rather than seconds. SAT asks whether some true/false assignment to a set of variables satisfies every one of a set of clauses.
 
+[![crates.io](https://img.shields.io/crates/v/bevy_grimoire_solver.svg)](https://crates.io/crates/bevy_grimoire_solver) [![docs.rs](https://img.shields.io/docsrs/bevy_grimoire_solver)](https://docs.rs/bevy_grimoire_solver) [![CI](https://github.com/dark-incorporated/bevy_dark_factory/actions/workflows/ci.yml/badge.svg)](https://github.com/dark-incorporated/bevy_dark_factory/actions/workflows/ci.yml) [![licence](https://img.shields.io/badge/licence-MIT%20OR%20Apache--2.0-blue.svg)](#who-and-licence)
+
 ![A dark chessboard cycling through board sizes: at 2x2 and 3x3 the squares turn dull red and the caption reads "no arrangement exists", then from 4x4 up to 12x12 amber discs appear, one per row and column with none sharing a diagonal, the grid growing finer at each step](https://raw.githubusercontent.com/dark-incorporated/bevy_dark_factory/main/crates/bevy_grimoire_solver/docs/n_queens.gif)
 
 *The `n_queens` example: no arrangement exists on a 2x2 or 3x3 board, and the solver says so instead of returning the nearest miss.*
@@ -91,6 +93,10 @@ cargo run -p bevy_grimoire_solver --example soft_constraints    # assumptions an
 ```
 
 All three print to the terminal and need no GPU.
+
+## Bevy compatibility
+
+None: this crate has no Bevy dependency, so every version works with any Bevy.
 
 ## Learn more
 

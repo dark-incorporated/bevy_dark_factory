@@ -4,6 +4,8 @@
 
 Rhai scripts on Bevy entities, reloaded live, for developers whose game's behaviour is too conditional for a component's fields to describe: the one Rhai host a `bevy_grimoire` game runs its scripts on.
 
+[![crates.io](https://img.shields.io/crates/v/bevy_grimoire_rhai.svg)](https://crates.io/crates/bevy_grimoire_rhai) [![docs.rs](https://img.shields.io/docsrs/bevy_grimoire_rhai)](https://docs.rs/bevy_grimoire_rhai) [![CI](https://github.com/dark-incorporated/bevy_dark_factory/actions/workflows/ci.yml/badge.svg)](https://github.com/dark-incorporated/bevy_dark_factory/actions/workflows/ci.yml) [![Bevy 0.20](https://img.shields.io/badge/bevy-0.20-purple.svg)](https://bevyengine.org) [![licence](https://img.shields.io/badge/licence-MIT%20OR%20Apache--2.0-blue.svg)](#who-and-licence)
+
 **Status:** usable · Bevy 0.20 · MSRV 1.97.1
 
 **Why:** a script is only worth editing while the game runs if saving it changes the running game and a mistake in it cannot end the game. Saving recompiles the file in place and keeps the state the script kept; a file that does not compile leaves the last good version running and raises a problem naming the file and the line.
@@ -61,6 +63,12 @@ entities:
 Saving the `.rhai` file recompiles it. **The state a script keeps in `this.state` survives the reload**, so a counter keeps counting. A file that does not compile leaves the last good version running and raises a `ScriptProblem` naming the file and the line. A call that runs past `SCRIPT_STEP_LIMIT` operations (200,000) is stopped with a problem naming the file, and so is a string, array or map that outgrows its named cap, so a runaway script costs one call rather than the game. A problem is raised once per edit, not once a frame.
 
 `import` resolves nothing: a script cannot load a file the game did not put in its project.
+
+## Bevy compatibility
+
+| `bevy_grimoire_rhai` | Bevy |
+|---|---|
+| 0.1 to 0.2 | 0.20 |
 
 ## Learn more
 

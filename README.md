@@ -24,7 +24,7 @@ cd bevy_dark_factory
 cargo run -p bevy_cauldron -- .
 ```
 
-The editor opens a menu of the project's kits and maps; choose a map in the MAPS column. With no argument it opens the launcher instead: the projects you opened before, a folder to type, **Open example**, **New project…** and what the changelog added since you last looked. On your own game, pass its root instead of `.`; a project written before the YAML cutover is refused at open and `bevy_cauldron migrate <project folder>` moves it. [Getting started](https://github.com/dark-incorporated/bevy_dark_factory/blob/main/docs/guide/getting-started.md) walks through your first map.
+The editor opens the project's page: its **Maps** and its **Kits** as cards, and its agent guide; open a map card to start. With no argument it opens the launcher instead: the projects you opened before (with a filter box), **New project** and **Open folder…**, and what the changelog added since you last looked; on a first run it is a welcome with an **Open the example** button, which the Learn page has too. On your own game, pass its root instead of `.`; a project written before the YAML cutover is refused at open and `bevy_cauldron migrate <project folder>` moves it. [Getting started](https://github.com/dark-incorporated/bevy_dark_factory/blob/main/docs/guide/getting-started.md) walks through your first map.
 
 **On a Mac with Apple Silicon**, download `Cauldron-<version>-macos-arm64.dmg` from the [releases](https://github.com/dark-incorporated/bevy_dark_factory/releases) and drag Cauldron into Applications: the same editor with every family crate built in, signed and notarized. The launcher offers **Update to v…** when a newer release exists. `tools/release/macos/build_app.sh` builds the same app locally.
 
@@ -59,7 +59,7 @@ fn main() {
 cargo run -p bevy_cauldron -- . bedroom --kit furniture
 ```
 
-Opens the repository's own project on the one-room `bedroom` map and its `furniture` kit (`site` and `scp` are the other kits), which is the scene of the clips on this page. [The MCP tools](https://github.com/dark-incorporated/bevy_dark_factory/blob/main/docs/mcp-tools.md) list what an agent can call.
+Opens the repository's own project on the one-room `bedroom` map and its `furniture` kit (the project binds `furniture` and `scp`), which is the scene of the clips on this page. [The MCP tools](https://github.com/dark-incorporated/bevy_dark_factory/blob/main/docs/mcp-tools.md) list what an agent can call.
 
 ![The whole editor window on the Map workspace with the bedroom map, after an agent removed the bed and turned the sofa 90 degrees: the inspector's MAP line reads 11 placed and its LAST line names the agent's change, the PLACE palette lists the furniture kit, and the terminal is docked across the bottom](https://raw.githubusercontent.com/dark-incorporated/bevy_dark_factory/main/docs/media/editor.png)
 
@@ -82,7 +82,7 @@ Opens the repository's own project on the one-room `bedroom` map and its `furnit
 - **Work in one window**: ten workspaces from one key each (Project, Map, World, Kit, Animation, Sound, Files, Game, Agent and Design), a terminal under every screen (Cmd+J raises it), a finder for anything the project names (Cmd+P), Cmd+E for everything that happened with an Undo on the newest step, and three themes that recolour the editor live: [keys](https://github.com/dark-incorporated/bevy_dark_factory/blob/main/docs/guide/keys.md).
 - **Make kits and labels**: bring in meshes, group them into kits and confirm the labels a vision model proposes: [kits and labels](https://github.com/dark-incorporated/bevy_dark_factory/blob/main/docs/guide/kits-and-labels.md).
 - **Edit the files your game loads, live**: every project file is YAML, the editor re-reads a changed file within a quarter of a second, a running game can follow, and `bevy_cauldron bake` turns the data into a release: [data files](https://github.com/dark-incorporated/bevy_dark_factory/blob/main/docs/guide/data-files.md) and [your game](https://github.com/dark-incorporated/bevy_dark_factory/blob/main/docs/guide/your-game.md).
-- **Measure the agent**: `cauldron-bench` gives an agent a task through the same MCP tools, grades the files it leaves and compares two runs with a paired interval; a release needs a run that is not worse than the last. On the sample game, an agent given `grimoire_style` satisfied all 24 of the style's lines and one without it 10.4 (30 scored runs, one model): [the benchmark](https://github.com/dark-incorporated/bevy_dark_factory/blob/main/bench/README.md) and [the study](https://github.com/dark-incorporated/bevy_dark_factory/blob/main/docs/research/2026-11-14-style-helps-an-agent-results-2.md).
+- **Measure the agent**: `cauldron-bench` gives an agent a task through the same MCP tools, grades the files it leaves and compares two runs with a paired interval; a release needs a run that is not worse than the last ([the latest baseline report](https://github.com/dark-incorporated/bevy_dark_factory/blob/main/docs/bench/runs/2026-11-15-baseline.md)). On the sample game, an agent given `grimoire_style` satisfied all 24 of the style's lines and one without it 10.4 (30 scored runs, one model): [the benchmark](https://github.com/dark-incorporated/bevy_dark_factory/blob/main/bench/README.md) and [the study](https://github.com/dark-incorporated/bevy_dark_factory/blob/main/docs/research/2026-11-14-style-helps-an-agent-results-2.md).
 
 ## Part of Dark Inc.
 
@@ -100,15 +100,15 @@ The Dark Factory is the editor of [Dark Inc.](https://github.com/dark-incorporat
 | [`bevy_grimoire_solver`](https://crates.io/crates/bevy_grimoire_solver), [`_rng`](https://crates.io/crates/bevy_grimoire_rng), [`_anim`](https://crates.io/crates/bevy_grimoire_anim), [`_rhai`](https://crates.io/crates/bevy_grimoire_rhai), [`_snip`](https://crates.io/crates/bevy_grimoire_snip) | A deterministic SAT back-end, one ChaCha8 random stream, clip-weight blending, the Rhai script host, and cutting a rectangle out of a picture of the editor. |
 | `bevy_grimoire_migrate`, `bevy_oracle`, `bevy_devshot` | The RON to YAML project migration, typed questions to a decision model, and a frame on demand as a PNG. Not on crates.io. |
 
-A game depends on `bevy_grimoire` (and `bevy_grimoire_core` when it reads data without the engine). The crates were called `bevy_emerge_*` until 2026-10-31; those names have a final release that points here.
+A game depends on `bevy_grimoire` (and `bevy_grimoire_core` when it reads data without the engine).
 
 ## Bevy compatibility
 
 | Crate | Versions | Bevy |
 |---|---|---|
-| `bevy_grimoire` | 0.1 to 0.5 | 0.20 |
-| `bevy_grimoire_anim` | 0.1 to 0.2 | 0.20 |
-| `bevy_grimoire_rhai` | 0.1 | 0.20 |
+| `bevy_grimoire` | 0.1 to 0.6 | 0.20 |
+| `bevy_grimoire_anim` | 0.1 to 0.3 | 0.20 |
+| `bevy_grimoire_rhai` | 0.1 to 0.2 | 0.20 |
 | `bevy_grimoire_core`, `_solver`, `_rng`, `_snip` | every version | none: these crates have no Bevy dependency |
 
 ## Learn more

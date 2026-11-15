@@ -45,7 +45,7 @@ flowchart LR
     W -- Cmd/Ctrl+, --> S
 ```
 
-- **Launcher** (replaces `Screen::Menu` and the kit/map lists of `chooser.rs`): recent projects with name, path, last opened and thumbnail; Open folder…, New project…, Open example, Settings, and what is new since the user last opened Grimoire.
+- **Launcher** (replaces `Screen::Menu` and the kit/map lists of `chooser.rs`): recent projects with name, path, last opened and thumbnail, with a filter; **Open folder…** (the system's chooser), **New project**, Settings, and what is new since the user last opened Grimoire. On a first run it is a welcome with **Open the example**, which the Learn page also has.
 - **Loader** (a new `Screen::Loading`): the project open as named stages: read project, kits, measure meshes, thumbnails, family crates, maps. Under 1 s nothing shows; from 1 s a spinner; once the stage count is known and 10 s have passed, a percent-done bar with "N of M: stage". Cancel returns to the launcher and writes nothing. When it ends, a report card lists every refused file with its problem.
 - **Workbench** (replaces `Screen::Editor`): where the work happens (section 4). It holds **ten workspaces**, and moving between them is not a screen change: the project, the open map and the selection stay where they are.
 - **Settings** is a workbench tab, opened with Cmd/Ctrl+, and from the launcher.
@@ -161,7 +161,7 @@ The settings screen is searchable with categories as tabs. Each setting shows it
 
 ## 7. Component inventory
 
-What the editor needs, which gooey widget provides it, and the gooey request that asks for it. A request is `G-NN` in its title on `bevy-coven/bevy_gooey`, labelled `grimoire-ui`; the tracking issue maps each id to its number.
+What the editor needs, which gooey widget provides it, and the gooey request that asks for it. A request is `G-NN` in its title on `dark-incorporated/bevy_gooey`, labelled `grimoire-ui`; the tracking issue maps each id to its number.
 
 | Editor need | gooey widget | Request |
 |---|---|---|

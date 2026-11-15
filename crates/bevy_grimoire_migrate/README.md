@@ -4,7 +4,7 @@
 
 Moves a Cauldron project's files from RON (Rusty Object Notation) to YAML without losing anything, for anyone whose project was written before the editor switched to YAML. Every file is converted in memory and read back before anything is written, comments travel with their keys, and the old files are archived rather than deleted.
 
-**Status:** experimental
+**Status:** experimental · MSRV 1.97.1
 
 **Why:** RON and YAML spell an `Option` and an enum differently, so a text substitution produces a file that looks right and holds a different value. This crate compares the values the types read, and when one differs it refuses the whole migration, names the file and writes nothing. It is also the only crate in the workspace that still reads RON, so `bevy_grimoire_core` does not depend on `ron`.
 

@@ -4,13 +4,15 @@
 
 The engine-free core of the Cauldron's world building, for Rust developers who read, check, generate or tool a grimoire (the folder of YAML files the Cauldron editor writes and a game loads) without linking a renderer: the file schemas, a project loader, a constraint solver front-end, wave function collapse and the checks that run over a map.
 
+[![crates.io](https://img.shields.io/crates/v/bevy_grimoire_core.svg)](https://crates.io/crates/bevy_grimoire_core) [![docs.rs](https://img.shields.io/docsrs/bevy_grimoire_core)](https://docs.rs/bevy_grimoire_core) [![CI](https://github.com/dark-incorporated/bevy_dark_factory/actions/workflows/ci.yml/badge.svg)](https://github.com/dark-incorporated/bevy_dark_factory/actions/workflows/ci.yml) [![licence](https://img.shields.io/badge/licence-MIT%20OR%20Apache--2.0-blue.svg)](#who-and-licence)
+
 **Status:** usable · MSRV 1.97.1
 
 **Why:** the game, the editor, the MCP server and headless tools all need the same schema and the same refusals, and none of them should have to agree on a renderer to share them. `tests/engine_free.rs` fails the build if a `bevy`, `avian`, `wgpu` or `winit` dependency appears in the manifest, so the boundary is a compiler fact and not a comment.
 
-## Breaking in 0.12.0
+## Upgrading from 0.11
 
-The version in `Cargo.toml` is still 0.11.0; these changes ship from 0.12.0, which is the next release.
+0.12 removes two things and adds one:
 
 - **The `references` module is removed**, with its `References`, `Reference` and `REFERENCES_VERSION`. A map's per-map list of captioned pictures (`maps/<map>.references.*`) is gone. The **`board` module replaces it**: every place of the design tree has a dream board at `<place>/board/board.yaml` (read with `board::Board::of_place`, edited with `add`, `remove`, `recaption` and `move_to`), and pictures are cited by their path instead of an `r1` id. `bevy_cauldron migrate` moves an old project's references file to the level's board with the same captions.
 - **`trust::GuideGrant` is removed.** A grant is now one `trust::TextGrant` per file (it carries the file's `path`), so the project's guide and every style file share one store and one question. Use `TrustStore::text_decision`, `trust_text` and `revoke_text`; `guide_decision` and `trust_guide` remain as the guide's path. `TRUST_VERSION` is 3, and a version 1 or 2 store is still read: a version 2 guide grant becomes a text grant for the guide's path, so what a person already allowed stays allowed.
@@ -53,7 +55,7 @@ Every module is public; the ones to start from:
 - **The project's files**: `descriptor` and `library` (what a mesh is, where it may go, what it offers), `vocab`, `kits`, `map`, `composition`, `rules`, `standards`, `policy`, `relations`, `notes`, `plan`, `rigs`, `play`, `family`, `destructible`, `heightfield`, `volume`, `water` and `data_files`, with `project_data` to load them together.
 - **YAML in and out**: `yaml` is the one place a project file is read or written, and its refusals name a file, a line and a field path; `yaml_surgery` edits one value and keeps every comment; `schema` generates one JSON Schema per file kind from the type, for an outside editor's completion; `save` and `atomic_file` write a file so a reader sees the old one or the new one, never a mix.
 - **Design and trust**: `design` (the game's style as a tree of places), `board` (a dream board per place), `style`, `trust` (what a person allowed a project to run or an agent to read), `agent_guide`, `lesson` and `wish`.
-- **Release and live reload**: `bake` turns every YAML file a game loads into postcard binaries proved against the YAML, `load` reads whichever the process opened, and `reload`, `reload_check`, `live` and `live_verdict` say what a running game does when a file changes on disk.
+- **Release and live reload**: `bake` turns every YAML file a game loads into postcard binaries proved against the YAML, `load` reads whichever the process opened, and `reload`, `reload_check` and `live` (with its `Verdict` types) say what a running game does when a file changes on disk.
 - **Generation and measurement**: `constraints` (a constraint layer over Boolean variables, solved by [`bevy_grimoire_solver`](https://crates.io/crates/bevy_grimoire_solver)), `placement` (the constraint IR, its solver back-ends and the pass that scatters small props onto surfaces), `wfc` and `grammar` (wave function collapse, and learning a map's grammar to continue it), `geom` (Poisson-disk sampling and Delaunay triangulation), `run`, `range` and `repetition`.
 - **Assets**: `glb` (a hand-written glTF reader that measures a mesh), `import` (propose a descriptor for a mesh), `clips` and `rig_check` (what a rig's animations contain) and `gait`.
 - **`rng`**: a re-export of [`bevy_grimoire_rng`](https://crates.io/crates/bevy_grimoire_rng), the one seeded generator everything here draws through.
@@ -73,6 +75,10 @@ cargo run -p bevy_grimoire_core --example expressive_range # the composition gra
 ```
 
 `empty_weight` re-reads the same measurements while sweeping one prototype's weight, and `import_dir` imports every `.glb` under a directory into a library file.
+
+## Bevy compatibility
+
+None: this crate has no Bevy dependency, so every version works with any Bevy.
 
 ## Learn more
 

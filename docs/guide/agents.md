@@ -16,7 +16,7 @@ Goal: connect an MCP client to the running editor, so the agent can read and cha
 {
   "mcpServers": {
     "bevy_grimoire": {
-      "command": "/absolute/path/to/bevy_grimoire/target/debug/bevy_cauldron_mcp",
+      "command": "/absolute/path/to/bevy_dark_factory/target/debug/bevy_cauldron_mcp",
       "args": ["--project", "/absolute/path/to/your/project"],
       "env": { "BEVY_BRP_PORT": "15702" }
     }

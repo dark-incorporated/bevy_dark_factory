@@ -65,7 +65,7 @@ budget: {wall_s: 600, tool_calls: 60}
 
 ## What is in the library
 
-Nothing in `check`, `grade`, `suite`, `task` or `fixture` imports Bevy: the grader is a walk over files and the core crate's arithmetic, which is what lets one piece of code score both a headless proof in the test gate and a real agent's trial. `run` is the harness around it and the only module that owns a process or a socket; `claude` reads Claude Code's transcript; `report`, `compare`, `matrix` and `stats` build what a run publishes. The binary is `cauldron-bench`.
+Nothing in `check`, `grade`, `suite`, `task` or `fixture` imports Bevy: the grader is a walk over files and the core crate's arithmetic, which is what lets one piece of code score both a headless proof in the test gate and a real agent's trial. `run` is the harness around it: it starts the editor, the MCP server, the agent and (on Linux) `Xvfb`, and owns the sockets. `claude` runs Claude Code and reads its transcript, `probe` asks the host what it has (the git commit, `omp models find`), and `report`, `compare`, `matrix` and `stats` build what a run publishes. The binary is `cauldron-bench`.
 
 ## Learn more
 

@@ -4,6 +4,8 @@
 
 One deterministic random number generator for a whole simulation, for developers whose generators and searches must replay exactly: a seeded ChaCha8 stream plus the unbiased integer and float draws a generator needs. A run reproduces from a single `u64`, on any platform, at any thread count.
 
+[![crates.io](https://img.shields.io/crates/v/bevy_grimoire_rng.svg)](https://crates.io/crates/bevy_grimoire_rng) [![docs.rs](https://img.shields.io/docsrs/bevy_grimoire_rng)](https://docs.rs/bevy_grimoire_rng) [![CI](https://github.com/dark-incorporated/bevy_dark_factory/actions/workflows/ci.yml/badge.svg)](https://github.com/dark-incorporated/bevy_dark_factory/actions/workflows/ci.yml) [![licence](https://img.shields.io/badge/licence-MIT%20OR%20Apache--2.0-blue.svg)](#who-and-licence)
+
 **Status:** usable · MSRV 1.97.1
 
 **Why:** a project with two hand-written generators has two streams that must stay identical forever to keep its replays honest; this is the one place the stream is defined, with its first draws frozen in a test, so a change that moves the bits cannot land by accident.
@@ -66,6 +68,10 @@ cargo run -p bevy_grimoire_rng --example reproducible
 ```
 
 Prints two runs from one seed and compares them draw for draw, checks that a neighbouring seed does not agree, and rolls a hundred thousand dice to show `below` is uniform. Terminal only: no window, no GPU. Run it from a clone of the [repository](https://github.com/dark-incorporated/bevy_dark_factory).
+
+## Bevy compatibility
+
+None: this crate has no Bevy dependency, so every version works with any Bevy.
 
 ## Learn more
 

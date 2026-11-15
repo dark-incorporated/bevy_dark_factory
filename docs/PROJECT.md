@@ -31,22 +31,22 @@ The answer is structural: **there is one way to change anything**, a typed opera
 
 ## 3. What it is made of
 
-About 405,000 lines of Rust (`find crates -name '*.rs' | xargs cat | wc -l` per crate: source, tests and examples) in 13 crates, 844 integration-test files under `crates/*/tests/`, 28 MCP tools, and 137 entries in the operation registry (`ops::registry()`; 130 in a default build, because the family crates' operations are behind cargo features: `bevy_cauldron --print-operations` lists the ones a build has).
+About 405,000 lines of Rust (`find crates -name '*.rs' | xargs cat | wc -l` per crate: source, tests and examples) in 13 crates, 844 Rust files under `crates/*/tests/` (`ls crates/*/tests/*.rs | wc -l`), 28 MCP tools, and 137 entries in the operation registry (`ops::registry()`; 130 in a default build, because the family crates' operations are behind cargo features: `bevy_cauldron --print-operations` lists the ones a build has).
 
 | Crate | Lines | On crates.io | What it is |
 |---|---:|---|---|
 | `bevy_cauldron` | 294,204 | no | The editor. Opens a project directory, writes `<root>/assets/grimoire`. |
-| `bevy_grimoire_core` | 67,339 | 0.11.0 | The engine-free core: the project's file types and its one YAML reader and writer, the design tree, the grammar learner, WFC (wave function collapse), validators. No Bevy. |
+| `bevy_grimoire_core` | 67,339 | [yes](https://crates.io/crates/bevy_grimoire_core) | The engine-free core: the project's file types and its one YAML reader and writer, the design tree, the grammar learner, WFC (wave function collapse), validators. No Bevy. |
 | `bevy_cauldron_bench` | 16,330 | no | The benchmark runner and grader, `cauldron-bench`. |
 | `bevy_cauldron_mcp` | 8,337 | no | The MCP server: 28 tools over stdio, talking to the running editor over BRP (the Bevy Remote Protocol). |
-| `bevy_grimoire` | 8,200 | 0.5.1 | The runtime: loads a project into a game (`GamePlugin`, `GrimoirePlugin`, `GrimoireLivePlugin`). |
+| `bevy_grimoire` | 8,200 | [yes](https://crates.io/crates/bevy_grimoire) | The runtime: loads a project into a game (`GamePlugin`, `GrimoirePlugin`, `GrimoireLivePlugin`). |
 | `bevy_grimoire_migrate` | 3,155 | no | Moves a project's files from RON to YAML. |
 | `bevy_oracle` | 2,218 | no | Typed questions to a decision model, authoring time only. |
-| `bevy_grimoire_rhai` | 1,877 | 0.1.1 | The Rhai script host a game's scripts run on. |
-| `bevy_grimoire_anim` | 1,327 | 0.2.1 | Clip-weight blending on a skinned rig. |
-| `bevy_grimoire_solver` | 1,304 | 0.1.2 | A deterministic SAT back-end. |
-| `bevy_grimoire_snip` | 581 | 0.1.0 | Cuts one rectangle out of a picture of the editor. |
-| `bevy_grimoire_rng` | 368 | 0.1.0 | One seeded ChaCha8 stream for the whole simulation. |
+| `bevy_grimoire_rhai` | 1,877 | [yes](https://crates.io/crates/bevy_grimoire_rhai) | The Rhai script host a game's scripts run on. |
+| `bevy_grimoire_anim` | 1,327 | [yes](https://crates.io/crates/bevy_grimoire_anim) | Clip-weight blending on a skinned rig. |
+| `bevy_grimoire_solver` | 1,304 | [yes](https://crates.io/crates/bevy_grimoire_solver) | A deterministic SAT back-end. |
+| `bevy_grimoire_snip` | 581 | [yes](https://crates.io/crates/bevy_grimoire_snip) | Cuts one rectangle out of a picture of the editor. |
+| `bevy_grimoire_rng` | 368 | [yes](https://crates.io/crates/bevy_grimoire_rng) | One seeded ChaCha8 stream for the whole simulation. |
 | `bevy_devshot` | 134 | no | A frame on demand, from the GPU. |
 
 `games/sample/` is a small game made of YAML and Rhai whose Rust is one line; its tests play it.
@@ -126,9 +126,9 @@ This is the section to read if you are reading someone else's project.
 | Workspaces | 10 |
 | Operations | 137 in the registry, 130 in a default build |
 | MCP tools | 28 |
-| Integration-test files | 844 |
-| Published | `bevy_grimoire` 0.5.1, `bevy_grimoire_core` 0.11.0 (the next release, 0.12.0, removes the `references` module and `trust::GuideGrant`), `_solver` 0.1.2, `_rng` 0.1.0, `_anim` 0.2.1, `_rhai` 0.1.1, `_snip` 0.1.0 |
-| Editor release | `0.6.7` (the macOS app, [releases](https://github.com/dark-incorporated/bevy_dark_factory/releases)) |
+| Test files | 844 under `crates/*/tests/` |
+| Published | `bevy_grimoire`, `_core`, `_solver`, `_rng`, `_anim`, `_rhai` and `_snip` on crates.io; what `bevy_grimoire_core` 0.12 removed (the `references` module and `trust::GuideGrant`) is under "Upgrading from 0.11" in [its README](https://github.com/dark-incorporated/bevy_dark_factory/blob/main/crates/bevy_grimoire_core/README.md) |
+| Editor release | the macOS app, on the [releases](https://github.com/dark-incorporated/bevy_dark_factory/releases) page |
 | Open issues | 7 |
 
 It runs, a game can load what it writes, and an agent can drive it end to end from the shipped guide alone. It also has an unaudited 294,000-line editor at its centre and a review process that is a model reading a diff. Both are true at once, and a document that said only one of them would be lying.

@@ -4,6 +4,8 @@
 
 Cutting one rectangle out of a PNG of the Cauldron editor and saving it with a record of what was in it, for the code that handles snips: the editor that saves one and the MCP server that hands one to an agent. A snip is a rectangle a person drags round part of the editor, with a one-line note, so an agent can see and read what they mean.
 
+[![crates.io](https://img.shields.io/crates/v/bevy_grimoire_snip.svg)](https://crates.io/crates/bevy_grimoire_snip) [![docs.rs](https://img.shields.io/docsrs/bevy_grimoire_snip)](https://docs.rs/bevy_grimoire_snip) [![CI](https://github.com/dark-incorporated/bevy_dark_factory/actions/workflows/ci.yml/badge.svg)](https://github.com/dark-incorporated/bevy_dark_factory/actions/workflows/ci.yml) [![licence](https://img.shields.io/badge/licence-MIT%20OR%20Apache--2.0-blue.svg)](#who-and-licence)
+
 **Status:** usable · MSRV 1.88
 
 **Why:** the editor's snip and an agent's own crop must refuse exactly the same rectangles, so the bounds rule lives in one place that both call. A rectangle that is empty, reversed, negative or outside the picture is refused with the picture's size in the sentence, never clamped, because a clamped crop is a picture of a different place than the one asked for.
@@ -40,6 +42,10 @@ fn main() -> Result<(), String> {
 - **`write_pending`, `read_pending`, `clear_pending` and `clear_all_pending`** record a confirmed snip before its picture lands (the editor reads the picture back a frame or more after the confirm), so a read in between sees a snip being saved and not nothing.
 
 The crate depends on `image`, `serde` and `serde_json`, and on no engine.
+
+## Bevy compatibility
+
+None: this crate has no Bevy dependency, so every version works with any Bevy.
 
 ## Learn more
 
