@@ -26,7 +26,7 @@ pub use check::{BUILTIN_CHECKS_YAML, CHECKS_VERSION, Check, PROJECT_CHECKS_FILE,
 pub use clip::{FRAMES, LABELLED_FILE, Labelled, clip_check, load_labelled, score_set};
 pub use b64::data_url;
 pub use run::{Verdict, evidence_from, run_checks};
-pub use config::Config;
+pub use config::{Config, LOCAL_ENDPOINT, OPENROUTER_ENDPOINT, OPENROUTER_KEY_VAR, OPENROUTER_MODEL, PROTOCOL_VAR, Protocol};
 pub use transport::{Http, Recorder, Replay, Transport};
 pub use types::{Answer, MAX_IMAGES, MAX_QUESTIONS, Question, Request, Response, Usage};
 

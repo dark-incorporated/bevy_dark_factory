@@ -1,4 +1,4 @@
-use crate::{Config, Error, Request, Response};
+use crate::{Config, Error, Protocol, Request, Response};
 use std::path::{Path, PathBuf};
 
 /// Something that answers a [`Request`]. [`Http`] for a live endpoint, [`Replay`] for a recorded one.
@@ -24,6 +24,12 @@ impl Transport for Http {
     }
 
     fn send(&self, request: &Request) -> Result<Response, Error> {
+        if self.config.protocol != Protocol::SystemOne {
+            return Err(Error::Invalid(format!(
+                "`Http` speaks systemone only, but the config's protocol is `{}`; one protocol per run, never tried in turn",
+                self.config.protocol
+            )));
+        }
         let endpoint = self.config.endpoint.clone();
         let mut body = request.clone();
         if body.model.is_none() {
