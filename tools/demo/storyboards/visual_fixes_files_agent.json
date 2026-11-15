@@ -1,0 +1,70 @@
+{
+  "name": "visual_fixes_files_agent",
+  "fps": 10,
+  "scale": 1,
+  "width": 960,
+  "crop": [
+    0,
+    0,
+    1088,
+    640
+  ],
+  "setup": [],
+  "chunks": [
+    {
+      "seconds": 6.0
+    },
+    {
+      "seconds": 6.0
+    }
+  ],
+  "steps": [
+    {
+      "at": 1.0,
+      "key": "Digit9",
+      "mods": [
+        "ControlLeft"
+      ],
+      "caption": "person: the Agent workspace is open"
+    },
+    {
+      "at": 2.2,
+      "mcp": "grimoire_apply_operation",
+      "args": {
+        "operation": "placement_add",
+        "parameters": {
+          "piece": "wall",
+          "at": [
+            -4.0,
+            -4.0
+          ]
+        }
+      },
+      "caption": "agent: placement_add; the view follows to the Map, no toast (#439)"
+    },
+    {
+      "at": 5.4,
+      "mcp": "grimoire_run_command",
+      "args": {
+        "id": "workspace.files"
+      },
+      "caption": "person: the Files workspace"
+    },
+    {
+      "at": 6.8,
+      "caption": "a folder, then a text file (#438)",
+      "click": [
+        84,
+        321
+      ]
+    },
+    {
+      "at": 8.0,
+      "click_label": "style.md"
+    },
+    {
+      "at": 10.0,
+      "caption": "the editor fits the 1088 x 640 window (#438)"
+    }
+  ]
+}

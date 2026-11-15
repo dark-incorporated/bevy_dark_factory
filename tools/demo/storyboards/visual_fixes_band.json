@@ -1,0 +1,12 @@
+{
+  "name": "visual_fixes_band",
+  "fps": 15,
+  "scale": 1,
+  "width": 960,
+  "crop": [0, 0, 1088, 640],
+  "setup": [],
+  "chunks": [{"seconds": 2.5}],
+  "steps": [
+    {"at": 0.0, "caption": "a project of 300 maps has just opened: Preparing the view, above the status bar (#440)"}
+  ]
+}
