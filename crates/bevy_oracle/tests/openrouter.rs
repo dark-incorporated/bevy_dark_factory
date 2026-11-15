@@ -12,7 +12,7 @@ fn lookup<'a>(pairs: &'a [(&'a str, &'a str)]) -> impl Fn(&str) -> Option<String
 fn the_default_protocol_is_system_one_and_nothing_leaves_the_lan() {
     let c = Config::from_lookup(|_| None);
     assert_eq!(c.protocol, Protocol::SystemOne);
-    assert!(c.endpoint.starts_with("http://127.0.0.1:"), "{c:?}");
+    assert!(c.endpoint.starts_with("http://big.local:"), "{c:?}");
 }
 
 #[test]

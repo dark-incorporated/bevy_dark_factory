@@ -98,7 +98,7 @@ The labeller sends two photographs of a piece to a decision model and asks one y
 
 Set this up once. Put the endpoint in the project root's `.env` file, which is gitignored, or set it in the environment. A value in the environment wins over the one in `.env`.
 
-- `GRIMOIRE_DECIDE_ENDPOINT`: the decision endpoint. The default is `http://127.0.0.1:8093/v1/systemone`; serve it with `tools/decide/serve-clef-flash.sh`.
+- `GRIMOIRE_DECIDE_ENDPOINT`: the decision endpoint. The default is `http://big.local:8081/upstream/d3-flash/v1/systemone`: d3-flash on big's GPU, started by big's llama-swap on the first request and reachable from every editor on the LAN (`docs/decide/serving-d3-flash.md`). `tools/decide/serve-clef-flash.sh` serves clef-flash on `127.0.0.1:8093` for a run on big itself.
 - `GRIMOIRE_DECIDE_MODEL`: the model to ask, when the endpoint serves more than one. A `llama.cpp` server names none and needs none.
 - `GRIMOIRE_DECIDE_KEY`: sent as a bearer token when the endpoint wants one. Cloudflare Workers AI needs it; a local server does not.
 - `GRIMOIRE_DECIDE_TIMEOUT_SECS`: how long to wait for an answer. The default is 60.

@@ -6,6 +6,7 @@ What each change added, newest first. A visible change has a clip: click the sti
 
 - **453-openrouter-decisions** `1994618e` OpenRouter Decisions is a second protocol for the decision model, chosen by GRIMOIRE_DECIDE_PROTOCOL and never tried after the local one (#453) *No clip: a transport, not on screen; proved by crates/bevy_oracle/tests/openrouter.rs (request shaping, refusal, 402/404/429, key handling; the recorded Replay test waits for OPENROUTER_API_KEY)*
 - **dm-456-look-then-ask** `322634b87` An agent checks its work by asking: grimoire_decide with view: true takes the still, answers four or five questions with the model, where it ran and the latency, and accepts a capture_still's path or fingerprint (#456) *For you: Agents now check what they made by asking a decision model about a fresh still before they hand back.* *No clip: visible, not yet recorded: fleet worker*
+- **dm-01-d3-flash** `e1019ed8` d3-flash answers decisions on big's GPU for every editor on the LAN: bevy_oracle's default endpoint is http://big.local:8081/upstream/d3-flash/v1/systemone, a lease evicts the model and a request then names it unreachable with the remedy, and a name is resolved over IPv4 (#452) *No clip: a served model; proved by the A.4 checks recorded in docs/decide/serving-d3-flash.md and a_gateway_that_cannot_run_the_model_is_unreachable_with_the_remedy, a_name_is_resolved_to_its_ipv4_address_only*
 
 ## 2026-11-14
 

@@ -39,7 +39,7 @@ impl fmt::Display for Protocol {
 
 /// Where decisions are asked. **One endpoint, one protocol per run**: there is no fallback chain.
 ///
-/// Local clef-flash or d3-flash over System One is the default. Clef 27B (bmb), Cloudflare Workers AI
+/// Local d3-flash on big over System One is the default. Clef 27B (bmb), Cloudflare Workers AI
 /// and OpenRouter are values of the same fields. **Cloudflare and OpenRouter send screenshots off the
 /// LAN, so they are opt-in:** only by setting `GRIMOIRE_DECIDE_PROTOCOL=openrouter` (or an endpoint).
 ///
@@ -71,8 +71,10 @@ impl fmt::Debug for Config {
     }
 }
 
-/// clef-flash on this LAN: `tools/decide/serve-clef-flash.sh` on big.
-pub const LOCAL_ENDPOINT: &str = "http://127.0.0.1:8093/v1/systemone";
+/// d3-flash on this LAN, the same endpoint from every editor: big's llama-swap (`:8081`) starts the model
+/// on the first request and proxies `/v1/systemone` through `/upstream/d3-flash`. `big.local` is the name
+/// every LAN host resolves (mDNS); a bare `big` resolves only on big itself. `docs/decide/serving-d3-flash.md`.
+pub const LOCAL_ENDPOINT: &str = "http://big.local:8081/upstream/d3-flash/v1/systemone";
 
 /// OpenRouter's Decisions endpoint (alpha: the shape may change).
 pub const OPENROUTER_ENDPOINT: &str = "https://openrouter.ai/api/alpha/decisions";
