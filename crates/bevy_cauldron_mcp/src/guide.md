@@ -48,7 +48,28 @@
 
 **A still before and a still after.** `grimoire_capture_still` returns a picture of the editor as it is now — the world and the interface, because the editor draws both into one image — plus the state of the same moment and a fingerprint of the picture's bytes. Two stills with the same fingerprint are the same picture, so compare fingerprints rather than paths to tell whether the screen changed. Use `grimoire_snip` to cut one rectangle out of a still and look closer at it, and `grimoire_capture_sequence` when the point is the motion rather than the result: its first frame is taken before the operation you name and the later frames are what it did.
 
-**When a judgement is uncertain, ask a model rather than guessing.** `grimoire_decide` answers a named check such as `floating` or `clipping`, or typed questions of your own, with a probability for every allowed answer. It is advisory: a finding never blocks or undoes an operation, and it changes no map data.
+## Check your work by asking
+
+**After every change the person will see, and before `grimoire_present`, look and then ask.** `grimoire_decide` is the fastest way to answer a question about how your work looks, quicker and more reliable than reading a picture yourself. One call does it: pass `view: true` and the server takes the still itself, puts your questions to a decision model and returns a probability for each. To ask about a before-and-after pair without a second capture, give a still from `grimoire_capture_still` in `images`, by its `path` or its `fingerprint`. The answer names the `model` that answered, `where` it ran (`local`, or `remote` when the picture may have left the LAN) and its `latency_ms`.
+
+**Ask four or five questions.** One is a guess; more than eight costs time, because the model runs one pass per question.
+
+**A good question names something from the request**: a place, a kind, an amount, or what must stay visible. Prefer `noul` (yes or no, answered as P(yes)) and `choice` (named options, each with a probability) to `score`, whose number depends on the scale you wrote. State a `noul` as a statement, not a question: "the path to the shrine is visible and unblocked", so that a high number means what you hoped for. A named check such as `floating` is a call of its own, because `check` and `questions` are not given together; or state it as a `noul`.
+
+**Example.** The person asks: "plant a dense pine forest on the north hill, and keep the path to the shrine clear". You grow it, and then make one call, `grimoire_decide` with `view: true` and five questions:
+
+```json
+{"view": true,
+ "state": "The person asked for a dense pine forest on the north hill, with the path to the shrine kept clear.",
+ "questions": {
+   "covers": {"type": "noul", "instructions": "The trees cover the north hill."},
+   "kind": {"type": "choice", "instructions": "What most of the trees are.", "criteria": {"pine": "needles, conical crowns", "broadleaf": "round crowns", "mixed": "both in equal part"}},
+   "canopy": {"type": "score", "instructions": "How dense the canopy is.", "criteria": ["sparse", "thin", "medium", "dense"]},
+   "path": {"type": "noul", "instructions": "The path to the shrine is visible and unblocked."},
+   "grounded": {"type": "noul", "instructions": "No tree floats above the ground."}}}
+```
+
+**Then act on the answers.** A pine share of 0.3, or a path that is probably blocked, is yours to fix: fix it and ask again, at most twice. What is still uncertain after that goes in the hand-back's summary, with the number, so the person sees what you could not settle. The answer is advisory: a low probability never blocks or undoes an operation, and it changes no map data. It is your cue to look again and the person's cue in the hand-back.
 
 ## Hand back
 

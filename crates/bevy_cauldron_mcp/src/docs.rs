@@ -329,7 +329,14 @@ pub const TOOLS: &[ToolDoc] = &[
     },
     ToolDoc {
         name: "grimoire_decide",
-        description: "Ask a decision model a typed question about the editor's pictures and facts, and get a \
+        description: concat!(
+                      "The fastest way to check how your work looks: one still and up to eight questions, answered ",
+                      crate::decide_latency!(),
+                      " with a probability each. Call it after every change the person will see, before you hand back: \
+                      pass view: true to take the still yourself, or give a still from grimoire_capture_still in images \
+                      (its path or its fingerprint), and ask four or five typed questions about what was asked for. The \
+                      answer names the model that answered, where it ran (local, or remote when pictures may have left the \
+                      LAN) and latency_ms. Ask a decision model a typed question about the editor's pictures and facts, and get a \
                       probability for every allowed answer, with nothing to parse. Two forms. check: a \
                       named check such as floating, clipping, outside_area, blank_frame or toast_visible \
                       (the editor's own, with the project's assets/grimoire/checks.yaml over them, read on every \
@@ -345,7 +352,7 @@ pub const TOOLS: &[ToolDoc] = &[
                       itself, and a game's own checks live in the project's assets/grimoire/checks.yaml. \
                       Advisory: it changes no map data and a finding never blocks or undoes an \
                       operation. The endpoint is one per run, local by default; a Cloudflare endpoint sends \
-                      pictures off the LAN and is opt-in.",
+                      pictures off the LAN and is opt-in."),
         read_only: true,
         destructive: false,
         idempotent: false,
@@ -817,7 +824,7 @@ pub fn schemas() -> Value {
                 "check": {"type": "string", "description": "A named check, such as floating. Give this or questions."},
                 "questions": {"type": "object", "description": "Ad-hoc typed questions by id: {\"type\": \"noul\", \"instructions\": ...}, {\"type\": \"choice\", \"instructions\": ..., \"criteria\": {option: meaning}} or {\"type\": \"score\", \"instructions\": ..., \"criteria\": [levels, lowest first]}."},
                 "state": {"type": "string", "description": "What the ad-hoc questions are about, in words."},
-                "images": {"type": "array", "maxItems": 4, "items": {"type": "object", "additionalProperties": false, "required": ["name", "path"], "properties": {"name": {"type": "string"}, "path": {"type": "string"}}}, "description": "Pictures, files under the project, each with the name a check asks for."},
+                "images": {"type": "array", "maxItems": 4, "items": {"type": "object", "additionalProperties": false, "required": ["name", "path"], "properties": {"name": {"type": "string"}, "path": {"type": "string", "description": "A PNG or JPEG file under the project, relative or absolute, or the fingerprint (16 lowercase hex digits) grimoire_capture_still returned for a still."}}}, "description": "Pictures, files under the project, each with the name a check asks for. A still from grimoire_capture_still is accepted by its path or its fingerprint."},
                 "view": {"type": "boolean", "default": false, "description": "Also take the editor's current picture, named view."},
                 "facts": {"description": "The JSON facts: the operations run, the pieces, the camera."},
                 "game": {"type": "object", "additionalProperties": false, "description": "Also look at the running game: a frame from its bevy_fairy, named game, and one BRP call's answer as facts.game.", "properties": {
