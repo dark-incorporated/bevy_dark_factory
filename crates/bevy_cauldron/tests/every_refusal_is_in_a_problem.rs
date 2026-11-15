@@ -125,7 +125,7 @@ const REFUSALS: &[Site] = &[
     },
     Site {
         file: "labels.rs",
-        marker: "Bring the decision endpoint up (GRIMOIRE_DECIDE_ENDPOINT) and press Shift+L again",
+        marker: "Bring the decision endpoint up (or change the Decision model in Settings) and press Shift+L again",
     },
     // Owner exception (2026-11-13): re-pointed, because #129 slice 29 moved the refusal "a hole has no width to put flush" into
     // `tile_member_flush`, the operation the Shift+arrow key now dispatches. **This row is weak, and says so**: its marker is

@@ -18,7 +18,7 @@ use std::sync::Mutex;
 use std::sync::mpsc::{Receiver, Sender, channel};
 
 use bevy::prelude::*;
-use bevy_oracle::{Checks, Config, Error as DecideError, Evidence, Finding, Live, Transport};
+use bevy_oracle::{Checks, Error as DecideError, Evidence, Finding, Transport};
 
 use crate::ops::{Entry, Source};
 

@@ -1029,6 +1029,32 @@ mod tests {
         assert_eq!((post.led(), post.chip().0.as_str()), (LedState::Failed, "omp: self test failed"));
     }
 
+    /// **The decision model has a row of its own** (DM-03, #454): its check passes with the sentence the server sent (model, where it
+    /// ran, latency), fails with the reason when the model did not answer, and is skipped when a self test never asked it, so it
+    /// never leaves the chip waiting. The agent self test's row does not carry it.
+    #[test]
+    fn the_decision_model_check_has_its_own_row_passing_failing_or_skipped() {
+        let say = |ok: bool, detail: &str| ("decision_model".to_owned(), ok, detail.to_owned());
+        let read = |name: &str| (name.to_owned(), true, "a picture".to_owned());
+        assert_eq!(CHECK_LABELS[DECISION], "Decision model");
+
+        let mut post = started_post(TerminalAgent::OhMyPi);
+        post.hello(None, 22, 1.0);
+        post.self_test(&[read("picture"), say(true, "d3-flash · local · 12 ms")]);
+        assert_eq!(post.checks[DECISION], CheckStatus::Passed("d3-flash · local · 12 ms".to_owned()));
+        assert_eq!(post.checks[SELF_TEST], CheckStatus::Passed("a picture".to_owned()), "the self test's row does not carry the model's sentence");
+        assert_eq!(post.led(), bevy_gooey::LedState::Live);
+
+        post.self_test(&[read("picture"), say(false, "decision endpoint http://127.0.0.1:1/v1/systemone did not answer: refused")]);
+        assert!(matches!(&post.checks[DECISION], CheckStatus::Failed(why) if why.contains("127.0.0.1:1")), "{:?}", post.checks[DECISION]);
+        assert_eq!(post.checks[SELF_TEST], CheckStatus::Passed("a picture".to_owned()));
+        assert_eq!(post.led(), bevy_gooey::LedState::Failed, "a model that did not answer fails the card, with its reason on the row");
+
+        post.self_test(&[read("picture")]);
+        assert!(matches!(post.checks[DECISION], CheckStatus::Skipped(_)));
+        assert_eq!(post.led(), bevy_gooey::LedState::Live);
+    }
+
     /// **A failure outranks a check that still waits**, as the chip's words do: the agent that never connected has failed, not
     /// "busy".
     #[test]

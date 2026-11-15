@@ -444,6 +444,7 @@ mod the_arm_survives_the_door_change;
 mod the_carved_ground_is_not_white;
 mod the_carved_ground_pipeline_is_warm;
 mod the_chrome_helpers_keep_their_raw_nodes_counted;
+mod the_decision_model_is_a_setting;
 mod the_design_tree_is_in_the_editors_state;
 mod the_design_workspace_shows_the_style;
 mod the_door_switch_crosses;

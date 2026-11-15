@@ -79,8 +79,8 @@ manifest, so a committed set works from any clone.
 another line's mismatch), at a chosen threshold of 0.241:
 
 ```sh
-GRIMOIRE_DECIDE_ENDPOINT=http://127.0.0.1:8093/v1/systemone \
-  cargo run -q -p bevy_oracle --bin decide_check -- \
+# decision_model: local (the default) in your settings.yaml asks the server on 127.0.0.1:8093
+cargo run -q -p bevy_oracle --bin decide_check -- \
   --calibrate crates/bevy_oracle/fixtures/clip_samples.yaml
 # clip_shows_its_title   agreement 61.5% on 122 samples, threshold 0.241, model clef-flash
 ```

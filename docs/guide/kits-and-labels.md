@@ -96,13 +96,12 @@ Goal: have a decision model propose labels for a piece, and check them.
 
 The labeller sends two photographs of a piece to a decision model and asks one yes/no question per token in the project's vocabulary. The model answers with a probability for each, and the editor suggests every token at or above the threshold. Nothing is generated and nothing is parsed, so a word the project does not have can never come back.
 
-Set this up once. Put the endpoint in the project root's `.env` file, which is gitignored, or set it in the environment. A value in the environment wins over the one in `.env`.
+Set this up once, in Settings: open Settings (Cmd+, or Ctrl+,) and choose **Decision model** under *Decisions*.
 
-- `GRIMOIRE_DECIDE_ENDPOINT`: the decision endpoint. The default is `http://127.0.0.1:8093/v1/systemone`; serve it with `tools/decide/serve-clef-flash.sh`.
-- `GRIMOIRE_DECIDE_MODEL`: the model to ask, when the endpoint serves more than one. A `llama.cpp` server names none and needs none.
-- `GRIMOIRE_DECIDE_KEY`: sent as a bearer token when the endpoint wants one. Cloudflare Workers AI needs it; a local server does not.
-- `GRIMOIRE_DECIDE_TIMEOUT_SECS`: how long to wait for an answer. The default is 60.
-- `GRIMOIRE_DECIDE_PROTOCOL`: `systemone` (the default) or `openrouter`. `openrouter` asks OpenRouter's Decisions API (`perplexity/pplx-decider-v1.3:free` unless `GRIMOIRE_DECIDE_MODEL` says otherwise) and **sends the photographs off this machine**, so it is only ever on when you set it. Its key is `OPENROUTER_API_KEY`, read from the environment alone and never from `.env`. See `docs/decide/openrouter.md`.
+- **Local** (the default) asks d3-flash on this network (`http://127.0.0.1:8093/v1/systemone`; serve it with `tools/decide/serve-clef-flash.sh`). Nothing leaves the network.
+- **Remote** asks Perplexity's model through OpenRouter and **sends screenshots of this project to OpenRouter and Perplexity**. It is your own choice, made in your own settings file (`decision_model: remote` in `settings.yaml`, which the Settings screen writes); a project's `editor.yaml` cannot make it and is told so. It needs `OPENROUTER_API_KEY` in the environment, which is a key and not a setting, never read from a file. With Remote chosen and no key, decisions are refused with that sentence and the local model is not asked instead. See `docs/decide/openrouter.md`.
+
+The old endpoint, model, key, timeout and protocol variables and the project `.env` that held them are retired.
 
 There is one labelling path. There is no setting that chooses a second one and no fallback endpoint.
 

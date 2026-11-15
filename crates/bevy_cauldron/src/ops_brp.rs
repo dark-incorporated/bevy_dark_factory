@@ -2340,7 +2340,7 @@ fn operation_apply(
             view.rig.history = bench.history();
         }
         let ctx = Ctx {
-        view, trust_file: (p.operation == "style_edit").then(|| gates.trust_file(state.as_deref().and_then(|s| s.trust.file.as_deref()))).flatten(),
+        view, decisions: None, trust_file: (p.operation == "style_edit").then(|| gates.trust_file(state.as_deref().and_then(|s| s.trust.file.as_deref()))).flatten(),
             root: menu.as_ref().map(|m| m.root.clone()),
             project: read_project.cloned(),
             open: read_open.cloned(),

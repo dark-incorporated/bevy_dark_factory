@@ -648,7 +648,7 @@ pub(crate) fn poll_tasks(
                     queue.total = 0;
                     let dropped = rig.clear_queue();
                     state.status.problem(format!(
-                        "batch stopped at {done}/{total} ({dropped} unphotographed) — {e}. Bring the decision endpoint up (GRIMOIRE_DECIDE_ENDPOINT) and press Shift+L again"
+                        "batch stopped at {done}/{total} ({dropped} unphotographed) — {e}. Bring the decision endpoint up (or change the Decision model in Settings) and press Shift+L again"
                     ));
                 } else {
                     state
@@ -1556,7 +1556,7 @@ pub fn apply_fields(
         // **A different model does not inherit the last one's attributions.** `origin.by = was.by`
         // was unconditional, and `AxisOrigin` is `Copy`, so every axis a previous run had stamped
         // came across whole — while `origin.model` and `origin.confidence` had already been replaced
-        // with THIS run's. Label with one model, change the endpoint's `GRIMOIRE_DECIDE_MODEL`, press
+        // with THIS run's. Label with one model, change the decision model in Settings, press
         // `L` again with a proposal carrying no mount, and the record read `mount: Model` beside a model
         // that had said nothing about the mount.
         //
@@ -2461,7 +2461,7 @@ mod tests {
     ///
     /// The previous record's whole per-axis map was copied across unconditionally — `AxisOrigin` is
     /// `Copy`, so the copy was invisible — while `model` and `confidence` had already been replaced
-    /// with the new run's. Label with one model, change the endpoint's `GRIMOIRE_DECIDE_MODEL`, press
+    /// with the new run's. Label with one model, change the decision model in Settings, press
     /// `L` again with a proposal carrying no mount, and the record read `mount: Model` beside a model
     /// that had said nothing about the mount: a provenance field actively misinforming the person
     /// reading it, which is the one failure worse than having no field at all.

@@ -10061,7 +10061,7 @@ fn set_a_row_of_a_map_file_for_test(world: &mut World, operation: &str, params: 
                 let Some(ref mut open) = open else { return };
                 let mut ctx = crate::ops::Ctx {
                     view: None,
-                    trust_file: None,
+                    trust_file: None, decisions: None,
                     project: Some(project.clone()),
                     open: Some(std::mem::replace(
                         &mut **open,
