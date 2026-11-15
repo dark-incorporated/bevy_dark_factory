@@ -878,6 +878,8 @@ fn answer_presentation(
     mut state: Option<ResMut<crate::editor::EditorState>>,
     mut due: Option<ResMut<crate::watch::Due>>,
     mut handbacks: Option<ResMut<HandBacks>>,
+    // **The turn ledger** (DL-02, #461): what the person answers is a gold label on the turn the hand-back ended.
+    mut ledger: Option<ResMut<crate::turn_ledger::TurnLedger>>,
 ) {
     // The modal's answer (Yes undoes, No keeps) or the block's button, one or the other.
     let replied = match confirm.answer(Asked::Presentation) {
@@ -897,6 +899,12 @@ fn answer_presentation(
             _ => ("kept", "kept the agent's result"),
         };
         presented.answer = Some(answer.to_owned());
+        tell_the_ledger(
+            ledger.as_deref_mut(),
+            project.as_deref(),
+            &presented.id,
+            if answer == "kept" { crate::turn_ledger::Verdict::Kept } else { crate::turn_ledger::Verdict::Dismissed },
+        );
         // **Kept is the one answer that makes a hand-back a task a person can ask for** (BM-07, #417): the
         // person read it and accepted what it made. A dismissal kept the result unread, which proves nothing.
         if answer == "kept"
@@ -940,7 +948,25 @@ fn answer_presentation(
         return;
     }
     presented.answer = Some("undone".to_owned());
+    tell_the_ledger(ledger.as_deref_mut(), Some(&**project), &presented.id, crate::turn_ledger::Verdict::Undone);
     state.status.note(format!("undid the agent's {undone} change(s)"));
+}
+
+/// **Tell the turn ledger what the person answered** (DL-02, #461). Only this system calls it, and this system only runs on the person's own
+/// answer — the modal's keys or the AGENT block's buttons. An agent's `operation_undo` over BRP takes a turn back without answering anything,
+/// so it is never recorded as the person's verdict.
+fn tell_the_ledger(
+    ledger: Option<&mut crate::turn_ledger::TurnLedger>,
+    project: Option<&crate::project::Project>,
+    hand_back: &str,
+    verdict: crate::turn_ledger::Verdict,
+) {
+    let (Some(ledger), Some(project)) = (ledger, project) else { return };
+    if !ledger.collecting() {
+        return;
+    }
+    let head = crate::ops::read_entries(&crate::ops::oplog_path(project)).iter().map(|entry| entry.seq).max().unwrap_or(0);
+    ledger.verdict(hand_back, &project.root, verdict, head);
 }
 
 /// **Take one logged change back as the person**, by its operation id, and record the undo in the editor's own history.

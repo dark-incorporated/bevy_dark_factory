@@ -153,11 +153,61 @@ pub struct Turn {
     pub provenance: Provenance,
 }
 
-/// **What a ledger line holds.** Tagged by `kind`, so DL-02's labels are new lines of their own and never an edit of a turn's.
+/// **A thing the person said about a turn, by pointing at its pieces** (a snip, a developer report): the person's own words and where they were
+/// pointing, on the turn that made the pieces (DL-02, #461).
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct Item {
+    /// `snip` or `report`.
+    pub source: String,
+    /// The snip's or report's own name (`snip-<ms>`, `feedback-<ms>`), which finds its files.
+    pub name: String,
+    /// What the person typed. May be empty.
+    pub note: String,
+    /// Where they pointed, as the snip or the report states it: rectangles in window and picture pixels.
+    pub region: serde_json::Value,
+    /// The turn's pieces the region or the picked nodes overlap, by placement id.
+    pub pieces: Vec<String>,
+}
+
+/// **A label**: what is known about a turn, written as a new line that names it, never as an edit of the turn's own (DL-02, #461).
+///
+/// `tier` says who the knowing is from, and **only a person's own action is `gold`**: an agent's call is never recorded as the person's verdict,
+/// not even one that answers a hand-back on their behalf over BRP. `silver` is a teacher's: a later agent turn that took this one back.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct Label {
+    /// The turn it is about: [`Turn::id`].
+    pub turn: String,
+    /// `kept`, `undone`, `revised`, `superseded` or `item`.
+    pub label: String,
+    /// `gold` or `silver`.
+    pub tier: String,
+    /// When it happened, so a late label (a revision half an hour after a Keep) can be weighed differently from a prompt one.
+    pub at_unix_ms: u64,
+    /// **`revised`: the operation that did it**, the person's undo or edit.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub operation_id: Option<String>,
+    /// **`superseded`: the later turn that took this one back**, or fixed it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub by_turn: Option<String>,
+    /// **`item`: what the person said, and where.**
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub item: Option<Item>,
+}
+
+/// **A hand-back the person closed without judging it.** Not a label: a dismissal kept the result unread, which proves nothing about it.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
+pub struct Dismissed {
+    pub turn: String,
+    pub at_unix_ms: u64,
+}
+
+/// **What a ledger line holds.** Tagged by `kind`, so a label is a new line of its own and never an edit of a turn's.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum Body {
     Turn(Box<Turn>),
+    Label(Box<Label>),
+    Dismissed(Dismissed),
 }
 
 /// **One line of the ledger.**
@@ -173,6 +223,16 @@ impl Line {
     /// A turn, as the ledger holds it.
     pub fn turn(turn: Turn) -> Line {
         Line { v: FORMAT, body: Body::Turn(Box::new(turn)) }
+    }
+
+    /// A label, as the ledger holds it.
+    pub fn label(label: Label) -> Line {
+        Line { v: FORMAT, body: Body::Label(Box::new(label)) }
+    }
+
+    /// A dismissal, as the ledger holds it.
+    pub fn dismissed(dismissed: Dismissed) -> Line {
+        Line { v: FORMAT, body: Body::Dismissed(dismissed) }
     }
 }
 
@@ -193,8 +253,25 @@ pub struct Read {
 impl Read {
     /// The turns, in the order they were written.
     pub fn turns(&self) -> impl Iterator<Item = &Turn> {
-        self.lines.iter().map(|(_, line)| match &line.body {
-            Body::Turn(turn) => turn.as_ref(),
+        self.lines.iter().filter_map(|(_, line)| match &line.body {
+            Body::Turn(turn) => Some(turn.as_ref()),
+            _ => None,
+        })
+    }
+
+    /// The labels, in the order they were written.
+    pub fn labels(&self) -> impl Iterator<Item = &Label> {
+        self.lines.iter().filter_map(|(_, line)| match &line.body {
+            Body::Label(label) => Some(label.as_ref()),
+            _ => None,
+        })
+    }
+
+    /// The dismissals, in the order they were written.
+    pub fn dismissals(&self) -> impl Iterator<Item = &Dismissed> {
+        self.lines.iter().filter_map(|(_, line)| match &line.body {
+            Body::Dismissed(dismissed) => Some(dismissed),
+            _ => None,
         })
     }
 }

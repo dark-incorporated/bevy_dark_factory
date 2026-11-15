@@ -51,7 +51,9 @@ use serde_json::{Value, json};
 
 use crate::ops::Entry;
 use crate::present::HandBackKind;
-use crate::turn_store::{AgentRef, HandBackRef, ImageRef, Line, OperationRecord, Provenance, Request, Shot, Store, Turn};
+use crate::turn_store::{
+    AgentRef, Dismissed, HandBackRef, ImageRef, Item, Label, Line, OperationRecord, Provenance, Request, Shot, Store, Turn,
+};
 
 /// **The commit this build was made from**, stamped by `build.rs`; `unknown` when none could be found.
 pub const BUILD_COMMIT: &str = env!("BUILD_COMMIT");
@@ -193,6 +195,11 @@ pub struct TurnLedger {
     next_turn: u32,
     /// Sentences for the status line, drained by [`say_problems`].
     problems: Vec<String>,
+    /// **Every turn handed back this session**, with what it touched, so a person's verdict, a snip or a later turn can be attached to the newest
+    /// turn that covers it (DL-02, #461). Cleared when collection is turned off.
+    covered: Vec<Covered>,
+    /// **Lines that name a turn whose record is not written yet**, held so a label never lands in the file ahead of the turn it is about.
+    pending: Vec<(String, Line)>,
 }
 
 /// **Who the agent is, for a record**: the client's name and version from its MCP handshake, when it made one.
@@ -228,6 +235,8 @@ impl TurnLedger {
             self.finishing.clear();
             self.asks.clear();
             self.landed.clear();
+            self.covered.clear();
+            self.pending.clear();
         }
         self.on = on;
     }
@@ -414,6 +423,20 @@ impl TurnLedger {
                 }
             })
             .collect();
+        // **What the editor knows about this turn from now on** (DL-02, #461): what it touched, and whether it took an earlier turn back.
+        self.supersede(&id, input.root, &seen);
+        self.covered.push(Covered {
+            turn: id.clone(),
+            root: input.root.to_path_buf(),
+            kind: input.kind,
+            hand_back: input.id.to_owned(),
+            operations: wanted.clone(),
+            touched: seen.iter().flat_map(|s| s.touched.iter().cloned()).collect(),
+            written: false,
+            kept: None,
+            revised: false,
+            superseded: false,
+        });
         self.finishing.push(Draft {
             id,
             started_ms,
@@ -529,10 +552,280 @@ impl TurnLedger {
         };
         let Some(store) = self.store.as_mut() else { return };
         match store.append(&Line::turn(turn)) {
-            Ok(()) => self.written.push(id),
+            Ok(()) => {
+                self.written.push(id.clone());
+                self.turn_written(&id);
+            }
             Err(why) => self.stop(why),
         }
     }
+}
+
+/// **One turn handed back this session, as a label finds it.**
+#[derive(Debug)]
+struct Covered {
+    turn: String,
+    root: PathBuf,
+    kind: HandBackKind,
+    /// The hand-back's id (`present-3`), which the person's answer names.
+    hand_back: String,
+    /// Every operation of the turn, watched or listed.
+    operations: Vec<String>,
+    /// The placements the turn's operations touched, by id.
+    touched: Vec<String>,
+    /// Whether the turn's line is in the file.
+    written: bool,
+    /// Set when the person kept the result: the window in which their own undo or edit of the turn's pieces is a revision.
+    kept: Option<KeptAt>,
+    /// A revision is labelled once per turn.
+    revised: bool,
+    /// A later turn's taking it back is labelled once per turn.
+    superseded: bool,
+}
+
+/// When a Keep was given, and how much of the operation log was already behind it.
+#[derive(Debug, Clone, Copy)]
+struct KeptAt {
+    at_ms: u64,
+    seen_seq: u64,
+}
+
+/// **What the person did about a hand-back** (DL-02, #461).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Verdict {
+    /// Keep: gold.
+    Kept,
+    /// Undo all: gold.
+    Undone,
+    /// Closed without being judged: no label, only a line saying so.
+    Dismissed,
+}
+
+/// **How long after a Keep the person's own undo, or edit of the same pieces, is a revision**: thirty minutes, or until the project is
+/// closed, whichever comes first. The label carries its time, so DL-06 can weigh a late one differently from a prompt one.
+pub const REVISION_WINDOW_MS: u64 = 30 * 60 * 1000;
+
+/// **How often the operation log is looked at for a revision**, in frames: a revision is a person's act, and half a second is not late.
+pub const REVISION_LOOK_FRAMES: u32 = 30;
+
+/// **Whether any string in `value` is one of `ids`.** A person's edit "touches the same pieces" when the log line for it names one of the
+/// placements the turn touched, in whatever field its operation keeps it; ids carry the piece and its number (`bed@1`), so a string that equals
+/// one is that piece.
+fn mentions(value: &Value, ids: &[String]) -> bool {
+    match value {
+        Value::String(text) => ids.iter().any(|id| id == text),
+        Value::Array(items) => items.iter().any(|item| mentions(item, ids)),
+        Value::Object(fields) => fields.values().any(|item| mentions(item, ids)),
+        _ => false,
+    }
+}
+
+/// **Whether a log line takes back or changes what a turn did**: it undoes one of the turn's operations, or names one of the turn's pieces.
+fn takes_on(line: &Value, turn: &Covered) -> bool {
+    line["undoes"].as_str().is_some_and(|undone| turn.operations.iter().any(|id| id == undone))
+        || ["params", "after", "inverse"].iter().any(|field| mentions(&line[field], &turn.touched))
+}
+
+impl TurnLedger {
+    /// **Write a line that names a turn**, now if the turn is in the file and when it is if it is not.
+    fn emit(&mut self, turn: &str, line: Line) {
+        if self.covered.iter().any(|c| c.turn == turn && c.written) {
+            self.append_line(&line);
+        } else {
+            self.pending.push((turn.to_owned(), line));
+        }
+    }
+
+    fn append_line(&mut self, line: &Line) {
+        let Some(store) = self.store.as_mut() else { return };
+        if let Err(why) = store.append(line) {
+            self.stop(why);
+        }
+    }
+
+    /// **The turn's line is in the file**: the lines that were waiting for it follow it.
+    fn turn_written(&mut self, turn: &str) {
+        if let Some(covered) = self.covered.iter_mut().find(|c| c.turn == turn) {
+            covered.written = true;
+        }
+        let (ready, waiting): (Vec<_>, Vec<_>) = std::mem::take(&mut self.pending).into_iter().partition(|(named, _)| named == turn);
+        self.pending = waiting;
+        for (_, line) in ready {
+            self.append_line(&line);
+        }
+    }
+
+    fn label(&self, turn: &str, label: &str, tier: &str) -> Label {
+        Label { turn: turn.to_owned(), label: label.to_owned(), tier: tier.to_owned(), at_unix_ms: now_ms(), operation_id: None, by_turn: None, item: None }
+    }
+
+    /// **The person answered a hand-back** (DL-02, #461). Only the person's own answer calls this: an agent's undo over BRP is not a verdict and
+    /// never reaches here. `log_head` is the newest operation-log sequence at the answer, so a Keep's revisions are the person's acts after it.
+    pub fn verdict(&mut self, hand_back: &str, root: &Path, verdict: Verdict, log_head: u64) {
+        if !self.collecting() {
+            return;
+        }
+        let Some(at) = self.covered.iter().rposition(|c| c.kind == HandBackKind::Presentation && c.hand_back == hand_back && c.root == root) else {
+            return;
+        };
+        let turn = self.covered[at].turn.clone();
+        match verdict {
+            Verdict::Dismissed => self.emit(&turn, Line::dismissed(Dismissed { turn: turn.clone(), at_unix_ms: now_ms() })),
+            Verdict::Kept => {
+                self.covered[at].kept = Some(KeptAt { at_ms: now_ms(), seen_seq: log_head });
+                let label = self.label(&turn, "kept", "gold");
+                self.emit(&turn, Line::label(label));
+            }
+            Verdict::Undone => {
+                let label = self.label(&turn, "undone", "gold");
+                self.emit(&turn, Line::label(label));
+            }
+        }
+    }
+
+    /// **The person said something about pieces** (a snip, a report): a label on the newest turn that touched each piece, carrying their words and
+    /// where they pointed. Pieces no turn touched label nothing.
+    pub fn item_noted(&mut self, root: &Path, item: Item) {
+        if !self.collecting() {
+            return;
+        }
+        let mut turns: Vec<(String, Vec<String>)> = Vec::new();
+        for piece in &item.pieces {
+            let Some(covered) = self.covered.iter().rev().find(|c| c.root == root && c.touched.contains(piece)) else { continue };
+            match turns.iter_mut().find(|(turn, _)| *turn == covered.turn) {
+                Some((_, pieces)) => pieces.push(piece.clone()),
+                None => turns.push((covered.turn.clone(), vec![piece.clone()])),
+            }
+        }
+        for (turn, pieces) in turns {
+            let mut label = self.label(&turn, "item", "gold");
+            label.item = Some(Item { pieces, ..item.clone() });
+            self.emit(&turn, Line::label(label));
+        }
+    }
+
+    /// **A snip was saved**: its note and region, on the turns whose pieces it covers.
+    pub fn snip_taken(&mut self, record: &bevy_grimoire_snip::SnipRecord, root: &Path) {
+        self.item_noted(
+            root,
+            Item {
+                source: "snip".to_owned(),
+                name: record.stem.clone(),
+                note: record.note.clone(),
+                region: json!({
+                    "window_px": record.rect_window_px,
+                    "picture_px": serde_json::to_value(record.rect_picture_px).unwrap_or(Value::Null),
+                    "picture": record.picture,
+                }),
+                pieces: record.placements.iter().map(|placed| placed.id.clone()).collect(),
+            },
+        );
+    }
+
+    /// **A report was saved**: its note, its areas and the placements its scene picks chose.
+    pub fn report_taken(&mut self, record: &bevy_grimoire_core::feedback::Report, root: &Path) {
+        use bevy_grimoire_core::feedback::Subject;
+        let mut pieces = Vec::new();
+        let mut regions = Vec::new();
+        for pick in &record.picks {
+            match &pick.subject {
+                Subject::Scene(scene) => {
+                    pieces.extend(scene.placement.iter().cloned());
+                    regions.push(json!({"scene": scene.world, "at": pick.at}));
+                }
+                Subject::Area { rect_px } => regions.push(json!({"area_px": rect_px})),
+                Subject::Element(element) => regions.push(json!({"element_px": element.rect_px})),
+                Subject::Screen => regions.push(json!({"screen": true})),
+            }
+        }
+        self.item_noted(
+            root,
+            Item { source: "report".to_owned(), name: record.stem.clone(), note: record.note.clone(), region: Value::Array(regions), pieces },
+        );
+    }
+
+    /// **A later agent turn that took an earlier one back, or changed its pieces**, is a silver label on the earlier turn (DL-02, #461): the
+    /// teacher's own correction. Only operations of the agent's count, and each earlier turn is labelled once.
+    fn supersede(&mut self, by: &str, root: &Path, seen: &[Seen]) {
+        let mut hits = Vec::new();
+        for covered in self.covered.iter_mut().filter(|c| c.root == root && !c.superseded) {
+            if seen.iter().any(|s| s.line["source"] == "agent" && takes_on(&s.line, covered)) {
+                covered.superseded = true;
+                hits.push(covered.turn.clone());
+            }
+        }
+        for turn in hits {
+            let mut label = self.label(&turn, "superseded", "silver");
+            label.by_turn = Some(by.to_owned());
+            self.emit(&turn, Line::label(label));
+        }
+    }
+
+    /// **Whether any kept turn is still inside the window in which a revision would count.**
+    pub fn watching(&self) -> bool {
+        self.collecting() && self.covered.iter().any(|c| c.kept.is_some() && !c.revised)
+    }
+
+    /// **The project was closed**: no Keep's window outlives it.
+    pub fn project_closed(&mut self) {
+        for covered in &mut self.covered {
+            covered.kept = None;
+        }
+    }
+
+    /// **Look at the operation log for the person's own undo or edit of a kept turn's pieces** (DL-02, #461): a `revised` label, gold, naming the
+    /// operation that did it. The silent "kept, then fixed by hand" a Keep alone hides. An agent's lines never count, and a person's edit of
+    /// pieces the turn did not touch is no label.
+    pub fn look_for_revisions(&mut self, root: &Path, log: &[Entry]) {
+        let now = now_ms();
+        let newest = log.iter().map(|entry| entry.seq).max().unwrap_or(0);
+        let mut found = Vec::new();
+        for covered in &mut self.covered {
+            if covered.root != root {
+                covered.kept = None;
+                continue;
+            }
+            let Some(kept) = covered.kept else { continue };
+            if now.saturating_sub(kept.at_ms) > REVISION_WINDOW_MS {
+                covered.kept = None;
+                continue;
+            }
+            let by = log
+                .iter()
+                .filter(|e| e.seq > kept.seen_seq && e.source == crate::ops::Source::Human && e.outcome == "applied")
+                .find(|entry| serde_json::to_value(entry).is_ok_and(|line| takes_on(&line, covered)));
+            match by {
+                Some(entry) => {
+                    covered.revised = true;
+                    covered.kept = None;
+                    found.push((covered.turn.clone(), entry.operation_id.clone()));
+                }
+                None => covered.kept = Some(KeptAt { seen_seq: newest.max(kept.seen_seq), ..kept }),
+            }
+        }
+        for (turn, operation_id) in found {
+            let mut label = self.label(&turn, "revised", "gold");
+            label.operation_id = Some(operation_id);
+            self.emit(&turn, Line::label(label));
+        }
+    }
+}
+
+/// **Look for revisions**, every [`REVISION_LOOK_FRAMES`] frames while a kept turn is inside its window.
+fn watch_revisions(mut ledger: ResMut<TurnLedger>, project: Option<Res<crate::project::Project>>, mut frames: Local<u32>) {
+    if !ledger.watching() {
+        return;
+    }
+    let Some(project) = project else {
+        ledger.project_closed();
+        return;
+    };
+    *frames += 1;
+    if !(*frames).is_multiple_of(REVISION_LOOK_FRAMES) {
+        return;
+    }
+    let log = crate::ops::read_entries(&crate::ops::oplog_path(&project));
+    ledger.look_for_revisions(&project.root, &log);
 }
 
 /// **Frames' worth of what is on screen**, gathered once per frame for the settle test and the facts.
@@ -691,7 +984,7 @@ fn rgba_of(data: &[u8], width: u32, height: u32, format: bevy::render::render_re
     }
     let mut rgba = data.to_vec();
     match format {
-        TextureFormat::Bgra8Unorm | TextureFormat::Bgra8UnormSrgb => rgba.chunks_exact_mut(4).for_each(|px| px.swap(0, 2)),
+        TextureFormat::Bgra8Unorm | TextureFormat::Bgra8UnormSrgb => rgba.as_chunks_mut::<4>().0.iter_mut().for_each(|px| px.swap(0, 2)),
         TextureFormat::Rgba8Unorm | TextureFormat::Rgba8UnormSrgb => {}
         other => return Err(format!("the surface is {other:?}, which the ledger does not read")),
     }
@@ -782,7 +1075,7 @@ impl Plugin for TurnLedgerPlugin {
         app.init_resource::<TurnLedger>()
             .add_systems(
                 Update,
-                (sync_collection, issue_shots, advance_turns, say_problems)
+                (sync_collection, issue_shots, advance_turns, watch_revisions, say_problems)
                     .chain()
                     // **After the settings are read this frame**, so a person who just turned collection off is not collected from for one more frame.
                     .after(crate::settings::sync_settings),
