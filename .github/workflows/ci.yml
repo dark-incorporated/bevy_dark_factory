@@ -12,19 +12,30 @@ concurrency:
 env:
   CARGO_TERM_COLOR: always
   CARGO_PROFILE_DEV_DEBUG: 0
+  CARGO_INCREMENTAL: 0
 jobs:
   test:
     name: test (workspace)
     # **A self-hosted runner** (owner, 2026-11-04). Eight sibling repos already run here, the registry
     # allocates `bevy-coven/bevy_grimoire 1`, and big carries the toolchain, `cargo-nextest`, `Xvfb` and
     # `xvfb-run` the workspace test needs. big is shared and runs systemd-oomd, which has SIGKILLed a CI
-    # container under memory pressure: a job lost that way is rerun, not diagnosed.
+    # container under memory pressure. **The job runs with the memory-safe limits of the local pre-push gate**
+    # (2026-11-15): the daily run was killed mid "workspace tests (nextest)" (no step conclusion, so the runner or
+    # oomd killed it); the cause is big's RAM, which cargo's one job per core and nextest's one test thread per
+    # core (each test a Bevy app) outgrow while other agents use it. The pre-push gate runs this same suite with
+    # these limits in about 12 minutes, so the job takes `CARGO_BUILD_JOBS` 3, `NEXTEST_TEST_THREADS` 2 and an
+    # hour's `timeout-minutes`.
     runs-on: [self-hosted, big]
+    timeout-minutes: 60
+    env:
+      CARGO_BUILD_JOBS: 3
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - uses: taiki-e/install-action@nextest
       - name: workspace tests (nextest)
+        env:
+          NEXTEST_TEST_THREADS: 2
         run: xvfb-run -a cargo nextest run --workspace --no-fail-fast 2>&1 | tee test-output.txt
       - name: doctests (nextest does not run them)
         run: cargo test --workspace --doc 2>&1 | tee doc-output.txt
