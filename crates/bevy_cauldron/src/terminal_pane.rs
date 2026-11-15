@@ -462,7 +462,7 @@ impl Plugin for TerminalPanePlugin {
             // frame's dispatch already know the shell has the keyboard (#316).
             .add_systems(
                 PreUpdate,
-                (forget_a_find_box_that_went, the_find_box_keys, hold_the_keyboard)
+                (a_dialog_takes_the_keyboard, forget_a_find_box_that_went, the_find_box_keys, hold_the_keyboard)
                     .chain()
                     .after(bevy::input::InputSystems)
                     .before(bevy::input_focus::InputFocusSystems::Dispatch),
@@ -1892,6 +1892,16 @@ const TERMINAL_KEYS: [KeyCode; 19] = [
     KeyCode::AltLeft,
     KeyCode::AltRight,
 ];
+
+/// **A modal dialog takes the keyboard from the shell while it is up** (#446). Settings, the keymap, project configuration and New project are gooey dialogs
+/// that close on `Escape` (gooey's `Cancel`), and `Escape` is one of the [`TERMINAL_KEYS`] [`hold_the_keyboard`] takes out of the frame for the shell: with the
+/// Familiar's terminal holding the keys, a dialog opened over it (by a chord, say) heard nothing and only its Close button worked. The keys go back to the
+/// editor the frame a dialog exists, so its fields and `Escape` are the dialog's; the shell gets them again with the next click in its pane.
+fn a_dialog_takes_the_keyboard(mut focus: ResMut<TerminalFocus>, dialogs: Query<(), With<bevy_gooey::Dialog>>) {
+    if focus.holds() && !dialogs.is_empty() {
+        focus.release();
+    }
+}
 
 /// **While the shell has the keyboard, the screen does not also act on it** (#316).
 ///
