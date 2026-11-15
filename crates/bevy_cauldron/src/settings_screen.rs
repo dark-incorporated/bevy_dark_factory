@@ -177,11 +177,16 @@ struct ProblemLine;
 #[derive(Component)]
 struct DecisionNote;
 
+/// The text of the dialog's problem line, which is neither a row's default nor the Decision model's note.
+type ProblemText = (With<ProblemLine>, Without<LineDefault>, Without<DecisionNote>);
+/// The text of the Decision model row's note.
+type DecisionText = (With<DecisionNote>, Without<ProblemLine>, Without<LineDefault>);
+
 /// **The screen's two kinds of line, as one parameter**: the dialog's problem line and the Decision model row's note.
 #[derive(SystemParam)]
 struct Notes<'w, 's> {
-    problem: Query<'w, 's, &'static mut Text, (With<ProblemLine>, Without<LineDefault>, Without<DecisionNote>)>,
-    decision: Query<'w, 's, &'static mut Text, (With<DecisionNote>, Without<ProblemLine>, Without<LineDefault>)>,
+    problem: Query<'w, 's, &'static mut Text, ProblemText>,
+    decision: Query<'w, 's, &'static mut Text, DecisionText>,
 }
 
 /// **Why a write of the decision model into the project's file is refused** (DM-03, #454).
