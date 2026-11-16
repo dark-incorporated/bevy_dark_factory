@@ -200,7 +200,22 @@ pub struct Label {
     /// **`item`: what the person said, and where.**
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub item: Option<Item>,
+    /// **`audit`: the question the person answered**, by [`TurnQuestion::id`](crate::turn_questions::TurnQuestion).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub question: Option<String>,
+    /// **`audit`: what they said**: `yes`, `no` or `skip`. A skip is a skip, never a no.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub answer: Option<String>,
+    /// **`audit`: why this question was put to them**: `split` (the assessor was unsure) or `random`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub asked_because: Option<String>,
+    /// **Whether this label is the human holdout**: it grades models and is never trained on.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub holdout: bool,
 }
+
+/// **The label of a person's answer to one question** (DL-07, #466): [`Label::label`].
+pub const AUDIT: &str = "audit";
 
 /// **A hand-back the person closed without judging it.** Not a label: a dismissal kept the result unread, which proves nothing about it.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
@@ -209,21 +224,6 @@ pub struct Dismissed {
     pub at_unix_ms: u64,
 }
 
-/// **What a ledger line holds.** Tagged by `kind`, so a label is a new line of its own and never an edit of a turn's.
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
-#[serde(tag = "kind", rename_all = "snake_case")]
-pub enum Body {
-    Turn(Box<Turn>),
-    Label(Box<Label>),
-    Dismissed(Dismissed),
-}
-
-/// **One line of the ledger.**
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
-pub struct Line {
-    /// [`FORMAT`].
-    pub v: u32,
-    #[serde(flatten)]
 /// **Which model graded a turn, and where it ran** (DL-04, #463).
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 pub struct AssessorRef {
@@ -277,6 +277,22 @@ pub struct Assessment {
     pub skipped: Option<String>,
 }
 
+/// **What a ledger line holds.** Tagged by `kind`, so a label is a new line of its own and never an edit of a turn's.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum Body {
+    Turn(Box<Turn>),
+    Label(Box<Label>),
+    Dismissed(Dismissed),
+    Assessment(Box<Assessment>),
+}
+
+/// **One line of the ledger.**
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct Line {
+    /// [`FORMAT`].
+    pub v: u32,
+    #[serde(flatten)]
     pub body: Body,
 }
 
@@ -284,7 +300,6 @@ impl Line {
     /// A turn, as the ledger holds it.
     pub fn turn(turn: Turn) -> Line {
         Line { v: FORMAT, body: Body::Turn(Box::new(turn)) }
-    Assessment(Box<Assessment>),
     }
 
     /// A label, as the ledger holds it.
@@ -295,6 +310,11 @@ impl Line {
     /// A dismissal, as the ledger holds it.
     pub fn dismissed(dismissed: Dismissed) -> Line {
         Line { v: FORMAT, body: Body::Dismissed(dismissed) }
+    }
+
+    /// An assessment, as the ledger holds it.
+    pub fn assessment(assessment: Assessment) -> Line {
+        Line { v: FORMAT, body: Body::Assessment(Box::new(assessment)) }
     }
 }
 
@@ -311,11 +331,6 @@ pub struct Read {
     pub lines: Vec<(usize, Line)>,
     pub damaged: Vec<Damaged>,
 }
-
-    /// An assessment, as the ledger holds it.
-    pub fn assessment(assessment: Assessment) -> Line {
-        Line { v: FORMAT, body: Body::Assessment(Box::new(assessment)) }
-    }
 
 impl Read {
     /// The turns, in the order they were written.
@@ -341,21 +356,6 @@ impl Read {
             _ => None,
         })
     }
-}
-
-/// **Read a ledger's text.** A blank line is nothing; any other line that is not a line of this format is [`Damaged`], with its number.
-pub fn read_text(text: &str) -> Read {
-    let mut read = Read::default();
-    for (at, raw) in text.lines().enumerate() {
-        let number = at + 1;
-        if raw.trim().is_empty() {
-            continue;
-        }
-        match serde_json::from_str::<Line>(raw) {
-            Ok(line) if line.v == FORMAT => read.lines.push((number, line)),
-            Ok(line) => read.damaged.push(Damaged { line: number, why: format!("version {} is not the {FORMAT} this build reads", line.v) }),
-            Err(e) => read.damaged.push(Damaged { line: number, why: e.to_string() }),
-        }
 
     /// The assessments, in the order they were written.
     pub fn assessments(&self) -> impl Iterator<Item = &Assessment> {
@@ -374,6 +374,21 @@ pub fn read_text(text: &str) -> Read {
     pub fn holdout(&self) -> impl Iterator<Item = &Label> {
         self.labels().filter(|label| label.holdout)
     }
+}
+
+/// **Read a ledger's text.** A blank line is nothing; any other line that is not a line of this format is [`Damaged`], with its number.
+pub fn read_text(text: &str) -> Read {
+    let mut read = Read::default();
+    for (at, raw) in text.lines().enumerate() {
+        let number = at + 1;
+        if raw.trim().is_empty() {
+            continue;
+        }
+        match serde_json::from_str::<Line>(raw) {
+            Ok(line) if line.v == FORMAT => read.lines.push((number, line)),
+            Ok(line) => read.damaged.push(Damaged { line: number, why: format!("version {} is not the {FORMAT} this build reads", line.v) }),
+            Err(e) => read.damaged.push(Damaged { line: number, why: e.to_string() }),
+        }
     }
     read
 }

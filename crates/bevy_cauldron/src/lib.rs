@@ -86,6 +86,7 @@ pub mod library_browser;
 pub mod game_ui_preview;
 pub mod game_view;
 pub mod agent_view;
+pub mod audit_view;
 // **A hand-back the person kept becomes a benchmark task draft** (BM-07, #417).
 pub mod bench_draft;
 pub mod shell_view;
@@ -225,9 +226,9 @@ pub mod turn_store;
 pub mod turn_ledger;
 // **The questions each turn carries** (DL-03, #462): worded in the decision model's own shapes, with the engine's answers beside them.
 pub mod turn_questions;
-pub mod steps;
 // **The assessor** (DL-04, #463): a model grades each turn's questions, in its own process.
 pub mod turn_assess;
+pub mod steps;
 pub mod stages;
 pub mod surface;
 // **A shell in the editor's own window** (`Ctrl+\``): a PTY, a VTE parser and a compact dock.

@@ -699,7 +699,33 @@ impl TurnLedger {
     }
 
     fn label(&self, turn: &str, label: &str, tier: &str) -> Label {
-        Label { turn: turn.to_owned(), label: label.to_owned(), tier: tier.to_owned(), at_unix_ms: now_ms(), operation_id: None, by_turn: None, item: None }
+        Label {
+            turn: turn.to_owned(),
+            label: label.to_owned(),
+            tier: tier.to_owned(),
+            at_unix_ms: now_ms(),
+            operation_id: None,
+            by_turn: None,
+            item: None,
+            question: None,
+            answer: None,
+            asked_because: None,
+            holdout: false,
+        }
+    }
+
+    /// **The person answered one question of the audit** (DL-07, #466): a gold label on the turn, per question, marked `holdout`. Only the
+    /// person's own key press or click calls this. Nothing is written when collection is off.
+    pub fn audit_answered(&mut self, turn: &str, question: &str, answer: &str, asked_because: &str) {
+        if !self.collecting() {
+            return;
+        }
+        let mut label = self.label(turn, crate::turn_store::AUDIT, "gold");
+        label.question = Some(question.to_owned());
+        label.answer = Some(answer.to_owned());
+        label.asked_because = Some(asked_because.to_owned());
+        label.holdout = true;
+        self.append_line(&Line::label(label));
     }
 
     /// **The person answered a hand-back** (DL-02, #461). Only the person's own answer calls this: an agent's undo over BRP is not a verdict and
@@ -1053,6 +1079,7 @@ fn sync_collection(
 /// **What is kept is the map's viewport, never the whole window** (review of #460): the window holds the terminal, whose shell can show a secret,
 /// and every panel. The picture is cut to the main camera's viewport, and the terminal pane's rectangle is blacked out of it where the pane
 /// covers the viewport. With no viewport nothing is kept and the record says so.
+#[allow(clippy::too_many_arguments)]
 fn issue_shots(
     mut commands: Commands,
     mut ledger: ResMut<TurnLedger>,
@@ -1060,6 +1087,10 @@ fn issue_shots(
     images: Option<Res<Assets<Image>>>,
     cameras: Query<&Camera, With<crate::view::MainCamera>>,
     panes: Query<(&bevy::ui::ComputedNode, &bevy::ui::UiGlobalTransform), With<crate::terminal_pane::TerminalPaneRoot>>,
+    workspace: Option<Res<crate::workspace::Workspace>>,
+    settings: Query<(), With<crate::settings_screen::SettingsDialog>>,
+    keymap: Query<(), With<crate::keymap_screen::KeymapDialog>>,
+    project_config: Query<(), With<crate::project_config::ProjectConfigDialog>>,
 ) {
     if !ledger.asks.iter().any(|ask| !ask.issued) {
         return;
@@ -1079,7 +1110,6 @@ fn issue_shots(
             ask.issued = true;
             ask.ticket
         })
-#[allow(clippy::too_many_arguments)]
         .collect();
     // **Only the Map and the World are pictured** (review of #460): the viewport also holds the Files workspace's code editor and the Design page,
     // and Settings, the keymap and the project's configuration stand over whatever is under them. A picture of any of those could hold a secret, so
@@ -1104,10 +1134,6 @@ fn issue_shots(
         }
         return;
     };
-    workspace: Option<Res<crate::workspace::Workspace>>,
-    settings: Query<(), With<crate::settings_screen::SettingsDialog>>,
-    keymap: Query<(), With<crate::keymap_screen::KeymapDialog>>,
-    project_config: Query<(), With<crate::project_config::ProjectConfigDialog>>,
     let crop = [viewport.physical_position.x, viewport.physical_position.y, viewport.physical_size.x, viewport.physical_size.y];
     let redact: Vec<[u32; 4]> = panes
         .iter()

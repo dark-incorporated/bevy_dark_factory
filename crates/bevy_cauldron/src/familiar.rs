@@ -291,6 +291,12 @@ pub fn spawn_the_block(commands: &mut Commands, pause: bool, here: bool) -> Enti
                 Name::new("agent rows"),
                 bevy_gooey::column_with(crate::chrome::GAP_TIGHT_STEPS, bevy_gooey::RowLayout { shrink: Some(0.0), ..default() }),
             ));
+            // **The person's audit** (DL-07, #466): an empty container, filled on demand by `audit_view` when there is a question to answer.
+            block.spawn((
+                crate::audit_view::AuditRows,
+                Name::new("audit rows"),
+                bevy_gooey::column_with(crate::chrome::GAP_TIGHT_STEPS, bevy_gooey::RowLayout { shrink: Some(0.0), ..default() }),
+            ));
         })
         .id()
 }
