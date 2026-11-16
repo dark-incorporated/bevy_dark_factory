@@ -460,7 +460,7 @@ fn the_store_appends_keeps_a_picture_once_and_refuses_past_its_budget() {
 #[test]
 fn the_settings_row_says_the_budget_and_collection_is_on_by_default() {
     let row = bevy_cauldron::setting_catalogue::find("collect_labels").expect("the row is listed");
-    assert_eq!(row.category, "Privacy");
+    assert_eq!(row.category, "Decisions");
     let gigabytes = DEFAULT_BUDGET_BYTES / (1024 * 1024 * 1024);
     assert!(row.description.contains(&format!("{gigabytes} GB")), "the row says a budget the constant does not have: {}", row.description);
     assert!(bevy_cauldron::settings::EditorSettings::default().collect_labels, "collected by default (owner, #459)");
@@ -547,4 +547,39 @@ fn the_stop_sentence_says_how_to_resume() {
     let mut store = Store::new(dir).with_budget(1);
     let why = store.append(&Line::turn(sample_turn("turn-1", 1))).expect_err("past the budget");
     assert!(why.contains("off and on again in Settings"), "{why}");
+}
+
+/// **Only the Map and the World are pictured** (review of #460): the viewport of the Files workspace holds a code editor, which can hold a secret.
+///
+/// The headless editor has no renderer, so the surface the readback reads is a small image of its own here: the refusal is made before anything is read back.
+#[test]
+fn a_hand_back_while_the_editor_is_on_files_records_no_picture() {
+    use bevy_cauldron::workspace::Workspace;
+    let (mut app, labels) = editor("files");
+    let image = app.world_mut().resource_mut::<Assets<Image>>().add(Image::new_fill(
+        bevy::render::render_resource::Extent3d { width: 64, height: 64, depth_or_array_layers: 1 },
+        bevy::render::render_resource::TextureDimension::D2,
+        &[0, 0, 0, 255],
+        bevy::render::render_resource::TextureFormat::Rgba8UnormSrgb,
+        bevy::asset::RenderAssetUsages::default(),
+    ));
+    app.insert_resource(bevy_cauldron::surface::Surface { image });
+    *app.world_mut().resource_mut::<Workspace>() = Workspace::Files;
+    let first = place(&mut app, [20.0, 18.0]);
+    present(&mut app, &[first], &["a bed"]);
+    // The follow waits for the person on the Map, so the view settles only when the ledger gives up waiting for it: the before picture was refused long ago.
+    for _ in 0..bevy_cauldron::turn_ledger::SETTLE_GIVE_UP_FRAMES + 200 {
+        *app.world_mut().resource_mut::<Workspace>() = Workspace::Files;
+        app.update();
+        if written(&app) > 0 {
+            break;
+        }
+    }
+    let read = ledger_of(&labels);
+    let turn = read.turns().next().expect("the hand-back is recorded all the same");
+    for shot in [&turn.before, &turn.after] {
+        assert!(shot.image.is_none(), "a picture of the Files workspace was kept");
+    }
+    let why = turn.before.missing.as_deref().unwrap_or_default();
+    assert!(why.contains("Map or the World"), "the before picture's reason: {why}");
 }

@@ -1079,14 +1079,36 @@ fn issue_shots(
             ask.issued = true;
             ask.ticket
         })
+#[allow(clippy::too_many_arguments)]
         .collect();
-    let Some(view) = cameras.iter().next().and_then(Camera::physical_viewport_rect) else {
+    // **Only the Map and the World are pictured** (review of #460): the viewport also holds the Files workspace's code editor and the Design page,
+    // and Settings, the keymap and the project's configuration stand over whatever is under them. A picture of any of those could hold a secret, so
+    // the record says why there is none.
+    use crate::workspace::Workspace;
+    if workspace.as_deref().is_some_and(|w| !matches!(w, Workspace::Map | Workspace::World)) {
+        for ticket in tickets {
+            ledger.deliver_shot(ticket, Err(NOT_THE_MAP.to_owned()));
+        }
+        return;
+    }
+    if !settings.is_empty() || !keymap.is_empty() || !project_config.is_empty() {
+        for ticket in tickets {
+            ledger.deliver_shot(ticket, Err(A_DIALOG_IS_OPEN.to_owned()));
+        }
+        return;
+    }
+    // **The camera's own viewport**, not `physical_viewport_rect`, which answers the whole target when the camera has none.
+    let Some(viewport) = cameras.iter().next().and_then(|camera| camera.viewport.as_ref()) else {
         for ticket in tickets {
             ledger.deliver_shot(ticket, Err(NO_VIEWPORT.to_owned()));
         }
         return;
     };
-    let crop = [view.min.x, view.min.y, view.width(), view.height()];
+    workspace: Option<Res<crate::workspace::Workspace>>,
+    settings: Query<(), With<crate::settings_screen::SettingsDialog>>,
+    keymap: Query<(), With<crate::keymap_screen::KeymapDialog>>,
+    project_config: Query<(), With<crate::project_config::ProjectConfigDialog>>,
+    let crop = [viewport.physical_position.x, viewport.physical_position.y, viewport.physical_size.x, viewport.physical_size.y];
     let redact: Vec<[u32; 4]> = panes
         .iter()
         .map(|(node, at)| {
@@ -1107,8 +1129,14 @@ fn issue_shots(
     }
 }
 
-/// Why no picture was kept when the map has no viewport to cut it to.
-const NO_VIEWPORT: &str = "there is no map viewport to take a picture of, and the whole window would hold the terminal and the panels, so none was kept";
+/// Why no picture was kept when the map camera has no viewport of its own to cut the picture to.
+const NO_VIEWPORT: &str = "the map camera has no viewport of its own, and the whole window would hold the terminal and the panels, so no picture was kept";
+
+/// Why no picture was kept on a workspace other than the Map or the World.
+const NOT_THE_MAP: &str = "the editor was not on the Map or the World, where the viewport holds only the map, so no picture was kept";
+
+/// Why no picture was kept with Settings, the keymap or the project's configuration open.
+const A_DIALOG_IS_OPEN: &str = "Settings, the keymap or the project's configuration was open over the viewport, so no picture was kept";
 
 /// **The readback's bytes as the RGBA picture of `crop`** (`[x, y, width, height]` in surface pixels), with each `redact` rectangle blacked out.
 ///

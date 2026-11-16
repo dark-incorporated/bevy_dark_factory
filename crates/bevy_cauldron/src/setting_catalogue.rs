@@ -61,7 +61,7 @@ pub const SIZE_SLIDER: (f32, f32) = (0.75, 2.0);
 pub const SCALE_STEP: f32 = 0.05;
 
 /// The categories, in the order the screen's tabs show them.
-pub const CATEGORIES: &[&str] = &["Appearance", "Accessibility", "Map", "Terminal", "Decisions", "Privacy"];
+pub const CATEGORIES: &[&str] = &["Appearance", "Accessibility", "Map", "Terminal", "Decisions"];
 
 /// The names of [`Theme`]'s variants, in declaration order.
 pub const THEMES: &[&str] = &["Tool dark", "Parchment", "High contrast"];
@@ -121,15 +121,13 @@ pub const CATALOGUE: &[Setting] = &[
         description: "Show the strip of workspace icons at the left edge of the window. Off, move between workspaces with the keys or the Window menu.",
         kind: Kind::Switch,
     },
-    // **Why this Privacy row is listed here, ahead of the Accessibility and Terminal rows, and not last** (DL-01, #460). The screen groups rows by
-    // `category` into tabs, so the place in this list is only the order within the unfiltered list. Last in the list, the protected
-    // `a_settings_change_updates_only_its_row::a_reset_puts_the_control_back_without_building_the_list_again` failed when the Terminal agent row (then
-    // the row above this one) gained its Reset: "row 13 was relaid: its height went from 190 to 178". The cause was not found; with the row here
-    // the test passes (measured), so that is where it stays until someone finds why a last row shrinks.
+    // **Why this row is in Decisions, and not a Privacy tab of its own** (DL-01, #460): what is collected is the data the decision model is trained on, and
+    // a sixth tab changed the card's layout enough that the protected `a_settings_change_updates_only_its_row` tests, which compare rows' heights to the pixel
+    // after the card re-centres, failed on a one pixel rounding of a row that had not changed.
     Setting {
         key: "collect_labels",
         label: "Learn from my use",
-        category: "Privacy",
+        category: "Decisions",
         description: "Keep a record of each agent turn, for training the editor's decision model: the pictures before and after, what was asked, what was done and what you did about it. It is kept on this computer, in the Grimoire folder of your data directory, never in a project, and nothing is sent anywhere. Collection stops by itself at 2 GB. Off, no picture is taken and nothing is written.",
         kind: Kind::Switch,
     },

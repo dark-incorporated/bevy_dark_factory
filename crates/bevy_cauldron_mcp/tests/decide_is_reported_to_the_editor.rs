@@ -52,3 +52,25 @@ fn a_long_error_is_cut_and_says_so() {
     assert!(kept.chars().count() < ERROR_CAP_CHARS + 60, "{}", kept.chars().count());
     assert!(kept.starts_with(&long[..ERROR_CAP_CHARS * 2]) && kept.ends_with("characters)"), "{kept}");
 }
+
+/// **An error that names the endpoint carries no key** (review of #460): `bevy_oracle::Error` words the address as it was asked, `?key=` and all,
+/// and so can a response body that quotes another.
+#[test]
+fn an_error_that_names_the_endpoint_carries_no_key() {
+    let params = DecideParams { check: Some("floating".to_owned()), ..DecideParams::default() };
+    let endpoint = "https://user:hunter2@api.example.com/v1/decide?key=SECRET123";
+    let said = report(
+        &params,
+        &Err(format!(
+            "decision endpoint {endpoint} refused the request with status 401: {{\"error\":\"bad key at https://other.example.com/x?token=TOKEN456.\"}}"
+        )),
+        None,
+        endpoint,
+        1,
+    );
+    let kept = said["error"].as_str().expect("an error");
+    for secret in ["hunter2", "SECRET123", "TOKEN456", "?key=", "?token="] {
+        assert!(!kept.contains(secret), "`{secret}` is in the stored error: {kept}");
+    }
+    assert!(kept.contains("https://api.example.com/v1/decide"), "the address is still named, without its key: {kept}");
+}
