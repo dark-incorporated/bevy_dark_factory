@@ -354,6 +354,16 @@ impl Following {
     }
 }
 
+/// **Whether the person is answering hand-backs in the Agent workspace** (#458): that workspace is the door and "Answer hand-backs here" is on.
+///
+/// **The follow holds there and the person's presses do not drop it.** The card is answered in the AGENT block, which lives in that workspace, so an agent's change
+/// that carried the person to the Map would close the block and hand its question to the modal: the setting would be unreachable exactly when the agent edits the
+/// map. The request waits instead, for the person to return to the Map. One answer for the two systems that need it, so the follow and the press that would drop it
+/// cannot disagree about where the person is.
+pub fn answering_in_the_agent_workspace(door: Option<&Workspace>, here: Option<&crate::familiar::HandBackHere>) -> bool {
+    door.is_some_and(|door| *door == Workspace::Agent) && here.is_some_and(|here| here.0)
+}
+
 /// **A person's own input takes the camera back, and the follow yields.**
 ///
 /// **#358's acceptance says a person is never yanked** — the follow exists so someone reading a panel
@@ -371,6 +381,7 @@ impl Following {
 ///
 /// **What this does not touch**: an agent's operation raises no input event, so an agent's change is
 /// still followed, and a person who does nothing is still shown it.
+#[allow(clippy::too_many_arguments)]
 fn a_persons_input_takes_the_camera_back(
     keys: Option<Res<ButtonInput<KeyCode>>>,
     // **The one press that is not a gesture**: Look asks the camera to move, so reading its own chord
@@ -388,6 +399,9 @@ fn a_persons_input_takes_the_camera_back(
     // One rule, one system, two subjects — a second input system would be a second answer to "is the
     // person working", and the two would disagree the first time one of them changed.
     mut revealing: Option<ResMut<crate::reveal::Revealing>>,
+    // **A press in the Agent workspace answers the card; it is not the person working the Map's view** (#458), so what the follow holds for the Map survives it.
+    door: Option<Res<Workspace>>,
+    here: Option<Res<crate::familiar::HandBackHere>>,
 ) {
     // **The Look chord is a request, not a gesture** (AF-04, #360): `look_on_the_key` runs first and
     // sets the follow's clocks aside, and this system would set them straight back from the same
@@ -409,6 +423,10 @@ fn a_persons_input_takes_the_camera_back(
                 || just_released_on_the_chord(keys, *live)
         })
     {
+        return;
+    }
+    if answering_in_the_agent_workspace(door.as_deref(), here.as_deref()) {
+        following.working = false;
         return;
     }
     // **`pressed`, not `just_pressed`**: the press state is what survives the frame it was made on,
@@ -733,6 +751,8 @@ fn take_the_follow_request(
     // the queue is kept rather than dropped: the look chip still offers Look, and that is the whole
     // point of the switch being a *pause* of the moving rather than a mute of the following.
     settings: Option<Res<crate::settings::EditorSettings>>,
+    // **Whether hand-backs are answered in the Agent workspace** (#458): the follow holds there rather than carrying the person to the Map.
+    here: Option<Res<crate::familiar::HandBackHere>>,
 ) {
     let now = time.elapsed_secs_f64();
     // **The person's hands off the view for `FOLLOW_IDLE_S`**: the follow may move again. Cleared
@@ -881,6 +901,13 @@ fn take_the_follow_request(
     // **The toggle is off: nothing moves, and nothing is lost.** The chip keeps naming the oldest
     // change and `Following::look_now` is what shows it.
     if !looking && settings.as_deref().is_some_and(|s| !s.follow_agent) {
+        following.note_what_waits();
+        return;
+    }
+    // **Answering a hand-back in the Agent workspace holds the follow for the person's return to the Map** (#458). The change is on the map and in the log; the view
+    // follows when the Map is shown, and a Look is the person's own ask and still goes there. The request is kept (the chip offers Look), never dropped: nothing is
+    // asked of the editor meanwhile, so the AGENT block and the card in it stay.
+    if !on_the_map && !looking && answering_in_the_agent_workspace(door.as_deref(), here.as_deref()) {
         following.note_what_waits();
         return;
     }

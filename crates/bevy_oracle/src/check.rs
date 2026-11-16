@@ -20,14 +20,17 @@ pub struct Check {
     /// Whether it needs the JSON facts (operations run, pieces, camera).
     #[serde(default)]
     pub facts: bool,
-    /// P(yes) at or above this is a finding.
+    /// P(yes) at or above this is a finding **for a model this check has no calibration for**: the
+    /// author's default. A model with a record in [`Check::calibrations`] uses the threshold it earned.
     pub threshold: f64,
     /// Run after each agent operation (never while a person is editing).
     #[serde(default)]
     pub after_edit: bool,
-    /// Set once a labelled set of real captures measured it.
+    /// **What a labelled set of real captures measured, one record per model** (#455). A calibration
+    /// belongs to the model whose probabilities it was measured on: another model's P(yes) is on another
+    /// scale, so a record is never lent to a model it does not name (`Calibration::model`).
     #[serde(default)]
-    pub calibration: Option<Calibration>,
+    pub calibrations: Vec<Calibration>,
 }
 
 /// The format version of `checks.yaml` (#202). A file with no `version` is the first.
@@ -71,6 +74,22 @@ impl Default for Checks {
 impl Checks {
     /// **Read a `checks.yaml`**, the one reader this kind has since the cutover (GD-03, #365).
     pub fn from_yaml(text: &str) -> Result<Self, Error> {
+        // **The one-calibration form is refused, not ignored** (#455): a `calibration:` that no field reads
+        // would quietly strip the check of the authority it earned. An empty one (`null`) says nothing.
+        let raw: serde_yaml_ng::Value = serde_yaml_ng::from_str(text).map_err(|e| Error::Checks(e.to_string()))?;
+        let stale = raw
+            .get("checks")
+            .and_then(|c| c.as_sequence())
+            .into_iter()
+            .flatten()
+            .find(|c| c.get("calibration").is_some_and(|v| !v.is_null()))
+            .map(|c| c.get("name").and_then(|n| n.as_str()).unwrap_or("?"));
+        if let Some(name) = stale {
+            return Err(Error::Checks(format!(
+                "check `{name}` has a `calibration`; a calibration belongs to one model, so the field is now \
+                 `calibrations`, a list with one record per model"
+            )));
+        }
         let c: Checks = serde_yaml_ng::from_str(text).map_err(|e| Error::Checks(e.to_string()))?;
         let mut seen = std::collections::BTreeSet::new();
         for check in &c.checks {
@@ -132,20 +151,48 @@ pub struct Evidence {
     pub facts: Option<serde_json::Value>,
 }
 
-/// One check's result. A finding is advisory: it never blocks or undoes an operation.
+/// One check's result. A finding is advisory unless its check earned the right to block **for the model
+/// that answered**.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Finding {
     pub check: String,
     pub p_yes: f64,
+    /// The threshold applied: the answering model's calibrated one, else the check's own default.
     pub threshold: f64,
     /// `p_yes >= threshold`.
     pub found: bool,
+    /// The model that answered, as the response names it. `None` when the endpoint did not say, which no
+    /// record can be matched to.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub model: Option<String>,
+    /// The agreement this check measured **for that model**; `None` when it is not calibrated for it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub agreement: Option<f64>,
 }
 
 impl Finding {
     /// "floating 0.93 > 0.70", as the journal writes it; `None` when nothing was found.
     pub fn message(&self) -> Option<String> {
         self.found.then(|| format!("{} {:.2} > {:.2}", self.check, self.p_yes, self.threshold))
+    }
+
+    /// Whether the check is calibrated for the model that answered.
+    pub fn is_calibrated(&self) -> bool {
+        self.agreement.is_some()
+    }
+
+    /// `uncalibrated for <model>` when this check has no record for the model that answered, else `None`.
+    pub fn uncalibrated_note(&self) -> Option<String> {
+        (!self.is_calibrated()).then(|| match &self.model {
+            Some(m) => format!("uncalibrated for {m}"),
+            None => "uncalibrated for an unnamed model".to_owned(),
+        })
+    }
+
+    /// **Whether this finding may fail the loop's gate**: it found something, and its check earned
+    /// agreement of at least `bar` on the model that answered. An uncalibrated finding never does.
+    pub fn is_blocking(&self, bar: f64) -> bool {
+        self.found && self.agreement.is_some_and(|a| a >= bar)
     }
 }
 
@@ -188,11 +235,36 @@ impl Check {
     pub fn run(&self, transport: &dyn Transport, evidence: &Evidence) -> Result<Finding, Error> {
         let response = ask(transport, &self.request(evidence)?)?;
         let p_yes = response.answers[QUESTION_ID].p_yes().expect("ask checked the answer is a noul");
-        Ok(Finding { check: self.name.clone(), p_yes, threshold: self.threshold, found: p_yes >= self.threshold })
+        let model = response.model;
+        let calibration = self.calibration_for(model.as_deref());
+        let threshold = calibration.map_or(self.threshold, |c| c.threshold);
+        Ok(Finding {
+            check: self.name.clone(),
+            p_yes,
+            threshold,
+            found: p_yes >= threshold,
+            agreement: calibration.map(|c| c.agreement),
+            model,
+        })
     }
 
-    /// Whether this check may block the loop's gate: it earned a calibration at or above `bar`.
-    pub fn may_block(&self, bar: f64) -> bool {
-        self.calibration.as_ref().is_some_and(|c| c.is_blocking(bar))
+    /// The record this check earned for `model`, if any. A model nobody named has none.
+    pub fn calibration_for(&self, model: Option<&str>) -> Option<&Calibration> {
+        let model = model?;
+        self.calibrations.iter().find(|c| c.model == model)
+    }
+
+    /// Whether this check may block the loop's gate when asked of `model`: it earned a calibration for
+    /// that model at or above `bar`.
+    pub fn may_block(&self, model: Option<&str>, bar: f64) -> bool {
+        self.calibration_for(model).is_some_and(|c| c.is_blocking(bar))
+    }
+
+    /// Keep `calibration` as this check's record for its model, replacing the one it had for that model.
+    pub fn record(&mut self, calibration: Calibration) {
+        match self.calibrations.iter_mut().find(|c| c.model == calibration.model) {
+            Some(slot) => *slot = calibration,
+            None => self.calibrations.push(calibration),
+        }
     }
 }

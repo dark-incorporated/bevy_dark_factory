@@ -1,0 +1,9 @@
+check: clip_shows_its_title
+model: clef-flash
+set_size: 122
+agreement: 0.5327868852459017
+threshold: 0.5300115800673078
+date: 2026-11-15
+correct: 65
+wrong: 57
+

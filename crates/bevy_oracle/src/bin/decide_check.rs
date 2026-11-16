@@ -11,11 +11,12 @@
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
-use bevy_oracle::{Checks, Config, Evidence, Http, Transport, Verdict, evidence_from, run_checks};
+use bevy_oracle::{Checks, Config, Endpoints, Evidence, Live, Transport, Verdict, evidence_from, run_checks};
 
 fn usage() -> String {
     "usage: decide_check --captures DIR [--project DIR] [--bar F] [--ask] [--no-builtin] [--json] [--facts FILE]\n\
-     \x20      decide_check --calibrate SET.yaml [--check NAME] [--project DIR] [--model NAME]".to_owned()
+     \x20      decide_check --calibrate SET.yaml [--check NAME] [--project DIR] [--model NAME] [--out FILE]\n\
+     \x20      (--model is a label: the endpoint must serve that model, or the run is refused)".to_owned()
 }
 
 struct Args {
@@ -38,7 +39,7 @@ struct Args {
     /// number printed to a terminal is a claim nobody can check: `tools/decide/check.py` reads this
     /// file to decide whether a check may block the gate, and
     /// `crates/bevy_oracle/tests/the_clips_calibration_is_recorded.rs` keeps the record's arithmetic
-    /// honest. Written as RON, beside the labelled set it measured.
+    /// honest. Written as YAML: one file per model (`fixtures/calibrations/<model>.yaml`).
     out: Option<PathBuf>,
 }
 
@@ -54,7 +55,7 @@ fn parse(argv: Vec<String>) -> Result<Args, String> {
         calibrate: None,
         out: None,
         check: "clip_shows_its_title".to_owned(),
-        model: "clef-flash".to_owned(),
+        model: bevy_oracle::LOCAL_MODEL_NAME.to_owned(),
     };
     let mut it = argv.into_iter();
     while let Some(arg) = it.next() {
@@ -125,7 +126,24 @@ fn main() {
         }
     };
 
-    let transport = Http::new(Config::from_env());
+    // **The model asked is the person's setting** (`decision_model`, read from their settings file and the project's
+    // layers like every other surface): one endpoint per run. A listing asks nothing, so a setting that cannot be
+    // resolved (Remote with no key) stops only the runs that would ask.
+    let resolved = Endpoints::from_env().resolve_for_project(&args.project);
+    let asking = args.ask || args.calibrate.is_some();
+    let transport = match &resolved {
+        Ok(r) => Live::new(r.config.clone()),
+        Err(e) if asking => {
+            eprintln!("{e}");
+            std::process::exit(2);
+        }
+        Err(_) => Live::new(Config::default()),
+    };
+    if let Ok(r) = &resolved {
+        for problem in &r.chosen.problems {
+            eprintln!("settings problem: {problem}");
+        }
+    }
     let evidence_for = |check: &bevy_oracle::Check| -> Result<Evidence, String> {
         let mut images = BTreeMap::new();
         for name in &check.images {
@@ -161,8 +179,20 @@ fn main() {
                 std::process::exit(2);
             }
         };
+        // **`--model` labels the record, and the endpoint must be that model** (#455). The endpoint is the
+        // person's `decision_model` setting, not this flag (the default label is the local model's), so the
+        // two can disagree; a record labelled for a model that did not answer is the defect a per-model
+        // calibration exists to prevent. Refuse before the first sample when the endpoint does not list the
+        // label (for Remote, the one model it sends: `perplexity/pplx-decider-v1.3:free`), and refuse any
+        // answer that names another.
+        let served = transport.served_models().and_then(|m| bevy_oracle::verify_served(&args.model, &transport.endpoint(), &m));
+        if let Err(e) = served {
+            eprintln!("{e}");
+            std::process::exit(2);
+        }
+        let expecting = bevy_oracle::Expecting::new(&transport, &args.model);
         let check = bevy_oracle::clip_check(&args.check);
-        let scored = match bevy_oracle::score_set(&check, &samples, &transport) {
+        let scored = match bevy_oracle::score_set(&check, &samples, &expecting) {
             Ok(s) => s,
             Err(e) => {
                 eprintln!("{e}");
@@ -245,11 +275,9 @@ fn main() {
     // runs, and it is also what makes the "uncalibrated checks only print" rule visible.
     let mut listed = 0;
     for check in &project.checks {
-        let authority = if check.calibration.as_ref().is_some_and(|c| c.is_blocking(args.bar)) {
-            "blocking"
-        } else {
-            "advisory"
-        };
+        let earned: Vec<&str> =
+            check.calibrations.iter().filter(|c| c.is_blocking(args.bar)).map(|c| c.model.as_str()).collect();
+        let authority = if earned.is_empty() { "advisory".to_owned() } else { format!("blocking for {}", earned.join(", ")) };
         let images = if check.images.is_empty() { "facts".to_owned() } else { check.images.join(", ") };
         println!("{:10} {}: {images} — {}", authority, check.name, check.question);
         listed += 1;
@@ -269,7 +297,8 @@ fn print_verdict(verdict: &Verdict, json: bool) {
             .map(|f| {
                 serde_json::json!({
                     "check": f.check, "p_yes": f.p_yes, "threshold": f.threshold,
-                    "found": f.found,
+                    "found": f.found, "model": f.model, "agreement": f.agreement,
+                    "uncalibrated": f.uncalibrated_note(),
                     "authority": if verdict.blocking.iter().any(|b| b.check == f.check) { "blocking" } else { "advisory" },
                 })
             })

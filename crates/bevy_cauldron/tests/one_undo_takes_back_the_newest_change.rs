@@ -215,7 +215,7 @@ fn cmd_z_does_not_undo_a_resize_the_agent_already_took_back() {
 
     // **The agent's undo, through the same registry function the MCP tool reaches.**
     let mut ctx = bevy_cauldron::ops::Ctx {
-        view: None, trust_file: None,
+        view: None, trust_file: None, decisions: None,
         root: None,
         project: Some(
             app.world()

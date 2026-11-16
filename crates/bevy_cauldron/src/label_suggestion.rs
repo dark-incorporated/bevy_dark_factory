@@ -21,34 +21,6 @@
 
 use bevy_grimoire_core::descriptor::{Confidence, DecalHost, Face, Mount};
 
-/// The `.env` file at the project root, parsed — `KEY=VALUE` lines, `#` comments, an optional
-/// `export ` prefix and single/double quotes tolerated. Hand-rolled: twenty lines of parsing is
-/// not worth a dependency, and this is a dev tool's config, not a spec implementation.
-pub(crate) fn dotenv(root: &std::path::Path) -> std::collections::BTreeMap<String, String> {
-    let mut out = std::collections::BTreeMap::new();
-    let Ok(text) = std::fs::read_to_string(root.join(".env")) else {
-        return out;
-    };
-    for line in text.lines() {
-        let line = line.trim();
-        if line.is_empty() || line.starts_with('#') {
-            continue;
-        }
-        let line = line.strip_prefix("export ").unwrap_or(line);
-        let Some((key, value)) = line.split_once('=') else {
-            continue;
-        };
-        let value = value.trim();
-        let value = value
-            .strip_prefix('"')
-            .and_then(|v| v.strip_suffix('"'))
-            .or_else(|| value.strip_prefix('\'').and_then(|v| v.strip_suffix('\'')))
-            .unwrap_or(value);
-        out.insert(key.trim().to_owned(), value.to_owned());
-    }
-    out
-}
-
 /// A vocabulary addition the model wanted and could not have — the only legal exit for an
 /// out-of-vocab idea. Flagged for a human; never enters the axes.
 #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]

@@ -492,7 +492,7 @@ pub fn open_map_now(world: &mut World, name: &str) -> Result<(), String> {
     let project = world.get_resource::<Project>().cloned().ok_or("there is no project open")?;
     let mut ctx = crate::ops::Ctx {
         view: None,
-        trust_file: None,
+        trust_file: None, decisions: None,
         project: Some(project),
         open: None,
         source: crate::ops::Source::Human,

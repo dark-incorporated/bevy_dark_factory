@@ -56,12 +56,15 @@ fn named(name: &str, path: &str) -> NamedImage {
 #[test]
 fn a_named_check_reports_a_finding_on_a_floating_capture_and_none_on_a_grounded_one() {
     let dir = project("named");
-    std::fs::write(dir.join("floating.png"), b"floating").unwrap();
-    std::fs::write(dir.join("grounded.png"), b"grounded").unwrap();
+    // Owner exception (2026-11-14): only stills under target/loop/captures are sent to a model (#456).
+    let captures = dir.join("target/loop/captures/closeup");
+    std::fs::create_dir_all(&captures).unwrap();
+    std::fs::write(captures.join("floating.png"), b"floating").unwrap();
+    std::fs::write(captures.join("grounded.png"), b"grounded").unwrap();
     let ask = |file: &str| {
         let p = DecideParams {
             check: Some("floating".into()),
-            images: vec![named("closeup", file)],
+            images: vec![named("closeup", &format!("target/loop/captures/closeup/{file}"))],
             facts: Some(json!({"op": "placement_add"})),
             ..Default::default()
         };

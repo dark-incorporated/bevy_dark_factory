@@ -32,7 +32,7 @@ fn builtin_checks_parse_and_name_the_five() {
     let c = Checks::builtin();
     let names: Vec<_> = c.checks.iter().map(|c| c.name.as_str()).collect();
     assert_eq!(names, ["floating", "clipping", "out_of_area", "blank_frame", "toast_visible"]);
-    assert!(c.checks.iter().all(|c| c.calibration.is_none()), "none has earned a calibration yet");
+    assert!(c.checks.iter().all(|c| c.calibrations.is_empty()), "none has earned a calibration yet");
 }
 
 #[test]
@@ -94,8 +94,8 @@ fn checks_yaml_rejects_duplicates_and_thresholds_outside_zero_to_one() {
 #[test]
 fn only_a_calibrated_check_at_the_bar_may_block() {
     let mut c = Checks::builtin().get("floating").unwrap().clone();
-    assert!(!c.may_block(0.9));
-    c.calibration = Some(Calibration {
+    assert!(!c.may_block(Some("clef-flash"), 0.9));
+    c.calibrations = vec![Calibration {
         check: "floating".into(),
         model: "clef-flash".into(),
         set_size: 20,
@@ -105,8 +105,8 @@ fn only_a_calibrated_check_at_the_bar_may_block() {
         // owner exception, schema field: the two counts `agreement` is made of (#112).
         correct: 19,
         wrong: 1,
-    });
-    assert!(c.may_block(0.9) && !c.may_block(0.96));
+    }];
+    assert!(c.may_block(Some("clef-flash"), 0.9) && !c.may_block(Some("clef-flash"), 0.96));
     let round = Checks { checks: vec![c.clone()], ..Checks::default() };
     assert_eq!(Checks::from_yaml(&round.to_yaml().unwrap()).unwrap(), round);
 }

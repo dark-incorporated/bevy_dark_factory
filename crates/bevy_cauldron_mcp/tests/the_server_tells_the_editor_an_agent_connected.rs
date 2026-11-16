@@ -107,10 +107,21 @@ fn called(calls: &Calls, method: &str) -> Option<Value> {
 }
 
 #[test]
-fn the_handshake_is_told_to_the_editor_and_the_self_test_reports_its_three_checks() {
+fn the_handshake_is_told_to_the_editor_and_the_self_test_reports_its_four_checks() {
     let calls: Calls = Arc::default();
     let port = a_stub_editor(calls.clone());
+    // **The decision model is the person's setting, so the server is given a settings file of its own** (DM-03, #454): Remote with no
+    // key in the environment, which fails the fourth check on the sentence and sends nothing anywhere. Both config-folder
+    // spellings are written, so the test is the same on macOS and on Linux.
+    let home = std::env::temp_dir().join(format!("mcp-self-test-home-{}", std::process::id()));
+    for config in [home.join("Library/Application Support/Grimoire"), home.join(".config/Grimoire")] {
+        std::fs::create_dir_all(&config).expect("a config folder");
+        std::fs::write(config.join("settings.yaml"), "version: 1\ndecision_model: remote\n").expect("a settings file");
+    }
     let mut child = Command::new(env!("CARGO_BIN_EXE_bevy_cauldron_mcp"))
+        .env("HOME", &home)
+        .env("XDG_CONFIG_HOME", home.join(".config"))
+        .env_remove("OPENROUTER_API_KEY")
         .env("BEVY_BRP_PORT", port.to_string())
         .env("CAULDRON_AGENT_TOKEN", TOKEN)
         .stdin(Stdio::piped())
@@ -163,8 +174,12 @@ fn the_handshake_is_told_to_the_editor_and_the_self_test_reports_its_three_check
         .and_then(|t| serde_json::from_str(t).ok())
         .unwrap_or_else(|| panic!("the self test answers with its results as JSON text: {answer}"));
     let checks = text["checks"].as_array().expect("the results list their checks");
-    assert_eq!(checks.len(), 3);
-    assert!(checks.iter().all(|c| c["ok"] == true), "every check passes against a willing editor: {text}");
+    assert_eq!(checks.len(), 4);
+    let (decision, rest): (Vec<&Value>, Vec<&Value>) = checks.iter().partition(|c| c["name"] == "decision_model");
+    assert!(rest.iter().all(|c| c["ok"] == true), "every check but the decision model's passes against a willing editor: {text}");
+    assert_eq!(decision.len(), 1, "{text}");
+    assert_eq!(decision[0]["ok"], false, "{text}");
+    assert!(decision[0]["detail"].as_str().is_some_and(|d| d.contains("OPENROUTER_API_KEY")), "the row says why: {text}");
     assert!(checks.iter().any(|c| c["detail"] == "a 1x1 picture"), "the picture check reads the PNG's size: {text}");
     assert!(checks.iter().any(|c| c["detail"] == "the editor is on launcher"), "{text}");
     assert!(checks.iter().any(|c| c["detail"] == "2 operations"), "{text}");

@@ -12,6 +12,7 @@
 //! | Agent started | the launch line was typed into the shell ([`AgentPost::started`]) |
 //! | Agent connected | the server told the editor its client finished the MCP handshake (`grimoire/agent_hello`) |
 //! | Agent self test | the agent ran `grimoire_self_test` and its three reads came back (`grimoire/self_test_result`) |
+//! | Decision model | the server asked the chosen decision model one text-only question and it answered; the row says which model, where it ran (`local` or `remote`) and how long it took, or why it did not (DM-03, #454) |
 //!
 //! **The tab is matched by a token.** [`plan`] mints one per launch and puts it in the server's
 //! environment (`CAULDRON_AGENT_TOKEN`); both BRP methods carry it back, so two agent tabs never read
@@ -99,12 +100,17 @@ export default function (pi: any) {
 }
 "#;
 
-/// **The four checks, in the order the card lists them.**
-pub const CHECK_LABELS: [&str; 4] = ["Tools server", "Agent started", "Agent connected", "Agent self test"];
+/// **The five checks, in the order the card lists them.**
+pub const CHECK_LABELS: [&str; 5] = ["Tools server", "Agent started", "Agent connected", "Agent self test", "Decision model"];
 const SERVER: usize = 0;
 const STARTED: usize = 1;
 const CONNECTED: usize = 2;
 const SELF_TEST: usize = 3;
+const DECISION: usize = 4;
+
+/// **The name the self test gives the decision model's check** (DM-03, #454): `grimoire_self_test` sends it with the other checks, and the card
+/// shows it as the row [`CHECK_LABELS`] names, not inside the agent self test's.
+pub const DECISION_CHECK: &str = "decision_model";
 
 /// **What an agent tab needs from the running editor.** Inserted by `main`, never by a test harness,
 /// as `settings::UserSettingsFile` is: a test inserts its own.
@@ -233,7 +239,7 @@ impl CheckStatus {
 pub struct AgentPost {
     pub harness: TerminalAgent,
     pub token: String,
-    pub checks: [CheckStatus; 4],
+    pub checks: [CheckStatus; 5],
     /// The word the shell is typed: `omp`, or a custom command's program.
     pub first_word: String,
     pub launched_s: f64,
@@ -263,7 +269,7 @@ impl AgentPost {
         AgentPost {
             harness,
             token,
-            checks: [CheckStatus::Pending, CheckStatus::Pending, CheckStatus::Pending, CheckStatus::Pending],
+            checks: [CheckStatus::Pending, CheckStatus::Pending, CheckStatus::Pending, CheckStatus::Pending, CheckStatus::Pending],
             first_word,
             launched_s,
             hello_s: None,
@@ -309,6 +315,7 @@ impl AgentPost {
         });
         if self.resuming.is_none() && !matches!(self.checks[SELF_TEST], CheckStatus::Passed(_)) {
             self.checks[SELF_TEST] = CheckStatus::Pending;
+            self.checks[DECISION] = CheckStatus::Pending;
             self.settled_s = None;
         }
         self.hello_s = Some(now_s);
@@ -319,9 +326,17 @@ impl AgentPost {
     /// **The self test's results**, as `(name, ok, detail)`: every detail when all passed, the first
     /// failure otherwise.
     pub fn self_test(&mut self, checks: &[(String, bool, String)]) {
-        self.checks[SELF_TEST] = match checks.iter().find(|(_, ok, _)| !ok) {
+        let (decision, rest): (Vec<_>, Vec<_>) = checks.iter().partition(|(name, ..)| name == DECISION_CHECK);
+        self.checks[SELF_TEST] = match rest.iter().find(|(_, ok, _)| !ok) {
             Some((name, _, detail)) => CheckStatus::Failed(format!("{name}: {detail}")),
-            None => CheckStatus::Passed(checks.iter().map(|(_, _, d)| d.as_str()).collect::<Vec<_>>().join(" · ")),
+            None => CheckStatus::Passed(rest.iter().map(|(_, _, d)| d.as_str()).collect::<Vec<_>>().join(" · ")),
+        };
+        // **The decision model has its own row**: its sentence says which model answered, where and how fast, or why it did not. A
+        // self test that did not ask it (an older server) skips the row rather than leaving it waiting.
+        self.checks[DECISION] = match decision.first() {
+            Some((_, true, detail)) => CheckStatus::Passed(detail.clone()),
+            Some((_, false, detail)) => CheckStatus::Failed(detail.clone()),
+            None => CheckStatus::Skipped("the self test did not ask it".to_owned()),
         };
         self.revision += 1;
     }
@@ -346,6 +361,7 @@ impl AgentPost {
                 self.harness.name()
             ));
             self.checks[SELF_TEST] = CheckStatus::Skipped("needs a connected agent".to_owned());
+            self.checks[DECISION] = CheckStatus::Skipped("needs a connected agent".to_owned());
             self.resume_failed = self.resuming.is_some();
             self.revision += 1;
         }
@@ -361,6 +377,7 @@ impl AgentPost {
                     "a custom command gets the self test only when it passes \"$CAULDRON_SELF_TEST_PROMPT\" to its agent".to_owned(),
                 ),
             };
+            self.checks[DECISION] = CheckStatus::Skipped("the agent's self test did not run, so the model was not asked".to_owned());
             self.revision += 1;
         }
         if self.settled_s.is_none() && !self.pending() {
@@ -462,6 +479,7 @@ impl AgentPost {
             && matches!(self.checks[SELF_TEST], CheckStatus::Failed(_))
         {
             self.checks[SELF_TEST] = CheckStatus::Pending;
+            self.checks[DECISION] = CheckStatus::Pending;
             self.hello_s = Some(now_s);
             self.settled_s = None;
             return true;
@@ -608,6 +626,7 @@ pub fn plan_resuming(
         TerminalAgent::OhMyPi => match resume {
             Some(session) => {
                 post.checks[SELF_TEST] = CheckStatus::Skipped("a resumed session is not asked its self test again".to_owned());
+                post.checks[DECISION] = CheckStatus::Skipped("a resumed session is not asked its self test again".to_owned());
                 format!("omp -e {} --resume {}\r", shell_quote(&omp_dir.to_string_lossy()), shell_quote(session))
             }
             None => format!("omp -e {} {}\r", shell_quote(&omp_dir.to_string_lossy()), shell_quote(SELF_TEST_PROMPT)),
@@ -1008,6 +1027,32 @@ mod tests {
         assert_eq!((post.led(), post.chip().0.as_str()), (LedState::Live, "omp connected · 22 tools"));
         post.self_test(&[("picture".to_owned(), false, "empty".to_owned())]);
         assert_eq!((post.led(), post.chip().0.as_str()), (LedState::Failed, "omp: self test failed"));
+    }
+
+    /// **The decision model has a row of its own** (DM-03, #454): its check passes with the sentence the server sent (model, where it
+    /// ran, latency), fails with the reason when the model did not answer, and is skipped when a self test never asked it, so it
+    /// never leaves the chip waiting. The agent self test's row does not carry it.
+    #[test]
+    fn the_decision_model_check_has_its_own_row_passing_failing_or_skipped() {
+        let say = |ok: bool, detail: &str| ("decision_model".to_owned(), ok, detail.to_owned());
+        let read = |name: &str| (name.to_owned(), true, "a picture".to_owned());
+        assert_eq!(CHECK_LABELS[DECISION], "Decision model");
+
+        let mut post = started_post(TerminalAgent::OhMyPi);
+        post.hello(None, 22, 1.0);
+        post.self_test(&[read("picture"), say(true, "d3-flash · local · 12 ms")]);
+        assert_eq!(post.checks[DECISION], CheckStatus::Passed("d3-flash · local · 12 ms".to_owned()));
+        assert_eq!(post.checks[SELF_TEST], CheckStatus::Passed("a picture".to_owned()), "the self test's row does not carry the model's sentence");
+        assert_eq!(post.led(), bevy_gooey::LedState::Live);
+
+        post.self_test(&[read("picture"), say(false, "decision endpoint http://127.0.0.1:1/v1/systemone did not answer: refused")]);
+        assert!(matches!(&post.checks[DECISION], CheckStatus::Failed(why) if why.contains("127.0.0.1:1")), "{:?}", post.checks[DECISION]);
+        assert_eq!(post.checks[SELF_TEST], CheckStatus::Passed("a picture".to_owned()));
+        assert_eq!(post.led(), bevy_gooey::LedState::Failed, "a model that did not answer fails the card, with its reason on the row");
+
+        post.self_test(&[read("picture")]);
+        assert!(matches!(post.checks[DECISION], CheckStatus::Skipped(_)));
+        assert_eq!(post.led(), bevy_gooey::LedState::Live);
     }
 
     /// **A failure outranks a check that still waits**, as the chip's words do: the agent that never connected has failed, not

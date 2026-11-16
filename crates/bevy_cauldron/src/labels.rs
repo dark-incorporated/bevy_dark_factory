@@ -38,7 +38,8 @@ use crate::label_booth::{ShotRig, ShotsReady};
 use crate::project::Project;
 use crate::tiles::EditTarget;
 use crate::label_suggestion::{LabelFailure, PromptCtx, Provenance, Suggestion};
-use crate::decide_labels::{DEFAULT_THRESHOLD, endpoint_of, label_with_decisions};
+use crate::decide_labels::{DEFAULT_THRESHOLD, label_with_decisions};
+use crate::decision_model::{Decisions, Source};
 
 /// The suggestion key for a target — id for library entries, mesh path for candidates, NEVER an
 /// index (the thumbs lesson: indices shift under removal and the wrong item inherits the data).
@@ -181,7 +182,7 @@ pub struct LabelsPlugin;
 ///
 /// # The word "connected" is only written when something connected
 ///
-/// There is one decision endpoint now, and its preflight ([`crate::decide_labels::endpoint_of`] plus
+/// There is one decision endpoint now, and its preflight ([`crate::decision_model::Source::config`] plus
 /// a TCP dial) can only tell *"a socket is open"* — not *"the model is there"*. So it is not read as
 /// evidence for the band at all: the link is written from **round trips that really happened**, in
 /// [`poll_tasks`]: an answer makes it [`Link::Live`] and carries the model name off the answer's own
@@ -278,6 +279,7 @@ fn paint_labeler(
     mut lines: Query<(&mut Text, &mut TextColor), With<crate::chrome::LabelerLine>>,
     // **The labeler's ink, from the editor's skin** (UI-02, #210).
     skin: Option<Res<bevy_gooey::GooeySkin>>,
+    decisions: Decisions,
 ) {
     let ink = crate::compose::PanelInk::of(skin.as_deref());
     if let Some(project) = project.as_ref()
@@ -287,7 +289,7 @@ fn paint_labeler(
         // The model the request will name, if the endpoint config names one. A llama.cpp server has
         // one model and names none, in which case the band says the configured endpoint and claims
         // no model until an answer arrives carrying one.
-        labeler.model = endpoint_of(&project.root).model;
+        labeler.model = decisions.source().config(&project.root).ok().and_then(|config| config.model);
         // Evidence about a round trip belongs to the project the trip was made for.
         labeler.link = Link::Untried;
     }
@@ -513,8 +515,10 @@ pub(crate) fn spawn_request(
     state: Res<crate::tiles::ImportState>,
     project: Option<Res<Project>>,
     mut tasks: ResMut<LabelTasks>,
+    decisions: Decisions,
 ) {
     let Some(project) = project else { return };
+    let source = decisions.source();
     for shot in ready.read() {
         // First stale guard: the target must still resolve to the mesh that was photographed.
         let Some(d) = state.placed_at_target(&shot.target, &project) else {
@@ -528,6 +532,7 @@ pub(crate) fn spawn_request(
         let images = shot.images.clone();
         let mesh_abs = project.root.join("assets").join(&shot.mesh);
         let root = project.root.clone();
+        let source = source.clone();
         let date = date_today();
         let task = AsyncComputeTaskPool::get().spawn(async move {
             // **Prose becomes `LabelFailure` at this one boundary.** `encode_png` and the mesh read
@@ -539,9 +544,9 @@ pub(crate) fn spawn_request(
                 .map_err(|e| format!("cannot read {}: {e}", mesh_abs.display()))?;
             let fingerprint = bevy_grimoire_core::glb::fnv1a(&bytes);
             let pngs = [encode_png(&images[0])?, encode_png(&images[1])?];
-            // **One path.** The endpoint is read once per request from the project's own `.env` and
-            // the process environment, and there is nothing to fall back to.
-            let http = bevy_oracle::Http::new(endpoint_of(&root));
+            // **One path.** The model is the person's `decision_model` setting, read once per request, and there is
+            // nothing to fall back to: a choice that cannot be asked is a refusal.
+            let http = source.transport(&root).map_err(|e| LabelFailure::Refused(e.to_string()))?;
             let (suggestion, provenance) =
                 label_with_decisions(&http, &pngs, &vocab, &ctx, DEFAULT_THRESHOLD, date)?;
             Ok::<_, LabelFailure>((suggestion, provenance, fingerprint))
@@ -643,7 +648,7 @@ pub(crate) fn poll_tasks(
                     queue.total = 0;
                     let dropped = rig.clear_queue();
                     state.status.problem(format!(
-                        "batch stopped at {done}/{total} ({dropped} unphotographed) — {e}. Bring the decision endpoint up (GRIMOIRE_DECIDE_ENDPOINT) and press Shift+L again"
+                        "batch stopped at {done}/{total} ({dropped} unphotographed) — {e}. Bring the decision endpoint up (or change the Decision model in Settings) and press Shift+L again"
                     ));
                 } else {
                     state
@@ -913,14 +918,14 @@ struct Warming {
 /// mesh is photographed, which is the cheapest place to learn the endpoint is down: the failure
 /// would otherwise be discovered by the first request, after a photo shoot, and reported once per
 /// queued mesh.
-fn arm_batch(queue: &mut LabelQueue, targets: Vec<EditTarget>, root: &std::path::Path, now: f64) {
+fn arm_batch(queue: &mut LabelQueue, targets: Vec<EditTarget>, root: &std::path::Path, now: f64, source: Source) {
     queue.total = targets.len();
     queue.queue = targets.into_iter().collect();
     queue.paused = false;
     let root = root.to_path_buf();
     queue.warming = Some(Warming {
         task: AsyncComputeTaskPool::get().spawn(async move {
-            let http = bevy_oracle::Http::new(endpoint_of(&root));
+            let http = source.transport(&root).map_err(|e| LabelFailure::Refused(e.to_string()))?;
             crate::decide_labels::warm(&http)
         }),
         since: now,
@@ -991,6 +996,8 @@ pub(crate) struct Labeller<'w> {
     pub(crate) confirm: Option<ResMut<'w, crate::confirm::Confirm>>,
     /// For `arm_batch`, which stamps the warm-up's start so the wait can count itself.
     time: Option<Res<'w, Time>>,
+    /// Which model a batch's warm-up asks (`arm_batch`) and whether a walk may start (`cursor`).
+    decisions: Decisions<'w>,
 }
 
 /// **The pieces a walk would take**, gathered by the front end beside the counts the operation reads: the set that has no
@@ -1071,11 +1078,15 @@ impl Labeller<'_> {
         // asked its overwrite question over another would take that question away.
         let asking = queue.ask.is_some() || self.confirm.as_deref().is_some_and(crate::confirm::Confirm::is_open);
         let unreachable = (probe && !running && !asking)
-            .then(|| match crate::decide_labels::probe(&endpoint_of(&project.root)) {
-                crate::decide_labels::Reach::Unreachable(remedy) => Some(remedy),
-                // A warming endpoint is NOT a refusal — a cold model load takes tens of seconds, so the batch starts rather than
-                // making the author retry until it happens to be up.
-                crate::decide_labels::Reach::Ready | crate::decide_labels::Reach::Warming(_) => None,
+            .then(|| match self.decisions.source().config(&project.root) {
+                // **A choice that cannot be asked is a refusal too** (Remote with no key): the walk does not start, and says why.
+                Err(e) => Some(e.to_string()),
+                Ok(config) => match crate::decide_labels::probe(&config) {
+                    crate::decide_labels::Reach::Unreachable(remedy) => Some(remedy),
+                    // A warming endpoint is NOT a refusal — a cold model load takes tens of seconds, so the batch starts rather than
+                    // making the author retry until it happens to be up.
+                    crate::decide_labels::Reach::Ready | crate::decide_labels::Reach::Warming(_) => None,
+                },
             })
             .flatten();
         let cursor = crate::ops_view::LabelsCursor {
@@ -1160,7 +1171,7 @@ impl Labeller<'_> {
             LabelsAnswer::Start { all } => {
                 let targets = if all { gathered.everything } else { gathered.targets };
                 let now = self.time.as_deref().map_or(0.0, |t| t.elapsed_secs_f64());
-                arm_batch(queue, targets, &project.root, now);
+                arm_batch(queue, targets, &project.root, now, self.decisions.source());
                 state.status.note(said.to_owned());
             }
             LabelsAnswer::Abandon => {
@@ -1235,6 +1246,7 @@ pub(crate) fn answer_overwrite(
     project: Option<Res<Project>>,
     time: Res<Time>,
     mut confirm: ResMut<crate::confirm::Confirm>,
+    decisions: Decisions,
 ) {
     let Some(project) = project else { return };
     let Some(ask) = queue.ask.clone() else { return };
@@ -1259,7 +1271,7 @@ pub(crate) fn answer_overwrite(
             .note("nothing to label — every piece in scope already has labels".to_owned());
         return;
     }
-    arm_batch(&mut queue, targets, &project.root, time.elapsed_secs_f64());
+    arm_batch(&mut queue, targets, &project.root, time.elapsed_secs_f64(), decisions.source());
     state.status.note(crate::ops_labeller::labeling_says(queue.total, ""));
 }
 
@@ -1544,7 +1556,7 @@ pub fn apply_fields(
         // **A different model does not inherit the last one's attributions.** `origin.by = was.by`
         // was unconditional, and `AxisOrigin` is `Copy`, so every axis a previous run had stamped
         // came across whole — while `origin.model` and `origin.confidence` had already been replaced
-        // with THIS run's. Label with one model, change the endpoint's `GRIMOIRE_DECIDE_MODEL`, press
+        // with THIS run's. Label with one model, change the decision model in Settings, press
         // `L` again with a proposal carrying no mount, and the record read `mount: Model` beside a model
         // that had said nothing about the mount.
         //
@@ -2449,7 +2461,7 @@ mod tests {
     ///
     /// The previous record's whole per-axis map was copied across unconditionally — `AxisOrigin` is
     /// `Copy`, so the copy was invisible — while `model` and `confidence` had already been replaced
-    /// with the new run's. Label with one model, change the endpoint's `GRIMOIRE_DECIDE_MODEL`, press
+    /// with the new run's. Label with one model, change the decision model in Settings, press
     /// `L` again with a proposal carrying no mount, and the record read `mount: Model` beside a model
     /// that had said nothing about the mount: a provenance field actively misinforming the person
     /// reading it, which is the one failure worse than having no field at all.

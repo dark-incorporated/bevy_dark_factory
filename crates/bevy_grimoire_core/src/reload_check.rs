@@ -243,6 +243,10 @@ pub fn check(kind: &FileKind, file: &str, text: &str) -> Check {
 /// [`crate::reload::Base::Grimoire`] is found by what follows it.
 pub const GRIMOIRE_DIR: &str = "assets/grimoire";
 
+/// **The project's own settings file**, inside [`GRIMOIRE_DIR`] (kind `editor_settings`): the layer over the person's
+/// `settings.yaml`. Named here so the editor and every engine-free reader of one of its keys name the same file.
+pub const PROJECT_SETTINGS_FILE: &str = "editor.yaml";
+
 /// **The kind a project-relative file is** (GD-11, #373), or `None` for a path no kind owns.
 ///
 /// `rel` is spelled with `/` and is relative to the project's root: a kind based at the game's root matches it

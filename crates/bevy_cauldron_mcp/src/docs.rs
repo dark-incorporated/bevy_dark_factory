@@ -329,7 +329,14 @@ pub const TOOLS: &[ToolDoc] = &[
     },
     ToolDoc {
         name: "grimoire_decide",
-        description: "Ask a decision model a typed question about the editor's pictures and facts, and get a \
+        description: concat!(
+                      "The fastest way to check how your work looks: one still and up to eight questions, answered ",
+                      crate::decide_latency!(),
+                      " with a probability each. Call it after every change the person will see, before you hand back: \
+                      pass view: true to take the still yourself, or give a still from grimoire_capture_still in images \
+                      (its path or its fingerprint), and ask four or five typed questions about what was asked for. The \
+                      answer names the model that answered (and model_source, reported by the endpoint or configured), where it ran (local, or remote when pictures may have left the \
+                      LAN) and latency_ms. Ask a decision model a typed question about the editor's pictures and facts, and get a \
                       probability for every allowed answer, with nothing to parse. Two forms. check: a \
                       named check such as floating, clipping, outside_area, blank_frame or toast_visible \
                       (the editor's own, with the project's assets/grimoire/checks.yaml over them, read on every \
@@ -337,15 +344,17 @@ pub const TOOLS: &[ToolDoc] = &[
                       found, and takes the editor's current picture itself when it needs view. questions: \
                       ad-hoc typed questions by id, each noul (yes or no, P(yes)), choice (named options, \
                       each one's probability) or score (levels, a weighted score), with state in words, \
-                      images (project files, at most four) and facts (JSON). A check that needs a picture or \
+                      images (stills from grimoire_capture_still, at most four, each at most 8 MiB) and facts (JSON). A check that needs a picture or \
                       facts it was not given is refused and names what is missing; it never answers from \
                       less. game: also look at the running game that play started: a frame from its \
                       bevy_fairy, named game, on the port in play.yaml or game.port, and one BRP call's \
                       answer (game.state) as facts.game; a check that asks for the image game takes it \
                       itself, and a game's own checks live in the project's assets/grimoire/checks.yaml. \
                       Advisory: it changes no map data and a finding never blocks or undoes an \
-                      operation. The endpoint is one per run, local by default; a Cloudflare endpoint sends \
-                      pictures off the LAN and is opt-in.",
+                      operation. Which model answers is the person's decision_model setting: Local (d3-flash \
+                      on the LAN, the default) or Remote (Perplexity's, through OpenRouter, which sends \
+                      pictures off the LAN and is the person's own choice). It is one per call with no \
+                      fallback: Remote with no OPENROUTER_API_KEY is refused, never asked of the local model."),
         read_only: true,
         destructive: false,
         idempotent: false,
@@ -538,8 +547,10 @@ pub const TOOLS: &[ToolDoc] = &[
     ToolDoc {
         name: "grimoire_self_test",
         description: "Cauldron's power-on self test, for an agent started in Cauldron's terminal: \
-                      reads the editor's state, counts its operations and takes one picture of the \
-                      editor, tells the editor how each went (it shows them to the person), and \
+                      reads the editor's state, counts its operations, takes one picture of the \
+                      editor and asks the decision model one text-only question (which model \
+                      answered, where it ran and how long it took, or why it did not answer), tells \
+                      the editor how each went (it shows them to the person), and \
                       returns the picture and the results. Call it once when asked to run the self \
                       test; it changes nothing.",
         read_only: true,
@@ -817,7 +828,7 @@ pub fn schemas() -> Value {
                 "check": {"type": "string", "description": "A named check, such as floating. Give this or questions."},
                 "questions": {"type": "object", "description": "Ad-hoc typed questions by id: {\"type\": \"noul\", \"instructions\": ...}, {\"type\": \"choice\", \"instructions\": ..., \"criteria\": {option: meaning}} or {\"type\": \"score\", \"instructions\": ..., \"criteria\": [levels, lowest first]}."},
                 "state": {"type": "string", "description": "What the ad-hoc questions are about, in words."},
-                "images": {"type": "array", "maxItems": 4, "items": {"type": "object", "additionalProperties": false, "required": ["name", "path"], "properties": {"name": {"type": "string"}, "path": {"type": "string"}}}, "description": "Pictures, files under the project, each with the name a check asks for."},
+                "images": {"type": "array", "maxItems": 4, "items": {"type": "object", "additionalProperties": false, "required": ["name", "path"], "properties": {"name": {"type": "string"}, "path": {"type": "string", "description": "A still from grimoire_capture_still: its path, or the fingerprint (16 lowercase hex digits) it returned. Only files under the project's target/loop/captures, at most 8 MiB, are sent."}}}, "description": "Pictures, stills from grimoire_capture_still, each with the name a check asks for."},
                 "view": {"type": "boolean", "default": false, "description": "Also take the editor's current picture, named view."},
                 "facts": {"description": "The JSON facts: the operations run, the pieces, the camera."},
                 "game": {"type": "object", "additionalProperties": false, "description": "Also look at the running game: a frame from its bevy_fairy, named game, and one BRP call's answer as facts.game.", "properties": {

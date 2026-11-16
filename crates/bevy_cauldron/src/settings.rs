@@ -33,6 +33,7 @@ use bevy_grimoire_core::live::{KindVerdict, Outcome};
 use bevy_grimoire_core::reload_check::{self, Refusal};
 use serde::{Deserialize, Serialize};
 use bevy_gooey::Shortcut;
+use bevy_oracle::DecisionModel;
 
 use crate::editor::EditorState;
 use crate::live::EditorReloads;
@@ -43,9 +44,10 @@ pub const SETTINGS_VERSION: u32 = 1;
 /// The id of the reload-contract kind both layers' verdicts carry.
 pub const KIND: &str = "editor_settings";
 
-const USER_FILE: &str = "settings.yaml";
+/// The person's file, in the per-user config folder (named once, in the core, so every reader of one of its keys names the same file).
+const USER_FILE: &str = bevy_grimoire_core::user_dirs::SETTINGS_FILE;
 /// The project's file, under the project directory (`assets/grimoire`).
-pub const PROJECT_FILE: &str = "editor.yaml";
+pub const PROJECT_FILE: &str = bevy_grimoire_core::reload_check::PROJECT_SETTINGS_FILE;
 
 /// How long a file whose size and modification time did not move goes unread.
 const RECHECK_SECS: f32 = 1.0;
@@ -350,6 +352,13 @@ pub struct EditorSettings {
     /// [`Workspace::default_layout`](crate::workspace::Workspace::default_layout) — its own default,
     /// so a person who has never moved anything has no key in their file.
     pub workspace_layout: BTreeMap<String, bevy_gooey::DockLayout>,
+    /// **Which decision model is asked** (DM-03, #454): Local (d3-flash on the LAN) or Remote (Perplexity's, through
+    /// OpenRouter, which sends pictures off the LAN). The one setting the editor, its labeller and checks, and the MCP server
+    /// all read.
+    ///
+    /// **Only the person's own file decides it.** A project file that sets it is a problem and is ignored
+    /// ([`bevy_oracle::project_may_not_choose`]): a project cannot send its agents' pictures off the LAN.
+    pub decision_model: DecisionModel,
 }
 
 impl Default for EditorSettings {
@@ -376,6 +385,7 @@ impl Default for EditorSettings {
             terminal_shell: None,
             terminal_shell_args: Vec::new(),
             workspace_layout: BTreeMap::new(),
+            decision_model: DecisionModel::default(),
         }
     }
 }
@@ -451,6 +461,9 @@ pub struct SettingsLayer {
     /// written back.
     #[serde(default, skip_serializing)]
     pub shell_layout: Option<bevy_gooey::DockLayout>,
+    /// **Which decision model is asked** (DM-03, #454). Only the person's file counts: see [`EditorSettings::decision_model`].
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub decision_model: Option<DecisionModel>,
 }
 
 impl Default for SettingsLayer {
@@ -479,6 +492,7 @@ impl Default for SettingsLayer {
             terminal_shell_args: None,
             workspace_layout: BTreeMap::new(),
             shell_layout: None,
+            decision_model: None,
         }
     }
 }
@@ -608,6 +622,12 @@ impl EditorSettings {
             for (workspace, layout) in &layer.workspace_layout {
                 out.workspace_layout.insert(workspace.clone(), layout.clone());
             }
+        }
+        // **Only the person's own layer chooses the decision model** (DM-03, #454): a project that could say Remote would
+        // send its agents' pictures off the LAN for everyone who opens it. The project's key is a settings problem
+        // ([`project_chose_the_model`]) and is ignored here.
+        if let Some(user) = user {
+            out.decision_model = user.decision_model.unwrap_or(out.decision_model);
         }
         out
     }
@@ -756,10 +776,14 @@ pub fn custom_agent_without_command(user: Option<&SettingsLayer>, project: Optio
     }
 }
 
-/// One file that read: applied, or refused for the Custom agent it chose without a command.
-fn agent_verdict(file: String, source: AgentFile, culprit: Option<AgentFile>) -> KindVerdict {
+/// One file that read: applied, or refused for the Custom agent it chose without a command, or (the project's file only) for
+/// choosing the decision model, which is the person's own choice and not a project's (DM-03, #454). The refusal names the file and the
+/// field, and the choice the person made stays.
+fn agent_verdict(file: String, source: AgentFile, culprit: Option<AgentFile>, project_chose: Option<DecisionModel>) -> KindVerdict {
     if culprit == Some(source) {
         KindVerdict::refused(KIND, file, Some("terminal_agent".to_owned()), CUSTOM_WITHOUT_COMMAND)
+    } else if let (AgentFile::Project, Some(chose)) = (source, project_chose) {
+        KindVerdict::refused(KIND, file, Some(bevy_oracle::SETTING_KEY.to_owned()), bevy_oracle::project_may_not_choose(chose))
     } else {
         KindVerdict::applied(KIND, file)
     }
@@ -802,10 +826,11 @@ pub fn sync_settings(
     // **The file that chose a Custom agent and gave it no command** (#425), judged on both layers together: a project that
     // chooses Custom is fine when the user's file holds the command.
     let culprit = custom_agent_without_command(view.user.good.as_ref(), view.project.good.as_ref());
+    let project_chose = view.project.good.as_ref().and_then(|layer| layer.decision_model);
     let looked: Vec<AgentFile> = looks.iter().map(|(_, _, source)| *source).collect();
     for (file, look, source) in looks {
         let verdict = match look {
-            Look::Applied => agent_verdict(file, source, culprit),
+            Look::Applied => agent_verdict(file, source, culprit, project_chose),
             Look::Gone => {
                 if let Some(reloads) = reloads.as_deref_mut() {
                     reloads.forget_file(KIND, &file);
@@ -840,7 +865,7 @@ pub fn sync_settings(
                 continue;
             }
             if let Some(reloads) = reloads.as_deref_mut() {
-                reloads.decide(vec![agent_verdict(file, source, culprit)]);
+                reloads.decide(vec![agent_verdict(file, source, culprit, project_chose)]);
             }
         }
     }

@@ -3,15 +3,17 @@
 //!
 //! Two forms: a **named check** from `checks.yaml` (the editor's built-ins, merged with the project's own
 //! `assets/grimoire/checks.yaml`, read on every call so an edit takes effect at once), and **ad-hoc typed
-//! questions**. Images are files under the project; the one picture the server can take itself is `view`,
+//! questions**. Images are stills `grimoire_capture_still` wrote under the project; the one picture the server can take itself is `view`,
 //! the editor's current picture. A third, `game`, is a frame of the **running game** taken through its own
 //! `bevy_fairy` (the port in the project's `play.yaml`), with one BRP call's answer as the facts, so the same
 //! checks and questions work on the game as on the editor (#114).
 
+use std::cell::{Cell, RefCell};
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
+use std::time::{Duration, Instant};
 
-use bevy_oracle::{Check, Checks, Evidence, Question, Request, Transport};
+use bevy_oracle::{Check, Checks, Error, Evidence, Question, Request, Response, Transport};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
@@ -36,8 +38,10 @@ pub struct DecideParams {
     /// **What the ad-hoc questions are about**, in words.
     #[serde(default)]
     pub state: Option<String>,
-    /// **Pictures, files under the project**, each with the name a check asks for (`before`, `after`,
-    /// `closeup`, ...). Ad-hoc questions send them in this order. At most four.
+    /// **Pictures, stills from `grimoire_capture_still`**, each with the name a check asks for (`before`,
+    /// `after`, `closeup`, ...). Ad-hoc questions send them in this order. At most four. A still is given by
+    /// its `path` or its `fingerprint` (see [`NamedImage::path`]), so a before-and-after pair is asked about
+    /// without a second capture.
     #[serde(default)]
     pub images: Vec<NamedImage>,
     /// **Whether to take the editor's current picture too**, named `view`. A named check that needs `view`
@@ -130,7 +134,10 @@ pub async fn fetch_game(project: &Path, game: &GameParams) -> Result<GameEvidenc
 pub struct NamedImage {
     /// The name a check asks for.
     pub name: String,
-    /// A PNG or JPEG file under the project, relative to it.
+    /// **A still from `grimoire_capture_still`**: its `path` (relative to the project, or absolute) or **the
+    /// fingerprint** (sixteen lowercase hex digits) it returned, which names the newest still with those
+    /// bytes. Only files under the project's `target/loop/captures` are sent, each at most
+    /// [`IMAGE_BYTES_MAX`] bytes; any other file is refused.
     pub path: String,
 }
 
@@ -197,22 +204,171 @@ pub fn needs_view(params: &DecideParams, checks: &Checks) -> bool {
             .is_some_and(|c| c.images.iter().any(|i| i == VIEW))
 }
 
-/// A file under `project`, as a data URL. Refuses a path that leaves the project.
+/// **Where `grimoire_capture_still` writes**, under the project: `<project>/target/loop/captures/<label>/still-<ms>.png`.
+const CAPTURES: [&str; 3] = ["target", "loop", "captures"];
+
+/// **The most bytes of one picture a file named in `images` may have** (8 MiB). A still of the editor's
+/// surface is a PNG of a few hundred KiB to a few MiB; a file past this is not one, and a remote endpoint
+/// would be sent it base64-encoded, a third larger.
+pub const IMAGE_BYTES_MAX: u64 = 8 * 1024 * 1024;
+
+/// **Whether `s` is a fingerprint**: what [`crate::fingerprint`] returns, sixteen lowercase hex digits.
+fn is_fingerprint(s: &str) -> bool {
+    s.len() == 16 && s.bytes().all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'f'))
+}
+
+/// **Every still under `dir`**, as `(modified, path)`, found by walking `captures/<label>/...`. **A link is
+/// never followed**, neither a linked folder (so a cycle cannot trap the walk, and a folder elsewhere in the
+/// project cannot be searched through the captures) nor a linked file: only what `grimoire_capture_still`
+/// wrote itself is a still. A file over [`IMAGE_BYTES_MAX`] cannot be sent, so it is not a candidate and is
+/// never read.
+fn stills_under(dir: &Path, out: &mut Vec<(std::time::SystemTime, PathBuf)>) {
+    let Ok(entries) = std::fs::read_dir(dir) else { return };
+    for entry in entries.flatten() {
+        let Ok(kind) = entry.file_type() else { continue };
+        let path = entry.path();
+        if kind.is_dir() {
+            stills_under(&path, out);
+        } else if kind.is_file()
+            && path.file_name().and_then(|n| n.to_str()).is_some_and(|n| n.starts_with("still-") && n.ends_with(".png"))
+            && let Ok(meta) = entry.metadata()
+            && meta.len() <= IMAGE_BYTES_MAX
+            && let Ok(modified) = meta.modified()
+        {
+            out.push((modified, path));
+        }
+    }
+}
+
+/// **The project's captures folder**, where `grimoire_capture_still` writes.
+fn captures_dir(root: &Path) -> PathBuf {
+    CAPTURES.iter().fold(root.to_path_buf(), |p, part| p.join(part))
+}
+
+/// **The newest still under the project's captures whose bytes have `fingerprint`**, hashing newest first and
+/// stopping at the first match. Only the stills `grimoire_capture_still` wrote are searched: a fingerprint
+/// never reaches an arbitrary file.
+fn still_with_fingerprint(root: &Path, fingerprint: &str) -> Result<PathBuf, String> {
+    let mut stills = Vec::new();
+    stills_under(&captures_dir(root), &mut stills);
+    stills.sort_by_key(|a| std::cmp::Reverse(a.0));
+    stills
+        .into_iter()
+        .map(|(_, path)| path)
+        .find(|path| std::fs::read(path).is_ok_and(|bytes| crate::fingerprint(&bytes) == fingerprint))
+        .ok_or_else(|| {
+            format!(
+                "image `{fingerprint}`: no still under the project's target/loop/captures has that fingerprint; \
+                 take one with grimoire_capture_still and pass its path or its fingerprint."
+            )
+        })
+}
+
+/// A still under `project`, as a data URL. `rel` is its path (relative to the project, or absolute, as
+/// `grimoire_capture_still` answers it) or the fingerprint of a still.
+///
+/// **Only what `grimoire_capture_still` wrote is sent to a model** (the files under the project's
+/// `target/loop/captures`, after links are resolved), and at most [`IMAGE_BYTES_MAX`] bytes of it: a
+/// remote endpoint (DM-02) must never carry a file the agent merely named.
 fn image_data_url(project: &Path, rel: &str) -> Result<String, String> {
     use base64::Engine as _;
     let root = project.canonicalize().map_err(|e| format!("{}: {e}", project.display()))?;
-    let full: PathBuf = root.join(rel);
+    let full: PathBuf = if is_fingerprint(rel) && !root.join(rel).exists() {
+        still_with_fingerprint(&root, rel)?
+    } else {
+        root.join(rel)
+    };
     let full = full.canonicalize().map_err(|e| format!("image `{rel}`: {e}"))?;
     if !full.starts_with(&root) {
         return Err(format!("image `{rel}` is outside the project."));
+    }
+    let captures = captures_dir(&root);
+    if !captures.canonicalize().is_ok_and(|c| full.starts_with(c)) {
+        return Err(format!(
+            "image `{rel}` is not a still: only the pictures under the project's target/loop/captures, which \
+             grimoire_capture_still writes, are sent to a model."
+        ));
     }
     let mime = match full.extension().and_then(|e| e.to_str()).map(str::to_ascii_lowercase).as_deref() {
         Some("png") => "image/png",
         Some("jpg" | "jpeg") => "image/jpeg",
         _ => return Err(format!("image `{rel}` is not a .png or .jpg file.")),
     };
+    let len = std::fs::metadata(&full).map_err(|e| format!("image `{rel}`: {e}"))?.len();
+    if len > IMAGE_BYTES_MAX {
+        return Err(format!("image `{rel}` is {len} bytes; a picture sent to a model is at most {IMAGE_BYTES_MAX} bytes."));
+    }
     let bytes = std::fs::read(&full).map_err(|e| format!("image `{rel}`: {e}"))?;
     Ok(format!("data:{mime};base64,{}", base64::engine::general_purpose::STANDARD.encode(bytes)))
+}
+
+/// **A transport that notes what the answer must say about itself**: which model answered, and how long the
+/// endpoint took (the sum of its answers' round trips, so the pictures' encoding is not counted).
+struct Measured<'a> {
+    inner: &'a dyn Transport,
+    model: RefCell<Option<String>>,
+    spent: Cell<Duration>,
+}
+
+impl<'a> Measured<'a> {
+    fn new(inner: &'a dyn Transport) -> Self {
+        Measured { inner, model: RefCell::new(None), spent: Cell::new(Duration::ZERO) }
+    }
+
+    /// **The answer's `model`, `model_source`, `where` and `latency_ms`**, to be merged into it.
+    fn about(&self) -> Value {
+        let model = self.model.borrow().clone();
+        json!({
+            "model_source": model.as_ref().map(|_| REPORTED),
+            "model": model,
+            "where": self.inner.site().where_ran(),
+            "latency_ms": u64::try_from(self.spent.get().as_millis()).unwrap_or(u64::MAX),
+        })
+    }
+}
+
+impl Transport for Measured<'_> {
+    fn endpoint(&self) -> String {
+        self.inner.endpoint()
+    }
+    fn site(&self) -> bevy_oracle::DecisionModel {
+        self.inner.site()
+    }
+    fn send(&self, request: &Request) -> Result<Response, Error> {
+        let started = Instant::now();
+        let response = self.inner.send(request);
+        self.spent.set(self.spent.get() + started.elapsed());
+        if let Ok(r) = &response
+            && let Some(name) = &r.model
+        {
+            self.model.borrow_mut().get_or_insert_with(|| name.clone());
+        }
+        response
+    }
+}
+
+/// **`model_source` when the endpoint's own response named the model.**
+pub const REPORTED: &str = "reported";
+/// **`model_source` when the endpoint named none and the configuration did** (the remote model's name is one the
+/// request itself carried).
+pub const CONFIGURED: &str = "configured";
+
+/// **Name the model the endpoint did not name**: a server that answers without a `model` is named by the
+/// one the configuration sent, when there is one, and the answer's `model_source` says `configured` rather
+/// than `reported`. A model the endpoint named is never replaced.
+pub fn name_the_model(answer: &mut Value, configured: Option<&str>) {
+    if answer["model"].is_null()
+        && let Some(name) = configured
+    {
+        answer["model"] = json!(name);
+        answer["model_source"] = json!(CONFIGURED);
+    }
+}
+
+fn merge(answer: &mut Value, about: Value) {
+    if let (Some(a), Value::Object(b)) = (answer.as_object_mut(), about) {
+        a.extend(b);
+    }
 }
 
 /// **Decide.** `view` is the editor's current picture as base64 PNG, when it was taken.
@@ -234,6 +390,8 @@ pub fn decide_with(
     game: Option<&GameEvidence>,
     transport: &dyn Transport,
 ) -> Result<Value, String> {
+    let measured = Measured::new(transport);
+    let transport = &measured;
     let mut images: BTreeMap<String, String> = BTreeMap::new();
     let mut ordered: Vec<String> = Vec::new();
     for i in &params.images {
@@ -283,13 +441,16 @@ pub fn decide_with(
                 "check": name,
                 "finding": finding,
                 "message": finding.message(),
-                "calibrated": check.calibration.is_some(),
+                "calibrated": finding.is_calibrated(),
+                "model": finding.model,
+                "note": finding.uncalibrated_note(),
                 "advisory": true,
                 "endpoint": transport.endpoint(),
             });
             if let Some(g) = game {
                 answer["game"] = json!({"port": g.port, "state": g.state.is_some()});
             }
+            merge(&mut answer, measured.about());
             Ok(answer)
         }
         (None, Some(questions)) => {
@@ -308,7 +469,64 @@ pub fn decide_with(
             if let Some(g) = game {
                 answer["game"] = json!({"port": g.port, "state": g.state.is_some()});
             }
+            merge(&mut answer, measured.about());
             Ok(answer)
         }
+    }
+}
+
+/// **Decide as the person's settings say** (DM-03, #454): read the layers (`user_settings` is the person's
+/// `settings.yaml`, and the project's own `editor.yaml` is looked at too), build the endpoint they choose and ask it.
+///
+/// **One endpoint per call, no fallback.** Remote with no `OPENROUTER_API_KEY` is refused with that sentence and
+/// the local model is not asked instead; a settings file that does not read is refused naming the file. A project file that
+/// names the choice is ignored and said in the answer's `settings_problems`, naming the file.
+pub fn decide_asked(
+    params: &DecideParams,
+    project: &Path,
+    view: Option<&str>,
+    game: Option<&GameEvidence>,
+    user_settings: Option<&Path>,
+    endpoints: &bevy_oracle::Endpoints,
+) -> Result<Value, String> {
+    let resolved = endpoints.resolve(user_settings, Some(&bevy_oracle::project_file(project))).map_err(|e| e.to_string())?;
+    let configured = resolved.config.model.clone();
+    let transport = bevy_oracle::Live::new(resolved.config);
+    let mut answer = decide_with(params, project, view, game, &transport)?;
+    name_the_model(&mut answer, configured.as_deref());
+    if !resolved.chosen.problems.is_empty() {
+        answer["settings_problems"] = json!(resolved.chosen.problems.iter().map(ToString::to_string).collect::<Vec<_>>());
+    }
+    Ok(answer)
+}
+
+/// **The name of the self test's decision-model check**: the editor's card gives it a row of its own.
+pub const SELF_TEST_CHECK: &str = "decision_model";
+
+/// **How long the self test waits for the model**, in seconds. The default wait is a minute, which would hold an agent's first
+/// call that long; a model that has not answered a one-word question in this long is not available to a check that wants
+/// to be fast.
+pub const SELF_TEST_PATIENCE_SECS: u64 = 20;
+
+/// **The decision model's check for `grimoire_self_test`**, as `{name, ok, detail}`: ask the chosen model one text-only `noul` and
+/// say which model answered, where it ran (`local` or `remote`) and how long it took, or why it did not answer. An agent
+/// learns at start-up whether its fastest check is there.
+///
+/// Resolved exactly as `grimoire_decide` is ([`decide_asked`]): one endpoint, no fallback, and Remote with no key fails
+/// with that sentence rather than asking the local model. Nothing of the project goes in the question.
+pub fn self_test_check(project: Option<&Path>, user_settings: Option<&Path>, endpoints: &bevy_oracle::Endpoints) -> Value {
+    let project_file = project.map(bevy_oracle::project_file);
+    let result = endpoints.resolve(user_settings, project_file.as_deref()).and_then(|resolved| {
+        let mut config = resolved.config;
+        config.timeout_secs = SELF_TEST_PATIENCE_SECS;
+        bevy_oracle::probe(&bevy_oracle::Live::new(config))
+    });
+    match result {
+        Ok(a) => json!({
+            "name": SELF_TEST_CHECK,
+            "ok": true,
+            "detail": format!("{} · {} · {} ms", a.model, a.site, a.latency.as_millis()),
+        }),
+        Err(e) => json!({"name": SELF_TEST_CHECK, "ok": false, "detail": e.to_string()}),
     }
 }

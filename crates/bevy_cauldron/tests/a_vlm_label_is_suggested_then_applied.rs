@@ -93,11 +93,7 @@ fn context(tag: &str, url: &str) -> Ctx {
     // **`GRIMOIRE_LABEL_PATH=chat` is in the file on purpose**: there is one path now, and a
     // setting left behind in a project's `.env` must select nothing rather than quietly choose
     // a second one.
-    std::fs::write(
-        root.join(".env"),
-        format!("GRIMOIRE_LABEL_PATH=chat\nGRIMOIRE_DECIDE_ENDPOINT={url}\n"),
-    )
-    .expect(".env");
+    std::fs::write(root.join(".env"), "GRIMOIRE_LABEL_PATH=chat\n").expect(".env");
     for shot in ["front.png", "side.png"] {
         std::fs::write(root.join(shot), b"\x89PNG\r\n\x1a\nnot a real picture").expect("shot");
     }
@@ -106,7 +102,13 @@ fn context(tag: &str, url: &str) -> Ctx {
         app.update();
     }
     let project = app.world().resource::<bevy_cauldron::project::Project>().clone();
-    Ctx { project: Some(project), session: "test".to_owned(), ..Ctx::default() }
+    // **Where Local goes is the stand-in's address, through the context** (DM-03, #454): the decision model is the setting, not a variable.
+    let decisions = bevy_cauldron::decision_model::Source {
+        user_file: None,
+        endpoints: bevy_oracle::Endpoints { local: url.to_owned(), ..Default::default() },
+        link: Default::default(),
+    };
+    Ctx { project: Some(project), session: "test".to_owned(), decisions: Some(decisions), ..Ctx::default() }
 }
 
 fn kind_of(ctx: &Ctx) -> Vec<String> {

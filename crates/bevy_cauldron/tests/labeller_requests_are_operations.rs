@@ -45,8 +45,12 @@ fn editor_over(tag: &str, listening: bool, pieces: &[&str]) -> App {
         // Closed again at once: the port is one nothing listens on, so a connect is refused.
         drop(listener);
     }
-    std::fs::write(root.join(".env"), format!("GRIMOIRE_DECIDE_ENDPOINT=http://127.0.0.1:{port}\n")).expect(".env");
     let mut app = bevy_cauldron::harness::build_headless_at(&root, "m", None, Mode::Meshes).unwrap_or_else(|e| panic!("{e}"));
+    // **The decision model is the setting (Local, by default), and where Local goes is the stand-in's address** (DM-03, #454).
+    app.insert_resource(bevy_cauldron::decision_model::DecisionState {
+        endpoints: bevy_oracle::Endpoints { local: format!("http://127.0.0.1:{port}/v1/systemone"), ..Default::default() },
+        ..Default::default()
+    });
     app.add_plugins(bevy_debugger_bevy::DebuggerPlugin::default());
     app.add_plugins(bevy_cauldron::ops_brp::OpsBridgePlugin);
     app.world_mut().spawn((Window::default(), PrimaryWindow));
