@@ -558,6 +558,8 @@ pub const OWNERSHIP: &[(&str, Ownership)] = &[
     ("bevy_cauldron::style_proposals::StyleProposals", Ownership::Session),
     // **`Session`: the style pages `grimoire_style` has served this sitting** (SG-09, #408), which a hand-back may cite lines of: a door change does not make an agent forget what it was told.
     ("bevy_cauldron::style_followed::StyleServed", Ownership::Session),
+    // The prose face (#469): loaded once and true for as long as the app runs, whichever door is open.
+    ("bevy_cauldron::prose::ProseFont", Ownership::Session),
     ("bevy_cauldron::ui_budget::UiFrame", Ownership::Session),
     ("bevy_cauldron::ui_budget::GooeySpan", Ownership::Session),
     // **`Session`**: whether this run opens no addresses (it records them instead) is the run's own fact, true for as long as the app runs.

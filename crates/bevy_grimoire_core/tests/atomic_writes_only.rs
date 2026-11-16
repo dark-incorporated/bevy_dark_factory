@@ -89,6 +89,11 @@ const ALLOWED: &[Allowed] = &[
         why: "reopens the game's log for append, which is the handle the game writes its own output through (`append(true)`), so a cut by the editor never loses a later line; a per-user temp file, not a project file",
     },
     Allowed {
+        file: "bevy_cauldron/src/turn_store.rs",
+        needle: "std::fs::OpenOptions::new()",
+        why: "appends one whole line to the person's label ledger under the data folder (`turn_store::TurnStore::append`): an append of a single `write` cannot leave a reader a half line, and the file is not a project file (it is the person's own training data, never a game's). A rewrite of the whole ledger goes through `bevy_grimoire_core::atomic_file::write`",
+    },
+    Allowed {
         file: "bevy_cauldron/src/ops_play.rs",
         needle: "std::fs::OpenOptions::new().write(true).open(path)",
         why: "cuts the game's log back past its size cap (`ops_play::enforce_log_cap`); a per-user temp file the editor owns, not a project file",

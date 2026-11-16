@@ -693,5 +693,7 @@ mod a_turn_is_recorded_for_learning;
 mod the_persons_verdicts_become_labels;
 mod the_turns_carry_their_questions;
 mod the_agent_workspace_stays_open_while_a_hand_back_is_answered_there;
+mod the_pieces_panels_text_ends_inside_the_panels_content_edge;
+mod the_whats_new_page_reads_in_a_proportional_face;
 mod the_assessor_grades_each_turns_questions;
 mod the_person_audits_the_questions;
