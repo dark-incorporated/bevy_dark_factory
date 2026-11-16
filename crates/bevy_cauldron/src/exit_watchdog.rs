@@ -32,6 +32,10 @@
 //! drawing for [`EXIT_GRACE_S`] seconds after a request is ended** like a quit that does not finish: a frozen main thread
 //! before the [`AppExit`] is written is the other place a quit gets stuck. The heartbeat is a frame counter ([`ExitState`]).
 //!
+//! **And so is the system's own quit** (#427): Cmd+Q on a Mac is the menu's `terminate:`, which runs winit's exit and drops the
+//! `World` with no `AppExit` and no request read. A marker entity ([`TheWorldEnds`]) whose drop begins the exit is cleared with the
+//! world, before the resources, so a teardown stuck in one of them is given its deadline like any other.
+//!
 //! # A second press ends it
 //!
 //! A quit that is stuck is stuck on the main thread, so no key event reaches the app and the second press cannot be read
@@ -329,6 +333,20 @@ struct ExitWatchdogArmed(#[allow(dead_code)] ExitWait);
 #[derive(Resource)]
 struct ExitWatchRunning;
 
+/// **The world being dropped is an exit** (#427). Cmd+Q on a Mac is the system menu's `terminate:`, not the editor's key handler:
+/// winit's `applicationWillTerminate` runs the app's exit and clears the `World`, with no `AppExit` written and no [`crate::app_verbs::QuitRequested`]
+/// read, so nothing armed the watchdog: measured on a real macOS build (bmb, 0.6.8, 2026-11-15), a quit stuck in a terminal's
+/// `Child::wait` was alive after five minutes with the watchdog thread asleep. The entities are dropped before the resources, so this
+/// one is dropped before the `Terminal` and the rest that can wait, and begins the exit that the watchdog gives its deadline.
+#[derive(Component)]
+struct TheWorldEnds(ExitState);
+
+impl Drop for TheWorldEnds {
+    fn drop(&mut self) {
+        self.0.exiting();
+    }
+}
+
 /// Adds [`ExitWatchdog`], the heartbeat, the notes of quit requests, and the system that arms the deadline on the first
 /// [`AppExit`]. With a [`SecondPress`] the thread runs from the start of the app, so a freeze before any [`AppExit`] is covered.
 pub struct ExitWatchdogPlugin {
@@ -399,7 +417,10 @@ fn start_the_watch(
     }
     state.beat();
     match spawn_watch(state.clone(), Some(*second), watchdog.grace, watchdog.then) {
-        Ok(_) => commands.insert_resource(ExitWatchRunning),
+        Ok(_) => {
+            commands.insert_resource(ExitWatchRunning);
+            commands.spawn(TheWorldEnds(state.clone()));
+        }
         Err(e) => warn!("the exit watchdog did not start: {e}"),
     }
 }

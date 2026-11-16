@@ -21,6 +21,7 @@
 //! the pane, which says so in the body.
 
 use std::io::{ErrorKind, Read, Write};
+use std::mem::ManuallyDrop;
 use std::path::{Path, PathBuf};
 
 use alacritty_terminal::event::WindowSize;
@@ -75,7 +76,9 @@ fn shell_to_run(choice: Option<&ShellChoice>) -> Result<Shell, String> {
 /// leaking a shell. That is not a nicety — the editor spawns a session per `+` chip, and a session
 /// that outlived its pane would leave `cargo build` running with no window anywhere drawing it.
 pub struct TerminalSession {
-    pty: tty::Pty,
+    /// **Dropped by hand, in [`Drop`]**: the `Pty`'s own drop waits for the child with no limit, so [`Drop`] ends the child first
+    /// (reading the master meanwhile) and decides whether that wait may run here or on a thread of its own (#427).
+    pty: ManuallyDrop<tty::Pty>,
     /// The size last written to the child, so a resize to the size it already has is not a syscall.
     size: (u16, u16),
     /// The directory the shell was started in, for the bar's chip and for the `cd` offer.
@@ -154,7 +157,7 @@ impl TerminalSession {
                  `/dev/ptmx` or a machine at its process limit cannot open one"
             )
         })?;
-        Ok(TerminalSession { pty, size: (cols, rows), cwd })
+        Ok(TerminalSession { pty: ManuallyDrop::new(pty), size: (cols, rows), cwd })
     }
 
     /// Any non-Unix target: the PTY layer does not exist there in this build.
@@ -290,34 +293,73 @@ impl std::fmt::Debug for TerminalSession {
 /// **How long a child has to leave after it is hung up on**, milliseconds, before it is killed.
 pub const HANGUP_GRACE_MS: u64 = 1_000;
 
+/// **How long a child has to leave after it is killed**, milliseconds, before the wait for it is handed to a thread of its own.
+/// A killed process normally leaves at once; one that does not is held by something the kill cannot reach (#427).
+pub const KILL_WAIT_MS: u64 = 400;
+
 /// How often the wait for the child looks, milliseconds.
 const HANGUP_POLL_MS: u64 = 10;
 
-/// **How long the exit watchdog lets the hang-up wait run before it calls it overdue**, milliseconds: the grace, and a little over
-/// it for the kill and the look that follows.
-const HANGUP_WAIT_BOUND_MS: u64 = HANGUP_GRACE_MS + 500;
+/// **How long the exit watchdog lets the hang-up wait run before it calls it overdue**, milliseconds: the grace, the wait after the
+/// kill, and a little over them for the looks between.
+const HANGUP_WAIT_BOUND_MS: u64 = HANGUP_GRACE_MS + KILL_WAIT_MS + 100;
 
-/// **Closing a session never waits on its child for ever** (#337).
+/// **Closing a session never waits on its child for ever** (#337, #427).
 ///
 /// `alacritty_terminal`'s `Pty` hangs the child up and then blocks in `Child::wait` with no limit
 /// (`tty/unix.rs`, `impl Drop for Pty`). A shell leaves at once; an agent (the tab that runs `omp`)
 /// may ignore `SIGHUP` or take its time, and the editor's main thread then sat in that `wait` after
 /// its window was gone: the freeze a person met when an update quit the app, which stayed alive,
 /// window-less, until it was killed by hand. This runs first (a type's own `Drop` runs before its
-/// fields'): it hangs up, gives the child [`HANGUP_GRACE_MS`] to go, and kills it if it has not, so the
-/// `Pty`'s own wait that follows returns at once. The pane that had it is already closed.
+/// fields'): it hangs up, gives the child [`HANGUP_GRACE_MS`] to go, and kills it if it has not.
+///
+/// **It reads the master the whole time it waits** (#427). Measured on a real macOS build (bmb, 0.6.8, 2026-11-15): with an agent tab
+/// open, a Cmd+Q left the process alive for 5 minutes and more, `omp` and every process of its group (its MCP servers) in the `E`
+/// (exiting) state through `SIGKILL`, and the main thread in `Child::wait`. A process on macOS cannot finish exiting while it has
+/// output the terminal has not taken, and the master's only reader is the thread that was waiting: each waited for the other. Reading
+/// and dropping what the children write lets them go.
+///
+/// **And if the child has still not left**, the `Pty` (its drop is the unbounded wait) is handed to a thread that does nothing else, so
+/// that the editor goes on without it.
 ///
 /// **The wait is listed for the exit watchdog** while it lasts, as `a terminal's shell hanging up`, so a quit that is stuck here
 /// is cut short saying so and not saying nothing.
-#[cfg(unix)]
 impl Drop for TerminalSession {
     fn drop(&mut self) {
-        let Some(pid) = i32::try_from(self.pty.child().id()).ok().and_then(rustix::process::Pid::from_raw) else {
-            return;
-        };
-        let _wait = crate::exit_watchdog::waiting("a terminal's shell hanging up", std::time::Duration::from_millis(HANGUP_WAIT_BOUND_MS));
-        hang_up_then_kill(pid, std::time::Duration::from_millis(HANGUP_GRACE_MS));
+        #[cfg(unix)]
+        if let Some(pid) = i32::try_from(self.pty.child().id()).ok().and_then(rustix::process::Pid::from_raw) {
+            let _wait = crate::exit_watchdog::waiting("a terminal's shell hanging up", std::time::Duration::from_millis(HANGUP_WAIT_BOUND_MS));
+            let mut unread = Vec::new();
+            let left = end_the_child(
+                pid,
+                std::time::Duration::from_millis(HANGUP_GRACE_MS),
+                std::time::Duration::from_millis(KILL_WAIT_MS),
+                &mut || {
+                    unread.clear();
+                    let _ = self.drain(&mut unread);
+                },
+                &mut |signal| {
+                    let _ = rustix::process::kill_process(pid, signal);
+                },
+            );
+            if !left {
+                bevy::log::warn!("a terminal's shell (pid {pid:?}) has not left {KILL_WAIT_MS} ms after it was killed; its reaping goes on in a thread of its own");
+                // SAFETY: `self.pty` is taken once, here, and `drop` returns before anything can use it again.
+                hand_to_a_reaper(unsafe { ManuallyDrop::take(&mut self.pty) });
+                return;
+            }
+        }
+        // SAFETY: `self.pty` is dropped once, here (or taken above, which returns), and never used again.
+        unsafe { ManuallyDrop::drop(&mut self.pty) };
     }
+}
+
+/// **Waits for the child on a thread that does nothing else.** The `Pty`'s drop is that wait. Should no thread start, the `Pty` is
+/// leaked rather than waited on here: a process that cannot start a thread is not one to hold the editor's quit.
+#[cfg(unix)]
+fn hand_to_a_reaper(pty: tty::Pty) {
+    let pty = ManuallyDrop::new(pty);
+    let _ = std::thread::Builder::new().name("terminal-reaper".to_owned()).spawn(move || drop(ManuallyDrop::into_inner(pty)));
 }
 
 /// **Has `pid` left?** The look is `waitid` with `NOWAIT`: it says a child has exited **without reaping
@@ -336,23 +378,39 @@ fn child_has_left(pid: rustix::process::Pid) -> bool {
     }
 }
 
-/// **Hangs up on `pid`, and kills it if it is still there after `grace`.** `true` when it had to.
+/// **Hangs up on `pid`, kills it if it is still there after `grace`, and waits `after_kill` more** (#427). `drain` is called at every
+/// look, before and after the kill: the child cannot finish exiting while the terminal holds output nobody reads. `signal` sends a
+/// signal to the child. `true` when the child has left, `false` when it has not by then.
 #[cfg(unix)]
-fn hang_up_then_kill(pid: rustix::process::Pid, grace: std::time::Duration) -> bool {
-    use rustix::process::{Signal, kill_process};
-    let _ = kill_process(pid, Signal::HUP);
-    let deadline = std::time::Instant::now() + grace;
+pub(crate) fn end_the_child(
+    pid: rustix::process::Pid,
+    grace: std::time::Duration,
+    after_kill: std::time::Duration,
+    drain: &mut dyn FnMut(),
+    signal: &mut dyn FnMut(rustix::process::Signal),
+) -> bool {
+    signal(rustix::process::Signal::HUP);
+    if wait_for_the_child(pid, grace, drain) {
+        return true;
+    }
+    signal(rustix::process::Signal::KILL);
+    wait_for_the_child(pid, after_kill, drain)
+}
+
+/// Looks at `pid` every [`HANGUP_POLL_MS`] for `bound`, reading the terminal at each look. `true` when it has left.
+#[cfg(unix)]
+fn wait_for_the_child(pid: rustix::process::Pid, bound: std::time::Duration, drain: &mut dyn FnMut()) -> bool {
+    let deadline = std::time::Instant::now() + bound;
     loop {
+        drain();
         if child_has_left(pid) {
-            return false;
+            return true;
         }
         if std::time::Instant::now() >= deadline {
-            break;
+            return false;
         }
         std::thread::sleep(std::time::Duration::from_millis(HANGUP_POLL_MS));
     }
-    let _ = kill_process(pid, Signal::KILL);
-    true
 }
 
 /// The name a program reads in `TERM_PROGRAM` to know it runs in this editor's terminal (#324).

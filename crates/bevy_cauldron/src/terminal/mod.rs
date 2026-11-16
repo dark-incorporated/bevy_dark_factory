@@ -47,6 +47,9 @@ mod tests;
 #[cfg(all(test, unix))]
 mod flow_tests;
 
+#[cfg(all(test, unix))]
+mod hangup_tests;
+
 #[cfg(test)]
 mod input_tests;
 
