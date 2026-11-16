@@ -392,6 +392,9 @@ pub fn assess_ledger_with(store: &mut Store, fast: Option<&dyn Transport>, trans
         if limit.is_some_and(|limit| looked_at >= limit) {
             break;
         }
+        // **One turn costs the batch one turn of its limit**, whether the fast line was paid for now or stands in the ledger already: the assessor's
+        // calls are the ones a limit exists to cap, and a turn whose plan came free still spends them.
+        looked_at += 1;
         // **The fast model first**, and its answers are kept before anything is asked of the assessor.
         let mut plan: Option<FastAnswers> = planned.get(turn.id.as_str()).map(|line| (*line).clone());
         if let Some(model) = fast
@@ -399,8 +402,6 @@ pub fn assess_ledger_with(store: &mut Store, fast: Option<&dyn Transport>, trans
         {
             match fast_pass(turn, store, model) {
                 Ok(mut answers) => {
-                    // **The count the limit is against**: this turn cost a fast request, so it is one of the batch's.
-                    looked_at += 1;
                     if !gate_open {
                         // **The gate is closed: nothing may be saved**, so every question goes on to the assessor, and the line says why.
                         for escalated in &mut answers.escalation {
@@ -419,10 +420,6 @@ pub fn assess_ledger_with(store: &mut Store, fast: Option<&dyn Transport>, trans
         if assessed {
             batch.already += 1;
             continue;
-        }
-        // **A turn with no plan and no fast model in hand** goes to the assessor whole, and the count is its own.
-        if plan.is_none() {
-            looked_at += 1;
         }
         let ask: Box<dyn Fn(&str) -> bool + '_> = match &plan {
             Some(answers) => Box::new(move |id: &str| answers.asked(id)),

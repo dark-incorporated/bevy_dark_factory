@@ -177,7 +177,7 @@ fn report(rest: &[String]) -> ExitCode {
             return ExitCode::FAILURE;
         }
     };
-    match label_report::report(&labels, &out, &Options::default(), &checks) {
+    match label_report::report(&labels, &out, &checks) {
         Ok(report) => {
             println!(
                 "wrote {} and {} to {}: {} turn(s), {} answered, {} gold, {} objective, {} silver; the assessor {}; distilling {}",

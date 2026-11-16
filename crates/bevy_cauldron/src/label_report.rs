@@ -48,7 +48,7 @@ use std::path::Path;
 use bevy_oracle::{Checks, LOCAL_MODEL_NAME, OPENROUTER_MODEL};
 use serde::{Deserialize, Serialize};
 
-use crate::turn_export::{Options, SUMMARY_FILE};
+use crate::turn_export::SUMMARY_FILE;
 use crate::turn_questions::TURN_QUESTION_ID;
 use crate::turn_store::{AUDIT, Assessment, FastAnswers, Label, Read, Turn, read_file};
 use bevy_grimoire_core::rig_check::civil_date_utc;
@@ -298,13 +298,16 @@ pub struct Totals {
 ///
 /// `checks` is where DM-04's per-model calibrations are read from (the editor's own checks with the project's over them); a model with no record is
 /// `waiting`, never an error. Nothing is written into `labels`.
-pub fn report(labels: &Path, out: &Path, options: &Options, checks: &Checks) -> Result<Report, String> {
+///
+/// **No [`Options`]**: the export's choices (the eval share, the oldest build) are the export's, and the set beside the report is read as it was
+/// written. A report that took them could disagree with the set it cites.
+pub fn report(labels: &Path, out: &Path, checks: &Checks) -> Result<Report, String> {
     let read = read_file(&labels.join(crate::turn_store::LEDGER_FILE))?;
     // **A torn line stops the report**, as it stops the export: a count made past a line nobody can read is a count of something else.
     if let Some(bad) = read.damaged.first() {
         return Err(format!("the ledger's line {} does not read, so no number here would be the ledger's: {}", bad.line, bad.why));
     }
-    let set = Set::read(out, options)?;
+    let set = Set::read(out)?;
     let report = of(&read, Some(&set), checks);
     write(&report, out)?;
     Ok(report)
@@ -312,7 +315,7 @@ pub fn report(labels: &Path, out: &Path, options: &Options, checks: &Checks) -> 
 
 impl Set {
     /// **What the export beside `out` says**, or nothing where there is none: a report of a ledger nobody exported is still a report.
-    pub fn read(out: &Path, options: &Options) -> Result<Set, String> {
+    pub fn read(out: &Path) -> Result<Set, String> {
         let path = out.join(SUMMARY_FILE);
         let text = match std::fs::read_to_string(&path) {
             Ok(text) => text,
@@ -329,7 +332,6 @@ impl Set {
         };
         // **An export from before `parked_by_record` existed** has none, which reads as no parked questions placed by record: the count is still
         // there under `parked`, and the report says so rather than inventing a week for each.
-        let _ = options;
         Ok(Set {
             found: true,
             train: count(&said["train_records"]),
@@ -515,8 +517,10 @@ pub fn of(read: &Read, set: Option<&Set>, checks: &Checks) -> Report {
             .and_then(|assessment| assessment.answers.iter().find(|answer| answer.id == TURN_QUESTION_ID))
             .and_then(|answer| answer.yes_fraction)
             .is_some_and(|fraction| fraction >= 0.5);
+        // **A revision is an Undo**: the person kept the hand-back and then fixed it by hand, which is DL-06's `Hard(false)` and `direction_of`'s
+        // no. Counting it as a Keep would credit the assessor for a result the person rejected.
         match verdict.label.as_str() {
-            "undone" => {
+            "undone" | "revised" => {
                 assessor.undone += 1;
                 if said_fine {
                     assessor.said_fine_on_an_undo += 1;
@@ -909,6 +913,9 @@ pub struct LedgerLine {
     pub holdout: usize,
     /// The assessor's agreement on the holdout, where anything was compared.
     pub holdout_agreement: Option<f64>,
+    /// **How many holdout answers were actually compared**: a skip, and a question the assessor never answered, are holdout lines but not
+    /// measurements, so this is what the gate counts against [`HOLDOUT_MIN`] and never the line count.
+    pub holdout_compared: usize,
     pub bar: f64,
 }
 
@@ -940,10 +947,13 @@ pub fn summary(read: &Read) -> LedgerLine {
         turns: read.turns().count(),
         answered: answered_turns.len(),
         gold: read.labels().filter(|label| label.tier == "gold").count(),
-        objective: read.turns().flat_map(|turn| turn.questions.items.iter()).filter(|item| item.engine.is_some()).count(),
+        // **An engine-made defect is an objective label exactly as an engine answer is** (DL-05): the report counts one per defect, so the line does
+        // too, and a person reading both sees one number.
+        objective: read.turns().flat_map(|turn| turn.questions.items.iter()).filter(|item| item.engine.is_some()).count() + read.perturbed().count(),
         silver: read.labels().filter(|label| label.tier == "silver").count(),
         holdout: read.holdout().count(),
         holdout_agreement: holdout.share(),
+        holdout_compared: holdout.questions,
         bar: TEACHER_BAR,
     }
 }
@@ -967,8 +977,9 @@ pub fn line(summary: &LedgerLine) -> String {
 /// can show it. The one place the gate is decided, so the batch and the report cannot disagree about whether escalation is open.
 pub fn gate_open(read: &Read) -> bool {
     let line = summary(read);
-    read.holdout().filter(|label| label.question.is_some()).count() >= HOLDOUT_MIN
-        && line.holdout_agreement.is_some_and(|share| share >= TEACHER_BAR)
+    // **The count is of comparisons, not of lines**: twenty audit answers of which the assessor saw six is a bar met on six questions, which is the
+    // measurement [HOLDOUT_MIN] exists to refuse.
+    line.holdout_compared >= HOLDOUT_MIN && line.holdout_agreement.is_some_and(|share| share >= TEACHER_BAR)
 }
 
 /// **Whether a question goes to the slow assessor**, and why: the one place escalation is decided, so the ledger's line and the report's count can
