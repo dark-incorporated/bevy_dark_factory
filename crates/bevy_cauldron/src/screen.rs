@@ -913,6 +913,7 @@ pub const OWNERSHIP: &[(&str, Ownership)] = &[
     // per-screen (`ConfirmPlugin` spawns on both `OnEnter`s) because `scene_roots` sweeps roots on
     // a screen change — the state is session-wide, the pixels are not.
     ("bevy_cauldron::confirm::Confirm", Ownership::Session),
+    ("bevy_cauldron::confirm::PictureWithoutTheQuestion", Ownership::Session),
     ("bevy_cauldron::view::Pointer", Ownership::Session),
     // Persisted to disk under `target/`, so that STALE is truthful at startup rather than after the
     // bench's first audit.
