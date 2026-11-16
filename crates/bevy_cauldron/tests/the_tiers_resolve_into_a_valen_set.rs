@@ -52,6 +52,14 @@ fn a_turn(store: &mut Store, id: &str, map: &str, version: &str, bench: bool, en
         question: serde_json::to_value(Question::noul("Is any piece floating?")).expect("a question"),
         engine: engine_floating.map(|yes| bevy_cauldron::turn_questions::EngineAnswer::new(yes, "measured from the map")),
     });
+    // **A question about the change between the two pictures** (the shipped `out_of_area` check asks exactly this): its state must show both.
+    items.push(TurnQuestion {
+        id: "check-out_of_area".to_owned(),
+        source: "check".to_owned(),
+        about: "change".to_owned(),
+        question: serde_json::to_value(Question::noul("Compared with the before image, did anything change outside the area?")).expect("a question"),
+        engine: None,
+    });
     items.push(TurnQuestion {
         id: "check-clipping".to_owned(),
         source: "check".to_owned(),
@@ -226,6 +234,7 @@ fn fixture(tag: &str) -> std::path::PathBuf {
                 assessed("specified-1", [Some(0.9), Some(0.8), Some(0.7)]),
                 assessed("specified-2", [Some(0.9), Some(0.8), Some(0.1)]),
                 assessed("check-floating", [Some(0.1), Some(0.2), Some(0.3)]),
+                assessed("check-out_of_area", [Some(0.1), Some(0.15), Some(0.2)]),
                 assessed("check-clipping", [Some(0.9), None, None]),
             ],
         )))
@@ -474,6 +483,108 @@ fn candidates_are(id: &str, candidates: &Value, target: Option<&Value>, file: &s
     assert!((sum - 1.0).abs() < 1e-6, "{file}: `{id}` probabilities sum to {sum}, not 1");
 }
 
+/// **8. A change question is trained on both pictures**, and one whose state shows only the result is parked rather than answered from half.
+#[test]
+fn a_change_question_carries_the_before_and_the_after() {
+    let labels = fixture("change");
+    let (out, exported) = export_of(&labels, "change-out", &Options::default());
+    let records = all_records(&out);
+    // The kept turn's state shows the before and the after, so its `check-out_of_area` is answered, and the record names both pictures.
+    let changed = records
+        .iter()
+        .find(|record| !record["targets"]["check-out_of_area"]["probabilities"].is_null())
+        .unwrap_or_else(|| panic!("no change question was answered, though its state shows both pictures: {records:#?}"));
+    let content = &changed["request"]["state"]["messages"][0]["content"];
+    let shown: Vec<&str> = content.as_array().expect("content").iter().filter_map(|part| part["image_url"]["url"].as_str()).collect();
+    assert_eq!(shown.len(), 2, "a change question is shown one picture: {changed:#?}");
+    assert!(changed["request"]["state"]["messages"][0]["content"][0]["text"].as_str().is_some_and(|text| text.contains("before") && text.contains("after")));
+    assert_eq!(changed["assets"].as_array().map(Vec::len), Some(2), "the record does not name both pictures: {changed:#?}");
+
+    // **No state of two pictures answered a change question from one**: every answered one names both.
+    for record in records.iter().filter(|record| !record["targets"]["check-out_of_area"]["probabilities"].is_null()) {
+        assert_eq!(record["assets"].as_array().map(Vec::len), Some(2), "a change question was answered from one picture: {record:#?}");
+    }
+    let _ = exported;
+}
+
+/// **9. A ledger line that does not read refuses the export**, naming the line: a torn line is a turn or a label nobody can account for.
+#[test]
+fn a_damaged_ledger_line_refuses_the_export() {
+    let labels = fixture("damaged");
+    let ledger = labels.join("turns.jsonl");
+    let mut text = std::fs::read_to_string(&ledger).expect("the ledger");
+    text.push_str("{\"v\": 1, \"kind\": \"label\", \"turn\": \"turn-kept\", \"label\":");
+    let line = text.lines().count();
+    std::fs::write(&ledger, &text).expect("a torn line");
+    let out = scratch("damaged-out");
+    let why = turn_export::export(&labels, &out, &Options::default()).expect_err("a torn line is not exported past");
+    assert!(why.contains(&format!("line {line}")) && why.contains("does not read"), "{why}");
+    assert!(!out.join(TRAIN_FILE).is_file() && !out.join(EVAL_FILE).is_file(), "an export ran past a damaged line");
+}
+
+/// **10. An oldest build that is not a version is refused**, naming it, rather than admitting every build.
+#[test]
+fn an_oldest_build_that_is_not_a_version_is_refused() {
+    let labels = fixture("oldest");
+    let out = scratch("oldest-out");
+    let why = turn_export::export(&labels, &out, &Options { oldest_build: "0.6.x".to_owned(), ..Options::default() }).expect_err("a bad bound");
+    assert!(why.contains("0.6.x") && why.contains("is not a version"), "{why}");
+    assert!(!out.join(TRAIN_FILE).is_file(), "an export ran with an oldest build that cannot be read");
+    // A share of zero has no eval side, and is refused too.
+    let why = turn_export::export(&labels, &out, &Options { eval_share: 0, ..Options::default() }).expect_err("a share of zero");
+    assert!(why.contains("cannot be 0"), "{why}");
+}
+
+/// **11. A person's own change of mind is not the teacher's error**, and a re-export into a used folder leaves no stale side.
+#[test]
+fn a_person_disagreement_is_not_a_teacher_error_and_no_stale_side_is_left() {
+    let labels = scratch("person");
+    let mut store = Store::new(labels.clone());
+    let map = a_map_on(false);
+    let turn = a_turn(&mut store, "turn-p", &map, NEW_BUILD, false, None);
+    store.append(&LedgerLine::turn(turn)).expect("a turn");
+    // The person kept it, and then undid it: one question, two gold answers, the later stands.
+    store.append(&LedgerLine::label(label("turn-p", "kept", "gold", 100))).expect("a label");
+    store.append(&LedgerLine::label(label("turn-p", "undone", "gold", 200))).expect("a label");
+    store.append(&LedgerLine::label(label("turn-p", "audit", "gold", 300))).expect("an audit");
+    // The assessor says the result was kept, unanimously, against the person's gold `undone`: the one teacher error in this ledger.
+    store
+        .append(&LedgerLine::assessment(assessment(
+            "turn-p",
+            vec![assessed("turn-kept", [Some(0.9), Some(0.9), Some(0.8)]), assessed("check-out_of_area", [Some(0.1), Some(0.1), Some(0.2)])],
+        )))
+        .expect("an assessment");
+    let (out, exported) = export_of(&labels, "person-out", &Options::default());
+    assert_eq!(exported.disagreements_by_kind().get("person"), Some(&1), "{:#?}", exported.disagreements);
+    // **The teacher's contradiction of the gold answer is the only teacher error**: the person's own change of mind is not one.
+    assert_eq!(exported.disagreements_by_kind().get("teacher"), Some(&1), "{:#?}", exported.disagreements);
+    assert_eq!(exported.teacher_errors(), 1, "the teacher's error count is not the teacher's alone: {:#?}", exported.disagreements);
+    assert!(
+        exported.disagreements.iter().filter(|d| d.kind == "teacher").all(|d| d.question == "turn-kept"),
+        "a person's change of mind was counted as the teacher's: {:#?}",
+        exported.disagreements
+    );
+    let summary: Value = serde_json::from_slice(&std::fs::read(out.join(SUMMARY_FILE)).expect("a summary")).expect("json");
+    assert_eq!(summary["teacher_errors"], 1);
+    assert_eq!(summary["disagreements"]["person"], 1);
+
+    // **A re-export that writes no eval side removes the one an earlier export left**: the split is the ledger's, not a leftover's.
+    let scene_eval = a_map_on(true);
+    let mut store = Store::new(labels.clone());
+    // The engine answered its own check, so the bench scene has a record to put in eval.
+    let evald = a_turn(&mut store, "turn-e", &scene_eval, NEW_BUILD, true, Some(false));
+    store.append(&LedgerLine::turn(evald)).expect("a turn in eval");
+    let (same, first) = export_of(&labels, "person-again", &Options::default());
+    assert!(first.eval >= 1 && same.join(EVAL_FILE).is_file(), "the eval side was not written to begin with");
+    // Take the eval scene's only record out of the ledger, and export again into the same folder.
+    let ledger = std::fs::read_to_string(labels.join("turns.jsonl")).expect("the ledger");
+    let kept: Vec<&str> = ledger.lines().filter(|line| !line.contains("turn-e")).collect();
+    std::fs::write(labels.join("turns.jsonl"), kept.join("\n") + "\n").expect("the ledger without the eval turn");
+    let again = turn_export::export(&labels, &same, &Options::default()).expect("the second export");
+    assert_eq!(again.eval, 0);
+    assert!(!same.join(EVAL_FILE).is_file(), "a stale eval.jsonl stands beside a fresh train.jsonl");
+}
+
 /// **7. An include-old-builds export keeps the old record**, and every kind of record the ledger offers reaches a file.
 #[test]
 fn an_old_build_can_be_asked_for_and_the_negatives_reach_the_set() {
@@ -538,6 +649,11 @@ fn an_old_build_can_be_asked_for_and_the_negatives_reach_the_set() {
         }))
         .expect("a pair");
 
+    // **A record of a build too old to teach from**, on the same scene: the default export leaves it out and counts it.
+    let old = a_turn(&mut store, "turn-old", &map, "0.6.0", false, None);
+    store.append(&LedgerLine::turn(old)).expect("an old turn");
+    store.append(&LedgerLine::label(label("turn-old", "kept", "gold", 140))).expect("a label");
+
     let (out, exported) = export_of(&labels, "negatives-out", &Options::default());
     let records: Vec<Value> = all_records(&out);
     let positive = records
@@ -562,9 +678,36 @@ fn an_old_build_can_be_asked_for_and_the_negatives_reach_the_set() {
     let answers: BTreeSet<bool> =
         paired.iter().filter_map(|record| probabilities(record, "check-floating").map(|p| p["true"].as_f64().unwrap_or_default() >= 0.5)).collect();
     assert_eq!(answers, [true, false].into(), "the pair yielded {paired:#?}");
-    assert_eq!(exported.left_out_by_kind().get("old-build"), None, "nothing here is an old build: {:#?}", exported.left_out);
+    // **A state with one picture parks a change question**, and says why: the perturbed record's kept scene shows the result alone and carries
+    // the turn's questions, `check-out_of_area` among them.
+    let lone: Vec<&Value> = records
+        .iter()
+        .filter(|record| record["meta"]["source"] == "perturbed" && record["assets"].as_array().map(Vec::len) == Some(1))
+        .collect();
+    assert!(!lone.is_empty(), "no one-picture record carries the turn's questions: {records:#?}");
+    for record in lone {
+        assert!(record["targets"]["check-out_of_area"]["probabilities"].is_null(), "a change question was answered from one picture: {record:#?}");
+    }
+    assert!(
+        exported.parked.iter().any(|parked| parked.kind == "one-picture" && parked.question == "check-out_of_area"),
+        "a one-picture state did not park the change question: {:#?}",
+        exported.parked
+    );
+    assert_eq!(exported.left_out_by_kind().get("old-build"), Some(&1), "the 0.6.0 turn was not left out: {:#?}", exported.left_out);
+    assert!(records.iter().all(|record| !record["meta"]["records"].as_array().is_some_and(|ids| ids.iter().any(|id| id == "turn-old"))), "an old build reached the set");
 
-    // **The old build can be asked for**: the same ledger exported with the gate off keeps it, and says so by having one more record.
-    let (_, all) = export_of(&labels, "negatives-all", &Options { include_old_builds: true, ..Options::default() });
-    assert_eq!(all.left_out_by_kind().get("old-build"), None);
+    // **The old build can be asked for**: the same ledger with the gate off keeps it, and that is one record more on the same side.
+    let (out_all, all) = export_of(&labels, "negatives-all", &Options { include_old_builds: true, ..Options::default() });
+    assert_eq!(all.left_out_by_kind().get("old-build"), None, "{:#?}", all.left_out);
+    let kept_old: Vec<Value> =
+        all_records(&out_all).into_iter().filter(|record| record["meta"]["records"].as_array().is_some_and(|ids| ids.iter().any(|id| id == "turn-old"))).collect();
+    assert_eq!(kept_old.len(), 1, "the old build's turn is not one record: {kept_old:#?}");
+    assert_eq!(
+        all.train + all.eval,
+        exported.train + exported.eval + 1,
+        "including the old build did not add exactly the old turn's record: {} then {}",
+        exported.train + exported.eval,
+        all.train + all.eval
+    );
+    assert_eq!(kept_old[0]["meta"]["cauldron_version"], "0.6.0");
 }

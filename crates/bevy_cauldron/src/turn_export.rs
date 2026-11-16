@@ -17,7 +17,20 @@
 //! 4. **Everything else is parked**, and counted with its reason ([`Parked`]). A parked question still goes into its record with
 //!    `"probabilities": null`, which is how Valen's own smoke set writes a question with no label, and its reader skips it when training.
 //! 5. **A gold answer that contradicts silver keeps the gold, and the disagreement is recorded** ([`Disagreement`]), which DL-08 counts: it is the
-//!    teacher's error rate, and the student's ceiling.
+//!    teacher's error rate, and the student's ceiling. **Only a teacher's contradiction is a teacher error** ([`Disagreement::kind`]): a person
+//!    overruling their own earlier answer, and two of the engine's own answers disagreeing, are written down too and counted apart.
+//!
+//! # What a record's state shows
+//!
+//! **Every picture the state has, in the order they were taken**: a question whose `about` is `change` (`check-out_of_area`, the shipped check
+//! that asks what changed between the before and the after) is therefore trained on both, and one whose state has only one picture is parked
+//! (`one-picture`) rather than answered from half its evidence. Every asset a record names is a picture it shows, and every picture it shows is an
+//! asset, with its SHA-256.
+//!
+//! # A line that does not read stops the export
+//!
+//! The ledger reports a line it cannot parse with its number ([`Read::damaged`]), and **this refuses to export past one**, naming every line: a
+//! torn line is a turn or a label nothing can account for, and a set that quietly left it out would look complete and not be.
 //!
 //! # The split is by scene, never by record
 //!
@@ -228,17 +241,30 @@ pub struct Parked {
     pub why: String,
 }
 
-/// **A silver answer a gold or objective one contradicted**: the teacher was wrong, and DL-08 counts it.
+/// **Two answers to one question that disagreed**, with the one that stood: what DL-08 counts, and what it must not count as the teacher's error.
+///
+/// [`Disagreement::kind`] says which it is. **Only `teacher` is a teacher's error**: an assessor that contradicted the answer that stood. The other
+/// kinds are written down and counted apart, because they say nothing about the assessor: `person` is the person's own earlier answer overruled
+/// by their later one, and `engine` is two of the engine's own answers (or one engine answer overruling a perturbation's) disagreeing.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Disagreement {
     pub record: String,
     pub question: String,
+    /// `teacher` (silver against what stood: DL-08's error count), `person` or `engine`.
+    pub kind: &'static str,
     /// The tier that stood.
     pub kept: Tier,
     /// What it said.
     pub kept_answer: String,
-    /// What the silver answer said.
+    /// What the answer that lost said.
     pub silver_answer: String,
+}
+
+impl Disagreement {
+    /// **Whether this is the assessor being wrong**, which is what the teacher's error rate is made of.
+    pub fn is_teacher_error(&self) -> bool {
+        self.kind == "teacher"
+    }
 }
 
 /// **Something the set would have needed that was not there**, with the reason.
@@ -277,6 +303,16 @@ impl Exported {
     pub fn left_out_by_kind(&self) -> BTreeMap<&'static str, usize> {
         counts(self.left_out.iter().map(|left| left.kind))
     }
+
+    /// **The disagreements, counted by kind**: `teacher` is the assessor's error count, which DL-08 divides by the questions it answered.
+    pub fn disagreements_by_kind(&self) -> BTreeMap<&'static str, usize> {
+        counts(self.disagreements.iter().map(|disagreement| disagreement.kind))
+    }
+
+    /// **How often the assessor was wrong**: the `teacher` disagreements alone, never a person's own change of mind.
+    pub fn teacher_errors(&self) -> usize {
+        self.disagreements.iter().filter(|disagreement| disagreement.is_teacher_error()).count()
+    }
 }
 
 fn counts(kinds: impl Iterator<Item = &'static str>) -> BTreeMap<&'static str, usize> {
@@ -303,9 +339,7 @@ impl Default for Options {
 
 /// **Export the ledger in `labels` into `out`.** Reads `labels` and writes nothing into it.
 pub fn export(labels: &Path, out: &Path, options: &Options) -> Result<Exported, String> {
-    if options.eval_share == 0 {
-        return Err("the eval share is one scene in how many, so it cannot be 0".to_owned());
-    }
+    check(options)?;
     let read = crate::turn_store::read_file(&labels.join(crate::turn_store::LEDGER_FILE))?;
     let store = Store::new(labels.to_path_buf());
     export_read(&read, &store, out, options)
@@ -313,9 +347,31 @@ pub fn export(labels: &Path, out: &Path, options: &Options) -> Result<Exported, 
 
 /// **Export a ledger already in hand.** `store` is the labels folder the pictures are read from; nothing is written into it.
 pub fn export_read(read: &Read, store: &Store, out: &Path, options: &Options) -> Result<Exported, String> {
+    check(options)?;
+    // **A line that does not read is refused, not skipped** (as `cauldron-negatives` refuses one): a torn line is a label nothing can be trusted
+    // to be missing or present, and an export that quietly drops a turn would make a set that looks complete and is not.
+    if let Some(bad) = read.damaged.first() {
+        let lines: Vec<String> = read.damaged.iter().map(|damaged| format!("{} ({})", damaged.line, damaged.why)).collect();
+        return Err(format!("the ledger's line {} does not read, so the set would silently leave out what it holds: {}", bad.line, lines.join("; ")));
+    }
     let ledger = Ledger::of(read, options);
     let (gathered, left_out) = ledger.gather();
     emit(&gathered, left_out, store, out, options)
+}
+
+/// **The sentences an export refuses on its options**, before it reads anything: a share of zero has no eval side, and an `--oldest` that is not a
+/// version cannot be compared with one, so it would admit every build rather than the ones asked for.
+fn check(options: &Options) -> Result<(), String> {
+    if options.eval_share == 0 {
+        return Err("the eval share is one scene in how many, so it cannot be 0".to_owned());
+    }
+    if !options.include_old_builds && parse_version(&options.oldest_build).is_none() {
+        return Err(format!(
+            "`{}` is not a version for the oldest build to keep: it reads as three numbers (`0.6.8`), and an oldest build that cannot be read would let every build through",
+            options.oldest_build
+        ));
+    }
+    Ok(())
 }
 
 /// **The ledger, indexed the ways the tiers need it.**
@@ -361,7 +417,14 @@ impl<'a> Ledger<'a> {
         if self.options.include_old_builds {
             return Ok(());
         }
-        let oldest = parse_version(&self.options.oldest_build).unwrap_or((0, 0, 0));
+        // **The oldest is a version**, refused by [`check`] before any ledger is read, so a record is never admitted by a misread bound.
+        let Some(oldest) = parse_version(&self.options.oldest_build) else {
+            return Err(LeftOut {
+                record: String::new(),
+                kind: "bad-oldest",
+                why: format!("the oldest build `{}` is not a version, so no build can be compared with it", self.options.oldest_build),
+            });
+        };
         match parse_version(version) {
             Some(built) if built >= oldest => Ok(()),
             Some(_) => Err(LeftOut {
@@ -745,6 +808,7 @@ fn resolve(candidates: &[Candidate], disagreements: &mut Vec<Disagreement>, reco
             disagreements.push(Disagreement {
                 record: record.to_owned(),
                 question: question.to_owned(),
+                kind: "person",
                 kept: Tier::Gold,
                 kept_answer: last.answer.describe(),
                 silver_answer: first.answer.describe(),
@@ -753,8 +817,16 @@ fn resolve(candidates: &[Candidate], disagreements: &mut Vec<Disagreement>, reco
         Some(last.clone())
     } else if !objective.is_empty() {
         let first = &objective[0];
-        if objective.iter().any(|other| other.answer.direction() != first.answer.direction()) {
-            // Two of the engine's own answers to one question disagree: neither outranks the other, so neither stands.
+        if let Some(other) = objective.iter().find(|other| other.answer.direction() != first.answer.direction()) {
+            // Two of the engine's own answers to one question disagree: neither outranks the other, so neither stands, and both are written down.
+            disagreements.push(Disagreement {
+                record: record.to_owned(),
+                question: question.to_owned(),
+                kind: "engine",
+                kept: Tier::Objective,
+                kept_answer: other.answer.describe(),
+                silver_answer: first.answer.describe(),
+            });
             return Outcome::Parked("votes-split", "the engine's own answers to this question disagreed, so neither of them stands".to_owned());
         }
         Some(objective[objective.len() - 1].clone())
@@ -779,6 +851,7 @@ fn resolve(candidates: &[Candidate], disagreements: &mut Vec<Disagreement>, reco
                 disagreements.push(Disagreement {
                     record: record.to_owned(),
                     question: question.to_owned(),
+                    kind: "teacher",
                     kept: standing.tier,
                     kept_answer: standing.answer.describe(),
                     silver_answer: candidate.answer.describe(),
@@ -839,6 +912,17 @@ fn emit(gathered: &BTreeMap<(String, State), Gathered>, mut left_out: Vec<LeftOu
             }
             questions.insert(id.clone(), placed.shape.clone());
             let offered = one.candidates.get(id).cloned().unwrap_or_default();
+            // **A question about the change needs both pictures**: asked of a state that has one, it would be trained on half its evidence.
+            if placed.about == "change" && state.pictures.len() < 2 {
+                exported.parked.push(Parked {
+                    record: records.clone(),
+                    question: id.clone(),
+                    kind: "one-picture",
+                    why: format!("it asks what changed between the before and the after, and this state shows {} picture(s)", state.pictures.len()),
+                });
+                main_targets.insert(id.clone(), json!({"probabilities": null}));
+                continue;
+            }
             match resolve(&offered, &mut exported.disagreements, &records, id) {
                 Outcome::Target(standing) => {
                     let Some(probabilities) = probabilities(&question, &standing.answer) else {
@@ -953,6 +1037,12 @@ fn emit(gathered: &BTreeMap<(String, State), Gathered>, mut left_out: Vec<LeftOu
     exported.holdout = holdout.len();
     for (name, lines) in [(TRAIN_FILE, &train), (EVAL_FILE, &eval), (HOLDOUT_FILE, &holdout)] {
         if lines.is_empty() {
+            // **A side this export wrote nothing for is not left standing from an earlier one**: a stale `eval.jsonl` beside a fresh
+            // `train.jsonl` would be a set whose split is not the ledger's. Only a file this export could have written is removed.
+            let stale = out.join(name);
+            if stale.is_file() {
+                std::fs::remove_file(&stale).map_err(|e| format!("{}: {e}", stale.display()))?;
+            }
             continue;
         }
         let mut text = String::with_capacity(lines.iter().map(|line| line.len() + 1).sum());
@@ -970,7 +1060,8 @@ fn emit(gathered: &BTreeMap<(String, State), Gathered>, mut left_out: Vec<LeftOu
         "holdout_records": exported.holdout,
         "images": exported.images,
         "parked": exported.parked_by_kind(),
-        "disagreements": exported.disagreements.len(),
+        "disagreements": exported.disagreements_by_kind(),
+        "teacher_errors": exported.teacher_errors(),
         "left_out": exported.left_out_by_kind(),
     });
     let mut text = serde_json::to_string_pretty(&summary).unwrap_or_default();
@@ -1029,6 +1120,13 @@ fn bucket(scene: &str, share: u32) -> u32 {
 
 /// **The state a student sees**: the words, then each picture as an `image_url` part relative to the export folder, as Valen's own smoke set
 /// writes one.
+///
+/// **Every picture the state has**, in the order they were taken (the before, then the after), each as an `image_url` part relative to the export
+/// folder, as Valen's own smoke set writes one.
+///
+/// **All of them, never only the last**: a question whose `about` is `change` (`check-out_of_area` is the one in the shipped checks) asks what
+/// changed between the before and the after, so a state that showed only the result would train it on half its evidence. Every asset the record
+/// names is a picture shown here, and every picture shown is an asset.
 fn state_message(state: &State) -> Value {
     let mut content = vec![json!({"type": "text", "text": state.text})];
     for (_, sha) in &state.pictures {

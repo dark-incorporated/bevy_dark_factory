@@ -135,6 +135,12 @@ fn export(rest: &[String]) -> ExitCode {
     let labels = args.get("--labels").map(PathBuf::from);
     let mut options = Options { include_old_builds: args.has("--include-old-builds"), ..Options::default() };
     if let Some(oldest) = args.get("--oldest") {
+        // **A bound that is not a version is refused here**, naming it: `0.6.8` reads as three numbers, and an `--oldest` that cannot be read would
+        // let every build through instead of the ones asked for.
+        if turn_export::parse_version(oldest).is_none() {
+            eprintln!("`{oldest}` is not a version for --oldest: it reads as three numbers, like 0.6.8.\n{USAGE}");
+            return ExitCode::from(2);
+        }
         options.oldest_build = oldest.to_owned();
     }
     if let Some(share) = args.get("--share") {
@@ -156,14 +162,14 @@ fn export(rest: &[String]) -> ExitCode {
     match turn_export::export(&labels, &out, &options) {
         Ok(exported) => {
             println!(
-                "wrote {} train, {} eval and {} holdout record(s) with {} picture(s) to {}; parked {} question(s), {} disagreement(s), left out {} record(s)",
+                "wrote {} train, {} eval and {} holdout record(s) with {} picture(s) to {}; parked {} question(s), {} teacher error(s), left out {} record(s)",
                 exported.train,
                 exported.eval,
                 exported.holdout,
                 exported.images,
                 out.display(),
                 exported.parked.len(),
-                exported.disagreements.len(),
+                exported.teacher_errors(),
                 exported.left_out.len()
             );
             for (kind, count) in exported.parked_by_kind() {
