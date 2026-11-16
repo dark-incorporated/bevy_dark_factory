@@ -256,7 +256,10 @@ fn copy_tree(from: &Path, to: &Path) -> Result<(), String> {
         if kind.is_dir() {
             copy_tree(&entry.path(), &target)?;
         } else if kind.is_file() {
-            std::fs::copy(entry.path(), &target).map_err(|e| format!("{}: {e}", entry.path().display()))?;
+            // **Atomic, though it is a scratch copy**: the scan that keeps a project file from being written the plain way sees every write, and a copy
+            // that dies half way must not leave a file that reads as whole.
+            let bytes = std::fs::read(entry.path()).map_err(|e| format!("{}: {e}", entry.path().display()))?;
+            bevy_grimoire_core::atomic_file::write_cache(&target, bytes).map_err(|e| format!("{}: {e}", target.display()))?;
         }
     }
     Ok(())
@@ -512,12 +515,16 @@ fn names(text: &str, needle: &str) -> bool {
 }
 
 /// **Whether the scene is as the turn left it**: the placements the turn's facts counted, and every piece it touched where the facts put it.
-fn as_the_turn_left_it(turn: &Turn, map: &Map) -> Result<(), String> {
+fn as_the_turn_left_it(turn: &Turn, project: &Project, map: &Map) -> Result<(), String> {
     let Some(counted) = turn.facts["map"]["placements"].as_u64() else {
         return Err("the turn's facts hold no map, so there is no scene to compare with".to_owned());
     };
-    if counted != map.placements.len() as u64 {
-        return Err(format!("the map holds {} placements and the turn left {counted}, so it has changed since", map.placements.len()));
+    // **The census counts, not this module**: the one counter the panels and the log agree on.
+    let held = bevy_grimoire_core::census::of_map(map, &project.compositions.compositions, &project.library)
+        .map_err(|why| format!("the map's stamps do not expand, so its rows cannot be counted: {why}"))?
+        .placements;
+    if counted != held as u64 {
+        return Err(format!("the map holds {held} placements and the turn left {counted}, so it has changed since"));
     }
     for operation in turn.facts["operations"].as_array().into_iter().flatten() {
         for piece in operation["pieces"].as_array().into_iter().flatten() {
@@ -897,7 +904,7 @@ pub fn perturb(turn: &Turn, project: &Path, scratch_parent: &Path, defect: Defec
     let scratch = Scratch::make(project, scratch_parent, &name).map_err(&refuse)?;
     let session = format!("labels-perturb-{serial}");
     let mut scene = Scene::open(&scratch.root, map_name, session).map_err(&refuse)?;
-    as_the_turn_left_it(turn, scene.map()).map_err(&refuse)?;
+    as_the_turn_left_it(turn, &scene.project, scene.map()).map_err(&refuse)?;
     let made = make(&mut scene, turn, defect, size).map_err(&refuse)?;
     confirmed(defect, size, &made).map_err(&refuse)?;
     let operations = scene.operations();

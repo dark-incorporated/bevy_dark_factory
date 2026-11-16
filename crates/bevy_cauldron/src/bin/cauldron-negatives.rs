@@ -53,7 +53,8 @@ fn draw(renderer: &str, store: &mut Store, root: &Path, map: &str) -> Shot {
 fn copy_picture(store: &Store, shot: &Shot, to: &Path) -> Result<Option<String>, String> {
     match &shot.image {
         Some(image) => {
-            std::fs::copy(store.image_path(&image.sha256), to).map_err(|e| format!("{}: {e}", to.display()))?;
+            let bytes = std::fs::read(store.image_path(&image.sha256)).map_err(|e| format!("{}: {e}", image.sha256))?;
+            bevy_grimoire_core::atomic_file::write_cache(to, bytes).map_err(|e| format!("{}: {e}", to.display()))?;
             Ok(Some(image.sha256.clone()))
         }
         None => Ok(None),
@@ -109,7 +110,8 @@ fn sheet(args: &Args) -> Result<(), String> {
         }
     }
     let manifest = serde_json::json!({"map": map, "request": request, "pictures": entries});
-    std::fs::write(out.join("sheet.json"), serde_json::to_string_pretty(&manifest).map_err(|e| e.to_string())?).map_err(|e| e.to_string())?;
+    bevy_grimoire_core::atomic_file::write_cache(&out.join("sheet.json"), serde_json::to_string_pretty(&manifest).map_err(|e| e.to_string())?)
+        .map_err(|e| e.to_string())?;
     let _ = std::fs::remove_dir_all(&scratch);
     println!("wrote {} pictures to {}", manifest["pictures"].as_array().map_or(0, Vec::len), out.display());
     Ok(())
