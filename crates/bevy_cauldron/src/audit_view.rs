@@ -364,13 +364,24 @@ fn answer_on_the_keys(
     workspace: Option<Res<crate::workspace::Workspace>>,
     confirm: Option<Res<crate::confirm::Confirm>>,
     focus: Option<Res<bevy::input_focus::InputFocus>>,
+    windows: Query<(), With<bevy::window::PrimaryWindow>>,
     audit: Res<Audit>,
     mut answers: ResMut<Answers>,
 ) {
+    // **A window is not a text field** (#466). Bevy's input dispatch puts the primary window in `InputFocus` at
+    // startup and leaves it there, so the plain `f.get().is_some()` guard refused every answer for the whole
+    // session on a real editor — measured on big's gate build (2026-11-16): arriving by `Ctrl+9` or a command left
+    // `current_focus` as the window and `Y`, `N` and `S` wrote nothing, while arriving by a click (which clears the
+    // focus) wrote all three. The guard is about a text field having the keyboard, so only a focused **element**
+    // counts: the window means nobody in particular does.
+    let element_has_the_keyboard = focus
+        .as_deref()
+        .and_then(bevy::input_focus::InputFocus::get)
+        .is_some_and(|focused| !windows.contains(focused));
     if workspace.is_none_or(|w| *w != crate::workspace::Workspace::Agent)
         || audit.offers.is_empty()
         || confirm.is_some_and(|c| c.is_open())
-        || focus.is_some_and(|f| f.get().is_some())
+        || element_has_the_keyboard
         || keys.any_pressed([KeyCode::ControlLeft, KeyCode::ControlRight, KeyCode::SuperLeft, KeyCode::SuperRight, KeyCode::AltLeft, KeyCode::AltRight])
     {
         return;
@@ -393,8 +404,12 @@ fn write_the_answers(mut answers: ResMut<Answers>, mut audit: ResMut<Audit>, mut
             ledger.audit_answered(&offer.turn, &offer.question, kind.word(), offer.why.word());
         }
         audit.this_week += 1;
-        // The file grew by this answer: the next look reads it.
+        // **The next question follows the answer, not the five-second clock** (#466). Clearing `read_len` alone made the
+        // file look changed but left `looked_at` set, so `look_at_the_ledger` still waited out `LOOK_EVERY_S` before reading
+        // it: measured at 15 fps, answering three questions in a row left the row on each question for up to five seconds,
+        // which reads as a key that did nothing. The clock is cleared with the length, so the read happens next frame.
         audit.read_len = None;
+        audit.looked_at = None;
     }
 }
 
