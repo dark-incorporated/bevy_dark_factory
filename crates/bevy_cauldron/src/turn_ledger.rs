@@ -302,6 +302,13 @@ impl TurnLedger {
         self.on.then_some(self.dir.as_deref()).flatten()
     }
 
+    /// **What the ledger holds on disk now, and the budget it stops at**, or `None` with no folder named. It walks the folder and reads the
+    /// ledger, so it is for the Settings row on a timer, never for a frame.
+    pub fn usage(&self) -> Option<(crate::turn_store::Usage, u64)> {
+        let store = self.store.as_ref()?;
+        Some((store.usage(), store.budget()))
+    }
+
     fn request_shot(&mut self) -> u64 {
         self.next_ticket += 1;
         self.requested += 1;
@@ -375,6 +382,10 @@ impl TurnLedger {
     /// made before the turn's first write, or after its hand-back, belongs to no turn.
     pub fn decision_reported(&mut self, mut report: Value) -> bool {
         let Some(open) = self.open.as_mut().filter(|_| self.on && self.stopped.is_none()) else { return false };
+        // **A turn holds a bounded number of decisions** (review of #460): an agent that decides in a loop must not grow one record without end.
+        if open.decisions.len() >= MAX_DECISIONS_PER_TURN {
+            return false;
+        }
         if let Some(object) = report.as_object_mut() {
             object.insert("reported_unix_ms".to_owned(), json!(now_ms()));
         }
@@ -441,6 +452,7 @@ impl TurnLedger {
             kept: None,
             revised: false,
             superseded: false,
+            person_kept: false,
         });
         self.finishing.push(Draft {
             id,
@@ -604,6 +616,8 @@ struct Covered {
     revised: bool,
     /// A later turn's taking it back is labelled once per turn.
     superseded: bool,
+    /// Whether the person kept the result. A later agent edit of a kept turn's pieces is the follow-up they asked for, not a correction.
+    person_kept: bool,
 }
 
 /// When a Keep was given, and how much of the operation log was already behind it.
@@ -630,6 +644,12 @@ pub const REVISION_WINDOW_MS: u64 = 30 * 60 * 1000;
 
 /// **How often the operation log is looked at for a revision**, in frames: a revision is a person's act, and half a second is not late.
 pub const REVISION_LOOK_FRAMES: u32 = 30;
+
+/// **The most decisions one turn's record keeps** (review of #460).
+pub const MAX_DECISIONS_PER_TURN: usize = 64;
+
+/// **The largest decision report the editor takes**, in bytes of its JSON (review of #460): `grimoire/decide_report` refuses a bigger one.
+pub const MAX_DECISION_BYTES: usize = 64 * 1024;
 
 /// **Whether any string in `value` is one of `ids`.** A person's edit "touches the same pieces" when the log line for it names one of the
 /// placements the turn touched, in whatever field its operation keeps it; ids carry the piece and its number (`bed@1`), so a string that equals
@@ -696,6 +716,7 @@ impl TurnLedger {
             Verdict::Dismissed => self.emit(&turn, Line::dismissed(Dismissed { turn: turn.clone(), at_unix_ms: now_ms() })),
             Verdict::Kept => {
                 self.covered[at].kept = Some(KeptAt { at_ms: now_ms(), seen_seq: log_head });
+                self.covered[at].person_kept = true;
                 let label = self.label(&turn, "kept", "gold");
                 self.emit(&turn, Line::label(label));
             }
@@ -768,14 +789,18 @@ impl TurnLedger {
     }
 
     /// **A later agent turn that took an earlier one back, or changed its pieces**, is a silver label on the earlier turn (DL-02, #461): the
-    /// teacher's own correction. Only operations of the agent's count, and each earlier turn is labelled once.
+    /// teacher's own correction. Only operations of the agent's count. **Only the newest turn that covers what an operation took on is labelled**
+    /// (the one it can have corrected), each turn once, and **never one the person kept**: asked to change a result they accepted, the agent's
+    /// edit is the follow-up they wanted and not a verdict on the turn.
     fn supersede(&mut self, by: &str, root: &Path, seen: &[Seen]) {
         let mut hits = Vec::new();
-        for covered in self.covered.iter_mut().filter(|c| c.root == root && !c.superseded) {
-            if seen.iter().any(|s| s.line["source"] == "agent" && takes_on(&s.line, covered)) {
-                covered.superseded = true;
-                hits.push(covered.turn.clone());
+        for line in seen.iter().filter(|s| s.line["source"] == "agent").map(|s| &s.line) {
+            let Some(covered) = self.covered.iter_mut().rev().find(|c| c.root == root && takes_on(line, c)) else { continue };
+            if covered.superseded || covered.person_kept {
+                continue;
             }
+            covered.superseded = true;
+            hits.push(covered.turn.clone());
         }
         for turn in hits {
             let mut label = self.label(&turn, "superseded", "silver");
@@ -797,13 +822,13 @@ impl TurnLedger {
     }
 
     /// **Look at the operation log for the person's own undo or edit of a kept turn's pieces** (DL-02, #461): a `revised` label, gold, naming the
-    /// operation that did it. The silent "kept, then fixed by hand" a Keep alone hides. An agent's lines never count, and a person's edit of
-    /// pieces the turn did not touch is no label.
+    /// operation that did it. The silent "kept, then fixed by hand" a Keep alone hides. An agent's lines never count, a person's edit of
+    /// pieces the turn did not touch is no label, and **an edit labels only the newest kept turn that covers it**.
     pub fn look_for_revisions(&mut self, root: &Path, log: &[Entry]) {
         let now = now_ms();
         let newest = log.iter().map(|entry| entry.seq).max().unwrap_or(0);
-        let mut found = Vec::new();
-        for covered in &mut self.covered {
+        let mut matches: Vec<(usize, String)> = Vec::new();
+        for (index, covered) in self.covered.iter_mut().enumerate() {
             if covered.root != root {
                 covered.kept = None;
                 continue;
@@ -818,12 +843,21 @@ impl TurnLedger {
                 .filter(|e| e.seq > kept.seen_seq && e.source == crate::ops::Source::Human && e.outcome == "applied")
                 .find(|entry| serde_json::to_value(entry).is_ok_and(|line| takes_on(&line, covered)));
             match by {
-                Some(entry) => {
-                    covered.revised = true;
-                    covered.kept = None;
-                    found.push((covered.turn.clone(), entry.operation_id.clone()));
-                }
+                Some(entry) => matches.push((index, entry.operation_id.clone())),
                 None => covered.kept = Some(KeptAt { seen_seq: newest.max(kept.seen_seq), ..kept }),
+            }
+        }
+        let mut found = Vec::new();
+        for (index, operation_id) in &matches {
+            let newer_takes_it = matches.iter().any(|(other, same)| same == operation_id && other > index);
+            let covered = &mut self.covered[*index];
+            if newer_takes_it {
+                // An older turn the same edit also touched: the edit is consumed, and labels the newer turn alone.
+                covered.kept = covered.kept.map(|kept| KeptAt { seen_seq: newest.max(kept.seen_seq), ..kept });
+            } else {
+                covered.revised = true;
+                covered.kept = None;
+                found.push((covered.turn.clone(), operation_id.clone()));
             }
         }
         for (turn, operation_id) in found {
@@ -835,7 +869,7 @@ impl TurnLedger {
 }
 
 /// **Look for revisions**, every [`REVISION_LOOK_FRAMES`] frames while a kept turn is inside its window.
-fn watch_revisions(mut ledger: ResMut<TurnLedger>, project: Option<Res<crate::project::Project>>, mut frames: Local<u32>) {
+fn watch_revisions(mut ledger: ResMut<TurnLedger>, project: Option<Res<crate::project::Project>>, mut frames: Local<u32>, mut log_len: Local<u64>) {
     if !ledger.watching() {
         return;
     }
@@ -847,7 +881,14 @@ fn watch_revisions(mut ledger: ResMut<TurnLedger>, project: Option<Res<crate::pr
     if !(*frames).is_multiple_of(REVISION_LOOK_FRAMES) {
         return;
     }
-    let log = crate::ops::read_entries(&crate::ops::oplog_path(&project));
+    // **The log is read only when it has grown** (review of #461): a look at an unchanged file is a `stat`, not a parse of every line.
+    let path = crate::ops::oplog_path(&project);
+    let len = std::fs::metadata(&path).map(|meta| meta.len()).unwrap_or(0);
+    if len == *log_len {
+        return;
+    }
+    *log_len = len;
+    let log = crate::ops::read_entries(&path);
     ledger.look_for_revisions(&project.root, &log);
 }
 
@@ -1008,11 +1049,17 @@ fn sync_collection(
 /// **Spawn the readbacks for pictures asked for and not yet read**, in the running editor: from `RemoteLast` for a picture asked for as an agent's
 /// call arrives (so it is of the frame the person last saw, see the module notes), and from `Update` for the rest. The surface is what the whole
 /// application draws into, so a copy of it is what the person sees.
+///
+/// **What is kept is the map's viewport, never the whole window** (review of #460): the window holds the terminal, whose shell can show a secret,
+/// and every panel. The picture is cut to the main camera's viewport, and the terminal pane's rectangle is blacked out of it where the pane
+/// covers the viewport. With no viewport nothing is kept and the record says so.
 fn issue_shots(
     mut commands: Commands,
     mut ledger: ResMut<TurnLedger>,
     surface: Option<Res<crate::surface::Surface>>,
     images: Option<Res<Assets<Image>>>,
+    cameras: Query<&Camera, With<crate::view::MainCamera>>,
+    panes: Query<(&bevy::ui::ComputedNode, &bevy::ui::UiGlobalTransform), With<crate::terminal_pane::TerminalPaneRoot>>,
 ) {
     if !ledger.asks.iter().any(|ask| !ask.issued) {
         return;
@@ -1024,33 +1071,111 @@ fn issue_shots(
         return;
     };
     let (width, height, format) = image;
-    for ask in ledger.asks.iter_mut().filter(|ask| !ask.issued) {
-        ask.issued = true;
-        let ticket = ask.ticket;
+    let tickets: Vec<u64> = ledger
+        .asks
+        .iter_mut()
+        .filter(|ask| !ask.issued)
+        .map(|ask| {
+            ask.issued = true;
+            ask.ticket
+        })
+        .collect();
+    let Some(view) = cameras.iter().next().and_then(Camera::physical_viewport_rect) else {
+        for ticket in tickets {
+            ledger.deliver_shot(ticket, Err(NO_VIEWPORT.to_owned()));
+        }
+        return;
+    };
+    let crop = [view.min.x, view.min.y, view.width(), view.height()];
+    let redact: Vec<[u32; 4]> = panes
+        .iter()
+        .map(|(node, at)| {
+            let size = node.size();
+            let top_left = at.translation - size / 2.0;
+            [top_left.x.max(0.0) as u32, top_left.y.max(0.0) as u32, size.x.ceil() as u32, size.y.ceil() as u32]
+        })
+        .collect();
+    for ticket in tickets {
+        let redact = redact.clone();
         commands.spawn(ReadbackOnce::texture(surface.clone())).observe(
             move |ready: On<ReadbackComplete>, mut ledger: ResMut<TurnLedger>, mut commands: Commands| {
                 commands.entity(ready.entity).despawn();
-                let picture = rgba_of(&ready.data, width, height, format);
+                let picture = rgba_of(&ready.data, width, height, format, crop, &redact);
                 ledger.deliver_shot(ticket, picture);
             },
         );
     }
 }
 
-/// **The surface's bytes as RGBA**, whichever order the texture holds them in.
-fn rgba_of(data: &[u8], width: u32, height: u32, format: bevy::render::render_resource::TextureFormat) -> Result<ShotImage, String> {
+/// Why no picture was kept when the map has no viewport to cut it to.
+const NO_VIEWPORT: &str = "there is no map viewport to take a picture of, and the whole window would hold the terminal and the panels, so none was kept";
+
+/// **The readback's bytes as the RGBA picture of `crop`** (`[x, y, width, height]` in surface pixels), with each `redact` rectangle blacked out.
+///
+/// **A readback's rows are padded to 256 bytes** (`gpu_readback.rs`: `get_aligned_size`), which for a surface whose width is not a multiple of 64
+/// (1440, 1512) is not its width times four. The padding is read as padding, whichever the buffer is, and an unpadded buffer is read as it is.
+pub fn rgba_of(
+    data: &[u8],
+    width: u32,
+    height: u32,
+    format: bevy::render::render_resource::TextureFormat,
+    crop: [u32; 4],
+    redact: &[[u32; 4]],
+) -> Result<ShotImage, String> {
     use bevy::render::render_resource::TextureFormat;
-    let expected = width as usize * height as usize * 4;
-    if data.len() != expected {
-        return Err(format!("the readback held {} bytes where a {width} x {height} surface holds {expected}", data.len()));
+    let row = width as usize * 4;
+    let padded = row.next_multiple_of(256);
+    let stride = if data.len() == padded * height as usize {
+        padded
+    } else if data.len() == row * height as usize {
+        row
+    } else {
+        return Err(format!("the readback held {} bytes where a {width} x {height} surface holds {} (or {} with its rows padded)", data.len(), row * height as usize, padded * height as usize));
+    };
+    let [cx, cy, cw, ch] = crop;
+    if cw == 0 || ch == 0 || cx.checked_add(cw).is_none_or(|end| end > width) || cy.checked_add(ch).is_none_or(|end| end > height) {
+        return Err(format!("the viewport {cw} x {ch} at ({cx}, {cy}) is not inside the {width} x {height} surface"));
     }
-    let mut rgba = data.to_vec();
+    let mut rgba = Vec::with_capacity(cw as usize * ch as usize * 4);
+    for y in cy..cy + ch {
+        let start = y as usize * stride + cx as usize * 4;
+        rgba.extend_from_slice(&data[start..start + cw as usize * 4]);
+    }
     match format {
         TextureFormat::Bgra8Unorm | TextureFormat::Bgra8UnormSrgb => rgba.as_chunks_mut::<4>().0.iter_mut().for_each(|px| px.swap(0, 2)),
         TextureFormat::Rgba8Unorm | TextureFormat::Rgba8UnormSrgb => {}
         other => return Err(format!("the surface is {other:?}, which the ledger does not read")),
     }
-    Ok(ShotImage { width, height, rgba })
+    for &[rx, ry, rw, rh] in redact {
+        let (x0, y0) = (rx.max(cx), ry.max(cy));
+        let (x1, y1) = (rx.saturating_add(rw).min(cx + cw), ry.saturating_add(rh).min(cy + ch));
+        for y in y0..y1.max(y0) {
+            for x in x0..x1.max(x0) {
+                let at = ((y - cy) * cw + (x - cx)) as usize * 4;
+                rgba[at..at + 4].copy_from_slice(&[0, 0, 0, 255]);
+            }
+        }
+    }
+    Ok(ShotImage { width: cw, height: ch, rgba })
+}
+
+/// **The sentence under the "Learn from my use" row** (#460): what the ledger holds now against its budget, or why it holds nothing. `None`
+/// is a ledger the editor does not have (a build without the plugin).
+pub fn collection_sentence(ledger: Option<&TurnLedger>) -> String {
+    let Some(ledger) = ledger else { return "No turn ledger in this editor.".to_owned() };
+    if let Some(why) = ledger.stopped() {
+        return format!("Collection has stopped: {why}.");
+    }
+    let Some((usage, budget)) = ledger.usage() else { return "Not collecting: no data folder is named.".to_owned() };
+    let megabytes = |bytes: u64| format!("{:.1} MB", bytes as f64 / 1_000_000.0);
+    let off = if ledger.collecting() { "" } else { "Collection is off. " };
+    format!(
+        "{off}{} turn{} kept, {} of {} used.",
+        usage.turns,
+        if usage.turns == 1 { "" } else { "s" },
+        megabytes(usage.bytes),
+        megabytes(budget),
+    )
 }
 
 /// **Whether a picture is one flat colour**: every pixel is the first one. The engine's answer to `blank_frame`.

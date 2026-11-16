@@ -146,16 +146,42 @@ pub fn load_checks(project: &Path) -> Result<Checks, String> {
 pub fn report(params: &DecideParams, answer: &Result<Value, String>, model: Option<&str>, endpoint: &str, latency_ms: u64) -> Value {
     let (answer, error) = match answer {
         Ok(v) => (Some(v), None),
-        Err(e) => (None, Some(e.as_str())),
+        Err(e) => (None, Some(capped(e))),
     };
     json!({
         "params": params,
         "answer": answer,
         "error": error,
         "model": model,
-        "endpoint": endpoint,
+        "endpoint": public_endpoint(endpoint),
         "latency_ms": latency_ms,
     })
+}
+
+/// **The longest `error` text a report carries**, in characters (review of #460): an error can quote a response body, and the ledger keeps what it is
+/// told for good.
+pub const ERROR_CAP_CHARS: usize = 500;
+
+/// **`text` cut to [`ERROR_CAP_CHARS`] characters**, saying that it was cut.
+fn capped(text: &str) -> String {
+    match text.char_indices().nth(ERROR_CAP_CHARS) {
+        Some((at, _)) => format!("{}... (cut at {ERROR_CAP_CHARS} characters)", &text[..at]),
+        None => text.to_owned(),
+    }
+}
+
+/// **An endpoint as it is safe to keep** (review of #460): the scheme, host and path, with any `user:password@` and any `?query` or `#fragment`
+/// dropped, because a key can travel in either and the ledger is kept for good.
+pub fn public_endpoint(url: &str) -> String {
+    let (scheme, rest) = match url.split_once("://") {
+        Some((scheme, rest)) => (format!("{scheme}://"), rest),
+        None => (String::new(), url),
+    };
+    let authority_end = rest.find(['/', '?', '#']).unwrap_or(rest.len());
+    let (authority, tail) = rest.split_at(authority_end);
+    let host = authority.rsplit_once('@').map_or(authority, |(_, host)| host);
+    let path = tail.split(['?', '#']).next().unwrap_or("");
+    format!("{scheme}{host}{path}")
 }
 
 /// **Whether the server must take the editor's picture before deciding.**

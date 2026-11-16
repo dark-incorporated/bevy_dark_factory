@@ -198,6 +198,10 @@ struct SettingLine {
 #[derive(Component)]
 struct LineDefault;
 
+/// **What the turn ledger holds now, under the "Learn from my use" row** (DL-01, #460): how many turns and how much disk, against the budget.
+#[derive(Component)]
+struct CollectionReadout;
+
 /// A word or button of a row's line that comes and goes with the file: *Modified*, its Reset, or what the project says.
 #[derive(Component)]
 struct LineMark;
@@ -299,11 +303,37 @@ pub struct SettingsScreenPlugin;
 
 impl Plugin for SettingsScreenPlugin {
     fn build(&self, app: &mut App) {
-        app.add_message::<OpenSettings>().add_systems(Update, (chord, open, refresh, land_the_focus, clamp_the_scroll).chain()).add_systems(
-            Update,
-            // After gooey has written its own readout (the number), so the percentage is the last word.
-            say_the_percentage.after(bevy_gooey::GooeySystems::Style),
-        );
+        app.add_message::<OpenSettings>()
+            .add_systems(Update, (chord, open, refresh, land_the_focus, clamp_the_scroll).chain())
+            .add_systems(Update, say_the_collection)
+            .add_systems(
+                Update,
+                // After gooey has written its own readout (the number), so the percentage is the last word.
+                say_the_percentage.after(bevy_gooey::GooeySystems::Style),
+            );
+    }
+}
+
+/// **How long the readout waits between looks at the disk**, seconds: it walks the labels folder, and nobody reads it faster.
+const COLLECTION_READOUT_EVERY: f32 = 2.0;
+
+/// **Keep the readout under the collection row true**: the turns written, the disk they take and the budget, or why nothing is kept. Only
+/// runs while the Settings screen has the row on screen.
+fn say_the_collection(time: Res<Time>, ledger: Option<Res<crate::turn_ledger::TurnLedger>>, mut texts: Query<&mut Text, With<CollectionReadout>>, mut since: Local<f32>) {
+    if texts.is_empty() {
+        *since = COLLECTION_READOUT_EVERY;
+        return;
+    }
+    *since += time.delta_secs();
+    if *since < COLLECTION_READOUT_EVERY {
+        return;
+    }
+    *since = 0.0;
+    let said = crate::turn_ledger::collection_sentence(ledger.as_deref());
+    for mut text in &mut texts {
+        if text.0 != said {
+            text.0 = said.clone();
+        }
     }
 }
 
@@ -951,6 +981,9 @@ fn setting_row(
                 ));
             }
             row.spawn(label(setting.description));
+            if key == "collect_labels" {
+                row.spawn((label(crate::turn_ledger::collection_sentence(None)), CollectionReadout));
+            }
             row.spawn((
                 bevy_gooey::row_with(crate::chrome::GAP_GROUP_STEPS, bevy_gooey::RowLayout { align: Some(AlignItems::Center), wrap: Some(FlexWrap::Wrap), ..default() }),
                 SettingLine { key, own: own.is_some(), overridden, default: default_value },

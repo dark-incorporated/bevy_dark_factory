@@ -28,3 +28,27 @@ fn a_refused_call_is_reported_with_its_reason_and_no_answer() {
     assert_eq!(said["error"], "no check named `nonesuch`");
     assert_eq!(said["model"], serde_json::Value::Null, "a model nobody named is not invented");
 }
+
+/// **The endpoint is kept without a key in it** (review of #460): userinfo, query and fragment are dropped; scheme, host, port and path stay.
+#[test]
+fn an_endpoint_is_reported_without_userinfo_query_or_fragment() {
+    use bevy_cauldron_mcp::decide::public_endpoint;
+    assert_eq!(public_endpoint("https://user:secret@api.example.com:8443/v1/systemone?key=abc123#frag"), "https://api.example.com:8443/v1/systemone");
+    assert_eq!(public_endpoint("http://127.0.0.1:8093/v1/systemone"), "http://127.0.0.1:8093/v1/systemone");
+    assert_eq!(public_endpoint("https://token@host?x=1"), "https://host");
+    let params = DecideParams { check: Some("floating".to_owned()), ..DecideParams::default() };
+    let said = report(&params, &Ok(json!({})), None, "https://u:p@host/v1?key=k", 1);
+    assert_eq!(said["endpoint"], "https://host/v1");
+}
+
+/// **An error is bounded** (review of #460): a long one is cut, and says so.
+#[test]
+fn a_long_error_is_cut_and_says_so() {
+    use bevy_cauldron_mcp::decide::ERROR_CAP_CHARS;
+    let params = DecideParams { check: Some("floating".to_owned()), ..DecideParams::default() };
+    let long = "é".repeat(ERROR_CAP_CHARS * 3);
+    let said = report(&params, &Err(long.clone()), None, "http://h/", 1);
+    let kept = said["error"].as_str().expect("an error");
+    assert!(kept.chars().count() < ERROR_CAP_CHARS + 60, "{}", kept.chars().count());
+    assert!(kept.starts_with(&long[..ERROR_CAP_CHARS * 2]) && kept.ends_with("characters)"), "{kept}");
+}

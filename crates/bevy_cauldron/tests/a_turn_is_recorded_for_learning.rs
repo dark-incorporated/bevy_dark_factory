@@ -465,3 +465,86 @@ fn the_settings_row_says_the_budget_and_collection_is_on_by_default() {
     assert!(row.description.contains(&format!("{gigabytes} GB")), "the row says a budget the constant does not have: {}", row.description);
     assert!(bevy_cauldron::settings::EditorSettings::default().collect_labels, "collected by default (owner, #459)");
 }
+
+/// **The row's readout is live**: it says how many turns the ledger holds and how much disk they take, and it names a ledger that is not there.
+#[test]
+fn the_settings_row_says_what_the_ledger_holds_now() {
+    let (mut app, _labels) = editor("readout");
+    let said = bevy_cauldron::turn_ledger::collection_sentence(Some(app.world().resource::<TurnLedger>()));
+    assert!(said.starts_with("0 turns kept"), "{said}");
+    let first = place(&mut app, [20.0, 18.0]);
+    render_what_is_asked(&mut app);
+    present(&mut app, &[first], &["a bed"]);
+    until_written(&mut app);
+    let said = bevy_cauldron::turn_ledger::collection_sentence(Some(app.world().resource::<TurnLedger>()));
+    assert!(said.starts_with("1 turn kept") && said.contains(" MB of "), "{said}");
+    assert!(bevy_cauldron::turn_ledger::collection_sentence(None).contains("No turn ledger"));
+}
+
+/// **A readback's rows are padded to 256 bytes, and the padding is read as padding** (review of #460): for a width that is not a multiple of 64
+/// every picture was recorded missing before.
+#[test]
+fn a_readback_with_padded_rows_is_read_as_the_picture() {
+    use bevy::render::render_resource::TextureFormat;
+    use bevy_cauldron::turn_ledger::rgba_of;
+    let (width, height) = (100u32, 3u32);
+    let stride = (width as usize * 4).next_multiple_of(256);
+    assert_ne!(stride, width as usize * 4, "the width must need padding for this to prove anything");
+    let mut padded = vec![0xEEu8; stride * height as usize];
+    for y in 0..height as usize {
+        for x in 0..width as usize {
+            padded[y * stride + x * 4..y * stride + x * 4 + 4].copy_from_slice(&[x as u8, y as u8, 7, 255]);
+        }
+    }
+    let whole = rgba_of(&padded, width, height, TextureFormat::Rgba8UnormSrgb, [0, 0, width, height], &[]).expect("a padded readback reads");
+    assert_eq!((whole.width, whole.height, whole.rgba.len()), (100, 3, 100 * 3 * 4));
+    assert_eq!(&whole.rgba[(2 * 100 + 5) * 4..(2 * 100 + 5) * 4 + 4], &[5, 2, 7, 255], "a pixel is where the padding says, not where width x 4 says");
+    assert!(!whole.rgba.contains(&0xEE), "padding bytes were read as pixels");
+
+    // An unpadded buffer is read as it is.
+    let tight: Vec<u8> = (0..16 * 2 * 4).map(|i| i as u8).collect();
+    assert_eq!(rgba_of(&tight, 16, 2, TextureFormat::Rgba8Unorm, [0, 0, 16, 2], &[]).expect("reads").rgba, tight);
+    // The wrong size is refused, not guessed at.
+    assert!(rgba_of(&padded[..padded.len() - 1], width, height, TextureFormat::Rgba8Unorm, [0, 0, width, height], &[]).is_err());
+
+    // **The picture is the map's viewport, cut out**: a crop inside the surface, and one outside it is refused.
+    let cut = rgba_of(&padded, width, height, TextureFormat::Rgba8UnormSrgb, [10, 1, 20, 2], &[]).expect("a crop");
+    assert_eq!((cut.width, cut.height), (20, 2));
+    assert_eq!(&cut.rgba[0..4], &[10, 1, 7, 255]);
+    assert!(rgba_of(&padded, width, height, TextureFormat::Rgba8Unorm, [90, 0, 20, 3], &[]).is_err(), "a viewport past the surface");
+
+    // **A BGRA surface is turned into RGBA**, and a redacted rectangle (the terminal pane) is black.
+    let bgra = rgba_of(&padded, width, height, TextureFormat::Bgra8UnormSrgb, [0, 0, width, height], &[[0, 0, 50, 2]]).expect("reads");
+    assert_eq!(&bgra.rgba[(2 * 100 + 60) * 4..(2 * 100 + 60) * 4 + 4], &[7, 2, 60, 255], "blue and red swap");
+    assert_eq!(&bgra.rgba[(100 + 10) * 4..(100 + 10) * 4 + 4], &[0, 0, 0, 255], "inside the redacted rectangle");
+    assert_eq!(&bgra.rgba[(2 * 100 + 10) * 4..(2 * 100 + 10) * 4 + 4], &[7, 2, 10, 255], "below it is untouched");
+}
+
+/// **What the editor keeps of the decisions is bounded** (review of #460): a report that is too big is refused, and a turn holds a fixed number.
+#[test]
+fn a_turns_decisions_are_bounded() {
+    use bevy::remote::{RemoteMethodSystemId, RemoteMethods};
+    use bevy_cauldron::turn_ledger::{MAX_DECISIONS_PER_TURN, MAX_DECISION_BYTES};
+    let (mut app, _labels) = editor("bounded");
+    place(&mut app, [20.0, 18.0]);
+    render_what_is_asked(&mut app);
+    let Some(RemoteMethodSystemId::Instant(id)) = app.world().resource::<RemoteMethods>().get("grimoire/decide_report").cloned() else { panic!("the method") };
+    let big = serde_json::json!({"params": {"facts": "x".repeat(MAX_DECISION_BYTES)}});
+    let refused = app.world_mut().run_system_with(id, Some(big)).expect("runs");
+    assert!(refused.is_err(), "an oversize report was taken");
+    for n in 0..MAX_DECISIONS_PER_TURN {
+        let said = call(&mut app, "grimoire/decide_report", serde_json::json!({"params": {"check": "floating"}, "n": n}));
+        assert_eq!(said["recorded"], true, "decision {n}");
+    }
+    let over = call(&mut app, "grimoire/decide_report", serde_json::json!({"params": {"check": "floating"}}));
+    assert_eq!(over["recorded"], false, "a turn kept more than {MAX_DECISIONS_PER_TURN} decisions: {over}");
+}
+
+/// **A ledger that stopped says how to resume** (review of #460).
+#[test]
+fn the_stop_sentence_says_how_to_resume() {
+    let dir = scratch("resume");
+    let mut store = Store::new(dir).with_budget(1);
+    let why = store.append(&Line::turn(sample_turn("turn-1", 1))).expect_err("past the budget");
+    assert!(why.contains("off and on again in Settings"), "{why}");
+}

@@ -3916,13 +3916,18 @@ fn editor_decide_report(In(report): In<Value>, ledger: Option<ResMut<crate::turn
     if !report.is_object() {
         return Err("a decision report is a JSON object: the call's params, its answer or error, model, endpoint and latency_ms".to_owned());
     }
+    // **A report is bounded** (review of #460): one that is too large is refused, not trimmed, so a server cannot grow the ledger without limit.
+    let size = report.to_string().len();
+    if size > crate::turn_ledger::MAX_DECISION_BYTES {
+        return Err(format!("a decision report is {size} bytes, over the {} the ledger keeps", crate::turn_ledger::MAX_DECISION_BYTES));
+    }
     let Some(mut ledger) = ledger else {
         return Ok(json!({"recorded": false, "why": "this editor keeps no turn ledger"}));
     };
     if ledger.decision_reported(report) {
         Ok(json!({"recorded": true}))
     } else {
-        Ok(json!({"recorded": false, "why": "collection is off or no agent turn is open, so the decision belongs to no record"}))
+        Ok(json!({"recorded": false, "why": "collection is off, no agent turn is open, or the turn already holds its limit of decisions, so the decision belongs to no record"}))
     }
 }
 

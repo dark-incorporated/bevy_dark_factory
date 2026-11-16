@@ -373,7 +373,7 @@ impl Store {
     /// **What the ledger holds now**: its turn lines and every byte of the folder. Reads the file, so it is for a Settings row and a test,
     /// not for a frame.
     pub fn usage(&self) -> Usage {
-        let turns = read_file(&self.ledger_path()).map(|read| read.lines.len()).unwrap_or(0);
+        let turns = read_file(&self.ledger_path()).map(|read| read.turns().count()).unwrap_or(0);
         Usage { turns, bytes: bytes_under(&self.dir) }
     }
 
@@ -383,7 +383,7 @@ impl Store {
         let used = self.used();
         format!(
             "the turn ledger in {} holds {used} bytes and its budget is {}, so it stopped collecting; nothing was removed. \
-             Delete what you do not want kept, or turn collection off in Settings",
+             To resume, make room in that folder (delete what you do not want kept), then turn \"Learn from my use\" off and on again in Settings",
             self.dir.display(),
             self.budget
         )
