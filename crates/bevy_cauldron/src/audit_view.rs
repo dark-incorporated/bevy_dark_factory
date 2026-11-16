@@ -404,8 +404,12 @@ fn write_the_answers(mut answers: ResMut<Answers>, mut audit: ResMut<Audit>, mut
             ledger.audit_answered(&offer.turn, &offer.question, kind.word(), offer.why.word());
         }
         audit.this_week += 1;
-        // The file grew by this answer: the next look reads it.
+        // **The next question follows the answer, not the five-second clock** (#466). Clearing `read_len` alone made the
+        // file look changed but left `looked_at` set, so `look_at_the_ledger` still waited out `LOOK_EVERY_S` before reading
+        // it: measured at 15 fps, answering three questions in a row left the row on each question for up to five seconds,
+        // which reads as a key that did nothing. The clock is cleared with the length, so the read happens next frame.
         audit.read_len = None;
+        audit.looked_at = None;
     }
 }
 

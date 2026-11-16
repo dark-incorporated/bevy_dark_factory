@@ -100,3 +100,21 @@ fn a_focused_element_still_keeps_the_row_quiet() {
     }
     assert_eq!(answers(&labels), before, "the row answered while an element had the keyboard");
 }
+
+/// **The next question follows the answer at once**, not at the five-second ledger clock: after an answer the row must be
+/// on a different question within a few frames, or a person pressing Y, N and S in a row sees one question and three
+/// answers. Measured in a recorded clip at 15 fps: the row held each question for up to 5 s, which reads as keys that did
+/// nothing.
+#[test]
+fn the_next_question_follows_the_answer_and_not_the_clock() {
+    let (mut app, labels) = recorded("audit_next_question");
+    let before = app.world().resource::<Audit>().offers.first().map(|o| o.question.clone()).expect("a question");
+    press(&mut app, KeyCode::KeyY, "y");
+    // The editor is stepped a frame at a time; five frames after the press the row must already be on the next question.
+    for _ in 0..5 {
+        app.update();
+    }
+    let after = app.world().resource::<Audit>().offers.first().map(|o| o.question.clone());
+    assert_ne!(after.as_deref(), Some(before.as_str()), "the row is still on `{before}` five frames after it was answered");
+    assert!(answers(&labels) >= 1, "the answer was not written");
+}
