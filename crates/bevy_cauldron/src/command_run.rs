@@ -26,24 +26,36 @@ use bevy_gooey::{Modifiers, Shortcut};
 
 use crate::commands::Command;
 use crate::keys::{self, Binding};
+use crate::ops::Source;
 
 /// The chords waiting to go down, and the keys that are down for this frame's input.
 #[derive(Resource, Default, Debug)]
 pub struct Chords {
-    /// Chords asked for and not yet pressed, oldest first. One goes down per two frames.
-    waiting: Vec<Vec<KeyCode>>,
+    /// Chords asked for and not yet pressed, oldest first. One goes down per two frames, **each with the [`Source`] that asked for it**.
+    ///
+    /// **The source is carried, not guessed** (DL-02, #470): a chord `grimoire/run_command` queued is an agent's and one a palette row, a menu row
+    /// or an empty-state prompt queued is the person's, and the frame it goes down in is labelled from here.
+    waiting: Vec<(Vec<KeyCode>, Source)>,
     /// The keys pressed last frame, released at the start of this one.
     down: Vec<KeyCode>,
 }
 
 impl Chords {
     /// Ask for a command's chord to be pressed: the one the settings gave it ([`keys::Rebound`], in
-    /// `live`), or else the census's.
+    /// `live`), or else the census's. `source` says whose hands asked for it.
+    pub fn queue_from(&mut self, command: &Command, live: keys::Live, source: Source) {
+        self.waiting.push((
+            match live.3.chord(command.action) {
+                Some(chord) => keys_of_chord(chord),
+                None => keys_of(keys::binding(command.action)),
+            },
+            source,
+        ));
+    }
+
+    /// The same, for the person's own hands: every caller but an agent's door is a person's click.
     pub fn queue(&mut self, command: &Command, live: keys::Live) {
-        self.waiting.push(match live.3.chord(command.action) {
-            Some(chord) => keys_of_chord(chord),
-            None => keys_of(keys::binding(command.action)),
-        });
+        self.queue_from(command, live, Source::Human);
     }
 
     /// How many chords have not gone down yet.
@@ -101,7 +113,10 @@ fn message(key: KeyCode, state: ButtonState) -> KeyboardInput {
 ///
 /// A chord is never pressed in the frame the last one came up: the key census must see the released
 /// state once, or two chords on one key would read as one held press.
-pub fn press_waiting(mut chords: ResMut<Chords>, mut keyboard: MessageWriter<KeyboardInput>) {
+///
+/// **The frame a chord goes down in carries its hands** (DL-02, #470): `grimoire/run_command` queues one as an agent's, so a key this system presses
+/// for an agent is an agent's input and an answer it produces is no verdict of the person's.
+pub fn press_waiting(mut chords: ResMut<Chords>, mut keyboard: MessageWriter<KeyboardInput>, mut hands: Option<ResMut<crate::hands::Hands>>) {
     if !chords.down.is_empty() {
         for key in std::mem::take(&mut chords.down).into_iter().rev() {
             keyboard.write(message(key, ButtonState::Released));
@@ -111,7 +126,12 @@ pub fn press_waiting(mut chords: ResMut<Chords>, mut keyboard: MessageWriter<Key
     if chords.waiting.is_empty() {
         return;
     }
-    let chord = chords.waiting.remove(0);
+    let (chord, source) = chords.waiting.remove(0);
+    if source == Source::Agent
+        && let Some(hands) = hands.as_mut()
+    {
+        hands.say_an_agent();
+    }
     for key in &chord {
         keyboard.write(message(*key, ButtonState::Pressed));
     }
@@ -124,6 +144,6 @@ pub struct CommandRunPlugin;
 impl Plugin for CommandRunPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<Chords>()
-            .add_systems(PreUpdate, press_waiting.before(InputSystems));
+            .add_systems(PreUpdate, press_waiting.before(InputSystems).after(crate::hands::count_the_frame));
     }
 }

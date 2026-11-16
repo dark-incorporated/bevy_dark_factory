@@ -319,11 +319,31 @@ impl Confirm {
 #[derive(Component, Clone, Copy)]
 struct ConfirmButton(Choice);
 
+/// **A picture is being taken of the editor's result, so the question must not stand on it** (DL-01, #471).
+///
+/// The turn ledger takes its after picture once the view has settled, which is after `grimoire/present` has asked the person Keep or Undo — and the
+/// question is drawn centred over the viewport, so the picture was partly of the dialog. `ask`ing for the picture sets this, and the dialog is then
+/// `Visibility::Hidden` for exactly one frame: the frame whose readback copies the surface.
+///
+/// **Why a flag and not the ledger's own hide.** The frame a readback copies is chosen by the renderer, not by a system, so the hide has to span the
+/// whole of a frame: set before the readback is spawned, honoured by [`sync_dialog`], and cleared at the top of the next frame. A flag the ledger wrote
+/// and the dialog read would be two crates' systems racing for one frame's worth of draw; one resource, written by one side and read by the other, is
+/// one order to reason about.
+#[derive(Resource, Default, Debug)]
+pub struct PictureWithoutTheQuestion {
+    /// Set by the ledger in the frame it spawns a readback that must not hold the question; cleared in that frame's `Last`. A question **built**
+    /// while this is up is born hidden, so one that arrives in the same frame as the picture is not on it either.
+    pub asked: bool,
+}
+
 /// **The dialog on screen, and the question it was built for.** The serial is `Question::serial`:
 /// a question asked in the frame after another was answered can carry the same [`Asked`] and other
 /// words, and a dialog keyed by `Asked` would go on showing the old ones.
+///
+/// **Public, because the ledger has to take it out of the frame it photographs** (#471): hiding this root hides the scrim, the card and every button,
+/// and it is the one handle on "the whole question" that is not a walk of the UI tree.
 #[derive(Component)]
-struct ConfirmDialog(u64);
+pub struct QuestionDialog(pub u64);
 
 /// **The system that reads the answer keys.** A reader of [`Confirm::answer`] that must see the answer
 /// in the frame the key was pressed orders itself `.after(ConfirmKeys)`; left unordered, the executor
@@ -336,6 +356,7 @@ pub struct ConfirmPlugin;
 impl Plugin for ConfirmPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<Confirm>()
+            .init_resource::<PictureWithoutTheQuestion>()
             // **Before every phase of the keys** (`Sense`, `Text`, `Act`), so the frame a question is
             // answered is not also a frame in which the answer key does its ordinary job. `Y` is not
             // bound in the editor's census today, but `N` is `RotateMeshX` on the Meshes tab and
@@ -349,7 +370,17 @@ impl Plugin for ConfirmPlugin {
                     .chain()
                     .before(crate::keys::Phase::Sense),
             )
-            .add_systems(Last, |mut confirm: ResMut<Confirm>| confirm.owner_answered = false)
+            .add_systems(Last, |mut confirm: ResMut<Confirm>, mut kept_off: ResMut<PictureWithoutTheQuestion>, mut questions: Query<&mut bevy::camera::visibility::InheritedVisibility, With<QuestionDialog>>| {
+                confirm.owner_answered = false;
+                // **The picture's frame is over, so the question is drawn again** (#471). The ledger hid it in the frame its readback copied; the
+                // dialog's root goes back to visible here, in that frame's `Last`, so there is no frame in which the person sees it gone.
+                if kept_off.asked {
+                    for mut shown in &mut questions {
+                        *shown = bevy::camera::visibility::InheritedVisibility::VISIBLE;
+                    }
+                    kept_off.asked = false;
+                }
+            })
             .add_observer(answer_by_activate);
     }
 }
@@ -444,13 +475,25 @@ fn answer_by_activate(
 fn sync_dialog(
     mut commands: Commands,
     confirm: Res<Confirm>,
-    standing: Query<(Entity, &ConfirmDialog)>,
+    kept_off: ResMut<PictureWithoutTheQuestion>,
+    mut standing: Query<(Entity, &QuestionDialog, &mut bevy::camera::visibility::InheritedVisibility)>,
 ) {
+    // **The picture's frame draws no question** (#471). The ledger hides the dialog itself, in the frame whose readback it spawns, because main-world
+    // visibility is what the render world extracts and a hide written later is a frame after the picture. This system's job is the other half: the
+    // frame's own `Last` draws it again (see the plugin), and a dialog **built** while the flag is up is born hidden so a question that arrived in the
+    // same frame as the picture is not on it either.
+    let hide = kept_off.asked;
     let want = confirm.question.as_ref();
     let mut built = false;
-    for (entity, dialog) in &standing {
+    for (entity, dialog, mut shown) in &mut standing {
         if want.is_some_and(|q| q.serial == dialog.0) {
             built = true;
+            // **Only written when it differs**: `InheritedVisibility` is change-detected, and a UI tree rewritten every frame is a tree relaid out
+            // every frame.
+            let want_visible = if hide { bevy::camera::visibility::InheritedVisibility::HIDDEN } else { bevy::camera::visibility::InheritedVisibility::VISIBLE };
+            if *shown != want_visible {
+                *shown = want_visible;
+            }
         } else {
             commands.entity(entity).try_despawn();
         }
@@ -462,9 +505,15 @@ fn sync_dialog(
         return;
     }
     let destructive = q.of.destructive();
+    let root = commands.spawn((dialog(), QuestionDialog(q.serial))).insert(GlobalZIndex(crate::chrome::MODAL_Z)).id();
+    // **Born out of the picture**, where the flag is up: the person still has the question, one frame later than the dialog would have been drawn.
+    if hide {
+        commands
+            .entity(root)
+            .insert(bevy::camera::visibility::InheritedVisibility::HIDDEN);
+    }
     commands
-        .spawn((dialog(), ConfirmDialog(q.serial)))
-        .insert(GlobalZIndex(crate::chrome::MODAL_Z))
+        .entity(root)
         .with_children(|scrim| {
             scrim
                 .spawn((panel(), Hovered::default()))

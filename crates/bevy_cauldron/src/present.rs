@@ -880,6 +880,8 @@ fn answer_presentation(
     mut handbacks: Option<ResMut<HandBacks>>,
     // **The turn ledger** (DL-02, #461): what the person answers is a gold label on the turn the hand-back ended.
     mut ledger: Option<ResMut<crate::turn_ledger::TurnLedger>>,
+    // **Whose hands answered** (DL-02, #470): an answer an agent pressed for itself is no verdict of the person's and is never gold.
+    hands: Option<Res<crate::hands::Hands>>,
 ) {
     // The modal's answer (Yes undoes, No keeps) or the block's button, one or the other.
     let replied = match confirm.answer(Asked::Presentation) {
@@ -890,6 +892,9 @@ fn answer_presentation(
     let Some(replied) = replied else {
         return;
     };
+    // **Taken here, at the one place an answer becomes state**: a person's own press is gold; an agent's is answered as it always was — the result is
+    // kept or taken back, which is what the hand-back asked — and only the *record* of who judged it is withheld (DL-02, #470).
+    let of_the_person = hands.is_none_or(|hands| hands.are_the_persons());
     let Some(presented) = presenting.0.as_mut().filter(|presented| presented.answer.is_none()) else {
         return;
     };
@@ -899,12 +904,15 @@ fn answer_presentation(
             _ => ("kept", "kept the agent's result"),
         };
         presented.answer = Some(answer.to_owned());
-        tell_the_ledger(
-            ledger.as_deref_mut(),
-            project.as_deref(),
-            &presented.id,
-            if answer == "kept" { crate::turn_ledger::Verdict::Kept } else { crate::turn_ledger::Verdict::Dismissed },
-        );
+        // **Only the person's own press is a verdict** (DL-02, #470): an agent's answer still keeps or dismisses the result, and is no label.
+        if of_the_person {
+            tell_the_ledger(
+                ledger.as_deref_mut(),
+                project.as_deref(),
+                &presented.id,
+                if answer == "kept" { crate::turn_ledger::Verdict::Kept } else { crate::turn_ledger::Verdict::Dismissed },
+            );
+        }
         // **Kept is the one answer that makes a hand-back a task a person can ask for** (BM-07, #417): the
         // person read it and accepted what it made. A dismissal kept the result unread, which proves nothing.
         if answer == "kept"
@@ -945,18 +953,23 @@ fn answer_presentation(
     if let Some(why) = stopped {
         presented.answer = Some(why.clone());
         // **The person pressed Undo all, and a step of it was refused** (review of #461): the answer is still theirs, so the ledger is told.
-        tell_the_ledger(ledger.as_deref_mut(), Some(&**project), &presented.id, crate::turn_ledger::Verdict::Undone);
+        if of_the_person {
+            tell_the_ledger(ledger.as_deref_mut(), Some(&**project), &presented.id, crate::turn_ledger::Verdict::Undone);
+        }
         state.status.problem(why);
         return;
     }
     presented.answer = Some("undone".to_owned());
-    tell_the_ledger(ledger.as_deref_mut(), Some(&**project), &presented.id, crate::turn_ledger::Verdict::Undone);
+    if of_the_person {
+        tell_the_ledger(ledger.as_deref_mut(), Some(&**project), &presented.id, crate::turn_ledger::Verdict::Undone);
+    }
     state.status.note(format!("undid the agent's {undone} change(s)"));
 }
 
-/// **Tell the turn ledger what the person answered** (DL-02, #461). Only this system calls it, and this system only runs on the person's own
-/// answer — the modal's keys or the AGENT block's buttons. An agent's `operation_undo` over BRP takes a turn back without answering anything,
-/// so it is never recorded as the person's verdict.
+/// **Tell the turn ledger what the person answered** (DL-02, #461). Only this system calls it, and **only when
+/// [`crate::hands::Hands`] says the person's own hands did it** — the modal's keys or the AGENT block's buttons, pressed by a person. An answer an agent
+/// pressed for itself over BRP keeps or undoes the result as the hand-back asked and is **no label** (#470), and an agent's `operation_undo` takes a
+/// turn back without answering anything, so neither is ever recorded as the person's verdict.
 fn tell_the_ledger(
     ledger: Option<&mut crate::turn_ledger::TurnLedger>,
     project: Option<&crate::project::Project>,
