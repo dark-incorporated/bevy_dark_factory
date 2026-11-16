@@ -214,6 +214,146 @@ pub struct Label {
     pub holdout: bool,
 }
 
+/// **The objective label a perturbed record carries** (DL-05, #464): the engine made the defect, so no one's judgement is in it.
+pub const TIER_OBJECTIVE: &str = "objective";
+
+/// **The label a defective scene is**; the scene it was made from is the one the person kept.
+pub const LABEL_DEFECTIVE: &str = "defective";
+
+/// **A scene's id** (DL-05, #464), which DL-06's split keeps whole: a turn, every perturbation of its scene and every assess-then-fix pair
+/// out of it share one id, so none of them lands on the other side of the train / eval line from the rest.
+///
+/// A scene is a project and a map: the project's hash is the one the record already carries (never the path) and the map's name is what the
+/// turn's facts say was open. **Assumed decision (owner may override):** the issue names "a project, map and region"; no region is recorded
+/// on a turn today, so the id stops at the map. A turn that names no map is its own scene, which only ever errs towards two scenes kept apart.
+pub fn scene_of(turn: &Turn) -> String {
+    let map = turn.facts["map"]["name"].as_str().unwrap_or(&turn.id);
+    let key = format!("{}\0{map}", turn.provenance.project_hash);
+    format!("scene-{}", &sha256_hex(key.as_bytes())[..SCENE_ID_HEX])
+}
+
+/// How many hex digits of the hash a scene's id keeps: sixty-four bits, so two scenes of one person's folder never meet.
+const SCENE_ID_HEX: usize = 16;
+
+/// **Which way a frame answers the question "is this right?"**
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum Polarity {
+    Negative,
+    Positive,
+}
+
+/// **One picture and what is known about it**, as the new line kinds below offer it to DL-06.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct Example {
+    /// The record it comes from: a [`Perturbed::id`] or an [`AssessFix::id`].
+    pub record: String,
+    pub scene: String,
+    pub polarity: Polarity,
+    /// `objective` for a frame the engine's own facts judge, `silver` for a frame an assessor judged.
+    pub tier: String,
+    pub frame: Shot,
+}
+
+/// **One engine-made defect on a kept turn's scene, with the scene before it and after** (DL-05, #464).
+///
+/// It is a line of its own and never an edit of the turn it came from. The scene the person kept is the `before` (good) and the defective one
+/// is the `after`; the defect is the objective label, and `facts` holds what the engine measures on **both** scenes, from the saved files,
+/// with arithmetic that is not the operation's own, so the label is confirmed by something other than the code that made it.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct Perturbed {
+    /// `perturbed-<unix ms>-<n>`.
+    pub id: String,
+    /// The source turn's [`scene_of`].
+    pub scene: String,
+    /// **The turn it came from**: [`Turn::id`].
+    pub source_turn: String,
+    pub at_unix_ms: u64,
+    /// `float`, `clip`, `outside_area`, `delete_named`, `turn_wrong`, `thin_forest` or `flatten_peak`.
+    pub defect: String,
+    /// `near` (just over what a person sees) or `clear`.
+    pub size: String,
+    /// **How big the defect is**, in `unit`: metres for a lift, a clip's depth or a distance outside, degrees for a turn, a fraction for thinning
+    /// and flattening, a count for a deletion.
+    pub magnitude: f64,
+    pub unit: String,
+    /// The placements (or the forest, or the terrain's peak) the defect is on.
+    pub target: Vec<String>,
+    /// The tier of `label`: always [`TIER_OBJECTIVE`].
+    pub tier: String,
+    /// Always [`LABEL_DEFECTIVE`] for the `after` scene; the `before` is the scene the person kept.
+    pub label: String,
+    /// The kept scene's picture: the source turn's own after picture.
+    pub before: Shot,
+    /// The defective scene's picture.
+    pub after: Shot,
+    /// The editor's own operations that made the defect, as the scratch copy's operation log wrote them.
+    pub operations: Vec<OperationRecord>,
+    /// What the engine measures on each scene: `{"before": {...}, "after": {...}}`.
+    pub facts: serde_json::Value,
+    /// **A benchmark turn's perturbation is a benchmark record**, so DL-06 keeps it out of every split as it keeps its source.
+    pub bench: bool,
+    pub provenance: Provenance,
+}
+
+impl Perturbed {
+    /// **The two frames this record is**: the kept scene a positive, the defective one a negative, both objective.
+    pub fn examples(&self) -> Vec<Example> {
+        vec![
+            Example { record: self.id.clone(), scene: self.scene.clone(), polarity: Polarity::Positive, tier: TIER_OBJECTIVE.to_owned(), frame: self.before.clone() },
+            Example { record: self.id.clone(), scene: self.scene.clone(), polarity: Polarity::Negative, tier: TIER_OBJECTIVE.to_owned(), frame: self.after.clone() },
+        ]
+    }
+}
+
+/// **The tier an assess-then-fix pair carries** (DL-05, #464): an assessor's answer, and a later answer of the same check that agrees the work
+/// was fixed. Silver, and no more, because an assessor's agreement with itself is not the engine's.
+pub const TIER_SILVER: &str = "silver";
+
+/// **One `grimoire_decide` answer of a turn**, as a pair names it.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct AssessedAnswer {
+    /// Its place in [`Turn::decisions`].
+    pub decision: usize,
+    /// **How many of the turn's operations had been applied when it was reported**, so what lies between two answers is the work between them.
+    pub after_operations: usize,
+    pub p_yes: Option<f64>,
+    pub threshold: Option<f64>,
+    pub model: Option<String>,
+    /// The frame the editor was drawing when the answer was reported.
+    pub frame: Shot,
+}
+
+/// **A turn in which an assessor flagged a problem and a later operation of the same turn fixed it** (DL-05, #464).
+///
+/// "Fixed it" is the same named check answering no, later in the turn, with operations applied between the two answers. The frame of the
+/// answer that flagged it is a negative and the frame of the answer that cleared it is a positive, both silver.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct AssessFix {
+    /// `assessfix-<turn id>-<n>`: the turn's own id, so a re-run finds the pair it already wrote.
+    pub id: String,
+    pub scene: String,
+    pub source_turn: String,
+    /// The named check both answers are of.
+    pub check: String,
+    pub tier: String,
+    pub flagged: AssessedAnswer,
+    pub cleared: AssessedAnswer,
+    /// The operations applied between the two answers: the fix.
+    pub fixing_operations: Vec<String>,
+    pub bench: bool,
+}
+
+impl AssessFix {
+    /// **The two frames this pair is**: the flagged frame a negative and the cleared one a positive, both silver.
+    pub fn examples(&self) -> Vec<Example> {
+        vec![
+            Example { record: self.id.clone(), scene: self.scene.clone(), polarity: Polarity::Negative, tier: TIER_SILVER.to_owned(), frame: self.flagged.frame.clone() },
+            Example { record: self.id.clone(), scene: self.scene.clone(), polarity: Polarity::Positive, tier: TIER_SILVER.to_owned(), frame: self.cleared.frame.clone() },
+        ]
+    }
+}
+
 /// **The label of a person's answer to one question** (DL-07, #466): [`Label::label`].
 pub const AUDIT: &str = "audit";
 
@@ -284,6 +424,10 @@ pub enum Body {
     Turn(Box<Turn>),
     Label(Box<Label>),
     Dismissed(Dismissed),
+    /// An engine-made defect on a kept turn's scene (DL-05, #464).
+    Perturbed(Box<Perturbed>),
+    /// An assessor flagged a problem and a later operation of the same turn fixed it (DL-05, #464).
+    AssessFix(Box<AssessFix>),
     Assessment(Box<Assessment>),
 }
 
@@ -310,6 +454,16 @@ impl Line {
     /// A dismissal, as the ledger holds it.
     pub fn dismissed(dismissed: Dismissed) -> Line {
         Line { v: FORMAT, body: Body::Dismissed(dismissed) }
+    }
+
+    /// An engine-made defect, as the ledger holds it.
+    pub fn perturbed(perturbed: Perturbed) -> Line {
+        Line { v: FORMAT, body: Body::Perturbed(Box::new(perturbed)) }
+    }
+
+    /// An assess-then-fix pair, as the ledger holds it.
+    pub fn assess_fix(pair: AssessFix) -> Line {
+        Line { v: FORMAT, body: Body::AssessFix(Box::new(pair)) }
     }
 
     /// An assessment, as the ledger holds it.
@@ -357,12 +511,40 @@ impl Read {
         })
     }
 
+    /// The engine-made defects, in the order they were written (DL-05, #464).
+    pub fn perturbed(&self) -> impl Iterator<Item = &Perturbed> {
+        self.lines.iter().filter_map(|(_, line)| match &line.body {
+            Body::Perturbed(perturbed) => Some(perturbed.as_ref()),
+            _ => None,
+        })
+    }
+
     /// The assessments, in the order they were written.
     pub fn assessments(&self) -> impl Iterator<Item = &Assessment> {
         self.lines.iter().filter_map(|(_, line)| match &line.body {
             Body::Assessment(assessment) => Some(assessment.as_ref()),
             _ => None,
         })
+    }
+
+    /// The assess-then-fix pairs, in the order they were written (DL-05, #464).
+    pub fn assess_fixes(&self) -> impl Iterator<Item = &AssessFix> {
+        self.lines.iter().filter_map(|(_, line)| match &line.body {
+            Body::AssessFix(pair) => Some(pair.as_ref()),
+            _ => None,
+        })
+    }
+
+    /// **Every frame the two new line kinds offer**, in the order the lines were written: a negative and a positive from each.
+    pub fn examples(&self) -> Vec<Example> {
+        self.lines
+            .iter()
+            .flat_map(|(_, line)| match &line.body {
+                Body::Perturbed(perturbed) => perturbed.examples(),
+                Body::AssessFix(pair) => pair.examples(),
+                _ => Vec::new(),
+            })
+            .collect()
     }
 
     /// **The person's answers to single questions** (DL-07, #466), in the order they were given: the labels named `audit`.

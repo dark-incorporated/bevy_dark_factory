@@ -126,6 +126,8 @@ struct OpenTurn {
     before: Slot,
     seen: Vec<Seen>,
     decisions: Vec<Value>,
+    /// **The picture asked for as each decision was reported** (DL-05, #464), by the decision's place: the frame an assessor's answer was about.
+    frames: Vec<(usize, Slot)>,
 }
 
 /// What `finish` needs once the hand-back has arrived.
@@ -139,6 +141,7 @@ struct Draft {
     operations: Vec<OperationRecord>,
     touched: Vec<(String, Vec<String>)>,
     decisions: Vec<Value>,
+    frames: Vec<(usize, Slot)>,
     agent: Option<AgentRef>,
     /// The project's root, which the checks file is read from when the questions are written.
     root: PathBuf,
@@ -350,6 +353,7 @@ impl TurnLedger {
             before,
             seen: Vec::new(),
             decisions: Vec::new(),
+            frames: Vec::new(),
         });
     }
 
@@ -381,13 +385,26 @@ impl TurnLedger {
     /// **A `grimoire_decide` call was reported by its MCP server**, to be kept with the turn that is open. `false` when none is: a decision
     /// made before the turn's first write, or after its hand-back, belongs to no turn.
     pub fn decision_reported(&mut self, mut report: Value) -> bool {
-        let Some(open) = self.open.as_mut().filter(|_| self.on && self.stopped.is_none()) else { return false };
-        // **A turn holds a bounded number of decisions** (review of #460): an agent that decides in a loop must not grow one record without end.
-        if open.decisions.len() >= MAX_DECISIONS_PER_TURN {
+        if !(self.on && self.stopped.is_none() && self.open.is_some()) {
             return false;
         }
+        // **A turn holds a bounded number of decisions** (review of #460): an agent that decides in a loop must not grow one record without end.
+        if self.open.as_ref().is_some_and(|open| open.decisions.len() >= MAX_DECISIONS_PER_TURN) {
+            return false;
+        }
+        // **A picture of what the editor is drawing now, for an answer that flags a problem or clears one that was flagged** (DL-05, #464): the
+        // frame the answer is about, which is the one before whatever the agent does next. An answer that flags nothing and clears nothing has no
+        // use for a frame, so a turn that was never in doubt costs no more pictures than it did.
+        let takes_frame = crate::assess_fix::wants_frame(self.open.as_ref().map_or(&[][..], |open| open.decisions.as_slice()), &report);
+        let ticket = takes_frame.then(|| self.request_shot());
+        let Some(open) = self.open.as_mut() else { return false };
         if let Some(object) = report.as_object_mut() {
             object.insert("reported_unix_ms".to_owned(), json!(now_ms()));
+            // **How much of the turn's work stood behind this answer**, so what lies between two answers is the work between them.
+            object.insert("after_operations".to_owned(), json!(open.seen.len()));
+        }
+        if let Some(ticket) = ticket {
+            open.frames.push((open.decisions.len(), Slot::Asked(ticket)));
         }
         open.decisions.push(report);
         true
@@ -403,14 +420,15 @@ impl TurnLedger {
         }
         let open = self.open.take().filter(|open| open.root == input.root);
         let handed_back_ms = now_ms();
-        let (id, started_ms, before, seen, decisions) = match open {
-            Some(open) => (open.id, open.started_ms, open.before, open.seen, open.decisions),
+        let (id, started_ms, before, seen, decisions, frames) = match open {
+            Some(open) => (open.id, open.started_ms, open.before, open.seen, open.decisions, open.frames),
             None => {
                 self.next_turn += 1;
                 (
                     format!("turn-{handed_back_ms}-{}", self.next_turn),
                     handed_back_ms,
                     Slot::Settled(Shot::missing("no write of the agent's was seen since the last hand-back, so no before picture was asked for")),
+                    Vec::new(),
                     Vec::new(),
                     Vec::new(),
                 )
@@ -478,6 +496,7 @@ impl TurnLedger {
             operations,
             touched: seen.iter().map(|s| (s.operation_id.clone(), s.touched.clone())).collect(),
             decisions,
+            frames,
             agent: input.agent,
             root: input.root.to_path_buf(),
             engine: Engine::default(),
@@ -550,8 +569,15 @@ impl TurnLedger {
         }
     }
 
-    fn write(&mut self, draft: Draft) {
+    fn write(&mut self, mut draft: Draft) {
         let provenance = Self::provenance_of(&draft);
+        // **Each answer's frame goes into the answer's own record** (DL-05, #464), under `frame`, as a picture is anywhere in the ledger: a hash, or
+        // the reason there is none. A frame still waiting is never written: `advance_turns` calls this only once every one has landed.
+        for (at, slot) in std::mem::take(&mut draft.frames) {
+            if let (Slot::Settled(shot), Some(decision)) = (slot, draft.decisions.get_mut(at).and_then(Value::as_object_mut)) {
+                decision.insert("frame".to_owned(), serde_json::to_value(&shot).unwrap_or(Value::Null));
+            }
+        }
         let Draft { id, started_ms, handed_back_ms, request, before: Slot::Settled(before), operations, facts, decisions, after: Some(Slot::Settled(after)), root, engine, .. } =
             draft
         else {
@@ -586,10 +612,15 @@ impl TurnLedger {
             questions,
         };
         let Some(store) = self.store.as_mut() else { return };
+        // **A pair an assessor's answers make is its own line, written with the turn** (DL-05, #464).
+        let pairs = crate::assess_fix::pairs(&turn);
         match store.append(&Line::turn(turn)) {
             Ok(()) => {
                 self.written.push(id.clone());
                 self.turn_written(&id);
+                for pair in pairs {
+                    self.append_line(&Line::assess_fix(pair));
+                }
             }
             Err(why) => self.stop(why),
         }
@@ -1294,7 +1325,11 @@ pub fn advance_turns(mut ledger: ResMut<TurnLedger>, sight: Sight) {
         if let Some(after) = draft.after.as_mut() {
             ledger.settle_slot(after);
         }
-        if matches!(draft.before, Slot::Settled(_)) && matches!(draft.after, Some(Slot::Settled(_))) {
+        for (_, slot) in &mut draft.frames {
+            ledger.settle_slot(slot);
+        }
+        let framed = draft.frames.iter().all(|(_, slot)| matches!(slot, Slot::Settled(_)));
+        if framed && matches!(draft.before, Slot::Settled(_)) && matches!(draft.after, Some(Slot::Settled(_))) {
             ledger.write(draft);
         } else {
             still.push(draft);
