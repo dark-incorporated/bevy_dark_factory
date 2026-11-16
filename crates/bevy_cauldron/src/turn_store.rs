@@ -41,6 +41,10 @@ pub struct ImageRef {
     pub height: u32,
     /// The PNG's size on disk.
     pub bytes: u64,
+    /// **Whether the picture is one flat colour** (DL-03, #462): the engine's own answer to `blank_frame`, worked out from the pixels when the picture
+    /// landed. A line from before this existed reads as not flat.
+    #[serde(default)]
+    pub flat: bool,
 }
 
 /// **A capture the record has, or says it has not and why.** Exactly one of the two is set: a record never carries a picture field that is
@@ -151,6 +155,10 @@ pub struct Turn {
     /// **Every `grimoire_decide` call of the turn** (DM-05): as its server reported it to the editor.
     pub decisions: Vec<serde_json::Value>,
     pub provenance: Provenance,
+    /// **The typed questions a student will be asked about this turn** (DL-03, #462), worded once and stored here: reading a record never rewrites
+    /// one. A line from before questions existed has none.
+    #[serde(default)]
+    pub questions: crate::turn_questions::Questions,
 }
 
 /// **A thing the person said about a turn, by pointing at its pieces** (a snip, a developer report): the person's own words and where they were
@@ -388,7 +396,7 @@ impl Store {
     /// **Keep a picture**, once: a PNG whose hash is already on disk is not written again and costs no budget.
     pub fn put_image(&mut self, png: &[u8], width: u32, height: u32) -> Result<ImageRef, String> {
         let sha256 = sha256_hex(png);
-        let image = ImageRef { sha256: sha256.clone(), width, height, bytes: png.len() as u64 };
+        let image = ImageRef { sha256: sha256.clone(), width, height, bytes: png.len() as u64, flat: false };
         let path = self.image_path(&sha256);
         if path.is_file() {
             return Ok(image);

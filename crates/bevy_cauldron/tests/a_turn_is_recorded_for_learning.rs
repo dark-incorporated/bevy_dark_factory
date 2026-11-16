@@ -412,6 +412,7 @@ fn sample_turn(id: &str, shade: u8) -> turn_store::Turn {
             agent: None,
             project_hash: String::new(),
         },
+        questions: Default::default(),
     }
 }
 

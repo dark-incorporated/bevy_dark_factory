@@ -54,6 +54,7 @@ use crate::present::HandBackKind;
 use crate::turn_store::{
     AgentRef, Dismissed, HandBackRef, ImageRef, Item, Label, Line, OperationRecord, Provenance, Request, Shot, Store, Turn,
 };
+use crate::turn_questions::{Engine, EngineAnswer, FLOATING_LIFT_M, Input, Templates, questions_for};
 
 /// **The commit this build was made from**, stamped by `build.rs`; `unknown` when none could be found.
 pub const BUILD_COMMIT: &str = env!("BUILD_COMMIT");
@@ -139,6 +140,10 @@ struct Draft {
     touched: Vec<(String, Vec<String>)>,
     decisions: Vec<Value>,
     agent: Option<AgentRef>,
+    /// The project's root, which the checks file is read from when the questions are written.
+    root: PathBuf,
+    /// **What the engine says about the checks**, worked out from the map when the after picture was asked for.
+    engine: Engine,
     project_hash: String,
     /// `Some` once the facts were taken, at the moment the after picture was asked for.
     facts: Option<Value>,
@@ -462,6 +467,8 @@ impl TurnLedger {
             touched: seen.iter().map(|s| (s.operation_id.clone(), s.touched.clone())).collect(),
             decisions,
             agent: input.agent,
+            root: input.root.to_path_buf(),
+            engine: Engine::default(),
             project_hash: crate::turn_store::sha256_hex(input.root.to_string_lossy().as_bytes()),
             facts: None,
             render: Value::Null,
@@ -494,8 +501,9 @@ impl TurnLedger {
 
     fn keep(&mut self, image: &ShotImage) -> Result<ImageRef, String> {
         let png = encode_png(image)?;
+        let flat = is_flat(image);
         let store = self.store.as_mut().ok_or_else(|| "no folder is named for the ledger".to_owned())?;
-        store.put_image(&png, image.width, image.height)
+        store.put_image(&png, image.width, image.height).map(|stored| ImageRef { flat, ..stored })
     }
 
     /// **Collection stops**, and the person is told once.
@@ -532,11 +540,25 @@ impl TurnLedger {
 
     fn write(&mut self, draft: Draft) {
         let provenance = Self::provenance_of(&draft);
-        let Draft { id, started_ms, handed_back_ms, request, before: Slot::Settled(before), operations, facts, decisions, after: Some(Slot::Settled(after)), .. } =
+        let Draft { id, started_ms, handed_back_ms, request, before: Slot::Settled(before), operations, facts, decisions, after: Some(Slot::Settled(after)), root, engine, .. } =
             draft
         else {
             return;
         };
+        // **The questions are worded now, once, and stored** (DL-03, #462). The engine's answer to `blank_frame` is read off the after picture
+        // itself, which has landed; the others were computed from the map when it was asked for.
+        let mut engine = engine;
+        engine.blank_frame = after.image.as_ref().map(|image| {
+            EngineAnswer::new(
+                image.flat,
+                if image.flat { "the after picture is one flat colour" } else { "the after picture holds more than one colour" },
+            )
+        });
+        let checks = bevy_oracle::Checks::for_project(&root);
+        let questions = questions_for(
+            &Input { specified: &request.specified, checks: checks.as_ref().map_err(String::as_str), engine: &engine, decisions: &decisions },
+            &Templates::CURRENT,
+        );
         let turn = Turn {
             id: id.clone(),
             bench: std::env::var_os(BENCH_ENV).is_some(),
@@ -549,6 +571,7 @@ impl TurnLedger {
             operations,
             facts: facts.unwrap_or(Value::Null),
             decisions,
+            questions,
         };
         let Some(store) = self.store.as_mut() else { return };
         match store.append(&Line::turn(turn)) {
@@ -887,8 +910,8 @@ impl Sight<'_, '_> {
 
     /// **The facts at the after picture** (#460): the pieces each operation touched, with names and positions, the camera, and the engine's
     /// standing findings — computed from the map as it is *now*, which is when the picture is taken.
-    fn facts(&self, touched: &[(String, Vec<String>)]) -> Value {
-        let (Some(open), Some(project)) = (self.open.as_ref(), self.project.as_ref()) else {
+    fn facts(&self, touched: &[(String, Vec<String>)], found: Option<&crate::checks::Found>) -> Value {
+        let Some(open) = self.open.as_ref() else {
             return json!({"map": null, "note": "no map was open when the after picture was taken"});
         };
         let operations: Vec<Value> = touched
@@ -923,8 +946,47 @@ impl Sight<'_, '_> {
                 "yaw": rig.yaw,
                 "elevation": rig.elevation,
             })),
-            "checks": crate::checks::report(None, &crate::checks::find_in(project, open)),
+            "checks": found.map(|found| crate::checks::report(None, found)),
         })
+    }
+
+    /// **What the engine's standing findings are** for the open map, once: the facts and the engine's answers are both read from them.
+    fn found(&self) -> Option<crate::checks::Found> {
+        Some(crate::checks::find_in(self.project.as_ref()?, self.open.as_ref()?))
+    }
+
+    /// **What the engine can answer of the checks a turn is asked** (DL-03, #462), from the map as it is when the after picture is asked for:
+    /// **`floating`** when a piece the turn touched is lifted off where it would rest, **`clipping`** when one overlaps another. `out_of_area`
+    /// compares two pictures against a selection and has no engine answer; `blank_frame` is read off the picture itself when it lands.
+    fn engine(&self, touched: &[(String, Vec<String>)], found: Option<&crate::checks::Found>) -> Engine {
+        let (Some(open), Some(found)) = (self.open.as_ref(), found) else { return Engine::default() };
+        let ids: Vec<&str> = touched.iter().flat_map(|(_, ids)| ids.iter().map(String::as_str)).collect();
+        let lifted: Vec<String> = open
+            .map
+            .placements
+            .iter()
+            .filter(|placed| ids.contains(&placed.id.as_str()) && placed.lift > FLOATING_LIFT_M)
+            .map(|placed| format!("{} is lifted {:.2} m off where it would rest", placed.id, placed.lift))
+            .collect();
+        let floating = EngineAnswer::new(
+            !lifted.is_empty(),
+            if lifted.is_empty() {
+                format!("none of the {} pieces the turn touched is lifted off where it would rest", ids.len())
+            } else {
+                lifted.join("; ")
+            },
+        );
+        let clashing: Vec<String> = found
+            .overlaps
+            .iter()
+            .filter(|(a, b)| ids.contains(&a.as_str()) || ids.contains(&b.as_str()))
+            .map(|(a, b)| format!("{a} overlaps {b}"))
+            .collect();
+        let clipping = EngineAnswer::new(
+            !clashing.is_empty(),
+            if clashing.is_empty() { "no piece the turn touched overlaps another".to_owned() } else { clashing.join("; ") },
+        );
+        Engine { floating: Some(floating), clipping: Some(clipping), out_of_area: None, blank_frame: None }
     }
 }
 
@@ -991,6 +1053,12 @@ fn rgba_of(data: &[u8], width: u32, height: u32, format: bevy::render::render_re
     Ok(ShotImage { width, height, rgba })
 }
 
+/// **Whether a picture is one flat colour**: every pixel is the first one. The engine's answer to `blank_frame`.
+fn is_flat(image: &ShotImage) -> bool {
+    let mut pixels = image.rgba.as_chunks::<4>().0.iter();
+    pixels.next().is_none_or(|first| pixels.all(|pixel| pixel == first))
+}
+
 /// **A picture as a PNG.**
 fn encode_png(image: &ShotImage) -> Result<Vec<u8>, String> {
     let rgba = image::RgbaImage::from_raw(image.width, image.height, image.rgba.clone())
@@ -1029,11 +1097,15 @@ pub fn advance_turns(mut ledger: ResMut<TurnLedger>, sight: Sight) {
             }
             draft.last_signature = Some(signature);
             if draft.stable >= SETTLE_FRAMES {
-                draft.facts = Some(sight.facts(&draft.touched));
+                let found = sight.found();
+                draft.facts = Some(sight.facts(&draft.touched, found.as_ref()));
+                draft.engine = sight.engine(&draft.touched, found.as_ref());
                 draft.render = sight.render();
                 draft.after = Some(Slot::Asked(ledger.request_shot()));
             } else if draft.waited >= SETTLE_GIVE_UP_FRAMES {
-                draft.facts = Some(sight.facts(&draft.touched));
+                let found = sight.found();
+                draft.facts = Some(sight.facts(&draft.touched, found.as_ref()));
+                draft.engine = sight.engine(&draft.touched, found.as_ref());
                 draft.render = sight.render();
                 draft.after = Some(Slot::Settled(Shot::missing(format!(
                     "the view did not settle within {SETTLE_GIVE_UP_FRAMES} frames, so no after picture was taken"

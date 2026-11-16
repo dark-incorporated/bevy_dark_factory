@@ -222,6 +222,8 @@ pub mod after_edit;
 // **Every agent turn as one record, for training the decision model** (DL-01, #460): the file format, and the editor's side of it.
 pub mod turn_store;
 pub mod turn_ledger;
+// **The questions each turn carries** (DL-03, #462): worded in the decision model's own shapes, with the engine's answers beside them.
+pub mod turn_questions;
 pub mod steps;
 pub mod stages;
 pub mod surface;

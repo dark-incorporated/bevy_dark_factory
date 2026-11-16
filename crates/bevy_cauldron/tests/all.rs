@@ -689,3 +689,4 @@ mod placement_add_refuses_an_overlap_unless_told_to_replace;
 mod an_agent_can_ask_for_one_operations_help;
 mod a_turn_is_recorded_for_learning;
 mod the_persons_verdicts_become_labels;
+mod the_turns_carry_their_questions;
