@@ -54,9 +54,9 @@ jobs:
             echo "tag $GITHUB_REF_NAME does not match bevy_cauldron $V" >&2
             exit 1
           fi
-      # **A release needs a benchmark run, and a regression stops it** (BM-05, #415): a published release is refused unless a
-      # report committed under docs/bench/runs/ is for the code being released and its comparison with the previous release's
-      # report is not `worse`. It reads the committed report; the run itself happens where an editor can open a window
+      # **The benchmark is printed beside a release and never stops it** (owner, 2026-11-16; it was a refusal under BM-05,
+      # #415, and is advisory until the editor is built out): the check reads a report committed under docs/bench/runs/ for the
+      # code being released and prints its comparison with the previous release's report. It reads the committed report; the run itself happens where an editor can open a window
       # (docs/loop/RUNNING-A-LOOP.md). Before the signing, the notarization and the app build, so a refused release costs only
       # the small `cauldron-bench` build (no editor), not the hours of the signed app. An ad-hoc build is never published and
       # proves the build only, so it skips this.
@@ -66,7 +66,9 @@ jobs:
           V: ${{ steps.version.outputs.v }}
         run: |
           cargo build --release -p bevy_cauldron_bench --bin cauldron-bench
-          python3 tools/release/bench_gate.py check --release "$GITHUB_SHA" --version "$V" --bench "$CARGO_TARGET_DIR/release/cauldron-bench"
+          # **Advisory, not a gate** (owner, 2026-11-16): the benchmark is printed and never refuses a release while
+          # the editor is still being built out. `bench_gate.py check` keeps its refusals; the wrapper drops the exit code.
+          bash tools/release/bench_advisory.sh --release "$GITHUB_SHA" --version "$V" --bench "$CARGO_TARGET_DIR/release/cauldron-bench"
       - name: Import the Developer ID certificate and the notary key
         if: env.DEVELOPER_ID == 'true'
         env:

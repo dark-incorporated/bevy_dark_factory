@@ -1,5 +1,13 @@
 #!/usr/bin/env python3
-"""A release needs a benchmark run, and a regression stops it (BM-05, #415): `bench_gate.py check`.
+"""A release PRINTS its benchmark comparison; it is not stopped by it (owner, 2026-11-16).
+
+**Ruling (owner, 2026-11-16):** a release is not gated on a benchmark run until the editor is built out, because a
+`crates/` change forces a retake that costs about $23 and 35 minutes and buys little while the editor is still being
+built. The release workflow therefore runs `tools/release/bench_advisory.sh`, which calls this script, prints the
+verdict and exits 0 whatever it says. Everything below still holds of the check itself; the loop and the release log
+use it to SEE a regression, and a refusal it prints is a finding to file, not a release to stop.
+
+`bench_gate.py check` (BM-05, #415).
 
 # Why this exists
 
