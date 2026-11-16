@@ -4,6 +4,7 @@ What each change added, newest first. A visible change has a clip: click the sti
 
 ## 2026-11-15
 
+- **dl-05-negatives-on-purpose** `9685dba7` Negatives with known answers for the label set: one engine-made defect (a floating piece, a clip, a piece out of its area, a deleted piece the request named, a wrong turn, a thinned forest, a flattened peak) on a copy of a kept scene, and a turn that fixed what an assessor flagged as one negative and one positive (#464) *No clip: visible, not yet recorded: fleet worker*
 - **dl-02-review-fixes** `351de082` A turn the person kept is not marked corrected by a follow-up, an edit labels only the newest turn that covers it, and an Undo all that stops part way is still recorded (#461) *No clip: labels in a ledger; proved by the_persons_verdicts_become_labels*
 - **dl-01-review-fixes** `cfb0fb71` The turn record keeps the map's viewport (not the terminal), reads padded readbacks, bounds what a decision report can add, and the Settings row shows what is kept (#460) *No clip: a ledger and a settings readout; proved by a_turn_is_recorded_for_learning and decide_is_reported_to_the_editor*
 - **dl-03-turn-questions** `e2b3b78d` Each turn's record carries the typed questions a student will be asked about it: one declarative question per specified line, the named checks with the engine's answer, the agent's own questions, and whether the person keeps the result (#462) *No clip: questions stored in a record, not visible; proved by the_turns_carry_their_questions*
