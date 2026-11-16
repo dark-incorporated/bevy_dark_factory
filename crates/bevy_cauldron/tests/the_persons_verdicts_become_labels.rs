@@ -66,6 +66,7 @@ fn person_edit(app: &mut App, operation: &str, params: serde_json::Value) -> Str
     let mut ctx = ops::Ctx {
         view: None,
         trust_file: None,
+        decisions: None,
         root: None,
         project: Some(app.world().resource::<Project>().clone()),
         open: Some(app.world().resource::<OpenMap>().clone()),
@@ -124,6 +125,7 @@ fn keep_is_a_gold_label_that_waits_for_its_turn() {
         Body::Turn(_) => "turn",
         Body::Label(_) => "label",
         Body::Dismissed(_) => "dismissed",
+        Body::Assessment(_) => "assessment",
     }).collect();
     assert_eq!(kinds, ["turn", "label"], "the label follows the turn it names");
     let turn = read.turns().next().expect("a turn");

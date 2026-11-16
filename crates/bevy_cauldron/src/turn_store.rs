@@ -224,6 +224,59 @@ pub struct Line {
     /// [`FORMAT`].
     pub v: u32,
     #[serde(flatten)]
+/// **Which model graded a turn, and where it ran** (DL-04, #463).
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
+pub struct AssessorRef {
+    /// The assessor's version: its prompt and wordings. A turn is assessed once per version.
+    pub version: u32,
+    /// The endpoint asked, with no key in it.
+    pub endpoint: String,
+    /// `local` or `remote`: whether the pictures left the machine.
+    pub site: String,
+}
+
+/// **One vote**: the model asked one question in one of three wordings.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct Vote {
+    /// Which wording (0, 1, 2) this vote is of.
+    pub wording: u32,
+    /// What the model answered, as the decision model's wire shape. `None` for a refused vote.
+    pub answer: Option<serde_json::Value>,
+    /// A yes/no answer's probability of yes.
+    pub p_yes: Option<f64>,
+    /// **Why the vote is a refusal**: the provider declined, the answer was of another type, or it was an option that was not offered. Never coerced.
+    pub refused: Option<String>,
+    /// The model that answered, as the provider named it.
+    #[serde(default)]
+    pub model: Option<String>,
+}
+
+/// **What the votes on one question came to** (DL-04, #463).
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct AssessedQuestion {
+    pub id: String,
+    pub votes: Vec<Vote>,
+    /// For a yes/no: the fraction of the valid votes that said yes, the soft label. `None` when no vote was valid.
+    pub yes_fraction: Option<f64>,
+    /// For a choice: the votes each option got.
+    pub tally: std::collections::BTreeMap<String, u32>,
+    /// How many of the votes were refusals.
+    pub refused: u32,
+}
+
+/// **A turn graded by the assessor** (DL-04, #463): silver, a teacher's labels, to be used where the votes agree (DL-06) and graded against the
+/// person's own answers (DL-07, DL-08).
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct Assessment {
+    pub turn: String,
+    pub assessor: AssessorRef,
+    pub at_unix_ms: u64,
+    pub answers: Vec<AssessedQuestion>,
+    /// Why nothing was asked, when a turn had no picture to look at.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub skipped: Option<String>,
+}
+
     pub body: Body,
 }
 
@@ -231,6 +284,7 @@ impl Line {
     /// A turn, as the ledger holds it.
     pub fn turn(turn: Turn) -> Line {
         Line { v: FORMAT, body: Body::Turn(Box::new(turn)) }
+    Assessment(Box<Assessment>),
     }
 
     /// A label, as the ledger holds it.
@@ -257,6 +311,11 @@ pub struct Read {
     pub lines: Vec<(usize, Line)>,
     pub damaged: Vec<Damaged>,
 }
+
+    /// An assessment, as the ledger holds it.
+    pub fn assessment(assessment: Assessment) -> Line {
+        Line { v: FORMAT, body: Body::Assessment(Box::new(assessment)) }
+    }
 
 impl Read {
     /// The turns, in the order they were written.
@@ -297,6 +356,24 @@ pub fn read_text(text: &str) -> Read {
             Ok(line) => read.damaged.push(Damaged { line: number, why: format!("version {} is not the {FORMAT} this build reads", line.v) }),
             Err(e) => read.damaged.push(Damaged { line: number, why: e.to_string() }),
         }
+
+    /// The assessments, in the order they were written.
+    pub fn assessments(&self) -> impl Iterator<Item = &Assessment> {
+        self.lines.iter().filter_map(|(_, line)| match &line.body {
+            Body::Assessment(assessment) => Some(assessment.as_ref()),
+            _ => None,
+        })
+    }
+
+    /// **The person's answers to single questions** (DL-07, #466), in the order they were given: the labels named `audit`.
+    pub fn audits(&self) -> impl Iterator<Item = &Label> {
+        self.labels().filter(|label| label.label == AUDIT)
+    }
+
+    /// **The human holdout** (DL-07, #466): every label marked `holdout`. Never trained on; the one place that says which lines they are.
+    pub fn holdout(&self) -> impl Iterator<Item = &Label> {
+        self.labels().filter(|label| label.holdout)
+    }
     }
     read
 }

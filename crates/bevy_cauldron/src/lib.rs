@@ -226,6 +226,8 @@ pub mod turn_ledger;
 // **The questions each turn carries** (DL-03, #462): worded in the decision model's own shapes, with the engine's answers beside them.
 pub mod turn_questions;
 pub mod steps;
+// **The assessor** (DL-04, #463): a model grades each turn's questions, in its own process.
+pub mod turn_assess;
 pub mod stages;
 pub mod surface;
 // **A shell in the editor's own window** (`Ctrl+\``): a PTY, a VTE parser and a compact dock.
