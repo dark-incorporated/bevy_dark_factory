@@ -20,6 +20,10 @@ on:
         type: choice
         options: [developer-id, adhoc]
         default: developer-id
+      smoke:
+        description: "Drive the built app through its own MCP. Off only when the runner's screen is held by another app (the window never takes focus, which says nothing about the build); a tag push always runs it"
+        type: boolean
+        default: true
 env:
   CARGO_TERM_COLOR: always
   CARGO_PROFILE_RELEASE_DEBUG: 0
@@ -112,6 +116,8 @@ jobs:
       # launched on mac_air with a scratch HOME, driven through its own bundled MCP server, and refused when its window
       # self-check reads black. Publishing below runs only when every step before it passed.
       - name: Drive the fresh app through its own MCP
+        # A tag push always drives it. A dispatch may switch it off, and only for the reason in the input's description.
+        if: github.event_name == 'push' || inputs.smoke
         run: python3 tools/release/macos/smoke_app.py --app dist/Cauldron.app --out dist/smoke
       - uses: actions/upload-artifact@v4
         if: always()
