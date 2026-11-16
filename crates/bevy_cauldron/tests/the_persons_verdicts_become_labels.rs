@@ -265,10 +265,15 @@ fn a_snip_over_the_turns_pieces_is_an_item_label() {
 #[test]
 fn a_later_agent_turn_that_undoes_a_turn_supersedes_it() {
     let (mut app, labels) = editor("verdict_superseded");
+    // **Asked in the AGENT block**, where a hand-back can be dismissed: the modal has only Keep and Undo all, and a Keep would make the agent's
+    // next edit a follow-up and not a correction.
+    app.world_mut().spawn(bevy_cauldron::familiar::Familiar);
+    app.world_mut().insert_resource(bevy_cauldron::familiar::HandBackHere(true));
     let ids = a_turn(&mut app, ([20.0, 18.0], [10.0, 12.0]));
     until_written(&mut app);
-    // The person answers the first hand-back, so the agent's second may be asked.
-    press(&mut app, KeyCode::KeyN);
+    // **The person closes the first hand-back unread** (a Keep would make the agent's next edit a follow-up, not a correction), so the second may be asked.
+    app.world_mut().resource_mut::<PresentationReply>().0 = Some(Reply::Dismiss);
+    app.update();
     frames(&mut app, 4);
 
     // A second turn: the agent takes the first one's newest operation back, then hands its own work over.
@@ -293,6 +298,83 @@ fn a_later_agent_turn_that_undoes_a_turn_supersedes_it() {
     assert_eq!(superseded[0].tier, "silver", "a later agent turn is a teacher's label, never gold");
     assert_eq!(superseded[0].turn, turns[0].id, "it is the earlier turn that was taken back");
     assert_eq!(superseded[0].by_turn.as_deref(), Some(turns[1].id.as_str()));
+}
+
+/// **4. A turn the person kept is not corrected by the agent's follow-up edit** (review of #461): the edit is the change they asked for.
+#[test]
+fn a_follow_up_edit_of_a_kept_turn_is_no_correction() {
+    let (mut app, labels) = editor("verdict_followup");
+    a_turn(&mut app, ([20.0, 18.0], [10.0, 12.0]));
+    press(&mut app, KeyCode::KeyN);
+    until_written(&mut app);
+    let piece = made(&app).remove(0);
+    let lifted = call(
+        &mut app,
+        "grimoire/operation_apply",
+        serde_json::json!({"operation": "placement_set_lift", "parameters": {"id": piece, "lift": 0.25}, "dry_run": false}),
+    );
+    assert_eq!(lifted["outcome"], "applied", "{lifted}");
+    render_what_is_asked(&mut app);
+    let id = lifted["operation_id"].as_str().expect("an id").to_owned();
+    present(&mut app, &[id], &["the bed a little higher"]);
+    let mut waited = 0;
+    while app.world().resource::<TurnLedger>().written().len() < 2 {
+        app.update();
+        render_what_is_asked(&mut app);
+        waited += 1;
+        assert!(waited < FRAMES_AT_MOST, "the second turn was not recorded");
+    }
+    let read = ledger_of(&labels);
+    assert!(labels_of(&read).iter().all(|l| l.label != "superseded"), "a kept turn was marked as corrected: {:?}", labels_of(&read));
+}
+
+/// **2. A person's edit labels only the newest kept turn that covers the piece** (review of #461).
+#[test]
+fn a_persons_edit_labels_only_the_newest_turn_that_covers_it() {
+    let (mut app, labels) = editor("verdict_newest");
+    a_turn(&mut app, ([20.0, 18.0], [10.0, 12.0]));
+    press(&mut app, KeyCode::KeyN);
+    until_written(&mut app);
+    let piece = made(&app).remove(0);
+    let lifted = call(
+        &mut app,
+        "grimoire/operation_apply",
+        serde_json::json!({"operation": "placement_set_lift", "parameters": {"id": piece, "lift": 0.25}, "dry_run": false}),
+    );
+    render_what_is_asked(&mut app);
+    let id = lifted["operation_id"].as_str().expect("an id").to_owned();
+    present(&mut app, &[id], &["the bed a little higher"]);
+    press(&mut app, KeyCode::KeyN);
+    let mut waited = 0;
+    while app.world().resource::<TurnLedger>().written().len() < 2 {
+        app.update();
+        render_what_is_asked(&mut app);
+        waited += 1;
+        assert!(waited < FRAMES_AT_MOST, "the second turn was not recorded");
+    }
+    person_edit(&mut app, "placement_set_lift", serde_json::json!({"id": piece, "lift": 0.5}));
+    frames(&mut app, 3 * REVISION_LOOK_FRAMES);
+    let read = ledger_of(&labels);
+    let turns: Vec<_> = read.turns().collect();
+    let revised: Vec<&Label> = labels_of(&read).into_iter().filter(|l| l.label == "revised").collect();
+    assert_eq!(revised.len(), 1, "one edit, one revision: {revised:?}");
+    assert_eq!(revised[0].turn, turns[1].id, "the newest turn that covers the piece");
+}
+
+/// **1. An Undo all that stops at a refused step is still the person's answer** (review of #461): the ledger is told.
+#[test]
+fn an_undo_all_that_stops_part_way_is_still_a_verdict() {
+    let (mut app, labels) = editor("verdict_partial");
+    a_turn(&mut app, ([20.0, 18.0], [10.0, 12.0]));
+    let piece = made(&app).remove(0);
+    // The person changes the first bed by hand, so taking the agent's placement of it back is no longer safe.
+    person_edit(&mut app, "placement_set_lift", serde_json::json!({"id": piece, "lift": 0.25}));
+    press(&mut app, KeyCode::KeyY);
+    until_written(&mut app);
+    let read = ledger_of(&labels);
+    let undone: Vec<&Label> = labels_of(&read).into_iter().filter(|l| l.label == "undone").collect();
+    assert_eq!(undone.len(), 1, "the person's Undo all was not recorded: {:?}", labels_of(&read));
+    assert_eq!(undone[0].tier, "gold");
 }
 
 /// **5. Only a person's action is gold**: an agent that takes its own turn back over BRP has answered nothing.

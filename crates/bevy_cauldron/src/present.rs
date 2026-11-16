@@ -944,6 +944,8 @@ fn answer_presentation(
     }
     if let Some(why) = stopped {
         presented.answer = Some(why.clone());
+        // **The person pressed Undo all, and a step of it was refused** (review of #461): the answer is still theirs, so the ledger is told.
+        tell_the_ledger(ledger.as_deref_mut(), Some(&**project), &presented.id, crate::turn_ledger::Verdict::Undone);
         state.status.problem(why);
         return;
     }
