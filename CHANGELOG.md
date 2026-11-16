@@ -2,6 +2,10 @@
 
 What each change added, newest first. A visible change has a clip: click the still to play it. `python3 tools/changelog/changelog.py page --open` plays them all in one page.
 
+## 2026-11-16
+
+- **dl-06-review-fixes** The label export refuses a ledger line that does not read and an oldest build that is not a version, shows both pictures to a question about the change, and counts only the assessor's contradictions as the teacher's errors (#465) *No clip: an export in its own process, not visible; proved by the_tiers_resolve_into_a_valen_set*
+
 ## 2026-11-15
 
 - **dl-06-valen-export** The label tiers are resolved and the ledger exports as Valen's training JSONL, split by scene: gold wins, the engine answers its own checks, a teacher's votes are used only where they agree, everything else is parked and counted, and the human holdout is its own file (#465) *No clip: an export in its own process, not visible; proved by the_tiers_resolve_into_a_valen_set and Valen's own reader (valen/data/schema.py read_jsonl) loading the file*
