@@ -977,8 +977,6 @@ pub struct Sight<'w, 's> {
     rig: Option<Res<'w, crate::view::Rig>>,
     due: Option<Res<'w, crate::watch::Due>>,
     confirm: Option<Res<'w, crate::confirm::Confirm>>,
-    /// **Whether the frame the after picture copies is one the dialog was kept out of** (#471): `render.question_open` describes the picture.
-    kept_off: Option<Res<'w, crate::confirm::PictureWithoutTheQuestion>>,
     ui_scale: Option<Res<'w, UiScale>>,
     surface: Option<Res<'w, crate::surface::Surface>>,
     images: Option<Res<'w, Assets<Image>>>,
@@ -1015,7 +1013,7 @@ impl Sight<'_, '_> {
     /// ([`Ask::without_the_question`], honoured by `confirm::sync_dialog`), so a question is on the editor but not on the photograph, and the honest
     /// answer for a label source is `false`. A picture asked for while the ledger is not hiding the dialog says `true`, which is what the old field
     /// meant and was the defect: it recorded the question rather than the result.
-    fn render(&self) -> Value {
+    fn render(&self, without_the_question: bool) -> Value {
         let surface = self.surface.as_ref().zip(self.images.as_ref()).and_then(|(surface, images)| images.get(&surface.image)).map(|image| {
             json!({
                 "width": image.width(),
@@ -1026,9 +1024,10 @@ impl Sight<'_, '_> {
         json!({
             "surface": surface,
             "ui_scale": self.ui_scale.as_ref().map(|scale| scale.0),
-            // **A question on the picture**: none, where the ledger asked for a result with the Keep / Undo modal kept out of its frame (#471).
-            "question_open": !self.kept_off.as_ref().is_some_and(|kept_off| kept_off.asked)
-                && self.confirm.as_ref().is_some_and(|confirm| confirm.is_open()),
+            // **A question on the picture**: none, where the picture is a turn's own result and the ledger keeps the Keep / Undo dialog out of its
+            // frame (#471). Passed in rather than read off the flag, because the facts are taken **before** the picture is asked for: a `render` that
+            // read the flag would describe the frame before the one the readback copies, which is the defect wearing a different hat.
+            "question_open": !without_the_question && self.confirm.as_ref().is_some_and(|confirm| confirm.is_open()),
         })
     }
 
@@ -1171,7 +1170,7 @@ fn issue_shots(
         for mut shown in &mut questions {
             *shown = bevy::camera::visibility::InheritedVisibility::HIDDEN;
         }
-        if let Some(mut kept_off) = kept_off.as_mut() {
+        if let Some(kept_off) = kept_off.as_mut() {
             // **Remembered, so `render` can say the picture holds no question** and `sync_dialog` knows to draw it again.
             kept_off.asked = true;
         }
@@ -1353,14 +1352,16 @@ pub fn advance_turns(mut ledger: ResMut<TurnLedger>, sight: Sight) {
                 let found = sight.found();
                 draft.facts = Some(sight.facts(&draft.touched, found.as_ref()));
                 draft.engine = sight.engine(&draft.touched, found.as_ref());
-                draft.render = sight.render();
+                // **A turn's result holds no question** (#471): the dialog is kept out of the frame this record's picture copies.
+                draft.render = sight.render(true);
                 // **The after picture is the turn's result, and the Keep / Undo question stands over it** (#471).
                 draft.after = Some(Slot::Asked(ledger.request_shot(true)));
             } else if draft.waited >= SETTLE_GIVE_UP_FRAMES {
                 let found = sight.found();
                 draft.facts = Some(sight.facts(&draft.touched, found.as_ref()));
                 draft.engine = sight.engine(&draft.touched, found.as_ref());
-                draft.render = sight.render();
+                // No picture was taken, and the same rule holds: what a question on the screen would have been is not this record's business.
+                draft.render = sight.render(true);
                 draft.after = Some(Slot::Settled(Shot::missing(format!(
                     "the view did not settle within {SETTLE_GIVE_UP_FRAMES} frames, so no after picture was taken"
                 ))));

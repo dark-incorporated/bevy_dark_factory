@@ -475,7 +475,7 @@ fn answer_by_activate(
 fn sync_dialog(
     mut commands: Commands,
     confirm: Res<Confirm>,
-    mut kept_off: ResMut<PictureWithoutTheQuestion>,
+    kept_off: ResMut<PictureWithoutTheQuestion>,
     mut standing: Query<(Entity, &QuestionDialog, &mut bevy::camera::visibility::InheritedVisibility)>,
 ) {
     // **The picture's frame draws no question** (#471). The ledger hides the dialog itself, in the frame whose readback it spawns, because main-world

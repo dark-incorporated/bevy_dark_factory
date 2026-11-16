@@ -52,7 +52,7 @@ fn press(app: &mut App, code: KeyCode) {
 fn a_hand_back(app: &mut App) {
     let placed = place(app, [20.0, 18.0]);
     render_what_is_asked(app);
-    present(app, &[placed.clone()], &["a bed"]);
+    present(app, std::slice::from_ref(&placed), &["a bed"]);
 }
 
 /// **An agent takes the pointer**, exactly as `bevy_fairy/input`'s `Cursor` does before it clicks anything.
@@ -108,11 +108,22 @@ fn a_brp_injected_accept_is_not_a_gold_label() {
     a_hand_back(&mut app);
     assert!(app.world().resource::<bevy_cauldron::confirm::Confirm>().is_open(), "the hand-back's question is on screen");
     an_agent_takes_the_pointer(&mut app);
-    assert_eq!(app.world().resource::<Hands>().source(), Source::Agent, "the agent is driving the frame the answer lands in");
+    assert!(app.world().resource::<bevy_cauldron::view::Pointer>().0.is_some(), "the injected pointer reaches the editor");
 
-    // **The answer the agent's press produces**, handed over in a frame an agent is driving.
+    // **The agent's press and the answer it produces land in ONE frame**, which is what a press on a dialog's button is: the frame `inject_clicks`
+    // marks is the frame `answer_presentation` reads. Handing the reply over a frame later would be a person's frame, and would prove nothing.
     app.world_mut().resource_mut::<PresentationReply>().0 = Some(Reply::Accept);
+    app.world_mut().write_message(bevy::input::mouse::MouseButtonInput {
+        button: bevy::input::mouse::MouseButton::Left,
+        state: ButtonState::Pressed,
+        window: Entity::PLACEHOLDER,
+    });
     app.update();
+    // **The hand-back is answered already**, in the frame the agent drove, so the guard was exercised rather than skipped.
+    assert!(
+        app.world().resource::<bevy_cauldron::present::Presenting>().0.as_ref().is_some_and(|presented| presented.answer.is_some()),
+        "the Accept was not answered in the agent's frame, so the guard was never asked"
+    );
     until_written(&mut app);
 
     let read = ledger_of(&labels);

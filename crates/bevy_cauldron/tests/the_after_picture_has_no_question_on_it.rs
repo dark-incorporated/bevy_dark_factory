@@ -67,9 +67,12 @@ fn the_dialog(app: &mut App) -> Option<Vec<bool>> {
 fn the_modal_paths_after_picture_has_no_question_on_it() {
     let (mut app, labels) = editor("picture_without_question");
     a_hand_back(&mut app);
-    // **The question is up**, which is the state that used to be photographed.
+    // **The question is up**, which is the state that used to be photographed. The dialog is spawned by `sync_dialog` in the frame after the question
+    // is asked, so one frame passes before it exists — and **what it is drawn as is not asserted here**: a headless app lays no UI out, so its
+    // `InheritedVisibility` says nothing about a real window. What the acceptance rests on is the record's own account of the picture, below.
     assert!(app.world().resource::<Confirm>().asking(Asked::Presentation), "the modal asks the person");
-    assert_eq!(the_dialog(&mut app), Some(vec![true]), "the question is drawn before any picture is asked for");
+    app.update();
+    assert_eq!(the_dialog(&mut app), Some(vec![true]), "the question's dialog was not built, so there was nothing to keep off the picture");
 
     // **Step until the ledger asks for its after picture**, playing the renderer as a real one does.
     let mut frames = 0;
@@ -82,11 +85,11 @@ fn the_modal_paths_after_picture_has_no_question_on_it() {
         frames += 1;
         assert!(frames < 900, "the ledger never asked for an after picture with the question kept off it");
     }
-    // **And the dialog is drawn again in the frame that follows**, so the person's question is not eaten by the photograph.
+    // **And the question is still there afterwards**, so the photograph cost the person nothing.
     app.update();
     assert!(!app.world().resource::<PictureWithoutTheQuestion>().asked, "the flag outlives the picture's frame");
     assert!(app.world().resource::<Confirm>().is_open(), "the question survived the picture");
-    assert_eq!(the_dialog(&mut app), Some(vec![true]), "the question was not drawn again after its picture");
+    assert_eq!(the_dialog(&mut app), Some(vec![true]), "the question's dialog was taken down by the picture");
 
     press_keep(&mut app);
     until_written(&mut app);
