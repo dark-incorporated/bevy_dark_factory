@@ -76,7 +76,8 @@ pub const TRAIN_FILE: &str = "train.jsonl";
 pub const EVAL_FILE: &str = "eval.jsonl";
 /// The human holdout's file, inside the export folder: a student is graded on it and never trained on it.
 pub const HOLDOUT_FILE: &str = "holdout.jsonl";
-/// What the export did, in numbers, inside the export folder: the counts DL-08's report cites.
+/// What the export did, in numbers, inside the export folder: the counts DL-08's report cites, with the parked questions indexed by the record they are
+/// about (`parked_by_record`) so a report can place each in its week.
 pub const SUMMARY_FILE: &str = "summary.json";
 
 /// **Who an answer is from**, in the order that decides which stands. `Silver < Objective < Gold`, so the strongest answer is the greatest.
@@ -406,7 +407,9 @@ impl<'a> Ledger<'a> {
                 }
                 Body::Perturbed(perturbed) => ledger.perturbed.push((*order, perturbed.as_ref())),
                 Body::AssessFix(pair) => ledger.pairs.push((*order, pair.as_ref())),
-                Body::Dismissed(_) => {}
+                // **The fast model's own answer is never a label** (DL-08, #467): reading it here would let a student be trained on its own guess, and
+                // the escalation decision is the report's business, not the set's.
+                Body::FastAnswers(_) | Body::Dismissed(_) => {}
             }
         }
         ledger
@@ -1054,12 +1057,19 @@ fn emit(gathered: &BTreeMap<(String, State), Gathered>, mut left_out: Vec<LeftOu
         bevy_grimoire_core::atomic_file::write(&path, text.as_bytes()).map_err(|e| format!("{}: {e}", path.display()))?;
         exported.files.push((path, lines.len()));
     }
+    // **The parked questions by the record they are about** (DL-08, #467), because a count alone cannot be placed in a week: a report reads the
+    // record, the record names its turn, and the turn names its week. Every other line here is a count of the set, and this is the one index into it.
+    let mut parked_by_record: BTreeMap<String, usize> = BTreeMap::new();
+    for parked in &exported.parked {
+        *parked_by_record.entry(parked.record.clone()).or_insert(0) += 1;
+    }
     let summary = json!({
         "train_records": exported.train,
         "eval_records": exported.eval,
         "holdout_records": exported.holdout,
         "images": exported.images,
         "parked": exported.parked_by_kind(),
+        "parked_by_record": parked_by_record,
         "disagreements": exported.disagreements_by_kind(),
         "teacher_errors": exported.teacher_errors(),
         "left_out": exported.left_out_by_kind(),

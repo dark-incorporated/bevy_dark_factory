@@ -15,6 +15,9 @@
 //!   place that says which lines they are.
 //! - **Only yes/no questions** are offered: Y, N and S are the whole keyboard of the row.
 //! - **Off is off.** With collection off there is no ledger to audit and no row.
+//! - **The report's line rides on the same read** (DL-08, #467): one line above the question, saying what the ledger holds — turns, answers, the
+//!   labels per tier, the holdout, and the assessor's agreement against the bar — so the count a person acts on and the report they read are made
+//!   from one reading of one file. [`crate::label_report::line`] is the words.
 //!
 //! The keys are read raw, as the hand-back's own `Y`/`N` are ([`crate::confirm`]): the row is not a tab's verb, and the Agent tab has no keys of
 //! its own. They answer only while the Agent workspace is open, no question card is up, no text field has the keyboard and no modifier is held (so
@@ -165,15 +168,28 @@ pub struct Audit {
     read_len: Option<u64>,
     /// What the row on screen shows, so it is rebuilt only when this moves.
     shown: Option<(String, String, usize, usize)>,
+    /// **The report's line** (DL-08, #467), from the same read: what the ledger holds, in the words `report.md` uses.
+    pub line: String,
+    /// The line the row on screen shows, so the row is rebuilt only when it changes.
+    shown_line: Option<String>,
 }
 
 /// **The row's container**, spawned empty by the AGENT block; its one child is this module's.
 #[derive(Component)]
 pub struct AuditRows;
 
-/// The row.
+/// The question's row.
 #[derive(Component)]
 pub struct AuditRow;
+
+/// **The report's line** (DL-08, #467): a row of its own above the question's, so the question's row is still one row, and its words are written into
+/// the text already on screen rather than rebuilding the row (a rebuild re-reads and decodes the question's two pictures).
+#[derive(Component)]
+pub struct ReportLine;
+
+/// **The report line's text**, which [`follow_the_report_line`] writes into when the words change.
+#[derive(Component)]
+pub struct ReportText;
 
 /// **An answer's button**: which answer it gives.
 #[derive(Component, Clone, Copy, PartialEq, Eq, Debug)]
@@ -226,6 +242,8 @@ fn look_at_the_ledger(time: Res<Time<Real>>, ledger: Option<Res<TurnLedger>>, mu
     let Ok(read) = crate::turn_store::read_file(&path) else { return };
     audit.read_len = len;
     audit.this_week = answered_this_week(&read, now_ms());
+    // **The same reading makes the report's line** (DL-08, #467), so the count on screen and the count in `report.md` cannot differ.
+    audit.line = crate::label_report::line(&crate::label_report::summary(&read));
     let waiting = WEEKLY_TARGET.saturating_sub(audit.this_week).max(1);
     let mut offers = pick(&read, waiting, read.lines.len() as u64);
     // The question on screen stays first: a new look must not take it from under the person's hand.
@@ -307,6 +325,35 @@ fn follow_the_audit(
     });
 }
 
+/// **The report's line follows the ledger's counts**: spawned where there is none, its words written into the text already on screen, and taken away
+/// where the line is empty. **No rebuild**: a row rebuilt on every append would re-read and decode the question's pictures, which is 128 ms a frame
+/// measured on this Mac, over the frame budget the editor keeps.
+fn follow_the_report_line(mut commands: Commands, mut audit: ResMut<Audit>, containers: Query<Entity, With<AuditRows>>, rows: Query<Entity, With<ReportLine>>, mut texts: Query<&mut Text, With<ReportText>>) {
+    if audit.shown_line.as_deref() == Some(audit.line.as_str()) {
+        return;
+    }
+    audit.shown_line = Some(audit.line.clone());
+    if audit.line.is_empty() {
+        for row in &rows {
+            commands.entity(row).try_despawn();
+        }
+        return;
+    }
+    if let Some(mut text) = texts.iter_mut().next() {
+        text.0 = audit.line.clone();
+        return;
+    }
+    let Ok(container) = containers.single() else { return };
+    let line = audit.line.clone();
+    commands.entity(container).with_children(|list| {
+        list.spawn((ReportLine, Name::new("label report line"), bevy_gooey::column_with(crate::chrome::GAP_TIGHT_STEPS, bevy_gooey::RowLayout { shrink: Some(0.0), ..default() })))
+            .with_children(|row| {
+                row.spawn(label("LABELS"));
+                row.spawn((label(line), ReportText));
+            });
+    });
+}
+
 /// **`Y`, `N` and `S` answer the question on screen** under the conditions in the module's words.
 fn answer_on_the_keys(
     mut keys: ResMut<ButtonInput<KeyCode>>,
@@ -354,7 +401,10 @@ impl Plugin for AuditPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<Audit>().init_resource::<Answers>().add_systems(
             Update,
-            (answer_on_the_keys.after(crate::confirm::ConfirmKeys).before(crate::keys::Phase::Sense), (write_the_answers, look_at_the_ledger, follow_the_audit).chain()),
+            (
+                answer_on_the_keys.after(crate::confirm::ConfirmKeys).before(crate::keys::Phase::Sense),
+                (write_the_answers, look_at_the_ledger, follow_the_audit, follow_the_report_line).chain(),
+            ),
         );
     }
 }

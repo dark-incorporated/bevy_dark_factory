@@ -1,8 +1,9 @@
 //! **`cauldron-labels`**: the commands that work on the turn ledger. Two:
 //!
 //! ```text
-//! cauldron-labels assess [--project <root>] [--limit <turns>] [--allow-remote]
+//! cauldron-labels assess [--project <root>] [--limit <turns>] [--allow-remote] [--no-fast]
 //! cauldron-labels export --out <dir> [--labels <dir>] [--oldest <version>] [--include-old-builds] [--share <n>]
+//! cauldron-labels report --out <dir> [--labels <dir>] [--project <root>]
 //! ```
 //!
 //! `assess` (DL-04, #463) asks the person's chosen decision model (Local or Remote, as Settings and `settings.yaml` say; never the other one) to
@@ -13,21 +14,27 @@
 //! `export` (DL-06, #465) resolves the tiers and writes the training set as Valen's JSONL, split by scene: `<out>/train.jsonl`,
 //! `<out>/eval.jsonl`, `<out>/holdout.jsonl`, the pictures under `<out>/images/` and the counts in `<out>/summary.json`. It is derived: nothing is
 //! written into the labels folder, and two exports of one ledger are byte-identical.
+//!
+//! `report` (DL-08, #467) writes `<out>/report.md` and `<out>/report.json` beside an export: the numbers that say whether the set is worth training on
+//! (the assessor's agreement with the person, the fast model's with both, the class balance, the holdout's size, and what escalation saved). It reads
+//! the ledger and the export and writes nothing into the labels folder, and two reports of one ledger are byte-identical.
 
 use std::path::PathBuf;
 use std::process::ExitCode;
 
-use bevy_cauldron::turn_assess::assess_ledger;
+use bevy_cauldron::label_report;
+use bevy_cauldron::turn_assess::assess_ledger_with;
 use bevy_cauldron::turn_export::{self, Options};
 use bevy_cauldron::turn_store::Store;
 
-const USAGE: &str = "usage:\n  cauldron-labels assess [--project <root>] [--limit <turns>] [--allow-remote]\n  cauldron-labels export --out <dir> [--labels <dir>] [--oldest <version>] [--include-old-builds] [--share <n>]";
+const USAGE: &str = "usage:\n  cauldron-labels assess [--project <root>] [--limit <turns>] [--allow-remote] [--no-fast]\n  cauldron-labels export --out <dir> [--labels <dir>] [--oldest <version>] [--include-old-builds] [--share <n>]\n  cauldron-labels report --out <dir> [--labels <dir>] [--project <root>]";
 
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
     match args.first().map(String::as_str) {
         Some("assess") => assess(&args[1..]),
         Some("export") => export(&args[1..]),
+        Some("report") => report(&args[1..]),
         _ => {
             eprintln!("{USAGE}");
             ExitCode::from(2)
@@ -79,7 +86,7 @@ fn labels_dir() -> Result<PathBuf, String> {
 }
 
 fn assess(rest: &[String]) -> ExitCode {
-    let args = match Args::read(rest, &["--project", "--limit"], &["--allow-remote"], "assess") {
+    let args = match Args::read(rest, &["--project", "--limit"], &["--allow-remote", "--no-fast"], "assess") {
         Ok(args) => args,
         Err(why) => {
             eprintln!("{why}");
@@ -106,10 +113,88 @@ fn assess(rest: &[String]) -> ExitCode {
     let root = project.unwrap_or_else(|| std::env::current_dir().unwrap_or_default());
     let source = bevy_cauldron::decision_model::Source::process();
     let transport = source.asking(&root);
+    // **The fast pass is the same person's decision model** (DL-08, #467): there is one model chosen, so the answers that decide escalation come from
+    // the model that would be the student, never from a second one nobody chose. `--no-fast` asks the assessor everything, which is what a caller with
+    // no calibrated model in hand wants, and what this command did before escalation existed.
+    let fast: Option<&dyn bevy_oracle::Transport> = (!args.has("--no-fast")).then_some(transport.as_ref() as &dyn bevy_oracle::Transport);
+    // **Which model is chosen, read once**: the refusal a Remote choice needs is the same for both passes, so it is said before either is asked.
+    let remote = source.config(&root).is_ok_and(|config| config.protocol.site() == bevy_oracle::DecisionModel::Remote);
+    if remote && !allow_remote {
+        // **Said once, before anything is asked**: the fast pass sends the pictures too, and a Remote fast pass without leave would send them before
+        // the assessor's own refusal is reached.
+        eprintln!(
+            "cauldron-labels: the decision model chosen is Remote, so both the fast pass and the assessor would send the turns' pictures off this \
+             machine; run it again with --allow-remote to say that is fine, or choose Local in Settings"
+        );
+        return ExitCode::FAILURE;
+    }
     let mut store = Store::new(dir);
-    match assess_ledger(&mut store, transport.as_ref(), allow_remote, limit) {
+    match assess_ledger_with(&mut store, fast, transport.as_ref(), allow_remote, limit) {
         Ok(batch) => {
-            println!("assessed {} turn(s); {} had been assessed by this version already", batch.assessed, batch.already);
+            println!(
+                "assessed {} turn(s); {} had been assessed by this version already; the fast model answered {} turn(s) and saved {} question(s) from the assessor",
+                batch.assessed, batch.already, batch.fast, batch.saved
+            );
+            ExitCode::SUCCESS
+        }
+        Err(why) => {
+            eprintln!("cauldron-labels: {why}");
+            ExitCode::FAILURE
+        }
+    }
+}
+
+fn report(rest: &[String]) -> ExitCode {
+    let args = match Args::read(rest, &["--out", "--labels", "--project"], &[], "report") {
+        Ok(args) => args,
+        Err(why) => {
+            eprintln!("{why}");
+            return ExitCode::from(2);
+        }
+    };
+    let Some(out) = args.get("--out").map(PathBuf::from) else {
+        eprintln!("report needs --out, the folder the export was written into: the report goes beside it.\n{USAGE}");
+        return ExitCode::from(2);
+    };
+    let labels = match args.get("--labels").map(PathBuf::from).map_or_else(labels_dir, Ok) {
+        Ok(dir) => dir,
+        Err(why) => {
+            eprintln!("{why}");
+            return ExitCode::FAILURE;
+        }
+    };
+    // **The checks a calibration lives in** (DM-04, #455): the project's own over the editor's, which is the file the editor's own checks read. A
+    // model with no record reads `waiting`, and a checks file that does not read is named rather than silently reported as uncalibrated.
+    let root = args.get("--project").map(PathBuf::from);
+    let checks = match &root {
+        Some(root) => bevy_oracle::Checks::for_project(root),
+        None => Ok(bevy_oracle::Checks::builtin()),
+    };
+    let checks = match checks {
+        Ok(checks) => checks,
+        Err(why) => {
+            eprintln!("cauldron-labels: {why}");
+            return ExitCode::FAILURE;
+        }
+    };
+    match label_report::report(&labels, &out, &Options::default(), &checks) {
+        Ok(report) => {
+            println!(
+                "wrote {} and {} to {}: {} turn(s), {} answered, {} gold, {} objective, {} silver; the assessor {}; distilling {}",
+                label_report::REPORT_FILE,
+                label_report::REPORT_JSON,
+                out.display(),
+                report.summary.turns,
+                report.summary.answered,
+                report.summary.gold,
+                report.summary.objective,
+                report.summary.silver,
+                match report.assessor.holdout.share() {
+                    Some(share) => format!("agreed with the person on {:.0}% of {} holdout question(s)", share * 100.0, report.assessor.holdout.questions),
+                    None => "was not compared on the holdout yet".to_owned(),
+                },
+                report.distil.state
+            );
             ExitCode::SUCCESS
         }
         Err(why) => {

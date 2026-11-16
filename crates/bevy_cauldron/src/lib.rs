@@ -234,6 +234,8 @@ pub mod perturb;
 pub mod turn_assess;
 // **The training set** (DL-06, #465): the ledger's tiers resolved, as Valen's JSONL, split by scene so a scene is never on both sides.
 pub mod turn_export;
+// **The label report** (DL-08, #467): whether the set is worth training on, and what the assessor costs.
+pub mod label_report;
 pub mod steps;
 pub mod stages;
 pub mod surface;
