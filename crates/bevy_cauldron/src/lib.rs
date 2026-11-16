@@ -224,6 +224,9 @@ pub mod turn_store;
 pub mod turn_ledger;
 // **The questions each turn carries** (DL-03, #462): worded in the decision model's own shapes, with the engine's answers beside them.
 pub mod turn_questions;
+// **Engine-made defects on kept scenes, and the turns that fixed what an assessor flagged** (DL-05, #464): negatives with known answers.
+pub mod assess_fix;
+pub mod perturb;
 pub mod steps;
 pub mod stages;
 pub mod surface;
