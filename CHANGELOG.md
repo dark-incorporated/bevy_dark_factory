@@ -4,6 +4,7 @@ What each change added, newest first. A visible change has a clip: click the sti
 
 ## 2026-11-15
 
+- **dl-03-turn-questions** `e2b3b78d` Each turn's record carries the typed questions a student will be asked about it: one declarative question per specified line, the named checks with the engine's answer, the agent's own questions, and whether the person keeps the result (#462) *No clip: questions stored in a record, not visible; proved by the_turns_carry_their_questions*
 - **dl-02-verdict-labels** `9714d0c5` What the person does about a turn becomes a label on it: Keep, Undo all, a later undo or edit by hand, a snip over its pieces, and a later agent turn that takes it back (#461) *No clip: labels in a ledger, not visible; proved by the_persons_verdicts_become_labels*
 - **dl-01-turn-record** `60f42b65` Every agent turn is recorded in the person's own data folder: the pictures before and after, what was asked, the operations and the facts (#460) *No clip: a ledger, not visible; proved by a_turn_is_recorded_for_learning*
 - **bm-04-the-first-baseline** `ac7a7268` The first benchmark baseline: 140 trials on the 28-task suite at 5c270a72 (dev 89 of 100, held-out 40 of 40), model claude-sonnet-5-5, $22.67; the suite is valid (nothing passes 0 of 28, the stored solutions pass 28 of 28) *No clip: a measurement; proved by docs/bench/runs/2026-11-15-baseline.md and docs/bench/validity-2026-11-15.md*
