@@ -1,5 +1,5 @@
-//! **Look, then ask** (#456, DM-05): after a visible change an agent takes one still and asks four or five
-//! typed questions, in one `grimoire_decide` call.
+//! **Look, then ask** (#456, DM-05): after a visible change an agent takes one still and asks the
+//! typed questions whose answers could change its next operation, in one `grimoire_decide` call.
 //!
 //! No live model is called. The exchange is a recorded one ([`Replay`], which answers only the request it
 //! was recorded for) or a stand-in that keeps what it was sent, so a test reads what the model was told.

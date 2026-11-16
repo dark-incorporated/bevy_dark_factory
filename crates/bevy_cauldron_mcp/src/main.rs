@@ -1566,7 +1566,7 @@ impl Grimoire {
                        bevy_cauldron_mcp::decide_latency!(),
                        " with a probability each. Call it after every change the person will see, before you hand back: \
                        pass view: true to take the still yourself, or give a still from grimoire_capture_still in images \
-                       (its path or its fingerprint), and ask four or five typed questions about what was asked for. The \
+                       (its path or its fingerprint), and ask only the questions your next operation could change. The \
                        answer names the model that answered (and model_source, reported by the endpoint or configured), where it ran (local, or remote when pictures may have left the \
                        LAN) and latency_ms. Ask a decision model a typed question about the editor's pictures and facts, and get a \
                        probability for every allowed answer, with nothing to parse. Two forms. check: a \

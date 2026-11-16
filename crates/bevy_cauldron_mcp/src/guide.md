@@ -50,13 +50,13 @@
 
 ## Check your work by asking
 
-**After every change the person will see, and before `grimoire_present`, look and then ask.** `grimoire_decide` is the fastest way to answer a question about how your work looks, quicker and more reliable than reading a picture yourself. One call does it: pass `view: true` and the server takes the still itself, puts your questions to a decision model and returns a probability for each. To ask about a before-and-after pair without a second capture, give a still from `grimoire_capture_still` in `images`, by its `path` or its `fingerprint` (only stills are accepted, not other files). The answer names the `model` that answered (`model_source` says whether the endpoint `reported` it or it is the `configured` one), `where` it ran (`local`, or `remote` when the picture may have left the LAN) and its `latency_ms`.
+**Take one still of what you changed, ask the questions, then read the answers before your next operation.** Do it after every change the person will see, and before `grimoire_present`: a hand-back naming a fault you could have caught is one they must finish. `grimoire_decide` does the check in one call: pass `view: true` and the server takes the still itself, puts your questions to a decision model and returns a probability for each. To ask about a before-and-after pair without a second capture, give a still from `grimoire_capture_still` in `images`, by its `path` or its `fingerprint` (only stills are accepted, not other files). The answer names the `model` that answered (`model_source` says whether the endpoint `reported` it or it is the `configured` one), `where` it ran (`local`, or `remote` when the picture may have left the LAN) and its `latency_ms`.
 
-**Ask four or five questions.** One is a guess; more than eight costs time, because the model runs one pass per question.
+**Ask only a question whose answer would change your next operation.** If the number would not change what you do, do not ask it: say it in the hand-back as an assumption. Four questions cover nearly every change — is the thing asked for there, is its middle clear, is it the shape asked for, does anything float — plus one where the request names an amount or a kind. Each question is its own pass, so more costs time.
 
 **A good question names something from the request**: a place, a kind, an amount, or what must stay visible. Prefer `noul` (yes or no, answered as P(yes)) and `choice` (named options, each with a probability) to `score`, whose number depends on the scale you wrote. State a `noul` as a statement, not a question: "the path to the shrine is visible and unblocked", so that a high number means what you hoped for. A named check such as `floating` is a call of its own, because `check` and `questions` are not given together; or state it as a `noul`.
 
-**Example.** The person asks: "plant a dense pine forest on the north hill, and keep the path to the shrine clear". You grow it, and then make one call, `grimoire_decide` with `view: true` and five questions:
+**Example.** The person asks: "plant a dense pine forest on the north hill, and keep the path to the shrine clear". You grow it, then make one call, `grimoire_decide` with `view: true`: covers, the pine kind, how dense, the path, and grounded.
 
 ```
 {"view": true,
@@ -69,7 +69,7 @@
    "grounded": {"type": "noul", "instructions": "No tree floats above the ground."}}}
 ```
 
-**Then act on the answers.** A pine share of 0.3, or a path that is probably blocked, is yours to fix: fix it and ask again, at most twice. What is still uncertain after that goes in the hand-back's summary, with the number, so the person sees what you could not settle. The answer is advisory: a low probability never blocks or undoes an operation, and it changes no map data. It is your cue to look again and the person's cue in the hand-back.
+**Then act on the answers.** An answer under 0.5 is a fault you have already seen: fix it, ask the same question again on a fresh still, and make no next operation until it clears. (In the run behind this revision, 14 trials answered under 0.5 and none fixed anything.) One still under 0.5 after a retry is not asked again: put its number in the hand-back's summary. The answer is advisory: a low probability never blocks or undoes an operation, and it changes no map data.
 
 ## Hand back
 

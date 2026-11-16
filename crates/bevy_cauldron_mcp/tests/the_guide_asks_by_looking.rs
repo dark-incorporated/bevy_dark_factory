@@ -9,6 +9,13 @@
 //! - **The server's instructions**, which name `grimoire_decide` after `grimoire_guide` and never carry the
 //!   guide's text (AG-01: the rule is in the guide, and the instructions only point to it).
 //!
+//! **The section was revised against the benchmark's numbers** (DM-06, #457): with the shipped guide 22 of
+//! 43 eligible trials asked four or more questions (51%), 17 of 39 calls sent two or three where the guide
+//! asked for four or five, 14 trials got an answer under 0.5 and none fixed anything, and 7 never asked at
+//! all. So the section now says what to do rather than how many: one still, the questions whose answers
+//! could change the next operation, and a fix-and-ask-again when an answer comes back under 0.5. The three
+//! demands it retired are pinned as absent below, so wording the run refused cannot come back unnoticed.
+//!
 //! **The server is called as an outside agent calls it**: a subprocess, MCP over stdio, on a port nothing
 //! listens on.
 
@@ -123,13 +130,14 @@ fn the_guide_says_to_check_your_work_by_asking_and_says_how() {
         ("the one-call form", "`view: true`"),
         ("when: after a visible change", "after every change the person will see"),
         ("when: before the hand-back", "`grimoire_present`"),
-        ("how many: four or five", "four or five"),
-        ("how many: the cost of more", "more than eight"),
+        ("when to ask at all: only what could change the next operation", "would change your next operation"),
+        ("how many: the four that cover a change", "four questions"),
+        ("how many: the cost of more", "its own pass"),
         ("a good question names something from the request", "names something"),
         ("prefer noul and choice", "`noul`"),
         ("prefer noul and choice", "`choice`"),
         ("a noul is a statement", "statement"),
-        ("fix and re-ask at most twice", "at most twice"),
+        ("an answer under 0.5 is fixed, and the question asked again", "under 0.5"),
         ("report the rest", "hand-back"),
         ("a still from capture_still is accepted", "`grimoire_capture_still`"),
         ("advisory", "advisory"),
@@ -140,6 +148,16 @@ fn the_guide_says_to_check_your_work_by_asking_and_says_how() {
     assert!(asking.contains("pine forest"), "the forest example is missing:\n{asking}");
     for kind in ["`noul`", "`choice`", "`score`", "`floating`"] {
         assert!(asking.contains(kind), "the forest example does not use {kind}:\n{asking}");
+    }
+    // **The three demands the benchmark (#457) measured as uncalled are gone, not reworded.** The run
+    // found agents answering a four-or-five demand with two or three questions, nobody fixing an answer
+    // under 0.5, and seven tasks never asking at all; so a demand on the count and a cap on the retries
+    // would be pins on text the measurement refused. The rule that replaces them is the one above.
+    for retired in ["four or five", "more than eight", "at most twice"] {
+        assert!(
+            !asking.to_lowercase().contains(retired),
+            "the section asks `{retired}`, which the #457 measurements showed agents do not do:\n{asking}"
+        );
     }
 }
 
@@ -156,6 +174,12 @@ fn the_tool_description_leads_with_the_use() {
     assert!(description.contains("in about a second"), "{description}");
     let cap_mib = bevy_cauldron_mcp::decide::IMAGE_BYTES_MAX / (1024 * 1024);
     assert!(description.contains(&format!("at most {cap_mib} MiB")), "the description states the picture cap: {description}");
+    // **The description does not restate the retired count demand** (#457): the rule is the guide's, and
+    // a second copy of it in the description is the one that goes stale.
+    assert!(
+        !description.contains("four or five"),
+        "the description asked four or five questions; the guide now asks only what the next operation could change: {description}"
+    );
 }
 
 #[test]

@@ -2,6 +2,10 @@
 
 What each change added, newest first. A visible change has a clip: click the still to play it. `python3 tools/changelog/changelog.py page --open` plays them all in one page.
 
+## 2026-11-16
+
+- **dm-06-guide-revised** The guide asks what the run showed pays: one still after every visible change, only the questions whose answers could change your next operation (the four that discriminate — the thing asked for is there, its middle is clear, it is the shape asked for, nothing floats — plus one per amount or kind named), and an answer under 0.5 fixed and the same question asked again; the four-or-five demand and the twice cap are gone (#457) *For you: Agents now ask the question whose answer would change what they do next, and fix what comes back under half before going on.* *No clip: a guide's wording; proved by the_guide_says_to_check_your_work_by_asking_and_says_how and the #457 measurements in docs/bench/2026-11-15-ask-experiment.md*
+
 ## 2026-11-15
 
 - **dl-05-negatives-on-purpose** `9685dba7` Negatives with known answers for the label set: one engine-made defect (a floating piece, a clip, a piece out of its area, a deleted piece the request named, a wrong turn, a thinned forest, a flattened peak) on a copy of a kept scene, and a turn that fixed what an assessor flagged as one negative and one positive (#464)<br><a href="docs/changelog/media/2026-11-15-464-negatives.mp4"><img src="docs/changelog/media/2026-11-15-464-negatives.png" width="320" alt="clip"></a>
