@@ -989,6 +989,11 @@ fn follow_the_viewport(
 /// **Changed through operations** (`placement_set_hidden`, `layer_set_visible`), which carry it in
 /// [`crate::ops_view::View`] as a value, so the outliner's menu and an agent's call are one write (E-002, #129).
 /// A hidden piece stays on the map: nothing here touches the file, the log's undo or the solver.
+///
+/// **The map's own surfaces are here too** (#472): a carved map's rock is drawn by
+/// [`crate::terrain_view`], and an underground level's rooms are inside it, so every still from outside
+/// shows the hill's skin. `terrain` and `volume` and `water` are hidden by the same eye, and by the same
+/// rule — a view, not map data, no log line, nothing to undo.
 #[derive(Resource, Default, Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Eyes {
@@ -998,7 +1003,21 @@ pub struct Eyes {
     /// The layers hidden whole, by the names [`LAYERS`] gives.
     #[serde(default)]
     layers: BTreeSet<String>,
+    /// **The map's own surfaces hidden whole** (#472), by the names [`HIDABLE`] gives: the terrain
+    /// field's ground, the carved volume's chunks, and the kept water. Empty is everything drawn, so a
+    /// session that hides nothing is serialised as the eye it always was.
+    #[serde(default)]
+    surfaces: BTreeSet<String>,
 }
+
+/// **The map's own surfaces an agent can hide** (#472): the three things [`crate::terrain_view`] draws.
+///
+/// **`terrain` is the one that matters for a carved map.** A map whose rooms are `volume_edit` carves
+/// inside a flat field of rock draws that rock as the terrain's ground, and the carved void is inside
+/// it; with the terrain hidden, the carved chunks are the only thing drawn and the rooms can be seen
+/// from the same camera. `volume` and `water` are here because they are the same kind of thing and a
+/// caller hiding two of three would be an odd option to offer.
+pub const HIDABLE: [&str; 3] = ["terrain", "volume", "water"];
 
 impl Eyes {
     /// Whether the piece `id` is behind the eye on its own account (a hidden layer is [`Eyes::hides`]'s).
@@ -1044,9 +1063,30 @@ impl Eyes {
         self.layers.iter().cloned().collect()
     }
 
-    /// Whether nothing is hidden, a piece or a layer.
+    /// **Whether the map's own surface `surface` is hidden** (#472), by a name [`HIDABLE`] gives.
+    pub fn surface_hidden(&self, surface: &str) -> bool {
+        self.surfaces.contains(surface)
+    }
+
+    /// **Hide the map's own surface `surface` (`hidden` true) or draw it again.** Returns whether it moved.
+    /// A name not in [`HIDABLE`] is not an error here: the operation refuses it first, and this stays the
+    /// plain write a `View` carries.
+    pub fn set_surface(&mut self, surface: &str, hidden: bool) -> bool {
+        if hidden {
+            self.surfaces.insert(surface.to_owned())
+        } else {
+            self.surfaces.remove(surface)
+        }
+    }
+
+    /// **The map's own surfaces hidden**, in name order: what an answer names and a still was taken with.
+    pub fn hidden_surfaces(&self) -> Vec<String> {
+        self.surfaces.iter().cloned().collect()
+    }
+
+    /// Whether nothing is hidden, a piece, a layer or a surface.
     pub fn is_empty(&self) -> bool {
-        self.hidden.is_empty() && self.layers.is_empty()
+        self.hidden.is_empty() && self.layers.is_empty() && self.surfaces.is_empty()
     }
 
     /// **Whether this piece is out of the viewport**, for either reason: hidden itself, or standing in a hidden layer

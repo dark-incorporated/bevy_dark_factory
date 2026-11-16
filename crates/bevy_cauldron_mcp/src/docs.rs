@@ -307,7 +307,13 @@ pub const TOOLS: &[ToolDoc] = &[
                       this after a change to see what it did, or before one to see what it was \
                       like. Pass source \"window\" to capture what the window itself shows (its \
                       swapchain) instead of what the editor drew; on macOS an unfocused window \
-                      reads as one flat colour.",
+                      reads as one flat colour. Pass hide to take the map's own surfaces out of the \
+                      picture for it: [\"terrain\"] cuts the ground's outer skin away, so an \
+                      underground map's carved rooms are what the picture shows rather than the rock \
+                      they are cut into, and the camera is not moved. A view only: no file is \
+                      written and the map is not marked dirty. What was hidden is put back after the \
+                      picture unless restore is false, and the answer's hid field says what the \
+                      picture was taken with.",
         read_only: false,
         destructive: false,
         idempotent: false,

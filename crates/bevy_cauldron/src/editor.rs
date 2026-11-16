@@ -2578,6 +2578,10 @@ impl Plugin for EditorPlugin {
                     .after(crate::environment::apply_environment)
                     .before(bevy_elements::ElementsSystems::Clock),
                 crate::environment::dress_volume.after(crate::family_host::Reloaded).after(crate::terrain_view::sync_terrain_view),
+                // **The weathered carved ground is cut by the eye too** (#472): it wears a material the
+                // plain system cannot see, and a cut that applied to one of the two would make hiding
+                // the terrain work on some maps and not others.
+                crate::environment::cut_the_weathered_ground.after(crate::environment::dress_volume),
             ),
         );
         #[cfg(all(feature = "bevy_flora", feature = "bevy_elements"))]
@@ -3025,6 +3029,10 @@ impl Plugin for EditorPlugin {
                         draw_bounds,
                         draw_map_grid,
                         crate::terrain_view::sync_terrain_view,
+                        // **After the drawing is spawned, the same frame** (#472): the eye is a view,
+                        // and the frame an operation's answer comes back is the frame the next still
+                        // is taken in.
+                        crate::terrain_view::hide_hidden_surfaces.after(crate::terrain_view::sync_terrain_view),
                         crate::notes_view::sync_notes_view,
                         fit_bounds_floor
                             .run_if(resource_exists_and_changed::<Project>.or_eager(run_once)),

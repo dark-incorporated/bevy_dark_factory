@@ -222,6 +222,22 @@ pub struct StillParams {
     /// colour.
     #[serde(default)]
     pub source: Option<String>,
+    /// **The map's own surfaces to hide for this picture** (#472): any of `terrain`, `volume`, `water`.
+    ///
+    /// **The one thing that makes an underground map visible.** A map whose rooms are `volume_edit`
+    /// carves draws the rock they are cut into, so every still from outside shows the hill's skin and
+    /// not one of its rooms. `["terrain"]` cuts the solid, so what is drawn is its interior: the floor,
+    /// the walls, the vault, and the sides of the columns standing in it, from the same camera.
+    ///
+    /// **The camera is not touched and the map is not touched**: it is a view, put back by the next call
+    /// with no `hide`.
+    #[serde(default)]
+    pub hide: Option<Vec<String>>,
+    /// **Whether the view is put back after the picture.** `true` (the default) hides what `hide` names
+    /// for the one capture and restores what was hidden before it, so a still never leaves the person's
+    /// screen changed; `false` leaves the view as the call set it, for a run of stills that all want it.
+    #[serde(default = "yes")]
+    pub restore: bool,
 }
 
 /// **The parameters of `grimoire_read_log`.**
@@ -689,6 +705,19 @@ impl Grimoire {
             .screenshot(json!({"source": source}))
             .await
             .map_err(|e| format!("the editor's {e}"))
+    }
+
+    /// **Hide the surfaces a capture asks for**, and answer what was hidden before it, so the caller can put
+    /// the view back. `None` when the call names none: the editor is not asked, so a still with no `hide`
+    /// costs no BRP round trip and cannot change the view.
+    async fn set_hidden(&self, hide: Option<&[String]>) -> Result<Option<Vec<String>>, String> {
+        let Some(hide) = hide else { return Ok(None) };
+        let answer = self
+            .editor
+            .call("grimoire/surface_hide", json!({"hide": hide}))
+            .await?;
+        let was = answer.get("was").and_then(|w| w.as_array()).map(|w| w.iter().filter_map(|s| s.as_str().map(str::to_owned)).collect());
+        Ok(Some(was.unwrap_or_default()))
     }
 
     /// **Where a capture lands.**
@@ -1411,7 +1440,13 @@ impl Grimoire {
                        this after a change to see what it did, or before one to see what it was \
                        like. Pass source \"window\" to capture what the window itself shows (its \
                        swapchain) instead of what the editor drew; on macOS an unfocused window \
-                       reads as one flat colour.",
+                       reads as one flat colour. Pass hide to take the map's own surfaces out of the \
+                       picture for it: [\"terrain\"] cuts the ground's outer skin away, so an \
+                       underground map's carved rooms are what the picture shows rather than the rock \
+                       they are cut into, and the camera is not moved. A view only: no file is \
+                       written and the map is not marked dirty. What was hidden is put back after the \
+                       picture unless restore is false, and the answer's hid field says what the \
+                       picture was taken with.",
         annotations(
             title = "Capture a still of the editor",
             read_only_hint = false,
@@ -1442,7 +1477,21 @@ impl Grimoire {
             .call("grimoire/state", json!({}))
             .await
             .unwrap_or(Value::Null);
-        let png = match self.grab(fairy_source).await {
+        // **The view the picture is taken through** (#472): `hide` is applied before the grab, so an
+        // underground map's rooms are what the picture shows rather than the rock they are cut into.
+        let was = match self.set_hidden(p.hide.as_deref()).await {
+            Ok(was) => was,
+            Err(e) => return Ok(refusal(&e)),
+        };
+        let grabbed = self.grab(fairy_source).await;
+        // **The person's screen goes back as it was**, whether the picture landed or not: a still is a
+        // look, not a change to what they are looking at.
+        if p.restore && was.is_some()
+            && let Err(e) = self.set_hidden(Some(&was.unwrap_or_default())).await
+        {
+            return Ok(refusal(&format!("the view could not be put back after the capture: {e}")));
+        }
+        let png = match grabbed {
             Ok(png) => png,
             Err(e) => return Ok(refusal(&e)),
         };
@@ -1471,6 +1520,9 @@ impl Grimoire {
             // screen and was in fact a repeated file. A fingerprint of the bytes is the fact the
             // question actually needs.
             "fingerprint": bevy_cauldron_mcp::fingerprint(&bytes),
+            // **What the picture was taken with hidden** (#472), so a still that shows an interior says
+            // so in its own answer and cannot be mistaken for one of the outside.
+            "hid": p.hide.clone().unwrap_or_default(),
             "state": state,
         });
         Ok(CallToolResult::success(vec![
@@ -2631,6 +2683,12 @@ fn refusal(why: &str) -> CallToolResult {
 /// in parts, with `/` between them. No part is empty, so there is no leading or trailing `/` and
 /// no `//`; no part is `.` or `..`, because `.` is not a character a label may use. A `\` or an
 /// absolute path fails for the same reason.
+/// **The default of a parameter that is `true` unless it is said.** `Option<bool>`'s default is `None`, which
+/// would read as `false` for `capture_still`'s `restore`: the person's view would stay changed after a still.
+fn yes() -> bool {
+    true
+}
+
 fn is_capture_label(label: &str) -> bool {
     !label.is_empty()
         && label.split('/').all(|part| {

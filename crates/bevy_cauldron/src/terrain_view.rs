@@ -13,6 +13,7 @@
 use bevy::asset::RenderAssetUsages;
 use bevy::mesh::{Indices, PrimitiveTopology};
 use bevy::prelude::*;
+use bevy::render::render_resource::Face;
 use bevy_grimoire_core::heightfield::Heightfield;
 use bevy_grimoire_core::live::{KindVerdict, Outcome};
 use bevy_grimoire_core::reload_check::{self, Check};
@@ -269,21 +270,106 @@ pub fn sync_terrain_view(
         let carved = volume_chunks(good.volume.as_ref(), ground);
         let material = materials.add(if carved.is_empty() { ground_base() } else { volume_base() });
         if carved.is_empty() {
-            drawn.push(commands.spawn((TerrainView::Ground, Mesh3d(meshes.add(ground_mesh(ground))), MeshMaterial3d(material), at)).id());
+            drawn.push(commands.spawn((TerrainView::Ground, Surface::Terrain, Mesh3d(meshes.add(ground_mesh(ground))), MeshMaterial3d(material), at)).id());
         } else {
             for mesh in carved {
-                drawn.push(commands.spawn((TerrainView::Volume, Mesh3d(meshes.add(mesh)), MeshMaterial3d(material.clone()), at)).id());
+                drawn.push(commands.spawn((TerrainView::Volume, Surface::Volume, Mesh3d(meshes.add(mesh)), MeshMaterial3d(material.clone()), at)).id());
             }
         }
         if let Some(mesh) = good.water.as_ref().and_then(|w| water_mesh(ground, w)) {
             drawn.push(commands.spawn((
                 TerrainView::Water,
+                Surface::Water,
                 Mesh3d(meshes.add(mesh)),
                 MeshMaterial3d(materials.add(StandardMaterial { alpha_mode: AlphaMode::Blend, perceptual_roughness: 0.15, ..default() })),
                 // The ground is dropped; the water is measured from the datum like pieces are.
                 Transform::from_xyz(open.map.origin.0, open.map.origin.1, open.map.origin.2),
             )).id());
         }
+    }
+}
+
+/// **Which of the map's own surfaces a drawn entity is**, by the name [`crate::outliner::HIDABLE`] gives
+/// it (#472): the surface, not the view kind, because the answer an agent hides by is the *ground* or
+/// the *carved ground*, and which of those an entity is drawn as can change with a single carve.
+///
+/// **It is a component and not a field of [`TerrainView`]** because the two answer different questions:
+/// `TerrainView` says what is drawn (a heightfield, a volume chunk, water) and a test reading it is
+/// asking about the drawing; this says which switch hides it, and a `TerrainView::Ground` entity is
+/// still `terrain` after a carve replaced it with `Volume` chunks.
+#[derive(Component, Clone, Copy, PartialEq, Eq, Debug)]
+pub enum Surface {
+    Terrain,
+    Volume,
+    Water,
+}
+
+impl Surface {
+    /// The name [`crate::outliner::HIDABLE`] gives it, and what an operation's `surface` parameter says.
+    pub fn name(self) -> &'static str {
+        match self {
+            Surface::Terrain => "terrain",
+            Surface::Volume => "volume",
+            Surface::Water => "water",
+        }
+    }
+}
+
+/// **Hide the map's own surfaces the eye has taken out, and cut the ground's front away** (#472).
+///
+/// **One writer of these entities' `Visibility` and of their material's `cull_mode`**, for
+/// `hide_carried`'s reason: a second writer of one component would take turns undoing the first.
+///
+/// # What `terrain` hidden means
+///
+/// A carved map's rock is meshed as **one solid** by [`crate::volume_mesh`]: the hill's outer skin and
+/// the carved rooms inside it are one surface, so despawning it takes the rooms with it. So `terrain`
+/// hidden **culls the solid's front faces**, which leaves its *inner* surface drawn: the crypt's floor,
+/// its walls, its vault, and the sides of the columns standing in it. That is "the carved void, and
+/// nothing else, from the same camera", it needs no second mesh and no cut plane's magic height, and it
+/// is the one thing this drawing already contains.
+///
+/// **A map with no volume has no inside to show**, so its ground is simply hidden.
+///
+/// `volume` and `water` are plain visibility: they are separate entities already, and hiding `volume`
+/// takes the carved chunks out whether the ground is cut or not.
+pub fn hide_hidden_surfaces(
+    eyes: Option<Res<crate::outliner::Eyes>>,
+    mut plain_materials: ResMut<Assets<StandardMaterial>>,
+    mut plain: Query<(&Surface, &MeshMaterial3d<StandardMaterial>, &mut Visibility)>,
+) {
+    let hidden = |s: Surface| eyes.as_deref().is_some_and(|e| e.surface_hidden(s.name()));
+    // **The solid is cut, not hidden**: the chunks still draw, and what they draw is its inside.
+    let cut = hidden(Surface::Terrain);
+    for (surface, material, mut vis) in &mut plain {
+        let want = if surface_wants(*surface, cut, hidden(*surface)) { Visibility::Hidden } else { Visibility::Inherited };
+        if *vis != want {
+            *vis = want;
+        }
+        // **A material is shared between entities, so its cull mode is one answer for the drawing**:
+        // `cut` is one flag for the whole drawing, so every chunk entity writes the same value and they
+        // cannot disagree. `get_mut` re-prepares, so it is written only when it differs.
+        if *surface == Surface::Volume
+            && let Some(mut m) = plain_materials.get_mut(&material.0)
+        {
+            let want_cull = if cut { Some(Face::Front) } else { Some(Face::Back) };
+            if m.cull_mode != want_cull {
+                m.cull_mode = want_cull;
+            }
+        }
+    }
+}
+
+/// **Whether a drawn surface is hidden, given whether the solid is being cut** (#472): the one rule
+/// [`hide_hidden_surfaces`] and [`crate::environment::cut_the_weathered_ground`] both follow, so a map
+/// wearing a cover and one without cannot disagree about what the eye did.
+pub fn surface_wants(surface: Surface, cut: bool, hidden: bool) -> bool {
+    match (surface, cut, hidden) {
+        // **The terrain hidden over a carved map** leaves the chunks drawn, cut: the interior is the
+        // answer, and hiding the chunks with the skin would be a blank map.
+        (Surface::Volume, true, false) => false,
+        (_, _, true) => true,
+        _ => false,
     }
 }
 

@@ -3173,6 +3173,73 @@ pub struct RunCommandParams {
     pub id: String,
 }
 
+/// **The parameters of `grimoire/surface_hide`** (#472). `deny_unknown_fields`, so a typo is a refusal:
+/// a `hide` that misspelled a surface and hid nothing would read as a working call.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct SurfaceHideParams {
+    /// **The surfaces to hide**: any of [`crate::outliner::HIDABLE`]. An empty list draws them all.
+    #[serde(default)]
+    pub hide: Vec<String>,
+    /// **Whether the list is the whole set.** `true` (the default) replaces what was hidden, so a still can
+    /// be taken of exactly what it names and the next call of nothing; `false` adds to it.
+    #[serde(default = "one_true")]
+    pub replace: bool,
+}
+
+fn one_true() -> bool {
+    true
+}
+
+/// **`grimoire/surface_hide` — hide the map's own surfaces, so a carved interior can be seen** (#472).
+///
+/// **A view, not map data.** The surfaces stay in their files, `grimoire_state.map.dirty` is untouched and
+/// **no operation log line is written**, so there is nothing to undo and nothing in the person's history
+/// that is not a change to their project. That is the whole point of it being this door and not an
+/// operation: an operation would be a line in the log for moving a camera, and this is the same kind of
+/// thing as `grimoire_frame_view`.
+///
+/// **The answer names what is hidden now**, so a caller reads back the view rather than trusting its own
+/// parameters; and it names `drawn_now`, so a caller that forgot to unhide is not left wondering why its
+/// next still is empty.
+fn surface_hide(In(p): In<SurfaceHideParams>, mut eyes: Option<ResMut<crate::outliner::Eyes>>) -> Result<Value, String> {
+    let wrong: Vec<&str> = p.hide.iter().map(String::as_str).filter(|s| !crate::outliner::HIDABLE.contains(s)).collect();
+    if let Some(bad) = wrong.first() {
+        return Err(format!(
+            "`{bad}` is not a surface this editor draws. Say one of {}. Nothing was changed.",
+            crate::outliner::HIDABLE.join(", ")
+        ));
+    }
+    let Some(eyes) = eyes.as_deref_mut() else {
+        return Err("the editor has no eye for its own surfaces, so nothing was hidden.".to_owned());
+    };
+    // **What stood before**, so a caller that only meant to hide something for one picture (a still, a
+    // decide check) puts the view back with the same call rather than guessing what it was.
+    let was = eyes.hidden_surfaces();
+    if p.replace {
+        for surface in crate::outliner::HIDABLE {
+            eyes.set_surface(surface, false);
+        }
+    }
+    let mut hid = Vec::new();
+    for surface in &p.hide {
+        if eyes.set_surface(surface, true) {
+            hid.push(surface.clone());
+        }
+    }
+    let hidden = eyes.hidden_surfaces();
+    Ok(json!({
+        "hidden": hidden,
+        // **What the still will show**, which is the list less what was hidden: a caller that hid
+        // everything is told so rather than left with a blank picture and no sentence.
+        "drawn": crate::outliner::HIDABLE.iter().copied().filter(|s| !eyes.surface_hidden(s)).collect::<Vec<_>>(),
+        "hid_now": hid,
+        "replace": p.replace,
+        // **What was hidden before this call**, so `{"hide": <was>}` puts it back.
+        "was": was,
+    }))
+}
+
 /// **`grimoire/run_command` — run a registered command by id** (UI-90, #256).
 ///
 /// **The agent's door onto [`crate::commands`].** The command's chord is pressed for one frame and the
@@ -3721,6 +3788,20 @@ impl Plugin for OpsBridgePlugin {
                 "why": "the harbour's dusk reads cold without it",
             })),
             editor_style_propose,
+        );
+        app.add_debug_command(
+            DebugCommandInfo::new(
+                "grimoire/surface_hide",
+                "Hide the map's own surfaces so a carved interior can be seen: a map whose rooms are \
+                 volume_edit carves draws the rock they are cut into, so every still from outside is the \
+                 hill's skin. Name the surfaces to hide -- terrain, volume, water -- and the still from \
+                 the same camera shows the carved void instead. A view, not map data: no file is \
+                 written, the map is not marked dirty, and no operation log line is made, so there is \
+                 nothing to undo. The answer names what is hidden now and what a still would still draw.",
+            )
+            .params("hide: any of terrain, volume, water (an empty list draws them all); replace: true (the default) replaces what was hidden, false adds to it.")
+            .example(json!({"hide": ["terrain"]})),
+            surface_hide,
         );
     }
 }

@@ -2708,7 +2708,6 @@ pub mod sight {
     /// **Lock one piece against the viewport's clicks, or unlock it.**
     pub mod placement_set_locked {
         use super::*;
-
         #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
         #[serde(deny_unknown_fields)]
         pub struct Params {
