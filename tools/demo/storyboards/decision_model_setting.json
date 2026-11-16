@@ -1,0 +1,21 @@
+{
+  "name": "decision_model_setting",
+  "fps": 10,
+  "scale": 1,
+  "width": 960,
+  "crop": [0, 0, 1088, 640],
+  "setup": [],
+  "chunks": [{"seconds": 9.0}, {"seconds": 8.0}],
+  "steps": [
+    {"at": 1.2, "key": "Comma", "mods": ["ControlLeft"], "caption": "person: Settings"},
+    {"at": 2.2, "click_label": "a word, like grid"},
+    {"at": 3.0, "type": "decision", "caption": "the Decision model row: Local, and what Remote sends where"},
+    {"at": 4.6, "click": [745, 267], "caption": "person: Remote, with no key set"},
+    {"at": 6.6, "click_label": "Close", "caption": "the light at the far end of the top bar names the model"},
+    {"at": 8.0, "key": "KeyJ", "mods": ["ControlLeft"], "caption": "person: the terminal"},
+    {"at": 9.0, "write": {"path": "assets/grimoire/editor.yaml", "text": "version: 1\nterminal_agent: Custom\nterminal_agent_command: standin\n"}},
+    {"at": 10.2, "click_label": "Start agent", "within": [850, 395, 1088, 440], "caption": "person: Start agent; the card's rows"},
+    {"at": 12.4, "cursor": [600, 250]},
+    {"at": 14.4, "caption": "the decision model is one of the self test's rows"}
+  ]
+}
