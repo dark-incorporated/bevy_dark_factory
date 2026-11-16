@@ -34,6 +34,25 @@ pub struct Edit {
 }
 
 impl Edit {
+    /// **The shape's kind, as the schema spells it** (`Sphere`, `Box`, `Capsule`): the same word a
+    /// caller sends in `edit.shape`, so an answer naming what stood in an entry reads in the
+    /// vocabulary the caller already writes and not in a second one.
+    pub fn shape_name(&self) -> &'static str {
+        match self.shape {
+            Shape::Sphere { .. } => "Sphere",
+            Shape::Box { .. } => "Box",
+            Shape::Capsule { .. } => "Capsule",
+        }
+    }
+
+    /// **Whether it makes solid or removes it**, in the words the schema's `mode` uses.
+    pub fn mode_name(&self) -> &'static str {
+        match self.mode {
+            Mode::Add => "Add",
+            Mode::Carve => "Carve",
+        }
+    }
+
     /// Refuses a non-finite number, a non-positive size or a negative blend.
     pub fn check(&self) -> Result<(), String> {
         let (nums, sizes): (Vec<f32>, Vec<f32>) = match self.shape {
@@ -132,6 +151,26 @@ impl Volume {
         edit.check()?;
         self.edits.push(edit);
         Ok(())
+    }
+
+    /// **Replace the edit at `at`, or refuse naming the index.** A bad edit is refused by the same
+    /// rule [`Volume::push`] refuses one, so a replace cannot put in the file an entry the reader
+    /// would refuse (#474). Returns the edit that stood there.
+    pub fn replace(&mut self, at: usize, edit: Edit) -> Result<Edit, String> {
+        if at >= self.edits.len() {
+            return Err(format!("there is no edit at index {at}: the list holds {}.", self.edits.len()));
+        }
+        edit.check()?;
+        Ok(std::mem::replace(&mut self.edits[at], edit))
+    }
+
+    /// **Take the edit at `at` out, or refuse naming the index.** Returns the edit removed, so a
+    /// refusal to undo it can say what went.
+    pub fn remove(&mut self, at: usize) -> Result<Edit, String> {
+        if at >= self.edits.len() {
+            return Err(format!("there is no edit at index {at}: the list holds {}.", self.edits.len()));
+        }
+        Ok(self.edits.remove(at))
     }
 
     /// **The signed distance at `p`** (negative inside solid) after every edit, in order, starting
