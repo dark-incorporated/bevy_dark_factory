@@ -206,6 +206,11 @@ impl ExitState {
         }
     }
 
+    /// Has the app begun to exit ([`AppExit`] was written, or the world is being dropped)? For a test that pins the order of the drop.
+    pub fn exit_has_begun(&self) -> bool {
+        self.0.exiting.load(Ordering::Relaxed) != 0
+    }
+
     /// The request was answered with *Stay*: forgotten.
     fn forget_the_request(&self) {
         self.0.requested.store(0, Ordering::Relaxed);
