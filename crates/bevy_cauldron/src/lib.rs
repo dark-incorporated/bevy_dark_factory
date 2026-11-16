@@ -86,6 +86,7 @@ pub mod library_browser;
 pub mod game_ui_preview;
 pub mod game_view;
 pub mod agent_view;
+pub mod audit_view;
 // **A hand-back the person kept becomes a benchmark task draft** (BM-07, #417).
 pub mod bench_draft;
 pub mod shell_view;
@@ -221,6 +222,13 @@ pub mod session;
 pub mod snip;
 pub mod stage_panels;
 pub mod after_edit;
+// **Every agent turn as one record, for training the decision model** (DL-01, #460): the file format, and the editor's side of it.
+pub mod turn_store;
+pub mod turn_ledger;
+// **The questions each turn carries** (DL-03, #462): worded in the decision model's own shapes, with the engine's answers beside them.
+pub mod turn_questions;
+// **The assessor** (DL-04, #463): a model grades each turn's questions, in its own process.
+pub mod turn_assess;
 pub mod steps;
 pub mod stages;
 pub mod surface;

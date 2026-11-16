@@ -121,6 +121,16 @@ pub const CATALOGUE: &[Setting] = &[
         description: "Show the strip of workspace icons at the left edge of the window. Off, move between workspaces with the keys or the Window menu.",
         kind: Kind::Switch,
     },
+    // **Why this row is in Decisions, and not a Privacy tab of its own** (DL-01, #460): what is collected is the data the decision model is trained on, and
+    // a sixth tab changed the card's layout enough that the protected `a_settings_change_updates_only_its_row` tests, which compare rows' heights to the pixel
+    // after the card re-centres, failed on a one pixel rounding of a row that had not changed.
+    Setting {
+        key: "collect_labels",
+        label: "Learn from my use",
+        category: "Decisions",
+        description: "Keep a record of each agent turn, for training the editor's decision model: the pictures before and after, what was asked, what was done and what you did about it. It is kept on this computer, in the Grimoire folder of your data directory, never in a project, and nothing is sent anywhere. Collection stops by itself at 2 GB. Off, no picture is taken and nothing is written.",
+        kind: Kind::Switch,
+    },
     Setting {
         key: "reduced_motion",
         label: "Reduced motion",
@@ -311,6 +321,7 @@ impl EditorSettings {
             "grid_strength" => Value::Number(self.grid_strength),
             "show_statistics" => Value::On(self.show_statistics),
             "show_activity_bar" => Value::On(self.show_activity_bar),
+            "collect_labels" => Value::On(self.collect_labels),
             "terminal_text_scale" => Value::Number(self.terminal_text_scale),
             "terminal_cursor" => Value::Option(cursor_index(self.terminal_cursor)),
             "terminal_cursor_blink" => Value::On(self.terminal_cursor_blink),
@@ -350,6 +361,7 @@ impl SettingsLayer {
             "grid_strength" => self.grid_strength.map(Value::Number),
             "show_statistics" => self.show_statistics.map(Value::On),
             "show_activity_bar" => self.show_activity_bar.map(Value::On),
+            "collect_labels" => self.collect_labels.map(Value::On),
             "terminal_text_scale" => self.terminal_text_scale.map(Value::Number),
             "terminal_cursor" => self.terminal_cursor.map(|c| Value::Option(cursor_index(c))),
             "terminal_cursor_blink" => self.terminal_cursor_blink.map(Value::On),
@@ -372,6 +384,7 @@ impl SettingsLayer {
             ("grid_strength", Value::Number(n)) => self.grid_strength = Some(n),
             ("show_statistics", Value::On(on)) => self.show_statistics = Some(on),
             ("show_activity_bar", Value::On(on)) => self.show_activity_bar = Some(on),
+            ("collect_labels", Value::On(on)) => self.collect_labels = Some(on),
             ("terminal_text_scale", Value::Number(n)) => self.terminal_text_scale = Some(n),
             ("terminal_cursor", Value::Option(i)) => self.terminal_cursor = Some(cursor_at(i)),
             ("terminal_cursor_blink", Value::On(on)) => self.terminal_cursor_blink = Some(on),
@@ -395,6 +408,7 @@ impl SettingsLayer {
             "grid_strength" => self.grid_strength = None,
             "show_statistics" => self.show_statistics = None,
             "show_activity_bar" => self.show_activity_bar = None,
+            "collect_labels" => self.collect_labels = None,
             "terminal_text_scale" => self.terminal_text_scale = None,
             "terminal_cursor" => self.terminal_cursor = None,
             "terminal_cursor_blink" => self.terminal_cursor_blink = None,

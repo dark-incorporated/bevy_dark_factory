@@ -548,6 +548,12 @@ pub const OWNERSHIP: &[(&str, Ownership)] = &[
     ("bevy_cauldron::present::Wishes", Ownership::Session),
     // A lesson cites a hand-back, so it lives as long as the hand-backs do (#351).
     ("bevy_cauldron::present::Lessons", Ownership::Session),
+    // **The turn ledger is the session's** (DL-01, #460): a turn opens on one door and is handed back from another, and what the ledger has
+    // written is the person's for good.
+    ("bevy_cauldron::turn_ledger::TurnLedger", Ownership::Session),
+    // **The audit's questions and the answers waiting to be written** (DL-07, #466): read off the ledger, which is the person's for good.
+    ("bevy_cauldron::audit_view::Audit", Ownership::Session),
+    ("bevy_cauldron::audit_view::Answers", Ownership::Session),
     // **A proposal to a style page is the design's, which no door change moves** (SG-07, #406): it waits for the person in the AGENT block until answered.
     ("bevy_cauldron::style_proposals::StyleProposals", Ownership::Session),
     // **`Session`: the style pages `grimoire_style` has served this sitting** (SG-09, #408), which a hand-back may cite lines of: a door change does not make an agent forget what it was told.

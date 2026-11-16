@@ -1623,6 +1623,15 @@ impl Grimoire {
         } else {
             None
         };
+        // **What the editor is told about this call** (DL-01, #460), taken before `p` moves into the thread that asks the model.
+        let asked = p.clone();
+        // **Which model this call asks**, resolved as `decide_asked` resolves it (the person's choice, one endpoint, no fallback); a choice that does not
+        // resolve is refused by that call, and the report then names no model.
+        let (model, endpoint) = bevy_oracle::Endpoints::from_env()
+            .resolve(bevy_oracle::user_file().as_deref(), Some(&bevy_oracle::project_file(&project)))
+            .map(|resolved| (resolved.config.model, resolved.config.endpoint))
+            .unwrap_or_default();
+        let started = std::time::Instant::now();
         let answer = tokio::task::spawn_blocking(move || {
             bevy_cauldron_mcp::decide::decide_asked(
                 &p,
@@ -1635,6 +1644,21 @@ impl Grimoire {
         })
         .await
         .map_err(|e| ErrorData::internal_error(e.to_string(), None))?;
+        // **The editor is the one writer of the turn ledger**, so this server reports the call and keeps nothing. It is sent on its own task:
+        // an editor that is busy or not running must never delay the answer the agent is waiting for.
+        let report = bevy_cauldron_mcp::decide::report(
+            &asked,
+            &answer,
+            model.as_deref(),
+            &endpoint,
+            u64::try_from(started.elapsed().as_millis()).unwrap_or(u64::MAX),
+        );
+        let editor = self.editor.clone();
+        tokio::spawn(async move {
+            if let Err(why) = editor.call("grimoire/decide_report", report).await {
+                eprintln!("bevy_cauldron_mcp: could not tell the editor about a decision: {why}");
+            }
+        });
         Ok(match answer {
             Ok(v) => CallToolResult::structured(v),
             Err(e) => refusal(&e),

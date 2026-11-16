@@ -114,8 +114,12 @@ pub fn before(operation: &str, ctx: &crate::ops::Ctx) -> Option<Found> {
 /// failure — `map_create` runs there and changes no map — so this answers `None` rather than
 /// refusing.
 pub fn find(ctx: &crate::ops::Ctx) -> Option<Found> {
-    let project = ctx.project.as_ref()?;
-    let open = ctx.open.as_ref()?;
+    Some(find_in(ctx.project.as_ref()?, ctx.open.as_ref()?))
+}
+
+/// **The findings for a project and its open map** — what [`find`] reads out of a `Ctx`, for a reader that holds the two resources and no `Ctx`
+/// (the turn ledger's facts, DL-01, #460).
+pub fn find_in(project: &crate::project::Project, open: &crate::project::OpenMap) -> Found {
     let faults = adjacency::faults(&open.map, &project.library, project.lattice.face_bands);
     let overlaps = bevy_grimoire_core::stack::overlaps(&open.map, &project.library)
         .into_iter()
@@ -146,7 +150,7 @@ pub fn find(ctx: &crate::ops::Ctx) -> Option<Found> {
             )
         })
         .collect();
-    Some(Found { faults, overlaps, doorways, clearances })
+    Found { faults, overlaps, doorways, clearances }
 }
 
 /// The `checks` value of an answer: what `after` has that `before` did not.

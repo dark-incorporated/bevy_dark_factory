@@ -159,6 +159,8 @@ pub fn add_editor_plugins(app: &mut App) -> &mut App {
     // element: the list above is one element away from Bevy's fifteen-plugin cap, and a plugin that
     // owns one question and one system does not need to be in that list.
     app.add_plugins(crate::present::PresentPlugin);
+    // **The turn ledger** (DL-01, #460): one record per agent turn, written by the editor. Its own call, like the one above, for the same reason.
+    app.add_plugins(crate::turn_ledger::TurnLedgerPlugin);
     // **The terminal** (a shell in the editor's own window). In the shared list rather than the
     // binary's: a headless test presses `Ctrl+\`` and types into a real shell, which is what proves
     // the feature end to end, and a plugin the harness lacks would make that test prove the harness.

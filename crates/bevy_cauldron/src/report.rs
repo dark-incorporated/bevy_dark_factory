@@ -1550,6 +1550,10 @@ fn save(report: &mut ReportEdit, world: &mut World) {
             return refuse(report, world, &why);
         }
     }
+    // **What the person said about these pieces is a label on the turn that made them** (DL-02, #461): a report whose scene picks chose a placement.
+    if let (Some(project), Some(mut ledger)) = (record.project.as_deref(), world.get_resource_mut::<crate::turn_ledger::TurnLedger>()) {
+        ledger.report_taken(&record, std::path::Path::new(project));
+    }
     close_the_box(report, world);
     let shown = crate::launcher::shown_folder(&dir);
     world.spawn(bevy_gooey::toast(format!("report saved to {shown}")));

@@ -299,6 +299,11 @@ pub struct EditorSettings {
     /// window's far left. On by default, because it is the one place the workspaces are all in view;
     /// off takes it away entirely and the choice is saved.
     pub show_activity_bar: bool,
+    /// **Whether the editor keeps a record of each agent turn, to learn from** (DL-01, #460, `turn_ledger`): the pictures before and after,
+    /// what was asked, the operations and the facts, in the person's own data folder and nowhere else. **On by default** (owner, #459): the
+    /// labels come from using the editor, so there is no separate labelling session. Off is off: no picture is taken for it and nothing is
+    /// written.
+    pub collect_labels: bool,
     /// The rebound commands of every layer, by command id: what the keymap screen shows against each
     /// command's default chord.
     pub keymap: BTreeMap<String, Shortcut>,
@@ -368,6 +373,7 @@ impl Default for EditorSettings {
             grid_strength: 1.0,
             show_statistics: false,
             show_activity_bar: true,
+            collect_labels: true,
             keymap: BTreeMap::new(),
             terminal_text_scale: 1.0,
             terminal_cursor: TerminalCursor::default(),
@@ -419,6 +425,9 @@ pub struct SettingsLayer {
     /// written before this key existed reads as on.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub show_activity_bar: Option<bool>,
+    /// **Turn labels from use** (DL-01, #460). `None` leaves the layer below to decide, so a file written before this key existed reads as on.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub collect_labels: Option<bool>,
     /// **Rebound commands**: a command's id (`file.save`, `commands::Command::id`) and the chord that
     /// now runs it. A command the file leaves out keeps its default chord (UI-72, #250).
     #[serde(skip_serializing_if = "BTreeMap::is_empty")]
@@ -470,6 +479,7 @@ impl Default for SettingsLayer {
             grid_strength: None,
             show_statistics: None,
             show_activity_bar: None,
+            collect_labels: None,
             keymap: BTreeMap::new(),
             terminal_text_scale: None,
             terminal_cursor: None,
@@ -587,6 +597,7 @@ impl EditorSettings {
             out.grid_strength = layer.grid_strength.unwrap_or(out.grid_strength);
             out.show_statistics = layer.show_statistics.unwrap_or(out.show_statistics);
             out.show_activity_bar = layer.show_activity_bar.unwrap_or(out.show_activity_bar);
+            out.collect_labels = layer.collect_labels.unwrap_or(out.collect_labels);
             // Per command: a later layer's binding replaces the earlier one's for that command alone.
             out.keymap.extend(layer.keymap.iter().map(|(id, chord)| (id.clone(), *chord)));
             out.terminal_text_scale = layer.terminal_text_scale.unwrap_or(out.terminal_text_scale);

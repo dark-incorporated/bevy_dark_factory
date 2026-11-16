@@ -767,6 +767,9 @@ pub fn record_handed_back_notes(
     view: Option<Res<crate::notes_view::NotesView>>,
     mut handbacks: Option<ResMut<HandBacks>>,
     mut seen: Local<Option<HandedBackBefore>>,
+    // **The turn ledger** (DL-01, #460): a resolved note ends a turn as a `grimoire_present` does.
+    mut ledger: Option<ResMut<crate::turn_ledger::TurnLedger>>,
+    client: Option<Res<AgentClient>>,
 ) {
     // **Every one of these is `Option`**: a build without the editor's own plugins has no notes
     // view and no open map, and in Bevy a missing `Res<T>` panics its system rather than skipping it.
@@ -818,7 +821,25 @@ pub fn record_handed_back_notes(
         };
         // **The key is the map file, not the notes file.** A wish cites the open map
         // (`OpenMap::map_path`), so a record keyed on `m.notes.yaml` could never be found by it.
-        handbacks.record_note(&project.root, &open.map_path, &note.id, note.text.clone(), ops);
+        handbacks.record_note(&project.root, &open.map_path, &note.id, note.text.clone(), ops.clone());
+        // **A resolved note is a hand-back too** (DL-01, #460): the turn it ends is recorded with the note's text as its request.
+        if let Some(ledger) = ledger.as_mut().filter(|ledger| ledger.collecting()) {
+            let log = crate::ops::read_entries(&crate::ops::oplog_path(&project));
+            ledger.hand_back(crate::turn_ledger::HandBackInput {
+                kind: HandBackKind::Note,
+                id: &note.id,
+                title: &note.text,
+                summary: "",
+                specified: &[],
+                inferred: &[],
+                check: Vec::new(),
+                note: Some(&note.text),
+                listed: &ops,
+                log: &log,
+                root: &project.root,
+                agent: crate::turn_ledger::agent_of(client.as_deref()),
+            });
+        }
         // **It is this session's now**, so the baseline cannot claim it again if the clock is read
         // again at the same second.
         before.remove(&note.id);
@@ -857,6 +878,8 @@ fn answer_presentation(
     mut state: Option<ResMut<crate::editor::EditorState>>,
     mut due: Option<ResMut<crate::watch::Due>>,
     mut handbacks: Option<ResMut<HandBacks>>,
+    // **The turn ledger** (DL-02, #461): what the person answers is a gold label on the turn the hand-back ended.
+    mut ledger: Option<ResMut<crate::turn_ledger::TurnLedger>>,
 ) {
     // The modal's answer (Yes undoes, No keeps) or the block's button, one or the other.
     let replied = match confirm.answer(Asked::Presentation) {
@@ -876,6 +899,12 @@ fn answer_presentation(
             _ => ("kept", "kept the agent's result"),
         };
         presented.answer = Some(answer.to_owned());
+        tell_the_ledger(
+            ledger.as_deref_mut(),
+            project.as_deref(),
+            &presented.id,
+            if answer == "kept" { crate::turn_ledger::Verdict::Kept } else { crate::turn_ledger::Verdict::Dismissed },
+        );
         // **Kept is the one answer that makes a hand-back a task a person can ask for** (BM-07, #417): the
         // person read it and accepted what it made. A dismissal kept the result unread, which proves nothing.
         if answer == "kept"
@@ -915,11 +944,31 @@ fn answer_presentation(
     }
     if let Some(why) = stopped {
         presented.answer = Some(why.clone());
+        // **The person pressed Undo all, and a step of it was refused** (review of #461): the answer is still theirs, so the ledger is told.
+        tell_the_ledger(ledger.as_deref_mut(), Some(&**project), &presented.id, crate::turn_ledger::Verdict::Undone);
         state.status.problem(why);
         return;
     }
     presented.answer = Some("undone".to_owned());
+    tell_the_ledger(ledger.as_deref_mut(), Some(&**project), &presented.id, crate::turn_ledger::Verdict::Undone);
     state.status.note(format!("undid the agent's {undone} change(s)"));
+}
+
+/// **Tell the turn ledger what the person answered** (DL-02, #461). Only this system calls it, and this system only runs on the person's own
+/// answer — the modal's keys or the AGENT block's buttons. An agent's `operation_undo` over BRP takes a turn back without answering anything,
+/// so it is never recorded as the person's verdict.
+fn tell_the_ledger(
+    ledger: Option<&mut crate::turn_ledger::TurnLedger>,
+    project: Option<&crate::project::Project>,
+    hand_back: &str,
+    verdict: crate::turn_ledger::Verdict,
+) {
+    let (Some(ledger), Some(project)) = (ledger, project) else { return };
+    if !ledger.collecting() {
+        return;
+    }
+    let head = crate::ops::read_entries(&crate::ops::oplog_path(project)).iter().map(|entry| entry.seq).max().unwrap_or(0);
+    ledger.verdict(hand_back, &project.root, verdict, head);
 }
 
 /// **Take one logged change back as the person**, by its operation id, and record the undo in the editor's own history.

@@ -385,7 +385,7 @@ pub fn snip_commit(
         return;
     }
     commands.spawn(Screenshot::primary_window()).observe(
-        move |shot: On<ScreenshotCaptured>, mut state: ResMut<EditorState>| {
+        move |shot: On<ScreenshotCaptured>, mut state: ResMut<EditorState>, mut ledger: Option<ResMut<crate::turn_ledger::TurnLedger>>| {
             let rgba = match shot.image.clone().try_into_dynamic() {
                 Ok(dynamic) => dynamic.to_rgba8(),
                 Err(e) => {
@@ -413,6 +413,10 @@ pub fn snip_commit(
                         .display()
                         .to_string();
                     state.status.note(format!("snip saved to {shown}"));
+                    // **What the person said about these pieces is a label on the turn that made them** (DL-02, #461).
+                    if let Some(ledger) = ledger.as_mut() {
+                        ledger.snip_taken(&record, &root);
+                    }
                 }
                 Err(e) => {
                     bevy_grimoire_snip::clear_pending(&dir, &stem);

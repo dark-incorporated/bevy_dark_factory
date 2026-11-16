@@ -146,6 +146,68 @@ pub fn load_checks(project: &Path) -> Result<Checks, String> {
     Checks::for_project(project)
 }
 
+/// **What the editor is told about one `grimoire_decide` call** (DL-01, #460), for the turn ledger's `decisions`: the call's parameters (its
+/// questions, its check, its facts; pictures by name only), what came back or why it did not, the model, where it ran and how long it took.
+///
+/// **Pure and complete**: the editor files it as it is, so nothing the ledger needs is read from anywhere else.
+pub fn report(params: &DecideParams, answer: &Result<Value, String>, model: Option<&str>, endpoint: &str, latency_ms: u64) -> Value {
+    let (answer, error) = match answer {
+        Ok(v) => (Some(v), None),
+        Err(e) => (None, Some(capped(&scrub(e, endpoint)))),
+    };
+    json!({
+        "params": params,
+        "answer": answer,
+        "error": error,
+        "model": model,
+        "endpoint": public_endpoint(endpoint),
+        "latency_ms": latency_ms,
+    })
+}
+
+/// **The longest `error` text a report carries**, in characters (review of #460): an error can quote a response body, and the ledger keeps what it is
+/// told for good.
+pub const ERROR_CAP_CHARS: usize = 500;
+
+/// **`text` cut to [`ERROR_CAP_CHARS`] characters**, saying that it was cut.
+fn capped(text: &str) -> String {
+    match text.char_indices().nth(ERROR_CAP_CHARS) {
+        Some((at, _)) => format!("{}... (cut at {ERROR_CAP_CHARS} characters)", &text[..at]),
+        None => text.to_owned(),
+    }
+}
+
+/// **`text` with every address in it made safe to keep** (review of #460): `bevy_oracle::Error`'s own words name the endpoint as it was asked, key and
+/// all, so the endpoint is replaced by its public form, and so is any other address a response body quotes.
+pub fn scrub(text: &str, endpoint: &str) -> String {
+    let text = if endpoint.is_empty() { text.to_owned() } else { text.replace(endpoint, &public_endpoint(endpoint)) };
+    text.split_inclusive(char::is_whitespace)
+        .map(|piece| {
+            let word = piece.trim_end();
+            let spaces = &piece[word.len()..];
+            let Some(at) = word.find("://") else { return piece.to_owned() };
+            let core = word.trim_end_matches(['"', '\'', ')', ',', '.', ';']);
+            let tail = &word[core.len()..];
+            let start = word[..at].rfind(|c: char| !c.is_ascii_alphabetic()).map_or(0, |p| p + 1);
+            format!("{}{}{tail}{spaces}", &word[..start], public_endpoint(&core[start..]))
+        })
+        .collect()
+}
+
+/// **An endpoint as it is safe to keep** (review of #460): the scheme, host and path, with any `user:password@` and any `?query` or `#fragment`
+/// dropped, because a key can travel in either and the ledger is kept for good.
+pub fn public_endpoint(url: &str) -> String {
+    let (scheme, rest) = match url.split_once("://") {
+        Some((scheme, rest)) => (format!("{scheme}://"), rest),
+        None => (String::new(), url),
+    };
+    let authority_end = rest.find(['/', '?', '#']).unwrap_or(rest.len());
+    let (authority, tail) = rest.split_at(authority_end);
+    let host = authority.rsplit_once('@').map_or(authority, |(_, host)| host);
+    let path = tail.split(['?', '#']).next().unwrap_or("");
+    format!("{scheme}{host}{path}")
+}
+
 /// **Whether the server must take the editor's picture before deciding.**
 pub fn needs_view(params: &DecideParams, checks: &Checks) -> bool {
     if params.images.iter().any(|i| i.name == VIEW) {
