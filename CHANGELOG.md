@@ -4,6 +4,7 @@ What each change added, newest first. A visible change has a clip: click the sti
 
 ## 2026-11-15
 
+- **dl-01-review-fixes** `cfb0fb71` The turn record keeps the map's viewport (not the terminal), reads padded readbacks, bounds what a decision report can add, and the Settings row shows what is kept (#460) *No clip: a ledger and a settings readout; proved by a_turn_is_recorded_for_learning and decide_is_reported_to_the_editor*
 - **dl-03-turn-questions** `e2b3b78d` Each turn's record carries the typed questions a student will be asked about it: one declarative question per specified line, the named checks with the engine's answer, the agent's own questions, and whether the person keeps the result (#462) *No clip: questions stored in a record, not visible; proved by the_turns_carry_their_questions*
 - **dl-02-verdict-labels** `9714d0c5` What the person does about a turn becomes a label on it: Keep, Undo all, a later undo or edit by hand, a snip over its pieces, and a later agent turn that takes it back (#461) *No clip: labels in a ledger, not visible; proved by the_persons_verdicts_become_labels*
 - **dl-01-turn-record** `60f42b65` Every agent turn is recorded in the person's own data folder: the pictures before and after, what was asked, the operations and the facts (#460) *No clip: a ledger, not visible; proved by a_turn_is_recorded_for_learning*
