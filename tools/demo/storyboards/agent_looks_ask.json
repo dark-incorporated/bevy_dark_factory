@@ -1,0 +1,55 @@
+{
+ "name": "agent_looks_ask",
+ "fps": 10,
+ "scale": 1,
+ "width": 960,
+ "crop": [
+  0,
+  0,
+  1088,
+  640
+ ],
+ "setup": [],
+ "chunks": [
+  {
+   "seconds": 6.0
+  }
+ ],
+ "steps": [
+  {
+   "at": 0.8,
+   "caption": "agent: grimoire_decide asks the decision model about the still"
+  },
+  {
+   "at": 1.2,
+   "mcp": "grimoire_decide",
+   "args": {
+    "state": "A map with two wooden chairs placed on a grid floor.",
+    "images": [
+     {
+      "name": "view",
+      "path": "/home/ladvien/clip/work/k5/proj/target/loop/captures/after_change/still-1794793642178.png"
+     }
+    ],
+    "questions": {
+     "chairs_visible": {
+      "type": "noul",
+      "instructions": "Is at least one wooden chair visible in the picture?"
+     },
+     "something_floating": {
+      "type": "noul",
+      "instructions": "Is anything in the picture floating above the floor?"
+     },
+     "blank": {
+      "type": "noul",
+      "instructions": "Is the picture blank or one flat colour?"
+     }
+    }
+   }
+  },
+  {
+   "at": 3.2,
+   "caption": "the answer, a probability each: d3-flash 1653 ms: chair 0.98, floating 0.18, blank 0.01"
+  }
+ ]
+}

@@ -1,0 +1,14 @@
+{
+  "name": "agent_looks_change",
+  "fps": 10,
+  "scale": 1,
+  "width": 960,
+  "crop": [0, 0, 1088, 640],
+  "setup": [],
+  "chunks": [{"seconds": 5.5}],
+  "steps": [
+    {"at": 1.2, "mcp": "grimoire_apply_operation", "args": {"operation": "placement_add", "parameters": {"piece": "wall", "at": [-4.0, -4.0]}}, "caption": "agent: a change the person will see"},
+    {"at": 2.6, "mcp": "grimoire_apply_operation", "args": {"operation": "placement_add", "parameters": {"piece": "wall", "at": [5.0, -5.0]}}},
+    {"at": 4.0, "caption": "agent: before handing back, it looks: one fresh still"}
+  ]
+}
