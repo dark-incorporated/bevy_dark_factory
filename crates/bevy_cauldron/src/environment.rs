@@ -253,14 +253,16 @@ pub fn dress_volume(
 /// plain one, so the plain system cannot see them, and a cut that applied only to one of the two would make
 /// "hide the terrain" work on some maps and not others. The rule is `surface_wants`'s, the same one.
 ///
-/// **Its base's `cull_mode` and its `Visibility`**, both written only when they differ: `get_mut` on a
-/// weathered material re-prepares it, and a settled frame must cost nothing.
+/// **Its base's `cull_mode` and `double_sided` and its `Visibility`**, all written only when they differ:
+/// `get_mut` on a weathered material re-prepares it, and a settled frame must cost nothing. The pair is
+/// `interior_faces`', the same one the plain chunk's material gets, so the two cannot disagree about
+/// what the eye did.
 pub fn cut_the_weathered_ground(
     eyes: Option<Res<crate::outliner::Eyes>>,
     mut weathered: ResMut<Assets<WeatheredMaterial>>,
     mut dressed: Query<(&crate::terrain_view::Surface, &MeshMaterial3d<WeatheredMaterial>, &mut Visibility)>,
 ) {
-    use crate::terrain_view::{Surface, surface_wants};
+    use crate::terrain_view::{Surface, interior_faces, surface_wants};
     let hidden = |s: Surface| eyes.as_deref().is_some_and(|e| e.surface_hidden(s.name()));
     let cut = hidden(Surface::Terrain);
     for (surface, material, mut vis) in &mut dressed {
@@ -271,9 +273,10 @@ pub fn cut_the_weathered_ground(
         if *surface == Surface::Volume
             && let Some(mut m) = weathered.get_mut(&material.0)
         {
-            let want_cull = if cut { Some(bevy::render::render_resource::Face::Front) } else { Some(bevy::render::render_resource::Face::Back) };
-            if m.base.cull_mode != want_cull {
+            let (want_cull, want_two_sided) = interior_faces(cut);
+            if m.base.cull_mode != want_cull || m.base.double_sided != want_two_sided {
                 m.base.cull_mode = want_cull;
+                m.base.double_sided = want_two_sided;
             }
         }
     }

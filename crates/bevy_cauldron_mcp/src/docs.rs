@@ -310,10 +310,11 @@ pub const TOOLS: &[ToolDoc] = &[
                       reads as one flat colour. Pass hide to take the map's own surfaces out of the \
                       picture for it: [\"terrain\"] cuts the ground's outer skin away, so an \
                       underground map's carved rooms are what the picture shows rather than the rock \
-                      they are cut into, and the camera is not moved. A view only: no file is \
-                      written and the map is not marked dirty. What was hidden is put back after the \
-                      picture unless restore is false, and the answer's hid field says what the \
-                      picture was taken with.",
+                      they are cut into, lit from the side the camera is on rather than left as \
+                      shadows, and the camera is not moved. A view only: no file is written and the \
+                      map is not marked dirty. What was hidden is put back after the picture unless \
+                      restore is false, and the answer's hid field says what the picture was taken \
+                      with.",
         read_only: false,
         destructive: false,
         idempotent: false,
@@ -789,7 +790,9 @@ pub fn schemas() -> Value {
             "required": ["label"],
             "properties": {
                 "label": {"type": "string", "description": "A snake_case name for the capture."},
-                "source": {"type": "string", "enum": ["surface", "window"], "default": "surface", "description": "surface: the image the editor draws into. window: what the window itself shows (its swapchain)."}
+                "source": {"type": "string", "enum": ["surface", "window"], "default": "surface", "description": "surface: the image the editor draws into. window: what the window itself shows (its swapchain)."},
+                "hide": {"type": "array", "items": {"type": "string", "enum": ["terrain", "volume", "water"]}, "default": [], "description": "The map's own surfaces to take out of the picture for this capture. [\"terrain\"] cuts the ground's outer skin away, so an underground map's carved rooms are what the picture shows rather than the rock they are cut into, lit from the side the camera is on rather than left as shadows; the camera is not moved, no file is written, the map is not marked dirty and no operation log line is made. Default empty: nothing is hidden."},
+                "restore": {"type": "boolean", "default": true, "description": "true (the default) hides what hide names for this one capture and then puts back whatever was hidden before it, so a still never leaves the person's screen changed. false leaves the view as the call set it, for a run of stills that all want it."}
             }
         },
         "grimoire_capture_sequence": {

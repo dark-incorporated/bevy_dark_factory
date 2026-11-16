@@ -318,17 +318,27 @@ impl Surface {
 
 /// **Hide the map's own surfaces the eye has taken out, and cut the ground's front away** (#472).
 ///
-/// **One writer of these entities' `Visibility` and of their material's `cull_mode`**, for
-/// `hide_carried`'s reason: a second writer of one component would take turns undoing the first.
+/// **One writer of these entities' `Visibility` and of their material's `cull_mode` and
+/// `double_sided`**, for `hide_carried`'s reason: a second writer of one component would take turns
+/// undoing the first.
 ///
 /// # What `terrain` hidden means
 ///
 /// A carved map's rock is meshed as **one solid** by [`crate::volume_mesh`]: the hill's outer skin and
 /// the carved rooms inside it are one surface, so despawning it takes the rooms with it. So `terrain`
-/// hidden **culls the solid's front faces**, which leaves its *inner* surface drawn: the crypt's floor,
-/// its walls, its vault, and the sides of the columns standing in it. That is "the carved void, and
-/// nothing else, from the same camera", it needs no second mesh and no cut plane's magic height, and it
-/// is the one thing this drawing already contains.
+/// hidden **culls the solid's front faces**, which leaves the faces that bound the *void* drawn — the
+/// crypt's floor, its walls, its vault, and the sides of the columns standing in it. That is "the
+/// carved void, and nothing else, from the same camera", with no second mesh and no cut plane's magic
+/// height.
+///
+/// **And those faces must be lit, or the picture is the dark shape this issue rejects.** A face kept by
+/// culling *front* faces is back-facing to the camera, and `StandardMaterial`'s `double_sided` is
+/// `false` by default: the shader leaves a back face's normal pointing into the rock, so the face is
+/// lit from the wrong side and reads as a shadow rather than as a floor. Measured on the issue's own
+/// words — the agent "mistook the dark olive shapes for a floor". So the cut **also sets
+/// `double_sided`**, which makes the shader flip the normal for a back face and light it from the side
+/// it is actually seen from. Both values are written together and read back by
+/// `an_agent_can_cut_into_a_carved_map`'s material assertions, because the two are one answer.
 ///
 /// **A map with no volume has no inside to show**, so its ground is simply hidden.
 ///
@@ -353,11 +363,30 @@ pub fn hide_hidden_surfaces(
         if *surface == Surface::Volume
             && let Some(mut m) = plain_materials.get_mut(&material.0)
         {
-            let want_cull = if cut { Some(Face::Front) } else { Some(Face::Back) };
-            if m.cull_mode != want_cull {
+            let (want_cull, want_two_sided) = interior_faces(cut);
+            if m.cull_mode != want_cull || m.double_sided != want_two_sided {
                 m.cull_mode = want_cull;
+                m.double_sided = want_two_sided;
             }
         }
+    }
+}
+
+/// **How the carved ground's faces are drawn**: `(cull_mode, double_sided)` for the eye's state.
+///
+/// **Uncut is the plain drawing** — back faces culled, single-sided — so a map nobody has hidden is
+/// exactly what it was before #472. **Cut** keeps the back faces, which are the ones bounding the void,
+/// and makes the material two-sided so the shader flips their normals and lights them from the side
+/// the camera is on: without it a ceiling seen from above is a face lit from underneath, which is the
+/// "dark shape that reads as a floor" the issue names.
+///
+/// **One function, because the two values are one answer**, and because
+/// [`crate::environment::cut_the_weathered_ground`] must reach the same pair for a map wearing a cover.
+pub fn interior_faces(cut: bool) -> (Option<Face>, bool) {
+    if cut {
+        (Some(Face::Front), true)
+    } else {
+        (Some(Face::Back), false)
     }
 }
 

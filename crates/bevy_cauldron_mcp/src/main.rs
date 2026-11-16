@@ -1443,10 +1443,11 @@ impl Grimoire {
                        reads as one flat colour. Pass hide to take the map's own surfaces out of the \
                        picture for it: [\"terrain\"] cuts the ground's outer skin away, so an \
                        underground map's carved rooms are what the picture shows rather than the rock \
-                       they are cut into, and the camera is not moved. A view only: no file is \
-                       written and the map is not marked dirty. What was hidden is put back after the \
-                       picture unless restore is false, and the answer's hid field says what the \
-                       picture was taken with.",
+                       they are cut into, lit from the side the camera is on rather than left as \
+                       shadows, and the camera is not moved. A view only: no file is written and the \
+                       map is not marked dirty. What was hidden is put back after the picture unless \
+                       restore is false, and the answer's hid field says what the picture was taken \
+                       with.",
         annotations(
             title = "Capture a still of the editor",
             read_only_hint = false,

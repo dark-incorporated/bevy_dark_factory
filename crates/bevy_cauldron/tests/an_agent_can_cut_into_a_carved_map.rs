@@ -15,6 +15,7 @@
 use std::time::{Duration, Instant};
 
 use bevy::prelude::*;
+use bevy::render::render_resource::Face;
 use bevy_cauldron::project::Project;
 use bevy_cauldron::terrain_view::{Surface, TerrainView};
 use serde_json::{Value, json};
@@ -124,7 +125,12 @@ fn the_cut_is_a_cull_so_the_rooms_are_the_same_meshes_drawn_from_inside() {
             assert_eq!(assets.get(handle), Some(before), "a hidden terrain rebuilt no chunk");
         }
     }
-    assert!(drawn(&mut app, Surface::Terrain).iter().all(|e| !visible(&app, *e)), "the hill's skin is out of the picture");
+    // **No `Surface::Terrain` entity exists on a carved map** — the chunks replaced the heightfield — so an
+    // `all()` over an empty set would be vacuously true and this test proved nothing about the skin. What it
+    // can say here is what the chunks' own material says: the cut is on. The skin's absence is
+    // `sync_terrain_view`'s (a carved map draws `Volume` chunks and no `Ground`), asserted by the kind test.
+    assert!(drawn(&mut app, Surface::Terrain).is_empty(), "a carved map draws no heightfield ground to hide");
+    assert_eq!(chunk_material(&mut app), (Some(Face::Front), true), "and its chunks are cut");
 }
 
 #[test]
@@ -147,8 +153,47 @@ fn the_eye_survives_a_carve_after_it_was_set() {
     let deeper = json!({"shape": {"Box": {"center": [6.0, 5.0, 6.0], "half_m": [1.0, 1.0, 1.0]}}, "mode": "Carve"});
     assert_eq!(apply(&mut app, "volume_edit", json!({"map": "m", "edit": deeper}))["outcome"], "applied");
     until(&mut app, "the cut held across the rebuild", |a| {
-        !drawn(a, Surface::Volume).is_empty() && drawn(a, Surface::Terrain).iter().all(|e| !visible(a, *e))
+        !drawn(a, Surface::Volume).is_empty() && chunk_material(a) == (Some(Face::Front), true)
     });
+}
+
+/// **The chunks' material is the cut's own answer**, read from the asset rather than from a flag this test
+/// could have set itself: `cull_mode` keeps the faces that bound the void, and `double_sided` is what makes
+/// them lit from the side the camera is on. **Both together**, because a back face with a normal pointing
+/// into the rock is the dark shape the issue rejects, and the two are one decision
+/// ([`bevy_cauldron::terrain_view::interior_faces`]).
+fn chunk_material(app: &mut App) -> (Option<Face>, bool) {
+    let handle = {
+        let world = app.world_mut();
+        world
+            .query::<(&Surface, &MeshMaterial3d<StandardMaterial>)>()
+            .iter(world)
+            .find(|(s, _)| **s == Surface::Volume)
+            .map(|(_, m)| m.0.clone())
+            .expect("a carved map draws its chunks with a material")
+    };
+    let assets = app.world().resource::<Assets<StandardMaterial>>();
+    let material = assets.get(&handle).expect("the chunk's material is there");
+    (material.cull_mode, material.double_sided)
+}
+
+#[test]
+fn the_cut_keeps_the_voids_faces_and_double_sides_them_so_they_are_lit() {
+    let mut app = a_lair("lair_material");
+    // **Uncut is the plain drawing**, so a map nobody has hidden is what it always was.
+    assert_eq!(chunk_material(&mut app), (Some(Face::Back), false), "a drawn map culls back faces and is single-sided");
+    call(&mut app, "grimoire/surface_hide", json!({"hide": ["terrain"]})).unwrap_or_else(|e| panic!("{e}"));
+    app.update();
+    assert_eq!(
+        chunk_material(&mut app),
+        (Some(Face::Front), true),
+        "**cut**: the faces bounding the void are kept, and the material is two-sided so the shader flips their normals and lights them from the camera's side"
+    );
+    // **One call undoes it**, and the material is the plain one again: the cut left no state behind that a
+    // still of the outside would carry.
+    call(&mut app, "grimoire/surface_hide", json!({"hide": []})).unwrap_or_else(|e| panic!("{e}"));
+    app.update();
+    assert_eq!(chunk_material(&mut app), (Some(Face::Back), false), "unhidden is the plain material again");
 }
 
 /// **`Surface` was added beside `TerrainView`**, so a test that asks about the drawing's kinds answers the

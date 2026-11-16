@@ -76,7 +76,6 @@ const NO_ROW_YET: &[&str] = &[
     "view_toggle_ghost",
     "view_toggle_journal",
     "vocab_add_token",
-    "volume_edit",
     "water_place",
     "water_run",
 ];
@@ -84,7 +83,7 @@ const NO_ROW_YET: &[&str] = &[
 /// **The ratchet on [`NO_ROW_YET`]**, a literal and not `NO_ROW_YET.len()`: a list compared with its own length cannot fail.
 /// Lower it in the commit that gives an operation its row. It is never raised: a new operation gets its row, it does not join
 /// the list.
-const NO_ROW_YET_MAX: usize = 70;
+const NO_ROW_YET_MAX: usize = 69;
 
 fn has_row(guide: &str, name: &str) -> bool {
     guide.lines().any(|l| l.starts_with(&format!("| `{name}` |")))
