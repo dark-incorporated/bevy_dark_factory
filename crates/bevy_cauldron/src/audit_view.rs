@@ -229,9 +229,10 @@ fn look_at_the_ledger(time: Res<Time<Real>>, ledger: Option<Res<TurnLedger>>, mu
     }
     audit.looked_at = Some(now);
     let Some(folder) = ledger.as_deref().and_then(TurnLedger::folder) else {
-        // Off is off: nothing to audit.
+        // Off is off: nothing to audit, and no report line either — a count of a ledger nobody is collecting is not a report of anything.
         audit.offers.clear();
         audit.read_len = None;
+        audit.line.clear();
         return;
     };
     let path = Store::new(folder.to_path_buf()).ledger_path();
@@ -329,7 +330,10 @@ fn follow_the_audit(
 /// where the line is empty. **No rebuild**: a row rebuilt on every append would re-read and decode the question's pictures, which is 128 ms a frame
 /// measured on this Mac, over the frame budget the editor keeps.
 fn follow_the_report_line(mut commands: Commands, mut audit: ResMut<Audit>, containers: Query<Entity, With<AuditRows>>, rows: Query<Entity, With<ReportLine>>, mut texts: Query<&mut Text, With<ReportText>>) {
-    if audit.shown_line.as_deref() == Some(audit.line.as_str()) {
+    // **The words being the same is not enough.** `Audit` is a session resource (`line`/`shown_line` survive a workspace that goes and comes back)
+    // while the row is an entity the block's despawn sweeps, so returning on the words alone leaves the line missing for good: the guard is the words
+    // **and** whether a row is on screen, exactly as `follow_the_audit`'s is.
+    if audit.shown_line.as_deref() == Some(audit.line.as_str()) && (audit.line.is_empty() == rows.is_empty()) {
         return;
     }
     audit.shown_line = Some(audit.line.clone());

@@ -287,7 +287,7 @@ fn escalated(id: &str, asked: bool, why: &str) -> bevy_cauldron::turn_store::Esc
 #[test]
 fn every_number_of_the_report_over_a_fixture_ledger() {
     let (labels, out, summary) = fixture("numbers");
-    let report = label_report::report(&labels, &out, &Options::default(), &bevy_oracle::Checks::builtin()).expect("the report");
+    let report = label_report::report(&labels, &out, &bevy_oracle::Checks::builtin()).expect("the report");
 
     // **The week's turns and answers**, in the week of the turn's hand-back.
     let week = |monday: &str| report.weeks.iter().find(|week| week.week == monday).unwrap_or_else(|| panic!("no week {monday}: {:?}", report.weeks));
@@ -423,12 +423,12 @@ fn the_report_command_writes_both_files_beside_the_export() {
 #[test]
 fn two_reports_of_one_ledger_are_byte_identical() {
     let (labels, out, _) = fixture("twice");
-    let first = label_report::report(&labels, &out, &Options::default(), &bevy_oracle::Checks::builtin()).expect("the report");
+    let first = label_report::report(&labels, &out, &bevy_oracle::Checks::builtin()).expect("the report");
     let (md_first, json_first) = (
         std::fs::read(out.join(REPORT_FILE)).expect("report.md"),
         std::fs::read(out.join(REPORT_JSON)).expect("report.json"),
     );
-    let second = label_report::report(&labels, &out, &Options::default(), &bevy_oracle::Checks::builtin()).expect("the report again");
+    let second = label_report::report(&labels, &out, &bevy_oracle::Checks::builtin()).expect("the report again");
     assert_eq!(first, second, "the report is the same data twice");
     assert_eq!(md_first, std::fs::read(out.join(REPORT_FILE)).expect("report.md"), "report.md differs between two runs");
     assert_eq!(json_first, std::fs::read(out.join(REPORT_JSON)).expect("report.json"), "report.json differs between two runs");
@@ -601,4 +601,236 @@ fn the_workspace_line_says_what_the_ledger_holds() {
     // **A ledger with nothing in it says so**, rather than showing a zero that looks like a measurement.
     let empty = label_report::summary(&bevy_cauldron::turn_store::Read::default());
     assert!(label_report::line(&empty).contains("no turn"), "{}", label_report::line(&empty));
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// 6. The gate counts only the answers it compared; a revision is not a keep; one number feeds the line and the report.
+// ---------------------------------------------------------------------------------------------------------------
+
+/// **A holdout line the assessor answered for that question**, or `None` where it is a skip.
+fn audit_of(turn: &str, question: &str, answer: &str, at: u64) -> Label {
+    audit(turn, question, answer, at)
+}
+
+/// **2. A holdout of twenty lines whose answers the assessor mostly never saw does not open the gate.**
+///
+/// The gate is about the assessor's agreement, and an agreement is a comparison: a skip, and a question the assessor never answered, are neither. A
+/// count of label lines would open escalation on twenty answers and then measure the teacher on six of them.
+#[test]
+fn a_holdout_of_twenty_lines_with_six_comparisons_does_not_open_the_gate() {
+    let labels = scratch("gate_six");
+    let mut store = Store::new(labels.clone());
+    for n in 0..20 {
+        let id = format!("turn-gate-{n}");
+        let turn = a_turn(&mut store, &id, "court", vec![noul("specified-1", "specified", "The result satisfies: a door on the east side", None)], 1_000 + n as u64);
+        store.append(&Line::turn(turn)).expect("a turn");
+        // **Six of them the person and the assessor both answered**, agreeing; the rest are skips, which nobody compared.
+        let answer = if n < 6 { "yes" } else { "skip" };
+        store.append(&Line::label(audit_of(&id, "specified-1", answer, 2_000 + n as u64))).expect("a holdout answer");
+        if n < 6 {
+            store.append(&Line::assessment(assessment(&id, vec![assessed("specified-1", [Some(0.9), Some(0.9), Some(0.9)])], 3_000 + n as u64))).expect("an assessment");
+        }
+    }
+    let read = turn_store_read(&labels);
+    let summary = label_report::summary(&read);
+    assert_eq!(summary.holdout, 20, "twenty holdout lines: {summary:?}");
+    assert_eq!(summary.holdout_compared, 6, "six of them were compared: {summary:?}");
+    assert_eq!(summary.holdout_agreement, Some(1.0), "and the assessor agreed on all six: {summary:?}");
+    assert!(!label_report::gate_open(&read), "a bar met on six comparisons is not a measurement: {:?}", label_report::gate_open(&read));
+
+    // **Twenty-one compared, and the gate opens**: the bar and the count are both met.
+    for n in 20..=40 {
+        let id = format!("turn-more-{n}");
+        let turn = a_turn(&mut store, &id, "court", vec![noul("specified-1", "specified", "The result satisfies: a door on the east side", None)], 4_000 + n as u64);
+        store.append(&Line::turn(turn)).expect("a turn");
+        store.append(&Line::label(audit_of(&id, "specified-1", "yes", 5_000 + n as u64))).expect("a holdout answer");
+        store.append(&Line::assessment(assessment(&id, vec![assessed("specified-1", [Some(0.9), Some(0.9), Some(0.9)])], 6_000 + n as u64))).expect("an assessment");
+        if n == 34 {
+            break;
+        }
+    }
+    let read = turn_store_read(&labels);
+    let summary = label_report::summary(&read);
+    assert!(summary.holdout_compared >= HOLDOUT_MIN, "the count is met now: {summary:?}");
+    assert!(label_report::gate_open(&read), "the bar over the fewest comparisons opens it: {summary:?}");
+}
+
+/// **3. A revised turn is an Undo, not a Keep**, so an assessor that said "fine" through a revision is wrong.
+///
+/// A revision is the person fixing by hand what the agent handed back (*Kept, then fixed by hand: the result as handed back was not what they
+/// wanted*, DL-06's `Hard(false)`). Counting it as a Keep would credit the assessor for agreeing with a result the person rejected.
+#[test]
+fn a_revised_turn_is_counted_against_the_assessor_not_for_it() {
+    let labels = scratch("revised");
+    let mut store = Store::new(labels.clone());
+    let turn = a_turn(
+        &mut store,
+        "turn-revised",
+        "court",
+        vec![noul("specified-1", "specified", "The result satisfies: a door on the east side", None), noul(TURN_QUESTION_ID, "turn", "The person keeps this result", None)],
+        1_000,
+    );
+    store.append(&Line::turn(turn)).expect("a turn");
+    // The person kept it and then fixed it by hand: `revised` is the label that says the result was not what they wanted.
+    store.append(&Line::label(label("turn-revised", "revised", "gold", 1_100))).expect("a revision");
+    // And the assessor said the result was fine.
+    store
+        .append(&Line::assessment(assessment("turn-revised", vec![assessed(TURN_QUESTION_ID, [Some(0.9), Some(0.9), Some(0.9)])], 1_200)))
+        .expect("an assessment");
+
+    let report = label_report::of(&turn_store_read(&labels), None, &bevy_oracle::Checks::builtin());
+    assert_eq!((report.assessor.undone, report.assessor.said_fine_on_an_undo), (1, 1), "a revision is an Undo, and the assessor was wrong: {:?}", report.assessor);
+    assert_eq!((report.assessor.kept, report.assessor.said_fine_on_a_keep), (0, 0), "it was not a Keep: {:?}", report.assessor);
+}
+
+/// **5. The line's objective count and the report's are one number**, engine-made defects included.
+///
+/// The workspace line and `report.md` must not disagree about how much the engine answered: a defect is an objective label exactly as an engine
+/// answer is, and a person reading two numbers for one thing stops trusting both.
+#[test]
+fn the_lines_objective_count_is_the_reports_and_includes_the_defects() {
+    let (labels, _, _) = fixture("one_number");
+    let read = turn_store_read(&labels);
+    let summary = label_report::summary(&read);
+    let report = label_report::of(&read, None, &bevy_oracle::Checks::builtin());
+    assert_eq!(summary.objective, report.summary.objective, "the line says {} and the report {}", summary.objective, report.summary.objective);
+    assert_eq!(summary.objective, 2, "the engine's answer and the defect: {summary:?}");
+    assert!(label_report::line(&summary).contains(&format!("objective {}", summary.objective)), "{}", label_report::line(&summary));
+    assert_eq!(summary.gold, report.summary.gold);
+    assert_eq!(summary.silver, report.summary.silver);
+    assert_eq!(summary.holdout, report.summary.holdout);
+    assert_eq!(summary.answered, report.summary.answered);
+    assert_eq!(summary.turns, report.summary.turns);
+}
+
+/// **6. A question the fast model alone answered is parked as `no-answer`, never trained on.**
+///
+/// The point of keeping the fast model's answers out of the export is that they are guesses, so this asserts the export's own words about such a
+/// question: no trusted answer reached it, and it is counted as that rather than silently dropped.
+#[test]
+fn a_question_only_the_fast_model_answered_is_parked_as_no_answer() {
+    let labels = scratch("fast_only");
+    let out = scratch("fast_only_out");
+    let mut store = Store::new(labels.clone());
+    // **Two questions**: one the person answered (so the record is written at all), and one only the fast model did.
+    let turn = a_turn(
+        &mut store,
+        "turn-fast-only",
+        "court",
+        vec![
+            noul("specified-1", "specified", "The result satisfies: a door on the east side", None),
+            noul("specified-2", "specified", "The result satisfies: a floor", None),
+            noul(TURN_QUESTION_ID, "turn", "The person keeps this result", None),
+        ],
+        WEDNESDAY,
+    );
+    store.append(&Line::turn(turn)).expect("a turn");
+    store.append(&Line::label(label("turn-fast-only", "kept", "gold", WEDNESDAY + 10))).expect("a label");
+    store
+        .append(&Line::fast_answer(FastAnswers {
+            turn: "turn-fast-only".into(),
+            at_unix_ms: WEDNESDAY + 5,
+            model: Some("d3-flash".into()),
+            answers: vec![fast("specified-1", Some(0.9)), fast("specified-2", Some(0.9)), fast(TURN_QUESTION_ID, Some(0.9))],
+            escalation: vec![escalated("specified-1", false, "sure"), escalated("specified-2", false, "sure"), escalated(TURN_QUESTION_ID, false, "sure")],
+            skipped: None,
+        }))
+        .expect("fast answers");
+
+    let exported = turn_export::export(&labels, &out, &Options::default()).expect("the export");
+    let parked: Vec<&bevy_cauldron::turn_export::Parked> = exported.parked.iter().filter(|parked| parked.question == "specified-2").collect();
+    assert_eq!(parked.len(), 1, "the fast model's answer to `specified-2` reached a target: {:?}", exported.parked);
+    assert_eq!(parked[0].kind, "no-answer", "{:?}", parked[0]);
+    // And the record that is written carries that question with no probabilities, as Valen's reader expects an unlabelled question.
+    let record = std::fs::read_to_string(out.join(turn_export::TRAIN_FILE)).expect("the train set");
+    let one: Value = serde_json::from_str(record.lines().next().expect("a record")).expect("json");
+    // **Both specified questions are parked**: a `kept` label answers the turn question, never a `specified` line, so the only answer either of them
+    // has is the fast model's, which is not a label at all. The turn question is the one that stands.
+    assert!(one["targets"]["specified-1"]["probabilities"].is_null(), "the fast model's answer became a target: {one}");
+    assert!(one["targets"]["specified-2"]["probabilities"].is_null(), "the fast model's answer became a target: {one}");
+    assert!(!one["targets"]["turn-kept"]["probabilities"].is_null(), "the person's own answer stands: {one}");
+    assert_eq!(one["meta"]["questions"]["turn-kept"]["source"], "person", "{one}");
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// 4. `--limit` bounds what the batch pays, a turn whose fast line exists included.
+// ---------------------------------------------------------------------------------------------------------------
+
+/// **A turn whose `FastAnswers` line is already in the ledger is still a turn the batch pays for** (the assessor's three wordings a question), so a
+/// `--limit` that let it through would spend the calls the limit exists to cap. `--limit 3` costs three turns and stops.
+#[test]
+fn a_limit_counts_a_turn_whose_fast_line_exists() {
+    let labels = scratch("limit");
+    let mut store = Store::new(labels.clone());
+    for n in 0..6 {
+        let id = format!("turn-{n}");
+        let turn = a_turn(&mut store, &id, "court", vec![noul("specified-1", "specified", "The result satisfies: a door on the east side", None)], 1_000 + n as u64);
+        store.append(&Line::turn(turn)).expect("a turn");
+        // **The fast model answered it in an earlier run** that was killed before the assessor got to it.
+        store
+            .append(&Line::fast_answer(FastAnswers {
+                turn: id.clone(),
+                at_unix_ms: 2_000 + n as u64,
+                model: Some("d3-flash".into()),
+                answers: vec![fast("specified-1", Some(0.9))],
+                escalation: vec![escalated("specified-1", false, "sure")],
+                skipped: None,
+            }))
+            .expect("fast answers");
+    }
+    let model = StandIn { asked: RefCell::new(Vec::new()), seen: RefCell::new(0) };
+    let batch = turn_assess::assess_ledger_with(&mut store, Some(&model), &model, false, Some(3)).expect("assessed");
+    assert_eq!(batch.assessed, 3, "`--limit 3` assessed three turns, not six: {batch:?}");
+    // **Five of the six went to the assessor and were saved** by the standing fast line, but only three of them were paid for.
+    let assessor: usize = model.asked.borrow().iter().filter(|r| r.questions.contains_key("q")).count();
+    assert_eq!(assessor, 3 * turn_assess::VOTES, "the limit bounded the assessor's calls: {assessor}");
+    let fast_calls: usize = model.asked.borrow().iter().filter(|r| !r.questions.contains_key("q")).count();
+    assert_eq!(fast_calls, 0, "a fast line already in the ledger was paid for again: {fast_calls}");
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// 1. The report's line comes back when the Agent block does.
+// ---------------------------------------------------------------------------------------------------------------
+
+/// **The line survives the block going away and coming back.**
+///
+/// `Audit` is a session resource, so its words outlive the block, while the row is an entity the block's despawn sweeps. A system that skipped
+/// itself on the words alone would leave the line missing for the rest of the session — and it would look like a ledger with nothing in it.
+#[test]
+fn the_report_line_comes_back_when_the_agent_block_does() {
+    use bevy::prelude::*;
+
+    let (mut app, _labels) = crate::a_turn_is_recorded_for_learning::editor("report_line_returns");
+    // **The block's own two containers**, spawned as `familiar.rs` spawns them, so the line has somewhere to go.
+    let container = app
+        .world_mut()
+        .spawn((bevy_cauldron::audit_view::AuditRows, Name::new("audit rows"), bevy_gooey::column_with(bevy_cauldron::chrome::GAP_TIGHT_STEPS, bevy_gooey::RowLayout::default())))
+        .id();
+    app.world_mut().resource_mut::<bevy_cauldron::audit_view::Audit>().line = "3 turns, 1 answered".to_owned();
+    for _ in 0..5 {
+        app.update();
+    }
+    let rows = |app: &mut App| app.world_mut().query_filtered::<Entity, With<bevy_cauldron::audit_view::ReportLine>>().iter(app.world()).count();
+    assert_eq!(rows(&mut app), 1, "the line was not drawn at all");
+
+    // **The block goes away**, as leaving the workspace does, and its row with it.
+    app.world_mut().try_despawn(container).expect("the blocks container is there");
+    for _ in 0..5 {
+        app.update();
+    }
+    assert_eq!(rows(&mut app), 0, "the row outlived its container");
+
+    // **And comes back**: the words never changed, so a guard on the words alone would return here and the line would be gone for good.
+    app.world_mut().spawn((bevy_cauldron::audit_view::AuditRows, Name::new("audit rows"), bevy_gooey::column_with(bevy_cauldron::chrome::GAP_TIGHT_STEPS, bevy_gooey::RowLayout::default())));
+    for _ in 0..5 {
+        app.update();
+    }
+    assert_eq!(rows(&mut app), 1, "the line did not come back when the block did");
+
+    // **Collection off is no line**: the count of a ledger nobody collects is not a report, and the row goes.
+    app.world_mut().resource_mut::<bevy_cauldron::audit_view::Audit>().line.clear();
+    for _ in 0..5 {
+        app.update();
+    }
+    assert_eq!(rows(&mut app), 0, "an empty line was still drawn");
 }
