@@ -178,9 +178,18 @@ pub struct Audit {
 #[derive(Component)]
 pub struct AuditRows;
 
-/// The row.
+/// The question's row.
 #[derive(Component)]
 pub struct AuditRow;
+
+/// **The report's line** (DL-08, #467): a row of its own above the question's, so the question's row is still one row, and its words are written into
+/// the text already on screen rather than rebuilding the row (a rebuild re-reads and decodes the question's two pictures).
+#[derive(Component)]
+pub struct ReportLine;
+
+/// **The report line's text**, which [`follow_the_report_line`] writes into when the words change.
+#[derive(Component)]
+pub struct ReportText;
 
 /// **An answer's button**: which answer it gives.
 #[derive(Component, Clone, Copy, PartialEq, Eq, Debug)]
@@ -273,25 +282,13 @@ fn follow_the_audit(
     rows: Query<Entity, With<AuditRow>>,
 ) {
     let now = audit.offers.first().map(|o| (o.turn.clone(), o.question.clone(), audit.offers.len(), audit.this_week));
-    let line = (!audit.line.is_empty()).then(|| audit.line.clone());
-    if audit.shown == now && audit.shown_line == line && (now.is_some() != rows.is_empty()) {
+    if audit.shown == now && (now.is_some() != rows.is_empty()) {
         return;
     }
     for row in &rows {
         commands.entity(row).try_despawn();
     }
     audit.shown = now;
-    audit.shown_line = line.clone();
-    // **The report's line is shown whether or not a question is waiting**: the set's worth is not only about the next answer.
-    if let (Some(line), Ok(container)) = (line, containers.single()) {
-        commands.entity(container).with_children(|list| {
-            list.spawn((AuditRow, Name::new("label report line"), bevy_gooey::column_with(crate::chrome::GAP_TIGHT_STEPS, bevy_gooey::RowLayout { shrink: Some(0.0), ..default() })))
-                .with_children(|row| {
-                    row.spawn(label("LABELS"));
-                    row.spawn(label(line));
-                });
-        });
-    }
     let (Some(offer), Some(folder), Ok(container)) = (audit.offers.first().cloned(), ledger.as_deref().and_then(TurnLedger::folder), containers.single()) else {
         return;
     };
@@ -324,6 +321,35 @@ fn follow_the_audit(
                         buttons.spawn((button(words), kind, observe(move |_: On<Activate>, mut answers: ResMut<Answers>| answers.0.push(kind))));
                     }
                 });
+            });
+    });
+}
+
+/// **The report's line follows the ledger's counts**: spawned where there is none, its words written into the text already on screen, and taken away
+/// where the line is empty. **No rebuild**: a row rebuilt on every append would re-read and decode the question's pictures, which is 128 ms a frame
+/// measured on this Mac, over the frame budget the editor keeps.
+fn follow_the_report_line(mut commands: Commands, mut audit: ResMut<Audit>, containers: Query<Entity, With<AuditRows>>, rows: Query<Entity, With<ReportLine>>, mut texts: Query<&mut Text, With<ReportText>>) {
+    if audit.shown_line.as_deref() == Some(audit.line.as_str()) {
+        return;
+    }
+    audit.shown_line = Some(audit.line.clone());
+    if audit.line.is_empty() {
+        for row in &rows {
+            commands.entity(row).try_despawn();
+        }
+        return;
+    }
+    if let Some(mut text) = texts.iter_mut().next() {
+        text.0 = audit.line.clone();
+        return;
+    }
+    let Ok(container) = containers.single() else { return };
+    let line = audit.line.clone();
+    commands.entity(container).with_children(|list| {
+        list.spawn((ReportLine, Name::new("label report line"), bevy_gooey::column_with(crate::chrome::GAP_TIGHT_STEPS, bevy_gooey::RowLayout { shrink: Some(0.0), ..default() })))
+            .with_children(|row| {
+                row.spawn(label("LABELS"));
+                row.spawn((label(line), ReportText));
             });
     });
 }
@@ -375,7 +401,10 @@ impl Plugin for AuditPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<Audit>().init_resource::<Answers>().add_systems(
             Update,
-            (answer_on_the_keys.after(crate::confirm::ConfirmKeys).before(crate::keys::Phase::Sense), (write_the_answers, look_at_the_ledger, follow_the_audit).chain()),
+            (
+                answer_on_the_keys.after(crate::confirm::ConfirmKeys).before(crate::keys::Phase::Sense),
+                (write_the_answers, look_at_the_ledger, follow_the_audit, follow_the_report_line).chain(),
+            ),
         );
     }
 }

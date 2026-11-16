@@ -22,7 +22,7 @@
 //! turn's questions in one request, and **the assessor is asked only the questions the fast model cannot settle**:
 //!
 //! - **unsure**: its probability is between the named bounds ([`UNSURE_LOW`], [`UNSURE_HIGH`]), so it is not deciding;
-//! - **outvoted**: it disagrees with the turn's gold answer (the person's verdict, their audit answer) or its objective one (the engine's);
+//! - **outvoted**: it disagrees with the turn's objective answer where the engine has one (a named check's measurement);
 //! - **sampled**: the named random share ([`ESCALATE_SHARE`], one question in that many), so the assessor stays measured on the questions the fast
 //!   model was sure of too. Without it the teacher's agreement would only ever be measured on the cases it is weakest at, and the ceiling would be
 //!   wrong in the one direction that matters.
@@ -763,11 +763,15 @@ fn remote_name() -> &'static str {
 }
 
 /// **The Monday of the week a moment falls in**, `YYYY-MM-DD`, UTC: the same week on every machine, whatever its clock's zone.
+///
+/// **Signed, and floored**, because the Monday of the first week of 1970 is three days *before* the epoch: a record stamped a second after the epoch
+/// is a timestamp a fixture writes, and a subtraction that wrapped would name a week in the year 584 billion.
 fn monday_of(secs: u64) -> String {
-    let days = secs / 86_400;
-    // 1970-01-01 was a Thursday; Monday is three days before it, so `(days + 3) % 7` counts from Monday.
-    let since_monday = (days + 3) % 7;
-    civil_date_utc((days - since_monday) * 86_400)
+    let days = i64::try_from(secs / 86_400).unwrap_or(i64::MAX / 86_400);
+    // 1970-01-01 was a Thursday, so the Monday of that week was three days before the epoch: `rem_euclid` floors, which is what a week needs.
+    let since_monday = (days + 3).rem_euclid(7);
+    let monday = (days - since_monday).max(0);
+    civil_date_utc(u64::try_from(monday * 86_400).unwrap_or(0))
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -834,14 +838,14 @@ pub fn markdown(report: &Report) -> String {
     let fast = &report.fast;
     out.push_str("## The fast model\n\n");
     out.push_str(&format!("- {} turn(s), {} question(s) answered.\n", fast.turns, fast.questions));
-    out.push_str(&format!("- with the person's gold answers: {}", percent(&fast.with_gold)));
-    out.push_str(&format!(" agreed.\n- with the assessor: {} agreed.\n\n", percent(&fast.with_assessor)));
+    out.push_str(&format!("- with the person's gold answers: {} agreed.\n", percent(&fast.with_gold)));
+    out.push_str(&format!("- with the assessor: {} agreed.\n\n", percent(&fast.with_assessor)));
 
     let escalation = &report.escalation;
     out.push_str("## Escalation\n\n");
     out.push_str(&format!(
-        "{}, on {} of {} question(s): {} saved. Unsure means P(yes) between {:.2} and {:.2}, or a disagreement with the person's or the engine's answer; \
-         one question in {} goes anyway, so the assessor stays measured where the fast model was sure.\n\n",
+        "{}, on {} of {} question(s): {} saved. Unsure means P(yes) between {:.2} and {:.2}, or a disagreement with the engine's own answer where it \
+         has one; one question in {} goes anyway, so the assessor stays measured where the fast model was sure.\n\n",
         if escalation.open { "On" } else { "Off: every question goes to the assessor" },
         escalation.escalated,
         escalation.questions,
@@ -993,21 +997,13 @@ pub fn seed_of(turn: &str, question: &str) -> u64 {
     u64::from_str_radix(&digest[..16], 16).unwrap_or(0)
 }
 
-/// **The turn's own answer to a question, where it has one**: the engine's, or the turn question's, which is the person's verdict. What "outvoted"
-/// means.
+/// **The turn's own answer to a question, where the engine computed one**: a named check's, from the map. What "outvoted" means.
 ///
 /// **A person's audit answer is not here**: it is given in the editor's own keystrokes, after the turn's record was written, and the fast pass runs in
 /// this batch where the person's answers are not yet part of the record. Their labels are the ceiling the report measures against, and never an input a
 /// student's call may be steered by.
 pub fn against(turn: &Turn, question: &str) -> Option<bool> {
     turn.questions.items.iter().find(|item| item.id == question).and_then(|item| item.engine.as_ref()).map(|engine| engine.p_yes >= 0.5)
-}
-
-/// **Whether the ledger has an answer for this question already**, in either the fast pass or the slow one: what a re-run skips.
-pub fn answered_already(read: &Read, turn: &str, question: &str) -> bool {
-    let fast = read.fast_answers().any(|fast| fast.turn == turn && fast.answers.iter().any(|answer| answer.id == question));
-    let teacher = read.assessments().any(|assessment| assessment.turn == turn && assessment.answers.iter().any(|answer| answer.id == question));
-    fast || teacher
 }
 
 #[cfg(test)]
@@ -1030,8 +1026,8 @@ mod tests {
         assert_eq!(escalate(Some(0.35), None, 0), (true, "unsure"), "the bound is inside");
         assert_eq!(escalate(Some(0.65), None, 0), (true, "unsure"), "the bound is inside");
         assert_eq!(escalate(Some(0.9), Some(false), 1), (true, "outvoted"));
-        assert_eq!(escalate(Some(0.9), Some(true), 5), (false, "sure"));
-        assert_eq!(escalate(Some(0.9), Some(true), 10), (true, "sampled"));
+        assert_eq!(escalate(Some(0.9), Some(true), 1), (false, "sure"));
+        assert_eq!(escalate(Some(0.9), Some(true), 5), (true, "sampled"), "one seed in {} is sampled", ESCALATE_SHARE);
         assert_eq!(escalate(None, None, 3), (true, "unsure"), "a refusal is not an answer, so nothing is saved on it");
     }
 }

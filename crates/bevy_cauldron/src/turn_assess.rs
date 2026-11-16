@@ -370,27 +370,37 @@ pub fn assess_ledger_with(store: &mut Store, fast: Option<&dyn Transport>, trans
     let read: Read = crate::turn_store::read_file(&store.ledger_path())?;
     let done: std::collections::BTreeSet<&str> =
         read.assessments().filter(|a| a.assessor.version == ASSESSOR_VERSION).map(|a| a.turn.as_str()).collect();
-    let already_fast: std::collections::BTreeSet<&str> = read.fast_answers().map(|fast| fast.turn.as_str()).collect();
+    // **The fast line already written for a turn stands as its plan**: a batch killed half way through leaves the turns it looked at with their fast
+    // answers, and the next run reads them rather than paying for them again.
+    let mut planned: std::collections::BTreeMap<&str, &FastAnswers> = std::collections::BTreeMap::new();
+    for line in read.fast_answers() {
+        planned.insert(line.turn.as_str(), line);
+    }
     // **The gate**, read once: the holdout's agreement against the bar, as the report reads it.
     let gate_open = crate::label_report::gate_open(&read);
     let mut batch = Batch::default();
+    // **`limit` bounds the turns this batch costs anything on**, the fast pass included: a `--limit` that bounded only the assessor would still pay a
+    // fast request for every turn in the ledger, which is the cost it exists to avoid.
+    let mut looked_at = 0;
     for turn in read.turns() {
         let assessed = done.contains(turn.id.as_str());
-        let fast_done = fast.is_none() || already_fast.contains(turn.id.as_str());
+        let fast_done = fast.is_none() || planned.contains_key(turn.id.as_str());
         if assessed && fast_done {
             batch.already += 1;
             continue;
         }
-        if limit.is_some_and(|limit| batch.assessed >= limit) {
+        if limit.is_some_and(|limit| looked_at >= limit) {
             break;
         }
         // **The fast model first**, and its answers are kept before anything is asked of the assessor.
-        let mut plan: Option<FastAnswers> = None;
+        let mut plan: Option<FastAnswers> = planned.get(turn.id.as_str()).map(|line| (*line).clone());
         if let Some(model) = fast
-            && !already_fast.contains(turn.id.as_str())
+            && plan.is_none()
         {
             match fast_pass(turn, store, model) {
                 Ok(mut answers) => {
+                    // **The count the limit is against**: this turn cost a fast request, so it is one of the batch's.
+                    looked_at += 1;
                     if !gate_open {
                         // **The gate is closed: nothing may be saved**, so every question goes on to the assessor, and the line says why.
                         for escalated in &mut answers.escalation {
@@ -410,14 +420,26 @@ pub fn assess_ledger_with(store: &mut Store, fast: Option<&dyn Transport>, trans
             batch.already += 1;
             continue;
         }
+        // **A turn with no plan and no fast model in hand** goes to the assessor whole, and the count is its own.
+        if plan.is_none() {
+            looked_at += 1;
+        }
         let ask: Box<dyn Fn(&str) -> bool + '_> = match &plan {
             Some(answers) => Box::new(move |id: &str| answers.asked(id)),
             None => Box::new(|_: &str| true),
         };
-        let assessment = assess_turn_where(turn, store, transport, ask.as_ref())
+        let mut assessment = assess_turn_where(turn, store, transport, ask.as_ref())
             .map_err(|e| format!("{} ({} assessed before it)", scrub(&e.to_string(), &transport.endpoint()), batch.assessed))?;
         if let Some(answers) = &plan {
-            batch.saved += answers.escalation.iter().filter(|escalated| !escalated.asked).count();
+            let saved = answers.escalation.iter().filter(|escalated| !escalated.asked).count();
+            batch.saved += saved;
+            // **A turn whose every question was saved is a record with no answers and nothing skipped**, which reads as an assessor that was never run.
+            // The ledger's own words say what happened instead, and the export reads no answer and parks nothing for a question nobody asked.
+            if !answers.answers.is_empty() && assessment.answers.is_empty() && assessment.skipped.is_none() {
+                assessment.skipped = Some(format!(
+                    "every question of this turn was answered by the fast model alone, so the assessor was not asked any of them and saved {saved} call(s)"
+                ));
+            }
         }
         store.append(&Line::assessment(assessment))?;
         batch.assessed += 1;

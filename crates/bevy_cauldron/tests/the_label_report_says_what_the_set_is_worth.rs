@@ -163,6 +163,8 @@ fn fixture(tag: &str) -> (std::path::PathBuf, std::path::PathBuf, Value) {
         WEDNESDAY - WEEK_MS,
     );
     let kept_scene = scene_of(&kept);
+    let kept_before = store.put_image(b"the kept scene", 4, 4).expect("kept");
+    let defect_after = store.put_image(b"the defective scene", 4, 4).expect("kept");
     store.append(&Line::turn(kept)).expect("a turn");
     store.append(&Line::label(label("turn-kept", "kept", "gold", WEDNESDAY - WEEK_MS + 10))).expect("a label");
     store
@@ -186,8 +188,8 @@ fn fixture(tag: &str) -> (std::path::PathBuf, std::path::PathBuf, Value) {
             target: vec!["lamp".into()],
             tier: bevy_cauldron::turn_store::TIER_OBJECTIVE.to_owned(),
             label: bevy_cauldron::turn_store::LABEL_DEFECTIVE.to_owned(),
-            before: Shot::missing("kept scene"),
-            after: Shot::missing("defective scene"),
+            before: Shot::taken(kept_before),
+            after: Shot::taken(defect_after),
             operations: Vec::new(),
             facts: serde_json::json!({}),
             bench: false,
@@ -338,7 +340,12 @@ fn every_number_of_the_report_over_a_fixture_ledger() {
     assert_eq!(report.disagreements, summary["disagreements"].as_object().map(|map| map.iter().map(|(kind, n)| (kind.clone(), n.as_u64().unwrap_or(0) as usize)).collect()).unwrap_or_default(), "{:?}", report.disagreements);
     assert_eq!(report.assessor.teacher_errors, summary["teacher_errors"].as_u64().unwrap() as usize);
     assert_eq!(report.disagreements.get("teacher").copied().unwrap_or(0), report.assessor.teacher_errors, "{:?}", report.disagreements);
-    assert_eq!(report.disagreements.get("teacher").copied().unwrap_or(0), 1, "the assessor said the person keeps the turn they undid, and nothing else: {:?}", report.disagreements);
+    assert_eq!(
+        report.disagreements.get("teacher").copied().unwrap_or(0),
+        2,
+        "the assessor said the floor was satisfied and that the person keeps the turn they undid: {:?}",
+        report.disagreements
+    );
     assert_eq!(report.disagreements.get("person").copied().unwrap_or(0), 0, "{:?}", report.disagreements);
     assert_eq!(report.disagreements.get("engine").copied().unwrap_or(0), 0, "{:?}", report.disagreements);
 
@@ -373,6 +380,40 @@ fn every_number_of_the_report_over_a_fixture_ledger() {
     let json: Value = serde_json::from_slice(&std::fs::read(out.join(REPORT_JSON)).expect("report.json")).expect("json");
     assert_eq!(json["summary"]["turns"], 2, "{json}");
     assert_eq!(json["assessor"]["holdout"]["questions"], 1, "{json}");
+}
+
+/// **The one entry point**: `cauldron-labels report` writes both files beside the export, and says what it wrote.
+///
+/// A binary run rather than a library call, because the acceptance names the command: a report only a test can make is not a report a person can read.
+#[test]
+fn the_report_command_writes_both_files_beside_the_export() {
+    let (labels, out, _) = fixture("command");
+    let said = std::process::Command::new(env!("CARGO_BIN_EXE_cauldron-labels"))
+        .args(["report", "--labels"])
+        .arg(&labels)
+        .arg("--out")
+        .arg(&out)
+        .output()
+        .expect("the binary runs");
+    let stderr = String::from_utf8_lossy(&said.stderr);
+    assert!(said.status.success(), "cauldron-labels report failed: {stderr}");
+    let stdout = String::from_utf8_lossy(&said.stdout);
+    assert!(stdout.contains("report.md") && stdout.contains("report.json"), "{stdout}");
+    assert!(out.join(REPORT_FILE).is_file() && out.join(REPORT_JSON).is_file());
+    // **A ledger line that does not read stops it**, as it stops the export: the refusal names the line.
+    let ledger = labels.join(bevy_cauldron::turn_store::LEDGER_FILE);
+    let mut text = std::fs::read_to_string(&ledger).expect("the ledger");
+    text.push_str("not a line of this format\n");
+    std::fs::write(&ledger, text).expect("written");
+    let said = std::process::Command::new(env!("CARGO_BIN_EXE_cauldron-labels"))
+        .args(["report", "--labels"])
+        .arg(&labels)
+        .arg("--out")
+        .arg(&out)
+        .output()
+        .expect("the binary runs");
+    assert!(!said.status.success(), "a torn ledger line was reported past");
+    assert!(String::from_utf8_lossy(&said.stderr).contains("does not read"), "{}", String::from_utf8_lossy(&said.stderr));
 }
 
 // ---------------------------------------------------------------------------------------------------------------
