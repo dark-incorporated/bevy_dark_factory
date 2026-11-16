@@ -1476,7 +1476,7 @@ fn replay_logged(
     state: &mut ImportState,
 ) {
     let mut ctx = crate::ops::Ctx {
-        view: None, trust_file: None,
+        view: None, trust_file: None, decisions: None,
         project: Some(project.clone()),
         open: None,
         source: crate::ops::Source::Human,
@@ -5007,7 +5007,7 @@ mod pack_fold_tests {
             d.look = vec!["worn".to_owned()];
         }
         let mut ctx = crate::ops::Ctx {
-        view: None, trust_file: None,
+        view: None, trust_file: None, decisions: None,
             project: Some(fresh),
             open: None,
             source: crate::ops::Source::Human,

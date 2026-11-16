@@ -1,0 +1,96 @@
+{
+  "version": 2,
+  "stem": "feedback-1794783776166",
+  "taken_at_ms": 1794783776166,
+  "audience": "developers",
+  "app_version": "0.6.8",
+  "screen": "editor",
+  "project": "/Users/ladvien/Documents/Cauldron Projects/lavender_hills",
+  "map": "deadite_caverns",
+  "tool": "Place",
+  "window": {
+    "physical": [
+      2560,
+      1406
+    ],
+    "logical": [
+      1280.0,
+      703.0
+    ],
+    "scale_factor": 2.0,
+    "ui_scale": 2.4
+  },
+  "picks": [
+    {
+      "subject": {
+        "kind": "element",
+        "entity": 73014441041,
+        "rect_px": [
+          89.0,
+          372.0,
+          727.0,
+          1316.0
+        ],
+        "path": [
+          {
+            "name": null,
+            "role": "Sized",
+            "control": null,
+            "text": null
+          },
+          {
+            "name": null,
+            "role": "FillRegion",
+            "control": null,
+            "text": null
+          },
+          {
+            "name": null,
+            "role": "Split",
+            "control": null,
+            "text": null
+          },
+          {
+            "name": null,
+            "role": "SplitPane",
+            "control": null,
+            "text": null
+          },
+          {
+            "name": null,
+            "role": "Sized",
+            "control": null,
+            "text": null
+          },
+          {
+            "name": null,
+            "role": "Sized",
+            "control": null,
+            "text": null
+          }
+        ]
+      },
+      "at": [
+        110.09375,
+        1152.2031
+      ]
+    }
+  ],
+  "relations": [],
+  "note": "Can we ensure the items in here look good at different si",
+  "picture": {
+    "file": "feedback-1794783776166.png",
+    "size": [
+      2560,
+      1406
+    ]
+  },
+  "picks_picture": {
+    "file": "feedback-1794783776166_picks.png",
+    "size": [
+      2560,
+      1406
+    ]
+  },
+  "log": "feedback-1794783776166.log"
+}

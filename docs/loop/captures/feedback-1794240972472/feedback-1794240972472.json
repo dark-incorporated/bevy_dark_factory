@@ -1,0 +1,126 @@
+{
+  "version": 2,
+  "stem": "feedback-1794240972472",
+  "taken_at_ms": 1794240972472,
+  "audience": "developers",
+  "app_version": "0.5.3",
+  "screen": "launcher",
+  "project": null,
+  "map": null,
+  "tool": "Place",
+  "window": {
+    "physical": [
+      2560,
+      1406
+    ],
+    "logical": [
+      1280.0,
+      703.0
+    ],
+    "scale_factor": 2.0,
+    "ui_scale": 2.4
+  },
+  "picks": [
+    {
+      "subject": {
+        "kind": "element",
+        "entity": 68719475453,
+        "rect_px": [
+          1376.0,
+          453.0,
+          1715.0,
+          511.0
+        ],
+        "path": [
+          {
+            "name": "settings",
+            "role": "Scrim",
+            "control": null,
+            "text": null
+          },
+          {
+            "name": null,
+            "role": "Panel",
+            "control": null,
+            "text": "Settings"
+          },
+          {
+            "name": null,
+            "role": "Tabs",
+            "control": null,
+            "text": null
+          },
+          {
+            "name": null,
+            "role": "TabPages",
+            "control": null,
+            "text": null
+          },
+          {
+            "name": null,
+            "role": "TabPage",
+            "control": null,
+            "text": null
+          },
+          {
+            "name": null,
+            "role": "List",
+            "control": null,
+            "text": null
+          },
+          {
+            "name": null,
+            "role": "ListView",
+            "control": null,
+            "text": null
+          },
+          {
+            "name": null,
+            "role": "ListRows",
+            "control": null,
+            "text": null
+          },
+          {
+            "name": null,
+            "role": null,
+            "control": null,
+            "text": "The colours and look of the editor."
+          },
+          {
+            "name": null,
+            "role": "Choice",
+            "control": null,
+            "text": null
+          },
+          {
+            "name": null,
+            "role": null,
+            "control": null,
+            "text": null
+          }
+        ]
+      },
+      "at": [
+        1571.4141,
+        473.5703
+      ]
+    }
+  ],
+  "relations": [],
+  "note": "Changing the theme doesn't seem to change the UI at all.",
+  "picture": {
+    "file": "feedback-1794240972472.png",
+    "size": [
+      2560,
+      1406
+    ]
+  },
+  "picks_picture": {
+    "file": "feedback-1794240972472_picks.png",
+    "size": [
+      2560,
+      1406
+    ]
+  },
+  "log": "feedback-1794240972472.log"
+}

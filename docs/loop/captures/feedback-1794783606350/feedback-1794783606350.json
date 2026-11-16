@@ -1,0 +1,66 @@
+{
+  "version": 2,
+  "stem": "feedback-1794783606350",
+  "taken_at_ms": 1794783606350,
+  "audience": "developers",
+  "app_version": "0.6.8",
+  "screen": "editor",
+  "project": "/Users/ladvien/Documents/Cauldron Projects/lavender_hills",
+  "map": "deadite_caverns",
+  "tool": "Place",
+  "window": {
+    "physical": [
+      2560,
+      1406
+    ],
+    "logical": [
+      1280.0,
+      703.0
+    ],
+    "scale_factor": 2.0,
+    "ui_scale": 2.4
+  },
+  "picks": [
+    {
+      "subject": {
+        "kind": "element",
+        "entity": 68719474685,
+        "rect_px": [
+          0.0,
+          0.0,
+          2560.0,
+          1406.0
+        ],
+        "path": [
+          {
+            "name": null,
+            "role": "Sized",
+            "control": null,
+            "text": null
+          }
+        ]
+      },
+      "at": [
+        131.89062,
+        53.390625
+      ]
+    }
+  ],
+  "relations": [],
+  "note": "The debug text is overlayed on the editor top menu like file, edit, view--we should make it distinct.",
+  "picture": {
+    "file": "feedback-1794783606350.png",
+    "size": [
+      2560,
+      1406
+    ]
+  },
+  "picks_picture": {
+    "file": "feedback-1794783606350_picks.png",
+    "size": [
+      2560,
+      1406
+    ]
+  },
+  "log": "feedback-1794783606350.log"
+}

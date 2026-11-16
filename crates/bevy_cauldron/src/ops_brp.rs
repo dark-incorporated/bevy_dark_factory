@@ -315,7 +315,7 @@ fn context(
     menu: Option<Res<crate::project_assets::PointedAt>>,
 ) -> Ctx {
     Ctx {
-        view: None, trust_file: None,
+        view: None, trust_file: None, decisions: None,
         // **Cloned out, because the context owns what it carries.** The reason is the registry:
         // a trait with a lifetime on its methods cannot be a `dyn`, and the registry has to be a
         // `dyn` because a list of operations is looked up by name. One copy of a map's settings
@@ -353,7 +353,7 @@ pub(crate) fn take(
     open: &Option<ResMut<crate::project::OpenMap>>,
 ) -> Ctx {
     Ctx {
-        view: None, trust_file: None,
+        view: None, trust_file: None, decisions: None,
         project: project.as_deref().cloned(),
         root: None,
         open: open.as_deref().cloned(),
@@ -2311,7 +2311,7 @@ fn operation_apply(
     // apply alike: a preview never says "would change" for a change the apply would refuse.
     if let Some(agent) = p.agent.as_deref() {
         let read = Ctx {
-        view: None, trust_file: None,
+        view: None, trust_file: None, decisions: None,
             root: None,
             project: project.as_deref().cloned(),
             open: open.as_deref().cloned(),
@@ -2357,7 +2357,7 @@ fn operation_apply(
             view.rig.history = bench.history();
         }
         let ctx = Ctx {
-        view, trust_file: (p.operation == "style_edit").then(|| gates.trust_file(state.as_deref().and_then(|s| s.trust.file.as_deref()))).flatten(),
+        view, decisions: None, trust_file: (p.operation == "style_edit").then(|| gates.trust_file(state.as_deref().and_then(|s| s.trust.file.as_deref()))).flatten(),
             root: menu.as_ref().map(|m| m.root.clone()),
             project: read_project.cloned(),
             open: read_open.cloned(),
@@ -2900,7 +2900,7 @@ fn undo_by_id(p: UndoParams, person: bool, world: UndoWorld) -> Result<Value, St
     if p.dry_run {
         // **A preview reads the log and plans the inverse, and writes nothing.**
         let ctx = Ctx {
-        view: None, trust_file: None,
+        view: None, trust_file: None, decisions: None,
             root: None,
             project: project.as_deref().cloned(),
             open: open.as_deref().cloned(),

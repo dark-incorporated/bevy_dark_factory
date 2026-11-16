@@ -1,5 +1,7 @@
 # Serving clef-flash (D1, #109)
 
+> Since DM-01 (#452) the default endpoint is d3-flash on big for every editor: `docs/decide/serving-d3-flash.md`. This is the lease-held clef-flash server on `127.0.0.1:8093` that `tools/decide/serve-clef-flash.sh` still starts.
+
 **Path that works: llama.cpp `llama-server`, endpoint `POST /v1/systemone`.** Ollama and llama-swap were not tried: `/v1/systemone` is native to llama.cpp (PR #29831, merged 2026-10-03), and a server running a clef model serves only that endpoint (no text generation). Builds on big older than that PR (b8952, `cuda-ece963`, `~/.local/llama.cpp/src`) have no `systemone` string and cannot serve it.
 
 |Item|Value|

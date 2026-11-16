@@ -70,6 +70,7 @@ pub mod confirm;
 #[cfg(all(feature = "bevy_orca", feature = "bevy_stigmergy"))]
 pub mod crowd_preview;
 pub mod decide_labels;
+pub mod decision_model;
 pub mod devshot;
 pub mod editor;
 pub mod file_outline;

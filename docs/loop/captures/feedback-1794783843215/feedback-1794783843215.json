@@ -1,0 +1,90 @@
+{
+  "version": 2,
+  "stem": "feedback-1794783843215",
+  "taken_at_ms": 1794783843215,
+  "audience": "developers",
+  "app_version": "0.6.8",
+  "screen": "editor",
+  "project": "/Users/ladvien/Documents/Cauldron Projects/lavender_hills",
+  "map": "deadite_caverns",
+  "tool": "Place",
+  "window": {
+    "physical": [
+      2560,
+      1406
+    ],
+    "logical": [
+      1280.0,
+      703.0
+    ],
+    "scale_factor": 2.0,
+    "ui_scale": 2.4
+  },
+  "picks": [
+    {
+      "subject": {
+        "kind": "element",
+        "entity": 64424507006,
+        "rect_px": [
+          0.0,
+          343.0,
+          58.0,
+          1046.0
+        ],
+        "path": [
+          {
+            "name": null,
+            "role": "Sized",
+            "control": null,
+            "text": null
+          },
+          {
+            "name": null,
+            "role": "FillRegion",
+            "control": null,
+            "text": null
+          },
+          {
+            "name": null,
+            "role": "Column",
+            "control": null,
+            "text": null
+          },
+          {
+            "name": null,
+            "role": "Tabs",
+            "control": null,
+            "text": null
+          },
+          {
+            "name": null,
+            "role": "TabList",
+            "control": null,
+            "text": null
+          }
+        ]
+      },
+      "at": [
+        33.539062,
+        395.8125
+      ]
+    }
+  ],
+  "relations": [],
+  "note": "It seems like the shortcuts don't work for these?",
+  "picture": {
+    "file": "feedback-1794783843215.png",
+    "size": [
+      2560,
+      1406
+    ]
+  },
+  "picks_picture": {
+    "file": "feedback-1794783843215_picks.png",
+    "size": [
+      2560,
+      1406
+    ]
+  },
+  "log": "feedback-1794783843215.log"
+}

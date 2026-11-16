@@ -4191,6 +4191,11 @@ pub fn spawn_chrome_bar(
                 bevy::picking::Pickable::IGNORE,
             ));
         }
+        // **Which decision model is asked, and whether it answers** (DM-03, #454): one LED with the model's name, from
+        // `decision_model` and the round trips that happened, at the bar's far end. Not in the status band, which is crowded enough
+        // that anything added there pushes the hint's key badge onto its neighbours, and not before the title or after the way out,
+        // whose key badges stand on the words beside them.
+        bar.spawn(crate::decision_model::chip());
     });
 }
 

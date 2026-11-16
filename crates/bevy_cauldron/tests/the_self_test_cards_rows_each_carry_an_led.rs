@@ -141,11 +141,12 @@ fn each_row_carries_an_led_in_its_state_and_the_card_says_no_ok_fail_or_skip() {
 
     // The sentence stands beside the LED, with the check's own words and no state word before it.
     let sentences = rows(&mut app);
-    assert_eq!(sentences.len(), 4, "{sentences:?}");
+    assert_eq!(sentences.len(), 5, "{sentences:?}");
     assert_eq!(sentences[0], "Tools server: bevy_cauldron_mcp on port 15799");
     assert_eq!(sentences[1], "Agent started: the shell stopped before the agent was typed");
     assert_eq!(sentences[2], "Agent connected: nothing was started");
     assert_eq!(sentences[3], "Agent self test: waiting");
+    assert_eq!(sentences[4], "Decision model: waiting");
 
     // No `OK`, `FAIL` or `SKIP`, and no state word on any row: only the card's final LED draws its word.
     let words = drawn_words(&mut app);

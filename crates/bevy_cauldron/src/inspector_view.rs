@@ -290,7 +290,7 @@ fn pose_edits_are_operations(
     for (name, params, phrase) in calls {
         let mut ctx = Ctx {
             view: None,
-            trust_file: None,
+            trust_file: None, decisions: None,
             project: Some(project.clone()),
             open: Some(std::mem::replace(
                 &mut *open,

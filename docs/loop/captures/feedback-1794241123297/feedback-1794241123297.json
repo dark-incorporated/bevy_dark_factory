@@ -1,0 +1,66 @@
+{
+  "version": 2,
+  "stem": "feedback-1794241123297",
+  "taken_at_ms": 1794241123297,
+  "audience": "developers",
+  "app_version": "0.5.3",
+  "screen": "editor",
+  "project": "/Users/ladvien/Documents/Cauldron Projects/lavender_hills",
+  "map": "deadite_caverns",
+  "tool": "Place",
+  "window": {
+    "physical": [
+      2560,
+      1406
+    ],
+    "logical": [
+      1280.0,
+      703.0
+    ],
+    "scale_factor": 2.0,
+    "ui_scale": 2.4
+  },
+  "picks": [
+    {
+      "subject": {
+        "kind": "element",
+        "entity": 25769802466,
+        "rect_px": [
+          0.0,
+          0.0,
+          2560.0,
+          1406.0
+        ],
+        "path": [
+          {
+            "name": null,
+            "role": null,
+            "control": null,
+            "text": null
+          }
+        ]
+      },
+      "at": [
+        43.6875,
+        46.945312
+      ]
+    }
+  ],
+  "relations": [],
+  "note": "Whenever I open a project, it the game freezes while the current map state is loaded. Bad experience.  We should have a loading bar of some sort that communicates to the user the need to wait.",
+  "picture": {
+    "file": "feedback-1794241123297.png",
+    "size": [
+      2560,
+      1406
+    ]
+  },
+  "picks_picture": {
+    "file": "feedback-1794241123297_picks.png",
+    "size": [
+      2560,
+      1406
+    ]
+  },
+  "log": "feedback-1794241123297.log"
+}

@@ -1,0 +1,84 @@
+{
+  "version": 2,
+  "stem": "feedback-1794443942293",
+  "taken_at_ms": 1794443942293,
+  "audience": "developers",
+  "app_version": "0.6.4",
+  "screen": "editor",
+  "project": "/Users/ladvien/Documents/Cauldron Projects/lavender_hills",
+  "map": "deadite_caverns",
+  "tool": "Place",
+  "window": {
+    "physical": [
+      2560,
+      1406
+    ],
+    "logical": [
+      1280.0,
+      703.0
+    ],
+    "scale_factor": 2.0,
+    "ui_scale": 2.4
+  },
+  "picks": [
+    {
+      "subject": {
+        "kind": "element",
+        "entity": 8589932954,
+        "rect_px": [
+          654.0,
+          949.0,
+          2531.0,
+          1260.0
+        ],
+        "path": [
+          {
+            "name": null,
+            "role": null,
+            "control": null,
+            "text": null
+          },
+          {
+            "name": "terminal",
+            "role": null,
+            "control": null,
+            "text": null
+          },
+          {
+            "name": "terminal body",
+            "role": null,
+            "control": null,
+            "text": null
+          },
+          {
+            "name": "terminal agent card",
+            "role": null,
+            "control": null,
+            "text": null
+          }
+        ]
+      },
+      "at": [
+        1212.3984,
+        1151.9375
+      ]
+    }
+  ],
+  "relations": [],
+  "note": "The terminal should start out off.  And a label at the bottom UI bar stating, \"Terminal Cmd+J\".  Then, the default command should harness should be omp.  It should not fail to load an agent.",
+  "picture": {
+    "file": "feedback-1794443942293.png",
+    "size": [
+      2560,
+      1406
+    ]
+  },
+  "picks_picture": {
+    "file": "feedback-1794443942293_picks.png",
+    "size": [
+      2560,
+      1406
+    ]
+  },
+  "log": "feedback-1794443942293.log"
+}

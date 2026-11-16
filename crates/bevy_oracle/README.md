@@ -17,7 +17,7 @@ cargo add bevy_oracle --git https://github.com/dark-incorporated/bevy_dark_facto
 ```
 
 ```rust,no_run
-use bevy_oracle::{Config, Http, Question, Request, ask};
+use bevy_oracle::{DecisionModel, Endpoints, Http, Question, Request, ask};
 
 fn main() -> Result<(), bevy_oracle::Error> {
     let request = Request::new("The bedroom map, after the bed was removed.")
@@ -30,8 +30,9 @@ fn main() -> Result<(), bevy_oracle::Error> {
             ),
         );
 
-    // One endpoint per run, from GRIMOIRE_DECIDE_ENDPOINT or the local default.
-    let response = ask(&Http::new(Config::from_env()), &request)?;
+    // One endpoint per run, chosen by the person's decision-model setting (Local or Remote).
+    let config = Endpoints::from_env().config(DecisionModel::Local)?;
+    let response = ask(&Http::new(config), &request)?;
 
     let p_bed = response.answers["bed"].p_yes();
     println!("P(bed) = {p_bed:?}");
@@ -45,7 +46,7 @@ fn main() -> Result<(), bevy_oracle::Error> {
 
 - **Three question types**: `Question::noul` (yes or no; the answer is P(yes)), `Question::choice` (named options; the answer is each option's probability) and `Question::score` (levels on a scale; the answer is a probability-weighted level).
 - **Transports**: `Http` for a live endpoint, `Replay` for a recorded exchange (it answers only the request it was recorded for, never a different one) and `Recorder`, which wraps a live transport and writes the exchange to a folder as `request.json` and `response.json`. The tests replay; a live call happens only in calibration runs and smoke checks.
-- **One endpoint, no fallback.** A wrong endpoint or a refused request is an `Error` naming the endpoint, never a default answer. The endpoint is `GRIMOIRE_DECIDE_ENDPOINT` (default `http://127.0.0.1:8093/v1/systemone`, clef-flash on this LAN), with `GRIMOIRE_DECIDE_MODEL`, `GRIMOIRE_DECIDE_KEY` and `GRIMOIRE_DECIDE_TIMEOUT_SECS` beside it. Cloudflare sends screenshots off the local network, so it is used only when you set those variables.
+- **One endpoint, no fallback.** A wrong endpoint or a refused request is an `Error` naming the endpoint, never a default answer. Which endpoint is the person's decision-model setting: Local is d3-flash on this LAN (`LOCAL_ENDPOINT`), Remote is OpenRouter and refuses with a sentence naming `OPENROUTER_API_KEY` when no key is set; it never falls back to the other.
 - **Checks** (`Checks`, `Check`, `run_checks`): named questions with a threshold, from a built-in `checks.yaml` and a project's own. A check may fail a gate only once it has been calibrated against a labelled set (`calibrate`, `Calibration`), and it does not answer from less evidence than it needs.
 - **`decide_check`**, a binary that runs the checks over a folder of captures. Without `--ask` nothing leaves the machine: it lists each check with the evidence it would send and its calibration.
 

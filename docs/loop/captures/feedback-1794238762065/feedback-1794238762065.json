@@ -1,0 +1,84 @@
+{
+  "version": 2,
+  "stem": "feedback-1794238762065",
+  "taken_at_ms": 1794238762065,
+  "audience": "developers",
+  "app_version": "0.5.3",
+  "screen": "editor",
+  "project": "/Users/ladvien/Documents/Cauldron Projects/lavender_hills",
+  "map": "deadite_caverns",
+  "tool": "Place",
+  "window": {
+    "physical": [
+      2560,
+      1406
+    ],
+    "logical": [
+      1280.0,
+      703.0
+    ],
+    "scale_factor": 2.0,
+    "ui_scale": 2.4
+  },
+  "picks": [
+    {
+      "subject": {
+        "kind": "element",
+        "entity": 8589930576,
+        "rect_px": [
+          1346.0,
+          949.0,
+          2531.0,
+          1181.0
+        ],
+        "path": [
+          {
+            "name": null,
+            "role": null,
+            "control": null,
+            "text": null
+          },
+          {
+            "name": "terminal",
+            "role": null,
+            "control": null,
+            "text": null
+          },
+          {
+            "name": "terminal body",
+            "role": null,
+            "control": null,
+            "text": null
+          },
+          {
+            "name": "terminal agent card",
+            "role": null,
+            "control": null,
+            "text": null
+          }
+        ]
+      },
+      "at": [
+        1574.3359,
+        1049.0078
+      ]
+    }
+  ],
+  "relations": [],
+  "note": "No, the \"OK\"s need to be subtle LEDs.",
+  "picture": {
+    "file": "feedback-1794238762065.png",
+    "size": [
+      2560,
+      1406
+    ]
+  },
+  "picks_picture": {
+    "file": "feedback-1794238762065_picks.png",
+    "size": [
+      2560,
+      1406
+    ]
+  },
+  "log": "feedback-1794238762065.log"
+}

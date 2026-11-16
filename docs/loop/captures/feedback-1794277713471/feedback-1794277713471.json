@@ -1,0 +1,96 @@
+{
+  "version": 2,
+  "stem": "feedback-1794277713471",
+  "taken_at_ms": 1794277713471,
+  "audience": "developers",
+  "app_version": "0.5.6",
+  "screen": "editor",
+  "project": "/Users/ladvien/Documents/Cauldron Projects/lavender_hills",
+  "map": "deadite_caverns",
+  "tool": "Place",
+  "window": {
+    "physical": [
+      2560,
+      1406
+    ],
+    "logical": [
+      1280.0,
+      703.0
+    ],
+    "scale_factor": 2.0,
+    "ui_scale": 2.4
+  },
+  "picks": [
+    {
+      "subject": {
+        "kind": "element",
+        "entity": 8589932703,
+        "rect_px": [
+          1240.0,
+          1141.0,
+          1282.0,
+          1183.0
+        ],
+        "path": [
+          {
+            "name": null,
+            "role": null,
+            "control": null,
+            "text": null
+          },
+          {
+            "name": "terminal",
+            "role": null,
+            "control": null,
+            "text": null
+          },
+          {
+            "name": "terminal body",
+            "role": null,
+            "control": null,
+            "text": null
+          },
+          {
+            "name": "terminal agent card",
+            "role": null,
+            "control": null,
+            "text": null
+          },
+          {
+            "name": null,
+            "role": "Led",
+            "control": null,
+            "text": "Agent"
+          },
+          {
+            "name": null,
+            "role": "LedDot",
+            "control": null,
+            "text": null
+          }
+        ]
+      },
+      "at": [
+        1245.9219,
+        1161.7578
+      ]
+    }
+  ],
+  "relations": [],
+  "note": "The glow of on the LEDs is too big.  It covers too much area. It needs to be subtle.",
+  "picture": {
+    "file": "feedback-1794277713471.png",
+    "size": [
+      2560,
+      1406
+    ]
+  },
+  "picks_picture": {
+    "file": "feedback-1794277713471_picks.png",
+    "size": [
+      2560,
+      1406
+    ]
+  },
+  "log": "feedback-1794277713471.log"
+}

@@ -11,7 +11,7 @@ use crate::fixtures;
 
 fn writer(root: std::path::PathBuf, session: String) -> Ctx {
     Ctx {
-        view: None, trust_file: None,
+        view: None, trust_file: None, decisions: None,
         root: Some(root),
         project: None,
         open: None,
