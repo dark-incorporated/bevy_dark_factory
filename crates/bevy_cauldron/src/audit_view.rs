@@ -15,6 +15,9 @@
 //!   place that says which lines they are.
 //! - **Only yes/no questions** are offered: Y, N and S are the whole keyboard of the row.
 //! - **Off is off.** With collection off there is no ledger to audit and no row.
+//! - **The report's line rides on the same read** (DL-08, #467): one line above the question, saying what the ledger holds — turns, answers, the
+//!   labels per tier, the holdout, and the assessor's agreement against the bar — so the count a person acts on and the report they read are made
+//!   from one reading of one file. [`crate::label_report::line`] is the words.
 //!
 //! The keys are read raw, as the hand-back's own `Y`/`N` are ([`crate::confirm`]): the row is not a tab's verb, and the Agent tab has no keys of
 //! its own. They answer only while the Agent workspace is open, no question card is up, no text field has the keyboard and no modifier is held (so
@@ -165,6 +168,10 @@ pub struct Audit {
     read_len: Option<u64>,
     /// What the row on screen shows, so it is rebuilt only when this moves.
     shown: Option<(String, String, usize, usize)>,
+    /// **The report's line** (DL-08, #467), from the same read: what the ledger holds, in the words `report.md` uses.
+    pub line: String,
+    /// The line the row on screen shows, so the row is rebuilt only when it changes.
+    shown_line: Option<String>,
 }
 
 /// **The row's container**, spawned empty by the AGENT block; its one child is this module's.
@@ -226,6 +233,8 @@ fn look_at_the_ledger(time: Res<Time<Real>>, ledger: Option<Res<TurnLedger>>, mu
     let Ok(read) = crate::turn_store::read_file(&path) else { return };
     audit.read_len = len;
     audit.this_week = answered_this_week(&read, now_ms());
+    // **The same reading makes the report's line** (DL-08, #467), so the count on screen and the count in `report.md` cannot differ.
+    audit.line = crate::label_report::line(&crate::label_report::summary(&read));
     let waiting = WEEKLY_TARGET.saturating_sub(audit.this_week).max(1);
     let mut offers = pick(&read, waiting, read.lines.len() as u64);
     // The question on screen stays first: a new look must not take it from under the person's hand.
@@ -264,13 +273,25 @@ fn follow_the_audit(
     rows: Query<Entity, With<AuditRow>>,
 ) {
     let now = audit.offers.first().map(|o| (o.turn.clone(), o.question.clone(), audit.offers.len(), audit.this_week));
-    if audit.shown == now && (now.is_some() != rows.is_empty()) {
+    let line = (!audit.line.is_empty()).then(|| audit.line.clone());
+    if audit.shown == now && audit.shown_line == line && (now.is_some() != rows.is_empty()) {
         return;
     }
     for row in &rows {
         commands.entity(row).try_despawn();
     }
     audit.shown = now;
+    audit.shown_line = line.clone();
+    // **The report's line is shown whether or not a question is waiting**: the set's worth is not only about the next answer.
+    if let (Some(line), Ok(container)) = (line, containers.single()) {
+        commands.entity(container).with_children(|list| {
+            list.spawn((AuditRow, Name::new("label report line"), bevy_gooey::column_with(crate::chrome::GAP_TIGHT_STEPS, bevy_gooey::RowLayout { shrink: Some(0.0), ..default() })))
+                .with_children(|row| {
+                    row.spawn(label("LABELS"));
+                    row.spawn(label(line));
+                });
+        });
+    }
     let (Some(offer), Some(folder), Ok(container)) = (audit.offers.first().cloned(), ledger.as_deref().and_then(TurnLedger::folder), containers.single()) else {
         return;
     };

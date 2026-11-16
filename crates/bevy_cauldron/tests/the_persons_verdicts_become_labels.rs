@@ -128,6 +128,7 @@ fn keep_is_a_gold_label_that_waits_for_its_turn() {
         Body::Perturbed(_) => "perturbed",
         Body::AssessFix(_) => "assess_fix",
         Body::Assessment(_) => "assessment",
+        Body::FastAnswers(_) => "fast_answers",
     }).collect();
     assert_eq!(kinds, ["turn", "label"], "the label follows the turn it names");
     let turn = read.turns().next().expect("a turn");

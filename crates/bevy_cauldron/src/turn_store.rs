@@ -417,6 +417,66 @@ pub struct Assessment {
     pub skipped: Option<String>,
 }
 
+/// **One question's answer from the fast decision model** (DL-08, #467): the student's own look, which is **never a label**.
+///
+/// It answers every turn's questions before the slow assessor is asked anything, and it is kept so the report can say how the fast model
+/// agrees with the person and with the assessor. DL-06's export reads none of it: a fast answer that became a target would train the student on
+/// its own guess.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct FastAnswer {
+    /// The question, by [`TurnQuestion::id`](crate::turn_questions::TurnQuestion).
+    pub id: String,
+    /// A yes/no answer's probability of yes, as the model gave it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub p_yes: Option<f64>,
+    /// Why there is no probability: the provider declined, or the answer was of another type or outside the options offered.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub refused: Option<String>,
+}
+
+/// **Whether one question went on to the slow assessor, and why** (DL-08, #467), as it was decided.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
+pub struct Escalated {
+    pub id: String,
+    /// Whether the slow assessor was asked it.
+    pub asked: bool,
+    /// `unsure` (the fast model's probability was between the named bounds), `outvoted` (it disagreed with the turn's gold or objective answer),
+    /// `sampled` (the named random share), or `sure` (none of those, so it was not asked).
+    pub why: String,
+}
+
+/// **The fast model's answers to one turn's questions, and what was escalated** (DL-08, #467).
+///
+/// It is a line of its own and **never a label**: [`Body::Assessment`] holds what a teacher said, this holds what a student guessed. The report
+/// ([`crate::label_report`]) is the only reader, and the export reads none of it.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct FastAnswers {
+    /// The turn whose questions these answer: [`Turn::id`].
+    pub turn: String,
+    pub at_unix_ms: u64,
+    /// The model that answered, as the provider named it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub model: Option<String>,
+    pub answers: Vec<FastAnswer>,
+    /// One per question answered, in the questions' own order: whether the assessor was asked it, and why.
+    pub escalation: Vec<Escalated>,
+    /// **Why nothing was answered**: the record has no picture that can be read. A line all the same, so a turn is not asked again every batch.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub skipped: Option<String>,
+}
+
+impl FastAnswers {
+    /// **One question's `p_yes`**, where the fast model gave one.
+    pub fn p_yes(&self, id: &str) -> Option<f64> {
+        self.answers.iter().find(|answer| answer.id == id).and_then(|answer| answer.p_yes)
+    }
+
+    /// **Whether the question went to the slow assessor.**
+    pub fn asked(&self, id: &str) -> bool {
+        self.escalation.iter().any(|escalated| escalated.id == id && escalated.asked)
+    }
+}
+
 /// **What a ledger line holds.** Tagged by `kind`, so a label is a new line of its own and never an edit of a turn's.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 #[serde(tag = "kind", rename_all = "snake_case")]
@@ -429,6 +489,8 @@ pub enum Body {
     /// An assessor flagged a problem and a later operation of the same turn fixed it (DL-05, #464).
     AssessFix(Box<AssessFix>),
     Assessment(Box<Assessment>),
+    /// **The fast model's answers of a turn, and what was escalated** (DL-08, #467). Never a label.
+    FastAnswers(Box<FastAnswers>),
 }
 
 /// **One line of the ledger.**
@@ -469,6 +531,11 @@ impl Line {
     /// An assessment, as the ledger holds it.
     pub fn assessment(assessment: Assessment) -> Line {
         Line { v: FORMAT, body: Body::Assessment(Box::new(assessment)) }
+    }
+
+    /// The fast model's answers of a turn, as the ledger holds them.
+    pub fn fast_answer(fast: FastAnswers) -> Line {
+        Line { v: FORMAT, body: Body::FastAnswers(Box::new(fast)) }
     }
 }
 
@@ -523,6 +590,14 @@ impl Read {
     pub fn assessments(&self) -> impl Iterator<Item = &Assessment> {
         self.lines.iter().filter_map(|(_, line)| match &line.body {
             Body::Assessment(assessment) => Some(assessment.as_ref()),
+            _ => None,
+        })
+    }
+
+    /// **The fast model's answers**, in the order they were written (DL-08, #467): never a label, and read by the report alone.
+    pub fn fast_answers(&self) -> impl Iterator<Item = &FastAnswers> {
+        self.lines.iter().filter_map(|(_, line)| match &line.body {
+            Body::FastAnswers(fast) => Some(fast.as_ref()),
             _ => None,
         })
     }
