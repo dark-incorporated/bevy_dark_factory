@@ -201,6 +201,19 @@ impl PendingLaunch {
     }
 }
 
+/// **Dropping the terminals ends every shell together** (#427): the hang-up, the grace and the kill are waited for once for all the tabs,
+/// not once each ([`TerminalSession::end_together`]), because a quit with three stuck tabs would otherwise outlast the exit watchdog's
+/// whole deadline. Each session's own drop then finds its child gone.
+impl Drop for Terminal {
+    fn drop(&mut self) {
+        #[cfg(unix)]
+        {
+            let mut sessions: Vec<&mut TerminalSession> = self.open.iter_mut().filter_map(|tab| tab.session.as_mut()).collect();
+            TerminalSession::end_together(&mut sessions);
+        }
+    }
+}
+
 impl Terminal {
     /// **Open a shell**, or return the one already open.
     ///

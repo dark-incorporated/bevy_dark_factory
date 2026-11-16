@@ -83,6 +83,10 @@ pub struct TerminalSession {
     size: (u16, u16),
     /// The directory the shell was started in, for the bar's chip and for the `cd` offer.
     cwd: PathBuf,
+    /// **Its child has been hung up on, and killed if it would not go, by [`TerminalSession::end_together`]** (the `Terminal`'s own drop does
+    /// it for every tab at once), so this session's drop does not wait the grace over again.
+    #[cfg(unix)]
+    ended: bool,
 }
 
 /// **Start a shell the environment names.** The same as [`TerminalSession::spawn_with`] with no choice.
@@ -157,7 +161,7 @@ impl TerminalSession {
                  `/dev/ptmx` or a machine at its process limit cannot open one"
             )
         })?;
-        Ok(TerminalSession { pty: ManuallyDrop::new(pty), size: (cols, rows), cwd })
+        Ok(TerminalSession { pty: ManuallyDrop::new(pty), size: (cols, rows), cwd, ended: false })
     }
 
     /// Any non-Unix target: the PTY layer does not exist there in this build.
@@ -311,7 +315,8 @@ const HANGUP_WAIT_BOUND_MS: u64 = HANGUP_GRACE_MS + KILL_WAIT_MS + 100;
 /// may ignore `SIGHUP` or take its time, and the editor's main thread then sat in that `wait` after
 /// its window was gone: the freeze a person met when an update quit the app, which stayed alive,
 /// window-less, until it was killed by hand. This runs first (a type's own `Drop` runs before its
-/// fields'): it hangs up, gives the child [`HANGUP_GRACE_MS`] to go, and kills it if it has not.
+/// fields'): it hangs up, gives the child [`HANGUP_GRACE_MS`] to go, and kills it if it has not
+/// ([`TerminalSession::end_together`]; a quit with several tabs has already done this for all of them at once).
 ///
 /// **It reads the master the whole time it waits** (#427). Measured on a real macOS build (bmb, 0.6.8, 2026-11-15): with an agent tab
 /// open, a Cmd+Q left the process alive for 5 minutes and more, `omp` and every process of its group (its MCP servers) in the `E`
@@ -319,30 +324,16 @@ const HANGUP_WAIT_BOUND_MS: u64 = HANGUP_GRACE_MS + KILL_WAIT_MS + 100;
 /// output the terminal has not taken, and the master's only reader is the thread that was waiting: each waited for the other. Reading
 /// and dropping what the children write lets them go.
 ///
-/// **And if the child has still not left**, the `Pty` (its drop is the unbounded wait) is handed to a thread that does nothing else, so
-/// that the editor goes on without it.
-///
-/// **The wait is listed for the exit watchdog** while it lasts, as `a terminal's shell hanging up`, so a quit that is stuck here
-/// is cut short saying so and not saying nothing.
+/// **And if the child has still not left**, the `Pty` (its drop is the unbounded wait) is handed to a thread that does nothing else
+/// ([`hand_to_a_reaper`]), so that the editor goes on without it.
 impl Drop for TerminalSession {
     fn drop(&mut self) {
         #[cfg(unix)]
-        if let Some(pid) = i32::try_from(self.pty.child().id()).ok().and_then(rustix::process::Pid::from_raw) {
-            let _wait = crate::exit_watchdog::waiting("a terminal's shell hanging up", std::time::Duration::from_millis(HANGUP_WAIT_BOUND_MS));
-            let mut unread = Vec::new();
-            let left = end_the_child(
-                pid,
-                std::time::Duration::from_millis(HANGUP_GRACE_MS),
-                std::time::Duration::from_millis(KILL_WAIT_MS),
-                &mut || {
-                    unread.clear();
-                    let _ = self.drain(&mut unread);
-                },
-                &mut |signal| {
-                    let _ = rustix::process::kill_process(pid, signal);
-                },
-            );
-            if !left {
+        if let Some(pid) = self.child_pid() {
+            if !self.ended {
+                TerminalSession::end_together(&mut [&mut *self]);
+            }
+            if !child_has_left(pid) {
                 bevy::log::warn!("a terminal's shell (pid {pid:?}) has not left {KILL_WAIT_MS} ms after it was killed; its reaping goes on in a thread of its own");
                 // SAFETY: `self.pty` is taken once, here, and `drop` returns before anything can use it again.
                 hand_to_a_reaper(unsafe { ManuallyDrop::take(&mut self.pty) });
@@ -354,12 +345,85 @@ impl Drop for TerminalSession {
     }
 }
 
-/// **Waits for the child on a thread that does nothing else.** The `Pty`'s drop is that wait. Should no thread start, the `Pty` is
-/// leaked rather than waited on here: a process that cannot start a thread is not one to hold the editor's quit.
+#[cfg(unix)]
+impl TerminalSession {
+    /// The child's pid, as the signal calls want it.
+    fn child_pid(&self) -> Option<rustix::process::Pid> {
+        i32::try_from(self.pty.child().id()).ok().and_then(rustix::process::Pid::from_raw)
+    }
+
+    /// **Reads and drops what the child has written**, at most [`DISCARD_PER_LOOK`] bytes: a child that writes without end (a `yes`) must
+    /// not keep a close in this loop, and what is dropped is never held, so there is no buffer to grow.
+    fn discard_what_is_waiting(&mut self) {
+        let mut chunk = [0u8; 16 * 1024];
+        let mut left = DISCARD_PER_LOOK;
+        while left > 0 {
+            match self.pty.file().read(&mut chunk) {
+                Ok(0) | Err(_) => break,
+                Ok(n) => left = left.saturating_sub(n),
+            }
+        }
+    }
+
+    /// **Hangs up on every session's child at once, waits once, kills the ones still there, and waits once more** (#427): a quit with
+    /// three stuck tabs costs one [`HANGUP_GRACE_MS`] and one [`KILL_WAIT_MS`], not three of each, which would be more than the exit
+    /// watchdog's whole deadline. Every master is read at every look. The wait is listed for the exit watchdog, as `a terminal's shell
+    /// hanging up`, so a quit that is stuck here is cut short saying so and not saying nothing.
+    pub(crate) fn end_together(sessions: &mut [&mut TerminalSession]) {
+        let pids: Vec<rustix::process::Pid> = sessions.iter().filter_map(|session| session.child_pid()).collect();
+        if pids.is_empty() {
+            return;
+        }
+        let _wait = crate::exit_watchdog::waiting("a terminal's shell hanging up", std::time::Duration::from_millis(HANGUP_WAIT_BOUND_MS));
+        end_the_children(
+            &pids,
+            std::time::Duration::from_millis(HANGUP_GRACE_MS),
+            std::time::Duration::from_millis(KILL_WAIT_MS),
+            &mut || sessions.iter_mut().for_each(|session| session.discard_what_is_waiting()),
+            &mut |pid, signal| {
+                let _ = rustix::process::kill_process(pid, signal);
+            },
+        );
+        for session in sessions.iter_mut() {
+            session.ended = true;
+        }
+    }
+}
+
+/// How many bytes one look of a close reads and drops at most.
+#[cfg(unix)]
+const DISCARD_PER_LOOK: usize = 1 << 20;
+
+/// How many reaper threads may be running at once.
+#[cfg(unix)]
+const MOST_REAPERS: usize = 8;
+
+#[cfg(unix)]
+static REAPERS: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+
+/// **Waits for a child that will not leave on a thread that does nothing else.** The `Pty`'s drop is that wait.
+///
+/// **A quit and a closed pane differ here.** At quit the process ends soon after, and the thread with it. A pane closed while the editor
+/// goes on leaves a thread that lasts as long as the child does: for a child the kernel never lets go of, until the editor quits.
+/// So there are at most [`MOST_REAPERS`] of them; a child past that is leaked (its master and its pid stay open, and a warning says so)
+/// rather than waited on here or given a ninth thread. Should no thread start, the `Pty` is leaked the same way: a process that cannot
+/// start a thread is not one to hold the editor's quit.
 #[cfg(unix)]
 fn hand_to_a_reaper(pty: tty::Pty) {
+    use std::sync::atomic::Ordering;
     let pty = ManuallyDrop::new(pty);
-    let _ = std::thread::Builder::new().name("terminal-reaper".to_owned()).spawn(move || drop(ManuallyDrop::into_inner(pty)));
+    if REAPERS.fetch_add(1, Ordering::AcqRel) >= MOST_REAPERS {
+        REAPERS.fetch_sub(1, Ordering::AcqRel);
+        bevy::log::warn!("{MOST_REAPERS} terminal reapers are already waiting on children that will not leave; this one is leaked");
+        return;
+    }
+    let spawned = std::thread::Builder::new().name("terminal-reaper".to_owned()).spawn(move || {
+        drop(ManuallyDrop::into_inner(pty));
+        REAPERS.fetch_sub(1, Ordering::AcqRel);
+    });
+    if spawned.is_err() {
+        REAPERS.fetch_sub(1, Ordering::AcqRel);
+    }
 }
 
 /// **Has `pid` left?** The look is `waitid` with `NOWAIT`: it says a child has exited **without reaping
@@ -378,32 +442,36 @@ fn child_has_left(pid: rustix::process::Pid) -> bool {
     }
 }
 
-/// **Hangs up on `pid`, kills it if it is still there after `grace`, and waits `after_kill` more** (#427). `drain` is called at every
-/// look, before and after the kill: the child cannot finish exiting while the terminal holds output nobody reads. `signal` sends a
-/// signal to the child. `true` when the child has left, `false` when it has not by then.
+/// **Hangs up on every pid, kills the ones still there after `grace`, and waits `after_kill` more** (#427). `drain` is called at every
+/// look, before and after the kill: a child cannot finish exiting while the terminal holds output nobody reads. `signal` sends a
+/// signal to one child. `true` when every child has left, `false` when one has not by then.
 #[cfg(unix)]
-pub(crate) fn end_the_child(
-    pid: rustix::process::Pid,
+pub(crate) fn end_the_children(
+    pids: &[rustix::process::Pid],
     grace: std::time::Duration,
     after_kill: std::time::Duration,
     drain: &mut dyn FnMut(),
-    signal: &mut dyn FnMut(rustix::process::Signal),
+    signal: &mut dyn FnMut(rustix::process::Pid, rustix::process::Signal),
 ) -> bool {
-    signal(rustix::process::Signal::HUP);
-    if wait_for_the_child(pid, grace, drain) {
+    for &pid in pids {
+        signal(pid, rustix::process::Signal::HUP);
+    }
+    if wait_for_the_children(pids, grace, drain) {
         return true;
     }
-    signal(rustix::process::Signal::KILL);
-    wait_for_the_child(pid, after_kill, drain)
+    for &pid in pids.iter().filter(|&&pid| !child_has_left(pid)) {
+        signal(pid, rustix::process::Signal::KILL);
+    }
+    wait_for_the_children(pids, after_kill, drain)
 }
 
-/// Looks at `pid` every [`HANGUP_POLL_MS`] for `bound`, reading the terminal at each look. `true` when it has left.
+/// Looks at the pids every [`HANGUP_POLL_MS`] for `bound`, reading the terminals at each look. `true` when all have left.
 #[cfg(unix)]
-fn wait_for_the_child(pid: rustix::process::Pid, bound: std::time::Duration, drain: &mut dyn FnMut()) -> bool {
+fn wait_for_the_children(pids: &[rustix::process::Pid], bound: std::time::Duration, drain: &mut dyn FnMut()) -> bool {
     let deadline = std::time::Instant::now() + bound;
     loop {
         drain();
-        if child_has_left(pid) {
+        if pids.iter().all(|&pid| child_has_left(pid)) {
             return true;
         }
         if std::time::Instant::now() >= deadline {

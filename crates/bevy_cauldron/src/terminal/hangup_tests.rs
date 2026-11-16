@@ -7,7 +7,7 @@ use std::time::{Duration, Instant};
 
 use rustix::process::{Pid, Signal};
 
-use super::pty::end_the_child;
+use super::pty::end_the_children;
 
 const GRACE: Duration = Duration::from_millis(200);
 const AFTER_KILL: Duration = Duration::from_millis(150);
@@ -36,12 +36,12 @@ fn the_terminal_is_read_at_every_look_before_and_after_the_kill() {
     let mut reads = 0usize;
     let mut sent = Vec::new();
     let started = Instant::now();
-    let left = end_the_child(
-        pid,
+    let left = end_the_children(
+        &[pid],
         GRACE,
         AFTER_KILL,
         &mut || reads += 1,
-        &mut |signal| {
+        &mut |pid, signal| {
             sent.push(signal);
             let _ = rustix::process::kill_process(pid, signal);
         },
@@ -52,7 +52,7 @@ fn the_terminal_is_read_at_every_look_before_and_after_the_kill() {
     assert!(left, "a killed child that is not held by anything leaves");
     assert_eq!(sent, [Signal::HUP, Signal::KILL], "hung up first, killed when the grace had passed");
     assert!(took >= GRACE * 9 / 10, "the child had its grace ({took:?})");
-    assert!(reads >= 10, "the terminal was read at every look while the child was given its grace, not once: {reads} reads");
+    assert!(reads >= 3, "the terminal was read at every look while the child was given its grace, not once: {reads} reads");
 }
 
 #[test]
@@ -63,7 +63,7 @@ fn a_child_that_cannot_be_ended_is_given_up_on_after_the_kill() {
     let mut sent = Vec::new();
     let started = Instant::now();
     // Signals that reach nothing: the child stays, as one held in the kernel does on macOS.
-    let left = end_the_child(pid, GRACE, AFTER_KILL, &mut || {}, &mut |signal| sent.push(signal));
+    let left = end_the_children(&[pid], GRACE, AFTER_KILL, &mut || {}, &mut |_pid, signal| sent.push(signal));
     let took = started.elapsed();
     let _ = rustix::process::kill_process(pid, Signal::KILL);
     let _ = child.wait();

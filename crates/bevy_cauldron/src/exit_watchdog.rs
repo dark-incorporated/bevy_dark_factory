@@ -33,8 +33,12 @@
 //! before the [`AppExit`] is written is the other place a quit gets stuck. The heartbeat is a frame counter ([`ExitState`]).
 //!
 //! **And so is the system's own quit** (#427): Cmd+Q on a Mac is the menu's `terminate:`, which runs winit's exit and drops the
-//! `World` with no `AppExit` and no request read. A marker entity ([`TheWorldEnds`]) whose drop begins the exit is cleared with the
-//! world, before the resources, so a teardown stuck in one of them is given its deadline like any other.
+//! `World` with no `AppExit` and no request read. [`ExitWatchdogPlugin`] spawns a marker entity ([`TheWorldEnds`]) whose drop begins
+//! the exit. **Why it is dropped before the `Terminal`, wherever either was made**: in Bevy 0.20 a `#[derive(Resource)]` is a component
+//! with `SparseSet` storage, and a plain component is `Table` storage; `World::clear_all` clears every table, then every sparse set.
+//! So the marker (a table component) is dropped before **every resource**, the `Terminal` whose drop waits on its shells among them,
+//! whatever the order they were made in. It is not dropped before a table component of an entity made earlier; nothing here is.
+//! `the_exit_marker_is_dropped_before_every_resource` pins this, so a Bevy upgrade that changes it fails there.
 //!
 //! # A second press ends it
 //!
@@ -339,10 +343,12 @@ struct ExitWatchdogArmed(#[allow(dead_code)] ExitWait);
 struct ExitWatchRunning;
 
 /// **The world being dropped is an exit** (#427). Cmd+Q on a Mac is the system menu's `terminate:`, not the editor's key handler:
-/// winit's `applicationWillTerminate` runs the app's exit and clears the `World`, with no `AppExit` written and no [`crate::app_verbs::QuitRequested`]
-/// read, so nothing armed the watchdog: measured on a real macOS build (bmb, 0.6.8, 2026-11-15), a quit stuck in a terminal's
-/// `Child::wait` was alive after five minutes with the watchdog thread asleep. The entities are dropped before the resources, so this
-/// one is dropped before the `Terminal` and the rest that can wait, and begins the exit that the watchdog gives its deadline.
+/// winit's `applicationWillTerminate` runs the app's exit and clears the `World`, with no `AppExit` written and no
+/// [`crate::app_verbs::QuitRequested`] read, so nothing armed the watchdog: measured on a real macOS build (bmb, 0.6.8, 2026-11-15), a
+/// quit stuck in a terminal's `Child::wait` was alive after five minutes with the watchdog thread asleep.
+///
+/// **It is spawned when the plugin is built**, so a quit that comes before the first frame is covered too. It is a table component and
+/// every resource is a sparse-set one (see the module's notes), which is what makes it the first thing the world drops that can wait.
 #[derive(Component)]
 struct TheWorldEnds(ExitState);
 
@@ -367,9 +373,10 @@ impl ExitWatchdogPlugin {
 
 impl Plugin for ExitWatchdogPlugin {
     fn build(&self, app: &mut App) {
-        app.insert_resource(self.watchdog)
-            .init_resource::<ExitState>()
-            .add_message::<crate::app_verbs::QuitRequested>()
+        app.insert_resource(self.watchdog).init_resource::<ExitState>();
+        let state = app.world().resource::<ExitState>().clone();
+        app.world_mut().spawn(TheWorldEnds(state));
+        app.add_message::<crate::app_verbs::QuitRequested>()
             .add_message::<WindowCloseRequested>()
             .add_systems(Startup, start_the_watch)
             .add_systems(First, beat)
@@ -424,7 +431,6 @@ fn start_the_watch(
     match spawn_watch(state.clone(), Some(*second), watchdog.grace, watchdog.then) {
         Ok(_) => {
             commands.insert_resource(ExitWatchRunning);
-            commands.spawn(TheWorldEnds(state.clone()));
         }
         Err(e) => warn!("the exit watchdog did not start: {e}"),
     }
