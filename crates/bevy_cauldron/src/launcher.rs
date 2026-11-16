@@ -1176,7 +1176,7 @@ fn copy_to_clipboard(text: &str) -> Result<(), String> {
 fn learn_page(page: &mut ChildSpawnerCommands, launcher: &Launcher) {
     page.spawn(heading("Learn"));
     let example = launcher.example.is_some();
-    page.spawn(label("Start with a two-minute tour of the example, or read the guide."));
+    page.spawn((label("Start with a two-minute tour of the example, or read the guide."), crate::prose::Prose));
     if example {
         page.spawn((
             button("Take the tour"),
@@ -1202,12 +1202,14 @@ pub const NEWS_SHOWN: usize = 10;
 /// width.
 ///
 /// At the capture's own window (1280 logical) the page's rows ran 778 px of prose — about **118
-/// characters** at this face's advance — and the note is *"These boxes like this are hard to read"*
+/// characters** at the monospace face's advance — and the note is *"These boxes like this are hard to read"*
 /// (`feedback-1793905698793`). Bringhurst's comfortable measure for one column is 45–75 characters,
-/// and past that the eye loses its place between one line and the next. At ~6.6 px a character
-/// (FiraMono at 11 px), `MEASURE_CHARS` is 66 characters — inside that range, and fixed, so a wider
-/// window buys page margin rather than a longer line.
-pub const NEWS_MEASURE_PX: f32 = 440.0;
+/// and past that the eye loses its place between one line and the next. The sentences are set in the
+/// proportional prose face now (#469), whose characters are narrower than FiraMono's 6.6 px: 440 px held
+/// **83** glyphs a line (counted from the layout, `the_whats_new_page_reads_in_a_proportional_face.rs`), so
+/// the column is 380 px, about 72 — inside that range, and fixed, so a wider window buys page margin
+/// rather than a longer line.
+pub const NEWS_MEASURE_PX: f32 = 380.0;
 
 /// The still of an entry's clip, decoded, or `None` when it cannot be had: the changelog's stills are stored in Git LFS and are
 /// beside the source a build came from or in the app's `Resources`, so an install without them lists the entry without its picture.
@@ -1224,7 +1226,7 @@ fn still_image(rel: &str) -> Option<Image> {
 fn news_page(page: &mut ChildSpawnerCommands, launcher: &Launcher, art: &mut Art) {
     page.spawn(heading("What's new"));
     if launcher.news.is_empty() {
-        page.spawn(label("Nothing to tell you about yet."));
+        page.spawn((label("Nothing to tell you about yet."), crate::prose::Prose));
     }
     for item in launcher.news.iter().take(NEWS_SHOWN) {
         let Some(sentence) = item.user.clone() else { continue };
@@ -1258,7 +1260,8 @@ fn news_page(page: &mut ChildSpawnerCommands, launcher: &Launcher, art: &mut Art
                 if fresh {
                     words.spawn((Text::new("New"), Role::Label, Pickable::IGNORE));
                 }
-                words.spawn((Text::new(sentence), Role::ButtonText, Pickable::IGNORE));
+                // **Prose** (#469): a sentence is read, so it is drawn in the proportional face; its ink still follows the entry's button state.
+                words.spawn((Text::new(sentence), Role::ButtonText, Pickable::IGNORE, crate::prose::Prose));
             });
         });
     }
