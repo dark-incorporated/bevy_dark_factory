@@ -7,7 +7,7 @@ environment: EDITOR_BIN  the `bevy_cauldron` binary (default: `bevy_cauldron` be
              SETTLE_S    seconds to wait after the editor answers BRP, for the palette's thumbnails to bake (default 45)
 
 It starts the editor on the project as `bevy_cauldron . <map>` with its own HOME and a free BRP port, takes the editor's own picture
-(`bevy_fairy/screenshot`, source offscreen: the world and the interface, as the person sees them) and closes the editor. The project it is
+(`bevy_fairy/screenshot`, source window: the world and the interface, as the person sees them, with the whole map framed) and closes the editor. The project it is
 given is changed by nothing but the editor's own start-up: `cauldron-negatives` hands it a scratch copy, never the person's project.
 """
 import base64
@@ -53,7 +53,7 @@ def main():
     proc = subprocess.Popen(
         [editor, ".", name], cwd=root, stdin=subprocess.DEVNULL, stdout=log, stderr=log,
         env={**os.environ, "HOME": home, "XDG_DATA_HOME": os.path.join(home, "data"), "XDG_CONFIG_HOME": os.path.join(home, "config"),
-             "BEVY_BRP_PORT": str(port), "GRIMOIRE_BENCH_RUN": "1"},
+             "BEVY_BRP_PORT": str(port), "GRIMOIRE_BENCH_RUN": "1", "GRIMOIRE_FULLSCREEN": "1"},
     )
     try:
         for _ in range(120):
@@ -67,7 +67,10 @@ def main():
         else:
             sys.exit("the editor never answered BRP")
         time.sleep(settle)
-        asked = brp(port, "bevy_fairy/screenshot", {"source": "offscreen"})
+        # **The whole map, in view**: the camera moves, the map does not (nothing is logged), and the window is what a person sees.
+        brp(port, "grimoire/frame_view", {"target": "map"})
+        time.sleep(3)
+        asked = brp(port, "bevy_fairy/screenshot", {"source": "window"})
         deadline = time.time() + 30
         while time.time() < deadline:
             got = brp(port, "bevy_fairy/capture", {"id": asked["id"]})
