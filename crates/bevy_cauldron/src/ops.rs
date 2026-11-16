@@ -7966,6 +7966,7 @@ pub fn registry() -> Vec<Box<dyn Operation>> {
         #[cfg(feature = "bevy_elements")]
         Box::new(crate::ops_terrain::TerrainPreset),
         Box::new(crate::ops_volume::VolumeEdit),
+        Box::new(crate::ops_volume::VolumeSet),
         Box::new(crate::ops_forest::ForestScatter),
         Box::new(crate::ops_tree::TreeEdit),
         Box::new(crate::ops_people::PersonSet),

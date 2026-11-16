@@ -539,6 +539,7 @@ mod volume_edit_can_correct_an_entry;
 mod volume_edit_is_an_operation;
 mod volume_edit_says_which_entry_it_changed;
 mod volume_meshes_without_cracks;
+mod volume_set_replaces_the_whole_list;
 mod volume_snow;
 mod volume_wears_its_cover;
 mod water_place_is_an_operation;

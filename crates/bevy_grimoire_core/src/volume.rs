@@ -135,14 +135,25 @@ impl Volume {
         self.edits.is_empty()
     }
 
+    /// **Every entry checked by the rule the reader holds a file to**, naming the first that fails by
+    /// its index: `edit 2: every radius and half-size must be above zero`.
+    ///
+    /// **The one place that rule is applied to a list**, so a list written from `volume_set` cannot
+    /// carry an entry the next read refuses, and a hand-written file cannot either: [`Volume::parse`]
+    /// calls this, and so does the operation that sets a whole list (#474).
+    pub fn check(&self) -> Result<(), String> {
+        for (i, e) in self.edits.iter().enumerate() {
+            e.check().map_err(|why| format!("edit {i}: {why}"))?;
+        }
+        Ok(())
+    }
+
     /// **Read a volume from its file's text**, refusing an edit [`Edit::check`] would refuse (a number
     /// that is not finite, a size that is not above zero, a negative blend) and naming it (`edit 2`).
     /// A hand edit that reads as a list of edits but would feed the mesher a NaN is refused here.
     pub fn parse(text: &str) -> Result<Volume, String> {
         let volume: Volume = crate::yaml::from_str(text, "volume").map_err(|p| format!("volume: {}", p.line()))?;
-        for (i, e) in volume.edits.iter().enumerate() {
-            e.check().map_err(|why| format!("volume: edit {i}: {why}"))?;
-        }
+        volume.check().map_err(|why| format!("volume: {why}"))?;
         Ok(volume)
     }
 

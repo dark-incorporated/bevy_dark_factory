@@ -1,24 +1,32 @@
-//! **Carving and adding volume, as one registered operation** (#101): `volume_edit`.
+//! **Carving and adding volume, as registered operations** (#101): `volume_edit` and `volume_set`.
 //!
 //! The volume is `<grimoire_dir>/volume/<map>.yaml`, the engine-free `bevy_grimoire_core::volume::Volume`
-//! (its edit list, not voxels) as RON, saved beside the map.
+//! (its edit list, not voxels) as YAML, saved beside the map.
 //!
 //! # What one call does
 //!
-//! **One entry of the list changes, or every entry goes.** `edit` appends it, `at: <index>` replaces
+//! **`volume_edit` changes one entry, or every entry goes.** `edit` appends it, `at: <index>` replaces
 //! the entry standing there, `remove: <index>` takes that entry out, and `clear: true` empties the
 //! list; each is one undo, whose inverse is the same operation carrying the file as it was.
 //!
+//! **`volume_set` replaces the whole list** (#474): `edits` is the list the map should hold, in order,
+//! and it is one undo whose inverse is the file as it was. Correcting a 26-entry carve list had two
+//! paths before it and both were wrong — append compensating entries (the file becomes a diary) or
+//! rewrite the YAML by hand (which the log never saw, so *Undo all* left the broken geometry standing
+//! while telling the person their work was reverted).
+//!
 //! **An index the list has not got is refused**, naming it and the list's length (#474): the old path
 //! could only append, so a caller correcting entry 2 had no way to say so and a silent append would
-//! have written the change somewhere it did not ask for.
+//! have written the change somewhere it did not ask for. **A `volume_set` list with one entry the
+//! single-edit path refuses is refused whole**, naming that entry's index.
 //!
 //! # What one call says
 //!
 //! **Which entry it changed** (#473): the index it stands at, how many entries the list holds now,
 //! the shape's kind and whether it adds or carves, and — for a replace or a removal — what stood
 //! there before. The index and the count travel in the log line's `after` too, so an oplog reader can
-//! find the entry a change made without re-reading the list.
+//! find the entry a change made without re-reading the list. `volume_set` says how many entries the
+//! list holds now, and carries the text it wrote.
 
 use bevy_grimoire_core::volume::{Edit, Volume};
 use serde::{Deserialize, Serialize};
@@ -116,7 +124,15 @@ fn read(ctx: &Ctx, map: &str) -> Option<String> {
 /// **The saved volume of the open map**, or `None` when it has none.
 pub fn volume_of(project: &crate::project::Project, open: &crate::project::OpenMap) -> Option<Volume> {
     let name = open.map_path.file_name()?.to_str()?.strip_suffix(".map.yaml")?;
-    Volume::parse(&std::fs::read_to_string(project.grimoire_dir.join("volume").join(format!("{name}.yaml"))).ok()?).ok()
+    volume_named(project, name)
+}
+
+/// **A map's saved volume by its name**, or `None` when it has none. **The one reader of the
+/// `<grimoire_dir>/volume/<map>.yaml` path**, so a report and an edit cannot read different files for
+/// one map name.
+pub fn volume_named(project: &crate::project::Project, map: &str) -> Option<Volume> {
+    let text = std::fs::read_to_string(project.grimoire_dir.join("volume").join(format!("{map}.yaml"))).ok()?;
+    Volume::parse(&text).ok()
 }
 
 /// **What one call did to the list** (#473): which entry it touched, and what stood there.
@@ -286,6 +302,163 @@ impl Operation for VolumeEdit {
             }
         }
         Ok(said)
+    }
+    fn commit(&self, ctx: &mut Ctx, params: &serde_json::Value) -> Result<Outcome, Refusal> {
+        Self::apply(ctx, params, true)
+    }
+}
+
+/// **The parameters of `volume_set`** (#474): the map, and the whole list it should hold.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct SetParams {
+    pub map: String,
+    /// **The list the map's volume should hold**, in the order the file lists them, in `volume_edit`'s
+    /// own `edit` objects. Absent only for an undo, whose `put_back` is the file.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub edits: Option<Vec<Edit>>,
+    /// An undo's put-back. Not a thing a caller sends.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub put_back: Option<PutBack>,
+}
+
+impl SetParams {
+    pub fn schema() -> serde_json::Value {
+        json!({
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["map", "edits"],
+            "properties": {
+                "map": {"type": "string", "description": "The map whose volume is replaced."},
+                "edits": {
+                    "type": "array",
+                    "description": "The list the map's volume should hold, in order, in `volume_edit`'s own edit objects: {\"shape\": {\"Sphere\": {center, radius_m}} | {\"Box\": {center, half_m}} | {\"Capsule\": {a, b, radius_m}}, \"mode\": \"Add\"|\"Carve\", \"smooth_m\": blend metres}. An empty list empties the map. One entry the single-edit path refuses is refused whole, naming its index, and nothing is written.",
+                    "items": {"type": "object"}
+                },
+                "put_back": {"type": "object", "description": "An undo's put-back. Only an undo sends this."}
+            }
+        })
+    }
+
+    pub fn parse(raw: &serde_json::Value) -> Result<SetParams, Refusal> {
+        let p: SetParams = serde_json::from_value(raw.clone()).map_err(|e| {
+            Refusal::new(format!(
+                "this is not a whole volume: {e}. The fields are `map`, `edits` and `put_back`."
+            ))
+        })?;
+        if p.put_back.is_none() && p.edits.is_none() {
+            return Err(Refusal::new(
+                "a whole volume needs `edits`: the list the map should hold. Send an empty list to empty it. Nothing was changed.",
+            ));
+        }
+        Ok(p)
+    }
+}
+
+/// **The list a `volume_set` will write, or the refusal naming the entry that made it impossible.**
+///
+/// **The check is [`Volume::parse`]'s own**, walked here over a list that never came from a file: a
+/// caller's list is held to exactly the rule the reader holds a hand-written file to, so a `volume_set`
+/// cannot put in a file an entry the next read refuses. The index is the one the issue asks for, since
+/// a refusal that said only "an entry" would leave an agent hunting through twenty-six of them.
+fn checked(edits: Vec<Edit>) -> Result<Volume, Refusal> {
+    let volume = Volume { version: bevy_grimoire_core::volume::VOLUME_VERSION, edits };
+    volume.check().map_err(|why| Refusal::new(format!("volume: {why}. Nothing was changed.")))?;
+    Ok(volume)
+}
+
+/// **Set a map's whole carve list, in one logged, undoable change** (#474).
+///
+/// # Why this is not `volume_edit` with a list
+///
+/// `volume_edit` is **one entry**: append, replace one, remove one, or clear. None of those can say
+/// "the list is this now", and correcting a 26-entry carve list had one path left — **rewrite the YAML
+/// by hand**, which the operation log never saw. The hand-back a person was shown offered *Undo all*,
+/// and it would have left the broken geometry standing while telling them their work was reverted.
+///
+/// **So the whole list is the change**: one `volume_set` line, whose inverse is the file as it was.
+/// The file is written by the same writer the single-edit path uses, so the same list written either
+/// way is the same bytes — a `volume_set` is a second way to say a list, not a second file format.
+///
+/// # What it refuses
+///
+/// **A list containing one entry the single-edit path refuses is refused whole, naming the index**
+/// ([`checked`]). Nothing is written: a `volume_set` that wrote the entries it could and dropped the
+/// one it could not would be the silent append #474 exists to stop, at a larger scale.
+pub struct VolumeSet;
+
+impl VolumeSet {
+    fn apply(ctx: &Ctx, params: &serde_json::Value, write: bool) -> Result<Outcome, Refusal> {
+        let p = SetParams::parse(params)?;
+        let path = path_of(ctx, &p.map)?;
+        let before = std::fs::read_to_string(&path).ok();
+        let (text, entries) = if let Some(back) = &p.put_back {
+            // **A put-back is the file**, and the answer is that file's own list: reading it here is
+            // what lets a receipt say how many entries an undo restored.
+            let entries = back.text.as_deref().and_then(|t| Volume::parse(t).ok()).map_or(0, |v| v.edits.len());
+            (back.text.clone(), entries)
+        } else {
+            let volume = checked(p.edits.clone().unwrap_or_default())?;
+            let entries = volume.edits.len();
+            let text = bevy_grimoire_core::yaml::to_string(&volume)
+                .map_err(|e| Refusal::new(format!("the volume could not be written: {e}")))?;
+            (Some(text), entries)
+        };
+        if write {
+            match &text {
+                Some(t) => {
+                    if let Some(dir) = path.parent() {
+                        std::fs::create_dir_all(dir).map_err(|e| Refusal::new(format!("{} cannot be made: {e}", dir.display())))?;
+                    }
+                    bevy_grimoire_core::atomic_file::write(&path, t)
+                        .map_err(|e| Refusal::new(format!("{} refused the change, so nothing was written: {e}", path.display())))?;
+                }
+                None => {
+                    let _ = std::fs::remove_file(&path);
+                }
+            }
+        }
+        Ok(Outcome {
+            summary: format!("volume {}: set to {} entries", p.map, entries),
+            // **The entries the list holds now**, the same count the answer says: a whole-list set
+            // changes as many things as the list is long, and a receipt that said 1 would be a lie
+            // about a 26-entry correction.
+            affected: entries,
+            saved: write,
+            inverse: Some(json!({"map": p.map, "put_back": {"text": before}})),
+            after: Some(json!({"map": p.map, "entries": entries, "text": text})),
+        })
+    }
+}
+
+impl Operation for VolumeSet {
+    fn name(&self) -> &'static str {
+        "volume_set"
+    }
+    fn shows(&self, _ctx: &Ctx, _params: &serde_json::Value) -> Shown {
+        Shown::MapWhole
+    }
+    fn writes(&self) -> &'static [&'static str] {
+        &["volume"]
+    }
+    fn undo(&self) -> Undo {
+        Undo::Inverse
+    }
+    fn only_as_undo(&self, params: &serde_json::Value) -> bool {
+        SetParams::parse(params).map(|p| p.put_back.is_some()).unwrap_or(false)
+    }
+    fn schema(&self) -> serde_json::Value {
+        SetParams::schema()
+    }
+    fn state_of(&self, ctx: &Ctx, after: &serde_json::Value) -> Option<serde_json::Value> {
+        let map = after.get("map")?.as_str()?;
+        Some(json!({"map": map, "text": read(ctx, map)}))
+    }
+    fn plan(&self, ctx: &Ctx, params: &serde_json::Value) -> Result<serde_json::Value, Refusal> {
+        let o = Self::apply(ctx, params, false)?;
+        // **The same fields the apply answers with**, read from the same outcome.
+        let after = o.after.clone().unwrap_or_default();
+        Ok(json!({"map": SetParams::parse(params)?.map, "entries": o.affected, "would_write": after.get("text").cloned()}))
     }
     fn commit(&self, ctx: &mut Ctx, params: &serde_json::Value) -> Result<Outcome, Refusal> {
         Self::apply(ctx, params, true)
