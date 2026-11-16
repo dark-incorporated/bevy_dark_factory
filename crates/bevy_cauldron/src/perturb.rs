@@ -58,7 +58,7 @@ use serde_json::{Value, json};
 use crate::ops::{self, Applied, Ctx};
 use crate::project::{OpenMap, Project};
 use crate::turn_store::{
-    LABEL_DEFECTIVE, OperationRecord, Perturbed, Provenance, Read, Shot, Store, TIER_OBJECTIVE, Turn, scene_of, sha256_hex,
+    HandBackRef, ImageRef, LABEL_DEFECTIVE, OperationRecord, Perturbed, Provenance, Read, Request, Shot, Store, TIER_OBJECTIVE, Turn, scene_of, sha256_hex,
 };
 
 /// **How far a lifted piece floats, in metres, for a near-threshold defect.** Four centimetres is a gap a person sees against a table's edge
@@ -985,4 +985,69 @@ pub fn run(read: &Read, store: &mut Store, project: &Path, scratch_parent: &Path
         }
     }
     Ok(report)
+}
+
+// ---------------------------------------------------------------------------------------------------------------------------------------------
+// Real pictures: what `cauldron-negatives` needs to draw a scene, and a scene to draw without a turn.
+// ---------------------------------------------------------------------------------------------------------------------------------------------
+
+/// **A scene as if a turn had kept it, for a contact sheet** (DL-05, #464): the map as it is, and the words of a request to find a piece's name in.
+///
+/// **Never written to a ledger**: it is a turn nobody made. It has no operations and no pictures, so every piece of the map is a candidate for
+/// a defect and the scene is, by construction, as the turn left it. The project is read, not written.
+pub fn kept_turn_from_map(project: &Path, map_name: &str, request: &str) -> Result<Turn, String> {
+    let opened = Project::open(project, None)?;
+    let open = OpenMap::open(&opened, map_name)?;
+    let why = "a contact sheet's scene was not made in a turn, so it has no picture of its own";
+    Ok(Turn {
+        id: format!("turn-sheet-{}", open.map.name),
+        bench: false,
+        started_unix_ms: 0,
+        handed_back_unix_ms: 0,
+        request: Request {
+            hand_back: HandBackRef { kind: "presentation".to_owned(), id: "sheet".to_owned() },
+            title: request.to_owned(),
+            summary: request.to_owned(),
+            specified: vec![request.to_owned()],
+            inferred: Vec::new(),
+            check: Vec::new(),
+            note: None,
+        },
+        before: Shot::missing(why),
+        after: Shot::missing(why),
+        operations: Vec::new(),
+        facts: json!({"map": {"name": open.map.name, "placements": open.map.placements.len()}, "operations": []}),
+        decisions: Vec::new(),
+        questions: Default::default(),
+        provenance: Provenance {
+            cauldron_version: env!("CARGO_PKG_VERSION").to_owned(),
+            build_commit: crate::turn_ledger::BUILD_COMMIT.to_owned(),
+            render: json!({"made_by": "perturb", "sheet": true}),
+            agent: None,
+            project_hash: sha256_hex(project.to_string_lossy().as_bytes()),
+        },
+    })
+}
+
+/// **The picture of the scene as it is**, drawn from a scratch copy so the person's project is never opened by an editor.
+pub fn render_kept(project: &Path, scratch_parent: &Path, map_name: &str, render: Render<'_>) -> Result<Shot, String> {
+    if scratch_parent.starts_with(project) {
+        return Err(format!("the scratch folder {} is inside the project, which a perturbation never writes into", scratch_parent.display()));
+    }
+    let scratch = Scratch::make(project, scratch_parent, &format!("kept-{map_name}-{}", std::process::id()))?;
+    Ok(render(&scratch.root, map_name))
+}
+
+/// **A PNG a renderer made, kept in the store as a picture**: its size, whether it is one flat colour, and the reason when it cannot be read.
+pub fn shot_of_png(store: &mut Store, png: &[u8]) -> Shot {
+    let decoded = match image::load_from_memory(png) {
+        Ok(decoded) => decoded.to_rgba8(),
+        Err(e) => return Shot::missing(format!("the renderer's picture did not decode: {e}")),
+    };
+    let mut pixels = decoded.as_raw().as_chunks::<4>().0.iter();
+    let flat = pixels.next().is_none_or(|first| pixels.all(|pixel| pixel == first));
+    match store.put_image(png, decoded.width(), decoded.height()) {
+        Ok(stored) => Shot::taken(ImageRef { flat, ..stored }),
+        Err(why) => Shot::missing(why),
+    }
 }
