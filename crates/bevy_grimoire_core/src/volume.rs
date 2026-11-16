@@ -188,13 +188,27 @@ impl Volume {
     /// from `base`: the ground's distance (`p.y - height`) to carve into a hill, or `f32::INFINITY`
     /// for empty space.
     pub fn sdf(&self, p: [f32; 3], base: f32) -> f32 {
-        self.edits.iter().fold(base, |d, e| {
+        self.sdf_before(self.edits.len(), p, base)
+    }
+
+    /// **The signed distance after the first `count` entries**, over `base`: the list as it stood
+    /// partway through, which is how "what did this carve cut that was standing when it arrived" is
+    /// asked of the same fold rather than a second implementation of it (#473).
+    pub fn sdf_before(&self, count: usize, p: [f32; 3], base: f32) -> f32 {
+        self.edits.iter().take(count).fold(base, |d, e| {
             let s = e.distance(p);
             match e.mode {
                 Mode::Add => smin(d, s, e.smooth_m),
                 Mode::Carve => -smin(-d, s, e.smooth_m),
             }
         })
+    }
+
+    /// **Whether the point is solid after every edit**, the ground's own distance before them
+    /// (`base`): the `true`/`false` an agent asks for with `at:`. The same function the mesher samples,
+    /// asked one question instead of a field of them, so a report and a picture cannot disagree.
+    pub fn is_solid(&self, p: [f32; 3], base: f32) -> bool {
+        self.sdf(p, base) <= 0.0
     }
 
     /// **The floor a piece rests on inside a cave** (#101): the height of the first solid met going

@@ -3158,7 +3158,55 @@ pub struct RectParam {
     pub rect: [f32; 4],
 }
 
-/// **The parameters of `grimoire/frame_view`.** `deny_unknown_fields`, so a typo is a refusal.
+/// **The parameters of `grimoire/volume_report`** (#473). `deny_unknown_fields`, so a typo is a
+/// refusal: a `at` misspelled would answer "no point asked" and read as a working call.
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(deny_unknown_fields, default)]
+pub struct VolumeReportParams {
+    /// **The map to report on**; absent is the open map.
+    pub map: Option<String>,
+    /// **The points to answer "is this floor air?" for**, each `[x, y, z]` in map metres. Empty answers
+    /// none, which is the whole report less the `at` list.
+    pub at: Vec<[f32; 3]>,
+}
+
+/// **`grimoire/volume_report` — what a map's carve list actually made** (#473).
+///
+/// **A read, and it changes nothing**: no file is written, the map is not marked dirty and no line
+/// joins the operation log, so there is nothing to undo and nothing in the person's history. The
+/// answer is [`VolumeReport`]'s own fields, from the same function a test measures.
+///
+/// **The questions it answers have no other door.** `grimoire_preview_operation` previews one edit
+/// against the map, and every defect the issue names exists only in the *sequence*, so a preview can
+/// never show one: a carve that removes an `Add` made earlier, a room sealed off from the rest, and a
+/// point a person calls "the floor" that is in fact rock.
+fn volume_report(In(p): In<VolumeReportParams>, loaded: Loaded) -> Result<Value, String> {
+    let Loaded { project, open, .. } = loaded;
+    let (Some(project), Some(open)) = (project.as_ref(), open.as_ref()) else {
+        return Err("no map is open, so there is no volume to report on.".to_owned());
+    };
+    // **The one reader of a volume's name**, shared with `volume_edit`: a report that resolved the map
+    // its own way could read a different file from the one a `volume_edit` writes.
+    let (volume, name) = match &p.map {
+        Some(name) => (crate::ops_volume::volume_named(project, name), name.clone()),
+        None => (crate::ops_volume::volume_of(project, open), open.map.name.clone()),
+    };
+    // **The ground the map is carved into** is the same one the mesher hands `sdf`, so a point the
+    // report calls air is a point the picture draws as air. A map with no terrain file is open space —
+    // its own entries are all that make solid, which is the truth for a map built of `Add`s.
+    let field = crate::ops_terrain::ground_of(project, open);
+    let ground: Box<dyn bevy_grimoire_core::volume_report::Ground> = match &field {
+        Some(f) => Box::new(bevy_grimoire_core::volume_report::OverGround(f)),
+        None => Box::new(bevy_grimoire_core::volume_report::EmptySpace),
+    };
+    let report = volume.unwrap_or_default().report(ground.as_ref(), &p.at);
+    let mut answer = serde_json::to_value(&report).map_err(|e| format!("the report could not be written: {e}"))?;
+    // **Which map it answered for**: the report's fields say what the list made, and this says whose
+    // list it was, so a caller that named no map knows which one it got.
+    answer["map"] = Value::String(name);
+    Ok(answer)
+}
+
 #[derive(Debug, Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct FrameParams {
@@ -3802,6 +3850,24 @@ impl Plugin for OpsBridgePlugin {
             .params("hide: any of terrain, volume, water (an empty list draws them all); replace: true (the default) replaces what was hidden, false adds to it.")
             .example(json!({"hide": ["terrain"]})),
             surface_hide,
+        );
+
+        app.add_debug_command(
+            DebugCommandInfo::new(
+                "grimoire/volume_report",
+                "What a map's carve list actually made -- the question a carve raises and nothing else \
+                 answers: does this Add still exist after the carves that follow it, is this room sealed, \
+                 is this point air. Returns every entry (index, kind, mode, world bounds), \
+                 carves_that_cut_a_later_solid (an Add a later Carve cuts through, with how deep it \
+                 reaches), components (the void split into connected regions, a sealed room one list of \
+                 one), isolated (carves reaching no region at all) and, for each point in `at`, the \
+                 ordered entries containing it and whether the result is solid. A crown vault is an \
+                 isolated component of one and is not an error. A read: no file written, map not dirty, \
+                 no operation log line.",
+            )
+            .params("map: the map to report on (absent is the open map); at: points as [[x, y, z]] in map metres to answer \"is this floor air?\" for.")
+            .example(json!({"at": [[40.0, 6.5, 31.9], [40.0, 19.0, 40.0]]})),
+            volume_report,
         );
     }
 }

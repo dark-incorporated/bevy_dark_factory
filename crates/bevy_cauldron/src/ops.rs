@@ -8398,6 +8398,9 @@ pub const UI_ENTRY_POINTS: &[(&str, &str)] = &[
     // **The volume line (#101)** — `volume add|carve sphere|box|capsule <numbers> [smooth_m]` and `volume clear` in the
     // terrain field dispatch `volume_edit` through `edit_volume`.
     ("volume_edit", "edit_volume("),
+    // **`volume set <file>`** in the same field dispatches `volume_set` through the same `edit_volume`:
+    // a person with a whole corrected list has a file, not twenty-six lines to retype (#474).
+    ("volume_set", "edit_volume("),
     // `water run` in the same field dispatches `water_run` through `run_water`.
     ("water_run", "run_water("),
     // **The Note tool (#89)** — a dragged rectangle and the note box's Enter dispatch `note_add`

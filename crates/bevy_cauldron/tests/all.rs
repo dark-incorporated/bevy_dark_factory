@@ -275,6 +275,7 @@ mod an_agent_can_make_a_map;
 mod an_agent_can_place_a_piece;
 mod an_agent_can_search_the_operations;
 mod an_agent_can_see_inside_a_carved_map;
+mod an_agent_can_ask_a_carve_list_what_it_made;
 mod an_agent_can_cut_into_a_carved_map;
 mod an_agent_can_show_its_plan;
 mod an_agent_can_take_its_own_change_back;

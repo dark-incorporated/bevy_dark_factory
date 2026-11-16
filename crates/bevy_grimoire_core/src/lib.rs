@@ -100,6 +100,7 @@ pub mod user_dirs;
 pub mod vocab;
 pub mod wfc;
 pub mod volume;
+pub mod volume_report;
 pub mod water;
 pub mod wish;
 pub mod yaml;

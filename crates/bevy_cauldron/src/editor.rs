@@ -6102,6 +6102,46 @@ fn edit_volume(project: Option<&Project>, open: Option<&OpenMap>, state: &mut Ed
     };
     let words: Vec<&str> = raw.split_whitespace().collect();
     let nums: Vec<f32> = words.iter().skip(3).map_while(|n| n.parse().ok()).collect();
+    // **`volume set <file>` is `volume_set`** (#474): a person at the keyboard expressing a whole list
+    // has no way to type twenty-six entries, and the honest form of "the list is this now" is a file
+    // they can see and edit. The file is read *and validated* by the operation, so a bad entry is
+    // refused naming its index with nothing written, exactly as an agent's call is.
+    if words.get(1) == Some(&"set") {
+        let Some(path) = words.get(2) else {
+            state.status.problem("`volume set` needs a file: the volume YAML whose list is to be the map's".to_owned());
+            return;
+        };
+        let text = match std::fs::read_to_string(path) {
+            Ok(text) => text,
+            Err(e) => {
+                state.status.problem(format!("{path} cannot be read, so the volume is as it was: {e}"));
+                return;
+            }
+        };
+        let edits = match bevy_grimoire_core::volume::Volume::parse(&text) {
+            Ok(volume) => serde_json::to_value(&volume.edits).unwrap_or_default(),
+            Err(why) => {
+                state.status.problem(format!("{path} is not a volume, so the volume is as it was: {why}"));
+                return;
+            }
+        };
+        let mut ctx = crate::ops::Ctx {
+            project: project.cloned(),
+            open: Some(open.clone()),
+            source: crate::ops::Source::Human,
+            session: crate::ops::session_id(),
+            ..crate::ops::Ctx::default()
+        };
+        let params = serde_json::json!({"map": open.map.name, "edits": edits});
+        match crate::ops::dispatch(&mut ctx, "volume_set", &params) {
+            Ok(crate::ops::Applied::Done { outcome, operation_id, .. }) => {
+                state.status.note(outcome.summary.clone());
+                state.record(Undo::Logged { line: operation_id, phrase: outcome.summary, agent: false });
+            }
+            Ok(crate::ops::Applied::Refused(e)) | Err(e) => state.status.problem(e.0),
+        }
+        return;
+    }
     let (arity, shape) = match words.get(2).copied() {
         Some("sphere") => (4, nums.get(..4).map(|n| serde_json::json!({"Sphere": {"center": [n[0], n[1], n[2]], "radius_m": n[3]}}))),
         Some("box") => (6, nums.get(..6).map(|n| serde_json::json!({"Box": {"center": [n[0], n[1], n[2]], "half_m": [n[3], n[4], n[5]]}}))),
@@ -6115,7 +6155,7 @@ fn edit_volume(project: Option<&Project>, open: Option<&OpenMap>, state: &mut Ed
         serde_json::json!({"map": open.map.name, "edit": {"shape": shape, "mode": mode, "smooth_m": nums.get(arity).copied().unwrap_or(0.0)}})
     } else {
         state.status.problem(format!(
-            "`{}` is not `volume add|carve sphere|box|capsule <numbers> [smooth_m]` or `volume clear`, so nothing was changed",
+            "`{}` is not `volume add|carve sphere|box|capsule <numbers> [smooth_m]`, `volume set <file>` or `volume clear`, so nothing was changed",
             raw.trim()
         ));
         return;

@@ -22,6 +22,7 @@
 //! | `grimoire_read_oplog` | the log, newest last |
 //! | `grimoire_frame_view` | frame the Map camera on the map, a selection, placements or a rectangle |
 //! | `grimoire_state` | what the editor is holding now, as JSON |
+//! | `grimoire_volume_report` | what a map's carve list made: an `Add` a later `Carve` cut, the voids, and whether a point is air |
 //! | `grimoire_capture_still` | one picture of the editor, plus the state |
 //! | `grimoire_capture_sequence` | frames at 4 fps by default (2 to 15 a second), with an optional operation after frame 0 |
 //! | `grimoire_snip` | one rectangle of the picture, cut out and written as a crop with its metadata |
@@ -43,7 +44,7 @@
 //! | `grimoire_open_project` | open a project folder in the running editor, from any screen including the Projects home |
 //! | `grimoire_self_test` | the power-on self test an agent runs when Cauldron's terminal starts it |
 //!
-//! **Twenty-eight tools, and the set is small on purpose.** An agent's context is spent on the tools it
+//! **Twenty-nine tools, and the set is small on purpose.** An agent's context is spent on the tools it
 //! is offered, and a catalogue of ninety-six verbs is a catalogue of ninety-six things to choose
 //! badly from. **The operation tools are a discovery surface**: the first names what exists, and
 //! the others preview, run and take back what it names. Later iterations add one tool per
@@ -515,6 +516,20 @@ pub struct StateParams {
     /// first with `note_claim`; `notes.sent` lists what can be claimed.
     #[serde(default)]
     pub note: Option<String>,
+}
+
+/// **The parameters of `grimoire_volume_report`** (#473).
+#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct VolumeReportParams {
+    /// **The map to report on.** Absent is the open map.
+    #[serde(default)]
+    pub map: Option<String>,
+    /// **Points to answer "is this floor air?" for**, each `[x, y, z]` in map metres. The answer's `at`
+    /// lists, per point, the ordered entries that contain it and whether the result is solid. Empty
+    /// answers none.
+    #[serde(default)]
+    pub at: Vec<[f32; 3]>,
 }
 
 /// **The parameters of `grimoire_present`.** A result, handed back for review.
@@ -1169,6 +1184,48 @@ impl Grimoire {
         match self
             .editor
             .call("grimoire/state", json!({"pinned_from": p.pinned_from, "note": p.note}))
+            .await
+        {
+            Ok(v) => Ok(CallToolResult::structured(v)),
+            Err(e) => Ok(refusal(&e)),
+        }
+    }
+
+    /// **`grimoire_volume_report` — what a map's carve list actually made** (#473).
+    ///
+    /// **The one question a carve raises and nothing else answered.** `volume_edit` takes one entry per
+    /// call and answers `edited`, and `grimoire_preview_operation` previews one edit against the map —
+    /// so every defect the issue names exists only in the *sequence* and no per-call preview can show
+    /// one. Three were found in one session by hand, with a Python voxel sampler over the YAML.
+    ///
+    /// **A read**: no file is written, the map is not marked dirty, no operation log line is made.
+    #[tool(
+        name = "grimoire_volume_report",
+        description = "What a map's carve list actually made, and nothing changed: every entry \
+                       (index, kind, mode, world bounds); carves_that_cut_a_later_solid, an Add that \
+                       a Carve after it cuts through, with overlapping_m how deep it reaches (order is \
+                       load-bearing and nothing else says so); components, the void split into \
+                       connected regions so a sealed room is one list of one; isolated, carves reaching \
+                       no region at all (one a later Add filled); and, for each point in `at`, the \
+                       ordered entries containing it and whether the result is solid, which is the \
+                       ground truth for \"is this floor air?\". A crown vault reports as a component of \
+                       one and is not an error: it is a crypt's ceiling void, sealed on purpose. \
+                       Call it after carving a sequence, before claiming the map is right.",
+        annotations(
+            title = "Report on a map's carved volume",
+            read_only_hint = true,
+            destructive_hint = false,
+            idempotent_hint = true,
+            open_world_hint = false
+        )
+    )]
+    async fn volume_report(
+        &self,
+        Parameters(p): Parameters<VolumeReportParams>,
+    ) -> Result<CallToolResult, ErrorData> {
+        match self
+            .editor
+            .call("grimoire/volume_report", json!({"map": p.map, "at": p.at}))
             .await
         {
             Ok(v) => Ok(CallToolResult::structured(v)),

@@ -281,6 +281,22 @@ pub const TOOLS: &[ToolDoc] = &[
         idempotent: true,
     },
     ToolDoc {
+        name: "grimoire_volume_report",
+        description: "What a map's carve list actually made, and nothing changed: every entry \
+                       (index, kind, mode, world bounds); carves_that_cut_a_later_solid, an Add that \
+                       a Carve after it cuts through, with overlapping_m how deep it reaches (order is \
+                       load-bearing and nothing else says so); components, the void split into \
+                       connected regions so a sealed room is one list of one; isolated, carves reaching \
+                       no region at all (one a later Add filled); and, for each point in `at`, the \
+                       ordered entries containing it and whether the result is solid, which is the \
+                       ground truth for \"is this floor air?\". A crown vault reports as a component of \
+                       one and is not an error: it is a crypt's ceiling void, sealed on purpose. \
+                       Call it after carving a sequence, before claiming the map is right.",
+        read_only: true,
+        destructive: false,
+        idempotent: true,
+    },
+    ToolDoc {
         name: "grimoire_list_pieces",
         description: "The library's pieces, a page at a time. Each row carries the piece's id, the \
                        mesh it is drawn with (null for a flat footprint marker), its kind, effects \
@@ -934,6 +950,19 @@ pub fn schemas() -> Value {
         map.insert("grimoire_lesson".to_owned(), lesson_schema());
         map.insert("grimoire_style".to_owned(), style_schema());
         map.insert("grimoire_style_propose".to_owned(), style_propose_schema());
+        // **`grimoire_volume_report`** (#473), the same reason: the literal above is at the recursion
+        // limit, and one more entry pushes it over.
+        map.insert(
+            "grimoire_volume_report".to_owned(),
+            serde_json::json!({
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                    "map": {"type": ["string", "null"], "default": null, "description": "The map to report on. Absent is the open map."},
+                    "at": {"type": "array", "default": [], "items": {"type": "array", "minItems": 3, "maxItems": 3, "items": {"type": "number"}}, "description": "Points to answer \"is this floor air?\" for, each [x, y, z] in map metres. Each answer lists, in order, the entries whose primitive contains the point, and whether the result is solid there. Empty answers none."}
+                }
+            }),
+        );
     }
     document
 }
