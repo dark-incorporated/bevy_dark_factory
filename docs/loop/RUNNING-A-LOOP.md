@@ -341,10 +341,16 @@ is `.github/workflows/release-macos.yml` on mac_air: a `bevy_cauldron-v<version>
 notarizes, drives the fresh app through its own MCP, and publishes the DMG, the update zip and
 `SHA256SUMS` the in-app updater reads.
 
-### A release needs a benchmark run, and a regression stops it (BM-05, #415)
+### A release prints its benchmark comparison; it is not stopped by it (owner, 2026-11-16)
 
-The release workflow's first step after the version check is `python3 tools/release/bench_gate.py check`.
-It reads the benchmark report committed under `docs/bench/runs/` and refuses to publish unless:
+**The owner's ruling:** a release is not gated on a benchmark run until the editor is built out, because any
+`crates/` change forces a retake (about $23 and 35 minutes) and the comparison buys little while the editor is
+still growing. The release workflow therefore runs `bash tools/release/bench_advisory.sh`, which calls
+`tools/release/bench_gate.py check`, prints its verdict and exits 0 whatever it says. A `worse` it prints is a
+finding to file, not a release to stop. Nothing below obliges a pass to run a benchmark before a release;
+run one when a benchmark question is open (BM-05, #415, stays that question).
+
+When a report IS run, `bench_gate.py check` still reads the report committed under `docs/bench/runs/` and says:
 
 - **a report is for the code being released**: its header's commit is the commit being released, or an
   ancestor whose `crates/` tree is identical, so a docs-only commit needs no rerun (the `release: <version>`
@@ -357,15 +363,14 @@ It reads the benchmark report committed under `docs/bench/runs/` and refuses to 
   rule is compared with the BM-04 baseline (`docs/bench/runs/*-baseline.json`), which is also what is used
   whenever no report is for the previous release.
 
-**The run is not part of the release.** It happens where an editor can open a window: **big** (each trial
-starts its own Xvfb; the held-out tasks are on its codex_fs share) or a **Mac**. **A pass that is about to
-release runs this first, at the commit it will release, and commits the report:**
+**A run is never part of the release.** It happens where an editor can open a window: **big** (each trial
+starts its own Xvfb; the held-out tasks are on its codex_fs share) or a **Mac**. **When a benchmark question is open, run this at the commit it will report on and commit the report:**
 
 ```sh
 cargo build --release -p bevy_cauldron -p bevy_cauldron_mcp -p bevy_cauldron_bench   # the editor, its MCP server, and the runner, side by side
 target/release/cauldron-bench run --agent omp --model anthropic/claude-sonnet-5-5 --trials 5 --jobs 4 \
     --held-out /mnt/codex_fs/bench/dark_factory/held_out --label release-<version>
-python3 tools/release/bench_gate.py check --version "$(python3 tools/loop/version.py next)" --bench target/release/cauldron-bench   # what the release step will say
+python3 tools/release/bench_gate.py check --version "$(python3 tools/loop/version.py next)" --bench target/release/cauldron-bench   # what the release log will print
 git add docs/bench && git commit -m "docs(bench): the benchmark run for <version>"
 ```
 
