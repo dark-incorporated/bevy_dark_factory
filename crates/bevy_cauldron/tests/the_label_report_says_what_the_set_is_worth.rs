@@ -744,8 +744,12 @@ fn a_question_only_the_fast_model_answered_is_parked_as_no_answer() {
     // And the record that is written carries that question with no probabilities, as Valen's reader expects an unlabelled question.
     let record = std::fs::read_to_string(out.join(turn_export::TRAIN_FILE)).expect("the train set");
     let one: Value = serde_json::from_str(record.lines().next().expect("a record")).expect("json");
-    assert!(one["targets"]["specified-2"]["probabilities"].is_null(), "{one}");
-    assert!(!one["targets"]["specified-1"]["probabilities"].is_null(), "the person's answer stands: {one}");
+    // **Both specified questions are parked**: a `kept` label answers the turn question, never a `specified` line, so the only answer either of them
+    // has is the fast model's, which is not a label at all. The turn question is the one that stands.
+    assert!(one["targets"]["specified-1"]["probabilities"].is_null(), "the fast model's answer became a target: {one}");
+    assert!(one["targets"]["specified-2"]["probabilities"].is_null(), "the fast model's answer became a target: {one}");
+    assert!(!one["targets"]["turn-kept"]["probabilities"].is_null(), "the person's own answer stands: {one}");
+    assert_eq!(one["meta"]["questions"]["turn-kept"]["source"], "person", "{one}");
 }
 
 // ---------------------------------------------------------------------------------------------------------------
