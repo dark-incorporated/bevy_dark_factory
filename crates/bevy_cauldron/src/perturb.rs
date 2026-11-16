@@ -475,10 +475,10 @@ fn order_of_interest(turn: &Turn, map: &Map) -> Vec<usize> {
     let mut named: Vec<usize> = Vec::new();
     for operation in turn.facts["operations"].as_array().into_iter().flatten() {
         for piece in operation["pieces"].as_array().into_iter().flatten() {
-            if let Some(index) = piece["id"].as_str().and_then(|id| map.placements.iter().position(|p| p.id == id)) {
-                if !named.contains(&index) {
-                    named.push(index);
-                }
+            if let Some(index) = piece["id"].as_str().and_then(|id| map.placements.iter().position(|p| p.id == id))
+                && !named.contains(&index)
+            {
+                named.push(index);
             }
         }
     }

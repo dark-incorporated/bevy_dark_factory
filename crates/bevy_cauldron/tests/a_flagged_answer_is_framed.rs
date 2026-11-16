@@ -65,7 +65,7 @@ fn a_flagged_then_cleared_check_is_two_frames_and_one_pair() {
     let pair = pairs[0];
     assert_eq!(pair.source_turn, turn.id);
     assert_eq!(pair.check, "floating");
-    assert_eq!(pair.fixing_operations, [second.clone()], "the operation between the two answers is the fix");
+    assert_eq!(pair.fixing_operations, [second.as_str()], "the operation between the two answers is the fix");
     let examples = read.examples();
     assert_eq!(examples.iter().filter(|e| e.polarity == Polarity::Negative).count(), 1);
     assert_eq!(examples.iter().filter(|e| e.polarity == Polarity::Positive).count(), 1);

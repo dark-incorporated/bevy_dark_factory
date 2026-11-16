@@ -252,7 +252,7 @@ fn a_defect_near_the_visible_threshold_is_made_at_its_named_size() {
         }
     }
     // The named constants are the visible-threshold ones: a clip no deeper than three of the engine's own tolerances.
-    assert!(perturb::CLIP_NEAR_M <= 3.0 * bevy_grimoire_core::stack::OVERLAP_EPS + f32::EPSILON);
+    const { assert!(perturb::CLIP_NEAR_M <= 3.0 * bevy_grimoire_core::stack::OVERLAP_EPS + f32::EPSILON) };
 }
 
 /// **3. The person's project is byte-for-byte what it was**, after a whole run over a ledger, and the run's scratch copies are gone.
@@ -438,7 +438,7 @@ fn an_assess_then_fix_turn_yields_one_negative_and_one_positive() {
     let mut store = Store::new(labels.clone());
     store.append(&Line::turn(turn.clone())).unwrap_or_else(|e| panic!("{e}"));
     let read = turn_store::read_file(&labels.join(LEDGER_FILE)).unwrap_or_else(|e| panic!("{e}"));
-    assert_eq!(assess_fix::write_missing(&read, &mut store).unwrap_or_else(|e| panic!("{e}")), [pair.id.clone()]);
+    assert_eq!(assess_fix::write_missing(&read, &mut store).unwrap_or_else(|e| panic!("{e}")), [pair.id.as_str()]);
     let read = turn_store::read_file(&labels.join(LEDGER_FILE)).unwrap_or_else(|e| panic!("{e}"));
     assert!(read.damaged.is_empty(), "{:?}", read.damaged);
     assert_eq!(read.assess_fixes().cloned().collect::<Vec<_>>(), pairs);
