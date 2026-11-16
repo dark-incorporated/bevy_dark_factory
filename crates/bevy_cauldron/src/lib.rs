@@ -232,6 +232,8 @@ pub mod assess_fix;
 pub mod perturb;
 // **The assessor** (DL-04, #463): a model grades each turn's questions, in its own process.
 pub mod turn_assess;
+// **The training set** (DL-06, #465): the ledger's tiers resolved, as Valen's JSONL, split by scene so a scene is never on both sides.
+pub mod turn_export;
 pub mod steps;
 pub mod stages;
 pub mod surface;
