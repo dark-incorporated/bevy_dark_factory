@@ -2846,10 +2846,15 @@ pub fn end_row<'a>(parent: &'a mut ChildSpawnerCommands, gap: f32) -> EntityComm
 ///
 /// A flex item's automatic minimum size is its content, so without the zero floor the column refuses to narrow and the
 /// row's last cell is clipped by the panel's edge (the 2026-09-03 audit's F7). Returns the commands so a caller can mark it.
+///
+/// **A word longer than the column breaks at a letter** (`LineBreak::WordOrCharacter`, as gooey's own `fill_text` does). Bevy's default
+/// breaks only between words, so a file name such as `surveillance_console.glb` (one word) kept its whole width inside a box narrower
+/// than itself and was drawn out past the panel's border (#468).
 pub fn fill_text<'a>(row: &'a mut ChildSpawnerCommands, text: impl Into<String>, ink: Color, role: text::Role) -> EntityCommands<'a> {
     row.spawn((
         text_narrows(),
         Text::new(text.into()),
+        TextLayout::new(Justify::Left, LineBreak::WordOrCharacter),
         TextColor(ink),
         typed(role),
     ))

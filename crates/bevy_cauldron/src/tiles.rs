@@ -8350,11 +8350,18 @@ fn shelf_strip(
         // **The idiom, named once.** `left` and `right` walk the strip in the direction it is drawn,
         // which is the direction work moves — see [`Shelf::ORDER`]. On the Tiles tab that pair is
         // the page drill: `right` into the Meshes page, `left` back to the Tiles page.
+        //
+        // **It has a line of its own and wraps in it, so it never runs past the panel** (#468): it was `NoWrap` at its whole width, which at the panel's
+        // drag-resized minimum ended 32 px past the content edge. Its width is the row's (`Sizing`), so it drops under the chips instead of sharing
+        // their line, and breaks at a word when the panel is narrower than the sentence. (A wrapping text with a zero least width was tried first: the row
+        // then put it beside the last chip as a four-line sliver, and drew its glyphs 14 px wider than its box.)
         row.spawn((
             Text::new("right: meshes / left: tiles"),
             TextColor(crate::chrome::ink().label),
             crate::chrome::typed(crate::chrome::text::HINT),
-            TextLayout::new(Justify::Left, LineBreak::NoWrap),
+            bevy_gooey::Role::Sized,
+            bevy_gooey::Sizing { width: Some(bevy_gooey::Extent::Percent(100.0)), ..default() },
+            TextLayout::new(Justify::Left, LineBreak::WordBoundary),
         ));
     });
 }

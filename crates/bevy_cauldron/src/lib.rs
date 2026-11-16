@@ -206,6 +206,7 @@ pub mod ops_runs;
 pub mod project;
 pub mod project_assets;
 pub mod project_page;
+pub mod prose;
 pub mod recent;
 pub mod trusted;
 pub mod screen;

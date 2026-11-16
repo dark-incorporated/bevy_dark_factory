@@ -224,6 +224,9 @@ impl Plugin for EditorUiPlugin {
         // **The editor's own ink follows the running skin** (#428): the last system of every frame moves
         // everything drawn in the old ink onto the new one when a theme changes the skin's colours.
         app.add_plugins(crate::theme_ink::ThemeInkPlugin);
+        // **A sentence is drawn in a proportional face** (#469): Fira Sans on a text marked `Prose`, FiraMono (the one installed over the default id)
+        // on everything else, so keys, ids, paths, tables and the terminal keep their columns.
+        app.add_plugins(crate::prose::ProsePlugin);
         app.insert_resource(editor_binding_settings());
         // **A person's arrangement, kept and restored** (UI-33, #227). The observer saves each change
         // gooey reports; the system is what a file edit or Reset reaches the dock through.

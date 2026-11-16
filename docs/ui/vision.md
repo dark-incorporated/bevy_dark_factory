@@ -30,6 +30,7 @@ Each principle is one rule and its source.
 - **P10 One design system.** Every colour, size, spacing and elevation comes from the gooey skin's semantic roles; no widget picks its own. The elevation ladder is measured (adjacent surfaces differ by at least ΔL* 2) and text meets WCAG 2.2. Sources: gooey's `GooeySkin::problems()`; W3C Design Tokens Format Module 2025.10 (primitive, then semantic, then component tokens).
 - **P11 Accessible by default.** Everything is reachable by keyboard, focus is always visible, and a target is at least 24 px in compact density (WCAG 2.2 SC 2.5.8). Text size, interface size, contrast and reduced motion are settings.
 - **P12 Developer experience is flow and control.** Fast feedback, no lost work, and an undo for everything. Source: Fagerholm, Ikonen, Kettunen, Munch, Roto and Abrahamsson, "Flow, Intrinsic Motivation, and Developer Experience in Software Engineering" ([10.1007/978-3-319-33515-5_9](https://doi.org/10.1007/978-3-319-33515-5_9)): sense of control and flow predict developers' experience of an IDE.
+- **P13 Prose is proportional; keys, ids and columns are monospace.** A sentence meant to be read draws in Fira Sans, and everything else keeps FiraMono, so keycaps, ids, paths, tables, the Inspector's columns and the terminal stay on their grid while a page of sentences stops reading like terminal output. Fira Sans is the same family and the same SIL OFL 1.1 licence as the shipped FiraMono (`crates/bevy_cauldron/assets/fonts/`, licence text beside the face). Decided on 2026-11-15 as option 2 of `feedback-1794024825941` (*recommend, record, proceed*; the owner may still choose option 1, FiraMono everywhere, or option 3, a setting). The contrast rules (P10, P11) are unchanged. Which texts are prose: "Prose and code" in section 9.
 
 Fukaya et al. (2026, [10.1080/10447318.2026.2632170](https://doi.org/10.1080/10447318.2026.2632170)) propose heuristics for AI asset-generation tools; P9 and the Familiar panel (UI-60) are checked against them.
 
@@ -228,6 +229,16 @@ For every user-facing string:
 - No contractions.
 - A message names the file and the field, and says what to do next.
 - An empty state says what to do next and offers the action.
+
+### Prose and code
+
+A text is **prose** when it is a sentence or more that a person reads as language: not a label, a key, an id, a path or a value. A prose text is spawned with the marker `prose::Prose`; `prose::ProsePlugin` then puts Fira Sans on it after gooey's style pass (gooey writes every label's face from the one `GooeyFonts::body`, so setting that would turn the keycaps and the Inspector proportional too). The text keeps everything else its gooey role gives it: the ink that follows a button's state, the person's text size, the skin's contrast.
+
+- **Prose today:** each entry's sentence on the launcher's What's new page, that page's empty line, and the Learn page's introduction.
+- **Never prose:** headings (they keep FiraMono at their size), buttons and menu items, keycaps and chords, ids, paths and file names, tables and the Inspector, the terminal and the code editor.
+- **Prose by this rule, not yet marked:** the Design workspace's pages (gooey's Markdown view), the hand-back cards and the Notifications bodies. Their text is spawned inside gooey widgets, so the editor cannot put `Prose` on it at spawn; marking it is a system that finds those texts, which waits for the owner to ask for those surfaces (the What's new page was the capture).
+- **The face is an asset of its own**, not the one installed over Bevy's default id, so a project's own `assets/fonts/FiraMono-Regular.ttf` replaces the monospace face and leaves the prose face alone. It adds 457 KB to the binary (FiraMono is 175 KB).
+- **Proved by** `tests/the_whats_new_page_reads_in_a_proportional_face.rs`: every sentence resolves to the prose face and is drawn, at 75 characters a line or fewer; every other text, in the launcher and in the editor, resolves to FiraMono; every character of every changelog "For you" sentence is in the prose face's `cmap`.
 
 ## 10. Research gaps
 
