@@ -305,7 +305,8 @@ pub enum Surface {
 }
 
 impl Surface {
-    /// The name [`crate::outliner::HIDABLE`] gives it, and what an operation's `surface` parameter says.
+    /// The name [`crate::outliner::HIDABLE`] gives it, and what `grimoire/surface_hide`'s `hide` and the
+    /// still's own `hide` parameter say.
     pub fn name(self) -> &'static str {
         match self {
             Surface::Terrain => "terrain",
