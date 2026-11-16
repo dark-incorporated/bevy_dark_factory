@@ -96,6 +96,9 @@ struct Ask {
     issued: bool,
     /// Frames since it was asked for.
     age: u32,
+    /// **This picture is a turn's result, so no question may stand on it** (DL-01, #471): `issue_shots` hides the confirm modal while the readback
+    /// this ticket spawns is the frame being copied, and the record's `render.question_open` says whether a question was still on it.
+    without_the_question: bool,
 }
 
 /// Where a turn's before picture is.
@@ -194,6 +197,9 @@ pub struct TurnLedger {
     next_ticket: u64,
     /// Every picture ever asked for, so a test can count what collection cost.
     requested: u32,
+    /// **Every picture asked for with the question kept out of its frame** (#471). A test's observable for a hide that lasts one frame: the ledger's
+    /// flag is cleared in that frame's `Last`, where no test can see it.
+    without_the_question: u32,
     /// Pictures that landed, by ticket, until the record that asked for them takes them.
     landed: BTreeMap<u64, Shot>,
     open: Option<OpenTurn>,
@@ -280,6 +286,11 @@ impl TurnLedger {
         self.requested
     }
 
+    /// **How many of them were asked for with the Keep / Undo question kept off the frame** (#471): a turn's result, not the question about it.
+    pub fn shots_without_the_question(&self) -> u32 {
+        self.without_the_question
+    }
+
     /// **The tickets still waiting for a picture**, oldest first.
     pub fn pending_shots(&self) -> Vec<u64> {
         self.asks.iter().map(|a| a.ticket).collect()
@@ -312,10 +323,17 @@ impl TurnLedger {
         Some((store.usage(), store.budget()))
     }
 
-    fn request_shot(&mut self) -> u64 {
+    /// **Ask for a picture.** `without_the_question` is a turn's own result (its after picture, and the frame an assessor's answer was about): the modal
+    /// that asks the person Keep or Undo stands over the viewport by then, and a picture of the dialog is a picture of the question rather than of
+    /// what the agent made (#471). The before picture and the decision frames of a turn are asked for before that question exists, so they pass
+    /// `false` and cost nothing.
+    fn request_shot(&mut self, without_the_question: bool) -> u64 {
         self.next_ticket += 1;
         self.requested += 1;
-        self.asks.push(Ask { ticket: self.next_ticket, issued: false, age: 0 });
+        if without_the_question {
+            self.without_the_question += 1;
+        }
+        self.asks.push(Ask { ticket: self.next_ticket, issued: false, age: 0, without_the_question });
         self.next_ticket
     }
 
@@ -345,7 +363,7 @@ impl TurnLedger {
         }
         self.next_turn += 1;
         let started_ms = now_ms();
-        let before = Slot::Asked(self.request_shot());
+        let before = Slot::Asked(self.request_shot(false));
         self.open = Some(OpenTurn {
             id: format!("turn-{started_ms}-{}", self.next_turn),
             root: root.to_path_buf(),
@@ -396,7 +414,7 @@ impl TurnLedger {
         // frame the answer is about, which is the one before whatever the agent does next. An answer that flags nothing and clears nothing has no
         // use for a frame, so a turn that was never in doubt costs no more pictures than it did.
         let takes_frame = crate::assess_fix::wants_frame(self.open.as_ref().map_or(&[][..], |open| open.decisions.as_slice()), &report);
-        let ticket = takes_frame.then(|| self.request_shot());
+        let ticket = takes_frame.then(|| self.request_shot(false));
         let Some(open) = self.open.as_mut() else { return false };
         if let Some(object) = report.as_object_mut() {
             object.insert("reported_unix_ms".to_owned(), json!(now_ms()));
@@ -959,6 +977,8 @@ pub struct Sight<'w, 's> {
     rig: Option<Res<'w, crate::view::Rig>>,
     due: Option<Res<'w, crate::watch::Due>>,
     confirm: Option<Res<'w, crate::confirm::Confirm>>,
+    /// **Whether the frame the after picture copies is one the dialog was kept out of** (#471): `render.question_open` describes the picture.
+    kept_off: Option<Res<'w, crate::confirm::PictureWithoutTheQuestion>>,
     ui_scale: Option<Res<'w, UiScale>>,
     surface: Option<Res<'w, crate::surface::Surface>>,
     images: Option<Res<'w, Assets<Image>>>,
@@ -990,6 +1010,11 @@ impl Sight<'_, '_> {
     }
 
     /// **How the surface drew**: its size and format, the interface scale, and whether a question stood on the picture.
+    ///
+    /// **`question_open` describes the picture, not the editor** (#471). A turn's own after picture is asked for with the dialog kept out of its frame
+    /// ([`Ask::without_the_question`], honoured by `confirm::sync_dialog`), so a question is on the editor but not on the photograph, and the honest
+    /// answer for a label source is `false`. A picture asked for while the ledger is not hiding the dialog says `true`, which is what the old field
+    /// meant and was the defect: it recorded the question rather than the result.
     fn render(&self) -> Value {
         let surface = self.surface.as_ref().zip(self.images.as_ref()).and_then(|(surface, images)| images.get(&surface.image)).map(|image| {
             json!({
@@ -1001,8 +1026,9 @@ impl Sight<'_, '_> {
         json!({
             "surface": surface,
             "ui_scale": self.ui_scale.as_ref().map(|scale| scale.0),
-            // **A question on the picture**: the hand-back's own Keep / Undo modal stands over the map while the after picture is taken.
-            "question_open": self.confirm.as_ref().is_some_and(|confirm| confirm.is_open()),
+            // **A question on the picture**: none, where the ledger asked for a result with the Keep / Undo modal kept out of its frame (#471).
+            "question_open": !self.kept_off.as_ref().is_some_and(|kept_off| kept_off.asked)
+                && self.confirm.as_ref().is_some_and(|confirm| confirm.is_open()),
         })
     }
 
@@ -1122,6 +1148,10 @@ fn issue_shots(
     settings: Query<(), With<crate::settings_screen::SettingsDialog>>,
     keymap: Query<(), With<crate::keymap_screen::KeymapDialog>>,
     project_config: Query<(), With<crate::project_config::ProjectConfigDialog>>,
+    // **The Keep / Undo question** (#471): it stands centred over the viewport by the time a turn's after picture is taken, so it is out of the draw for
+    // the frame the readback copies.
+    mut kept_off: Option<ResMut<crate::confirm::PictureWithoutTheQuestion>>,
+    mut questions: Query<&mut bevy::camera::visibility::InheritedVisibility, With<crate::confirm::QuestionDialog>>,
 ) {
     if !ledger.asks.iter().any(|ask| !ask.issued) {
         return;
@@ -1133,6 +1163,19 @@ fn issue_shots(
         return;
     };
     let (width, height, format) = image;
+    // **A result picture holds no question** (#471). A readback copies the frame being finished, so the question's dialog is hidden **here, in the
+    // frame whose readback is spawned**: main-world visibility is what the render world extracts, and a hide written later than this frame would be a
+    // frame after the picture. `confirm::sync_dialog` draws it again the moment the flag is down, which is the frame's own `Last`.
+    let off_the_picture = ledger.asks.iter().any(|ask| !ask.issued && ask.without_the_question);
+    if off_the_picture {
+        for mut shown in &mut questions {
+            *shown = bevy::camera::visibility::InheritedVisibility::HIDDEN;
+        }
+        if let Some(mut kept_off) = kept_off.as_mut() {
+            // **Remembered, so `render` can say the picture holds no question** and `sync_dialog` knows to draw it again.
+            kept_off.asked = true;
+        }
+    }
     let tickets: Vec<u64> = ledger
         .asks
         .iter_mut()
@@ -1311,7 +1354,8 @@ pub fn advance_turns(mut ledger: ResMut<TurnLedger>, sight: Sight) {
                 draft.facts = Some(sight.facts(&draft.touched, found.as_ref()));
                 draft.engine = sight.engine(&draft.touched, found.as_ref());
                 draft.render = sight.render();
-                draft.after = Some(Slot::Asked(ledger.request_shot()));
+                // **The after picture is the turn's result, and the Keep / Undo question stands over it** (#471).
+                draft.after = Some(Slot::Asked(ledger.request_shot(true)));
             } else if draft.waited >= SETTLE_GIVE_UP_FRAMES {
                 let found = sight.found();
                 draft.facts = Some(sight.facts(&draft.touched, found.as_ref()));

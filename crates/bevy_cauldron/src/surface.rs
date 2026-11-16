@@ -695,6 +695,8 @@ fn inject_clicks(
     pointer: Option<Res<crate::view::Pointer>>,
     mut presses: MessageReader<bevy::input::mouse::MouseButtonInput>,
     mut out: MessageWriter<bevy::picking::pointer::PointerInput>,
+    // **The hands on this frame's input** (DL-02, #470): a button edge forwarded here is an agent's press, and nothing else can reach this system.
+    mut hands: Option<ResMut<crate::hands::Hands>>,
     // The position this system last saw, so a moved cursor writes a `Move` and a still one does not.
     mut last: Local<Option<Vec2>>,
 ) {
@@ -756,6 +758,11 @@ fn inject_clicks(
             ButtonState::Pressed => PointerAction::Press(button),
             ButtonState::Released => PointerAction::Release(button),
         };
+        // **An agent's press** (DL-02, #470): this system runs only while `DebugCursor` is out, so every edge it forwards is one the injected cursor
+        // made and a person's never reaches here. `retarget_pointer` and `mouse_pick_events` own the person's own path.
+        if let Some(hands) = hands.as_mut() {
+            hands.say_an_agent();
+        }
         out.write(PointerInput::new(PointerId::Mouse, location.clone(), action));
     }
 }

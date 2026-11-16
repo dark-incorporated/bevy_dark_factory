@@ -62,6 +62,7 @@ pub mod crosslinks;
 pub mod nav;
 pub mod goto;
 pub mod command_run;
+pub mod hands;
 pub mod commands;
 pub mod compass;
 pub mod compose;

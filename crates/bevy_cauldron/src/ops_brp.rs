@@ -3226,7 +3226,8 @@ fn run_command(
     if let Err(why) = command.enabled(*live) {
         return Ok(refused(command.id, why));
     }
-    chords.queue(&command, *live);
+    // **An agent's chord is an agent's** (DL-02, #470): the frame it goes down in is labelled so, and an answer it produces is no verdict of the person's.
+    chords.queue_from(&command, *live, Source::Agent);
     if let Some(mut state) = state {
         state.status.note(format!("an agent ran {}", command.title));
     }

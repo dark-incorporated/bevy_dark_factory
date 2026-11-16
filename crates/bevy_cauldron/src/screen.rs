@@ -903,6 +903,9 @@ pub const OWNERSHIP: &[(&str, Ownership)] = &[
         Ownership::Session,
     ),
     ("bevy_cauldron::keys::Live", Ownership::Session),
+    // **`Session`: this frame's input is nobody's workspace** (DL-02, #470). It is reset every frame by `hands::count_the_frame`, so it carries no
+    // state across a door change — the frame after one is the person's, as every frame with no agent driving it is.
+    ("bevy_cauldron::hands::Hands", Ownership::Session),
     ("bevy_cauldron::keys::Repeat", Ownership::Session),
     // **The one prompt outlives a door on purpose**, because it is asked on both sides of one:
     // `chooser` raises delete and quit on the menu, `editor` raises the leaving question from
