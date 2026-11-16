@@ -6,7 +6,7 @@
 //! two models. Nothing reads an endpoint from the process environment or a project's `.env`; the one environment variable left is
 //! `OPENROUTER_API_KEY`, which is a key and not a setting.
 //!
-//! **The status LED.** The band at the foot of the window carries one LED with the model's name: [`LedState::Live`] when the last
+//! **The status LED.** The top bar, at its far end after the title, carries one LED with the model's name: [`LedState::Live`] when the last
 //! request was answered, `Busy` while one is out, `Failed` with the reason in its tooltip, and `Off` when nothing has been asked
 //! of the model that is chosen now. Every request the editor makes goes through a [`Tracked`] transport, which writes the
 //! [`DecisionLink`] the LED reads, so the light is a record of round trips that happened, never a guess. Remote chosen with no key
@@ -256,7 +256,7 @@ pub fn led_view(chosen: DecisionModel, key_set: bool, seen: &Seen) -> LedView {
 #[derive(Component)]
 pub struct DecisionLedChip;
 
-/// **The status band's decision-model LED** (DM-03, #454): [`Led`] on it, the model's name as its label.
+/// **The top bar's decision-model LED** (DM-03, #454): [`Led`] on it, the model's name as its label.
 #[derive(Component)]
 pub struct DecisionLed;
 
@@ -281,7 +281,14 @@ pub fn paint_the_led(
     mut words: Query<&mut Text, Without<LedWord>>,
 ) {
     let chosen = settings.map_or_else(DecisionModel::default, |s| s.decision_model);
-    let state = state.as_deref().cloned().unwrap_or_default();
+    let fallback;
+    let state = match state.as_deref() {
+        Some(state) => state,
+        None => {
+            fallback = DecisionState::default();
+            &fallback
+        }
+    };
     let view = led_view(chosen, state.endpoints.key.is_some(), &state.link.seen(chosen));
     for mut tip in &mut chips {
         if tip.text != view.tooltip {
@@ -321,5 +328,86 @@ impl Plugin for DecisionModelPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<DecisionState>()
             .add_systems(Update, (paint_the_led.after(crate::settings::sync_settings), quiet_the_word));
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::io::{Read, Write};
+
+    /// **A stand-in System One server that answers every request once**, and its URL.
+    fn stand_in() -> String {
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("a loopback port");
+        let url = format!("http://{}/v1/systemone", listener.local_addr().expect("an address"));
+        std::thread::spawn(move || {
+            let Ok((mut s, _)) = listener.accept() else { return };
+            let mut req = Vec::new();
+            let mut buf = [0u8; 8192];
+            while let Ok(n) = s.read(&mut buf) {
+                if n == 0 {
+                    break;
+                }
+                req.extend_from_slice(&buf[..n]);
+                let Some(end) = req.windows(4).position(|w| w == b"\r\n\r\n") else { continue };
+                let head = String::from_utf8_lossy(&req[..end]).to_ascii_lowercase();
+                let len = head.lines().find_map(|l| l.strip_prefix("content-length:").and_then(|v| v.trim().parse::<usize>().ok())).unwrap_or(0);
+                if req.len() >= end + 4 + len {
+                    break;
+                }
+            }
+            let body = r#"{"model":"d3-flash","answers":{"ready":{"type":"noul","noul":0.9}}}"#;
+            let _ = write!(s, "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}", body.len());
+        });
+        url
+    }
+
+    fn source(local: String) -> Source {
+        Source { user_file: None, endpoints: Endpoints { local, ..Endpoints::default() }, link: DecisionLink::default() }
+    }
+
+    fn one_question() -> Request {
+        Request::new("ready").with_question("ready", bevy_oracle::Question::noul("Answer yes."))
+    }
+
+    /// **The light is a record of round trips that happened**: nothing asked is `Off`; an answer from a stand-in server lights `Live` with
+    /// the model the answer named; a closed port lights `Failed` with the transport's reason, naming the endpoint; and a light kept for
+    /// Local says nothing about Remote.
+    #[test]
+    fn tracked_send_records_the_answer_and_the_closed_port() {
+        let root = std::env::temp_dir();
+        let answering = source(stand_in());
+        assert_eq!(answering.link.seen(DecisionModel::Local).light, LedState::Off, "nothing has been asked yet");
+        let transport = answering.transport(&root).expect("Local needs no key");
+        transport.send(&one_question()).expect("the stand-in answers");
+        let seen = answering.link.seen(DecisionModel::Local);
+        assert_eq!((seen.light, seen.model.as_deref()), (LedState::Live, Some("d3-flash")), "{seen:?}");
+        assert_eq!(answering.link.seen(DecisionModel::Remote).light, LedState::Off, "Local's answer is not Remote's");
+
+        let closed = {
+            let l = std::net::TcpListener::bind("127.0.0.1:0").expect("a port");
+            l.local_addr().expect("an address").port()
+        };
+        let down = source(format!("http://127.0.0.1:{closed}/v1/systemone"));
+        let transport = down.transport(&root).expect("Local needs no key");
+        assert!(transport.send(&one_question()).is_err(), "nothing is listening");
+        let seen = down.link.seen(DecisionModel::Local);
+        assert_eq!(seen.light, LedState::Failed, "{seen:?}");
+        assert!(seen.failure.as_deref().is_some_and(|why| why.contains(&closed.to_string())), "the reason names the endpoint: {seen:?}");
+    }
+}
+
+#[cfg(test)]
+mod remote_tests {
+    /// **The Remote choice is not dialled by the labeller's preflight**, so a name that does not resolve is never reported as a
+    /// machine "serving the model" (DM-03 review).
+    #[test]
+    fn a_remote_config_is_left_to_the_request() {
+        let remote = bevy_oracle::Config {
+            protocol: bevy_oracle::Protocol::OpenRouter,
+            endpoint: "https://nowhere.invalid/api/alpha/decisions".into(),
+            ..bevy_oracle::Config::default()
+        };
+        assert_eq!(crate::decide_labels::probe(&remote), crate::decide_labels::Reach::Ready);
     }
 }

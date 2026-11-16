@@ -319,6 +319,11 @@ pub enum Reach {
 
 /// **The preflight.** Cheap, synchronous, and run before a batch commits to a queue.
 pub fn probe(cfg: &Config) -> Reach {
+    // **The Remote choice is never dialled**: DNS, TLS and the provider's own health fold into one verdict out there, and advice about
+    // "the machine serving the model" would be about a machine nobody runs. The request's own error is the better message.
+    if cfg.protocol == bevy_oracle::Protocol::OpenRouter {
+        return Reach::Ready;
+    }
     let Some((host, port)) = host_port(&cfg.endpoint) else {
         // An address this cannot parse is not evidence of anything; let the real request judge it.
         return Reach::Ready;

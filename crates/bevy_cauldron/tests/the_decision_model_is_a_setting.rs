@@ -3,7 +3,7 @@
 //! - only the person's file chooses it, and a project's file that names it is a settings problem naming that file;
 //! - the Decision model row says before it is chosen that Remote sends screenshots to OpenRouter and Perplexity, says the exact
 //!   refusal when Remote is chosen with no key, and refuses to be written into the project's file;
-//! - the status band carries one LED with the model's name that follows the setting and the round trips that happened.
+//! - the top bar carries one LED with the model's name that follows the setting and the round trips that happened.
 
 use std::path::PathBuf;
 use std::time::Duration;
@@ -71,7 +71,7 @@ fn layer(text: &str) -> SettingsLayer {
 /// The LED's state, its name, and what its hover says.
 fn led(app: &mut App) -> (LedState, String, String) {
     let world = app.world_mut();
-    let (entity, state) = world.query_filtered::<(Entity, &Led), With<DecisionLed>>().single(world).map(|(e, l)| (e, l.0)).expect("the status band carries the decision model's LED");
+    let (entity, state) = world.query_filtered::<(Entity, &Led), With<DecisionLed>>().single(world).map(|(e, l)| (e, l.0)).expect("the top bar carries the decision model's LED");
     let mut name = String::new();
     let kids: Vec<Entity> = world.get::<Children>(entity).map(|c| c.iter().collect()).unwrap_or_default();
     for kid in kids {
@@ -148,7 +148,6 @@ fn the_led_follows_the_setting_and_the_round_trips() {
     link.failed(DecisionModel::Local, "decision endpoint http://127.0.0.1:8093/v1/systemone did not answer: refused".to_owned());
     until(&mut r.app, "failed", |app| led(app).0 == LedState::Failed);
     assert!(led(&mut r.app).2.contains("did not answer"), "the reason is in the tooltip");
-    let _ = (&r.project,);
 }
 
 fn open_on_the_row(app: &mut App) {

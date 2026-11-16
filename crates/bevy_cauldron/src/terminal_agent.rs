@@ -11,7 +11,7 @@
 //! | Tools server | the server binary is beside the editor and its config was written ([`plan`]) |
 //! | Agent started | the launch line was typed into the shell ([`AgentPost::started`]) |
 //! | Agent connected | the server told the editor its client finished the MCP handshake (`grimoire/agent_hello`) |
-//! | Agent self test | the agent ran `grimoire_self_test` and its three reads came back (`grimoire/self_test_result`) |
+//! | Agent self test | the agent ran `grimoire_self_test` and its reads of the editor came back (`grimoire/self_test_result`) |
 //! | Decision model | the server asked the chosen decision model one text-only question and it answered; the row says which model, where it ran (`local` or `remote`) and how long it took, or why it did not (DM-03, #454) |
 //!
 //! **The tab is matched by a token.** [`plan`] mints one per launch and puts it in the server's

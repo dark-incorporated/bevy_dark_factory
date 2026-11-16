@@ -614,7 +614,7 @@ impl EditorSettings {
         }
         // **Only the person's own layer chooses the decision model** (DM-03, #454): a project that could say Remote would
         // send its agents' pictures off the LAN for everyone who opens it. The project's key is a settings problem
-        // ([`project_chose_the_model`]) and is ignored here.
+        // (`agent_verdict` refuses the file, naming the field) and is ignored here.
         if let Some(user) = user {
             out.decision_model = user.decision_model.unwrap_or(out.decision_model);
         }
