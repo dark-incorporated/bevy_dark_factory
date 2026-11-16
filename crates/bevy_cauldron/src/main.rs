@@ -185,7 +185,7 @@ fn main() -> AppExit {
         app.insert_resource(bevy_cauldron::session::SessionStore(dir));
     }
     // **The turn ledger's folder** (`turn_ledger.rs`, DL-01, #460): only the binary names it, as with the recent list, so no test writes a record
-    // into the real data directory. A turn is recorded unless Settings ▸ Privacy says otherwise.
+    // into the real data directory. A turn is recorded unless Settings ▸ Decisions says otherwise.
     if let Some(dir) = bevy_grimoire_core::user_dirs::labels_dir() {
         app.insert_resource(bevy_cauldron::turn_ledger::LabelsDir(dir));
     }

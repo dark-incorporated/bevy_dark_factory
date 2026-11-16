@@ -2677,6 +2677,8 @@ impl Plugin for EditorPlugin {
         // **The AGENT block's rows** (#354): the list a wish is a row of, its answers, and the status
         // band's count of them while the block is hidden. Beside the block because it fills the block.
         app.add_plugins(crate::wish_view::WishViewPlugin);
+        // **The person's audit** (DL-07, #466): a few questions a week, answered in one press, as the human holdout.
+        app.add_plugins(crate::audit_view::AuditPlugin);
         // **The watched rebuild** (GD-09, #371): `game_build`, its background job, its problems and the
         // relaunch a successful build makes.
         app.add_plugins(crate::build_view::BuildPlugin);

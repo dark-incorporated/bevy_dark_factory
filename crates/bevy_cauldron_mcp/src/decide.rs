@@ -153,7 +153,7 @@ pub fn load_checks(project: &Path) -> Result<Checks, String> {
 pub fn report(params: &DecideParams, answer: &Result<Value, String>, model: Option<&str>, endpoint: &str, latency_ms: u64) -> Value {
     let (answer, error) = match answer {
         Ok(v) => (Some(v), None),
-        Err(e) => (None, Some(capped(e))),
+        Err(e) => (None, Some(capped(&scrub(e, endpoint)))),
     };
     json!({
         "params": params,
@@ -175,6 +175,23 @@ fn capped(text: &str) -> String {
         Some((at, _)) => format!("{}... (cut at {ERROR_CAP_CHARS} characters)", &text[..at]),
         None => text.to_owned(),
     }
+}
+
+/// **`text` with every address in it made safe to keep** (review of #460): `bevy_oracle::Error`'s own words name the endpoint as it was asked, key and
+/// all, so the endpoint is replaced by its public form, and so is any other address a response body quotes.
+pub fn scrub(text: &str, endpoint: &str) -> String {
+    let text = if endpoint.is_empty() { text.to_owned() } else { text.replace(endpoint, &public_endpoint(endpoint)) };
+    text.split_inclusive(char::is_whitespace)
+        .map(|piece| {
+            let word = piece.trim_end();
+            let spaces = &piece[word.len()..];
+            let Some(at) = word.find("://") else { return piece.to_owned() };
+            let core = word.trim_end_matches(['"', '\'', ')', ',', '.', ';']);
+            let tail = &word[core.len()..];
+            let start = word[..at].rfind(|c: char| !c.is_ascii_alphabetic()).map_or(0, |p| p + 1);
+            format!("{}{}{tail}{spaces}", &word[..start], public_endpoint(&core[start..]))
+        })
+        .collect()
 }
 
 /// **An endpoint as it is safe to keep** (review of #460): the scheme, host and path, with any `user:password@` and any `?query` or `#fragment`

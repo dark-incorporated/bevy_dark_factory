@@ -86,6 +86,7 @@ pub mod library_browser;
 pub mod game_ui_preview;
 pub mod game_view;
 pub mod agent_view;
+pub mod audit_view;
 // **A hand-back the person kept becomes a benchmark task draft** (BM-07, #417).
 pub mod bench_draft;
 pub mod shell_view;
@@ -228,6 +229,8 @@ pub mod turn_questions;
 // **Engine-made defects on kept scenes, and the turns that fixed what an assessor flagged** (DL-05, #464): negatives with known answers.
 pub mod assess_fix;
 pub mod perturb;
+// **The assessor** (DL-04, #463): a model grades each turn's questions, in its own process.
+pub mod turn_assess;
 pub mod steps;
 pub mod stages;
 pub mod surface;

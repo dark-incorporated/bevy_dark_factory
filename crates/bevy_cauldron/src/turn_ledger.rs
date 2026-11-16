@@ -730,7 +730,33 @@ impl TurnLedger {
     }
 
     fn label(&self, turn: &str, label: &str, tier: &str) -> Label {
-        Label { turn: turn.to_owned(), label: label.to_owned(), tier: tier.to_owned(), at_unix_ms: now_ms(), operation_id: None, by_turn: None, item: None }
+        Label {
+            turn: turn.to_owned(),
+            label: label.to_owned(),
+            tier: tier.to_owned(),
+            at_unix_ms: now_ms(),
+            operation_id: None,
+            by_turn: None,
+            item: None,
+            question: None,
+            answer: None,
+            asked_because: None,
+            holdout: false,
+        }
+    }
+
+    /// **The person answered one question of the audit** (DL-07, #466): a gold label on the turn, per question, marked `holdout`. Only the
+    /// person's own key press or click calls this. Nothing is written when collection is off.
+    pub fn audit_answered(&mut self, turn: &str, question: &str, answer: &str, asked_because: &str) {
+        if !self.collecting() {
+            return;
+        }
+        let mut label = self.label(turn, crate::turn_store::AUDIT, "gold");
+        label.question = Some(question.to_owned());
+        label.answer = Some(answer.to_owned());
+        label.asked_because = Some(asked_because.to_owned());
+        label.holdout = true;
+        self.append_line(&Line::label(label));
     }
 
     /// **The person answered a hand-back** (DL-02, #461). Only the person's own answer calls this: an agent's undo over BRP is not a verdict and
@@ -1084,6 +1110,7 @@ fn sync_collection(
 /// **What is kept is the map's viewport, never the whole window** (review of #460): the window holds the terminal, whose shell can show a secret,
 /// and every panel. The picture is cut to the main camera's viewport, and the terminal pane's rectangle is blacked out of it where the pane
 /// covers the viewport. With no viewport nothing is kept and the record says so.
+#[allow(clippy::too_many_arguments)]
 fn issue_shots(
     mut commands: Commands,
     mut ledger: ResMut<TurnLedger>,
@@ -1091,6 +1118,10 @@ fn issue_shots(
     images: Option<Res<Assets<Image>>>,
     cameras: Query<&Camera, With<crate::view::MainCamera>>,
     panes: Query<(&bevy::ui::ComputedNode, &bevy::ui::UiGlobalTransform), With<crate::terminal_pane::TerminalPaneRoot>>,
+    workspace: Option<Res<crate::workspace::Workspace>>,
+    settings: Query<(), With<crate::settings_screen::SettingsDialog>>,
+    keymap: Query<(), With<crate::keymap_screen::KeymapDialog>>,
+    project_config: Query<(), With<crate::project_config::ProjectConfigDialog>>,
 ) {
     if !ledger.asks.iter().any(|ask| !ask.issued) {
         return;
@@ -1111,13 +1142,30 @@ fn issue_shots(
             ask.ticket
         })
         .collect();
-    let Some(view) = cameras.iter().next().and_then(Camera::physical_viewport_rect) else {
+    // **Only the Map and the World are pictured** (review of #460): the viewport also holds the Files workspace's code editor and the Design page,
+    // and Settings, the keymap and the project's configuration stand over whatever is under them. A picture of any of those could hold a secret, so
+    // the record says why there is none.
+    use crate::workspace::Workspace;
+    if workspace.as_deref().is_some_and(|w| !matches!(w, Workspace::Map | Workspace::World)) {
+        for ticket in tickets {
+            ledger.deliver_shot(ticket, Err(NOT_THE_MAP.to_owned()));
+        }
+        return;
+    }
+    if !settings.is_empty() || !keymap.is_empty() || !project_config.is_empty() {
+        for ticket in tickets {
+            ledger.deliver_shot(ticket, Err(A_DIALOG_IS_OPEN.to_owned()));
+        }
+        return;
+    }
+    // **The camera's own viewport**, not `physical_viewport_rect`, which answers the whole target when the camera has none.
+    let Some(viewport) = cameras.iter().next().and_then(|camera| camera.viewport.as_ref()) else {
         for ticket in tickets {
             ledger.deliver_shot(ticket, Err(NO_VIEWPORT.to_owned()));
         }
         return;
     };
-    let crop = [view.min.x, view.min.y, view.width(), view.height()];
+    let crop = [viewport.physical_position.x, viewport.physical_position.y, viewport.physical_size.x, viewport.physical_size.y];
     let redact: Vec<[u32; 4]> = panes
         .iter()
         .map(|(node, at)| {
@@ -1138,8 +1186,14 @@ fn issue_shots(
     }
 }
 
-/// Why no picture was kept when the map has no viewport to cut it to.
-const NO_VIEWPORT: &str = "there is no map viewport to take a picture of, and the whole window would hold the terminal and the panels, so none was kept";
+/// Why no picture was kept when the map camera has no viewport of its own to cut the picture to.
+const NO_VIEWPORT: &str = "the map camera has no viewport of its own, and the whole window would hold the terminal and the panels, so no picture was kept";
+
+/// Why no picture was kept on a workspace other than the Map or the World.
+const NOT_THE_MAP: &str = "the editor was not on the Map or the World, where the viewport holds only the map, so no picture was kept";
+
+/// Why no picture was kept with Settings, the keymap or the project's configuration open.
+const A_DIALOG_IS_OPEN: &str = "Settings, the keymap or the project's configuration was open over the viewport, so no picture was kept";
 
 /// **The readback's bytes as the RGBA picture of `crop`** (`[x, y, width, height]` in surface pixels), with each `redact` rectangle blacked out.
 ///

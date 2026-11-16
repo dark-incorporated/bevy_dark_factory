@@ -27,7 +27,7 @@ use std::collections::BTreeMap;
 
 use serde_json::Value;
 
-use crate::turn_store::{AssessFix, Assessment, Line, Read, Shot, Store, TIER_SILVER, Turn, scene_of};
+use crate::turn_store::{AssessFix, AssessedAnswer, Line, Read, Shot, Store, TIER_SILVER, Turn, scene_of};
 
 /// **A named check's answer, as `grimoire_decide` returns it and the editor files it**: which check, and whether it found the problem.
 #[derive(Clone, Debug, PartialEq)]
@@ -72,8 +72,8 @@ fn frame_of(decision: &Value) -> Shot {
     }
 }
 
-fn assessment(at: usize, decision: &Value, finding: &Finding, after_operations: usize) -> Assessment {
-    Assessment {
+fn assessment(at: usize, decision: &Value, finding: &Finding, after_operations: usize) -> AssessedAnswer {
+    AssessedAnswer {
         decision: at,
         after_operations,
         p_yes: finding.p_yes,

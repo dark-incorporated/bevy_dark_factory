@@ -273,6 +273,10 @@ fn a_run_leaves_the_persons_project_byte_for_byte_as_it_was() {
             operation_id: None,
             by_turn: None,
             item: None,
+            question: None,
+            answer: None,
+            asked_because: None,
+            holdout: false,
         }))
         .unwrap_or_else(|e| panic!("{e}"));
 

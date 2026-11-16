@@ -200,6 +200,18 @@ pub struct Label {
     /// **`item`: what the person said, and where.**
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub item: Option<Item>,
+    /// **`audit`: the question the person answered**, by [`TurnQuestion::id`](crate::turn_questions::TurnQuestion).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub question: Option<String>,
+    /// **`audit`: what they said**: `yes`, `no` or `skip`. A skip is a skip, never a no.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub answer: Option<String>,
+    /// **`audit`: why this question was put to them**: `split` (the assessor was unsure) or `random`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub asked_because: Option<String>,
+    /// **Whether this label is the human holdout**: it grades models and is never trained on.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub holdout: bool,
 }
 
 /// **The objective label a perturbed record carries** (DL-05, #464): the engine made the defect, so no one's judgement is in it.
@@ -300,7 +312,7 @@ pub const TIER_SILVER: &str = "silver";
 
 /// **One `grimoire_decide` answer of a turn**, as a pair names it.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
-pub struct Assessment {
+pub struct AssessedAnswer {
     /// Its place in [`Turn::decisions`].
     pub decision: usize,
     /// **How many of the turn's operations had been applied when it was reported**, so what lies between two answers is the work between them.
@@ -325,8 +337,8 @@ pub struct AssessFix {
     /// The named check both answers are of.
     pub check: String,
     pub tier: String,
-    pub flagged: Assessment,
-    pub cleared: Assessment,
+    pub flagged: AssessedAnswer,
+    pub cleared: AssessedAnswer,
     /// The operations applied between the two answers: the fix.
     pub fixing_operations: Vec<String>,
     pub bench: bool,
@@ -342,11 +354,67 @@ impl AssessFix {
     }
 }
 
+/// **The label of a person's answer to one question** (DL-07, #466): [`Label::label`].
+pub const AUDIT: &str = "audit";
+
 /// **A hand-back the person closed without judging it.** Not a label: a dismissal kept the result unread, which proves nothing about it.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 pub struct Dismissed {
     pub turn: String,
     pub at_unix_ms: u64,
+}
+
+/// **Which model graded a turn, and where it ran** (DL-04, #463).
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
+pub struct AssessorRef {
+    /// The assessor's version: its prompt and wordings. A turn is assessed once per version.
+    pub version: u32,
+    /// The endpoint asked, with no key in it.
+    pub endpoint: String,
+    /// `local` or `remote`: whether the pictures left the machine.
+    pub site: String,
+}
+
+/// **One vote**: the model asked one question in one of three wordings.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct Vote {
+    /// Which wording (0, 1, 2) this vote is of.
+    pub wording: u32,
+    /// What the model answered, as the decision model's wire shape. `None` for a refused vote.
+    pub answer: Option<serde_json::Value>,
+    /// A yes/no answer's probability of yes.
+    pub p_yes: Option<f64>,
+    /// **Why the vote is a refusal**: the provider declined, the answer was of another type, or it was an option that was not offered. Never coerced.
+    pub refused: Option<String>,
+    /// The model that answered, as the provider named it.
+    #[serde(default)]
+    pub model: Option<String>,
+}
+
+/// **What the votes on one question came to** (DL-04, #463).
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct AssessedQuestion {
+    pub id: String,
+    pub votes: Vec<Vote>,
+    /// For a yes/no: the fraction of the valid votes that said yes, the soft label. `None` when no vote was valid.
+    pub yes_fraction: Option<f64>,
+    /// For a choice: the votes each option got.
+    pub tally: std::collections::BTreeMap<String, u32>,
+    /// How many of the votes were refusals.
+    pub refused: u32,
+}
+
+/// **A turn graded by the assessor** (DL-04, #463): silver, a teacher's labels, to be used where the votes agree (DL-06) and graded against the
+/// person's own answers (DL-07, DL-08).
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct Assessment {
+    pub turn: String,
+    pub assessor: AssessorRef,
+    pub at_unix_ms: u64,
+    pub answers: Vec<AssessedQuestion>,
+    /// Why nothing was asked, when a turn had no picture to look at.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub skipped: Option<String>,
 }
 
 /// **What a ledger line holds.** Tagged by `kind`, so a label is a new line of its own and never an edit of a turn's.
@@ -360,6 +428,7 @@ pub enum Body {
     Perturbed(Box<Perturbed>),
     /// An assessor flagged a problem and a later operation of the same turn fixed it (DL-05, #464).
     AssessFix(Box<AssessFix>),
+    Assessment(Box<Assessment>),
 }
 
 /// **One line of the ledger.**
@@ -395,6 +464,11 @@ impl Line {
     /// An assess-then-fix pair, as the ledger holds it.
     pub fn assess_fix(pair: AssessFix) -> Line {
         Line { v: FORMAT, body: Body::AssessFix(Box::new(pair)) }
+    }
+
+    /// An assessment, as the ledger holds it.
+    pub fn assessment(assessment: Assessment) -> Line {
+        Line { v: FORMAT, body: Body::Assessment(Box::new(assessment)) }
     }
 }
 
@@ -445,6 +519,14 @@ impl Read {
         })
     }
 
+    /// The assessments, in the order they were written.
+    pub fn assessments(&self) -> impl Iterator<Item = &Assessment> {
+        self.lines.iter().filter_map(|(_, line)| match &line.body {
+            Body::Assessment(assessment) => Some(assessment.as_ref()),
+            _ => None,
+        })
+    }
+
     /// The assess-then-fix pairs, in the order they were written (DL-05, #464).
     pub fn assess_fixes(&self) -> impl Iterator<Item = &AssessFix> {
         self.lines.iter().filter_map(|(_, line)| match &line.body {
@@ -463,6 +545,16 @@ impl Read {
                 _ => Vec::new(),
             })
             .collect()
+    }
+
+    /// **The person's answers to single questions** (DL-07, #466), in the order they were given: the labels named `audit`.
+    pub fn audits(&self) -> impl Iterator<Item = &Label> {
+        self.labels().filter(|label| label.label == AUDIT)
+    }
+
+    /// **The human holdout** (DL-07, #466): every label marked `holdout`. Never trained on; the one place that says which lines they are.
+    pub fn holdout(&self) -> impl Iterator<Item = &Label> {
+        self.labels().filter(|label| label.holdout)
     }
 }
 
