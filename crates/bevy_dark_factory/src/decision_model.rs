@@ -327,7 +327,13 @@ pub struct DecisionModelPlugin;
 impl Plugin for DecisionModelPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<DecisionState>()
-            .add_systems(Update, (paint_the_led.after(crate::settings::sync_settings), quiet_the_word));
+            .add_systems(
+                Update,
+                (
+                    paint_the_led.after(crate::settings::sync_settings),
+                    quiet_the_word,
+                ),
+            );
     }
 }
 

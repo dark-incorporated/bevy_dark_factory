@@ -545,9 +545,30 @@ pub const VIEWPORT_MIN_W: f32 = 420.0;
 /// share is asked of the docks instead.
 pub const VIEWPORT_SHARE: f32 = 0.52;
 
-/// **What the shell's divider costs**, in the `Val::Px` units the panel widths are written in:
-/// gooey's divider is 29 px on screen at the editor's 1.2 scale, measured on big, 2026-11-03.
-pub const DIVIDER_W: f32 = 24.0;
+/// **The room the shell's split divider takes, in the `Val::Px` units the panel widths are written
+/// in** — and the thickness the owner asked for (#476).
+///
+/// # What a person sees today, and what this number is
+///
+/// gooey draws `Role::SplitDivider` at `MIN_TARGET_PX`, **24** px (`skin.rs:5036`; WCAG 2.5.8's target
+/// size), and nothing a host can set changes it. The owner's capture `feedback-1794783253218` asked for
+/// it **half as thick** — *"I like this being thick, but maybe only half as thick as this?"* — and its
+/// pick rect is `[610, 343, 668, 1344]`: 58 px, which at `ui_scale` 2.4 is **24.17 logical**, exactly
+/// gooey's floor.
+///
+/// The band the issue measured instead (33 px at `x=546..578`) is **not the divider**: measured on the
+/// same frame at `y=700` and `y=900`, that band is the left panel's own 4 px scroll thumb, its `(5,5,5)`
+/// fill and that panel's border rules; the divider is the `(34,34,34)` block at `612..665`.
+///
+/// **So this is 12 — the number the owner asked for — and it is not yet what is drawn.** `bevy_gooey#108`
+/// asks the crate that owns the widget for a divider thickness; until it lands, the seam is gooey's 24
+/// and this constant is what `fit_docks_to_the_window` must reserve once it is not.
+///
+/// **It is deliberately NOT 24 to "match" what is drawn.** A number that restates another crate's floor
+/// is a fact in two places: it agrees today and drifts the first time gooey's target size changes, and
+/// nothing would say so. A test asserts the divider's width is *this*, and that test failing is the
+/// honest report that the knob is still owed.
+pub const DIVIDER_W_PX: f32 = 12.0;
 
 // ── the widget layer ─────────────────────────────────────────────────────────────────────────────
 
@@ -1359,7 +1380,7 @@ fn fit_docks_to_the_window(
     // measured 741 px at a 1600 px window, 28 short of the 769 the docks alone left, and 504 at 1280
     // where the frame's own test asks for half the window. So the map is owed [`VIEWPORT_SHARE`] of
     // the window once that is more than the floor, and the panels give the difference back.
-    let room = room - DIVIDER_W;
+    let room = room - DIVIDER_W_PX;
     let owed = VIEWPORT_MIN_W.max(VIEWPORT_SHARE * room);
     // (The map is owed its share of the room *before* the bar comes out, below.)
     let room = room - bar;
@@ -4169,14 +4190,14 @@ pub fn spawn_chrome_bar(
             b.spawn((
                 Text::new(format!("\u{2039} {back}")),
                 TextColor(ink().key),
-                typed(text::BODY),
+                typed(text::HINT),
                 bevy::picking::Pickable::IGNORE,
             ));
             b.spawn((
                 BackChord,
                 Text::new(keys::chord(keys::Action::MainMenu)),
                 TextColor(ink().label),
-                typed(text::BODY),
+                typed(text::HINT),
                 bevy::picking::Pickable::IGNORE,
             ));
         });
@@ -4192,7 +4213,7 @@ pub fn spawn_chrome_bar(
                 Control(keys::ControlId::Title),
                 Text::new(here),
                 TextColor(ink().dim),
-                typed(text::BODY),
+                typed(text::HINT),
                 bevy::picking::Pickable::IGNORE,
             ));
         }
