@@ -324,13 +324,19 @@ pub const TOOLS: &[ToolDoc] = &[
                       like. Pass source \"window\" to capture what the window itself shows (its \
                       swapchain) instead of what the editor drew; on macOS an unfocused window \
                       reads as one flat colour. Pass hide to take the map's own surfaces out of the \
-                      picture for it: [\"terrain\"] cuts the ground's outer skin away, so an \
-                      underground map's carved rooms are what the picture shows rather than the rock \
-                      they are cut into, lit from the side the camera is on rather than left as \
-                      shadows, and the camera is not moved. A view only: no file is written and the \
-                      map is not marked dirty. What was hidden is put back after the picture unless \
-                      restore is false, and the answer's hid field says what the picture was taken \
-                      with.",
+                      picture for it: [\"terrain\"] cuts the ground's outer skin away, so what the \
+                      picture shows is the interior's NEAR surface -- the vault and the far walls, lit \
+                      from the side the camera is on rather than left as shadows -- instead of the rock \
+                      they are cut into. That is the shape of the void, not the room: the FLOOR is \
+                      behind the vault along every ray from above and is NOT drawn, and neither is a \
+                      column's cap. To see a room's floor, add cut_m: a section plane that removes \
+                      everything nearer the camera than that many metres, so the near half of the \
+                      interior goes and the floor is what the picture shows. cut_m is the caller's \
+                      deliberate section: it knows the value because it framed the room and knows its \
+                      size. The camera does not move, a view only: no file is written, the map is not \
+                      marked dirty, no operation log line is made, and what was hidden and the near \
+                      plane are both put back after the picture unless restore is false. The answer's \
+                      hid field says what the picture was taken with.",
         read_only: false,
         destructive: false,
         idempotent: false,
@@ -371,11 +377,16 @@ pub const TOOLS: &[ToolDoc] = &[
                       facts it was not given is refused and names what is missing; it never answers from \
                       less. hide: the map's own surfaces to take out of the picture this call takes for \
                       view, in grimoire_capture_still's own words: [\"terrain\"] cuts a carved ground's \
-                      outer skin away, so floating and clipping are asked about a room instead of the \
-                      hill it is buried in, lit from the side the camera is on rather than left as \
-                      shadows. The camera is not moved, no file is written and the map is not marked \
-                      dirty; what was hidden is put back before the model is asked, so the person's \
-                      screen is unchanged by the question. Ignored when no picture is taken. game: also \
+                      outer skin away, so floating and clipping are asked about the interior's NEAR \
+                      surface -- the vault and the far walls, lit from the side the camera is on -- \
+                      instead of the hill it is buried in. That is the shape of the void, not the room: \
+                      the FLOOR is behind the vault along every ray from above and is NOT drawn. Add \
+                      cut_m (a section plane removing everything nearer the camera than that many \
+                      metres) to see a room's floor, and pass the same cut_m the still you compared \
+                      against used. No camera move, no file written, the map not marked dirty; what was \
+                      hidden and the near plane are both put back before the model is asked, so the \
+                      person's screen is unchanged by the question. Ignored when no picture is taken. \
+                      game: also \
                       look at the running game that play started: a frame from its \
                       bevy_fairy, named game, on the port in play.yaml or game.port, and one BRP call's \
                       answer (game.state) as facts.game; a check that asks for the image game takes it \
@@ -814,7 +825,9 @@ pub fn schemas() -> Value {
             "properties": {
                 "label": {"type": "string", "description": "A snake_case name for the capture."},
                 "source": {"type": "string", "enum": ["surface", "window"], "default": "surface", "description": "surface: the image the editor draws into. window: what the window itself shows (its swapchain)."},
-                "restore": {"type": "boolean", "default": true, "description": "true (the default) hides what hide names for this one capture and then puts back whatever was hidden before it, so a still never leaves the person's screen changed. false leaves the view as the call set it, for a run of stills that all want it."}
+                "hide": {"type": "array", "items": {"type": "string", "enum": ["terrain", "volume", "water"]}, "default": [], "description": "The map's own surfaces to take out of the picture. [\"terrain\"] cuts the ground's outer skin away, and what the picture shows instead is the interior's NEAR surface: the vault and the far walls, lit from the side the camera is on. That is the shape of the void, not the room: the floor is behind the vault along every ray from above and is NOT drawn, and neither is a column's cap. A floor needs cut_m. The camera is not moved, no file is written, the map is not marked dirty and no operation log line is made."},
+                "cut_m": {"type": ["number", "null"], "default": null, "description": "A section plane: everything nearer the camera than this many metres is removed, so a room's floor is what the picture shows. Place it where the room's near wall stands - you know the value because you framed the room and know its size. Needs hide, and is put back after the picture with the surfaces."},
+                "restore": {"type": "boolean", "default": true, "description": "true (the default) puts the view back after this one capture - the surfaces hidden and the near plane - so a still never leaves the person's screen changed. false leaves the view as the call set it, for a run of stills that all want it."}
             }
         },
         "grimoire_capture_sequence": {
@@ -977,6 +990,7 @@ pub fn schemas() -> Value {
             .and_then(serde_json::Value::as_object_mut)
         {
             decide.insert("hide".to_owned(), serde_json::json!({"type": "array", "items": {"type": "string", "enum": ["terrain", "volume", "water"]}, "default": [], "description": "The map's own surfaces to take out of the picture this call takes for view, in grimoire_capture_still's own words. [\"terrain\"] cuts the ground's outer skin away, so floating and clipping are asked about a carved room rather than the rock it is cut into, lit from the side the camera is on rather than left as shadows; the camera is not moved, no file is written, the map is not marked dirty and no operation log line is made. Put back before the model is asked. Default empty: nothing is hidden, and ignored when no picture is taken."}));
+            decide.insert("cut_m".to_owned(), serde_json::json!({"type": ["number", "null"], "default": null, "description": "A section plane for the picture this call takes: everything nearer the camera than this many metres is removed, so a room's floor is what the picture shows. hide alone draws the interior's near surface - the vault and the far walls - and never the floor, which is behind the vault along every ray from above. Place the plane where the room's near wall stands. Needs hide, and is put back before the model is asked."}));
         }
     }
     document

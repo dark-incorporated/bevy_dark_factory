@@ -2,6 +2,10 @@
 
 What each change added, newest first. A visible change has a clip: click the still to play it. `python3 tools/changelog/changelog.py page --open` plays them all in one page.
 
+## 2026-11-17
+
+- **472-section-cut** grimoire_capture_still and grimoire_decide take cut_m: a section plane that removes what stands between the camera and a carved room, so the floor can be seen; hide alone draws the interior's near surface, the vault and the far walls, and never the floor *For you: A captured picture can now look at the floor of an underground room instead of the ceiling above it.* *No clip: a parameter and a view; proved by crates/bevy_cauldron_mcp/tests/decide_hides_the_terrain.rs*
+
 ## 2026-11-16
 
 - **472-decide-hides** grimoire_decide takes hide: the picture its view is can show a carved room's inside instead of the hill it is buried in, the surfaces put back before the model answers *For you: An agent can now ask whether a room looks right, not whether the hill does: the check is asked about the inside of an underground level.* *No clip: an API parameter and a view it already had; proved by crates/bevy_cauldron_mcp/tests/decide_hides_the_terrain.rs*

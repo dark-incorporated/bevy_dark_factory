@@ -237,6 +237,8 @@ pub struct ViewPlugin;
 impl Plugin for ViewPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<Rig>()
+            // **The section plane a still may place** (#472): off until `grimoire/section_cut` names a depth.
+            .init_resource::<SectionCut>()
             .init_resource::<Pointer>()
             // **One answer per frame for "is a panel under the pointer"** — `OverUi`'s own doc says why a
             // resource rather than nine query edits.
@@ -267,6 +269,43 @@ impl Plugin for ViewPlugin {
                     .chain()
                     .run_if(in_state(crate::screen::Screen::Editor)),
             );
+    }
+}
+
+/// **Where a section plane stands, or that there is none** (#472): the one state `grimoire/section_cut` writes.
+///
+/// **A depth, not a height.** It is metres from the camera along its view, which is what an orthographic
+/// camera's `near` *is*, so applying it is one field on one component and no shader. A world height would
+/// have to be turned into a depth by the camera's own basis every frame, and would drift as the rig eases.
+///
+/// **It is a resource rather than a field on [`Rig`]** because it is not part of the camera someone drives: a
+/// pan or a zoom is the person's, and this is a view an agent set for one picture. [`Self::clear`] is the
+/// put-back, and `drive` reads it every frame, so a cut that outlives its still is impossible to hold by
+/// accident once the call that placed it has answered.
+#[derive(Resource, Default, Clone, Copy, Debug)]
+pub struct SectionCut {
+    /// The plane's distance from the camera, metres, when one is placed.
+    metres: Option<f32>,
+}
+
+impl SectionCut {
+    /// **Where the plane stands**, or `None` when the camera draws its own near range.
+    pub fn metres(&self) -> Option<f32> {
+        self.metres
+    }
+
+    /// **Place the plane** `metres` from the camera along its view. A non-finite or non-positive value is
+    /// not a plane, so it is ignored rather than written: the caller's guard refuses it first
+    /// (`ops_brp::section_cut`), and a second guard here means the camera can never be given a `near` of zero.
+    pub fn set(&mut self, metres: f32) {
+        if metres.is_finite() && metres > 0.0 {
+            self.metres = Some(metres);
+        }
+    }
+
+    /// **Put the camera's own range back.**
+    pub fn clear(&mut self) {
+        self.metres = None;
     }
 }
 
@@ -492,6 +531,8 @@ pub(crate) fn drive(
     pointer: Res<Pointer>,
     mut rig: ResMut<Rig>,
     camera: Option<Single<(&mut Transform, &mut Projection), With<MainCamera>>>,
+    // **The cut a still placed**, read every frame so it cannot outlive the picture it was set for.
+    cut: Option<Res<SectionCut>>,
     // Only the rect the map is drawn into is wanted from it.
     viewport: Option<Single<&Camera, With<MainCamera>>>,
     // The Maps door has one; the other doors have none and keep the plain ceiling.
@@ -569,6 +610,14 @@ pub(crate) fn drive(
     let (mut tf, mut proj) = camera.into_inner();
     *tf = Transform::from_translation(rig.focus + iso).looking_at(rig.focus, Vec3::Y);
     *proj = map_projection(rig.height, &tf, open.as_deref());
+    // **The section plane, over the projection the rig asked for** (#472): an orthographic camera's `near`
+    // *is* a plane perpendicular to its view, so a cut is that one field. The far plane is left alone, so
+    // nothing the rig computed to hold the whole map in depth is lost.
+    if let Some(metres) = cut.as_deref().and_then(SectionCut::metres)
+        && let Projection::Orthographic(o) = &mut *proj
+    {
+        o.near = metres;
+    }
 }
 
 /// **Dispatch a camera operation for a key** (E-002, #129 slice 31), and answer the camera as the operation left it, or `None`

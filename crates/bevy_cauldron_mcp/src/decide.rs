@@ -62,6 +62,20 @@ pub struct DecideParams {
     /// about. A name the editor does not draw is refused by the editor, in its own words.
     #[serde(default)]
     pub hide: Option<Vec<String>>,
+    /// **A section plane for the picture this call takes** (#472): everything nearer the camera than this many
+    /// metres is removed, so a room's floor is what the picture shows.
+    ///
+    /// **`hide` is not enough for a floor**, and saying so is the point: hiding the terrain draws the interior's
+    /// near surface — the vault and the far walls — because front-face culling keeps the faces pointing away
+    /// from the camera, and the floor is behind the vault along every ray from above. A plane removes geometry
+    /// instead of choosing faces, and how much to remove is where the room's near wall stands, which the caller
+    /// knows because it framed the room.
+    ///
+    /// **It is the still's own parameter**, in the still's own words, placed and put back through the same one
+    /// path. Naming it without `hide` is refused: removing the air in front of a room that is still buried
+    /// shows rock, so the two are one request.
+    #[serde(default)]
+    pub cut_m: Option<f32>,
     /// **The JSON facts**: the operations run, the pieces with names and positions, the camera.
     #[serde(default)]
     pub facts: Option<Value>,
@@ -162,26 +176,58 @@ pub async fn grab_through(
     brp: &crate::brp::Brp,
     source: &str,
     hide: Option<&[String]>,
+    cut_m: Option<f32>,
     restore: bool,
 ) -> Result<(String, Option<Vec<String>>), String> {
+    // **The section plane is placed after the hiding and before the grab**, so the picture is taken through
+    // both; and it is placed only when named, so a call with neither costs the editor no round trip.
+    let cut_was = match cut_m {
+        None => None,
+        Some(metres) => {
+            let answer = brp.call("grimoire/section_cut", json!({"cut_m": metres})).await?;
+            Some(answer.get("was").and_then(Value::as_f64).map(|w| w as f32))
+        }
+    };
+    // **A refused hiding still puts the plane back.** The plane is placed first (it is what makes the interior
+    // visible), so a `surface_hide` the editor refuses would otherwise leave the person's map cut open with the
+    // surfaces as they were — the one state neither the caller nor the person asked for.
     let was = match hide {
         None => None,
-        Some(names) => {
-            let answer = brp.call("grimoire/surface_hide", json!({"hide": names})).await?;
-            Some(
+        Some(names) => match brp.call("grimoire/surface_hide", json!({"hide": names})).await {
+            Ok(answer) => Some(
                 answer
                     .get("was")
                     .and_then(Value::as_array)
                     .map(|w| w.iter().filter_map(|s| s.as_str().map(str::to_owned)).collect())
                     .unwrap_or_default(),
-            )
-        }
+            ),
+            Err(e) => {
+                if restore && cut_m.is_some() {
+                    let _ = brp.call("grimoire/section_cut", json!({"cut_m": cut_was.flatten()})).await;
+                }
+                return Err(e);
+            }
+        },
     };
     let grabbed = brp.screenshot(json!({"source": source})).await;
-    if restore && let Some(back) = &was
-        && let Err(e) = brp.call("grimoire/surface_hide", json!({"hide": back})).await
-    {
-        return Err(format!("the view could not be put back after the capture: {e}"));
+    // **Both halves go back, and the plane goes back even when the picture did not land**: a cut that
+    // outlived a refused capture would leave the person looking at the inside of a hill.
+    if restore {
+        let mut lost = Vec::new();
+        if was.is_some()
+            && let Some(back) = &was
+            && let Err(e) = brp.call("grimoire/surface_hide", json!({"hide": back})).await
+        {
+            lost.push(format!("the surfaces: {e}"));
+        }
+        if cut_m.is_some()
+            && let Err(e) = brp.call("grimoire/section_cut", json!({"cut_m": cut_was.flatten()})).await
+        {
+            lost.push(format!("the section plane: {e}"));
+        }
+        if !lost.is_empty() {
+            return Err(format!("the view could not be put back after the capture: {}.", lost.join("; ")));
+        }
     }
     Ok((grabbed?, was))
 }
@@ -264,6 +310,28 @@ pub fn public_endpoint(url: &str) -> String {
     let host = authority.rsplit_once('@').map_or(authority, |(_, host)| host);
     let path = tail.split(['?', '#']).next().unwrap_or("");
     format!("{scheme}{host}{path}")
+}
+
+/// **The one rule `cut_m` follows** (#472), in one sentence so both tools refuse it identically: a section
+/// plane with no `hide` is refused, because removing the air in front of a room that is still buried shows
+/// rock — the plane deletes what stands between the camera and the interior, and `hide` is what makes the
+/// interior the thing there. `Ok(())` when the call is coherent (both named, or neither).
+pub fn check_cut(hide: Option<&[String]>, cut_m: Option<f32>) -> Result<(), String> {
+    let Some(metres) = cut_m else { return Ok(()) };
+    if hide.is_none_or(<[String]>::is_empty) {
+        return Err(format!(
+            "`cut_m: {metres}` needs `hide`. A section plane removes what stands between the camera and an \
+             interior, so without hiding the terrain there is no interior to see and the picture is rock with a \
+             hole in it. Say `hide: [\"terrain\"]` and `cut_m: {metres}`, or neither. Nothing was changed."
+        ));
+    }
+    if !metres.is_finite() || metres <= 0.0 {
+        return Err(format!(
+            "`cut_m: {metres}` is not a distance a plane can stand at: it is metres from the camera along its \
+             view and must be above zero. Nothing was changed."
+        ));
+    }
+    Ok(())
 }
 
 /// **Whether the server must take the editor's picture before deciding.**

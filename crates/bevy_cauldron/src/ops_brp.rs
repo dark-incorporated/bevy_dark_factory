@@ -3250,6 +3250,57 @@ fn one_true() -> bool {
     true
 }
 
+/// **The parameters of `grimoire/section_cut`** (#472). `deny_unknown_fields`, so a typo is a refusal: a
+/// `cut_m` misnamed would leave the camera's near plane alone and read as a working call.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct SectionCutParams {
+    /// **Where the plane stands**, in metres from the camera along its view: everything nearer than this is
+    /// cut away. `None` restores the camera's own near distance, which is how a caller puts the view back.
+    #[serde(default)]
+    pub cut_m: Option<f32>,
+}
+
+/// **`grimoire/section_cut` — a plane that removes what stands between the camera and an interior** (#472).
+///
+/// **Why a plane, when `surface_hide` already cuts.** `hide: ["terrain"]` culls the solid's front faces, and
+/// with the mesher's outward winding that keeps the interior's **near** surface — the vault and the far walls
+/// — and discards the floor, which is *behind* the vault along every ray from above. No cull mode reaches a
+/// floor: culling nothing draws the hill's own outer skin, which is nearer still. A floor from outside needs
+/// geometry *removed*, and the amount to remove is a property of the room (where its near wall stands), not of
+/// the camera — which is why the caller states it here rather than the editor guessing it.
+///
+/// **It writes the Map camera's own orthographic `near`**, one number on one component: no mesh is rebuilt, no
+/// material is copied and nothing is despawned, so a cut costs a frame's projection and no upload. The camera's
+/// own range is remembered by [`crate::view::SectionCut`] and `cut_m: null` puts it back, which is what a still
+/// does after its picture.
+///
+/// **A view, not map data**, for `surface_hide`'s reason: no file is written, the map is not marked dirty and no
+/// operation log line is made.
+fn section_cut(In(p): In<SectionCutParams>, mut cut: Option<ResMut<crate::view::SectionCut>>) -> Result<Value, String> {
+    let Some(cut) = cut.as_deref_mut() else {
+        return Err("the editor has no Map camera to cut, so nothing was changed.".to_owned());
+    };
+    match p.cut_m {
+        None => {
+            let was = cut.metres();
+            cut.clear();
+            Ok(json!({"cut_m": null, "was": was}))
+        }
+        Some(metres) => {
+            if !metres.is_finite() || metres <= 0.0 {
+                return Err(format!(
+                    "`{metres}` is not a distance the plane can stand at: `cut_m` is metres from the camera \
+                     along its view and must be above zero. Nothing was changed."
+                ));
+            }
+            let was = cut.metres();
+            cut.set(metres);
+            Ok(json!({"cut_m": metres, "was": was}))
+        }
+    }
+}
+
 /// **`grimoire/surface_hide` — hide the map's own surfaces, so a carved interior can be seen** (#472).
 ///
 /// **A view, not map data.** The surfaces stay in their files, `grimoire_state.map.dirty` is untouched and
@@ -3861,6 +3912,24 @@ impl Plugin for OpsBridgePlugin {
             .params("hide: any of terrain, volume, water (an empty list draws them all); replace: true (the default) replaces what was hidden, false adds to it.")
             .example(json!({"hide": ["terrain"]})),
             surface_hide,
+        );
+
+        app.add_debug_command(
+            DebugCommandInfo::new(
+                "grimoire/section_cut",
+                "Place a section plane that removes everything nearer the camera than cut_m metres, so a \
+                 room's floor can be seen from outside. hide: [\"terrain\"] alone draws the interior's \
+                 NEAR surface -- the vault and the far walls -- because front-face culling keeps the faces \
+                 pointing away from the camera, and the floor is behind the vault along every ray from \
+                 above. A plane removes geometry instead of choosing faces, and how much to remove is where \
+                 the room's near wall stands, which the caller knows because it framed the room. It writes \
+                 the Map camera's orthographic near distance: no mesh is rebuilt. A view, not map data: no \
+                 file written, the map not marked dirty, no operation log line. cut_m null puts the camera's \
+                 own range back, which is what a still does after its picture.",
+            )
+            .params("cut_m: metres from the camera along its view, above zero, or null to put the camera's own near back.")
+            .example(json!({"cut_m": 31.0})),
+            section_cut,
         );
 
         app.add_debug_command(

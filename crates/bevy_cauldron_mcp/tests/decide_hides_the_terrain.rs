@@ -52,6 +52,7 @@ fn editor() -> FakeEditor {
     let png = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFAAH/q842iQAAAABJRU5ErkJggg==";
     let started = Instant::now();
     let mut hidden: Vec<String> = Vec::new();
+    let mut cut: Option<f32> = None;
     std::thread::spawn(move || {
         for stream in listener.incoming() {
             let Ok(mut s) = stream else { continue };
@@ -102,6 +103,22 @@ fn editor() -> FakeEditor {
                     hidden = named;
                     json!({"hidden": hidden, "was": before, "drawn_now": []})
                 }
+                "grimoire/section_cut" => {
+                    let before = cut;
+                    let asked_for = params.get("cut_m").and_then(Value::as_f64).map(|m| m as f32);
+                    if let Some(m) = asked_for
+                        && (!m.is_finite() || m <= 0.0)
+                    {
+                        let out = json!({"jsonrpc": "2.0", "id": req["id"], "error": {
+                            "code": -32000,
+                            "message": format!("`{m}` is not a distance the plane can stand at: `cut_m` is metres from the camera along its view and must be above zero. Nothing was changed.")}})
+                        .to_string();
+                        let _ = write!(s, "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{out}", out.len());
+                        continue;
+                    }
+                    cut = asked_for;
+                    json!({"cut_m": cut, "was": before})
+                }
                 _ => json!({}),
             };
             let out = json!({"jsonrpc": "2.0", "id": req["id"], "result": result}).to_string();
@@ -128,7 +145,7 @@ impl FakeEditor {
 #[tokio::test(flavor = "multi_thread")]
 async fn the_picture_decide_asks_about_is_taken_with_the_terrain_hidden() {
     let editor = editor();
-    let (png, was) = grab_through(&editor.brp(), "offscreen", Some(&["terrain".to_owned()]), true)
+    let (png, was) = grab_through(&editor.brp(), "offscreen", Some(&["terrain".to_owned()]), None, true)
         .await
         .expect("the picture is taken");
     assert!(!png.is_empty(), "a picture came back");
@@ -152,7 +169,7 @@ async fn what_was_hidden_before_the_question_is_what_is_hidden_after_it() {
     let brp = editor.brp();
     // The person already has the water hidden, for a reason of their own.
     brp.call("grimoire/surface_hide", json!({"hide": ["water"]})).await.expect("the water is hidden");
-    let (_png, was) = grab_through(&brp, "offscreen", Some(&["terrain".to_owned()]), true)
+    let (_png, was) = grab_through(&brp, "offscreen", Some(&["terrain".to_owned()]), None, true)
         .await
         .expect("the picture is taken");
     assert_eq!(was, Some(vec!["water".to_owned()]), "the call says what stood before it: {was:?}");
@@ -165,7 +182,7 @@ async fn what_was_hidden_before_the_question_is_what_is_hidden_after_it() {
 #[tokio::test(flavor = "multi_thread")]
 async fn with_no_hide_the_view_is_never_touched() {
     let editor = editor();
-    let (_png, was) = grab_through(&editor.brp(), "offscreen", None, true).await.expect("the picture is taken");
+    let (_png, was) = grab_through(&editor.brp(), "offscreen", None, None, true).await.expect("the picture is taken");
     assert_eq!(was, None, "the call names no view, so it reports none");
     let asked = editor.asked();
     assert!(
@@ -180,7 +197,7 @@ async fn with_no_hide_the_view_is_never_touched() {
 #[tokio::test(flavor = "multi_thread")]
 async fn a_surface_the_editor_does_not_draw_is_refused_naming_the_list() {
     let editor = editor();
-    let said = grab_through(&editor.brp(), "offscreen", Some(&["terain".to_owned()]), true)
+    let said = grab_through(&editor.brp(), "offscreen", Some(&["terain".to_owned()]), None, true)
         .await
         .expect_err("a typo is refused");
     assert!(said.contains("terain"), "the refusal names what was asked for: {said}");
@@ -210,4 +227,94 @@ fn the_parameters_hide_is_the_stills_own_and_defaults_to_none() {
         serde_json::from_value::<bevy_cauldron_mcp::decide::DecideParams>(json!({"view": true, "hidden": ["terrain"]})).is_err(),
         "a misspelled parameter is refused, so a hide that never happened cannot read as one that did"
     );
+}
+
+/// **`cut_m` is the caller's own number, it reaches the camera, and it is put back after the picture.**
+///
+/// **Why a plane at all**, because the code will outlive this comment: `hide` alone draws the interior's *near*
+/// surface — the vault and the far walls — because front-face culling keeps the faces pointing away from the
+/// camera, and the floor is **behind** the vault along every ray from above. Measured on #472 against the same SDF
+/// the editor meshes: three cull modes, none of which reaches a floor. A plane removes geometry instead of
+/// choosing faces, so the floor is what remains — and how much to remove is where the room's near wall stands,
+/// which is a property of the room, not of the camera. That is why the caller states it and the editor does not
+/// derive it.
+///
+/// **The four column caps at 18.4 m from one still are NOT satisfiable by a depth cut**, and this test does not
+/// pretend otherwise: a depth cut is a plane in *view* space, so it cuts each column at a different height — at
+/// the value that shows the crypt's floor, the four columns read at 13.4, 3.4, 3.4 and 7.5 m. A true horizontal
+/// plan cut is the follow-up that would show all four caps at once, and it needs geometry the editor does not
+/// have today.
+#[tokio::test(flavor = "multi_thread")]
+async fn cut_m_reaches_the_camera_and_is_put_back_after_the_picture() {
+    let editor = editor();
+    let brp = editor.brp();
+    // **The camera's own near is whatever it was**, and the call must not be the thing that decides it.
+    let before = brp.call("grimoire/section_cut", json!({"cut_m": null})).await.expect("the camera answers");
+    assert_eq!(before["cut_m"], Value::Null, "no plane stands to begin with: {before}");
+
+    let (_png, was) = grab_through(&brp, "offscreen", Some(&["terrain".to_owned()]), Some(31.0), true)
+        .await
+        .expect("the picture is taken");
+    assert_eq!(was, Some(vec![]), "the call reports what was hidden before it");
+
+    let cuts: Vec<_> = editor.asked().into_iter().filter(|a| a.method == "grimoire/section_cut").collect();
+    // The first is this test's own look at what stood before it; the capture's are the two after it.
+    assert_eq!(cuts.len(), 3, "this test's own call, then the plane placed and put back: {cuts:#?}");
+    assert_eq!(cuts[1].params["cut_m"], json!(31.0), "**the plane is the caller's own number**, not a constant");
+    assert_eq!(cuts[2].params["cut_m"], Value::Null, "and it is put back to the camera's own near");
+}
+
+/// **A refused capture still puts the plane back.** An editor that fails the picture must not leave the person
+/// looking at the inside of a hill, which is the failure the surfaces' restore was written for and this repeats.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_refused_capture_still_puts_the_plane_back() {
+    let editor = editor();
+    let brp = editor.brp();
+    // **A surface name the editor does not draw** refuses the call after the plane is already placed, because the
+    // plane is placed first (it is what makes the interior visible). The restore must still run.
+    let said = grab_through(&brp, "offscreen", Some(&["terain".to_owned()]), Some(31.0), true)
+        .await
+        .expect_err("a typo is refused");
+    assert!(said.contains("terain"), "{said}");
+    let cuts: Vec<_> = editor.asked().into_iter().filter(|a| a.method == "grimoire/section_cut").collect();
+    assert_eq!(cuts.len(), 2, "the plane was placed, and put back despite the refusal: {cuts:#?}");
+    assert_eq!(cuts[0].params["cut_m"], json!(31.0), "placed first, which is what makes the interior visible");
+    assert_eq!(cuts[1].params["cut_m"], Value::Null, "the camera's own near is restored");
+}
+
+/// **`cut_m` without `hide` is refused, in one sentence, before the editor is asked anything** — the rule both
+/// tools share, because a plane with nothing hidden removes the air in front of a room that is still buried.
+#[test]
+fn a_plane_without_a_hide_is_refused_by_the_one_rule_both_tools_call() {
+    use bevy_cauldron_mcp::decide::check_cut;
+    let said = check_cut(None, Some(31.0)).expect_err("a plane with no hide is refused");
+    assert!(said.contains("cut_m: 31") && said.contains("needs `hide`"), "it names both and the rule: {said}");
+    let said = check_cut(Some(&[]), Some(31.0)).expect_err("an empty hide is no hide");
+    assert!(said.contains("needs `hide`"), "{said}");
+    // **And the numbers a plane cannot stand at** are refused with their own sentence.
+    let said = check_cut(Some(&["terrain".to_owned()]), Some(0.0)).expect_err("zero is not a distance");
+    assert!(said.contains("above zero"), "{said}");
+    let said = check_cut(Some(&["terrain".to_owned()]), Some(-4.0)).expect_err("negative is not a distance");
+    assert!(said.contains("above zero"), "{said}");
+    // **The coherent calls pass**, which is what keeps the rule from refusing the tool's ordinary use.
+    assert!(check_cut(Some(&["terrain".to_owned()]), Some(31.0)).is_ok());
+    assert!(check_cut(Some(&["terrain".to_owned()]), None).is_ok(), "a still with no plane is the ordinary call");
+    assert!(check_cut(None, None).is_ok(), "and a still with neither is the plainest call there is");
+}
+
+/// **A still with no `hide` and no `cut_m` asks the editor for nothing but the picture**, which is the shape
+/// acceptance 2 needs: the option changes nothing when unused.
+#[tokio::test(flavor = "multi_thread")]
+async fn no_hide_and_no_cut_m_asks_the_editor_for_nothing_but_a_picture() {
+    let editor = editor();
+    let brp = editor.brp();
+    let (_png, was) = grab_through(&brp, "offscreen", None, None, true).await.expect("the picture is taken");
+    assert_eq!(was, None, "the call names no view");
+    let asked = editor.asked();
+    assert!(
+        asked.iter().all(|a| a.method != "grimoire/section_cut"),
+        "**no plane is placed**: {asked:#?}"
+    );
+    assert!(asked.iter().all(|a| a.method != "grimoire/surface_hide"), "and nothing is hidden");
+    assert_eq!(asked.iter().filter(|a| a.method == "bevy_fairy/screenshot").count(), 1, "one picture");
 }
