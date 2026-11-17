@@ -73,9 +73,17 @@ fn every_model_has_its_own_record_of_the_clip_set() {
             r.excluded.len(),
             set.len()
         );
+        // **Each excluded id is a sample of the set, and each is excluded once** (#455, review G): the sum above
+        // passes just as well for invented or repeated ids, and an exclusion naming a sample that does not exist
+        // is a record that lost a different one.
+        let ids: Vec<&str> = set.iter().filter_map(|s| s.get("id").and_then(|i| i.as_str())).collect();
+        let mut seen = std::collections::BTreeSet::new();
         for e in &r.excluded {
             assert!(!e.sample.trim().is_empty() && !e.why.trim().is_empty(), "{stem}: an exclusion must name its sample and why");
+            assert!(ids.contains(&e.sample.as_str()), "{stem}: `{}` is not a sample of the set", e.sample);
+            assert!(seen.insert(e.sample.as_str()), "{stem}: `{}` is excluded twice", e.sample);
         }
+        let _ = (&r.correct, &r.wrong, r.threshold);
         assert_eq!(r.correct + r.wrong, r.set_size, "{stem}: the counts do not add up");
         let measured = r.correct as f64 / r.set_size as f64;
         assert!((measured - r.agreement).abs() < 1e-9, "{stem}: agreement {} but counts give {measured}", r.agreement);

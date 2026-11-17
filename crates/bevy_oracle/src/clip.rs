@@ -156,37 +156,48 @@ pub fn score_set(
     samples: &[Labelled],
     transport: &dyn crate::Transport,
 ) -> Result<Vec<crate::Sample>, crate::Error> {
-    let (scored, excluded) = score_set_recording_exclusions(check, samples, transport)?;
-    match excluded.first() {
-        // **The strict caller is told, not given a short set**: a comparison between two models, or a gate, must
-        // not read a 121-of-122 run as a full one.
-        Some(e) => Err(crate::Error::Sample {
-            id: e.sample.clone(),
-            cause: Box::new(crate::Error::Refused {
-                endpoint: transport.endpoint(),
-                status: 0,
-                body: e.why.clone(),
-            }),
-        }),
+    let (scored, refused) = score_set_keeping_errors(check, samples, transport)?;
+    match refused {
+        // **The strict caller is told, and is told the real cause** (#455, review E): a caller comparing two
+        // models must not read a short run as a full one, and must not read a content filter as a rate limit.
+        // The error it gets is the transport's own, wrapped to name the sample.
+        Some((id, cause)) => Err(crate::Error::Sample { id, cause: Box::new(cause) }),
         None => Ok(scored),
     }
 }
 
-/// [`score_set`], and **the samples an endpoint refused outright**, so a record can say how much of the set it
-/// measured (#455). Only a refusal of the whole request is skipped — an [`Error::Refusal`], an
-/// [`Error::OpenRouter`] or an [`Error::Refused`] that names its status; an unreachable endpoint, a malformed
-/// answer or an answer from another model still stops the run, because none of those is "this picture cannot be
-/// seen by this provider".
+/// [`score_set`]'s engine, and **the samples an endpoint's content filter refused**, so a record can say how
+/// much of the set it measured (#455). Only a per-picture content refusal is skipped (see
+/// [`refuses_the_sample`]); everything else stops the run with its own error, naming the sample.
 ///
 /// A skipped sample is **named** in the returned [`crate::Exclusion`], never dropped silently: it is what
-/// separates "121 of 122 were measured" from "the set is 121".
+/// separates "116 of 122 were measured" from "the set is 116".
 pub fn score_set_recording_exclusions(
     check: &Check,
     samples: &[Labelled],
     transport: &dyn crate::Transport,
 ) -> Result<(Vec<crate::Sample>, Vec<crate::Exclusion>), crate::Error> {
+    let (scored, refused) = score_set_keeping_errors(check, samples, transport)?;
+    match refused {
+        Some((id, cause)) => Ok((scored, vec![exclusion_of(&id, &cause)])),
+        None => Ok((scored, Vec::new())),
+    }
+}
+
+/// **One sample's failure, kept whole**: whose it was, and the transport's own error. A caller that cannot
+/// tolerate a short set reports this rather than a reconstructed status, so a rate limit stays a rate limit.
+pub type Refused = (String, crate::Error);
+
+/// The work both callers share: score every sample, and come back with **the first per-picture content refusal**
+/// (named, with its own error) instead of stopping on it. Every other error is returned then and there, with the
+/// sample it happened on, so a caller can neither lose a failure nor mistake it for an exclusion.
+fn score_set_keeping_errors(
+    check: &Check,
+    samples: &[Labelled],
+    transport: &dyn crate::Transport,
+) -> Result<(Vec<crate::Sample>, Option<Refused>), crate::Error> {
     let mut out = Vec::with_capacity(samples.len());
-    let mut excluded = Vec::new();
+    let mut refused: Option<Refused> = None;
     for s in samples {
         let ev = evidence(&s.dir);
         let req = request(check, &s.title, &ev)?;
@@ -195,7 +206,11 @@ pub fn score_set_recording_exclusions(
         let response = match crate::ask(transport, &req) {
             Ok(r) => r,
             Err(cause) if refuses_the_sample(&cause) => {
-                excluded.push(crate::Exclusion { sample: s.id.clone(), frame: None, why: format!("{cause}") });
+                // The sample is skipped; the first refusal is kept so a caller that cannot tolerate a short set
+                // gets the transport's own error, not a reconstruction of it.
+                if refused.is_none() {
+                    refused = Some((s.id.clone(), cause));
+                }
                 continue;
             }
             Err(cause) => {
@@ -228,16 +243,29 @@ pub fn score_set_recording_exclusions(
         // show), so a model that was right scored at best the 50 % all-yes threshold.
         out.push(crate::Sample { p_yes, truth: !s.truth });
     }
-    Ok((out, excluded))
+    Ok((out, refused))
 }
 
-/// **Whether an error is the provider refusing one sample rather than the run failing** (#455): a refusal it
-/// named, or a status a gateway or content filter answered with. An unreachable endpoint, a bad response and an
-/// answer from another model are the run's problems and still stop it.
+/// One refusal as a record's named gap. `Exclusion` carries no frame: the provider never says which of the four
+/// images it refused, so a run cannot know it (#455, review D).
+fn exclusion_of(id: &str, cause: &crate::Error) -> crate::Exclusion {
+    crate::Exclusion { sample: id.to_owned(), why: format!("{cause}") }
+}
+
+/// **Whether an error is the provider refusing *this picture* rather than the run failing** (#455, review A).
+///
+/// Only one thing qualifies: OpenRouter's content filter (`OpenRouterFailure::ContentFiltered`, a 403 whose body
+/// names the filter). It is about the bytes of one sample and says nothing about the rest of the set.
+///
+/// **Everything else stops the run**, because a record made around it would be a prefix presented as a
+/// measurement: a 429 halfway through means the remaining samples were never asked; a 401, a 402 and a 404 mean
+/// the run cannot ask at all; a 5xx or an unreachable endpoint means the endpoint is ill; a malformed answer or
+/// an answer from another model means the answer is not usable. Excluding those would turn the run's own failure
+/// into 60-odd "rate limited" exclusions in a file that reads as a measurement.
 fn refuses_the_sample(e: &crate::Error) -> bool {
     match e {
         crate::Error::Sample { cause, .. } => refuses_the_sample(cause),
-        crate::Error::Refusal { .. } | crate::Error::OpenRouter { .. } | crate::Error::Refused { .. } => true,
+        crate::Error::OpenRouter { failure: crate::OpenRouterFailure::ContentFiltered { .. }, .. } => true,
         _ => false,
     }
 }

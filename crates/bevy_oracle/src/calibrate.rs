@@ -16,16 +16,14 @@ pub struct Sample {
 /// refusal was isolated to an image ([`crate::Error::Sample`] names the sample; this names the picture), and
 /// `why` the endpoint's own words.
 ///
-/// The measured case (`tests/an_excluded_sample_is_stated_in_the_record.rs`): OpenRouter's secret scanner
-/// answered 403 `SECRET:bitcoin-wif-compressed` for `103-light-buttons`' `frame1.png` alone — the title, the
-/// still, `frame0` and `frame2` all answered — so pplx-decider's record is 121 of 122 with that one named.
+/// **There is no `frame` field** (#455, review D): the provider says which *request* it refused, never which of
+/// the four images tripped it, so a run cannot fill one. A field the run leaves empty and a person fills by hand
+/// is a field the next run silently erases — so the frame is prose in `docs/decide/models.md` (isolated one
+/// image at a time) and this record keeps only what a run can reproduce: which sample, and why.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Exclusion {
     /// The labelled sample's id in `clip_samples.yaml`.
     pub sample: String,
-    /// The one image that was refused, when the refusal was isolated to it; `None` when the whole request was.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub frame: Option<String>,
     /// What the endpoint said, in its own words, including the status that proved it.
     pub why: String,
 }

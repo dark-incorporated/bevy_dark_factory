@@ -30,10 +30,14 @@ impl Transport for Refuses {
             _ => false,
         });
         if title_is_here {
-            return Err(Error::Refused {
+            // A content filter, which is the one refusal that becomes an exclusion (#455, review A). A bare 403
+            // is `Error::Refused` and stops the run.
+            return Err(Error::OpenRouter {
                 endpoint: self.endpoint(),
-                status: 403,
-                body: r#"{"error":{"message":"Request blocked by content filter","code":403}}"#.into(),
+                failure: bevy_oracle::OpenRouterFailure::ContentFiltered {
+                    detail: "Request blocked by content filter: [SECRET:bitcoin-wif-compressed]".into(),
+                },
+                reason: "Request blocked by content filter".into(),
             });
         }
         let answers = request
@@ -77,7 +81,6 @@ fn a_refused_sample_is_skipped_and_named_rather_than_dropped() {
     assert_eq!(excluded.len(), 1, "the other is named");
     assert_eq!(excluded[0].sample, REFUSED);
     assert!(excluded[0].why.contains("403") && excluded[0].why.contains("content filter"), "{:?}", excluded[0].why);
-    assert!(excluded[0].frame.is_none(), "the whole request was refused, not one named image");
 }
 
 /// **The strict path still names the sample and carries the endpoint's own refusal**, so a caller that cannot

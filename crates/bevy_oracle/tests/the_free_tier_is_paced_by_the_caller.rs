@@ -98,12 +98,30 @@ fn pacing_forwards_the_transport_it_is_given_and_changes_nothing_else() {
     }
 }
 
-/// A Local run is never paced by its caller, and the wrapper says so: wrapping it changes only the spacing.
+/// A stand-in that **says** where its answers are made, so forwarding can be told from the trait's default.
+struct Local(Clocked);
+
+impl Transport for Local {
+    fn endpoint(&self) -> String {
+        self.0.endpoint()
+    }
+    fn site(&self) -> DecisionModel {
+        DecisionModel::Local
+    }
+    fn send(&self, request: &Request) -> Result<Response, Error> {
+        self.0.send(request)
+    }
+}
+
+/// **A paced transport forwards `site()`** (#455, review F). `Clocked` never overrides `site`, so asserting on it
+/// would have tested the trait's default, which reads `Remote`, and would have passed whatever `Paced` did. This
+/// one says `Local` and the wrapper must say it too: a wrapper that forgot would make a LAN-only run report that
+/// pictures left the machine.
 #[test]
-fn a_local_transport_wrapped_in_a_pace_still_says_nothing_left_the_lan() {
-    let inner = Clocked::new();
+fn a_pace_forwards_where_its_inner_transport_says_the_answers_are_made() {
+    let inner = Local(Clocked::new());
     let paced = Paced::every(Duration::ZERO, &inner);
-    assert_eq!(paced.site(), DecisionModel::Remote, "the stand-in does not say, so the trait's safe default reads Remote");
+    assert_eq!(paced.site(), DecisionModel::Local, "the wrapper must not read as Remote when its inner is Local");
     ask(&paced, &asked(0)).expect("the stand-in answers");
-    assert_eq!(inner.asked.borrow().len(), 1, "the wrapper asked the inner transport exactly once");
+    assert_eq!(inner.0.asked.borrow().len(), 1, "the wrapper asked the inner transport exactly once");
 }

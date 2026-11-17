@@ -65,6 +65,7 @@ No hidden retries: whatever OpenRouter says comes back once, named, with its rea
 |400|`Error::Refused { status: 400, body }`|The body is wrong (a top-level `images`, a part that is not an `image_url`, an unused `assets` key). Deterministic: fix it.|
 |401|`Error::Refused { status: 401 }`|No or a bad key. Check `OPENROUTER_API_KEY` in this shell.|
 |402|`Error::OpenRouter { failure: CreditsExhausted }`|Credits or the key's limit (`metadata.limit_source` says which). Report; do not retry blindly.|
+|403|`Error::OpenRouter { failure: ContentFiltered { detail } }` **when the body names the content filter**, else `Error::Refused { status: 403 }`|The only refusal that is about one picture: a calibration run excludes that sample and names it. Any other 403 stops the run. Nothing is retried and no filter is relaxed.|
 |404|`Error::OpenRouter { failure: NoEndpoint }`|No endpoint satisfies the `provider` filter (`zdr`, `data_collection`, `only`) or the account's privacy settings (https://openrouter.ai/settings/privacy). **Report to the person; the filter is never relaxed.**|
 |429|`Error::OpenRouter { failure: RateLimited { retry_after } }`|Free tier: 20 requests a minute, 50 a day (1000 once $10 of credits were ever bought). `Retry-After` is carried as sent. The caller paces (3 s apart is under the minute limit) and waits; nothing here sleeps.|
 |502/503/524/529|`Error::Refused`|Provider error, overload or timeout. Report; at most one explicit, logged retry by the person.|

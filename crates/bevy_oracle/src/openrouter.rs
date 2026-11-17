@@ -43,6 +43,14 @@ const IMAGE_DATA_URL_PREFIXES: [&str; 3] =
 /// Longest piece of a refusal body quoted when it is not OpenRouter's `{"error": ...}` shape.
 const MAX_QUOTED_BODY_CHARS: usize = 500;
 
+/// The status OpenRouter answers when its content filter refuses **one picture**: 403. It is the only refusal
+/// that may become a calibration record's named exclusion, because it is the only one that is about the picture
+/// and not about the run (a 429 mid-run means the remaining samples were never asked, not that they are bad).
+pub const CONTENT_FILTER_STATUS: u16 = 403;
+
+/// The marker OpenRouter's content filter puts in its 403 body, beside the `[SECRET:<kind>]` class.
+const CONTENT_FILTER_MARK: &str = "content filter";
+
 /// Why OpenRouter said no, for the statuses that each mean something different to the person.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum OpenRouterFailure {
@@ -53,6 +61,10 @@ pub enum OpenRouterFailure {
     NoEndpoint,
     /// 429: the rate limit. `retry_after` is the `Retry-After` header as sent, if there was one.
     RateLimited { retry_after: Option<String> },
+    /// **403: the content filter refused this request's pictures.** `detail` is OpenRouter's own message
+    /// (`Request blocked by content filter: [SECRET:bitcoin-wif-compressed]`), which names the class it matched.
+    /// A whole run is never excluded on this: one picture is, and it is named.
+    ContentFiltered { detail: String },
 }
 
 /// The body OpenRouter wants for `request`, as JSON: `{model, state, questions, provider?}`.
@@ -167,6 +179,13 @@ pub(crate) fn refusal_of(endpoint: &str, reply: Reply) -> Error {
     let reason = reason_of(&reply.body);
     let named = |failure| Error::OpenRouter { endpoint: endpoint.to_owned(), failure, reason: reason.clone() };
     match reply.status {
+        // **The one refusal that is about the picture rather than the run** (#455, review A): 403 and only 403,
+        // and only when the body says the content filter did it. Any other 403 is `Error::Refused` and stops
+        // the run like every other status, because guessing "probably the picture" is how a run's real failure
+        // becomes 60 exclusions.
+        403 if reply.body.contains(CONTENT_FILTER_MARK) => named(OpenRouterFailure::ContentFiltered {
+            detail: reason_of(&reply.body),
+        }),
         402 => named(OpenRouterFailure::CreditsExhausted),
         404 => named(OpenRouterFailure::NoEndpoint),
         429 => named(OpenRouterFailure::RateLimited { retry_after: reply.retry_after }),

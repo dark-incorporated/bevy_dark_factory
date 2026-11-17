@@ -114,25 +114,39 @@ pub fn verify_served(label: &str, endpoint: &str, served: &[String]) -> Result<(
     }
 }
 
+/// The billing marker a `:free` model's name carries, and the only suffix [`names_the_same_model`] strips.
+const FREE_TIER_MARKER: &str = ":free";
+
 /// **Whether two names are one model** (#455, DM-04). OpenRouter names one model three ways: a vendor prefix
 /// (`perplexity/pplx-decider-v1.3`), a billing variant (`perplexity/pplx-decider-v1.3:free`) and a dated
 /// snapshot (`perplexity/pplx-decider-v1.3-20261112`). A calibration made from a snapshot's answers belongs to
 /// the model it is labelled with, and comparing the strings as typed would refuse every sample.
 ///
-/// The comparison is: without the vendor prefix (`<vendor>/`), without a `:<variant>` suffix, and without a
-/// trailing `-<yyyymmdd>` snapshot date. **A different name is a different model**: the date is stripped from the
-/// end only, and the version inside a name (`v1.3`) is never touched.
+/// The comparison strips exactly three things, and no others:
+///
+/// * the `:free` billing marker ([`FREE_TIER_MARKER`]) — the run's label says `:free` on a call that is free
+///   precisely because the model is, so it names no other model;
+/// * a trailing `-<yyyymmdd>` snapshot date, and only eight digits, so `v1.3` is never read as one;
+/// * nothing else. **A vendor that both names carry must be the same one**: `vendorA/x` is not `vendorB/x`, and
+///   `sonar` is not `sonar:online` — the second is a different model that reads the web, and a record made from
+///   one is not a record for the other (review C).
+///
+/// **A bare name still matches a qualified one**, and that is not a hole: a calibration record's file stem
+/// (`pplx-decider-v1.3.yaml`) cannot contain `/`, so the record names the model without its vendor while the
+/// wire names it with one. Comparing an unqualified name to a qualified one therefore compares the model only.
 pub fn names_the_same_model(label: &str, answered: &str) -> bool {
-    fn bare(name: &str) -> &str {
-        let name = name.rsplit_once('/').map_or(name, |(_, rest)| rest);
-        let name = name.rsplit_once(':').map_or(name, |(rest, _)| rest);
-        match name.rsplit_once('-') {
+    fn split(name: &str) -> (Option<&str>, &str) {
+        let name = name.strip_suffix(FREE_TIER_MARKER).unwrap_or(name);
+        let name = match name.rsplit_once('-') {
             // A snapshot date is exactly eight digits; anything else is part of the name.
             Some((rest, date)) if date.len() == 8 && date.bytes().all(|b| b.is_ascii_digit()) => rest,
             _ => name,
-        }
+        };
+        name.rsplit_once('/').map_or((None, name), |(vendor, rest)| (Some(vendor), rest))
     }
-    bare(label) == bare(answered)
+    let (label_vendor, label_model) = split(label);
+    let (answered_vendor, answered_model) = split(answered);
+    label_model == answered_model && (label_vendor.is_none() || answered_vendor.is_none() || label_vendor == answered_vendor)
 }
 
 /// **Refuses an answer from any model but the one a run is labelled with** (#455). Wraps the run's
