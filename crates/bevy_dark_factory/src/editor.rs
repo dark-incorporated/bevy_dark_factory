@@ -4286,35 +4286,21 @@ fn rebuild_palette(
                             {
                                 slot.insert(ImageNode::new(image));
                             }
-                            // **The two cells are one line, and neither of them is laid out from the other's width** (#486).
+                            // **The armed mark, in its own column** (#486): the accent rail and the fill carried "this is
+                            // the row" in colour alone, which is an encoding a colour-blind person does not get and a
+                            // caption nobody wrote. It is a filled dot in a reserved column, so the marks line up down the
+                            // list, a blank one says "not this row" in the same alphabet, and [`paint_the_armed_mark`] keeps
+                            // it true without respawning a hundred and eighty rows per press.
                             //
-                            // It read as a jumble: the count followed its own name's glyphs, so `crate`'s count stood
-                            // nowhere near `a_very_long_piece_name…`'s, and nothing read down the list. A person asked
-                            // *"this layout feels a bit jumbled"*. The cells are one row centred across, so their centres
-                            // agree whatever their type sizes are, and the count holds a column of its own at the row's far
-                            // end, so every count in the list ends at the same x.
-                            //
-                            // `shrink: Some(0.0)` because a list row in a short list may be squeezed: a name that wraps
-                            // must grow its own row rather than be cut, which is the same rule `night_shift::spawn_the_block`
-                            // carries for the INSPECTOR's rows.
+                            // **One wrapper, and that is the whole reason it exists**: the mark's cell holds a width when it
+                            // is empty, so it must be a box rather than a bare text — and a palette row's *own* children carry
+                            // the name and the count and nothing else (`palette_rows_never_overlap`, #289, reads them as that
+                            // pair). A second text beside them is a second thing to disambiguate; a box says which is which.
                             row.spawn((
-                                bevy_gooey::row_with(
-                                    crate::chrome::GAP_ROW_STEPS,
-                                    bevy_gooey::RowLayout { align: Some(AlignItems::Center), shrink: Some(0.0), ..default() },
-                                ),
-                                // **The line takes the room the row leaves** (#486). A row laid out from its own content is as wide
-                                // as its name plus its count, so the count's right edge followed the name's length and the counts of
-                                // a list did not read down a column — the "jumbled" the owner saw. Growing the line makes its right
-                                // edge the row's, which is the column the count is held to.
-                                bevy_gooey::TextFlow { grow: Some(1.0), shrink: None, min_width: Some(bevy_gooey::Extent::Px(0.0)), align: None },
+                                bevy_gooey::row_with(0.0, bevy_gooey::RowLayout { direction: Some(FlexDirection::Row), align: Some(AlignItems::Center), shrink: Some(0.0), ..default() }),
                             ))
-                            .with_children(|line| {
-                                // **The armed mark, in its own column** (#486): the accent rail and the fill carried "this is
-                                // the row" in colour alone, which is an encoding a colour-blind person does not get and a
-                                // caption nobody wrote. It is a filled dot in a reserved column, so the marks line up down the
-                                // list, a blank one says "not this row" in the same alphabet, and [`paint_the_armed_mark`] keeps
-                                // it true without respawning a hundred and eighty rows per press.
-                                line.spawn((
+                            .with_children(|mark| {
+                                mark.spawn((
                                     crate::chrome::text_keeps_its_width(),
                                     bevy_gooey::Sizing { width: Some(bevy_gooey::Extent::Px(crate::chrome::COL_TIGHT)), ..default() },
                                     Text::new(if state.brush == Some(ix) { crate::glyphs::ARMED } else { "" }),
@@ -4323,37 +4309,40 @@ fn rebuild_palette(
                                     crate::chrome::typed(crate::chrome::text::LABEL),
                                     TextLayout::new(Justify::Left, LineBreak::NoWrap),
                                 ));
-                                line.spawn((
-                                    // The name wraps inside its own column rather than pushing the cost out of the row (`tiles::count_cell`) and is clipped to it.
-                                    crate::chrome::text_narrows(),
-                                    bevy_gooey::Sizing { clip: Some(true), ..default() },
-                                    Text::new(blueprint_model::naming::display_name(&d.id)),
-                                    TextColor(crate::chrome::ink().text),
-                                    PaletteName,
-                                    crate::chrome::typed(crate::chrome::text::BODY),
-                                    // **A word longer than the column breaks inside itself** (#289): with
-                                    // the default word-boundary break, `toilet_roll_holder` was one word
-                                    // the row could not wrap, and it drew over the count beside it.
-                                    TextLayout::new(Justify::Left, LineBreak::WordOrCharacter),
-                                ));
-                                // **The triangle cost keeps its own ink** (`cost_tint`: the accent past a busy piece, the danger past the
-                                // importer's limit), which gooey's `count_text` would not: the skin writes that text's colour.
-                                //
-                                // **A column, and the digits flush right in it** (#486): the count is what a person compares between
-                                // rows, so it is the one cell whose edge is fixed rather than following its neighbour's words. A
-                                // `min_width` rather than a width: a count wider than the column (`9999k` on a huge scene) grows
-                                // leftwards into the name's space instead of being cut, and its right edge, which is the aligned one,
-                                // stays put.
-                                line.spawn((
-                                    crate::chrome::text_keeps_its_width(),
-                                    bevy_gooey::Sizing { min_width: Some(bevy_gooey::Extent::Px(PALETTE_COST_COL)), ..default() },
-                                    Text::new(brief_count(tris)),
-                                    TextColor(cost_ink(tris, state.brush == Some(ix))),
-                                    PaletteCost(tris),
-                                    crate::chrome::typed(crate::chrome::text::LABEL),
-                                    TextLayout::new(Justify::Right, LineBreak::NoWrap),
-                                ));
                             });
+                            row.spawn((
+                                // The name wraps inside its own column rather than pushing the cost out of the row (`tiles::count_cell`) and is clipped to it.
+                                // **And it takes the room the row leaves** (#486): with a width of its own the count's
+                                // right edge followed the name's length, so the counts of a list did not read down a column
+                                // — the "jumbled" the owner saw. Growing the name makes the count's far end the row's.
+                                crate::chrome::text_narrows(),
+                                bevy_gooey::Sizing { clip: Some(true), ..default() },
+                                Text::new(blueprint_model::naming::display_name(&d.id)),
+                                TextColor(crate::chrome::ink().text),
+                                PaletteName,
+                                crate::chrome::typed(crate::chrome::text::BODY),
+                                // **A word longer than the column breaks inside itself** (#289): with
+                                // the default word-boundary break, `toilet_roll_holder` was one word
+                                // the row could not wrap, and it drew over the count beside it.
+                                TextLayout::new(Justify::Left, LineBreak::WordOrCharacter),
+                            ));
+                            // **The triangle cost keeps its own ink** (`cost_tint`: the accent past a busy piece, the danger past the
+                            // importer's limit), which gooey's `count_text` would not: the skin writes that text's colour.
+                            //
+                            // **A column, and the digits flush right in it** (#486): the count is what a person compares between
+                            // rows, so it is the one cell whose edge is fixed rather than following its neighbour's words. A
+                            // `min_width` rather than a width: a count wider than the column (`9999k` on a huge scene) grows
+                            // leftwards into the name's space instead of being cut, and its right edge, which is the aligned one,
+                            // stays put.
+                            row.spawn((
+                                crate::chrome::text_keeps_its_width(),
+                                bevy_gooey::Sizing { min_width: Some(bevy_gooey::Extent::Px(PALETTE_COST_COL)), ..default() },
+                                Text::new(brief_count(tris)),
+                                TextColor(cost_ink(tris, state.brush == Some(ix))),
+                                PaletteCost(tris),
+                                crate::chrome::typed(crate::chrome::text::LABEL),
+                                TextLayout::new(Justify::Right, LineBreak::NoWrap),
+                            ));
                     });
                 }
             }
