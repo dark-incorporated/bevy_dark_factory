@@ -43,11 +43,10 @@ and a `noul`, a `choice` and a `score`), five warm calls after the first, by
 | clef-flash (committed, 2026-11-03) | 0.6148 | 0.241 | 75 / 47 | `clip_calibration.yaml`, untouched |
 | clef-flash (this code, 2026-11-15) | 0.5328 | 0.530 | 65 / 57 | `calibrations/clef-flash.yaml` |
 | d3-flash (this code, 2026-11-15) | **0.8607** | 0.737 | 105 / 17 | `calibrations/d3-flash.yaml` |
-| perplexity/pplx-decider-v1.3:free | **blocked at sample 46 of 122** | | | see below |
+| pplx-decider-v1.3 (2026-11-17, 116 of 122) | **0.8793** | 0.891 | 102 / 14 | `calibrations/pplx-decider-v1.3.yaml` |
 
-**pplx-decider's agreement is not measured, and the reason is a provider's content filter, not a quota.**
-Two runs of `decide_check --calibrate` stopped with the crate's own new named-sample error, and the answer is the
-same both times:
+**pplx-decider's record is 116 of 122 samples, and each one it could not measure is named in the record.**
+The provider's secret scanner refuses one image outright:
 
 ```
 sample `103-light-buttons` could not be scored: decision endpoint https://openrouter.ai/api/alpha/decisions
@@ -55,19 +54,53 @@ refused the request with status 403: {"error":{"message":"Request blocked by con
 [SECRET:bitcoin-wif-compressed]","code":403}}
 ```
 
-The trigger was isolated to one image, not the text: the sample's title alone answers, the still answers,
-`frame0.png` answers, and **`frame1.png` of `crates/bevy_oracle/fixtures/clips/103-light-buttons` is refused on
-its own**. It is a false positive — a secret scanner reading PNG entropy as a Bitcoin key — and it is stable, so
-no retry clears it. The set therefore cannot be run to completion against this provider as it stands, and a
-record made from the 45 samples before it would be a `set_size: 122` file whose counts came from 45. **No
-`calibrations/pplx-decider-v1.3.yaml` was written**: the row stays unmeasured rather than wrong.
+The trigger is one **image** per clip, isolated image by image: within each of the three clips, every frame
+answers except one, and that one is refused alone.
 
-What it needs from the owner is one of: drop or replace that one sample in `clip_samples.yaml` (it is one of 122,
-and its match half `103-light-buttons-mismatch` is refused too for the same frame), or accept a record over 121
-samples written with its own `set_size`, or leave the remote row unmeasured and keep the local default. The
-crate's part is done and tested: `tests/a_refused_sample_is_named.rs` makes the next such stop name the sample
-instead of a bare 403, and `tests/a_snapshot_is_the_model_it_names.rs` lets a remote run be recorded at all
-(OpenRouter answers with `perplexity/pplx-decider-v1.3-20261112` for the `:free` slug the run is labelled with).
+| clip | refused frame | the other three |
+|---|---|---|
+| `103-light-buttons` | `frame1.png` | answer |
+| `103-overlay` | `frame1.png` | answer |
+| `e069-plan-panel` | `frame0.png` | answer |
+
+Three distinct files, one cause (`md5` confirms `103-light-buttons/frame1.png` and `103-overlay/frame1.png` are
+the same bytes; `e069-plan-panel/frame0.png` is a third file). A secret scanner reading PNG entropy as a Bitcoin
+key, and stable, so no retry clears it. Each clip costs **two** rows — its own line and another line's — so six
+of the 122 samples are unanswerable through this provider.
+
+The record therefore says `set_size: 116` and carries all six exclusions:
+
+```yaml
+set_size: 116
+agreement: 0.8793103448275862
+threshold: 0.8910357525872159
+correct: 102
+wrong: 14
+excluded:
+- sample: 103-light-buttons
+  frame: frame1.png
+  why: 'decision endpoint https://openrouter.ai/api/alpha/decisions refused the request with status 403:
+    {"error":{"message":"Request blocked by content filter: [SECRET:bitcoin-wif-compressed]","code":403}}'
+# ... and the same for 103-light-buttons-mismatch, 103-overlay, 103-overlay-mismatch,
+# e069-plan-panel and e069-plan-panel-mismatch, each with the frame named above.
+```
+
+`set_size` is the number the threshold was **measured on**, never the set's nominal count, and
+`Calibration::states_the_set_it_measured(122)` holds `set_size + excluded.len() == 122` (116 + 6).
+`tests/an_excluded_sample_is_stated_in_the_record.rs` fails a record that claims 122 while also naming an
+exclusion — the dishonest case, which reads to anyone comparing rows as a full run.
+
+**The alternative, rejected:** re-encode the three refused frames so their bytes stop tripping the scanner. It
+would make pplx-decider's input for those clips differ from what clef-flash and d3-flash read, so the three rows
+would no longer be the same set. The owner may overrule (the 116-of-122 choice is recorded as an assumed
+decision on #455).
+
+**The remote row does not become the local default.** pplx-decider agrees 0.8793 against d3-flash's 0.8607, so
+by raw agreement it is the best on record — but it runs on OpenRouter, and `LOCAL_ENDPOINT` cannot serve it. The
+issue's decision names the comparison ("whichever of d3-flash and clef-flash agrees better on the set"), and
+`the_per_model_calibrations_are_recorded.rs` now filters the remote model out of the "best local agreement"
+rule rather than letting a remote model demand the local endpoint serve it. **d3-flash stays the local
+default**; **0.8793 is under the 0.9 bar**, so the clip check stays advisory for pplx-decider too.
 
 **The 0.6148 is not comparable with the other rows, and the reason is a defect found while taking them.**
 `score_set` handed `calibrate` the label "its frames match its line" beside P(yes), but the check's yes means

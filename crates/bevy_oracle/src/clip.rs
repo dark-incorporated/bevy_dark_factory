@@ -156,13 +156,52 @@ pub fn score_set(
     samples: &[Labelled],
     transport: &dyn crate::Transport,
 ) -> Result<Vec<crate::Sample>, crate::Error> {
+    let (scored, excluded) = score_set_recording_exclusions(check, samples, transport)?;
+    match excluded.first() {
+        // **The strict caller is told, not given a short set**: a comparison between two models, or a gate, must
+        // not read a 121-of-122 run as a full one.
+        Some(e) => Err(crate::Error::Sample {
+            id: e.sample.clone(),
+            cause: Box::new(crate::Error::Refused {
+                endpoint: transport.endpoint(),
+                status: 0,
+                body: e.why.clone(),
+            }),
+        }),
+        None => Ok(scored),
+    }
+}
+
+/// [`score_set`], and **the samples an endpoint refused outright**, so a record can say how much of the set it
+/// measured (#455). Only a refusal of the whole request is skipped — an [`Error::Refusal`], an
+/// [`Error::OpenRouter`] or an [`Error::Refused`] that names its status; an unreachable endpoint, a malformed
+/// answer or an answer from another model still stops the run, because none of those is "this picture cannot be
+/// seen by this provider".
+///
+/// A skipped sample is **named** in the returned [`crate::Exclusion`], never dropped silently: it is what
+/// separates "121 of 122 were measured" from "the set is 121".
+pub fn score_set_recording_exclusions(
+    check: &Check,
+    samples: &[Labelled],
+    transport: &dyn crate::Transport,
+) -> Result<(Vec<crate::Sample>, Vec<crate::Exclusion>), crate::Error> {
     let mut out = Vec::with_capacity(samples.len());
+    let mut excluded = Vec::new();
     for s in samples {
         let ev = evidence(&s.dir);
         let req = request(check, &s.title, &ev)?;
         // **A sample's failure names the sample** (#455): an OpenRouter content filter refused one clip's
         // images on 2026-11-16 and the bare status left nobody able to say which of 122 it was.
-        let response = crate::ask(transport, &req).map_err(|cause| crate::Error::Sample { id: s.id.clone(), cause: Box::new(cause) })?;
+        let response = match crate::ask(transport, &req) {
+            Ok(r) => r,
+            Err(cause) if refuses_the_sample(&cause) => {
+                excluded.push(crate::Exclusion { sample: s.id.clone(), frame: None, why: format!("{cause}") });
+                continue;
+            }
+            Err(cause) => {
+                return Err(crate::Error::Sample { id: s.id.clone(), cause: Box::new(cause) });
+            }
+        };
         // **A missing answer is an error, not a panic** (#112). The model occasionally returns an
         // `answers` map without this question — a truncated generation, or a server that decided the
         // state was empty. Indexing panicked on the 30th sample of a calibration run and lost every
@@ -189,7 +228,18 @@ pub fn score_set(
         // show), so a model that was right scored at best the 50 % all-yes threshold.
         out.push(crate::Sample { p_yes, truth: !s.truth });
     }
-    Ok(out)
+    Ok((out, excluded))
+}
+
+/// **Whether an error is the provider refusing one sample rather than the run failing** (#455): a refusal it
+/// named, or a status a gateway or content filter answered with. An unreachable endpoint, a bad response and an
+/// answer from another model are the run's problems and still stop it.
+fn refuses_the_sample(e: &crate::Error) -> bool {
+    match e {
+        crate::Error::Sample { cause, .. } => refuses_the_sample(cause),
+        crate::Error::Refusal { .. } | crate::Error::OpenRouter { .. } | crate::Error::Refused { .. } => true,
+        _ => false,
+    }
 }
 
 

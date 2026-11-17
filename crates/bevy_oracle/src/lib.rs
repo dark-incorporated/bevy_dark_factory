@@ -27,9 +27,9 @@ mod transport;
 mod types;
 
 pub use b64::data_url;
-pub use calibrate::{Calibration, Sample, calibrate};
+pub use calibrate::{Calibration, Exclusion, Sample, calibrate};
 pub use check::{BUILTIN_CHECKS_YAML, CHECKS_VERSION, Check, PROJECT_CHECKS_FILE, Checks, Evidence, Finding};
-pub use clip::{FRAMES, LABELLED_FILE, Labelled, clip_check, load_labelled, score_set};
+pub use clip::{FRAMES, LABELLED_FILE, Labelled, clip_check, load_labelled, score_set, score_set_recording_exclusions};
 pub use config::{
     Config, DecisionModel, Endpoints, LOCAL_ENDPOINT, LOCAL_MODEL_NAME, OPENROUTER_ENDPOINT, OPENROUTER_KEY_VAR, OPENROUTER_MODEL, Protocol,
     REMOTE_WITHOUT_KEY, TIMEOUT_SECS,

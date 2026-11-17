@@ -107,6 +107,7 @@ fn a_check_calibrated_for_the_slug_is_calibrated_for_its_snapshot() {
             date: "2026-11-16".into(),
             correct: 9,
             wrong: 1,
+            excluded: Vec::new(),
         }],
     };
     let images = BTreeMap::from([("view".to_owned(), bevy_oracle::data_url(b"png"))]);

@@ -66,10 +66,25 @@ fn check() -> Check {
     }
 }
 
-/// **The error names the sample and still carries the endpoint's own refusal**, so one line says what to fix.
+/// **A refused sample is skipped and named when the caller records exclusions** (#455, the owner's decision of
+/// 2026-11-16: a 121-of-122 record is worth more than no record). The sample is named, not dropped, and the set
+/// it was taken from still holds 122.
 #[test]
-fn a_refused_sample_is_named_beside_the_refusal_that_stopped_the_run() {
-    let e = score_set(&check(), &samples(), &Refuses(REFUSED_TITLE)).expect_err("the second sample is refused");
+fn a_refused_sample_is_skipped_and_named_rather_than_dropped() {
+    let (scored, excluded) = bevy_oracle::score_set_recording_exclusions(&check(), &samples(), &Refuses(REFUSED_TITLE))
+        .expect("a refused sample does not stop the run");
+    assert_eq!(scored.len(), 1, "the one sample that was answered was scored");
+    assert_eq!(excluded.len(), 1, "the other is named");
+    assert_eq!(excluded[0].sample, REFUSED);
+    assert!(excluded[0].why.contains("403") && excluded[0].why.contains("content filter"), "{:?}", excluded[0].why);
+    assert!(excluded[0].frame.is_none(), "the whole request was refused, not one named image");
+}
+
+/// **The strict path still names the sample and carries the endpoint's own refusal**, so a caller that cannot
+/// tolerate a short set (a gate, a comparison between two models) gets one that says which sample and why.
+#[test]
+fn score_set_still_stops_and_names_the_sample_beside_the_refusal() {
+    let e = score_set(&check(), &samples(), &Refuses(REFUSED_TITLE)).expect_err("the strict path stops");
     let said = e.to_string();
     assert!(said.contains("`b`"), "the sample's id is named: {said}");
     assert!(said.contains("403") && said.contains("content filter"), "the reason is kept: {said}");
@@ -79,11 +94,29 @@ fn a_refused_sample_is_named_beside_the_refusal_that_stopped_the_run() {
     }
 }
 
-/// **A run that loses a sample does not return a partial set**: a calibration from 121 of 122 samples would be a
-/// record whose `set_size` says 122 and whose counts do not.
+/// **A run that cannot name what it skipped returns no partial set**: the strict path yields an error rather than
+/// 121 of 122 samples with nothing saying which one is missing.
 #[test]
-fn a_refused_sample_yields_no_samples_at_all() {
+fn a_refused_sample_yields_no_samples_at_all_on_the_strict_path() {
     assert!(score_set(&check(), &samples(), &Refuses(REFUSED_TITLE)).is_err(), "a half-scored set is not a set");
+}
+
+/// **An unreachable endpoint is not a refused sample**: it stops the run, because "the provider cannot see this
+/// picture" and "the provider is down" are different problems and only the first is worth recording around.
+#[test]
+fn an_unreachable_endpoint_stops_the_run_rather_than_excluding_samples() {
+    struct Down;
+    impl Transport for Down {
+        fn endpoint(&self) -> String {
+            "http://127.0.0.1:1/x".into()
+        }
+        fn send(&self, _request: &Request) -> Result<Response, Error> {
+            Err(Error::Unreachable { endpoint: self.endpoint(), detail: "connection refused".into() })
+        }
+    }
+    let e = bevy_oracle::score_set_recording_exclusions(&check(), &samples(), &Down)
+        .expect_err("an unreachable endpoint is the run's problem");
+    assert!(matches!(e, Error::Sample { .. }), "and it still names the sample it stopped on: {e:?}");
 }
 
 /// The set that is not refused scores in order, and each sample's truth is the right answer to the question.

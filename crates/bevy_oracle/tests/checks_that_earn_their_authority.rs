@@ -49,6 +49,7 @@ fn calibration(agreement: f64, threshold: f64) -> Calibration {
         // owner exception, schema field: the two counts `agreement` is made of (#112).
         correct: (agreement * 1.0).round() as usize,
         wrong: (1.0 - (agreement * 1.0).round()).round() as usize,
+        excluded: Vec::new(),
     }
 }
 

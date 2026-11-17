@@ -54,6 +54,7 @@ fn record(model: &str, threshold: f64) -> Calibration {
         date: "2026-11-15".into(),
         correct: 19,
         wrong: 1,
+        excluded: Vec::new(),
     }
 }
 

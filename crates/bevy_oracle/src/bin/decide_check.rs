@@ -206,13 +206,20 @@ fn main() {
             expecting_inner
         };
         let check = bevy_oracle::clip_check(&args.check);
-        let scored = match bevy_oracle::score_set(&check, &samples, &expecting) {
-            Ok(s) => s,
-            Err(e) => {
-                eprintln!("{e}");
-                std::process::exit(2);
-            }
-        };
+        // **A sample the provider refuses is excluded and named, not fatal** (#455). The run's size becomes the
+        // number it measured, and the record says which sample it did not: 121 of 122 with the one named is a
+        // measurement; 121 presented as 122 would not be. Every other error still stops the run.
+        let (scored, excluded) =
+            match bevy_oracle::score_set_recording_exclusions(&check, &samples, &expecting) {
+                Ok(pair) => pair,
+                Err(e) => {
+                    eprintln!("{e}");
+                    std::process::exit(2);
+                }
+            };
+        for e in &excluded {
+            eprintln!("excluded  {}: {}", e.sample, e.why);
+        }
         // **A calendar date, not a day count.** This wrote `format!("+{today} days")` from the days
         // since the epoch, which RON parses as a *duration* and which reads in the record as
         // `date: "+20760 days"` — caught by
@@ -235,21 +242,29 @@ fn main() {
             let m = if mp < 10 { mp + 3 } else { mp - 9 };
             format!("{:04}-{:02}-{:02}", if m <= 2 { y + 1 } else { y }, m, d)
         };
-        let calibration = match bevy_oracle::calibrate(&args.check, &args.model, &date, &scored) {
+        let mut calibration = match bevy_oracle::calibrate(&args.check, &args.model, &date, &scored) {
             Ok(c) => c,
             Err(e) => {
                 eprintln!("{e}");
                 std::process::exit(2);
             }
         };
+        // **The record carries what it could not measure**, so `set_size` plus `excluded` is the set it was
+        // asked to measure.
+        calibration.excluded = excluded;
         println!(
-            "{:22} agreement {:.1}% on {} samples, threshold {:.3}, model {}",
+            "{:22} agreement {:.1}% on {} samples ({} excluded), threshold {:.3}, model {}",
             calibration.check,
             calibration.agreement * 100.0,
             calibration.set_size,
+            calibration.excluded.len(),
             calibration.threshold,
             calibration.model
         );
+        if !calibration.exclusions_are_named() {
+            eprintln!("an exclusion does not name its sample and why; refusing to write a record with a hole in it");
+            std::process::exit(2);
+        }
         // **The record, when one was asked for.** See `Args::out`: the printed line is for the person
         // running the calibration, and the file is what a test and a gate can read afterwards.
         if let Some(out) = args.out.as_deref() {
