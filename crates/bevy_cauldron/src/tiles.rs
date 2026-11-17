@@ -9024,7 +9024,9 @@ fn draw_pack_band(
     // pointer as a list's row does. The heading the cursor stands on is lit as gooey lights a primary button, by `PrimaryButton`
     // (see `arm_list_rows`). The words in it are gooey's too: their ink follows the band's state, so a lit band keeps them legible.
     p.spawn((bevy_gooey::band(), PackHeader(pack.to_owned()))).with_children(|row| {
-        row.spawn((Text::new(if folded { ">" } else { "v" }), bevy_gooey::Role::ButtonText));
+        // **A caret, not the letter `v`** (#493): a pack band is a fold like the palette's category band, and both fold
+        // controls now draw the same pair of shapes from the editor's glyph vocabulary.
+        row.spawn((Text::new(if folded { crate::glyphs::FOLD_CLOSED } else { crate::glyphs::FOLD_OPEN }), bevy_gooey::Role::ButtonText));
         // **The pack's name, and — when it is excluded — the way back.**
         //
         // An excluded pack keeps its words because it names a state the chevron does NOT show,

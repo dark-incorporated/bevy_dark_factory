@@ -146,7 +146,15 @@ fn mark_the_panel_headings(
         let row = commands
             .spawn((
                 PanelHeading,
-                bevy_gooey::row_with(crate::chrome::GAP_TIGHT_STEPS, bevy_gooey::RowLayout { align: Some(AlignItems::Center), ..default() }),
+                // **The row takes the room the panel leaves and squeezes into it** (#482, #494). A `RowLayout` with no `shrink`
+                // keeps its content's automatic minimum — the heading's whole width plus the button plus the gap — so at a pane
+                // dragged to its narrowest the "?" was laid out past the panel's content edge and drew over the divider. The
+                // heading beside it carries a zero floor (`chrome::list_heading_in`), so what gives way is the words.
+                bevy_gooey::row_with(
+                    crate::chrome::GAP_TIGHT_STEPS,
+                    bevy_gooey::RowLayout { align: Some(AlignItems::Center), shrink: Some(1.0), ..default() },
+                ),
+                bevy_gooey::Sizing { min_width: Some(bevy_gooey::Extent::Px(0.0)), ..default() },
                 bevy::picking::Pickable::IGNORE,
             ))
             .id();
