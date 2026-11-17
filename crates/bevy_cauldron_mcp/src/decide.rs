@@ -48,6 +48,20 @@ pub struct DecideParams {
     /// and is not given it takes it anyway.
     #[serde(default)]
     pub view: bool,
+    /// **The map's own surfaces to hide for the picture this call takes** (#472): any of `terrain`,
+    /// `volume`, `water`, in `grimoire_capture_still`'s own words.
+    ///
+    /// **The same parameter, the same names, the same default**, because it is the same view: the server
+    /// hides these before the still and puts the previous view back after it, through the one
+    /// `grab`/`set_hidden` pair `grimoire_capture_still` uses. `["terrain"]` cuts a carved map's solid, so
+    /// the picture `floating` and `clipping` are asked about is a room rather than the hill it is buried in
+    /// — which is the whole of this parameter's reason for existing: those checks were blind underground.
+    ///
+    /// **Ignored when no picture is taken** (`view: false` and no named check asking for `view`), because
+    /// there is then nothing to hide anything from, and asking the editor would change a view nobody asked
+    /// about. A name the editor does not draw is refused by the editor, in its own words.
+    #[serde(default)]
+    pub hide: Option<Vec<String>>,
     /// **The JSON facts**: the operations run, the pieces with names and positions, the camera.
     #[serde(default)]
     pub facts: Option<Value>,
@@ -126,6 +140,50 @@ pub async fn fetch_game(project: &Path, game: &GameParams) -> Result<GameEvidenc
         None => None,
     };
     Ok(GameEvidence { port, png, state })
+}
+
+/// **Take one picture of the editor through a view `hide` names, and put the view back after it** (#472).
+///
+/// **The one path `grimoire_capture_still` and `grimoire_decide` both take**, so a still and the picture a
+/// check is asked about are the same picture taken the same way. A second implementation of hiding would be
+/// a second answer to what "the terrain hidden" looks like, and the two would drift the first time one
+/// changed.
+///
+/// `hide` is `grimoire_capture_still`'s own parameter — `["terrain"]`, `["volume"]`, `["water"]`, or a
+/// combination — and `None` asks the editor nothing at all, so a call that names none costs no round trip and
+/// cannot move the view. **A name the editor does not draw is refused by the editor**, in its own words and
+/// naming the list that would have worked, so both tools refuse a typo identically.
+///
+/// **A refused picture still puts the view back.** The editor is the person's screen, and a capture that
+/// failed is not a reason to leave their map cut open; the restore is attempted before the error is
+/// returned, and an error putting it back is the one reported, because that is the failure that touches the
+/// person rather than the agent.
+pub async fn grab_through(
+    brp: &crate::brp::Brp,
+    source: &str,
+    hide: Option<&[String]>,
+    restore: bool,
+) -> Result<(String, Option<Vec<String>>), String> {
+    let was = match hide {
+        None => None,
+        Some(names) => {
+            let answer = brp.call("grimoire/surface_hide", json!({"hide": names})).await?;
+            Some(
+                answer
+                    .get("was")
+                    .and_then(Value::as_array)
+                    .map(|w| w.iter().filter_map(|s| s.as_str().map(str::to_owned)).collect())
+                    .unwrap_or_default(),
+            )
+        }
+    };
+    let grabbed = brp.screenshot(json!({"source": source})).await;
+    if restore && let Some(back) = &was
+        && let Err(e) = brp.call("grimoire/surface_hide", json!({"hide": back})).await
+    {
+        return Err(format!("the view could not be put back after the capture: {e}"));
+    }
+    Ok((grabbed?, was))
 }
 
 /// **A picture on disk, and what it is called.**

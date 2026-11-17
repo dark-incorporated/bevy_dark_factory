@@ -369,7 +369,14 @@ pub const TOOLS: &[ToolDoc] = &[
                       each one's probability) or score (levels, a weighted score), with state in words, \
                       images (stills from grimoire_capture_still, at most four, each at most 8 MiB) and facts (JSON). A check that needs a picture or \
                       facts it was not given is refused and names what is missing; it never answers from \
-                      less. game: also look at the running game that play started: a frame from its \
+                      less. hide: the map's own surfaces to take out of the picture this call takes for \
+                      view, in grimoire_capture_still's own words: [\"terrain\"] cuts a carved ground's \
+                      outer skin away, so floating and clipping are asked about a room instead of the \
+                      hill it is buried in, lit from the side the camera is on rather than left as \
+                      shadows. The camera is not moved, no file is written and the map is not marked \
+                      dirty; what was hidden is put back before the model is asked, so the person's \
+                      screen is unchanged by the question. Ignored when no picture is taken. game: also \
+                      look at the running game that play started: a frame from its \
                       bevy_fairy, named game, on the port in play.yaml or game.port, and one BRP call's \
                       answer (game.state) as facts.game; a check that asks for the image game takes it \
                       itself, and a game's own checks live in the project's assets/grimoire/checks.yaml. \
@@ -807,7 +814,6 @@ pub fn schemas() -> Value {
             "properties": {
                 "label": {"type": "string", "description": "A snake_case name for the capture."},
                 "source": {"type": "string", "enum": ["surface", "window"], "default": "surface", "description": "surface: the image the editor draws into. window: what the window itself shows (its swapchain)."},
-                "hide": {"type": "array", "items": {"type": "string", "enum": ["terrain", "volume", "water"]}, "default": [], "description": "The map's own surfaces to take out of the picture for this capture. [\"terrain\"] cuts the ground's outer skin away, so an underground map's carved rooms are what the picture shows rather than the rock they are cut into, lit from the side the camera is on rather than left as shadows; the camera is not moved, no file is written, the map is not marked dirty and no operation log line is made. Default empty: nothing is hidden."},
                 "restore": {"type": "boolean", "default": true, "description": "true (the default) hides what hide names for this one capture and then puts back whatever was hidden before it, so a still never leaves the person's screen changed. false leaves the view as the call set it, for a run of stills that all want it."}
             }
         },
@@ -855,6 +861,7 @@ pub fn schemas() -> Value {
                 "state": {"type": "string", "description": "What the ad-hoc questions are about, in words."},
                 "images": {"type": "array", "maxItems": 4, "items": {"type": "object", "additionalProperties": false, "required": ["name", "path"], "properties": {"name": {"type": "string"}, "path": {"type": "string", "description": "A still from grimoire_capture_still: its path, or the fingerprint (16 lowercase hex digits) it returned. Only files under the project's target/loop/captures, at most 8 MiB, are sent."}}}, "description": "Pictures, stills from grimoire_capture_still, each with the name a check asks for."},
                 "view": {"type": "boolean", "default": false, "description": "Also take the editor's current picture, named view."},
+                "hide": {"type": "array", "items": {"type": "string", "enum": ["terrain", "volume", "water"]}, "default": [], "description": "The map's own surfaces to take out of the picture this call takes for view. [\"terrain\"] cuts the ground's outer skin away, so floating and clipping are asked about a carved room rather than the rock it is cut into, lit from the side the camera is on rather than left as shadows; the camera is not moved, no file is written, the map is not marked dirty and no operation log line is made. Put back before the model is asked. Ignored when no picture is taken."},
                 "facts": {"description": "The JSON facts: the operations run, the pieces, the camera."},
                 "game": {"type": "object", "additionalProperties": false, "description": "Also look at the running game: a frame from its bevy_fairy, named game, and one BRP call's answer as facts.game.", "properties": {
                     "port": {"type": "integer", "minimum": 0, "maximum": 65535, "description": "The port the game's bevy_fairy answers on. Default: play.yaml's port."},
@@ -963,6 +970,15 @@ pub fn schemas() -> Value {
                 }
             }),
         );
+        // **`grimoire_decide`'s `hide`** (#472), for the same reason: one more property inside the literal
+        // above pushes the whole table past the crate's recursion limit.
+        if let Some(decide) = map
+            .get_mut("grimoire_decide")
+            .and_then(|d| d.get_mut("properties"))
+            .and_then(serde_json::Value::as_object_mut)
+        {
+            decide.insert("hide".to_owned(), serde_json::json!({"type": "array", "items": {"type": "string", "enum": ["terrain", "volume", "water"]}, "default": [], "description": "The map's own surfaces to take out of the picture this call takes for view, in grimoire_capture_still's own words. [\"terrain\"] cuts the ground's outer skin away, so floating and clipping are asked about a carved room rather than the rock it is cut into, lit from the side the camera is on rather than left as shadows; the camera is not moved, no file is written, the map is not marked dirty and no operation log line is made. Put back before the model is asked. Default empty: nothing is hidden, and ignored when no picture is taken."}));
+        }
     }
     document
 }
