@@ -4,6 +4,7 @@ What each change added, newest first. A visible change has a clip: click the sti
 
 ## 2026-11-17
 
+- **485-interface-scale-chords** `a478a6f54c` The whole interface steps its size on Cmd+= and Cmd+-, and Cmd+Shift+0 puts it back to 100% *For you: Grow or shrink the whole editor with the zoom keys you already use in a browser.* *No clip: visible, not yet recorded: fleet worker*
 - **490-view-depth-covers-the-ground** `b9917938e4` The Map camera's depth range covers the ground the map actually draws, so WASD panning no longer cuts a straight edge across the viewport *For you: Panning the map no longer cuts the ground away at a straight line, so what you see is the whole map wherever you walk to.* *No clip: visible, not yet recorded: fleet worker*
 
 ## 2026-11-16
