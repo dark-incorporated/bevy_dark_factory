@@ -9867,9 +9867,27 @@ pub struct Pose<'a> {
 /// [`EditorState`].
 #[derive(Resource, Default)]
 pub struct PlaceDrag {
-    /// Where the button went down, or `None` while only hovering.
+    /// Where the button went down, in map space, or `None` while only hovering.
     from: Option<(f32, f32)>,
+    /// **Where the button went down on the screen**, in surface pixels.
+    ///
+    /// The map point alone cannot tell a drag from a click: the ground under a stationary cursor moves
+    /// when the viewport does, and a 1 px move of the camera's rect put the release half a metre away
+    /// and filled two cells from one click (measured on the panes cluster, whose divider width narrows
+    /// the frame by 12 px: press at `(20.0, 18.0)` and release at `(19.9, 18.1)`, which snap to two
+    /// different cells a whole metre apart). **A hand that has not moved on screen has not dragged**,
+    /// whatever the map says underneath it.
+    from_px: Option<Vec2>,
 }
+
+/// **How far the pointer may travel on screen and still be a click**, in surface pixels.
+///
+/// The same rule every windowing system uses to tell a click from a drag (`GTK_DRAG_THRESHOLD`,
+/// `GetSystemMetrics(SM_CXDRAG)` and macOS's own are all within a few pixels of this), and well under
+/// the [`CLICK_EPS`] of movement a hand actually makes while pressing a button. It is in *screen* px
+/// because that is the space the hand moved in; the map-space threshold in [`CLICK_EPS`] stays, for
+/// telling a snapped cell apart from its neighbour.
+const DRAG_SLOP_PX: f32 = 4.0;
 
 /// **The line being dragged out to run a piece along**, in map space.
 ///

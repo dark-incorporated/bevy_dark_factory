@@ -2663,9 +2663,21 @@ pub fn row_label_with(
 
 /// **The value beside a [`row_label`]** — 11 px, one step louder than its label, which is the
 /// role map's one value size (the audit found 10/11 and 10/10 coexisting; 10/11 won).
+///
+/// **It takes the room its row leaves and wraps inside it** (#482). A bare `Text` has no least width and does not
+/// wrap, so its automatic minimum is its whole content: a value longer than the pane — a file path, an agent's
+/// sentence, *"now: the original map"* — kept its whole width and drew out over the divider. Measured on a real
+/// layout at the divider's leftmost position (`no_panel_draws_a_control_past_its_own_content_box`): `Send all
+/// drafts` ended **54 px past** the pane's content edge, and *"none — this project stamps nothing"* 6 px past it.
+///
+/// The floor is what lets it narrow at all, and the break is at a letter because a path is one word — the same rule
+/// [`fill_text`] states. Written as a `TextFlow` rather than through [`text_narrows`], which also *grows*: a value
+/// that grew would run to its row's far edge instead of standing beside its label.
 pub fn row_value(row: &mut ChildSpawnerCommands, text: impl Into<String>, colour: Color, marker: impl Bundle) {
     row.spawn((
+        bevy_gooey::TextFlow { grow: None, shrink: None, min_width: Some(bevy_gooey::Extent::Px(0.0)), align: None },
         Text::new(text.into()),
+        TextLayout::new(Justify::Left, LineBreak::WordOrCharacter),
         TextColor(colour),
         typed(text::BODY),
         marker,
@@ -2712,6 +2724,60 @@ pub fn the_words_of_a_quiet_item_are_a_control(commands: &mut Commands, item: En
             world.entity_mut(words).insert((bevy_gooey::Role::ControlText, Pickable::IGNORE, marker));
         }
     });
+}
+
+/// **A toggle's label takes the room its row leaves, and breaks inside it** (#481).
+///
+/// gooey's [`bevy_gooey::toggle`] lays its row out as `SpaceBetween`: the label on the left, the switch on the
+/// right. Its label is `Role::ControlText` with `NoWrap`, because gooey sizes a control's row by its widest child.
+/// That is right in a dialog and wrong in a dock whose pane is narrower than the two: the label keeps its whole
+/// width, the switch keeps its own, and the pair overflows — measured on the owner's capture
+/// `feedback-1794783669349`, the Agent panel's `Pause agent writes` track ended **55 px past the viewport's
+/// content edge**, in the scrollbar's gutter and over the panel's border, at `ui_scale` 2.4 with the divider at
+/// its leftmost. Measured again on a real layout headless (the same panel, the divider at `0.0`): the track ends
+/// 41 px past at interface scale 1 and 68 px past at 1.6.
+///
+/// So a toggle's row and its label each get the floor every other wrapping cell in the editor has
+/// ([`text_narrows`], [`fill_text`]): a zero least width, so the row narrows to the panel and hands the label what
+/// the track does not need. The label also breaks inside a word, since the row is what bounds it.
+///
+/// # Why a system, and why every frame
+///
+/// The label is gooey's — `toggle` spawns it, so the editor can only reach it after the fact — and gooey re-asserts
+/// its control-label layout on every style pass. Retagging it would trade the skin's `ControlText` ink for a break,
+/// so this keeps gooey's role and ink and rewrites only the layout, [after](bevy_gooey::GooeySystems::Style) gooey
+/// has written the skin's node — a write before it would be overwritten the same frame. Every write is compared
+/// first, so a settled panel costs a few reads a frame.
+pub fn let_a_toggle_label_break(
+    // **The two queries are disjoint by `Text`, not by `Role`** (B0001): a toggle's own row is never a text, and
+    // every word this reaches is one. A `Without<Role>` on the words query would be a *second* filter with a cost
+    // and a wrong one: the skin puts `ControlText` on exactly the labels this exists to narrow.
+    mut toggles: Query<(&bevy_gooey::Role, &Children, &mut Node), Without<Text>>,
+    mut words: Query<(&mut TextLayout, &mut Node), With<Text>>,
+) {
+    for (role, kids, mut row) in &mut toggles {
+        if *role != bevy_gooey::Role::Toggle {
+            continue;
+        }
+        // **The row has a zero floor too.** Its layout is `SpaceBetween`, whose automatic minimum is the label's
+        // width plus the track's, so a row with no floor is as wide as both whatever the panel says — the 41 px.
+        // With the floor the row takes the panel's width and hands the label what the track does not need.
+        if row.min_width != Val::ZERO {
+            row.min_width = Val::ZERO;
+        }
+        for kid in kids.iter() {
+            let Ok((mut layout, mut node)) = words.get_mut(kid) else { continue };
+            if layout.linebreak != LineBreak::WordOrCharacter {
+                layout.linebreak = LineBreak::WordOrCharacter;
+            }
+            // The same floor on the label: without it the label's automatic minimum is its longest word, and the
+            // row overflows by that much instead. Only the children that carry words are touched, so the track (a
+            // node holding a knob) is left as the skin sized it.
+            if node.min_width != Val::ZERO {
+                node.min_width = Val::ZERO;
+            }
+        }
+    }
 }
 
 /// **The shape of a small box that holds one edge colour** (#260): a sized box laid out as a row, with a row radius and a `px` border in `edge`, which is passed as `InkOverride` because the skin
