@@ -165,18 +165,11 @@ impl Params {
     }
 }
 
-fn map_name(map: &str) -> Result<&str, Refusal> {
-    if map.is_empty() || map.contains(['/', '\\', '.']) {
-        return Err(Refusal::new(format!("`{map}` is not a map name. Nothing was written.")));
-    }
-    Ok(map)
-}
-
 fn forest_path(ctx: &Ctx, map: &str) -> Result<std::path::PathBuf, Refusal> {
     let Some(project) = ctx.project.as_ref() else {
         return Err(Refusal::new("no project is open, so there is no forest to plant."));
     };
-    Ok(project.grimoire_dir.join("forest").join(format!("{}.yaml", map_name(map)?)))
+    Ok(project.grimoire_dir.join("forest").join(format!("{}.yaml", crate::ops::map_name(map)?)))
 }
 
 /// **The saved forest of a map**, empty when there is none.

@@ -4,6 +4,7 @@ What each change added, newest first. A visible change has a clip: click the sti
 
 ## 2026-11-16
 
+- **473-review-fixes** A carves report reads its own map's ground and its own name, and refuses what the edit path refuses: a map name that is a path, and a carve list too large to flood-fill, both refused naming what they are rather than answered with an empty report or a stalled frame *No clip: a verb's refusals and the ground it reads; proved by crates/bevy_grimoire_core/tests/a_report_is_bounded_by_a_named_limit.rs and an_agent_can_ask_a_carve_list_what_it_made*
 - **volume-report** An agent can ask a carve list what it made *No clip: API; proved by crates/bevy_cauldron/tests/an_agent_can_ask_a_carve_list_what_it_made.rs and crates/bevy_grimoire_core/tests/a_carve_list_can_be_reported_on.rs*
 - **volume-set** A whole carve list can be set and undone in one change *No clip: API; proved by crates/bevy_cauldron/tests/volume_set_replaces_the_whole_list.rs*
 - **472-see-inside-a-carve** grimoire_capture_still takes hide: ["terrain", "volume", "water"]: hiding the terrain cuts a carved map's solid so the still shows its rooms from the same camera instead of the rock's skin, the kept faces made two-sided so they are lit from the camera's side rather than left as shadows, as a view with no file written, no dirty flag and no log line, put back after the picture unless restore is false *For you: An agent can now photograph the inside of an underground level instead of the hill it is buried in.* *No clip: visible, not yet recorded: fleet worker*

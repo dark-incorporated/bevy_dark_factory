@@ -30,10 +30,23 @@ use crate::volume::{Edit, Mode, Shape, Volume};
 /// **How finely the volume is sampled**, in metres: the report's cell edge.
 ///
 /// **One number, named, and it is the answer's resolution as well as its cost.** A report coarser
-/// than the mesher's own cell (one metre) would miss the 0.2 m clip the issue names as its third
-/// defect, and finer would put a 26-entry list through millions of distance evaluations for a voxel
-/// nobody can see.
+/// than the mesher's own cell (one metre) would blur every cut into the same answer, and finer would
+/// put a 26-entry list through millions of distance evaluations for a voxel nobody can see.
+///
+/// **The resolution is the limit of what a cut's depth can say**: 0.25 m cannot resolve the issue's
+/// 0.2 m clip as 0.2 m. A cut thinner than one cell removes no *sample* — the two faces the grid takes
+/// sit exactly on the surfaces it is between — so it is not listed at all, and
+/// [`CutSolid::overlapping_m`] says so rather than reporting a floored `0.25` that reads as a depth.
 pub const SAMPLE_CELL_M: f32 = 0.25;
+
+/// **The most cells one report may put the void's flood fill through**, so a report cannot stall the
+/// editor's frame: 1,000,000 samples at [`SAMPLE_CELL_M`] is a 25 m cube (100 cells an axis), and
+/// every cell costs one distance evaluation per carve.
+///
+/// **A 60 m carve list would be 13.8 M cells** and 26 entries' worth of distance evaluations each,
+/// which is seconds of a held frame in a verb an agent calls in a loop. A volume over the limit is
+/// refused by [`Volume::report_within_budget`], naming the limit, rather than paid silently.
+pub const MAX_VOID_CELLS: usize = 1_000_000;
 
 /// **An axis-aligned box in metres**, the shape a report names an entry's reach with.
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
@@ -116,15 +129,23 @@ pub struct EntryReport {
 /// `Carve` that came after it.
 ///
 /// **`overlapping_m` is the thinnest extent of what the carve took from that `Add` and left gone**, in
-/// metres: a slab clipped off a dais's top step is 0.2 m, not the dais's width, because the number says
-/// how much of the earlier solid went rather than how big it was.
+/// metres: a slab clipped off a dais's top step is its own thickness, not the dais's width, because the
+/// number says how much of the earlier solid went rather than how big it was.
+///
+/// **It is the sampled extent, so it is quantised to [`SAMPLE_CELL_M`] (0.25 m).** The removed region
+/// is found on a grid of that cell, so the number is a multiple of it — and **a cut thinner than one
+/// cell is not reported as a cut at all**, because no sample of the grid falls inside it. The
+/// resolution is the answer's, and a caller that needs finer should carve at a finer mesh, not read a
+/// fraction this report cannot measure.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct CutSolid {
     /// The index of the `Add` a later `Carve` eats into.
     pub solid: usize,
     /// The index of the `Carve` that does it.
     pub cut_by: usize,
-    /// **How deep the carve reaches into the added solid**, in metres.
+    /// **How deep the carve reaches into the added solid**, in metres, on the [`SAMPLE_CELL_M`] grid:
+    /// a multiple of it. **A cut thinner than one cell is no `CutSolid`**, so this is never a floored
+    /// stand-in for a depth the report could not measure.
     pub overlapping_m: f32,
 }
 
@@ -211,6 +232,47 @@ impl Volume {
         VolumeReport { entries, carves_that_cut_a_later_solid, components, isolated, at }
     }
 
+    /// **The report, or a refusal naming the limit it would have spent** (§5 of the #473 review).
+    ///
+    /// **The flood fill over the void's reach runs synchronously in the editor's update**, so its cost
+    /// is a held frame: a 60 m carve list is ~13.8 M cells at [`SAMPLE_CELL_M`], each costing one
+    /// distance evaluation per carve. A volume whose reach exceeds [`MAX_VOID_CELLS`] is refused with
+    /// the limit in the sentence instead of stalling the editor for seconds.
+    ///
+    /// [`Volume::report`] stays the unbudgeted form, and is what a test of the report itself uses.
+    pub fn report_within_budget(&self, ground: &dyn Ground, at: &[[f32; 3]]) -> Result<VolumeReport, String> {
+        let cells = self.void_cells();
+        if cells > MAX_VOID_CELLS {
+            return Err(format!(
+                "this carve list reaches more than {MAX_VOID_CELLS} samples of {SAMPLE_CELL_M} m to flood-fill \
+                 ({cells} of them), which would hold the editor's frame; report on a map whose carves reach \
+                 a smaller box, or raise MAX_VOID_CELLS if the cost is worth it. Nothing was changed."
+            ));
+        }
+        Ok(self.report(ground, at))
+    }
+
+    /// **How many cells the void's flood fill would visit**: the carve reach's own box at
+    /// [`SAMPLE_CELL_M`], the number [`Volume::voids`] allocates for. Zero when nothing is carved.
+    pub fn void_cells(&self) -> usize {
+        let Some(reach) = self.carve_reach() else { return 0 };
+        let (nx, ny, nz) = cell_counts(&reach);
+        nx.saturating_mul(ny).saturating_mul(nz)
+    }
+
+    /// **The box every carve reaches**, or `None` when the list carves nothing: the box
+    /// [`Volume::voids`] samples, so the budget and the flood fill cannot disagree about its size.
+    fn carve_reach(&self) -> Option<Aabb> {
+        self.edits
+            .iter()
+            .filter(|e| e.mode == Mode::Carve)
+            .map(Edit::bounds)
+            .reduce(|a, b| Aabb {
+                min_m: [a.min_m[0].min(b.min_m[0]), a.min_m[1].min(b.min_m[1]), a.min_m[2].min(b.min_m[2])],
+                max_m: [a.max_m[0].max(b.max_m[0]), a.max_m[1].max(b.max_m[1]), a.max_m[2].max(b.max_m[2])],
+            })
+    }
+
     /// **The point's own answer**: which entries contain it, and whether the result is solid.
     pub fn at(&self, p: [f32; 3], ground: &dyn Ground) -> AtReport {
         let containing = self.edits.iter().enumerate().filter(|(_, e)| e.distance(p) <= 0.0).map(|(i, _)| i).collect();
@@ -247,12 +309,7 @@ impl Volume {
     fn taken_from(&self, carve: usize, overlap: &Aabb, ground: &dyn Ground) -> Option<f32> {
         let step = SAMPLE_CELL_M;
         let total = self.edits.len();
-        let cells = |lo: f32, hi: f32| ((hi - lo) / step).ceil() as usize + 1;
-        let (nx, ny, nz) = (
-            cells(overlap.min_m[0], overlap.max_m[0]),
-            cells(overlap.min_m[1], overlap.max_m[1]),
-            cells(overlap.min_m[2], overlap.max_m[2]),
-        );
+        let (nx, ny, nz) = cell_counts(overlap);
         let mut removed = Vec::new();
         for x in 0..nx {
             for y in 0..ny {
@@ -274,10 +331,11 @@ impl Volume {
             }
         }
         let box_removed = Aabb::enclosing(&removed)?;
-        // **The thinnest extent**, floored at one sample: a slab clipped off a top step is its own
-        // thickness, not the width of the step it came from.
+        // **The thinnest extent of the removed samples**, with no one-cell floor: a slab clipped off
+        // a top step is its own thickness, not the width of the step it came from — and the value is
+        // the sampled one, so it is a multiple of `SAMPLE_CELL_M` (see [`CutSolid::overlapping_m`]).
         let thin = (0..3).map(|i| box_removed.max_m[i] - box_removed.min_m[i]).fold(f32::INFINITY, f32::min);
-        Some(thin.max(step).max(0.0))
+        Some(thin.max(0.0))
     }
 
     /// **The void split into connected regions**, and the carves in none of them.
@@ -294,17 +352,9 @@ impl Volume {
         if carves.is_empty() {
             return (Vec::new(), Vec::new());
         }
-        let reach = carves
-            .iter()
-            .map(|&i| self.edits[i].bounds())
-            .reduce(|a, b| Aabb {
-                min_m: [a.min_m[0].min(b.min_m[0]), a.min_m[1].min(b.min_m[1]), a.min_m[2].min(b.min_m[2])],
-                max_m: [a.max_m[0].max(b.max_m[0]), a.max_m[1].max(b.max_m[1]), a.max_m[2].max(b.max_m[2])],
-            })
-            .unwrap_or(Aabb { min_m: [0.0; 3], max_m: [0.0; 3] });
+        let Some(reach) = self.carve_reach() else { return (Vec::new(), Vec::new()) };
         let step = SAMPLE_CELL_M;
-        let cells = |lo: f32, hi: f32| ((hi - lo) / step).ceil() as usize + 1;
-        let (nx, ny, nz) = (cells(reach.min_m[0], reach.max_m[0]), cells(reach.min_m[1], reach.max_m[1]), cells(reach.min_m[2], reach.max_m[2]));
+        let (nx, ny, nz) = cell_counts(&reach);
         let index = |x: usize, y: usize, z: usize| (z * ny + y) * nx + x;
         let point = |x: usize, y: usize, z: usize| {
             [
@@ -376,4 +426,12 @@ impl Volume {
         let isolated = carves.into_iter().filter(|&i| !touched[i]).collect();
         (components, isolated)
     }
+}
+
+/// **How many samples an axis-aligned box spans**, at [`SAMPLE_CELL_M`], one per axis: the count
+/// [`Volume::voids`] allocates and [`Volume::taken_from`] walks, so the two and the budget all agree
+/// on what a box costs.
+fn cell_counts(box_m: &Aabb) -> (usize, usize, usize) {
+    let cells = |lo: f32, hi: f32| ((hi - lo) / SAMPLE_CELL_M).ceil() as usize + 1;
+    (cells(box_m.min_m[0], box_m.max_m[0]), cells(box_m.min_m[1], box_m.max_m[1]), cells(box_m.min_m[2], box_m.max_m[2]))
 }

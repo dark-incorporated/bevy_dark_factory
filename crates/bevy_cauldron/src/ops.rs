@@ -541,6 +541,20 @@ fn no_such_placement(id: &str, verb: &str) -> Refusal {
     )
 }
 
+/// **The one rule a map name a caller sends must pass**, before it becomes a file name: a map name is
+/// a stem, never a path, so it is refused when empty or when it holds `/`, `\` or `.`.
+///
+/// **The refusal says which name, and nothing was written** — and it is the *same* sentence for every
+/// operation, so the edit path and a read that names a map cannot disagree about which names exist. A
+/// read that skipped this rule reached outside `<grimoire_dir>/<kind>/` and answered an empty result
+/// for a directory that is not there, which read as "the map has none" rather than as a refusal.
+pub(crate) fn map_name(map: &str) -> Result<&str, Refusal> {
+    if map.is_empty() || map.contains(['/', '\\', '.']) {
+        return Err(Refusal::new(format!("`{map}` is not a map name. Nothing was written.")));
+    }
+    Ok(map)
+}
+
 /// **One row of a map, with where it sits** — so a removal can be put back exactly where it was.
 ///
 /// An index and not just the row, because a map's order is meaningful: `at` decides nothing about

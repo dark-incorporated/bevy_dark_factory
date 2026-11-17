@@ -45,6 +45,14 @@ fn write_volume(app: &App, text: &str) {
     std::fs::write(dir.join("m.yaml"), text).unwrap_or_else(|e| panic!("{e}"));
 }
 
+/// **A file under the project's grimoire directory**, beside the volume one: a terrain, for the test
+/// that asks about a named map's own ground.
+fn write(app: &App, dir: &str, file: &str, text: &str) {
+    let dir = app.world().resource::<Project>().grimoire_dir.join(dir);
+    std::fs::create_dir_all(&dir).unwrap_or_else(|e| panic!("{dir:?}: {e}"));
+    std::fs::write(dir.join(file), text).unwrap_or_else(|e| panic!("{dir:?}/{file}: {e}"));
+}
+
 fn oplog_lines(app: &App) -> usize {
     let dir = app.world().resource::<Project>().project_dir.clone();
     std::fs::read_to_string(dir.join("oplog.jsonl")).map_or(0, |t| t.lines().filter(|l| !l.trim().is_empty()).count())
@@ -134,7 +142,13 @@ fn an_add_a_later_carve_cuts_through_is_named_by_the_report() {
     let cuts = report["carves_that_cut_a_later_solid"].as_array().unwrap_or_else(|| panic!("{report}"));
     let cut = cuts.iter().find(|c| c["solid"] == json!(0)).unwrap_or_else(|| panic!("the column was cut: {cuts:?}"));
     assert_eq!(cut["cut_by"], json!(1), "by the gallery after it: {cut}");
-    assert!(cut["overlapping_m"].as_f64().is_some_and(|m| m > 0.0), "and how deep: {cut}");
+    // **The value the report actually makes**, not merely one above zero: the gallery runs along `x`
+    // through the column's whole 1 m `x` and `z` footprint, so what it took is a 1 m block and the
+    // thinnest of those extents is 1 m.
+    assert!(
+        cut["overlapping_m"].as_f64().is_some_and(|m| (m - 1.0).abs() < 1e-3),
+        "the gallery takes a 1 m block out of the 1 m column, so 1.0 m went: {cut}"
+    );
 }
 
 #[test]
@@ -182,4 +196,79 @@ fn a_map_with_no_volume_reports_an_empty_list() {
     assert_eq!(report["entries"], json!([]), "no volume, no entries: {report}");
     assert_eq!(report["components"], json!([]), "{report}");
     assert_eq!(report["at"][0]["solid"], json!(false), "and the point asked is not solid: {report}");
+}
+
+/// **A map name that is a path is refused, not answered with an empty list** (#473 review, item 1).
+///
+/// `volume_edit` refuses a name holding `/`, `\`, `.` or nothing, because the name arrives from an
+/// untrusted caller. The report resolved the same raw string into `<grimoire_dir>/volume/<map>.yaml`
+/// with no check and swallowed the parse failure, so `map: "../../some-file"` read a path outside
+/// `volume/` and answered "this map carves nothing" instead of the refusal the edit path gives.
+#[test]
+fn a_map_name_that_is_a_path_is_refused_by_the_report_too() {
+    let mut app = editor("volume_report_bad_name");
+    write_lair(&app, lair());
+    for bad in ["../../some-file", "a/b", "a\\b", "", "m.yaml"] {
+        let refused = call(&mut app, "grimoire/volume_report", json!({"map": bad}))
+            .expect_err(&format!("`{bad}` is not a map name, so the report must refuse it"));
+        assert!(
+            refused.contains("is not a map name"),
+            "**the refusal is the edit path's own sentence**, not an empty report: `{bad}`: {refused}"
+        );
+        assert!(refused.contains("Nothing was written"), "and it says nothing was written: {refused}");
+    }
+    // The map opened for this fixture is still reported on by name, so the guard refuses paths and
+    // not the name the edit path writes.
+    let good = call(&mut app, "grimoire/volume_report", json!({"map": "m"})).unwrap_or_else(|e| panic!("{e}"));
+    assert_eq!(good["entries"].as_array().map(Vec::len), Some(5), "a map name still reports: {good}");
+}
+
+/// **Every terrain here is flat rock at `height_m`**, a 4x4 field about the map's own origin: enough
+/// for `height_at` to answer everywhere a point is asked about.
+fn flat_ground(height_m: f32) -> String {
+    let heights = vec![height_m.to_string(); 16].join(", ");
+    format!("{{origin: [0.0, 0.0], cell_m: 1.0, width: 4, depth: 4, heights: [{heights}]}}")
+}
+
+/// **A named map is reported over its own ground, not the open map's** (#473 review, item 2).
+///
+/// The volume came from `p.map` while the ground came from `ground_of(project, open)`, which derives
+/// the heightfield from the open map's path. With `map: "other"` while `m` is open, the report measured
+/// `other`'s edits against `m`'s terrain. Two maps at different heights prove it: one point is rock
+/// on the one ground and air on the other.
+#[test]
+fn a_named_map_is_reported_over_its_own_ground() {
+    let mut app = editor("volume_report_own_ground");
+    // The open map sits on rock at 10 m; the map asked about sits on rock at 20 m.
+    write(&app, "terrain", "m.yaml", &flat_ground(10.0));
+    write(&app, "terrain", "other.yaml", &flat_ground(20.0));
+    // No volume for `other`: the ground alone makes solid, which is exactly what is under test.
+    let point = [1.0, 15.0, 1.0];
+    let report = call(&mut app, "grimoire/volume_report", json!({"map": "other", "at": [point]}))
+        .unwrap_or_else(|e| panic!("{e}"));
+    assert_eq!(report["map"], json!("other"), "it answered for the map asked about: {report}");
+    assert_eq!(
+        report["at"][0]["solid"],
+        json!(true),
+        "**15 m is rock in `other`, whose ground is at 20 m**, so the report read `other`'s terrain \
+         rather than the open map's (which would say air at 15 m): {report}"
+    );
+    // The control: the same point over the open map's own ground, at 10 m, is air.
+    let open = call(&mut app, "grimoire/volume_report", json!({"at": [point]})).unwrap_or_else(|e| panic!("{e}"));
+    assert_eq!(open["map"], json!("m"), "and the unnamed call is the open map: {open}");
+    assert_eq!(open["at"][0]["solid"], json!(false), "15 m is above the open map's 10 m ground: {open}");
+}
+
+/// **A carve list whose reach would hold the frame is refused, naming the limit** (#473 review, item 5).
+#[test]
+fn a_carve_list_too_large_to_flood_fill_is_refused_naming_the_limit() {
+    let mut app = editor("volume_report_budget");
+    let edit = |shape: Shape, mode: Mode| Edit { shape, mode, smooth_m: 0.0 };
+    // One carve 60 m on every axis: ~14 M samples at the report's 0.25 m cell.
+    write_lair(&app, vec![edit(Shape::Box { center: [0.0, 30.0, 0.0], half_m: [30.0; 3] }, Mode::Carve)]);
+    let refused = call(&mut app, "grimoire/volume_report", json!({}))
+        .expect_err("a flood fill that large would stall the editor, so the report is refused");
+    let limit = bevy_grimoire_core::volume_report::MAX_VOID_CELLS;
+    assert!(refused.contains(&limit.to_string()), "**the refusal names the limit**: {refused}");
+    assert!(refused.contains("Nothing was changed"), "and that nothing was written: {refused}");
 }

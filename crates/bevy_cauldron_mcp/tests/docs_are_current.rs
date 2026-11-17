@@ -254,3 +254,38 @@ fn the_tool_table_and_its_count_are_the_servers() {
         bevy_cauldron_mcp::docs::TOOLS.len()
     );
 }
+
+/// **Every document that says how many tools there are says the server's number** (#473 review).
+///
+/// The module doc's table and its count are checked above, but the *same* number is spelled in the
+/// crate's README and in `docs/PROJECT.md`, and both had gone stale: the server declared 29 tools
+/// while both said 28. A count nobody checks is a count that is wrong once and stays wrong, so this
+/// reads each document that states it and refuses a stale one.
+#[test]
+fn every_document_states_the_servers_tool_count() {
+    let declared = bevy_cauldron_mcp::docs::TOOLS.len();
+    // **Every place the number is spelled**, as (document, the phrase its digits follow, where a
+    // table cell ends rather than a word): the README's sentence, PROJECT.md's agent section, its
+    // crate table row and its summary table row.
+    let places: [(&str, &str, &str); 4] = [
+        (include_str!("../README.md"), "There are ", " tools"),
+        (include_str!("../../../docs/PROJECT.md"), "### What an agent sees\n\n- **", " tools**, `grimoire_`"),
+        (include_str!("../../../docs/PROJECT.md"), "The MCP server: ", " tools over stdio"),
+        (include_str!("../../../docs/PROJECT.md"), "| MCP tools | ", " |"),
+    ];
+    for (text, lead, suffix) in places {
+        assert_eq!(
+            count_after(text, lead, suffix),
+            Some(declared),
+            "**a document states a tool count that is not the server's {declared}**, after `{lead}`. \
+             Fix the document, not this test."
+        );
+    }
+}
+
+/// **The number the first `{lead}<n>{suffix}` in `text` names**, or `None` when it spells none.
+fn count_after(text: &str, lead: &str, suffix: &str) -> Option<usize> {
+    let at = text.find(lead)? + lead.len();
+    let digits: String = text[at..].chars().take_while(char::is_ascii_digit).collect();
+    text[at + digits.len()..].starts_with(suffix).then(|| digits.parse().ok()).flatten()
+}

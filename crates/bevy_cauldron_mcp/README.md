@@ -55,7 +55,7 @@ ssh <mac> /Applications/Cauldron.app/Contents/MacOS/bevy_cauldron_mcp
 
 ## The tools
 
-There are 28 tools, and the set is small on purpose: an agent pays for every tool it is offered, on every turn. The operation tools are a discovery surface. `grimoire_list_operations` says what the editor can do (`query` searches, `operation` answers for one with its parameters and an example), `grimoire_preview_operation` shows what one would change, `grimoire_apply_operation` runs it and records it in the operation log, and `grimoire_undo_operation` takes one back.
+There are 29 tools, and the set is small on purpose: an agent pays for every tool it is offered, on every turn. The operation tools are a discovery surface. `grimoire_list_operations` says what the editor can do (`query` searches, `operation` answers for one with its parameters and an example), `grimoire_preview_operation` shows what one would change, `grimoire_apply_operation` runs it and records it in the operation log, and `grimoire_undo_operation` takes one back.
 
 | group | tools |
 |---|---|

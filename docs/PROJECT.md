@@ -31,14 +31,14 @@ The answer is structural: **there is one way to change anything**, a typed opera
 
 ## 3. What it is made of
 
-About 405,000 lines of Rust (`find crates -name '*.rs' | xargs cat | wc -l` per crate: source, tests and examples) in 13 crates, 844 Rust files under `crates/*/tests/` (`ls crates/*/tests/*.rs | wc -l`), 28 MCP tools, and 137 entries in the operation registry (`ops::registry()`; 130 in a default build, because the family crates' operations are behind cargo features: `bevy_cauldron --print-operations` lists the ones a build has).
+About 405,000 lines of Rust (`find crates -name '*.rs' | xargs cat | wc -l` per crate: source, tests and examples) in 13 crates, 844 Rust files under `crates/*/tests/` (`ls crates/*/tests/*.rs | wc -l`), 29 MCP tools, and 138 entries in the operation registry (`ops::registry()`; 131 in a default build, because the family crates' operations are behind cargo features: `bevy_cauldron --print-operations` lists the ones a build has).
 
 | Crate | Lines | On crates.io | What it is |
 |---|---:|---|---|
 | `bevy_cauldron` | 294,204 | no | The editor. Opens a project directory, writes `<root>/assets/grimoire`. |
 | `bevy_grimoire_core` | 67,339 | [yes](https://crates.io/crates/bevy_grimoire_core) | The engine-free core: the project's file types and its one YAML reader and writer, the design tree, the grammar learner, WFC (wave function collapse), validators. No Bevy. |
 | `bevy_cauldron_bench` | 16,330 | no | The benchmark runner and grader, `cauldron-bench`. |
-| `bevy_cauldron_mcp` | 8,337 | no | The MCP server: 28 tools over stdio, talking to the running editor over BRP (the Bevy Remote Protocol). |
+| `bevy_cauldron_mcp` | 8,337 | no | The MCP server: 29 tools over stdio, talking to the running editor over BRP (the Bevy Remote Protocol). |
 | `bevy_grimoire` | 8,200 | [yes](https://crates.io/crates/bevy_grimoire) | The runtime: loads a project into a game (`GamePlugin`, `GrimoirePlugin`, `GrimoireLivePlugin`). |
 | `bevy_grimoire_migrate` | 3,155 | no | Moves a project's files from RON to YAML. |
 | `bevy_oracle` | 2,218 | no | Typed questions to a decision model, authoring time only. |
@@ -70,7 +70,7 @@ An operation is a trait object (`ops::Operation`) that declares four things: its
 
 ### What an agent sees
 
-- **28 tools**, `grimoire_`-prefixed and domain-worded (`grimoire_apply_operation`, not "run tool 7"), listed in [the MCP reference](mcp-tools.md), which is generated from the server and checked by a test (`docs_are_current`). `grimoire_guide` returns the shipped guide first; the server's instructions say to call it.
+- **29 tools**, `grimoire_`-prefixed and domain-worded (`grimoire_apply_operation`, not "run tool 7"), listed in [the MCP reference](mcp-tools.md), which is generated from the server and checked by a test (`docs_are_current`). `grimoire_guide` returns the shipped guide first; the server's instructions say to call it.
 - **Every mutating answer carries an operation id** the agent cites and a person reverts by, and a change comes back with what it broke.
 - **`dry_run` previews** anything; the preview is the operation's own pure `plan`, so it cannot half-apply.
 - **`placement_add` refuses to land on a piece** unless told `replace: true`, and the answer to a replacing add names what it replaced.
@@ -124,8 +124,8 @@ This is the section to read if you are reading someone else's project.
 | | |
 |---|---|
 | Workspaces | 10 |
-| Operations | 137 in the registry, 130 in a default build |
-| MCP tools | 28 |
+| Operations | 138 in the registry, 131 in a default build |
+| MCP tools | 29 |
 | Test files | 844 under `crates/*/tests/` |
 | Published | `bevy_grimoire`, `_core`, `_solver`, `_rng`, `_anim`, `_rhai` and `_snip` on crates.io; what `bevy_grimoire_core` 0.12 removed (the `references` module and `trust::GuideGrant`) is under "Upgrading from 0.11" in [its README](https://github.com/dark-incorporated/bevy_dark_factory/blob/main/crates/bevy_grimoire_core/README.md) |
 | Editor release | the macOS app, on the [releases](https://github.com/dark-incorporated/bevy_dark_factory/releases) page |

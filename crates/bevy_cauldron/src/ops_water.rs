@@ -61,10 +61,7 @@ fn path_of(ctx: &Ctx, map: &str) -> Result<std::path::PathBuf, Refusal> {
     let Some(project) = ctx.project.as_ref() else {
         return Err(Refusal::new("no project is open, so there is no water to place."));
     };
-    if map.is_empty() || map.contains(['/', '\\', '.']) {
-        return Err(Refusal::new(format!("`{map}` is not a map name. Nothing was written.")));
-    }
-    Ok(project.grimoire_dir.join("water").join(format!("{map}.yaml")))
+    Ok(project.grimoire_dir.join("water").join(format!("{}.yaml", crate::ops::map_name(map)?)))
 }
 
 fn read(ctx: &Ctx, map: &str) -> Option<String> {

@@ -111,10 +111,7 @@ fn path_of(ctx: &Ctx, map: &str) -> Result<std::path::PathBuf, Refusal> {
     let Some(project) = ctx.project.as_ref() else {
         return Err(Refusal::new("no project is open, so there is no volume to edit."));
     };
-    if map.is_empty() || map.contains(['/', '\\', '.']) {
-        return Err(Refusal::new(format!("`{map}` is not a map name. Nothing was written.")));
-    }
-    Ok(project.grimoire_dir.join("volume").join(format!("{map}.yaml")))
+    Ok(project.grimoire_dir.join("volume").join(format!("{}.yaml", crate::ops::map_name(map)?)))
 }
 
 fn read(ctx: &Ctx, map: &str) -> Option<String> {
@@ -124,15 +121,19 @@ fn read(ctx: &Ctx, map: &str) -> Option<String> {
 /// **The saved volume of the open map**, or `None` when it has none.
 pub fn volume_of(project: &crate::project::Project, open: &crate::project::OpenMap) -> Option<Volume> {
     let name = open.map_path.file_name()?.to_str()?.strip_suffix(".map.yaml")?;
-    volume_named(project, name)
+    volume_named(project, name).ok().flatten()
 }
 
-/// **A map's saved volume by its name**, or `None` when it has none. **The one reader of the
-/// `<grimoire_dir>/volume/<map>.yaml` path**, so a report and an edit cannot read different files for
-/// one map name.
-pub fn volume_named(project: &crate::project::Project, map: &str) -> Option<Volume> {
-    let text = std::fs::read_to_string(project.grimoire_dir.join("volume").join(format!("{map}.yaml"))).ok()?;
-    Volume::parse(&text).ok()
+/// **A map's saved volume by its name**, or `None` when it has none — and **a refusal for a name that
+/// is not a map name**, so a caller naming a path is told so rather than answered with an empty list.
+///
+/// **The one reader of the `<grimoire_dir>/volume/<map>.yaml` path**, so a report and an edit cannot
+/// read different files for one map name. The name passes [`crate::ops::map_name`], the same guard the
+/// edit path uses: without it a report asked for `map: "../../some-file"` read a path outside `volume/`
+/// and swallowed the parse failure, which reads as "this map carves nothing" instead of the refusal.
+pub fn volume_named(project: &crate::project::Project, map: &str) -> Result<Option<Volume>, Refusal> {
+    let name = crate::ops::map_name(map)?;
+    Ok(std::fs::read_to_string(project.grimoire_dir.join("volume").join(format!("{name}.yaml"))).ok().and_then(|text| Volume::parse(&text).ok()))
 }
 
 /// **What one call did to the list** (#473): which entry it touched, and what stood there.

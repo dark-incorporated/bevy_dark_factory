@@ -125,10 +125,7 @@ pub struct Params {
 }
 
 pub(crate) fn path_of(project: &crate::project::Project, map: &str) -> Result<std::path::PathBuf, Refusal> {
-    if map.is_empty() || map.contains(['/', '\\', '.']) {
-        return Err(Refusal::new(format!("`{map}` is not a map name. Nothing was written.")));
-    }
-    Ok(project.grimoire_dir.join("people").join(format!("{map}.yaml")))
+    Ok(project.grimoire_dir.join("people").join(format!("{}.yaml", crate::ops::map_name(map)?)))
 }
 
 /// **The saved people of a map**, nobody when there is no file.

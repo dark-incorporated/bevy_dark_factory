@@ -3185,21 +3185,32 @@ fn volume_report(In(p): In<VolumeReportParams>, loaded: Loaded) -> Result<Value,
     let (Some(project), Some(open)) = (project.as_ref(), open.as_ref()) else {
         return Err("no map is open, so there is no volume to report on.".to_owned());
     };
-    // **The one reader of a volume's name**, shared with `volume_edit`: a report that resolved the map
-    // its own way could read a different file from the one a `volume_edit` writes.
+    // **The one reader of a volume's name, shared with `volume_edit`**: a report that resolved the map
+    // its own way could read a different file from the one a `volume_edit` writes — and a name that is
+    // not a map name is refused here, by the same guard the edit path runs, rather than read from a
+    // path outside `volume/` and answered as an empty list.
     let (volume, name) = match &p.map {
-        Some(name) => (crate::ops_volume::volume_named(project, name), name.clone()),
+        Some(name) => (
+            crate::ops_volume::volume_named(project, name).map_err(|e| e.problem().line())?,
+            name.clone(),
+        ),
         None => (crate::ops_volume::volume_of(project, open), open.map.name.clone()),
     };
-    // **The ground the map is carved into** is the same one the mesher hands `sdf`, so a point the
-    // report calls air is a point the picture draws as air. A map with no terrain file is open space —
-    // its own entries are all that make solid, which is the truth for a map built of `Add`s.
-    let field = crate::ops_terrain::ground_of(project, open);
+    // **The ground the map is carved into is that map's own**, by the same derivation whichever map it
+    // is: a named map's edits measured against the open map's heightfield would answer about terrain
+    // the named map does not sit on. A map with no terrain file is open space — its own entries are
+    // all that make solid, which is the truth for a map built of `Add`s.
+    let field = match &p.map {
+        Some(name) => crate::ops_terrain::ground_named(project, name),
+        None => crate::ops_terrain::ground_of(project, open),
+    };
     let ground: Box<dyn bevy_grimoire_core::volume_report::Ground> = match &field {
         Some(f) => Box::new(bevy_grimoire_core::volume_report::OverGround(f)),
         None => Box::new(bevy_grimoire_core::volume_report::EmptySpace),
     };
-    let report = volume.unwrap_or_default().report(ground.as_ref(), &p.at);
+    // **A report's work is bounded**: the void's flood fill runs in this update, so a carve list whose
+    // reach is over `MAX_VOID_CELLS` is refused naming the limit rather than holding the frame.
+    let report = volume.unwrap_or_default().report_within_budget(ground.as_ref(), &p.at)?;
     let mut answer = serde_json::to_value(&report).map_err(|e| format!("the report could not be written: {e}"))?;
     // **Which map it answered for**: the report's fields say what the list made, and this says whose
     // list it was, so a caller that named no map knows which one it got.

@@ -66,10 +66,7 @@ fn path_of(ctx: &Ctx, map: &str) -> Result<std::path::PathBuf, Refusal> {
     let Some(project) = ctx.project.as_ref() else {
         return Err(Refusal::new("no project is open, so there is no terrain to sculpt."));
     };
-    if map.is_empty() || map.contains(['/', '\\', '.']) {
-        return Err(Refusal::new(format!("`{map}` is not a map name. Nothing was written.")));
-    }
-    Ok(project.grimoire_dir.join("terrain").join(format!("{map}.yaml")))
+    Ok(project.grimoire_dir.join("terrain").join(format!("{}.yaml", crate::ops::map_name(map)?)))
 }
 
 fn read(ctx: &Ctx, map: &str) -> Option<String> {
@@ -85,6 +82,19 @@ fn to_text(field: &Heightfield) -> Result<String, Refusal> {
 /// map's name is its file name without `.map.yaml`, the name `terrain_stroke` takes.
 pub fn ground_of(project: &crate::project::Project, open: &crate::project::OpenMap) -> Option<Heightfield> {
     let name = open.map_path.file_name()?.to_str()?.strip_suffix(".map.yaml")?;
+    ground_named(project, name)
+}
+
+/// **The saved terrain of the map called `name`**, by the same derivation [`ground_of`] uses: a map's
+/// name is its file's stem, so a report on a map that is not open reads that map's own ground rather
+/// than the open map's.
+///
+/// **The one reader of `<grimoire_dir>/terrain/<name>.yaml`**, so the map a report is *about* and the
+/// ground it is measured over are named by the same string. A name that is not a map name is `None`
+/// here: a terrain read is derived data, and the caller that resolves a caller-supplied name (the
+/// volume report) refuses it through [`crate::ops::map_name`] before asking.
+pub fn ground_named(project: &crate::project::Project, name: &str) -> Option<Heightfield> {
+    let name = crate::ops::map_name(name).ok()?;
     let text = std::fs::read_to_string(project.grimoire_dir.join("terrain").join(format!("{name}.yaml"))).ok()?;
     Heightfield::parse(&text).ok()
 }

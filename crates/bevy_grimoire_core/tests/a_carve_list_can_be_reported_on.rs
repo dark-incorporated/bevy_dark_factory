@@ -99,7 +99,14 @@ fn an_add_a_later_carve_cuts_through_is_named_with_how_much_went() {
     assert_eq!(cuts.len(), 1, "the gallery cut the column: {cuts:?}");
     assert_eq!(cuts[0].solid, 0, "the add is named: {:?}", cuts[0]);
     assert_eq!(cuts[0].cut_by, 1, "and the carve after it: {:?}", cuts[0]);
-    assert!(cuts[0].overlapping_m > 0.0, "how much of the column went: {:?}", cuts[0]);
+    // **The value the report actually makes**, not merely one above zero: the gallery is a 2 m
+    // cylinder along `x` through the column's whole 1 m `x` and `z` footprint, so what it took is a
+    // 1 x 2 x 1 m block and the thinnest of those extents is 1 m.
+    assert!(
+        (cuts[0].overlapping_m - 1.0).abs() < 1e-4,
+        "the gallery takes a 1 m block out of the 1 m column, so 1.0 m went: {:?}",
+        cuts[0]
+    );
     assert!(report.has_defects(), "an `Add` a later `Carve` eats is the defect the report exists for");
 }
 
@@ -193,4 +200,28 @@ fn a_report_changes_nothing_and_an_empty_volume_reports_nothing() {
     // The empty list is empty space, so the point asked is not solid.
     assert!(!report.at[0].solid);
     assert!(report.at[0].containing.is_empty());
+}
+
+/// **A cut thinner than the report's own cell is below its resolution, and the doc says so.**
+///
+/// The samples are the overlap box's own faces at [`SAMPLE_CELL_M`], so a 0.2 m clip is not a number
+/// this report can make: the two faces it does sample sit exactly on the carve's and the solid's
+/// boundaries, where a carve removes nothing (`distance == 0` is the surface, not the inside), so the
+/// pair is not listed at all. **The resolution is the answer's limit, stated on
+/// [`CutSolid::overlapping_m`]**, and this test pins that a caller gets no cut rather than a floored
+/// `0.25` that reads as a real depth.
+#[test]
+fn a_cut_thinner_than_one_sample_is_not_reported_as_a_depth() {
+    let mut v = Volume::default();
+    // A dais 1 m across whose top step is at y 6.8, and a carve that shaves its top 0.2 m off.
+    v.edits.push(box_at([0.0, 6.4, 0.0], [0.5, 0.4, 0.5], Mode::Add));
+    v.edits.push(box_at([0.0, 6.9, 0.0], [2.0, 0.3, 2.0], Mode::Carve));
+    let report = v.report(&EmptySpace, &[]);
+    assert!(
+        report.carves_that_cut_a_later_solid.is_empty(),
+        "**a cut thinner than {} m is below the report's resolution**, so it names no depth rather \
+         than a floored one: {:?}",
+        bevy_grimoire_core::volume_report::SAMPLE_CELL_M,
+        report.carves_that_cut_a_later_solid
+    );
 }
