@@ -142,15 +142,36 @@ fn mark_the_panel_headings(
         // **The heading and its "?" are one row**, so the button sits beside the words rather than
         // inside the text run. The row takes the heading's place in the panel, which keeps the title
         // at the top of it.
-        // The "?" stands level with the heading's words.
+        //
+        // **The heading gives up the gap under itself, and that is the fix for its own centre line**
+        // (#487). `chrome::title` carries `spaced(margin_bottom(STEP_ROW))` — 4 px of air between the
+        // panel's name and the rows below it, which is right when the title stands alone in the
+        // column. In a row aligned `Center` it is instead 4 px of box under the words with nothing
+        // above them, so the *box* centres 2 px low and the words sit 2 px high of the pill the row
+        // centred on the box. Measured on the capture's 2.4 and here at 1.0 and 1.6: the word at
+        // 242.0 against its pill at 246.0 — a 4.5 px spread across three centres.
+        //
+        // The air is not deleted, it is moved to the row: the gap the column needed is still between
+        // this row and what follows it, and the three things in the row now share one centre line
+        // because none of them carries a margin of its own.
         let row = commands
             .spawn((
                 PanelHeading,
                 bevy_gooey::row_with(crate::chrome::GAP_TIGHT_STEPS, bevy_gooey::RowLayout { align: Some(AlignItems::Center), ..default() }),
                 bevy::picking::Pickable::IGNORE,
+                // **`Spacing` alone, not `chrome::spaced`**: `spaced` also inserts `Role::Sized`, and
+                // the row already carries `Role::Row` from `row_with` — two roles in one bundle is a
+                // panic at spawn.
+                bevy_gooey::Spacing {
+                    margin: crate::chrome::margin_bottom(crate::chrome::STEP_ROW),
+                    padding: Default::default(),
+                },
             ))
             .id();
         commands.entity(panel).insert_children(at, &[row]);
+        // The heading keeps its `Spacing` bundle (`spaced` writes `Role::Sized` too), so the margin is
+        // cleared on it rather than bundled a second time.
+        commands.entity(heading).insert(bevy_gooey::Spacing { margin: crate::chrome::NO_MARGIN, padding: Default::default() });
         commands.entity(row).add_child(heading);
         commands.entity(row).with_child((
             PanelHelp { page: page.id },
