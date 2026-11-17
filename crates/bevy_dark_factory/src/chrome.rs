@@ -717,6 +717,20 @@ pub mod text {
     pub const HINT: Role = Role(9.0);
 }
 
+/// **What the chrome bar's readouts are drawn at** (#480, feedback-1794783606350: *"The debug text is overlayed on the
+/// editor top menu like file, edit, view--we should make it distinct."*).
+///
+/// The bar is a band of **state** — where you are, which door, which decision model — one rule below a row of
+/// **commands** (File, Edit, View). Drawn at [`text::BODY`], the way the menus are, the two were one texture and the
+/// owner could not tell them apart. So the bar's words come down a step, and the band is quieter than the menu by
+/// size as well as by ink.
+///
+/// **It names an existing role rather than adding one.** `chrome_census::the_type_scale_stays_short` caps the scale
+/// at seven roles and five sizes, and a readout is not a kind of text this interface had no word for — it is a label
+/// (a quiet line under a value it belongs to), which is exactly what [`text::LABEL`] is. The name is the decision, so
+/// a word added to the bar later takes it by construction instead of by whoever remembers.
+pub const BAR_READOUT: text::Role = text::LABEL;
+
 /// **The only way this crate makes a `TextFont`.**
 ///
 /// `TextFont::from_font_size` takes an `f32` and will therefore always accept a number; this takes a
@@ -4169,14 +4183,14 @@ pub fn spawn_chrome_bar(
             b.spawn((
                 Text::new(format!("\u{2039} {back}")),
                 TextColor(ink().key),
-                typed(text::BODY),
+                typed(BAR_READOUT),
                 bevy::picking::Pickable::IGNORE,
             ));
             b.spawn((
                 BackChord,
                 Text::new(keys::chord(keys::Action::MainMenu)),
                 TextColor(ink().label),
-                typed(text::BODY),
+                typed(BAR_READOUT),
                 bevy::picking::Pickable::IGNORE,
             ));
         });
@@ -4192,7 +4206,7 @@ pub fn spawn_chrome_bar(
                 Control(keys::ControlId::Title),
                 Text::new(here),
                 TextColor(ink().dim),
-                typed(text::BODY),
+                typed(BAR_READOUT),
                 bevy::picking::Pickable::IGNORE,
             ));
         }
