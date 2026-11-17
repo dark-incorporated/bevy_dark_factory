@@ -189,7 +189,7 @@ fn a_preview_is_framed_and_the_map_on_disk_does_not_move() {
     // **And the receipt says it is a preview**, so a proposal is not read as a fact.
     let note = app.world().resource::<EditorState>().status.note_text().to_lowercase();
     assert!(
-        note.contains("the NightShift") && (note.contains("preview") || note.contains("about to")),
+        note.contains("the nightshift") && (note.contains("preview") || note.contains("about to")),
         "the receipt does not name the change a preview: {note:?}"
     );
     assert!(!note.contains("about to would"), "the receipt says `would` twice: {note:?}");

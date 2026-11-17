@@ -9,8 +9,8 @@ the test suite say whether it landed.
 
 Two rules that keep this honest:
 
-- **Every substitution is a word boundary**, so `blueprint` inside `bevy_blueprint` and
-  `Blueprint` inside `BlueprintError` are handled by the longer names first, and a plain
+- **Every substitution is a word boundary**, so `grimoire` inside `bevy_grimoire` and
+  `Grimoire` inside `GrimoireError` are handled by the longer names first, and a plain
   `grim` is never touched.
 - **The map is reported, not guessed.** Every source that no longer exists and every
   target that already does is printed, so a human can see what the drift costs.
@@ -31,17 +31,17 @@ import sys
 # `blueprint_model`, the rng at `blueprint_rng` and the mcp at `dark_factory_mcp`, none of
 # which follow the package-name rule. Guessing produced two crates claiming one package.
 CRATE_MAP: tuple[tuple[str, str], ...] = (
-    ("crates/bevy_dark_factory", "crates/bevy_dark_factory"),
-    ("crates/dark_factory_mcp", "crates/dark_factory_mcp"),
-    ("crates/bevy_blueprint", "crates/bevy_blueprint"),
-    ("crates/bevy_blueprint_anim", "crates/bevy_blueprint_anim"),
-    ("crates/blueprint_model", "crates/blueprint_model"),
-    ("crates/blueprint_rng", "crates/blueprint_rng"),
-    ("crates/dark_factory_snip", "crates/dark_factory_snip"),
-    ("crates/blueprint_solver", "crates/blueprint_solver"),
-    ("crates/bevy_blueprint_migrate", "crates/bevy_blueprint_migrate"),
-    ("crates/bevy_blueprint_rhai", "crates/bevy_blueprint_rhai"),
-    ("games/blueprint_sample_game", "games/blueprint_sample_game"),
+    ("crates/bevy_cauldron", "crates/bevy_dark_factory"),
+    ("crates/bevy_cauldron_mcp", "crates/dark_factory_mcp"),
+    ("crates/bevy_grimoire", "crates/bevy_blueprint"),
+    ("crates/bevy_grimoire_anim", "crates/bevy_blueprint_anim"),
+    ("crates/bevy_grimoire_core", "crates/blueprint_model"),
+    ("crates/bevy_grimoire_rng", "crates/blueprint_rng"),
+    ("crates/bevy_grimoire_snip", "crates/dark_factory_snip"),
+    ("crates/bevy_grimoire_solver", "crates/blueprint_solver"),
+    ("crates/bevy_grimoire_migrate", "crates/bevy_blueprint_migrate"),
+    ("crates/bevy_grimoire_rhai", "crates/bevy_blueprint_rhai"),
+    ("games/grimoire_sample_game", "games/blueprint_sample_game"),
 )
 
 # Package and identifier names, **read out of the rebrand commit's own Cargo.toml files**
@@ -49,39 +49,39 @@ CRATE_MAP: tuple[tuple[str, str], ...] = (
 # (`blueprint_model`, `blueprint_rng`, `blueprint_solver`, `dark_factory_mcp`,
 # `dark_factory_snip`), which no rule would predict — deriving it produced a crate whose
 # directory said `blueprint_model` and whose package said `bevy_blueprint_core`.
-# Longest first, so `blueprint_model` is consumed before `bevy_blueprint`.
+# Longest first, so `bevy_grimoire_core` is consumed before `bevy_grimoire`.
 RENAMES: tuple[tuple[str, str], ...] = (
-    # The MCP server's compound name, before either of its words: `dark_factory_blueprint`
+    # The MCP server's compound name, before either of its words: `cauldron_grimoire`
     # appears in 98 files (the bench's transcript fixtures, the guide, the schemas), and
-    # renaming `dark_factory` and `blueprint` separately produced `dark_factory_blueprint` in
-    # some places and `dark_factory_blueprint` in others depending on which rule ran first.
-    ("dark_factory_blueprint", "dark_factory_blueprint"),
-    ("DarkFactoryBlueprint", "DarkFactoryBlueprint"),
-    ("blueprint_model", "blueprint_model"),
-    ("blueprint_rng", "blueprint_rng"),
-    ("blueprint_solver", "blueprint_solver"),
-    ("dark_factory_snip", "dark_factory_snip"),
-    ("bevy_blueprint_anim", "bevy_blueprint_anim"),
-    ("bevy_blueprint_rhai", "bevy_blueprint_rhai"),
-    ("bevy_blueprint_migrate", "bevy_blueprint_migrate"),
-    ("bevy_blueprint", "bevy_blueprint"),
-    ("dark_factory_mcp", "dark_factory_mcp"),
-    ("bevy_dark_factory_bench", "bevy_dark_factory_bench"),
-    ("bevy_dark_factory", "bevy_dark_factory"),
-    ("blueprint_sample_game", "blueprint_sample_game"),
-    ("blueprint", "blueprint"),
-    ("Blueprint", "Blueprint"),
-    ("BLUEPRINT", "BLUEPRINT"),
-    ("dark_factory", "dark_factory"),
-    ("DarkFactory", "DarkFactory"),
-    ("DARK_FACTORY", "DARK_FACTORY"),
-    ("NightShift", "NightShift"),
+    # renaming `cauldron` and `grimoire` separately produced `dark_factory_blueprint` in
+    # some places and `cauldron_blueprint` in others depending on which rule ran first.
+    ("cauldron_grimoire", "dark_factory_blueprint"),
+    ("CauldronGrimoire", "DarkFactoryBlueprint"),
+    ("bevy_grimoire_core", "blueprint_model"),
+    ("bevy_grimoire_rng", "blueprint_rng"),
+    ("bevy_grimoire_solver", "blueprint_solver"),
+    ("bevy_grimoire_snip", "dark_factory_snip"),
+    ("bevy_grimoire_anim", "bevy_blueprint_anim"),
+    ("bevy_grimoire_rhai", "bevy_blueprint_rhai"),
+    ("bevy_grimoire_migrate", "bevy_blueprint_migrate"),
+    ("bevy_grimoire", "bevy_blueprint"),
+    ("bevy_cauldron_mcp", "dark_factory_mcp"),
+    ("bevy_cauldron_bench", "bevy_dark_factory_bench"),
+    ("bevy_cauldron", "bevy_dark_factory"),
+    ("grimoire_sample_game", "blueprint_sample_game"),
+    ("grimoire", "blueprint"),
+    ("Grimoire", "Blueprint"),
+    ("GRIMOIRE", "BLUEPRINT"),
+    ("cauldron", "dark_factory"),
+    ("Cauldron", "DarkFactory"),
+    ("CAULDRON", "DARK_FACTORY"),
+    ("Familiar", "NightShift"),
     # A *quoted display name* is one word and capitalised, while an identifier is
-    # snake_case: `mod night_shift;` must become `mod night_shift;`, but a test comparing
-    # `"the NightShift"` against a lowercased status line compares against `"the NightShift"`
-    # lowercased. So the literal goes first, and the identifier rule follows.
-    ('"the NightShift', '"the NightShift'),
-    ("night_shift", "night_shift"),
+    # snake_case: `mod familiar;` must become `mod night_shift;`, but a test compares a
+    # **lowercased** status line, so its literal must be the lowercased display name —
+    # `"the NightShift"` can never match `to_lowercase()`'s output.
+    ('"the familiar', '"the nightshift'),
+    ("familiar", "night_shift"),
 )
 
 # File extensions whose contents are rewritten. A binary, a font or an LFS clip is moved
@@ -128,15 +128,15 @@ def substitute(text: str) -> str:
     return text
 
 
-def rename_nested_blueprint(args_check: bool) -> int:
-    """Every `…/assets/blueprint` directory, not only the repository root's.
+def rename_nested_grimoire(args_check: bool) -> int:
+    """Every `…/assets/grimoire` directory, not only the repository root's.
 
-    The bench fixture and the sample game each carry their own `assets/blueprint`, and the
+    The bench fixture and the sample game each carry their own `assets/grimoire`, and the
     rebrand's rename list only covers the root one — so the bench's `bench_bedroom` and the
     greeting task's `courtyard` were left under a path their loader no longer reads.
     """
     moved = 0
-    for path in sorted(pathlib.Path(".").rglob("blueprint")):
+    for path in sorted(pathlib.Path(".").rglob("grimoire")):
         if not path.is_dir() or "target" in path.parts or ".git" in path.parts:
             continue
         target = path.with_name("blueprint")
@@ -198,7 +198,7 @@ def main() -> int:
         if not args.check:
             path.write_text(new_text)
 
-    nested = rename_nested_blueprint(args.check)
+    nested = rename_nested_grimoire(args.check)
 
     print(f"renamed {moved} tracked paths and {nested} nested asset directories, skipped "
           f"{skipped_source} missing sources and {skipped_target} occupied targets; "
