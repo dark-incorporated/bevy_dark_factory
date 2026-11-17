@@ -54,6 +54,8 @@
 
 ## Check your work by asking
 
+**Ask about the inside of an underground place.** A carved map's rooms are behind the rock's own surface, so a picture taken without `hide` answers about the hill. Pass the still's `hide` to this tool too: `hide: ["terrain"]` with `view: true` asks `floating`, `clipping` or your own question about the room rather than the rock it is cut into, and the view is put back before the model answers, so the person's screen is unchanged by the question.
+
 **Take one still of what you changed, ask the questions, then read the answers before your next operation.** Do it after every change the person will see, and before `grimoire_present`: a hand-back naming a fault you could have caught is one they must finish. `grimoire_decide` does the check in one call: pass `view: true` and the server takes the still itself, puts your questions to a decision model and returns a probability for each. To ask about a before-and-after pair without a second capture, give a still from `grimoire_capture_still` in `images`, by its `path` or its `fingerprint` (only stills are accepted, not other files). The answer names the `model` that answered (`model_source` says whether the endpoint `reported` it or it is the `configured` one), `where` it ran (`local`, or `remote` when the picture may have left the LAN) and its `latency_ms`.
 
 **Ask only a question whose answer would change your next operation.** If the number would not change what you do, do not ask it: say it in the hand-back as an assumption. These cover nearly every change — is the thing asked for there, is its middle clear, is it the shape asked for, does anything float — plus one where the request names an amount or a kind. Each question is its own pass, so more costs time.

@@ -4,6 +4,7 @@ What each change added, newest first. A visible change has a clip: click the sti
 
 ## 2026-11-16
 
+- **472-decide-hides** grimoire_decide takes hide: the picture its view is can show a carved room's inside instead of the hill it is buried in, the surfaces put back before the model answers *For you: An agent can now ask whether a room looks right, not whether the hill does: the check is asked about the inside of an underground level.* *No clip: an API parameter and a view it already had; proved by crates/bevy_cauldron_mcp/tests/decide_hides_the_terrain.rs*
 - **473-review-fixes** A carves report reads its own map's ground and its own name, and refuses what the edit path refuses: a map name that is a path, and a carve list too large to flood-fill, both refused naming what they are rather than answered with an empty report or a stalled frame *No clip: a verb's refusals and the ground it reads; proved by crates/bevy_grimoire_core/tests/a_report_is_bounded_by_a_named_limit.rs and an_agent_can_ask_a_carve_list_what_it_made*
 - **volume-report** An agent can ask a carve list what it made *No clip: API; proved by crates/bevy_cauldron/tests/an_agent_can_ask_a_carve_list_what_it_made.rs and crates/bevy_grimoire_core/tests/a_carve_list_can_be_reported_on.rs*
 - **volume-set** A whole carve list can be set and undone in one change *No clip: API; proved by crates/bevy_cauldron/tests/volume_set_replaces_the_whole_list.rs*

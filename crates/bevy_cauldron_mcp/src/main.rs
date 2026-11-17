@@ -722,17 +722,13 @@ impl Grimoire {
             .map_err(|e| format!("the editor's {e}"))
     }
 
-    /// **Hide the surfaces a capture asks for**, and answer what was hidden before it, so the caller can put
-    /// the view back. `None` when the call names none: the editor is not asked, so a still with no `hide`
-    /// costs no BRP round trip and cannot change the view.
-    async fn set_hidden(&self, hide: Option<&[String]>) -> Result<Option<Vec<String>>, String> {
-        let Some(hide) = hide else { return Ok(None) };
-        let answer = self
-            .editor
-            .call("grimoire/surface_hide", json!({"hide": hide}))
-            .await?;
-        let was = answer.get("was").and_then(|w| w.as_array()).map(|w| w.iter().filter_map(|s| s.as_str().map(str::to_owned)).collect());
-        Ok(Some(was.unwrap_or_default()))
+    /// **Grab a picture through a view `hide` names, and put the view back after it** (#472).
+    ///
+    /// **A delegate to the library's** [`bevy_cauldron_mcp::decide::grab_through`], so `grimoire_capture_still`
+    /// and `grimoire_decide` take one path rather than two: the hiding, the refusal and the restore are the
+    /// library's, and this holds nothing of its own.
+    async fn grab_through(&self, source: &str, hide: Option<&[String]>, restore: bool) -> Result<(String, Option<Vec<String>>), String> {
+        bevy_cauldron_mcp::decide::grab_through(&self.editor, source, hide, restore).await
     }
 
     /// **Where a capture lands.**
@@ -1537,20 +1533,9 @@ impl Grimoire {
             .unwrap_or(Value::Null);
         // **The view the picture is taken through** (#472): `hide` is applied before the grab, so an
         // underground map's rooms are what the picture shows rather than the rock they are cut into.
-        let was = match self.set_hidden(p.hide.as_deref()).await {
-            Ok(was) => was,
-            Err(e) => return Ok(refusal(&e)),
-        };
-        let grabbed = self.grab(fairy_source).await;
-        // **The person's screen goes back as it was**, whether the picture landed or not: a still is a
-        // look, not a change to what they are looking at.
-        if p.restore && was.is_some()
-            && let Err(e) = self.set_hidden(Some(&was.unwrap_or_default())).await
-        {
-            return Ok(refusal(&format!("the view could not be put back after the capture: {e}")));
-        }
-        let png = match grabbed {
-            Ok(png) => png,
+        // [`McpServer::grab_through`] is the one path, which `grimoire_decide`'s `view` also takes.
+        let png = match self.grab_through(fairy_source, p.hide.as_deref(), p.restore).await {
+            Ok((png, _was)) => png,
             Err(e) => return Ok(refusal(&e)),
         };
         // **The file, written here.** A directory per label, and a name that says when it was
@@ -1688,7 +1673,14 @@ impl Grimoire {
                        each one's probability) or score (levels, a weighted score), with state in words, \
                        images (stills from grimoire_capture_still, at most four, each at most 8 MiB) and facts (JSON). A check that needs a picture or \
                        facts it was not given is refused and names what is missing; it never answers from \
-                       less. game: also look at the running game that play started: a frame from its \
+                       less. hide: the map's own surfaces to take out of the picture this call takes for \
+                       view, in grimoire_capture_still's own words: [\"terrain\"] cuts a carved ground's \
+                       outer skin away, so floating and clipping are asked about a room instead of the \
+                       hill it is buried in, lit from the side the camera is on rather than left as \
+                       shadows. The camera is not moved, no file is written and the map is not marked \
+                       dirty; what was hidden is put back before the model is asked, so the person's \
+                       screen is unchanged by the question. Ignored when no picture is taken. game: also \
+                       look at the running game that play started: a frame from its \
                        bevy_fairy, named game, on the port in play.yaml or game.port, and one BRP call's \
                        answer (game.state) as facts.game; a check that asks for the image game takes it \
                        itself, and a game's own checks live in the project's assets/grimoire/checks.yaml. \
@@ -1717,8 +1709,11 @@ impl Grimoire {
             Err(e) => return Ok(refusal(&e)),
         };
         let view = if bevy_cauldron_mcp::decide::needs_view(&p, &checks) {
-            match self.grab("offscreen").await {
-                Ok(png) => Some(png),
+            // **The same `hide` a still takes, through the same path** (#472): the picture a check is
+            // asked about is the picture `grimoire_capture_still` would have taken, and the view is put
+            // back before the model is asked, so a decision never leaves the person's screen changed.
+            match self.grab_through("offscreen", p.hide.as_deref(), true).await {
+                Ok((png, _was)) => Some(png),
                 Err(e) => return Ok(refusal(&e)),
             }
         } else {
