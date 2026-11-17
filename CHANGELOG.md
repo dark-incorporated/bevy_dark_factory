@@ -2,6 +2,10 @@
 
 What each change added, newest first. A visible change has a clip: click the still to play it. `python3 tools/changelog/changelog.py page --open` plays them all in one page.
 
+## 2026-11-17
+
+- **bench-label-does-not-dirty** A labelled benchmark matrix publishes after every pair has run, so the label's own files can no longer change the commit the next pair reads and make a matrix refuse itself (#416) *No clip: a harness fix; proved by a_labelled_matrix_succeeds_and_the_second_pair_reads_the_commit_the_first_did and a_matrix_whose_pairs_really_ran_at_different_commits_is_still_refused*
+
 ## 2026-11-16
 
 - **bench-advisory** `PIN` The benchmark is printed beside a release and no longer refuses it: a release is not gated on a run while the editor is built out (BM-05 stays as a finding, not a stop) *No clip: a release-process change; proved by the workflow step calling bench_advisory.sh and the check's own tests*

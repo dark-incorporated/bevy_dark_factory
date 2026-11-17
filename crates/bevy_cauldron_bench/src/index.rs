@@ -27,6 +27,23 @@ pub const README: &str = "README.md";
 /// Answers the two paths written. A report whose stem is already on disk is replaced: one run, one
 /// label, one day is one report.
 pub fn publish(bench_dir: &Path, report: &Report) -> Result<(PathBuf, PathBuf), String> {
+    let (md, json) = write_report_files(bench_dir, report)?;
+    let readme = bench_dir.join(README);
+    bevy_grimoire_core::atomic_file::write(&readme, index(bench_dir)?)
+        .map_err(|e| format!("{}: {e}", readme.display()))?;
+    Ok((md, json))
+}
+
+/// **Write every report's `.md` and `.json` under `<bench_dir>/runs/` and leave the README alone.**
+///
+/// For a matrix, whose runs are all published at once: [`publish_matrix`] writes the README last, over the runs
+/// and the matrices together, so a labelled matrix with four pairs rewrites the index once, not five times.
+pub fn publish_reports(bench_dir: &Path, reports: &[Report]) -> Result<Vec<(PathBuf, PathBuf)>, String> {
+    reports.iter().map(|report| write_report_files(bench_dir, report)).collect()
+}
+
+/// **One report's `.md` and `.json` under `<bench_dir>/runs/`**, answering the two paths written.
+fn write_report_files(bench_dir: &Path, report: &Report) -> Result<(PathBuf, PathBuf), String> {
     let runs = bench_dir.join(RUNS_DIR);
     std::fs::create_dir_all(&runs).map_err(|e| format!("{}: {e}", runs.display()))?;
     let stem = report.header.stem();
@@ -34,9 +51,6 @@ pub fn publish(bench_dir: &Path, report: &Report) -> Result<(PathBuf, PathBuf), 
     let json = runs.join(format!("{stem}.json"));
     bevy_grimoire_core::atomic_file::write(&md, report.markdown()).map_err(|e| format!("{}: {e}", md.display()))?;
     bevy_grimoire_core::atomic_file::write(&json, report.json()?).map_err(|e| format!("{}: {e}", json.display()))?;
-    let readme = bench_dir.join(README);
-    bevy_grimoire_core::atomic_file::write(&readme, index(bench_dir)?)
-        .map_err(|e| format!("{}: {e}", readme.display()))?;
     Ok((md, json))
 }
 

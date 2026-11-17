@@ -14,6 +14,13 @@
 //! and a run that is unfit ([`crate::report::Report::unfit`]): a row from one of them would be a number
 //! about something else, set beside numbers it cannot be compared with.
 //!
+//! # A label does not dirty the tree it measures
+//!
+//! **Nothing is published until every pair has run** ([`run`]). A pair's commit is read with `git status`, so a
+//! report published into `docs/bench/` between two pairs would make the second pair read `<sha>+dirty` and the
+//! matrix refuse a comparison it had itself made unequal; measured in #416's run, which dropped `--label` to get
+//! past it. The publication happens once, at the end, and no read inside the matrix sees it.
+//!
 //! # A model with no price is not free
 //!
 //! A local model's cost is its listed price, often `0`, with its wall time beside it. **A model whose price
@@ -385,27 +392,66 @@ impl Matrix {
     }
 }
 
+/// **What runs one pair**: everything a pair does that needs a model and an editor, reduced to the report it made
+/// and the paths it wrote. [`run`] hands it [`crate::run::run`] and [`crate::run::write_reports`]; a test hands it
+/// an editor-free, model-free stand-in over recorded trials, which is how the order of the matrix's own steps is
+/// proved without either.
+pub type PairRun<'a> = &'a dyn Fn(&crate::run::Options, Option<&std::path::Path>) -> Result<(Report, Vec<std::path::PathBuf>), String>;
+
+/// **One pair's options, taken from the matrix's**: its agent and model, its own output directory under the
+/// matrix's, and the matrix's label with the pair's slug.
+///
+/// **It publishes nothing** (`publish` is `None` even when the matrix was labelled). Why it is this way and not
+/// checked at read time: the commit a report names is read with `git status`, so *any* file the harness writes into
+/// the checkout between two pairs makes the second pair's commit `<sha>+dirty`, and the matrix then refuses a
+/// comparison the harness itself made unequal (measured in #416's run, which dropped `--label` to get past it).
+/// Teaching the commit read to ignore the harness's own files would be a second rule about which paths a
+/// publication may touch, kept in step with `index`'s three writers forever; publishing once every pair has run
+/// needs no such rule and no exemption, and a pair's trials, `run.json` and report still land under its own
+/// `--out`, which is outside the checkout.
+pub fn pair_options(options: &crate::run::Options, pair: &Pair) -> crate::run::Options {
+    let mut one = options.clone();
+    one.agent = pair.agent;
+    one.model = pair.model.clone();
+    one.out = options.out.join(pair.slug());
+    one.label = format!("{}-{}", options.label, pair.slug());
+    one.publish = None;
+    one
+}
+
 /// **Run one suite once per pair and build the matrix**, answering it and the paths written.
 ///
 /// Every pair runs on the same tasks, trials, variant and editor binary, **one pair after another** (each
-/// pair's own `--jobs` apply inside it), under `<out>/<pair>/`. Each pair's report is written (and published
-/// when the run was named); the matrix is published beside them. A pair whose run was unfit, or one that ran
-/// at a different commit, makes the matrix refuse, naming it, and every pair's report is still on disk.
+/// pair's own `--jobs` apply inside it), under `<out>/<pair>/`. Each pair's report is written under its own
+/// output; **nothing is published until every pair has run**, and then each pair's report and the matrix are
+/// published together ([`pair_options`] says why the publication is here and not inside the loop). A pair whose
+/// run was unfit, or one that ran at a different commit, makes the matrix refuse, naming it, and every pair's
+/// report is still on disk.
 pub fn run(
     options: &crate::run::Options,
     held_out: Option<&std::path::Path>,
     pairs: &[Pair],
 ) -> Result<(Matrix, Vec<std::path::PathBuf>), String> {
+    run_with(options, held_out, pairs, &|one, held_out| {
+        crate::run::run(one, held_out)?;
+        crate::run::write_reports(one)
+    })
+}
+
+/// **[`run`] with the pair's own work passed in**, which is what lets a test prove the matrix's order of steps
+/// with recorded trials and no agent. `pair_run` gets the pair's options ([`pair_options`], so its `publish` is
+/// `None`) and the held-out directory, and answers the report built from what it wrote.
+pub fn run_with(
+    options: &crate::run::Options,
+    held_out: Option<&std::path::Path>,
+    pairs: &[Pair],
+    pair_run: PairRun<'_>,
+) -> Result<(Matrix, Vec<std::path::PathBuf>), String> {
     let mut reports = Vec::with_capacity(pairs.len());
     let mut written = Vec::new();
     for pair in pairs {
-        let mut one = options.clone();
-        one.agent = pair.agent;
-        one.model = pair.model.clone();
-        one.out = options.out.join(pair.slug());
-        one.label = format!("{}-{}", options.label, pair.slug());
-        crate::run::run(&one, held_out)?;
-        let (report, paths) = crate::run::write_reports(&one)?;
+        let one = pair_options(options, pair);
+        let (report, paths) = pair_run(&one, held_out)?;
         reports.push(report);
         written.extend(paths);
     }
@@ -415,7 +461,11 @@ pub fn run(
     bevy_grimoire_core::atomic_file::write(&md, matrix.markdown()).map_err(|e| format!("{}: {e}", md.display()))?;
     bevy_grimoire_core::atomic_file::write(&json, matrix.json()?).map_err(|e| format!("{}: {e}", json.display()))?;
     written.extend([md, json]);
+    // **The label publishes here, after the last pair**, so no pair's commit read saw a file this matrix wrote.
     if let Some(bench) = &options.publish {
+        for (md, json) in crate::index::publish_reports(bench, &reports)? {
+            written.extend([md, json]);
+        }
         let (md, json) = crate::index::publish_matrix(bench, &matrix)?;
         written.extend([md, json]);
     }

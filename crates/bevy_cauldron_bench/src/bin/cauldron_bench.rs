@@ -68,7 +68,12 @@ time, tool calls, refusals, undos, edits behind the editor's back, tokens and co
 published, or run directories) and says `better`, `worse` or `no measurable change` with a paired 95%
 bootstrap interval; it refuses a run with more than 10% harness errors, and two runs of different suites,
 agents or trial counts unless --across is given. --json prints the comparison as JSON instead of text, which is
-what the release check (`tools/release/bench_gate.py`, BM-05) reads.";
+what the release check (`tools/release/bench_gate.py`, BM-05) reads.
+
+`matrix --pairs a,b,...` runs the whole suite once per pair and writes one report with a row per pair, and
+refuses a pair that ran at a different editor commit, guide, suite or trial count. With --label it publishes
+every pair's report and the matrix itself **after the last pair has run**, never between two: the label's own
+files would otherwise change the commit the next pair reads.";
 
 fn main() -> std::process::ExitCode {
     let argv: Vec<String> = std::env::args().skip(1).collect();
