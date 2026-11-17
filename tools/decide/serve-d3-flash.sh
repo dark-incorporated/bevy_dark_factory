@@ -62,14 +62,22 @@ fi
 #
 # Its release is asynchronous and home-still can reload it between our ask and the check (measured: the
 # indexer retries every 30 s and "released on request released=0" means it was already gone). So ask, then
-# poll the card for up to a minute instead of trusting one sleep: a single 8 s wait left three of four
-# requests to fail on a stale reading.
+# poll the card instead of trusting one sleep: a single 8 s wait left three of four requests to fail on a
+# stale reading.
+#
+# **20 s, not 60.** Cauldron's client gives a decision 30 s (`bevy_oracle`'s timeout); a 60 s poll turned a
+# contended card into a client-side *timeout*, which tells the agent nothing, instead of llama-swap's 500 in
+# 0.25 s, which `bevy_oracle` turns into `Error::Unreachable` naming the remedy. Measured 2026-11-16
+# 19:19-19:20: with another agent's editor test holding 503 MiB the card sat at 6 752 free against this
+# model's 7 022, and every request spent 55-61 s inside this loop before the client gave up. Failing inside
+# the client's budget is the whole point of exiting 75 at once.
+POLL_S=${D3_POLL_S:-20}
 token=$(sed -n 's/^[[:space:]]*\(export[[:space:]]*\)\{0,1\}HS_BACKEND_TOKEN=//p' "$SECRETS" 2>/dev/null \
         | head -1 | tr -d '"'"'")
 free=0
 if [ -n "$token" ]; then
   waited=0
-  while [ "$waited" -lt 60 ]; do
+  while [ "$waited" -lt "$POLL_S" ]; do
     status=$(curl -sS -m 20 -o /dev/null -w '%{http_code}' -X POST "$DISTILL_RELEASE" \
                -H "Authorization: Bearer $token" 2>/dev/null || echo 000)
     [ "$status" = 200 ] || echo "d3-flash: distill release answered $status" >&2
