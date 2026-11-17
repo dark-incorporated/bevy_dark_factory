@@ -238,23 +238,23 @@
     }
   ],
   "tool_counts": {
-    "grimoire_apply_operation": 26,
-    "grimoire_capture_still": 1,
-    "grimoire_guide": 3,
-    "grimoire_list_operations": 3,
-    "grimoire_list_pieces": 1,
-    "grimoire_present": 4,
-    "grimoire_preview_operation": 2,
-    "grimoire_project_feedback_list": 1,
-    "grimoire_read_oplog": 1,
-    "grimoire_state": 3,
-    "grimoire_style": 4
+    "blueprint_apply_operation": 26,
+    "blueprint_capture_still": 1,
+    "blueprint_guide": 3,
+    "blueprint_list_operations": 3,
+    "blueprint_list_pieces": 1,
+    "blueprint_present": 4,
+    "blueprint_preview_operation": 2,
+    "blueprint_project_feedback_list": 1,
+    "blueprint_read_oplog": 1,
+    "blueprint_state": 3,
+    "blueprint_style": 4
   },
   "refusals_by_tool": {
-    "grimoire_apply_operation": 5,
-    "grimoire_present": 1,
-    "grimoire_preview_operation": 1,
-    "grimoire_style": 1
+    "blueprint_apply_operation": 5,
+    "blueprint_present": 1,
+    "blueprint_preview_operation": 1,
+    "blueprint_style": 1
   },
   "wishes_by_tool": {},
   "harness_error_reasons": [],
@@ -268,6 +268,6 @@
   "cost_total_usd": 0.6532988,
   "agent_errors": 1,
   "agent_errors_by_tool": {
-    "xd__mcp__cauldron_grimoire_guide": 1
+    "xd__mcp__dark_factory_blueprint_guide": 1
   }
 }

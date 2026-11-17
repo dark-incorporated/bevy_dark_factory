@@ -9,8 +9,8 @@ the test suite say whether it landed.
 
 Two rules that keep this honest:
 
-- **Every substitution is a word boundary**, so `grimoire` inside `bevy_grimoire` and
-  `Grimoire` inside `GrimoireError` are handled by the longer names first, and a plain
+- **Every substitution is a word boundary**, so `blueprint` inside `bevy_blueprint` and
+  `Blueprint` inside `BlueprintError` are handled by the longer names first, and a plain
   `grim` is never touched.
 - **The map is reported, not guessed.** Every source that no longer exists and every
   target that already does is printed, so a human can see what the drift costs.
@@ -26,28 +26,51 @@ import pathlib
 import subprocess
 import sys
 
-# The longest names first: `bevy_grimoire_core` must become `bevy_blueprint_core` before
-# `bevy_grimoire` is considered, or the shorter rule would eat its prefix.
+# Crates whose directory name changes. **These are git's own renames from `dbc9beed`,
+# read out of the commit rather than guessed** — the rebrand put the core crate at
+# `blueprint_model`, the rng at `blueprint_rng` and the mcp at `dark_factory_mcp`, none of
+# which follow the package-name rule. Guessing produced two crates claiming one package.
+CRATE_MAP: tuple[tuple[str, str], ...] = (
+    ("crates/bevy_dark_factory", "crates/bevy_dark_factory"),
+    ("crates/dark_factory_mcp", "crates/dark_factory_mcp"),
+    ("crates/bevy_blueprint", "crates/bevy_blueprint"),
+    ("crates/bevy_blueprint_anim", "crates/bevy_blueprint_anim"),
+    ("crates/blueprint_model", "crates/blueprint_model"),
+    ("crates/blueprint_rng", "crates/blueprint_rng"),
+    ("crates/dark_factory_snip", "crates/dark_factory_snip"),
+    ("crates/blueprint_solver", "crates/blueprint_solver"),
+    ("crates/bevy_blueprint_migrate", "crates/bevy_blueprint_migrate"),
+    ("crates/bevy_blueprint_rhai", "crates/bevy_blueprint_rhai"),
+    ("games/blueprint_sample_game", "games/blueprint_sample_game"),
+)
+
+# Package and identifier names, **read out of the rebrand commit's own Cargo.toml files**
+# rather than derived from a rule. It drops the `bevy_` prefix on five crates
+# (`blueprint_model`, `blueprint_rng`, `blueprint_solver`, `dark_factory_mcp`,
+# `dark_factory_snip`), which no rule would predict — deriving it produced a crate whose
+# directory said `blueprint_model` and whose package said `bevy_blueprint_core`.
+# Longest first, so `blueprint_model` is consumed before `bevy_blueprint`.
 RENAMES: tuple[tuple[str, str], ...] = (
-    ("bevy_grimoire_core", "bevy_blueprint_core"),
-    ("bevy_grimoire_rng", "bevy_blueprint_rng"),
-    ("bevy_grimoire_solver", "bevy_blueprint_solver"),
-    ("bevy_grimoire_anim", "bevy_blueprint_anim"),
-    ("bevy_grimoire_rhai", "bevy_blueprint_rhai"),
-    ("bevy_grimoire_migrate", "bevy_blueprint_migrate"),
-    ("bevy_grimoire", "bevy_blueprint"),
-    ("bevy_cauldron_mcp", "bevy_dark_factory_mcp"),
-    ("bevy_cauldron_bench", "bevy_dark_factory_bench"),
-    ("bevy_cauldron", "bevy_dark_factory"),
-    ("grimoire_sample_game", "blueprint_sample_game"),
-    ("grimoire", "blueprint"),
-    ("Grimoire", "Blueprint"),
-    ("GRIMOIRE", "BLUEPRINT"),
-    ("cauldron", "dark_factory"),
-    ("Cauldron", "DarkFactory"),
-    ("CAULDRON", "DARK_FACTORY"),
-    ("Familiar", "NightShift"),
-    ("familiar", "night_shift"),
+    ("blueprint_model", "blueprint_model"),
+    ("blueprint_rng", "blueprint_rng"),
+    ("blueprint_solver", "blueprint_solver"),
+    ("dark_factory_snip", "dark_factory_snip"),
+    ("bevy_blueprint_anim", "bevy_blueprint_anim"),
+    ("bevy_blueprint_rhai", "bevy_blueprint_rhai"),
+    ("bevy_blueprint_migrate", "bevy_blueprint_migrate"),
+    ("bevy_blueprint", "bevy_blueprint"),
+    ("dark_factory_mcp", "dark_factory_mcp"),
+    ("bevy_dark_factory_bench", "bevy_dark_factory_bench"),
+    ("bevy_dark_factory", "bevy_dark_factory"),
+    ("blueprint_sample_game", "blueprint_sample_game"),
+    ("blueprint", "blueprint"),
+    ("Blueprint", "Blueprint"),
+    ("BLUEPRINT", "BLUEPRINT"),
+    ("dark_factory", "dark_factory"),
+    ("DarkFactory", "DarkFactory"),
+    ("DARK_FACTORY", "DARK_FACTORY"),
+    ("NightShift", "NightShift"),
+    ("night_shift", "night_shift"),
 )
 
 # File extensions whose contents are rewritten. A binary, a font or an LFS clip is moved
@@ -65,13 +88,26 @@ def git(*args: str) -> str:
 
 
 def rename_map() -> list[tuple[str, str]]:
-    """The rebrand's own rename map: the paths git recorded as renames, verbatim."""
+    """Every path to move: git's own recorded renames, plus the crate map for paths the
+    rebrand never saw (files added after it forked). One pass, no overlap — a path that
+    git already renamed is never rewritten again."""
     out = git("show", "dbc9beed", "-M", "--name-status", "--format=")
     pairs: list[tuple[str, str]] = []
+    seen: set[str] = set()
     for line in out.splitlines():
         parts = line.split("\t")
         if len(parts) == 3 and parts[0].startswith("R"):
             pairs.append((parts[1], parts[2]))
+            seen.add(parts[1])
+            seen.add(parts[2])
+    # Anything tracked today under a crate directory the map does not already cover.
+    for path in git("ls-files").splitlines():
+        if path in seen:
+            continue
+        for old, new in CRATE_MAP:
+            if path == old or path.startswith(old + "/"):
+                pairs.append((path, new + path[len(old):]))
+                break
     return pairs
 
 

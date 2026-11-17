@@ -2,7 +2,7 @@
 
 Run: python3 -m unittest test_stage (from tools/demo). UI-92, #258.
 
-The staging itself is the editor's: `grimoire/stage_panel` puts the shell on one panel, and the plan below is what
+The staging itself is the editor's: `blueprint/stage_panel` puts the shell on one panel, and the plan below is what
 record.py turns into one capture per panel. A plan that named fewer frames than panels would record a clip of the panel
 before the one it claims to show, which is the failure this file exists to catch.
 """

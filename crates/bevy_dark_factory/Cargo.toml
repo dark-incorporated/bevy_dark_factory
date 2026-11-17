@@ -1,0 +1,199 @@
+[package]
+name = "bevy_dark_factory"
+version = "0.7.0"
+edition = "2024"
+description = "A standalone world-building editor: author maps from an asset library, save what a game can load."
+# Relicensed MIT OR Apache-2.0 on extraction from foundation_vs_slop (owner decision, Sanctuary decision 0087).
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/bevy-coven/bevy_blueprint"
+# One integration-test binary, not one per file: `tests/all.rs` says why and how to add a file.
+autotests = false
+# Not published (E-006, #128): the family crates are git-pinned optional dependencies, and crates.io
+# refuses a git dependency even behind a feature. The editor runs from this repo on a game's project.
+publish = false
+
+# **This is the application; `blueprint_model` is the part with no engine in it.** The split is not
+# decoration — `crates/blueprint_model/tests/engine_free.rs` fails the build if anything in the core
+# reaches for `bevy`, which is what lets the same schema, solvers and validation run in the game, in
+# the headless search, and in here without the three agreeing on a renderer.
+#
+# `docs/2026-08-03-emerge-mapper-plan.md` is the design.
+# **Agent debugging over BRP** (`cargo run -p bevy_dark_factory --features debugger`).
+#
+# The root `CLAUDE.md` says an agent looking at or driving this project uses `bevy_debugger_mcp` and
+# nothing else, and then carved this crate out as a `bevy_devshot` caller — because it had no BRP of
+# its own. That was true while the debugger was a pinned git dependency; it moved into this tree for a
+# while and is a pinned git dependency again, on its own repo, so the carve-out was a choice rather than a constraint.
+#
+# What it buys over the sentinel file: `bevy_debugger/input` writes into the editor's own
+# `ButtonInput`, so an agent can walk tabs and press keys without touching a real keyboard — which is
+# exactly what `devshot.rs`'s verb list is a hand-built stand-in for. `bevy_debugger/screenshot` also
+# takes a region and a zoom, where `bevy_devshot` is whole-frame only.
+#
+# **`bevy_devshot` stays** as the player-facing Ctrl+P path, but it is no longer the only way to see
+# a panel: since 2026-08-18 the whole application draws into one offscreen image that the window
+# mirrors (`src/surface.rs`), so `bevy_debugger/screenshot` returns the interface too. Before that,
+# Bevy drawing a UI tree to one camera meant a mirror never received the panels.
+[features]
+# **On by default, and it should always have been.** This editor is a dev tool — it is never shipped
+# to a player, so there is no build of it that wants the debugger absent. Leaving it opt-in meant
+# every session began with an author being asked to remember a flag, and an agent being unable to see
+# what the author was looking at until they did. That cost a whole afternoon of "there is nothing on
+# the right" against "the palette is there, I checked headless", which is exactly the gap BRP exists
+# to close.
+#
+# The game is the opposite case and stays opt-in: it SHIPS, and `cargo tree -i bevy_debugger_bevy`
+# must find nothing in a release build.
+#
+# **The port is the one caveat.** Both default to 15702, so running the game with its `debugger`
+# feature and this editor at the same time needs `BEVY_BRP_PORT` set on one of them, or the second
+# process fails to bind. That is a loud failure, not a silent one.
+default = ["debugger"]
+debugger = ["bevy/bevy_remote", "dep:bevy_debugger_bevy"]
+# **Family crates (#96).** One optional feature per crate, named after it, off by default: a game
+# that lists none pays nothing. Pinned by git revision on the crate's `main`, never a path. A project's
+# `family.yaml` lists the crates it uses (`bevy_gooey` is not one of these features: the editor's UI is
+# gooey, always built); listing one this build lacks is a problem message
+# (`family_host::problems`). The engine-free core crates never depend on these.
+bevy_carnage = ["dep:bevy_carnage"]
+bevy_elements = ["dep:bevy_elements"]
+bevy_light_grid = ["dep:bevy_light_grid", "bevy_lights"]
+bevy_flora = ["dep:bevy_flora"]
+# Not a family crate: the engine-free mesher a carved volume (#101) is sampled through. Off by default.
+isomesh = ["dep:isomesh"]
+# Snow on a carved volume (#101): `bevy_elements`' `SnowyField` over the volume. Needs the one isomesh
+# (the workspace `[patch.crates-io]` points the registry 0.0.11 `bevy_elements` asks for at our pin).
+volume_snow = ["bevy_elements", "isomesh", "bevy_elements/isomesh"]
+bevy_lights = ["dep:bevy_lights"]
+bevy_orca = ["dep:bevy_orca"]
+bevy_society = ["dep:bevy_society"]
+bevy_speech_bubbles = ["dep:bevy_speech_bubbles"]
+bevy_stigmergy = ["dep:bevy_stigmergy"]
+# **The audio mix table and cue audition (S-01).** `bevy_siren`'s own types, written by the audio panel:
+# the editor never keeps a second schema of a project's sound. Pinned by git rev like every family crate.
+bevy_siren = ["dep:bevy_siren"]
+# **A spike, not a migration (#204, hot-reload H7)**: `standards.yaml` through Bevy's `AssetLoader` and its
+# file watcher, beside the editor's own `FileWatch`. Off by default and in no build the gate makes; it turns
+# on Bevy's `file_watcher` (the `notify` crates) and nothing else. `src/asset_spike.rs` says what it is for.
+asset_spike = ["bevy/file_watcher"]
+# Every family crate: the set the macOS app ships (`tools/release/macos/build_app.sh`).
+family_all = ["bevy_carnage", "bevy_elements", "bevy_flora", "bevy_lights", "bevy_light_grid", "bevy_orca", "bevy_society", "bevy_speech_bubbles", "bevy_stigmergy", "bevy_siren", "isomesh", "volume_snow"]
+
+[dependencies]
+bevy_carnage = { git = "https://github.com/bevy-coven/bevy_carnage", rev = "615c264e28680448b934d3f28b73487dd8b98750", default-features = false, features = ["serde"], optional = true }
+bevy_elements = { git = "https://github.com/bevy-coven/bevy_elements", rev = "0778a620452368662771825ea568b7d79966b87c", features = ["serde"], optional = true }
+isomesh = { git = "https://github.com/bevy-coven/isomesh", rev = "d3dc6c0fb6b43b899e534643f51f76a856d2d9ee", optional = true }
+bevy_lights = { git = "https://github.com/bevy-coven/bevy_lights", rev = "ae3b818e06cfcde24a0cbfed1a897732c1dfb444", features = ["serde"], optional = true }
+bevy_light_grid = { git = "https://github.com/bevy-coven/bevy_light_grid", rev = "8b4a3c760ccc05f39e81bb22e366b330080fcc95", optional = true }
+bevy_orca = { git = "https://github.com/bevy-coven/bevy_orca", rev = "e7160df097dc75652633f801f6c0ab1c73356bc4", optional = true }
+bevy_society = { git = "https://github.com/bevy-coven/bevy_society", rev = "d2e39703e06ebf40b5e787a2da4b6882a9beee3e", default-features = false, optional = true }
+bevy_speech_bubbles = { git = "https://github.com/bevy-coven/bevy_speech_bubbles", rev = "b2d67f0d8a8a984a78f9bc9291cc63be867c6822", optional = true }
+bevy_stigmergy = { git = "https://github.com/bevy-coven/bevy_stigmergy", rev = "6ecee6a3c2ff0bf7f18dab10f376c49b49914c44", optional = true }
+# The audio crate (S-01): the editor writes the crate's own `SirenSettings` and `CueTable`, never a schema of its
+# own. `serde` on, because the panel reads and writes `family/bevy_siren.yaml`.
+bevy_siren = { git = "https://github.com/bevy-coven/bevy_siren", rev = "7029b20", features = ["serde"], optional = true }
+blueprint_model = { path = "../blueprint_model" }
+bevy_flora = { git = "https://github.com/bevy-coven/bevy_flora", rev = "25e956b3f88ba32a1b6d75957360c6840da6afd9", features = ["serde"], optional = true }
+# The editor's UI library (UI-01, #209): required, not a family-crate feature. `EditorUiPlugin` owns it. **`markdown`** is the Markdown view the Design
+# workspace renders a page with (SG-05, #404): it adds `pulldown-cmark`, which `blueprint_model`'s design reader already depends on.
+bevy_gooey = { git = "https://github.com/bevy-coven/bevy_gooey", rev = "f1904be", features = ["serde", "reflect", "markdown"] }
+# The runtime half. The editor spawns pieces through `bevy_blueprint::spawn_descriptor` rather than its
+# own copy, so a map cannot look one way here and another in the game — the failure `bake.rs` and
+# `site_editor::source_map` demonstrated by independently growing the same RON writer.
+bevy_blueprint = { path = "../bevy_blueprint" }
+# The game's own pose blender. The bench previews through THIS rather than a copy, on the same
+# argument `bevy_blueprint` makes for `spawn_descriptor`: a rig cannot move one way here and another in
+# the game if there is only one blender.
+bevy_blueprint_anim = { path = "../bevy_blueprint_anim" }
+# The editor is a Bevy app in its own right, not a mode of the game. `sim_harness.rs` is the precedent
+# the plan cites for two binaries over one plugin graph — "not a second code path".
+# `jpeg` because the shipped kits embed PBR textures as JPEG and Bevy's defaults cover only PNG.
+#
+# `bevy_dev_tools` was here for `infinite_grid` and is gone with it: the dev tool's grid drew at 1.0 m
+# while `blueprint_model::grid::SNAP` is 0.5, and drew forever, so the ground outside `Map::bounds` looked
+# as buildable as the ground inside. `editor::draw_map_grid` is bounded by the map and spaced by the
+# constant that defines a cell.
+# **`bevy_feathers` is on for its MACHINERY, not for its greys.** `docs/ui.md` §5 says of it "its
+# visuals are Bevy's editor skin — do not adopt them", and that rule is kept: `chrome::theme()` seeds
+# Feathers' `UiTheme` from this editor's own palette, so a token miss renders fuchsia and shouts
+# rather than quietly drawing somebody else's grey. What is adopted is the theme mechanism, the focus
+# outlines, and the themed scrollbar — the parts that would otherwise be hand-written badly.
+#
+# The crate is marked experimental and its own docs suggest copying it. Depended on, pinned by the
+# workspace: this editor ships to nobody, so an API break costs an afternoon rather than a release.
+bevy = { workspace = true, features = ["jpeg", "bevy_feathers"] }
+# **Not re-exported by `bevy_a11y`**, so it is a direct dependency — and 0.24 is what `bevy_feathers`
+# itself depends on (`bevy_feathers-0.19.0/Cargo.toml:47`), so the two agree by construction rather
+# than by a version somebody kept in step.
+accesskit = "0.24"
+# The screenshot rig, shared with the game so there is one capture path rather than two copies of it.
+bevy_devshot = { path = "../bevy_devshot" }
+# **The RON-to-YAML migration** (GD-03, #365): `dark_factory migrate` and the refusal an open raises for a
+# project still holding `.ron` files. A crate of its own because it is the one thing that must still read
+# RON, and `blueprint_model` must not.
+bevy_blueprint_migrate = { path = "../bevy_blueprint_migrate", version = "0.1.0" }
+serde.workspace = true
+# The platform's own data directory, where `recent.yaml` lives (`recent.rs`, UI-11): no family crate finds
+# platform directories, so this is the one small crate that does.
+dirs = "6"
+# The OS's own folder and file chooser (`picker.rs`, #298). `xdg-portal` is the Linux backend: D-Bus to the desktop's
+# portal, no GTK in the build. macOS and Windows use the system dialogs and need no feature.
+rfd = { version = "0.17", default-features = false, features = ["xdg-portal"] }
+# The editor's own HTTP client (`update.rs`'s release check, `wish_view.rs`'s GitHub search,
+# `ops_play.rs`'s BRP call): a blocking request made from a task-pool thread, never the UI thread.
+# The editor is dev-only tooling, so a network client here does not leak toward the game — the game
+# keeps zero HTTP deps (`docs/llm_rule_authoring.md`: the LLM authors metadata, it never runs in the
+# sim). The labeller's decision requests go through `bevy_oracle`, below.
+ureq = { version = "3", features = ["json"] }
+serde_json.workspace = true
+# Base64 data-URI image parts for a decision request (`decide_labels`); `image` encodes the booth's
+# RGBA readback to PNG. Both already in the build graph (serde_json via blueprint_model,
+# base64/image via bevy).
+base64 = "0.22"
+image.workspace = true
+# The snip's crop and its two files, shared with the MCP reader so both read one format.
+dark_factory_snip = { path = "../dark_factory_snip" }
+# The after-edit checks (#111): typed yes/no questions to a decision model, authoring time only.
+bevy_oracle = { path = "../bevy_oracle" }
+# Cmd+C on the detail pane — the pane's text into the system clipboard, so an author can hand a
+# piece's facts to an agent. Text only; the image-data feature would drag image deps in twice.
+arboard = { version = "3", default-features = false }
+# The updater (`update.rs`): a release's tag is compared as semver, and its zip is checked against the
+# release's `SHA256SUMS` before the running app is swapped for it.
+semver = "1"
+sha2 = "0.10"
+# **The in-editor terminal** (`terminal/`): a login shell in a PTY, parsed by `alacritty_terminal`
+# and drawn in the dock. Not a feature: it is the editor's own capability, like `rfd` or `arboard`,
+# not a family-crate integration — and it is what lets the owner run `cargo` without leaving the
+# window, so a build without it would be a build nobody uses.
+alacritty_terminal.workspace = true
+# **`TIOCSWINSZ`, and nothing else.** `alacritty_terminal`'s own `Pty::on_resize` does the ioctl, but
+# its failure branch is `std::process::exit(1)` — a library that kills the editor over a resize is
+# not one to route a system through. `rustix` is the same crate the PTY is opened with, one version
+# in the graph, and `tcsetwinsize` returns a `Result` the pane can report.
+rustix = { version = "1", default-features = false, features = ["std", "termios", "process"] }
+# The debugger's companion plugin. **Optional**, so it is absent from the resolved dependency graph
+# of an ordinary build — `cargo tree -i bevy_debugger_bevy` finds no package without the feature, and
+# neither does `bevy_remote`. A git dependency on `bevy-coven/bevy_fairy`, the successor of
+# `bevy_debugger_mcp` (#97), pinned to a rev. The key stays `bevy_debugger_bevy` so the editor's
+# many `use bevy_debugger_bevy::…` lines and tests/leaf.rs's row keep their name; `package` says what
+# it is. The wire methods are `bevy_fairy/*`. Default features are off but the three plugin ones the
+# editor uses (guide overlay, screenshot, cursor) are on: no server, no tokio. A fix the editor needs
+# is made and pushed there, then the rev here is bumped.
+bevy_debugger_bevy = { package = "bevy_fairy", git = "https://github.com/bevy-coven/bevy_fairy", rev = "06c9c1805651fabb2474a9d09af84c761be406aa", default-features = false, features = ["plugin", "plugin-guide", "plugin-screenshot"], optional = true }
+
+# `bevy_gooey::testing` finds a widget by its label and clicks it (UI-06, #214). A test dependency only:
+# the editor itself ships none of it.
+[dev-dependencies]
+bevy_gooey = { git = "https://github.com/bevy-coven/bevy_gooey", rev = "f1904be", features = ["serde", "reflect", "testing"] }
+# Reads a face's own character map, so a test can say the terminal's face has the icons a prompt draws
+# (#323). Already in the lock through Bevy's text stack; a test dependency only.
+ttf-parser = "0.25"
+
+[[test]]
+name = "editor"
+path = "tests/all.rs"
+
+[[example]]
+name = "asset_spike_measure"
+required-features = ["asset_spike"]

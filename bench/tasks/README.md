@@ -1,7 +1,7 @@
 # The benchmark's tasks
 
 One directory per task, each holding a `task.yaml`. A task states a prompt, the scene it starts from, a
-known answer, and the checks a run must satisfy; `crates/bevy_cauldron_bench` reads it and grades a run
+known answer, and the checks a run must satisfy; `crates/bevy_dark_factory_bench` reads it and grades a run
 from the files it left, with no model in the loop.
 
 ```yaml
@@ -9,14 +9,14 @@ id: bed-against-the-north-wall          # the directory's own name
 title: The bed against the north wall
 split: dev                              # dev | held_out
 tags: [place, relations]
-map: bench_bedroom                      # a stem under assets/grimoire/maps/
+map: bench_bedroom                      # a stem under assets/blueprint/maps/
 prompt: |
   Put a double bed flat against the north wall of the bedroom, centred on that wall.
 setup: []                               # operations applied before the agent starts
 solution:                               # a known answer: operations that solve the task
   - op: placement_add
     params: {piece: bed_double, at: [0.0, -1.39], yaw: 0.0}
-  - op: grimoire_present                # the hand-back: not an operation, and the only evidence a
+  - op: blueprint_present                # the hand-back: not an operation, and the only evidence a
     params: {title: …, summary: …}      # refusal or a report left any
 checks:                                 # every one must hold on what the run left
   - placement_near_wall: {piece: bed_double, wall: north, max_gap_m: 0.05}
@@ -25,7 +25,7 @@ budget: {wall_s: 600, tool_calls: 60}
 
 ## Every task proves itself, twice, in the push gate
 
-`crates/bevy_cauldron/tests/every_task_is_valid.rs` boots the headless editor on a fresh copy of the
+`crates/bevy_dark_factory/tests/every_task_is_valid.rs` boots the headless editor on a fresh copy of the
 fixture for each task and runs it two ways:
 
 1. **the do-nothing run** — `setup` and nothing else — must leave **at least one check failing**;
@@ -54,7 +54,7 @@ derivation with its subject would pass on the subject's bug.
 | `no_problem` | `[overlap]` | the map holds no overlap, edge fault, doorway or clearance |
 | `oplog_has` | `{op: placement_add, min: 1}` | the log has at least that many applied lines for an operation |
 | `oplog_lacks` | `{op: placement_add}` | the log has no applied line for an operation |
-| `handback_contains` | `[north wall, centred]` | a `grimoire_present` states given facts — the half a refusal needs |
+| `handback_contains` | `[north wall, centred]` | a `blueprint_present` states given facts — the half a refusal needs |
 | `decide` | `{check: bed_centred, want: true, min_confidence: 0.8}` | a calibrated decision the harness was given answers as the task wants |
 | `placement_total` | `{count: 3}` | the map holds exactly that many placements — the other half of "remove both crates and nothing else" |
 | `placements_within` | `{piece: plant_a, count: 6, x: [-4, 4], z: [2.2, 3]}` | exactly that many of a piece, every one centred in a region (a hedge, a corner) |
@@ -92,7 +92,7 @@ A suite is three kinds of work, and every check in the table is exercised by one
 
 The twenty dev tasks are drafted from what the editor is for, each with its known answer, and the owner
 reviews them by number before a baseline is committed (a comment on #414 naming the number of a task to
-change or cut). `cauldron-bench run --agent oracle` passes all of them and `--agent nothing` none.
+change or cut). `dark_factory-bench run --agent oracle` passes all of them and `--agent nothing` none.
 
 | # | Task | Tags |
 |---|---|---|
@@ -147,7 +147,7 @@ fail; they are in the tasks where the operation is the point (a terrain stroke, 
 
 The held-out tasks cover the same tags as the dev tasks with **different maps, pieces and wording**, and they
 live at `/mnt/codex_fs/bench/dark_factory/held_out/` — one directory per task, holding its `task.yaml` and its
-own `fixture/assets/grimoire/maps/…` — so no loop pass or agent developing the editor reads them. They are
+own `fixture/assets/blueprint/maps/…` — so no loop pass or agent developing the editor reads them. They are
 never in this repository, an issue, a commit or a log. This file says only how many there are (eight) and
 their tags (orient; place and mount; place and relations; turn; remove; fix; data; refuse).
 

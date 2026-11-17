@@ -18,7 +18,7 @@ RAM 13 GB available, load ~4.8. `stale.py`: all eight standing demos and `editor
 ## Enhancement: panels and bands take their ground from the skin (#210, slices 4b and 4c)
 
 Goal: a project's skin reaches the largest surfaces in the editor, including panels built before the
-edit · Files: `crates/bevy_cauldron/src/chrome.rs`, `tests/a_panels_ground_comes_from_the_skin.rs` (new),
+edit · Files: `crates/bevy_dark_factory/src/chrome.rs`, `tests/a_panels_ground_comes_from_the_skin.rs` (new),
 `tests/all.rs` (one `mod`), `tools/demo/storyboards/panel_ground.json` (new)
 
 **The defect.** `panel_root` spawned `BackgroundColor(PANEL_BG)` / `Ground(PANEL_BG)` — the constant — so
@@ -62,7 +62,7 @@ the wrong shape and naming the honest replacement (a per-file ceiling, or none).
 
 ## Test diffs
 
-- `crates/bevy_cauldron/tests/all.rs`: one `mod a_panels_ground_comes_from_the_skin;` (standing exception).
+- `crates/bevy_dark_factory/tests/all.rs`: one `mod a_panels_ground_comes_from_the_skin;` (standing exception).
 - New test file, 5 tests.
 - `the_colour_table_only_shrinks.rs`: `TEST_USES_CEILING` 268 → 287, by exactly the uses the two slices
   add; no assertion removed, loosened or re-pinned. Stated in the commit.
@@ -79,7 +79,7 @@ needs the owner's word.
 
 ## Release
 
-None: nothing packaged changed (`bevy_cauldron` is `publish = false`).
+None: nothing packaged changed (`bevy_dark_factory` is `publish = false`).
 
 ## Next focus
 

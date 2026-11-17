@@ -3,12 +3,12 @@
 Measured on big at main `6b5162eab2502a9d1d71b121c156e65bb3bc02b3`, with omp 18.21.0 and omp's own
 Anthropic provider (the owner's decision, 2026-11-16: omp with the `anthropic` provider, not the expired
 `claude` CLI login). The editor and the MCP server are the binaries built for the push gate at that commit
-(`~/.cargo-target-gate/debug/bevy_cauldron`, `bevy_cauldron_mcp`), and the runner is the gate's
-`cauldron-bench` of the same build.
+(`~/.cargo-target-gate/debug/bevy_dark_factory`, `dark_factory_mcp`), and the runner is the gate's
+`dark_factory-bench` of the same build.
 
 ## Acceptance 1: a real omp run writes trials with tokens and calls from the transcript
 
-`cauldron-bench run --agent omp --model anthropic/claude-sonnet-5-5 --trials 1 --run omp-real` on the three
+`dark_factory-bench run --agent omp --model anthropic/claude-sonnet-5-5 --trials 1 --run omp-real` on the three
 BM-01 example tasks (`bed-against-the-north-wall`, `refuse-a-piece-the-project-lacks`,
 `count-what-the-bedroom-holds`), `--jobs 1`. The report is `runs/2026-11-17-omp-real.{md,json}`.
 
@@ -29,12 +29,12 @@ carries no tool list of its own. The trial records that were checked hold `token
 `tokens_out` = 3520/1489/1763, non-null in all three.
 
 **The one failure is the agent's, and it is the read task.** The prompt asks for the count and the piece
-nearest the north wall in a `grimoire_present` summary; the trial made 3 calls and its hand-back did not
+nearest the north wall in a `blueprint_present` summary; the trial made 3 calls and its hand-back did not
 contain `three` and `dresser`. No harness error was recorded, and nothing was substituted.
 
 ## Acceptance 2: a matrix of two pairs writes one report, and refuses to mix commits
 
-`cauldron-bench matrix --pairs omp:anthropic/claude-sonnet-5-5,omp:anthropic/claude-haiku-4-5 --trials 1`
+`dark_factory-bench matrix --pairs omp:anthropic/claude-sonnet-5-5,omp:anthropic/claude-haiku-4-5 --trials 1`
 on the same three tasks wrote one report, `matrices/2026-11-17-bench-omp.{md,json}`:
 
 | pair | mean success (95% interval) | mean pass^k | mean wall s | mean calls | cost per trial | cost per success | frontier |
@@ -51,7 +51,7 @@ harness (Claude Code) cannot be run on this host — see below.
 first pair's own publish dirtied the checkout the second pair's header then read. `Matrix::build` refused
 with
 
-> `cauldron-bench: the matrix compares pairs on the same tasks, trials and editor commit, so the only
+> `dark_factory-bench: the matrix compares pairs on the same tasks, trials and editor commit, so the only
 > difference is the agent and model; `omp:anthropic/claude-sonnet-5-5` and `omp:anthropic/claude-haiku-4-5`
 > differ in their editor commit`
 
@@ -70,7 +70,7 @@ a finding rather than papered over: the report above is the unlabelled run.
 
 ## Build note
 
-Building `bevy_cauldron` from this checkout on big was repeatedly killed by `systemd-oomd` (llama-swap's
+Building `bevy_dark_factory` from this checkout on big was repeatedly killed by `systemd-oomd` (llama-swap's
 unit, 272–276 processes a kill, four times between 20:33 and 20:50) while `hs-distill` and the model servers
 held the host's RAM. The runs above therefore use the gate's already-built binaries at `6b5162ea`, which are
 the same commit and the same profile the push gate tests.

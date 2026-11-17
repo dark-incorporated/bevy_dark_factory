@@ -44,7 +44,7 @@ recommendation that a **counted** budget (rows built per frame) is the shape to 
 One new test file plus its `mod` line (owner exception). No existing assertion touched.
 
 ## Release
-None: `bevy_cauldron` is `publish = false`; no packaged crate changed.
+None: `bevy_dark_factory` is `publish = false`; no packaged crate changed.
 
 ## Next focus
 #210's constant deletion; #259 as a counted budget.

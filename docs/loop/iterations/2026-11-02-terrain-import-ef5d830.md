@@ -26,12 +26,12 @@ is gone and only the first half is on film; the title now says "one entry to tak
 shows.
 
 ## Two mistakes worth recording
-1. **`terrain_import` writes `<grimoire_dir>/terrain/<map>.ron`** — for this project that is the authoring
+1. **`terrain_import` writes `<blueprint_dir>/terrain/<map>.ron`** — for this project that is the authoring
    kit's `furniture/terrain/`, **not** `maps/`. Several takes were thrown away because I looked in
    `maps/` and concluded nothing was written. It was written: 71,785 bytes, visible in `furniture/terrain/`.
 2. **A storyboard's `operation` must be on its own chunk.** One `json.dump` rewrote `chunks` without it;
    the recorder then reported `operation_applied_t_s: null` for every chunk, which is correct and was the
-   clue. Checked with `grimoire/capture_sequence_status`, not assumed.
+   clue. Checked with `blueprint/capture_sequence_status`, not assumed.
 
 I also wrote and then **deleted** a test asserting that `Sequencer::start` reuses an id
 (`a_sequence_id_names_one_run.rs`): measuring against the live editor showed ids advance correctly, so the

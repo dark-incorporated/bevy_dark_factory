@@ -1,5 +1,5 @@
 ---
-description: One debug-response pass on bevy_grimoire. Takes the next capture from docs/loop/captures/, triages it if unread, reproduces it where it was recorded (bugs) or specifies it (enhancements), fixes it behind a test that fails before and passes after, ships it, records the case in the history, then stops. Every five closed cases it reviews the history for patterns instead. Bugs before enhancements. Run headless in a Wiggum loop, one fresh context per pass.
+description: One debug-response pass on bevy_blueprint. Takes the next capture from docs/loop/captures/, triages it if unread, reproduces it where it was recorded (bugs) or specifies it (enhancements), fixes it behind a test that fails before and passes after, ships it, records the case in the history, then stops. Every five closed cases it reviews the history for patterns instead. Bugs before enhancements. Run headless in a Wiggum loop, one fresh context per pass.
 argument-hint: "[optional capture stem, e.g. feedback-1793905912313]"
 disable-model-invocation: true
 ---
@@ -28,10 +28,10 @@ A pass that stops early and cleanly costs one cycle. A pass that leaves a half-d
 |name|what it is|use it for|
 |---|---|---|
 |`big`|the Linux loop host; the clone you are in|builds, tests, pushes, Linux reproduction, any changelog clip|
-|`mac_air`|macOS, over `ssh`|reproducing macOS captures against the installed `/Applications/Cauldron.app`; PNG stills|
+|`mac_air`|macOS, over `ssh`|reproducing macOS captures against the installed `/Applications/DarkFactory.app`; PNG stills|
 |`big_mac`|old macOS machine, nearly full|**never**|
 
-mac_air has no bevy_grimoire checkout of its own, no `ffmpeg`, `git-lfs` or `gh`, and Python 3.9. Anything that needs those runs on big.
+mac_air has no bevy_blueprint checkout of its own, no `ffmpeg`, `git-lfs` or `gh`, and Python 3.9. Anything that needs those runs on big.
 
 ## Pass skeleton
 
@@ -119,7 +119,7 @@ Read the note, the pick's path and the window it was taken at. Then look at the 
 - **Copy the crop to a fresh path before reading it.** The image reader caches by path, so re-reading a path shows the old pixels.
 - **Check the units of `at` before using it.** If it falls inside `rect_px ÷ scale_factor`, it is logical. If it falls only inside `rect_px`, it is in surface pixels: divide by `scale_factor` before clicking. At scale 1 the two coincide. Write which you found in the report.
 
-`show` reads both record versions: version 2 has `picks`, version 1 has `subject`, and both are the same list to a reader. `read_reports` in `bevy_grimoire_core` refuses version 1 by name. **Do not change `FEEDBACK_VERSION` and do not re-pin that reader.**
+`show` reads both record versions: version 2 has `picks`, version 1 has `subject`, and both are the same list to a reader. `read_reports` in `blueprint_model` refuses version 1 by name. **Do not change `FEEDBACK_VERSION` and do not re-pin that reader.**
 
 **The platform comes from the capture's `.log`:** `SystemInfo { os: … }` and `AdapterInfo { … backend: … }`. The record JSON has no `os` field, and the ledger's `host` is where the capture was synced from, not where it was recorded.
 
@@ -144,7 +144,7 @@ Reproduce the bug where it was recorded:
 
 |`os` in the log|host|backend|
 |---|---|---|
-|macOS|mac_air, against `/Applications/Cauldron.app`|`metal`|
+|macOS|mac_air, against `/Applications/DarkFactory.app`|`metal`|
 |Linux|big|`vulkan`. Use `lavapipe` only if big has no native Vulkan: `VK_ICD_FILENAMES` → `/tmp/lvp/lvp_icd.json`, `LD_LIBRARY_PATH` → its `libvulkan_lvp.so` and `libLLVM`|
 |unreadable|big, then mac_air|as above|
 
@@ -186,8 +186,8 @@ Write both tests **before touching product code**, run them, and keep the failin
 Every fix needs **both** of these:
 
 - **At the level of the defect**, in the file that holds it. If that file already has a `#[cfg(test)] mod tests`, add new test functions to it; never edit or remove existing ones. Otherwise add the module. Use an integration test when the unit has no test home.
-- **Across the application**, in a new file `crates/bevy_cauldron/tests/capture_<stem_with_underscores>.rs`. It rebuilds the capture's screen from its record and asserts the oracle through `app.update()`, with the real plugins, via `harness::build_headless`.
-  - Add **one** `mod` line for it to `crates/bevy_cauldron/tests/all.rs`. The crate sets `autotests = false`, and both the push gate and `every_test_file_is_a_module_here` refuse a `tests/*.rs` file that is not a module there.
+- **Across the application**, in a new file `crates/bevy_dark_factory/tests/capture_<stem_with_underscores>.rs`. It rebuilds the capture's screen from its record and asserts the oracle through `app.update()`, with the real plugins, via `harness::build_headless`.
+  - Add **one** `mod` line for it to `crates/bevy_dark_factory/tests/all.rs`. The crate sets `autotests = false`, and both the push gate and `every_test_file_is_a_module_here` refuse a `tests/*.rs` file that is not a module there.
   - Write `use crate::fixtures;`, not `mod fixtures;`.
   - Follow the existing setup exactly: `crate::fixtures::Fixture`, `harness::build_headless`, `stand_on_the_project_page` for a page, `find_by_label`/`Activate` for a press. `tests/the_project_page.rs` and `tests/a_person_reports_to_the_developers.rs` show how.
 
@@ -211,8 +211,8 @@ If none of these fits, use `other:<slug>` and describe the oracle in the test. P
 
 If the cause is in a family crate (`bevy_gooey`, `bevy_elements`, …), **do not patch, wrap or vendor it here.** Instead:
 
-1. Search that repository's open issues first, for example `gh issue list -R <owner>/<crate> --label consumer:bevy_grimoire`.
-2. If an issue already describes the cause, comment on it with the stem. Otherwise, file one labelled `bug` or `enhancement`, `consumer` and `consumer:bevy_grimoire`.
+1. Search that repository's open issues first, for example `gh issue list -R <owner>/<crate> --label consumer:bevy_blueprint`.
+2. If an issue already describes the cause, comment on it with the stem. Otherwise, file one labelled `bug` or `enhancement`, `consumer` and `consumer:bevy_blueprint`.
 3. Close the capture as `blocked`, with cause `upstream` and `"upstream": "<crate>#<n>"`. Write the report and log line, push, and stop.
 
 ## 8. Prove it locally
@@ -220,7 +220,7 @@ If the cause is in a family crate (`bevy_gooey`, `bevy_elements`, …), **do not
 1. The whole-application test failed on the base commit (output from §6) and passes on the fix:
 
    ```sh
-   cargo nextest run -p bevy_cauldron --test editor -E 'test(capture_<stem_with_underscores>::)'
+   cargo nextest run -p bevy_dark_factory --test editor -E 'test(capture_<stem_with_underscores>::)'
    ```
 
    Also run the crate's own tests around the changed unit.
@@ -366,7 +366,7 @@ In this order:
    - Never put a capture under `docs/changelog/media/`.
 2. **Close the case** as `fixed`, with the fix's sha (see "Closing a case"). This comes after the fix commit, because `check` refuses a `fixed` row whose commit is not an ancestor of `HEAD`.
 3. **The first push.** This is the full gate (`tools/loop/hooks/pre-push`): clippy over every target, `cargo nextest run --workspace`, `cargo test --workspace --doc`, and the backlog, changelog and version checks. It usually takes 3–5 minutes, up to about 9 on a cold build; use a 15-minute timeout. If the gate is red, fix the cause and push again. **Never use `--no-verify`.**
-4. **Proof on the capture's platform.** For a macOS capture, re-check on mac_air with a still of the fixed screen, but only if a build containing `<sha>` exists there. mac_air normally has only the released `/Applications/Cauldron.app`. When no such build exists, or mac_air is unreachable, the report says `mac_air proof: pending — <reason>` and the whole-application test stands as the proof.
+4. **Proof on the capture's platform.** For a macOS capture, re-check on mac_air with a still of the fixed screen, but only if a build containing `<sha>` exists there. mac_air normally has only the released `/Applications/DarkFactory.app`. When no such build exists, or mac_air is unreachable, the report says `mac_air proof: pending — <reason>` and the whole-application test stands as the proof.
 
 ## 10. Report, log, push
 

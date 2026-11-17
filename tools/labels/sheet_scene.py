@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Make a scene every defect of `cauldron-negatives` can be made on, from the repository's bedroom (DL-05, #464).
+"""Make a scene every defect of `dark_factory-negatives` can be made on, from the repository's bedroom (DL-05, #464).
 
 usage: sheet_scene.py <repo> <out-project>
 
@@ -12,7 +12,7 @@ import sys
 
 repo, out = sys.argv[1:3]
 shutil.copytree(os.path.join(repo, "assets"), os.path.join(out, "assets"), symlinks=False)
-kit = os.path.join(out, "assets", "grimoire", "furniture")
+kit = os.path.join(out, "assets", "blueprint", "furniture")
 area = os.path.join(out, "design", "levels", "bedroom", "areas", "north_half")
 os.makedirs(area)
 open(os.path.join(area, "area.yaml"), "w").write("version: 1\nrect:\n- -3.0\n- -2.5\n- 3.0\n- 0.0\n")

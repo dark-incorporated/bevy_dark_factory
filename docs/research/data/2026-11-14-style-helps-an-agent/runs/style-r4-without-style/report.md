@@ -25,8 +25,8 @@ Why the harness, and not the agent, failed these trials:
 
 | trials | reason | which |
 |---|---|---|
-| 2 | the transcript shows a tool \`xd___mcp__cauldron_grimoire_guide\` that is neither the editor's nor the harness's own set, so the profile was not isolated | `dress-the-market-area` trial 1, `write-the-gatekeepers-greeting` trial 1 |
-| 1 | the transcript shows a tool \`xd__mcp__cauldron_grimoire_guide\` that is neither the editor's nor the harness's own set, so the profile was not isolated | `light-the-gate-at-night` trial 1 |
+| 2 | the transcript shows a tool \`xd___mcp__dark_factory_blueprint_guide\` that is neither the editor's nor the harness's own set, so the profile was not isolated | `dress-the-market-area` trial 1, `write-the-gatekeepers-greeting` trial 1 |
+| 1 | the transcript shows a tool \`xd__mcp__dark_factory_blueprint_guide\` that is neither the editor's nor the harness's own set, so the profile was not isolated | `light-the-gate-at-night` trial 1 |
 
 ## The suite
 

@@ -630,9 +630,9 @@
           "wanted": "a hand-back stating three, dresser",
           "measured": "the hand-back `Bedroom census: 3 pieces, dresser nearest the north wall` does not state `three`",
           "last_calls": [
-            "grimoire_guide {}",
-            "grimoire_state {}",
-            "grimoire_present {\"check\":[{\"placements\":[\"dresser\"],\"what\":\"The dresser is the piece closest to the north wall\"}],\"inferred\":[\"'The bedroom map' is the open map bench_bedroom (…"
+            "blueprint_guide {}",
+            "blueprint_state {}",
+            "blueprint_present {\"check\":[{\"placements\":[\"dresser\"],\"what\":\"The dresser is the piece closest to the north wall\"}],\"inferred\":[\"'The bedroom map' is the open map bench_bedroom (…"
           ]
         },
         {
@@ -641,9 +641,9 @@
           "wanted": "a hand-back stating three, dresser",
           "measured": "the hand-back `Bedroom: 3 pieces, dresser nearest the north wall` does not state `three`",
           "last_calls": [
-            "grimoire_guide {}",
-            "grimoire_state {}",
-            "grimoire_present {\"check\":[],\"inferred\":[\"North is -Z, as the map file's header says, so the north wall is the z = -2.5 plane\",\"Each placement's `at` is [x, z] in map metres\"],\"…"
+            "blueprint_guide {}",
+            "blueprint_state {}",
+            "blueprint_present {\"check\":[],\"inferred\":[\"North is -Z, as the map file's header says, so the north wall is the z = -2.5 plane\",\"Each placement's `at` is [x, z] in map metres\"],\"…"
           ]
         },
         {
@@ -652,9 +652,9 @@
           "wanted": "a hand-back stating three, dresser",
           "measured": "the hand-back `Bedroom census: 3 pieces, dresser nearest the north wall` does not state `three`",
           "last_calls": [
-            "grimoire_guide {}",
-            "grimoire_state {}",
-            "grimoire_present {\"check\":[{\"placements\":[\"dresser\"],\"what\":\"The dresser sits closest to the north wall (z = -2.0 vs wall at z = -2.5)\"}],\"inferred\":[\"'The bedroom map' is bench…"
+            "blueprint_guide {}",
+            "blueprint_state {}",
+            "blueprint_present {\"check\":[{\"placements\":[\"dresser\"],\"what\":\"The dresser sits closest to the north wall (z = -2.0 vs wall at z = -2.5)\"}],\"inferred\":[\"'The bedroom map' is bench…"
           ]
         }
       ],
@@ -820,11 +820,11 @@
           "wanted": "6 × a `plant_b`, all inside x -4.00..4.00, z 2.20..3.00",
           "measured": "0 × a `plant_b` on the map, 0 of them inside x -4.00..4.00, z 2.20..3.00, and the task wants 6 all inside",
           "last_calls": [
-            "grimoire_style {}",
-            "grimoire_list_pieces {}",
-            "grimoire_preview_operation (refused) {\"operation\":\"placement_add\",\"parameters\":{\"at\":[-2.5,2.6],\"piece\":\"plant_b\"}}",
-            "grimoire_list_operations {\"query\":\"placement\"}",
-            "grimoire_preview_operation (refused) {\"operation\":\"placement_add\",\"parameters\":{\"at\":[-2.5,2.6],\"piece\":\"plant_b\",\"replace\":true}}"
+            "blueprint_style {}",
+            "blueprint_list_pieces {}",
+            "blueprint_preview_operation (refused) {\"operation\":\"placement_add\",\"parameters\":{\"at\":[-2.5,2.6],\"piece\":\"plant_b\"}}",
+            "blueprint_list_operations {\"query\":\"placement\"}",
+            "blueprint_preview_operation (refused) {\"operation\":\"placement_add\",\"parameters\":{\"at\":[-2.5,2.6],\"piece\":\"plant_b\",\"replace\":true}}"
           ]
         }
       ],
@@ -1271,11 +1271,11 @@
           "wanted": "at least 1 applied `placement_set_yaw` line(s)",
           "measured": "0 applied `placement_set_yaw` line(s), and the task wants at least 1",
           "last_calls": [
-            "grimoire_capture_still {\"label\":\"before_wardrobe\"}",
-            "grimoire_preview_operation {\"operation\":\"placement_set_pose\",\"parameters\":{\"id\":\"wardrobe\",\"tip\":[0,0],\"yaw\":90}}",
-            "grimoire_apply_operation {\"operation\":\"placement_set_pose\",\"parameters\":{\"id\":\"wardrobe\",\"tip\":[0,0],\"yaw\":90}}",
-            "grimoire_decide {\"questions\":{\"faces\":{\"instructions\":\"The tall dresser's doors/drawer fronts face into the room, away from the wall.\",\"type\":\"noul\"},\"stays\":{\"instructions\":\"T…",
-            "grimoire_present {\"check\":[{\"placements\":[\"wardrobe\"],\"what\":\"Doors face the room (south) while the wardrobe stays flush on the north wall\"}],\"inferred\":[\"The descriptor's front…"
+            "blueprint_capture_still {\"label\":\"before_wardrobe\"}",
+            "blueprint_preview_operation {\"operation\":\"placement_set_pose\",\"parameters\":{\"id\":\"wardrobe\",\"tip\":[0,0],\"yaw\":90}}",
+            "blueprint_apply_operation {\"operation\":\"placement_set_pose\",\"parameters\":{\"id\":\"wardrobe\",\"tip\":[0,0],\"yaw\":90}}",
+            "blueprint_decide {\"questions\":{\"faces\":{\"instructions\":\"The tall dresser's doors/drawer fronts face into the room, away from the wall.\",\"type\":\"noul\"},\"stays\":{\"instructions\":\"T…",
+            "blueprint_present {\"check\":[{\"placements\":[\"wardrobe\"],\"what\":\"Doors face the room (south) while the wardrobe stays flush on the north wall\"}],\"inferred\":[\"The descriptor's front…"
           ]
         }
       ],
@@ -1325,28 +1325,28 @@
     }
   ],
   "tool_counts": {
-    "grimoire_apply_operation": 82,
-    "grimoire_capture_still": 30,
-    "grimoire_decide": 38,
-    "grimoire_frame_view": 2,
-    "grimoire_guide": 61,
-    "grimoire_list_operations": 73,
-    "grimoire_list_pieces": 32,
-    "grimoire_present": 60,
-    "grimoire_preview_operation": 36,
-    "grimoire_project_feedback_list": 2,
-    "grimoire_read_oplog": 8,
-    "grimoire_run_command": 1,
-    "grimoire_schema": 1,
-    "grimoire_state": 65,
-    "grimoire_style": 19,
-    "grimoire_undo_operation": 4,
-    "grimoire_wish": 1
+    "blueprint_apply_operation": 82,
+    "blueprint_capture_still": 30,
+    "blueprint_decide": 38,
+    "blueprint_frame_view": 2,
+    "blueprint_guide": 61,
+    "blueprint_list_operations": 73,
+    "blueprint_list_pieces": 32,
+    "blueprint_present": 60,
+    "blueprint_preview_operation": 36,
+    "blueprint_project_feedback_list": 2,
+    "blueprint_read_oplog": 8,
+    "blueprint_run_command": 1,
+    "blueprint_schema": 1,
+    "blueprint_state": 65,
+    "blueprint_style": 19,
+    "blueprint_undo_operation": 4,
+    "blueprint_wish": 1
   },
   "refusals_by_tool": {
-    "grimoire_preview_operation": 7,
-    "grimoire_run_command": 1,
-    "grimoire_style": 3
+    "blueprint_preview_operation": 7,
+    "blueprint_run_command": 1,
+    "blueprint_style": 3
   },
   "wishes_by_tool": {
     "A read-only tool that gives a placement's world-facing compass side, and the yaw that would put its front on a named side.": 1
@@ -1356,7 +1356,7 @@
   "cost_total_usd": 10.268213900000003,
   "agent_errors": 4,
   "agent_errors_by_tool": {
-    "xd__mcp__cauldron_grimoire_guide": 1,
+    "xd__mcp__dark_factory_blueprint_guide": 1,
     "xd__read": 1,
     "xd_read": 1,
     "xd_read_placeholder": 1

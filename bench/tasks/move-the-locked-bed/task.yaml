@@ -14,10 +14,10 @@ map: bench_locked
 prompt: |
   Move the bed two metres to the east.
 
-  If something stops you, say what it is with grimoire_present and change nothing.
+  If something stops you, say what it is with blueprint_present and change nothing.
 setup: []
 solution:
-  - op: grimoire_present
+  - op: blueprint_present
     params:
       title: The bed is locked
       summary: The bed is locked, so it was not moved and nothing was unlocked. Unlock it, or tell me to, and I will move it two metres east.

@@ -1,4 +1,4 @@
-# 2026-11-07 terminal: links open on Cmd+click (#325), CAULDRON_PROJECT (#324), #327 closed; no ui item could be taken
+# 2026-11-07 terminal: links open on Cmd+click (#325), DARK_FACTORY_PROJECT (#324), #327 closed; no ui item could be taken
 
 Focus: terminal and the ui series · Commits: e2005635..HEAD (pass 472) · Machine: big · Outcome: shipped
 
@@ -10,7 +10,7 @@ Gate: green on `main` at start (pass 469's push). Load 17 to 35 (CI containers),
 
 ## Cluster
 - **#325** (terminal links): done, `cf6a8b42`, `Fixes #325`. `terminal/links.rs` finds an `http(s)://` address under a cell over the rows the pane draws; `a_primary_click_opens_a_link` opens it through `app_verbs::open_link`. 7 tests (`a_link_in_the_terminal_opens_on_a_primary_click`); they did not compile before. Not tested: that Primary+click sends the program no mouse report (the press observer returns before it writes; `mouse_down` is private). Found while testing: a wrapped row's trailing blanks are trimmed from `Line::cells`, so joining rows without padding to the pane's columns merged two words into one address; the link now pads to the column count.
-- **#324**: slice 5, `CAULDRON_PROJECT` (`ec36b43e`). Left open: a Settings-screen row for the shell and the agent command needs `Value::Text(String)`, and `Value` is `Copy`.
+- **#324**: slice 5, `DARK_FACTORY_PROJECT` (`ec36b43e`). Left open: a Settings-screen row for the shell and the agent command needs `Value::Text(String)`, and `Value` is `Copy`.
 - **#327**: closed. Re-recorded the terminal-settings storyboard with the `editor.ron` write in the middle of a capture: the frames after it show 1.4x text and a bar caret.
 - **#322**: the cell-edge flake is fixed (pass 468's `4f706ad8`); the updater-refusal flake did not reproduce in 25 runs of both tests under 30 busy loops. Left open.
 - **#236**: the multi-selection's mixed value needs a gooey change; filed **bevy-coven/bevy_gooey#77** (G-67).

@@ -25,7 +25,7 @@ available RAM 13 GB, load ~4.8.
 Must-fix: blocks **y** (the panel, its tests and its clip), common **n**, no workaround **y**.
 Root cause: `aea2456` declared `pub mod audio_panel;` twice (`lib.rs:53` unconditional, `lib.rs:110`
 gated) — `E0428` — and added `crate::audio_panel::AudioPanelPlugin` from `editor.rs:2429` while nothing
-defined it — `E0425`. Regression check: `cargo build -p bevy_cauldron --features bevy_siren` failed
+defined it — `E0425`. Regression check: `cargo build -p bevy_dark_factory --features bevy_siren` failed
 before, finishes in 1m 55s after; `--test editor audio_panel` runs **4 passed**, which could not build at
 all before.
 
@@ -39,7 +39,7 @@ and was reverted unshipped.
 ## Enhancement: the colour table only shrinks (#210, slice 4)
 
 Goal: make the migration's direction one-way · Files:
-`crates/bevy_cauldron/tests/the_colour_table_only_shrinks.rs` (new), `tests/all.rs` (one `mod`) · Proof:
+`crates/bevy_dark_factory/tests/the_colour_table_only_shrinks.rs` (new), `tests/all.rs` (one `mod`) · Proof:
 fails when a 29th `pub const … : Color` is added (`declares 29 colour constants, ceiling 28`), passes at 28.
 
 Measured: **28** constants, **551** uses in `src/` outside `chrome.rs`, **268** in `tests/`. The ceiling is
@@ -64,7 +64,7 @@ would have been a second clip for one behaviour. `stale.py` reports all eight st
 
 ## Test diffs
 
-- `crates/bevy_cauldron/tests/all.rs`: one `mod the_colour_table_only_shrinks;` (the standing exception).
+- `crates/bevy_dark_factory/tests/all.rs`: one `mod the_colour_table_only_shrinks;` (the standing exception).
 - New test file. No existing assertion changed or removed.
 
 ## Review
@@ -76,7 +76,7 @@ unfinished — 28 constants remain, and #274's clip is owed with the reason on t
 
 ## Release
 
-None: no publishable crate's files changed (`bevy_cauldron` is `publish = false`).
+None: no publishable crate's files changed (`bevy_dark_factory` is `publish = false`).
 
 ## Next focus
 

@@ -293,49 +293,49 @@
     }
   ],
   "tool_counts": {
-    "grimoire_apply_operation": 228,
-    "grimoire_capture_still": 5,
-    "grimoire_guide": 20,
-    "grimoire_list_operations": 22,
-    "grimoire_list_pieces": 7,
-    "grimoire_present": 20,
-    "grimoire_preview_operation": 7,
-    "grimoire_schema": 3,
-    "grimoire_state": 19,
-    "grimoire_style": 29,
-    "grimoire_undo_operation": 9,
-    "grimoire_wish": 2
+    "blueprint_apply_operation": 228,
+    "blueprint_capture_still": 5,
+    "blueprint_guide": 20,
+    "blueprint_list_operations": 22,
+    "blueprint_list_pieces": 7,
+    "blueprint_present": 20,
+    "blueprint_preview_operation": 7,
+    "blueprint_schema": 3,
+    "blueprint_state": 19,
+    "blueprint_style": 29,
+    "blueprint_undo_operation": 9,
+    "blueprint_wish": 2
   },
   "refusals_by_tool": {
-    "grimoire_apply_operation": 26,
-    "grimoire_preview_operation": 2,
-    "grimoire_schema": 3,
-    "grimoire_style": 6
+    "blueprint_apply_operation": 26,
+    "blueprint_preview_operation": 2,
+    "blueprint_schema": 3,
+    "blueprint_style": 6
   },
   "wishes_by_tool": {
-    "grimoire_preview_operation reporting, for placement_add, which existing placements the new piece would replace, before anything is applied.": 1,
+    "blueprint_preview_operation reporting, for placement_add, which existing placements the new piece would replace, before anything is applied.": 1,
     "placement_move: change a placement's x,z by id, with a dry run listing what it would replace or overlap.": 1
   },
   "harness_error_reasons": [
     {
       "task": "dress-the-market-area",
       "trial": 3,
-      "reason": "the transcript shows a tool `xd__mcp__cauldron_grimoire_guide` that is neither the editor's nor the harness's own set, so the profile was not isolated"
+      "reason": "the transcript shows a tool `xd__mcp__dark_factory_blueprint_guide` that is neither the editor's nor the harness's own set, so the profile was not isolated"
     },
     {
       "task": "write-the-gatekeepers-greeting",
       "trial": 3,
-      "reason": "the transcript shows a tool `xd__mcp__cauldron_grimoire_guide` that is neither the editor's nor the harness's own set, so the profile was not isolated"
+      "reason": "the transcript shows a tool `xd__mcp__dark_factory_blueprint_guide` that is neither the editor's nor the harness's own set, so the profile was not isolated"
     },
     {
       "task": "write-the-gatekeepers-greeting",
       "trial": 5,
-      "reason": "the transcript shows a tool `xd__mcp__cauldron_grimoire_guide` that is neither the editor's nor the harness's own set, so the profile was not isolated"
+      "reason": "the transcript shows a tool `xd__mcp__dark_factory_blueprint_guide` that is neither the editor's nor the harness's own set, so the profile was not isolated"
     },
     {
       "task": "write-the-gatekeepers-greeting",
       "trial": 8,
-      "reason": "the transcript shows a tool `xd___mcp__cauldron_grimoire_guide` that is neither the editor's nor the harness's own set, so the profile was not isolated"
+      "reason": "the transcript shows a tool `xd___mcp__dark_factory_blueprint_guide` that is neither the editor's nor the harness's own set, so the profile was not isolated"
     }
   ],
   "preflight": null,

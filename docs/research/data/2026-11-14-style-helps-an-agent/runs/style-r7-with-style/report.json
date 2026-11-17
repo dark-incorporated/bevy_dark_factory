@@ -230,20 +230,20 @@
     }
   ],
   "tool_counts": {
-    "grimoire_apply_operation": 33,
-    "grimoire_capture_still": 1,
-    "grimoire_guide": 3,
-    "grimoire_list_operations": 3,
-    "grimoire_list_pieces": 1,
-    "grimoire_present": 3,
-    "grimoire_state": 2,
-    "grimoire_style": 5,
-    "grimoire_undo_operation": 1,
-    "grimoire_wish": 1
+    "blueprint_apply_operation": 33,
+    "blueprint_capture_still": 1,
+    "blueprint_guide": 3,
+    "blueprint_list_operations": 3,
+    "blueprint_list_pieces": 1,
+    "blueprint_present": 3,
+    "blueprint_state": 2,
+    "blueprint_style": 5,
+    "blueprint_undo_operation": 1,
+    "blueprint_wish": 1
   },
   "refusals_by_tool": {
-    "grimoire_apply_operation": 4,
-    "grimoire_style": 1
+    "blueprint_apply_operation": 4,
+    "blueprint_style": 1
   },
   "wishes_by_tool": {
     "placement_move: change a placement's x,z by id, with a dry run listing what it would replace or overlap.": 1

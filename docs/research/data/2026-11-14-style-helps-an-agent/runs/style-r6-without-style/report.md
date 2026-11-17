@@ -25,7 +25,7 @@ Why the harness, and not the agent, failed these trials:
 
 | trials | reason | which |
 |---|---|---|
-| 1 | the transcript shows a tool \`xd__mcp__cauldron_grimoire_guide\` that is neither the editor's nor the harness's own set, so the profile was not isolated | `write-the-gatekeepers-greeting` trial 1 |
+| 1 | the transcript shows a tool \`xd__mcp__dark_factory_blueprint_guide\` that is neither the editor's nor the harness's own set, so the profile was not isolated | `write-the-gatekeepers-greeting` trial 1 |
 
 ## The suite
 
@@ -56,24 +56,24 @@ Why the harness, and not the agent, failed these trials:
 
 - first failing check: `placements_within` — wanted 3 × a \`market_stall\`, all inside x -10.00..-2.00, z 8.50..9.50; measured 3 × a \`market_stall\` on the map, 0 of them inside x -10.00..-2.00, z 8.50..9.50, and the task wants 3 all inside; outside: \`market_stall@2\` at \(-8.50, 3.50\), \`market_stall@3\` at \(-6.00, 3.50\), \`market_stall@4\` at \(-3.50, 3.50\)
 - its last 5 call(s), oldest first:
-  - `grimoire_apply_operation {"operation":"placement_add","parameters":{"at":[-4,8],"piece":"bench_plank"}}`
-  - `grimoire_apply_operation {"operation":"placement_add","parameters":{"at":[-9.3,9.3],"piece":"crate_wood"}}`
-  - `grimoire_apply_operation {"operation":"placement_add","parameters":{"at":[-2.8,9.3],"piece":"barrel_oak"}}`
-  - `grimoire_capture_still {"label":"market_dressed"}`
-  - `grimoire_present {"check":[{"placements":["market_stall@2","market_stall@3","market_stall@4","lantern_oil@11","lantern_oil@12"],"what":"Stall row and the goods and lanterns arou…`
+  - `blueprint_apply_operation {"operation":"placement_add","parameters":{"at":[-4,8],"piece":"bench_plank"}}`
+  - `blueprint_apply_operation {"operation":"placement_add","parameters":{"at":[-9.3,9.3],"piece":"crate_wood"}}`
+  - `blueprint_apply_operation {"operation":"placement_add","parameters":{"at":[-2.8,9.3],"piece":"barrel_oak"}}`
+  - `blueprint_capture_still {"label":"market_dressed"}`
+  - `blueprint_present {"check":[{"placements":["market_stall@2","market_stall@3","market_stall@4","lantern_oil@11","lantern_oil@12"],"what":"Stall row and the goods and lanterns arou…`
 
 ### `light-the-gate-at-night`, trial 1
 
 - first failing check: `file_value` — wanted \`gate_light.radius_m\` in \`furniture/data/gate_light.yaml\` ≥ 2 and ≤ 5; measured \`gate_light.radius_m\` in \`furniture/data/gate_light.yaml\` is 8.0, and it should be at most 5
 - its last 5 call(s), oldest first:
-  - `grimoire_apply_operation {"operation":"data_set","parameters":{"file":"lighting/gate","path":"gate_light.flicker","value":true}}`
-  - `grimoire_apply_operation {"operation":"data_set","parameters":{"file":"lighting/gate","path":"gate_light.tint","value":"amber"}}`
-  - `grimoire_apply_operation (refused) {"operation":"data_set","parameters":{"file":"lighting/gate","path":"gate_light.ambient_lux","value":2}}`
-  - `grimoire_apply_operation {"operation":"data_set","parameters":{"file":"lighting/gate","path":"gate_light.ambient_lux","value":2.5}}`
-  - `grimoire_present {"check":[{"what":"tint: 'amber' is accepted by whatever reads the file; the only prior value was 'white'"},{"what":"Whether flicker at 12 Hz looks right as a f…`
+  - `blueprint_apply_operation {"operation":"data_set","parameters":{"file":"lighting/gate","path":"gate_light.flicker","value":true}}`
+  - `blueprint_apply_operation {"operation":"data_set","parameters":{"file":"lighting/gate","path":"gate_light.tint","value":"amber"}}`
+  - `blueprint_apply_operation (refused) {"operation":"data_set","parameters":{"file":"lighting/gate","path":"gate_light.ambient_lux","value":2}}`
+  - `blueprint_apply_operation {"operation":"data_set","parameters":{"file":"lighting/gate","path":"gate_light.ambient_lux","value":2.5}}`
+  - `blueprint_present {"check":[{"what":"tint: 'amber' is accepted by whatever reads the file; the only prior value was 'white'"},{"what":"Whether flicker at 12 Hz looks right as a f…`
 
 ## Where the agent stumbles (dev tasks)
 
-- tools called most: `grimoire_apply_operation` ×26, `grimoire_guide` ×2, `grimoire_list_operations` ×2, `grimoire_present` ×2, `grimoire_state` ×2, `grimoire_capture_still` ×1, `grimoire_list_pieces` ×1, `grimoire_schema` ×1
-- refusals by tool: `grimoire_apply_operation` ×5
+- tools called most: `blueprint_apply_operation` ×26, `blueprint_guide` ×2, `blueprint_list_operations` ×2, `blueprint_present` ×2, `blueprint_state` ×2, `blueprint_capture_still` ×1, `blueprint_list_pieces` ×1, `blueprint_schema` ×1
+- refusals by tool: `blueprint_apply_operation` ×5
 - wishes, by the tool wished for: none

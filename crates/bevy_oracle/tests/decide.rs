@@ -7,7 +7,7 @@ fn fixtures() -> PathBuf {
 
 /// The request the fixture was recorded from, built through the typed API.
 fn fixture_request() -> Request {
-    Request::new("A screenshot of the bevy_grimoire map editor.")
+    Request::new("A screenshot of the bevy_blueprint map editor.")
         .with_image("<data URL of docs/changelog/media/2026-10-24-S1.5.png, 640x390 PNG>")
         .with_question("has_ui", Question::noul("Does the image show an editor window with panels or a toolbar?"))
         .with_question(

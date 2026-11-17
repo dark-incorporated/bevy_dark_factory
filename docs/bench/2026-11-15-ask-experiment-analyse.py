@@ -1,7 +1,7 @@
 """Ask behaviour and its effect, from the two ask-*-guide run directories (DM-06, #457). Prints markdown."""
 import json, glob, os, re, sys, random, collections, math
-ROOT = os.path.expanduser("~/.local/state/cauldron-bench")
-MUT = {"grimoire_apply_operation"}          # the calls that change what the person sees
+ROOT = os.path.expanduser("~/.local/state/dark_factory-bench")
+MUT = {"blueprint_apply_operation"}          # the calls that change what the person sees
 MIN_Q = 4
 
 def wilson(k, n, z=1.96):
@@ -40,7 +40,7 @@ def _balanced(code, i):
 
 def calls_of(d):
     """Every editor tool call the agent made, in order, from the transcript alone:
-    dict(tool, nq, view, refused, text). Routes: write xd://mcp__cauldron_<tool>, a direct mcp__cauldron_<tool>, and eval's tool.mcp__cauldron_<tool>(...)."""
+    dict(tool, nq, view, refused, text). Routes: write xd://mcp__dark_factory_<tool>, a direct mcp__dark_factory_<tool>, and eval's tool.mcp__dark_factory_<tool>(...)."""
     out, pending = [], {}
     try: lines = open(os.path.join(d, "transcript.jsonl"))
     except OSError: return out
@@ -52,18 +52,18 @@ def calls_of(d):
         if kind == "tool_execution_start":
             a = e.get("args") or {}
             items = []
-            if name == "write" and str(a.get("path", "")).startswith("xd://mcp__cauldron_"):
-                tool = a["path"].split("mcp__cauldron_", 1)[1]
+            if name == "write" and str(a.get("path", "")).startswith("xd://mcp__dark_factory_"):
+                tool = a["path"].split("mcp__dark_factory_", 1)[1]
                 try: args = json.loads(a.get("content") or "{}")
                 except Exception: args = {}
                 items.append((tool, args))
-            elif name.startswith("mcp__cauldron_"):
-                items.append((name.split("mcp__cauldron_", 1)[1], a))
+            elif name.startswith("mcp__dark_factory_"):
+                items.append((name.split("mcp__dark_factory_", 1)[1], a))
             elif name == "eval":
                 code = a.get("code") or ""
-                for m in re.finditer(r"tool\.mcp__cauldron_(\w+)\(", code):
+                for m in re.finditer(r"tool\.mcp__dark_factory_(\w+)\(", code):
                     body = _balanced(code, m.end() - 1)
-                    args = {"questions": {"?%d" % k: 1 for k in range(len(re.findall(r"instructions", body)))}, "view": bool(re.search(r"view\s*:\s*true", body))} if m.group(1) == "grimoire_decide" else {}
+                    args = {"questions": {"?%d" % k: 1 for k in range(len(re.findall(r"instructions", body)))}, "view": bool(re.search(r"view\s*:\s*true", body))} if m.group(1) == "blueprint_decide" else {}
                     items.append((m.group(1), args))
             if items: pending[tid] = (name, items)
         elif kind == "tool_execution_end" and tid in pending:
@@ -79,7 +79,7 @@ def calls_of(d):
 def decide_outcomes(calls):
     res = []
     for c in calls:
-        if c["tool"] != "grimoire_decide": continue
+        if c["tool"] != "blueprint_decide": continue
         t = c["text"]
         m = re.search(r'"latency_ms":\s*(\d+)', t); w = re.search(r'"where":\s*"(\w+)"', t); mo = re.search(r'"model":\s*"([^"]+)"', t)
         res.append(dict(ok=bool(m), latency=int(m.group(1)) if m else None, where=w.group(1) if w else None,
@@ -96,7 +96,7 @@ def arm_stats(arm):
     for t in ok:
         calls = calls_of(t["_dir"])
         muts = [i for i, c in enumerate(calls) if c["tool"] in MUT and not c["refused"]]
-        dec = [(i, c) for i, c in enumerate(calls) if c["tool"] == "grimoire_decide"]
+        dec = [(i, c) for i, c in enumerate(calls) if c["tool"] == "blueprint_decide"]
         is_elig = bool(muts); last = muts[-1] if muts else -1
         after = [c for i, c in dec if i > last and c["nq"] >= MIN_Q]
         pt = per_task[t["task"]]; pt[0] += 1; pt[1] += t["outcome"] == "pass"
@@ -129,7 +129,7 @@ if __name__ == "__main__":
         vis = [t for t in s["elig"] if "data" not in (t.get("tags") or [])]
         v4 = sum(1 for t in vis if t in s["asked"]); v1 = sum(1 for t in vis if t in s["asked1"])
         print(f"- asked after the last visible operation with >= 1 question: {pct(len(s['asked1']), e)}; excluding the `data` task (an invisible result): >= {MIN_Q} questions {pct(v4, len(vis))}, >= 1 question {pct(v1, len(vis))}")
-        print(f"- trials that called grimoire_decide at all: {pct(len(s['anyask']), n)}; calls {s['calls']} (view:true {s['view']}); mean questions per call {sum(s['qs'])/len(s['qs']):.2f}" if s["qs"] else f"- calls 0")
+        print(f"- trials that called blueprint_decide at all: {pct(len(s['anyask']), n)}; calls {s['calls']} (view:true {s['view']}); mean questions per call {sum(s['qs'])/len(s['qs']):.2f}" if s["qs"] else f"- calls 0")
         if s["lat"]:
             L = sorted(s["lat"]); print(f"- decision calls answered {len(L)}; latency ms median {L[len(L)//2]}, mean {sum(L)/len(L):.0f}, p90 {L[int(.9*(len(L)-1))]}, max {L[-1]}; where {dict(s['wheres'])}; model {dict(s['models'])}")
         print(f"- failed or refused decision calls: {len(s['failed'])}, of which the endpoint did not answer (down): {s['down']}, in {len(s['void_trials'])} trial(s)")

@@ -14,12 +14,12 @@ frames show neither**. Filed as #276 rather than chased further.
    the sheet instead of trusting the number.
 3. **Crop `[990,60,1250,620]`** — the palette, verified in the sheet. Four arms, each its own chunk.
    `events.json` says all four applied (`"armed pipe"`, `"armed bath"`, `"armed sink"`,
-   `"armed toilet_roll_holder"`), and `grimoire/state` reads `armed_piece` = `bath`, then `sink`. **Every
+   `"armed toilet_roll_holder"`), and `blueprint/state` reads `armed_piece` = `bath`, then `sink`. **Every
    change moment still measures 0.00%**, and the sheet shows `lamp_tall` highlighted in every frame.
 4. **2.5 s chunks** instead of 1.5 s, so each arm has time to repaint. **0.00%** again, 9.75 s static.
 
 ## What is proved
-- The operation works: four applied results in `events.json`, and `grimoire/state` agrees.
+- The operation works: four applied results in `events.json`, and `blueprint/state` agrees.
 - The palette repaints: two `import` screenshots either side of one `brush_arm`, cropped to the palette,
   differ on **12.61%** of pixels.
 - The clip does not: `check.py` reports 0.00% at every moment, and the contact sheet shows no row changing.
@@ -37,7 +37,7 @@ Self-review, mine:
   was a measurement (the crop was wrong; the startup arm was the default; the chunks were short). The
   third produced the finding, so the fourth was the one that broke the rule — and it is where I stopped.
 - **Did I ship anything broken?** No: nothing to the tree, and the bug is filed not patched.
-- **Is the bug real, or my storyboard's fault?** Both `events.json` and `grimoire/state` say the operation
+- **Is the bug real, or my storyboard's fault?** Both `events.json` and `blueprint/state` say the operation
   applied, and an out-of-band `import` shows the repaint. A storyboard cannot make those disagree.
 - **Is E-037 still owed?** Yes, and it now waits on #276.
 - **Two passes with nothing shipped — is that acceptable?** This one produced a filed bug with a

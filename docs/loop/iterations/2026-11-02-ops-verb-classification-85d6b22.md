@@ -5,7 +5,7 @@ Focus: #129 E-002 · Commits: 5955a17..85d6b22 · Machine: big · Outcome: shipp
 ## Summary
 `Action::change()` classifies every verb as `Project`, `View`, `Held` or `Modal`, and a test pins the four
 sets. The ratchet has shrunk one action per commit, which made 89 entries read as 89 unfinished
-migrations; **57 of them write the grimoire and owe an operation, 30 are view candidates, and 4 will never
+migrations; **57 of them write the blueprint and owe an operation, 30 are view candidates, and 4 will never
 be operations.**
 
 ## Baseline
@@ -21,7 +21,7 @@ Measured from the code, after the test's corrections: **89** listed — **57** `
 
 **The test caught three of my own errors, which is why it is worth having:**
 1. The first version summed the four kinds and compared the total to `UNMIGRATED.len()` — true whatever
-   bucket an action lands in. Measured: moving `RedoBuild` (unmigrated, writes the grimoire) to `View`
+   bucket an action lands in. Measured: moving `RedoBuild` (unmigrated, writes the blueprint) to `View`
    passed. The sets are named now; re-measured, moving `Undo` to `View` fails.
 2. `Accept`/`Cancel`/`TypeId` are not in alphabetical order in `Action::ALL`.
 3. Ten `Compose*`/`EditTile` verbs I had listed as `View` are **already migrated** and never reach the
@@ -39,7 +39,7 @@ existing assertion changed. (5) *What remains?* The 30 view candidates, four arr
 One new test in `operations_have_two_front_ends.rs`. Nothing existing was removed or loosened.
 
 ## Release
-None — `bevy_cauldron` is `publish = false`.
+None — `bevy_dark_factory` is `publish = false`.
 
 ## Next focus
 `PanForward`/`PanBack`/`PanLeft`/`PanRight` onto one view operation, plus `FocusFilter`/`FocusTagFilter`.

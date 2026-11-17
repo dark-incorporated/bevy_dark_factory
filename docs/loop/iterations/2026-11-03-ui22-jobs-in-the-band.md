@@ -29,7 +29,7 @@ reported centre, `Hovered` lands on a panel at `(226, 397)` instead of the band.
 
 Root cause: **not established.** Ruled out by measurement: the observer, the popover and the Stop row all
 work (the headless test sends a real `PointerClick` and the list opens); and it is not the job record
-(`grimoire/jobs_stop` sets the same flag the row sets). What is left is the UI picking chain for the
+(`blueprint/jobs_stop` sets the same flag the row sets). What is left is the UI picking chain for the
 bottom band. A second measurement this pass narrows it: five different logical coordinates aimed at the
 palette's `sofa` row all left `armed_piece` unchanged, so map and palette clicks alike are missing —
 which is a bigger fault than #277 says, and is why #277 stays open rather than being worked around.
@@ -55,20 +55,20 @@ not a `Button` (twenty-four global `Activate` observers), so `Role::ControlText`
 `StatusKind::Info` now rides the item too, because `Role::StatusMark` hides itself unless the parent's
 kind is a warning or an error.
 Regression check:
-`crates/bevy_cauldron/tests/background_jobs_show_and_can_be_stopped.rs::the_bands_item_does_not_call_itself_a_button`.
+`crates/bevy_dark_factory/tests/background_jobs_show_and_can_be_stopped.rs::the_bands_item_does_not_call_itself_a_button`.
 
 ## Enhancement: background jobs in the status band (UI-22, #223)
 
 Goal: work that takes longer than a second says so, and can be stopped — from the band, from an agent,
 or from MCP.
-Files: `crates/bevy_cauldron/src/jobs.rs` (new), `thumbs.rs`, `harness.rs`, `lib.rs`, `screen.rs`,
-`ops_brp.rs`; `crates/bevy_cauldron_mcp/src/{main,docs}.rs`; `docs/mcp-tools.md`.
+Files: `crates/bevy_dark_factory/src/jobs.rs` (new), `thumbs.rs`, `harness.rs`, `lib.rs`, `screen.rs`,
+`ops_brp.rs`; `crates/dark_factory_mcp/src/{main,docs}.rs`; `docs/mcp-tools.md`.
 Proof: `background_jobs_show_and_can_be_stopped` — 7 tests. With the `Thumbnails::stopped` guard removed,
 `stopping_the_bake_stops_it_and_it_stays_stopped` fails on *"a stopped job leaves the band in the same
 frame the producer gives up"*; restored, all 7 pass.
 
-MCP: `grimoire_state.jobs` (read: the band's own words, each key, fraction, whether a stop was asked) and
-`grimoire_jobs_stop { key }`. Undo: none — a stop is not a map change and is not logged, which the tool's
+MCP: `blueprint_state.jobs` (read: the band's own words, each key, fraction, whether a stop was asked) and
+`blueprint_jobs_stop { key }`. Undo: none — a stop is not a map change and is not logged, which the tool's
 description says. Preview: none; the answer says `asked` rather than `stopped`, because the producer stops
 at its own next seam. The band's item is not on the `Activate` bus, so no command parity is owed for it.
 
@@ -90,7 +90,7 @@ change-gated system over a query of one entity.
 Reviewer could not run this pass (no subagent was spawned before the budget's prove phase). The five
 questions, answered by me:
 
-1. **Does it do what the issue asks?** Both acceptance items, measured — the record in `grimoire/state`
+1. **Does it do what the issue asks?** Both acceptance items, measured — the record in `blueprint/state`
    live at `14 of 90`, the stop answered `asked`, the record empty three frames later; and the clip.
 2. **Is the cancel flag safe across frames?** Yes, and that is the test: the `Arc` is reused across
    reports; re-making it per report was the first draft's bug and `a_cancel_request_outlives_the_next_report`
@@ -105,17 +105,17 @@ questions, answered by me:
 
 ## Test diffs
 
-- `crates/bevy_cauldron/tests/all.rs`: one `mod background_jobs_show_and_can_be_stopped;` line (the
+- `crates/bevy_dark_factory/tests/all.rs`: one `mod background_jobs_show_and_can_be_stopped;` line (the
   owner's standing exception for a new editor test file).
 - `tools/demo/test_record.py`: two new tests, nothing changed or removed.
-- `crates/bevy_cauldron/tests/background_jobs_show_and_can_be_stopped.rs`: new.
+- `crates/bevy_dark_factory/tests/background_jobs_show_and_can_be_stopped.rs`: new.
 - No protected assertion was edited, skipped or loosened.
 
 ## Release
 
-None: `bevy_cauldron` and `bevy_cauldron_mcp` are `publish = false`, and no publishable crate's files
-changed (`git diff --name-only 4d798b0..HEAD -- crates/bevy_grimoire_core crates/bevy_grimoire_rng
-crates/bevy_grimoire_solver crates/bevy_oracle` is empty), so there was nothing to release this pass.
+None: `bevy_dark_factory` and `dark_factory_mcp` are `publish = false`, and no publishable crate's files
+changed (`git diff --name-only 4d798b0..HEAD -- crates/blueprint_model crates/blueprint_rng
+crates/blueprint_solver crates/bevy_oracle` is empty), so there was nothing to release this pass.
 
 ## Next focus
 

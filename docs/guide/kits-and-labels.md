@@ -4,7 +4,7 @@ A kit is the set of meshes a map draws from. You bring meshes into a kit, label 
 
 ## What a kit is
 
-A **kit** is a folder of meshes and the `library.yaml` file that lists them. Each entry in that file is a **piece**: one mesh, its size, and its labels. The file lives beside the meshes, for example at `assets/grimoire/kit/library.yaml`.
+A **kit** is a folder of meshes and the `library.yaml` file that lists them. Each entry in that file is a **piece**: one mesh, its size, and its labels. The file lives beside the meshes, for example at `assets/blueprint/kit/library.yaml`.
 
 A **workspace** is one of the editor's jobs: Map, Kit, Animation and more. Press `Cmd+4` (`Ctrl+4` on Windows and Linux) to go to the Kit workspace. It has three panels, and you switch between them by clicking their chips on the strip:
 
@@ -38,7 +38,7 @@ Goal: add every `.glb` under a directory to a library in one step, then label th
 1. Run the importer from the repository root, with three arguments: the asset root, a directory under it, and the library file.
 
    ```
-   cargo run -p bevy_grimoire_core --example import_dir -- /path/to/game/assets models/kit /path/to/game/assets/grimoire/kit/library.yaml
+   cargo run -p blueprint_model --example import_dir -- /path/to/game/assets models/kit /path/to/game/assets/blueprint/kit/library.yaml
    ```
 
 2. Open the kit in the editor and check the Meshes panel.
@@ -65,7 +65,7 @@ A piece has six label axes:
 - `mount`: where the piece attaches. A piece may also declare **two**: `OnSurfaceOrFloor { class }` says it rests on a piece offering `class` when dropped on one, and stands on the floor when dropped anywhere else. The placement records which of the two it took, so a reload reproduces it.
 - `note`: a description in your own words.
 
-The first four are **tokens**: words from the vocabulary in `assets/grimoire/vocab.yaml`. A token that is not in the vocabulary is refused.
+The first four are **tokens**: words from the vocabulary in `assets/blueprint/vocab.yaml`. A token that is not in the vocabulary is refused.
 
 Each piece shows its labels on the Meshes panel as chips, grouped under `KIND`, `DOES`, `LOOKS` and `OFFERS`. The chip colour says who set the value. A value you set reads in the normal text colour. A value a model or an agent set, and you have not changed, reads in the unchecked colour.
 
@@ -119,7 +119,7 @@ What you see: the labels row reads `confidence <level> · <model> · <date>` in 
 If it goes wrong:
 
 - The editor dials a local or LAN endpoint before it starts a walk. A remote endpoint is not dialled in advance, so a failure shows only when the request runs.
-- Every token suggested is one the project's vocabulary has, because the questions are built from it. To allow a word the vocabulary lacks, add it to `assets/grimoire/vocab.yaml` by hand, and it becomes a question.
+- Every token suggested is one the project's vocabulary has, because the questions are built from it. To allow a word the vocabulary lacks, add it to `assets/blueprint/vocab.yaml` by hand, and it becomes a question.
 - An answer that names no model is refused.
 - A mesh that lies on its side is not turned for you. Turn it with `N` (X), `O` (Y) or `P` (Z) on the Meshes panel, then press `L` again.
 
@@ -150,13 +150,13 @@ Goal: know the other two panels well enough to find your way.
 
 Goal: know which sockets of a kit no piece can close before a map runs into them.
 
-A face whose edge tokens no piece of the kit presents back, at any quarter turn, is a dead end: a jamb with no partner, a hallway that cannot be capped. Select a piece on the Meshes panel; its `dead ends` row names each such side and what the face presents, for example `E: jamb_l jamb_r, nothing meets it`. A piece with no dead face has no row. An agent reads the whole kit's list in `grimoire_state.dead_ends`. Add a piece that presents the face back and the row goes away.
+A face whose edge tokens no piece of the kit presents back, at any quarter turn, is a dead end: a jamb with no partner, a hallway that cannot be capped. Select a piece on the Meshes panel; its `dead ends` row names each such side and what the face presents, for example `E: jamb_l jamb_r, nothing meets it`. A piece with no dead face has no row. An agent reads the whole kit's list in `blueprint_state.dead_ends`. Add a piece that presents the face back and the row goes away.
 
-When some piece comes near, the line says which and how far off: `E: jamb_l jamb_r, nothing meets it; closest b_near at 0°, 1 off` means `b_near`, unturned, agrees with the face in every cell but one. `grimoire_state.dead_ends` rows carry the same as `closest`: the piece, its turn in degrees, and each cell it gets wrong (`at`, `want`, `found`). Ties go to the fewest wrong cells, then the piece id, then the turn.
+When some piece comes near, the line says which and how far off: `E: jamb_l jamb_r, nothing meets it; closest b_near at 0°, 1 off` means `b_near`, unturned, agrees with the face in every cell but one. `blueprint_state.dead_ends` rows carry the same as `closest`: the piece, its turn in degrees, and each cell it gets wrong (`at`, `want`, `found`). Ties go to the fewest wrong cells, then the piece id, then the turn.
 
-A kit that caps every opening can still fail to build. Two stress tests in `bevy_grimoire_core::adjacency` build with the kit, the way shipped modular kits are proved: `ring(&library, face_bands)` returns the smallest closed loop, four pieces around a point with every inner seam declared and passing the seam check, and `room(&library, face_bands)` the smallest room with a middle, three rows of three, where the middle piece meets a neighbour on all four sides. Each returns the pieces with their quarter turns and the map they make, or `None`: a corridor kit of straights and corners loops back but never opens into a room.
+A kit that caps every opening can still fail to build. Two stress tests in `blueprint_model::adjacency` build with the kit, the way shipped modular kits are proved: `ring(&library, face_bands)` returns the smallest closed loop, four pieces around a point with every inner seam declared and passing the seam check, and `room(&library, face_bands)` the smallest room with a middle, three rows of three, where the middle piece meets a neighbour on all four sides. Each returns the pieces with their quarter turns and the map they make, or `None`: a corridor kit of straights and corners loops back but never opens into a room.
 
-An agent reads both in `grimoire_state.stress`, from the library on every call, so an edit to a piece's tokens is in the next answer: `ring` is the loop's four pieces (north-west, north-east, south-west, south-east) and `room` three rows of three, north to south and west to east with the middle at `[1][1]`, each piece as `{piece, turn}` with its turn in degrees, or `null` when the kit cannot build it. `declared` counts the pieces that carry an edge token: at `0` the kit is unlabelled, and its nulls say nothing about it. The editor's panels do not show them yet.
+An agent reads both in `blueprint_state.stress`, from the library on every call, so an edit to a piece's tokens is in the next answer: `ring` is the loop's four pieces (north-west, north-east, south-west, south-east) and `room` three rows of three, north to south and west to east with the middle at `[1][1]`, each piece as `{piece, turn}` with its turn in degrees, or `null` when the kit cannot build it. `declared` counts the pieces that carry an edge token: at `0` the kit is unlabelled, and its nulls say nothing about it. The editor's panels do not show them yet.
 
 ## Undo in the Kit workspace
 
@@ -168,19 +168,19 @@ On the Meshes panel, press `Cmd+Z` to undo the newest change to a piece. Press `
 
 Goal: have an agent find unchecked labels and set them.
 
-The agent uses three operations and one read. It calls them through `grimoire_apply_operation`, which takes `operation`, `parameters` and `dry_run`. On this tool `dry_run` defaults to `false`; set it to `true` to preview a change without making it.
+The agent uses three operations and one read. It calls them through `blueprint_apply_operation`, which takes `operation`, `parameters` and `dry_run`. On this tool `dry_run` defaults to `false`; set it to `true` to preview a change without making it.
 
 ![An agent lists the pieces a model labelled, the editor crosses to the Kit workspace's Meshes panel, the arrow keys walk the piece list, and the labels row reads confidence high · the model · date.](../media/review-labels.gif)
 
 Steps:
 
-1. Find the pieces a model labelled. Call `grimoire_list_pieces` with `{"by_model": true}`. The reply has `total` and a page of up to 50 pieces. Pass `pieces_from`, with the value of `pieces_next`, to read the next page.
-2. Open the kit's Meshes panel. Call `grimoire_apply_operation` with `{"operation": "door_open", "parameters": {"door": "kit", "tab": "meshes"}, "dry_run": false}`.
-3. Select the piece. Call `grimoire_apply_operation` with `{"operation": "piece_select", "parameters": {"id": "<piece id>"}, "dry_run": false}`. The editor refuses a piece the shelf filter hides.
-4. Set a label. Call `grimoire_apply_operation` with `{"operation": "label_set", "parameters": {"id": "<piece id>", "axis": "look", "tokens": ["<word from vocab.yaml>"]}, "dry_run": false}`. `axis` is one of `kind`, `effects`, `look` or `surfaces`. The tokens replace the whole axis.
+1. Find the pieces a model labelled. Call `blueprint_list_pieces` with `{"by_model": true}`. The reply has `total` and a page of up to 50 pieces. Pass `pieces_from`, with the value of `pieces_next`, to read the next page.
+2. Open the kit's Meshes panel. Call `blueprint_apply_operation` with `{"operation": "door_open", "parameters": {"door": "kit", "tab": "meshes"}, "dry_run": false}`.
+3. Select the piece. Call `blueprint_apply_operation` with `{"operation": "piece_select", "parameters": {"id": "<piece id>"}, "dry_run": false}`. The editor refuses a piece the shelf filter hides.
+4. Set a label. Call `blueprint_apply_operation` with `{"operation": "label_set", "parameters": {"id": "<piece id>", "axis": "look", "tokens": ["<word from vocab.yaml>"]}, "dry_run": false}`. `axis` is one of `kind`, `effects`, `look` or `surfaces`. The tokens replace the whole axis.
 
-What you see: the labels row reads `agent set look`, in the unchecked colour, until you change that axis. To take the change back, call `grimoire_undo_operation` with the `operation_id` that step 4 returned.
+What you see: the labels row reads `agent set look`, in the unchecked colour, until you change that axis. To take the change back, call `blueprint_undo_operation` with the `operation_id` that step 4 returned.
 
-`grimoire_list_pieces` also takes these filters: `with_mesh` leaves out pieces with no mesh, `unlabelled` lists pieces with no labels, `confidence` takes `high`, `medium` or `low`, and `id_contains` matches part of an id. The filters combine.
+`blueprint_list_pieces` also takes these filters: `with_mesh` leaves out pieces with no mesh, `unlabelled` lists pieces with no labels, `confidence` takes `high`, `medium` or `low`, and `id_contains` matches part of an id. The filters combine.
 
-To list every operation and its parameters, call `grimoire_list_operations`. To read one operation alone (its parameters and an example call), pass its name: `{"operation": "data_set"}`.
+To list every operation and its parameters, call `blueprint_list_operations`. To read one operation alone (its parameters and an example call), pass its name: `{"operation": "data_set"}`.

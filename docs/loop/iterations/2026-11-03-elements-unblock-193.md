@@ -37,7 +37,7 @@ Without the observer: *"AtmosphereSettings must come off the camera when Element
 cannot go back to its own look"*. With it: passes, and the other three dressing tests still pass (4/4).
 Clippy `-D warnings` clean.
 
-**Taken here.** Pin moved `2fee42a → 41407d6`; `cargo check -p bevy_cauldron --features bevy_elements`
+**Taken here.** Pin moved `2fee42a → 41407d6`; `cargo check -p bevy_dark_factory --features bevy_elements`
 green. `#193`'s `blocked` label removed and the evidence posted on the issue.
 
 ## What is deliberately not done
@@ -57,7 +57,7 @@ running skin's `text_muted`. Four sites in other functions were reverted rather 
 
 ## Test diffs
 
-- `crates/bevy_cauldron/tests/the_colour_table_only_shrinks.rs`: the scan's left boundary excludes `:`.
+- `crates/bevy_dark_factory/tests/the_colour_table_only_shrinks.rs`: the scan's left boundary excludes `:`.
   This *lowers* the measured count; no assertion is removed, loosened or re-pinned.
 - `bevy_elements/tests/gpu_dressing.rs`: one new `#[ignore]`d GPU test, appended. No existing assertion
   changed.
@@ -73,7 +73,7 @@ untouched; (3) is the pin the commit that contains the fix — `41407d6`, the pu
 
 ## Release
 
-None from this repo: nothing packaged changed here (`bevy_cauldron` is `publish = false`). The crate fix
+None from this repo: nothing packaged changed here (`bevy_dark_factory` is `publish = false`). The crate fix
 is on `bevy_elements`' `main` and its version/release is that crate's own loop's business, per the
 two-way street.
 

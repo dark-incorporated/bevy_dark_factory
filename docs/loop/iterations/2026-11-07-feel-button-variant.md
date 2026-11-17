@@ -6,7 +6,7 @@ Focus: epic #330 (owner's steer) · Commits: bevy_gooey b749025, release a2413c5
 UI-R01 and UI-R02 are closed, so the next ready work for UI-R03 (#333) is in bevy_gooey. This pass built G-51 (bevy-coven/bevy_gooey#58), the first of UI-R03's four open needs (G-51, G-57, G-58, G-59 and G-66), and released v0.40.2.
 
 ## Baseline
-bevy_grimoire was not touched, so its gate and `accept.py` did not run.
+bevy_blueprint was not touched, so its gate and `accept.py` did not run.
 
 ## Enhancement: G-51
 - **Change:** `src/button_variant.rs`.
@@ -36,7 +36,7 @@ None. The reference is Rune: `crates/rune-kit/src/actions.rs:27-39`.
 Not measured.
 
 ## Acceptance
-`accept.py` not run: no bevy_grimoire code changed.
+`accept.py` not run: no bevy_blueprint code changed.
 
 ## Review
 An independent `reviewer` ran: 6 P2 and 4 P3. All the P2s and P3s were fixed except the P3 that a label or icon added during a load stays visible, which is documented.

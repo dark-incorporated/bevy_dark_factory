@@ -5,11 +5,11 @@ write-the-gatekeepers-greeting: without 3.00/6  with 6.00/6  (1 and 3 runs)
 lines satisfied per task-triple (max 15): without 6.00  with 15.00
 PRIMARY  difference with - without: +9.00  95% bootstrap interval [+9.00, +9.00]  ->  better
 second reading, exact permutation test (arm labels exchanged within a task), two-sided p = 0.0020
-route of the with-style runs: tool 8, file 0, both 0, neither 0  (called grimoire_style, with or without a page: 100%; the tool alone, no page: 100%; needed 70% of the first)
+route of the with-style runs: tool 8, file 0, both 0, neither 0  (called blueprint_style, with or without a page: 100%; the tool alone, no page: 100%; needed 70% of the first)
   D over the 8 with-style runs by route `tool` (2 tasks): +9.00  [+9.00, +9.00]  (descriptive, a thin cell)
-CLAIM: `grimoire_style` changes what an agent builds: the tool share was met and D is better
-with-style runs that called grimoire_style before their first edit: 8 of 8
-with-style runs whose own grimoire_present call cited followed lines: 8 of 8
-without-style runs offered grimoire_style (must be 0): 0
-without-style runs that tried the hidden grimoire_style by its device path: 0 of 5 (0 writes, 0 reads)
+CLAIM: `blueprint_style` changes what an agent builds: the tool share was met and D is better
+with-style runs that called blueprint_style before their first edit: 8 of 8
+with-style runs whose own blueprint_present call cited followed lines: 8 of 8
+without-style runs offered blueprint_style (must be 0): 0
+without-style runs that tried the hidden blueprint_style by its device path: 0 of 5 (0 writes, 0 reads)
 wishes made by with-style runs: 0

@@ -71,7 +71,7 @@
     {
       "at": 7.1,
       "write": {
-        "path": "assets/grimoire/editor.yaml",
+        "path": "assets/blueprint/editor.yaml",
         "text": "version: 1\nkeymap:\n  edit.redo:\n    modifiers:\n      ctrl: true\n      shift: false\n      alt: true\n      meta: false\n    key: KeyJ\n"
       }
     },

@@ -3,10 +3,10 @@
 Focus: epic #330 (owner's steer) · Commits: bevy_gooey 8c68c5b, e19492c · Machine: big · Outcome: shipped (in bevy_gooey)
 
 ## Summary
-No bevy_grimoire item in the epic is ready. UI-R02 #332 depends on UI-R01 #331, which needs the motion items G-43..G-46. This pass claimed and built G-43 (bevy-coven/bevy_gooey#50), the first of them, in `~/family_src/bevy_emerge_loop/bevy_gooey`. Under `MotionSettings::reduced`, nothing travels and fades still run, and `motion_row` is the options row for it.
+No bevy_blueprint item in the epic is ready. UI-R02 #332 depends on UI-R01 #331, which needs the motion items G-43..G-46. This pass claimed and built G-43 (bevy-coven/bevy_gooey#50), the first of them, in `~/family_src/bevy_emerge_loop/bevy_gooey`. Under `MotionSettings::reduced`, nothing travels and fades still run, and `motion_row` is the options row for it.
 
 ## Baseline
-The bevy_grimoire gate and `accept.py` were not run: no bevy_grimoire code changed.
+The bevy_blueprint gate and `accept.py` were not run: no bevy_blueprint code changed.
 
 ## Enhancement: G-43 (bevy-coven/bevy_gooey#50)
 - **Commit 1, 8c68c5b:** `MotionSettings::reduced: bool` (serde default false) and `MotionSettings::reduced()`.
@@ -36,7 +36,7 @@ None (the reference is Rune: `crates/rune/README.md` "Animation", `crates/rune-m
 Not measured. `update_arrivals` returns at once when nothing is arriving.
 
 ## Acceptance
-`accept.py` was not run: no bevy_grimoire code changed.
+`accept.py` was not run: no bevy_blueprint code changed.
 
 ## Review
 The reviewer subagent ran. It found no P1 or P2 problems: the system order is right, no arrival can be left half-transparent, and a settled arrival writes nothing. Of its ten P3 items, these are fixed:
@@ -53,7 +53,7 @@ The exit half of the mid-flight test only guards against future changes, as the 
 bevy_gooey: the new `tests/reduced_motion.rs` and its `mod reduced_motion;` line, plus the three `reduced: false` literal defaults described above. No assertion changed.
 
 ## Release
-None here: nothing in bevy_grimoire's packages changed. G-43 is in bevy_gooey's Unreleased section, for that repo's loop to release.
+None here: nothing in bevy_blueprint's packages changed. G-43 is in bevy_gooey's Unreleased section, for that repo's loop to release.
 
 ## Next focus
 G-44 (colour motion), G-45 (layout motion) and G-46 (size motion): the rest of UI-R01 #331's needs.

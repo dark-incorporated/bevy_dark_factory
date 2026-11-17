@@ -13,7 +13,7 @@ prompt: |
   Make a hedge along the south edge of the garden: six plants (plant_b) in one row, all within 0.8 m of the
   south edge (the z = 3 side), side by side and not on top of one another. Leave the bench where it is.
 
-  When the hedge is done, hand the result back with grimoire_present.
+  When the hedge is done, hand the result back with blueprint_present.
 setup: []
 solution:
   - op: run_add
@@ -24,7 +24,7 @@ solution:
         from: [-1.25, 2.6]
         to: [1.25, 2.6]
         pitch: 0.5
-  - op: grimoire_present
+  - op: blueprint_present
     params:
       title: A hedge of six plants
       summary: Six plants stand in one row 0.5 m apart along the south edge, from x = -1.25 to x = 1.25. The bench has not moved.

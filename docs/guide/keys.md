@@ -1,6 +1,6 @@
 # Keys
 
-This page lists the keys the editor answers to, grouped by where they work. It is taken from the binding table in `crates/bevy_cauldron/src/keys.rs`. Hold `K` in the editor to see the same keys in an overlay.
+This page lists the keys the editor answers to, grouped by where they work. It is taken from the binding table in `crates/bevy_dark_factory/src/keys.rs`. Hold `K` in the editor to see the same keys in an overlay.
 
 ## How to read this page
 
@@ -25,11 +25,11 @@ A key marked "in filter boxes" still walks its list while a filter box has focus
 
 ## Every key is a command
 
-Each key on this page is also a command with an id that does not change, such as `file.save`, `edit.undo` or `tiles.align_forward`. The part before the dot is the category a menu groups it under. A menu, the command palette and an agent name a command by its id, so renaming a key never breaks them. `crates/bevy_cauldron/src/commands.rs` lists every id and its title, and a test fails when two commands share an id, a title, or a shortcut on a tab where both work.
+Each key on this page is also a command with an id that does not change, such as `file.save`, `edit.undo` or `tiles.align_forward`. The part before the dot is the category a menu groups it under. A menu, the command palette and an agent name a command by its id, so renaming a key never breaks them. `crates/bevy_dark_factory/src/commands.rs` lists every id and its title, and a test fails when two commands share an id, a title, or a shortcut on a tab where both work.
 
 Help ▸ Keyboard shortcuts lists every command of the registry with the chord it answers to now, so a command added tomorrow is on it without anyone writing it, and a command you rebound shows the new chord. The same screen is where you rebind: press a chord on a row, and a chord another command already has is refused by name.
 
-An agent runs a command by its id with `grimoire_run_command`, and it presses the same shortcut, so a command that is not available now (a key that needs a piece in hand, or a text field holding the keys) is refused with the reason a menu would show.
+An agent runs a command by its id with `blueprint_run_command`, and it presses the same shortcut, so a command that is not available now (a key that needs a piece in hand, or a text field holding the keys) is refused with the reason a menu would show.
 
 ## The command palette
 
@@ -203,8 +203,8 @@ A real shell is docked across the bottom of every screen, already in your projec
 - **Scrolling and the mouse.** The wheel scrolls the terminal's output while the pointer is over it, and over the menu bar, the status band or any panel it leaves the map alone; the map zooms only when the pointer is over the map itself. Typing while you are scrolled back brings you to the prompt. Full-screen programs get their keys and mouse the way they ask: the wheel scrolls `less`, `man` and `git log`, a click reaches a program that asks for the mouse (`htop` sorts by the column you click), and `Shift`+drag still selects.
 - **Links.** `Cmd+click` (`Ctrl+click` elsewhere) on an `http://` or `https://` address in the output opens it in your browser, even over a program that asked for the mouse.
 - **What it draws.** Colours, inverse text and coloured backgrounds the way a program asks; a drag shows what it selects; icons a prompt or tool prints (starship, powerline, `eza --icons`) as icons, one cell wide, in FiraMono Nerd Font Mono. The caret is a block over its cell, takes the shape a program asks for (vim's block and bar), and is an outline while the keys are elsewhere. Its default text, ground and sixteen ANSI colours follow the theme the frame it changes.
-- **What the shell is told.** `TERM_PROGRAM=Cauldron` and the version, `CAULDRON_PROJECT` (the open project's folder), and a UTF-8 locale when it would have none.
-- **Settings.** Text size, cursor style, blinking and how many lines of scrollback are kept are on the Settings screen's Terminal tab (`Cmd+,`) and reach a running terminal at once; the program a tab runs and its arguments are `terminal_shell` and `terminal_shell_args`, and the agent is `terminal_agent` ([data files](data-files.md#editoryaml-and-settingsyaml), [agents](agents.md#start-an-agent-in-cauldrons-terminal)).
+- **What the shell is told.** `TERM_PROGRAM=DarkFactory` and the version, `DARK_FACTORY_PROJECT` (the open project's folder), and a UTF-8 locale when it would have none.
+- **Settings.** Text size, cursor style, blinking and how many lines of scrollback are kept are on the Settings screen's Terminal tab (`Cmd+,`) and reach a running terminal at once; the program a tab runs and its arguments are `terminal_shell` and `terminal_shell_args`, and the agent is `terminal_agent` ([data files](data-files.md#editoryaml-and-settingsyaml), [agents](agents.md#start-an-agent-in-dark_factorys-terminal)).
 
 ## Text fields and menus
 

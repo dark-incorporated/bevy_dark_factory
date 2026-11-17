@@ -1,5 +1,5 @@
 # **The map the benchmark's tasks open** (BM-01, #411), laid over a trial's copy of the project from
-# `bench/fixture/`. It is not under `assets/grimoire/maps/` on purpose: the shipped project's maps are
+# `bench/fixture/`. It is not under `assets/blueprint/maps/` on purpose: the shipped project's maps are
 # counted by tests and edited by people, and a task's starting position may not move when either does.
 #
 # A small bedroom: 6 x 3 x 5 m, three pieces well clear of each other, and a lot of empty floor, so a task

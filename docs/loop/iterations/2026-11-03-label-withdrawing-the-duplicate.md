@@ -8,12 +8,12 @@ already wired. This pass found that, removed the duplicate and everything that e
 found one more consequence: a public API it shipped an hour earlier is now dead, so it was removed too.
 
 ## The finding
-`crates/bevy_cauldron/src/decide_labels.rs` predates the Cauldron rename. It is **wired into the real
+`crates/bevy_dark_factory/src/decide_labels.rs` predates the DarkFactory rename. It is **wired into the real
 label flow** — `labels.rs` asks `LabelPath::load` and calls either `vlm::label_with_retry` or
 `decide_labels::label_with_decisions` — and it does more than the module pass 277 added: it splits a
 vocabulary too large for one request, and its `suggest` keeps a probability per token.
 
-Worse than the duplication: **both read `GRIMOIRE_LABEL_PATH` and disagreed about it.** `decide_labels`
+Worse than the duplication: **both read `BLUEPRINT_LABEL_PATH` and disagreed about it.** `decide_labels`
 says unset is `chat`; pass 277's `Path` said unset is `decide`. Two answers to one setting is a defect
 whichever answer is right, and the one that was wired was the one pass 277 did not know about.
 
@@ -29,7 +29,7 @@ whichever answer is right, and the one that was wired was the one pass 277 did n
 - `Vocabularies::axis`, which only the duplicate used.
 
 ## The consequence of shipping it
-`axis` went out in `bevy_grimoire_core` **0.7.1** an hour before this pass. A public method nobody calls,
+`axis` went out in `blueprint_model` **0.7.1** an hour before this pass. A public method nobody calls,
 kept only because it once shipped, is a promise to maintain a mistake, so it was removed: semver-checks
 reports `inherent_method_missing`, pre-1.0 that is a MINOR bump, and **0.8.0** was published with the
 reason on the release commit.
@@ -50,16 +50,16 @@ Reviewer not spawned; self-review, mine:
   and pre-1.0 the removal has a defined bump.
 - **What does #113 still need?** Nothing this pass; its remaining item was removing `vlm.rs`, which this
   pass did **not** do — and should not, since `vlm.rs` is the path `decide_labels` still selects when
-  `GRIMOIRE_LABEL_PATH` is `chat`, the default.
+  `BLUEPRINT_LABEL_PATH` is `chat`, the default.
 
 ## Test diffs
 Four test files deleted with the module they tested; no existing assertion changed.
 
 ## Release
-- **bevy_grimoire_core v0.8.0** — https://crates.io/crates/bevy_grimoire_core/0.8.0 (removes
+- **blueprint_model v0.8.0** — https://crates.io/crates/blueprint_model/0.8.0 (removes
   `Vocabularies::axis`; semver-checks: `inherent_method_missing`, MINOR pre-1.0)
-- **bevy_grimoire v0.4.4** — https://crates.io/crates/bevy_grimoire/0.4.4 (API unchanged; requires core 0.8.0)
-- **bevy_grimoire_anim v0.1.9** — https://crates.io/crates/bevy_grimoire_anim/0.1.9 (same)
+- **bevy_blueprint v0.4.4** — https://crates.io/crates/bevy_blueprint/0.4.4 (API unchanged; requires core 0.8.0)
+- **bevy_blueprint_anim v0.1.9** — https://crates.io/crates/bevy_blueprint_anim/0.1.9 (same)
 
 ## Next focus
 `vlm.rs` stays: it is the selected path by default. What #113 still wants is a measurement of the two

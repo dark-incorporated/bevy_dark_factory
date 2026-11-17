@@ -6,7 +6,7 @@ Focus: epic #330 (owner's steer) · Commits: bevy_gooey 895dec9 (merged 48d9d1b)
 G-58 (bevy-coven/bevy_gooey#65): a scroll the crate makes now glides on a spring, a held key crosses a 10,000-row table as one motion with the cursor in view, and a clipped list fades each edge only where content is hidden. UI-R03 #333 now waits on G-66 (#73) alone; UI-R05 #335 now waits on nothing but the pin move.
 
 ## Baseline
-bevy_grimoire was not touched, so its gate and `accept.py` did not run. Disk on big hit 100% for about 20 minutes mid-pass (the runners' caches, not this work) and recovered; the first test link took 18 minutes.
+bevy_blueprint was not touched, so its gate and `accept.py` did not run. Disk on big hit 100% for about 20 minutes mid-pass (the runners' caches, not this work) and recovered; the first test link took 18 minutes.
 
 ## Enhancement: G-58
 - **Change:** `src/scroll_glide.rs`: `ScrollGlide` (required by `ListView`) and `update_scroll_glides`; `scroll_to_focus` and `update_tables` request a goal instead of writing `ScrollPosition`; `ScrollEdgeFade` (required by `ListView`) with two `Pickable::IGNORE` overlays beside the viewport.
@@ -27,7 +27,7 @@ None. The reference is Rune: `scroll_to`'s glide and `runtime/scroll/edge.rs` (`
 Not measured. The fade looks its colour up every frame while an edge shows; a reviewer flagged it (P3) and it is not cached.
 
 ## Acceptance
-`accept.py` not run: no bevy_grimoire code changed.
+`accept.py` not run: no bevy_blueprint code changed.
 
 ## Review
 An independent `reviewer` ran: 2 P1, 3 P3.

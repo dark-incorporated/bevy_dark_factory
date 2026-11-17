@@ -29,10 +29,10 @@ measurement to make first is `PointerState::pressing` after the press, not the f
 
 **3. The editor is healthy, despite what a recording looks like.** Three hero recordings showed a red
 toast — *"the operation could not be logged, so nothing was changed: no project is open"* — over every
-frame. It is **not** the recording failing: `grimoire/oplog_read` holds `placement_remove` entries
+frame. It is **not** the recording failing: `blueprint/oplog_read` holds `placement_remove` entries
 stamped inside each run (07:21:07, 07:22:28, 07:24:39), so the agent's operations applied and logged.
 The banner is a stale toast. Two hypotheses of mine were **wrong** and are recorded so nobody repeats
-them: `grimoire/operation_apply` defaults `dry_run: true` **by design** (the raw BRP door previews;
+them: `blueprint/operation_apply` defaults `dry_run: true` **by design** (the raw BRP door previews;
 the MCP tool applies), and `tool_arm` refuses over BRP on `Ctx::view` before it ever reaches a log.
 
 **4. Consequence for the demos.** `tools/demo/check.py` fails hero on its `place` moment, 2.91-3.28% of

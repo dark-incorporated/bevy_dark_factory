@@ -13,7 +13,7 @@ map: courtyard
 prompt: |
   The gate is lit for the day, and night is coming. Set the gate's light up for the night, in the game's data for it (the registered file `lighting/gate`).
 
-  When it is set, hand the result back with grimoire_present, and say what each setting is now.
+  When it is set, hand the result back with blueprint_present, and say what each setting is now.
 setup: []
 solution:
   - {op: data_set, params: {file: lighting/gate, path: gate_light.count, value: 2}}
@@ -24,7 +24,7 @@ solution:
   - {op: data_set, params: {file: lighting/gate, path: gate_light.flicker_hz, value: 4.0}}
   - {op: data_set, params: {file: lighting/gate, path: gate_light.height_m, value: 2.0}}
   - {op: data_set, params: {file: lighting/gate, path: gate_light.ambient_lux, value: 3.0}}
-  - op: grimoire_present
+  - op: blueprint_present
     params:
       title: The gate is lit for the night
       summary: Two lanterns light the gate at 2200 K and 600 lm, reaching 4 m, flickering at 4 Hz and hung at 2 m, with the night's ambient light at 3 lux and the tint left white.

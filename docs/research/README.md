@@ -4,7 +4,7 @@ Measurements the project made of itself, each committed with its method before i
 
 ## Does the style help an agent? (SG-10, #409)
 
-The question: on the sample game (`games/sample`), does an agent that can call `grimoire_style` satisfy more of the game's written style lines than the same agent without it? Three tasks, two arms (with and without the tool), the same model (`anthropic/claude-sonnet-5-5`), graded from the files the agent leaves by `cauldron-bench` with no model in the loop.
+The question: on the sample game (`games/sample`), does an agent that can call `blueprint_style` satisfy more of the game's written style lines than the same agent without it? Three tasks, two arms (with and without the tool), the same model (`anthropic/claude-sonnet-5-5`), graded from the files the agent leaves by `dark_factory-bench` with no model in the loop.
 
 | Document | What it is |
 |---|---|

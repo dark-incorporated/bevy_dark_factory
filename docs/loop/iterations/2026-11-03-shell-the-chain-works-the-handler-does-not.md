@@ -8,7 +8,7 @@ them apart. The picker's own counts settle it: **every step of the input chain w
 runs, and its effect never reaches the split — which is inside `bevy_gooey`, filed there as #38.
 
 ## The measurement (35a5921)
-`grimoire/pointer` now reports `pressing` and `dragging` (`PointerButtonState`'s own counts). Live:
+`blueprint/pointer` now reports `pressing` and `dragging` (`PointerButtonState`'s own counts). Live:
 
 ```
 start:        pressing 0  dragging 0
@@ -34,7 +34,7 @@ picking, and a drag begins. Five passes were chasing a chain that works.
 | `SplitFraction` | **0.22, unchanged** |
 
 ## Filed upstream
-`bevy-coven/bevy_gooey#38` (G-34, `consumer`, `consumer:bevy_grimoire`, `grimoire-ui`) — a split divider
+`bevy-coven/bevy_gooey#38` (G-34, `consumer`, `consumer:bevy_blueprint`, `blueprint-ui`) — a split divider
 that does not move under a drag picking reports as in progress, with all of the above as the evidence and
 an acceptance test that reproduces it headlessly. The ask includes the most useful thing gooey could give
 back: making `divider_on_drag`'s early returns observable, since right now a refusal is silent.
@@ -46,14 +46,14 @@ Reviewer not spawned; self-review, mine:
   crate now does not touch that path.
 - **Is the changelog honest?** It says the chain works and the fault is in gooey's handler.
 - **Did I weaken a check?** No: one test extended.
-- **Anything left uncommitted or unreleased?** No: `bevy_cauldron` is `publish = false`.
+- **Anything left uncommitted or unreleased?** No: `bevy_dark_factory` is `publish = false`.
 
 ## Test diffs
 `the_pointer_payload_says_where_the_cursor_got_to.rs` gained one test (missing picker state is `null`,
 a press with no drag is its own shape). No existing assertion changed.
 
 ## Release
-None: `bevy_cauldron` is `publish = false`.
+None: `bevy_dark_factory` is `publish = false`.
 
 ## Next focus
 Await gooey#38; meanwhile UI-30's other work, or the next ready `ui` issue.

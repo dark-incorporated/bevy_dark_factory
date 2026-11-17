@@ -29,7 +29,7 @@
     },
     {
       "at": 2.2,
-      "mcp": "grimoire_apply_operation",
+      "mcp": "blueprint_apply_operation",
       "args": {
         "operation": "placement_add",
         "parameters": {
@@ -44,7 +44,7 @@
     },
     {
       "at": 5.4,
-      "mcp": "grimoire_run_command",
+      "mcp": "blueprint_run_command",
       "args": {
         "id": "workspace.files"
       },

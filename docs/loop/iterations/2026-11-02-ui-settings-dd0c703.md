@@ -26,7 +26,7 @@ None to an existing test. New files: `a_widget_is_clicked_by_its_label`, `the_se
 All eight standing demos and `editor.png` re-recorded at c1e8005 on fresh copies of `assets/`; `check.py` passes on all eight; `stale.py` reads fresh. They show the workbench as before: the three new screens are dialogs and appear in none of them.
 
 ## Release
-None: only `bevy_cauldron` (publish = false) changed.
+None: only `bevy_dark_factory` (publish = false) changed.
 
 ## Next focus
 #210 needs an owner decision on the protected `chrome::NAME` spellings; until then the shell (#224) and everything behind it waits. Ready without it: #252's remainder, #265.

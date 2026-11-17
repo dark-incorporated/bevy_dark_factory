@@ -33,7 +33,7 @@ OPENROUTER_API_KEY=... cargo run -q -p bevy_oracle --bin decide_check -- ...
 {
   "model": "perplexity/pplx-decider-v1.3:free",
   "state": [
-    "A screenshot of the bevy_grimoire map editor.",
+    "A screenshot of the bevy_blueprint map editor.",
     {"type": "image_url", "image_url": {"url": "data:image/png;base64,<...>"}}
   ],
   "questions": { "has_ui": {"type": "noul", "instructions": "..."}, "dominant": {"type": "choice", "instructions": "...", "criteria": {"...": "..."}}, "clarity": {"type": "score", "instructions": "...", "criteria": ["..."]} },

@@ -14,7 +14,7 @@ prompt: |
   The meadow is flat. Raise a hill about 2 m high in its north-east corner, around x = 8, z = -8 (the map is
   20 m by 20 m, centred on the origin, with north at -z). Do not change the rest of the ground.
 
-  When the hill is raised, hand the result back with grimoire_present.
+  When the hill is raised, hand the result back with blueprint_present.
 setup: []
 solution:
   - op: terrain_stroke
@@ -25,7 +25,7 @@ solution:
         radius_m: 4.0
         strength: 2.0
         points: [[8.0, -8.0]]
-  - op: grimoire_present
+  - op: blueprint_present
     params:
       title: A hill in the north-east corner
       summary: A hill 2 m high stands at (8, -8), falling away over 4 m. The rest of the meadow is flat.

@@ -1,7 +1,7 @@
 #!/bin/bash
 # The study's trust seeding (registered-equivalent, macOS): a trial has no person to allow the sample game's style, so the trial project is named in the trial HOME's own trust store
 # before the editor starts. (The registration's XDG_DATA_HOME store is honoured by the data directory on Linux only; on macOS the store is under HOME.) $1 is the project.
-STORE="$HOME/Library/Application Support/Grimoire"
+STORE="$HOME/Library/Application Support/Blueprint"
 mkdir -p "$STORE"
 printf "version: 3\nprojects:\n- %s\ncommands: []\ntexts: []\n" "$(cd "$1" && pwd -P)" > "$STORE/trusted.yaml"
-exec /Users/rebekahbrittain/.cargo-target-fleet/studyrun2/debug/bevy_cauldron "$@"
+exec /Users/rebekahbrittain/.cargo-target-fleet/studyrun2/debug/bevy_dark_factory "$@"

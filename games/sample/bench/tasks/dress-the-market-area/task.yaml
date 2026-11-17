@@ -1,6 +1,6 @@
 # **Dress the market area** (SG-10, #409): task 1 of 3 in the style measurement.
 #
-# The prompt says where and what to place, and **nothing of how it should look**: the style comes only from `grimoire_style`, which
+# The prompt says where and what to place, and **nothing of how it should look**: the style comes only from `blueprint_style`, which
 # the `without-style` arm is not offered. Each check named `# line <id>` is one Do or Don't line of the sample game's style
 # (`games/sample/design/style.md` is the game's, `.../levels/courtyard/style.md` the level's); a check named `# guard` is not a line, and only
 # stops a run that placed nothing from scoring. The order of `checks` is part of the pre-registration
@@ -15,7 +15,7 @@ prompt: |
 
   Place three market stalls (`market_stall`), and then whatever else from the library a market needs. Keep everything inside the rectangle and clear of one another.
 
-  When it is dressed, hand the result back with grimoire_present, and name every piece you placed.
+  When it is dressed, hand the result back with blueprint_present, and name every piece you placed.
 setup: []
 solution:
   - {op: placement_add, params: {piece: market_stall, at: [-9.0, 9.0], yaw: 180.0}}
@@ -29,7 +29,7 @@ solution:
   - {op: placement_add, params: {piece: awning_canvas, at: [-3.0, 6.8]}}
   - {op: placement_add, params: {piece: crate_wood, at: [-8.0, 4.0]}}
   - {op: placement_add, params: {piece: barrel_oak, at: [-5.0, 4.0]}}
-  - op: grimoire_present
+  - op: blueprint_present
     params:
       title: The market is dressed
       summary: Three market stalls stand in a row along the south edge, each with an oil lantern and a canvas awning in front of it, and a crate and a barrel stand to the north.

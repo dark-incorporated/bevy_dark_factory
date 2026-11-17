@@ -3,10 +3,10 @@
 Focus: epic #330 (owner's steer) · Commits: bevy_gooey 7465bc2 · Machine: big · Outcome: shipped (in bevy_gooey)
 
 ## Summary
-No bevy_grimoire item in the epic is ready: UI-R01 #331 still needs G-44, G-45 and G-46. This pass claimed and built G-45 (bevy-coven/bevy_gooey#52) in `~/family_src/bevy_emerge_loop/bevy_gooey`. A node with `MovesSmoothly` that layout moves now travels to its new place instead of jumping.
+No bevy_blueprint item in the epic is ready: UI-R01 #331 still needs G-44, G-45 and G-46. This pass claimed and built G-45 (bevy-coven/bevy_gooey#52) in `~/family_src/bevy_emerge_loop/bevy_gooey`. A node with `MovesSmoothly` that layout moves now travels to its new place instead of jumping.
 
 ## Baseline
-The bevy_grimoire gate and `accept.py` were not run: no bevy_grimoire code changed.
+The bevy_blueprint gate and `accept.py` were not run: no bevy_blueprint code changed.
 
 ## Enhancement: G-45 (bevy-coven/bevy_gooey#52)
 - **Change:** `src/layout_motion.rs` adds `MovesSmoothly`, `LayoutTravel`, `mark_moving_parts` and `update_layout_motion`.
@@ -43,7 +43,7 @@ None (the reference is Rune: `crates/rune/README.md`, "Animation").
 Not measured. One corner read per marked node per frame, and a subtree walk only while a node moves.
 
 ## Acceptance
-`accept.py` was not run: no bevy_grimoire code changed.
+`accept.py` was not run: no bevy_blueprint code changed.
 
 ## Review
 The reviewer subagent ran and confirmed the core assumption: Bevy re-places every global each frame, so the patch does not pile up. All four P2 findings are fixed and tested:
@@ -61,7 +61,7 @@ The three P3 findings are fixed too:
 bevy_gooey: the new `tests/layout_motion.rs` and its `mod layout_motion;` line. No existing test changed.
 
 ## Release
-None here: nothing in bevy_grimoire's packages changed. G-45 is in bevy_gooey's Unreleased section.
+None here: nothing in bevy_blueprint's packages changed. G-45 is in bevy_gooey's Unreleased section.
 
 ## Next focus
 G-44 (colour motion) and G-46 (size motion), the rest of UI-R01 #331's needs.
