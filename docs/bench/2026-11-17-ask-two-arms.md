@@ -1,6 +1,7 @@
 # Do agents ask, and does asking help? Two arms, measured (#457, DM-06)
 
-**Status: the switch is built and tested; the two runs have not finished, so this file holds no measurement yet.**
+**Status: the switch is built and tested, and both arms are running on big (started 13:24 UTC 2026-11-17); the runs
+have not finished, so this file holds no measurement yet.**
 Everything below that is a number was measured; everything that would be a result says where it will come from and
 is not filled in. A reader should treat this file as **incomplete** until its "The four numbers" section holds
 values read from `trial.json`.
@@ -43,6 +44,21 @@ Run and green on the Mac, at `b3f215cf`:
 | `crates/bevy_cauldron_bench/tests/an_arm_omits_a_section_of_the_guide.rs` | the suite's two arms differ by one field; the section they name is one the guide has; an arm naming a heading the guide has not is refused before any trial | 3 passed |
 | `cargo nextest run -p bevy_cauldron_mcp` | nothing else in the server moved | 109 passed |
 | `cargo nextest run -p bevy_cauldron_bench` | nothing else in the runner moved | 170 passed, 9 skipped |
+
+## Which binaries the run measures, and why that is the right pair
+
+**The editor is the push gate's binary at `6cba1be5`; the MCP server and `cauldron-bench` are this branch's own
+build** (2026-11-17 07:11 and 07:13, `CARGO_TARGET_DIR=~/.cargo-target-gate`). That is not a compromise:
+
+- `git diff --name-only 6cba1be5 HEAD -- crates/bevy_cauldron/` is **empty on this branch**, so the gate's editor at
+  `6cba1be5` is the editor at this commit, byte for byte. A cold build of it would have changed nothing the run reads.
+- The server **is** this branch's, which is the point: it is the binary that carries `--omit-guide-sections`.
+- `cauldron-bench` is this branch's, so the runner that passes the arm through `agent_setup` and refuses an unknown
+  heading is the one measured.
+
+Big was at ~274 MB free with the CI runners building when this decision was taken; four of six cold Bevy builds there
+died. A measurement whose editor is provably the same file does not need a fifth attempt, and saying which binary ran
+is worth more than a rebuild that cannot change the result.
 
 ## A void cell, recorded because it nearly became a result
 
