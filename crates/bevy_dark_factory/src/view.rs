@@ -241,6 +241,9 @@ impl Plugin for ViewPlugin {
             // **One answer per frame for "is a panel under the pointer"** — `OverUi`'s own doc says why a
             // resource rather than nine query edits.
             .init_resource::<OverUi>()
+            // **The box the drawn ground reaches**, published by `terrain_view`: the depth range holds it
+            // as well as the map's own bounds (`feedback-1794921159460`).
+            .init_resource::<DrawnExtent>()
             .add_systems(OnEnter(crate::screen::Screen::Editor), setup)
             // **Before anything acts on it, which means before `Update` starts.** It ran in
             // `Phase::Sense`, and that ordered it only before the systems in a `Phase` set: the Note
@@ -275,6 +278,7 @@ fn setup(
     rig: Res<Rig>,
     surface: Res<crate::surface::Surface>,
     open: Option<Res<crate::project::OpenMap>>,
+    drawn: Option<Res<DrawnExtent>>,
 ) {
     let tf = Transform::from_translation(rig.focus + ISO_OFFSET).looking_at(rig.focus, Vec3::Y);
     commands.spawn((
@@ -294,7 +298,7 @@ fn setup(
             handle: surface.image.clone(),
             scale_factor: 1.0,
         }),
-        map_projection(rig.height, &tf, open.as_deref()),
+        map_projection(rig.height, &tf, open.as_deref(), drawn.as_deref().copied()),
         tf,
         // `AmbientLight` is a COMPONENT in Bevy 0.19 and applies per-camera; the resource form is
         // global. On the camera is both correct and the only form that compiles.
@@ -342,6 +346,25 @@ pub(crate) fn max_zoom(open: Option<&crate::project::OpenMap>, aspect: f32) -> f
 /// the same spare [`max_zoom`] gives the width.
 const DEPTH_SLACK: f32 = 0.25;
 
+/// **The world box everything the open map draws reaches**, centre then size, in the shape
+/// [`crate::editor::map_bounds`] answers for the map's own bounds.
+///
+/// The map's `bounds` are what the author declares, and the drawing is not held to them: the terrain
+/// heightfield is authored on its own grid, and on `liches_lair` it covers `0..80 m` while the map's
+/// bounds are `80 x 40 x 80` centred on the origin — three quarters of the ground outside the box.
+/// [`crate::terrain_view`] publishes this whenever it draws, and the depth range is measured over it
+/// as well as the bounds, so the camera cannot cut what it has to draw
+/// (`feedback-1794921159460`).
+#[derive(Resource, Clone, Copy, Debug, Default, PartialEq)]
+pub struct DrawnExtent(pub Option<(Vec3, Vec3)>);
+
+impl DrawnExtent {
+    /// The box, centre then size, or `None` while the map draws no ground.
+    pub fn bounds(self) -> Option<(Vec3, Vec3)> {
+        self.0
+    }
+}
+
 /// **The depth range the Map's camera draws**, `(near, far)` along its view axis, in metres from the
 /// camera.
 ///
@@ -350,28 +373,46 @@ const DEPTH_SLACK: f32 = 0.25;
 /// for a town: on a 300 x 1120 m map, zooming out (which [`max_zoom`] allows) showed the whole width
 /// while everything nearer the camera than its focus distance was cut away at a straight edge, pieces
 /// and all (B-010). An orthographic image does not depend on distance, so the fix is the range, not
-/// the camera's position: every corner of the map's bounds, plus [`DEPTH_SLACK`], is inside it, and
+/// the camera's position: every corner of what the map draws, plus [`DEPTH_SLACK`], is inside it, and
 /// it is never narrower than the default.
+///
+/// **`near` is the minimum depth and `far` the maximum over those corners, so no camera position can
+/// cut them**: panning moves the camera, and the range moves with it.
 pub fn depth_range(camera: &Transform, open: Option<&crate::project::OpenMap>) -> (f32, f32) {
+    depth_range_over(camera, open, None)
+}
+
+/// [`depth_range`], with the box the drawn ground reaches — the map's bounds are only one of the two
+/// boxes measured.
+pub fn depth_range_over(
+    camera: &Transform,
+    open: Option<&crate::project::OpenMap>,
+    drawn: Option<DrawnExtent>,
+) -> (f32, f32) {
     let default = OrthographicProjection::default_3d();
     let Some(open) = open else {
         return (default.near, default.far);
     };
-    let (centre, size) = crate::editor::map_bounds(open);
-    let half = size * 0.5;
+    let mut boxes = vec![crate::editor::map_bounds(open)];
+    boxes.extend(drawn.and_then(DrawnExtent::bounds));
     let forward = *camera.forward();
     let (mut nearest, mut farthest) = (f32::INFINITY, f32::NEG_INFINITY);
-    for sx in [-1.0, 1.0] {
-        for sy in [-1.0, 1.0] {
-            for sz in [-1.0, 1.0] {
-                let corner = centre + half * Vec3::new(sx, sy, sz);
-                let depth = (corner - camera.translation).dot(forward);
-                nearest = nearest.min(depth);
-                farthest = farthest.max(depth);
+    let mut slack = 0.0f32;
+    for (centre, size) in boxes {
+        let half = size * 0.5;
+        for sx in [-1.0, 1.0] {
+            for sy in [-1.0, 1.0] {
+                for sz in [-1.0, 1.0] {
+                    let corner = centre + half * Vec3::new(sx, sy, sz);
+                    let depth = (corner - camera.translation).dot(forward);
+                    nearest = nearest.min(depth);
+                    farthest = farthest.max(depth);
+                }
             }
         }
+        // The slack is the widest box's, so a piece standing past the ceiling has room either way.
+        slack = slack.max(size.length() * DEPTH_SLACK);
     }
-    let slack = size.length() * DEPTH_SLACK;
     (
         default.near.min(nearest - slack),
         default.far.max(farthest + slack),
@@ -459,8 +500,9 @@ fn map_projection(
     height: f32,
     camera: &Transform,
     open: Option<&crate::project::OpenMap>,
+    drawn: Option<DrawnExtent>,
 ) -> Projection {
-    let (near, far) = depth_range(camera, open);
+    let (near, far) = depth_range_over(camera, open, drawn);
     Projection::from(OrthographicProjection {
         scaling_mode: ScalingMode::FixedVertical {
             viewport_height: height,
@@ -496,6 +538,8 @@ pub(crate) fn drive(
     viewport: Option<Single<&Camera, With<MainCamera>>>,
     // The Maps door has one; the other doors have none and keep the plain ceiling.
     open: Option<Res<crate::project::OpenMap>>,
+    // The box the drawn ground reaches, published by `terrain_view`; the depth range must hold it too.
+    drawn: Option<Res<DrawnExtent>>,
     // The project's root, so a press has a log to be written to.
     project: Option<Res<crate::project::Project>>,
 ) {
@@ -568,7 +612,7 @@ pub(crate) fn drive(
 
     let (mut tf, mut proj) = camera.into_inner();
     *tf = Transform::from_translation(rig.focus + iso).looking_at(rig.focus, Vec3::Y);
-    *proj = map_projection(rig.height, &tf, open.as_deref());
+    *proj = map_projection(rig.height, &tf, open.as_deref(), drawn.as_deref().copied());
 }
 
 /// **Dispatch a camera operation for a key** (E-002, #129 slice 31), and answer the camera as the operation left it, or `None`

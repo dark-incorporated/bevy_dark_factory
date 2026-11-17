@@ -28,6 +28,11 @@ pub const MIN_DRAWN_DEPTH_M: f32 = 0.02;
 /// Water's tint: translucent, because the ground under it is part of the answer.
 const WATER_TINT: [f32; 4] = [0.16, 0.42, 0.78, 0.62]; // CHROME-OK: world ink — a translucent water surface over the ground, not panel text
 
+/// **How far past the field a carved ground reaches**, metres: one chunk each way, which is the padding
+/// `volume_mesh` meshes over. Stated here rather than read from that module, which is behind `isomesh`
+/// and is not compiled on every build — a number the depth range needs whatever the build.
+const CARVE_PAD_M: f32 = 16.0;
+
 /// Which of the two drawn things an entity is.
 #[derive(Component, Clone, Copy, PartialEq, Eq, Debug)]
 pub enum TerrainView {
@@ -200,6 +205,7 @@ pub fn sync_terrain_view(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut drawn_state: Local<(f32, Option<Built>, Vec<Entity>, Good)>,
+    mut extent: ResMut<crate::view::DrawnExtent>,
 ) {
     let (since, built, drawn, good) = &mut *drawn_state;
     *since += time.delta_secs();
@@ -258,6 +264,13 @@ pub fn sync_terrain_view(
     adopt(&mut good.water, water, &mut changed);
     adopt(&mut good.volume, volume, &mut changed);
     *built = Some(now);
+    // **The box the drawing reaches, published whether or not it was redrawn.** The camera's depth range
+    // is measured over it (`crate::view::depth_range_over`), so the ground's own origin and height must be
+    // known even on the frames this system returns early on.
+    let want = extent_of(&open, good.ground.as_ref(), good.volume.as_ref(), drop);
+    if extent.0 != want {
+        extent.0 = want;
+    }
     if !changed {
         // Last good wins: what is drawn is what these values draw, so leave it.
         return;
@@ -287,6 +300,32 @@ pub fn sync_terrain_view(
             )).id());
         }
     }
+}
+
+/// **The world box the ground and water reach**, centre then size, as a [`crate::view::DrawnExtent`]
+/// carries it: `None` when no ground is drawn.
+///
+/// The heightfield is authored on its own grid, so this is not the map's `bounds`: on `liches_lair` the
+/// field covers `0..80 m` against bounds of `-40..40`, and the drawn ground stands on the field's
+/// extent, dropped by the same amount the entity's `Transform` uses. The height is the field's own
+/// range plus the datum the drop is measured from. **The volume's carve padding is not read here**: a
+/// carve reaches one chunk past the field, which [`DEPTH_SLACK`](crate::view) already covers.
+fn extent_of(open: &OpenMap, ground: Option<&Heightfield>, volume: Option<&Volume>, drop: f32) -> Option<(Vec3, Vec3)> {
+    let ground = ground?;
+    let origin = (open.map.origin.0 + ground.origin.0, open.map.origin.1 - drop, open.map.origin.2 + ground.origin.1);
+    let span_x = (ground.width.saturating_sub(1)) as f32 * ground.cell_m;
+    let span_z = (ground.depth.saturating_sub(1)) as f32 * ground.cell_m;
+    let (mut lo, mut hi) = ground.range();
+    // **The carved ground can add above the field and carve below it**, and `volume_mesh` pads one chunk
+    // each way, so the carved box is a little taller than the field's own range while it is drawn.
+    if volume.is_some_and(|v| !v.is_empty()) {
+        lo -= CARVE_PAD_M;
+        hi += CARVE_PAD_M;
+    }
+    Some((
+        Vec3::new(origin.0 + span_x * 0.5, origin.1 + (lo + hi) * 0.5, origin.2 + span_z * 0.5),
+        Vec3::new(span_x, hi - lo, span_z),
+    ))
 }
 
 /// **Which of the map's own surfaces a drawn entity is**, by the name [`crate::outliner::HIDABLE`] gives
