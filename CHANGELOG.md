@@ -2,6 +2,10 @@
 
 What each change added, newest first. A visible change has a clip: click the still to play it. `python3 tools/changelog/changelog.py page --open` plays them all in one page.
 
+## 2026-11-17
+
+- **split-divider-seam** `752fefdd74` The split divider is a 12 px seam instead of a 24 px bar *For you: The divider between the panel and the map is half as thick, so it reads as a seam.* *No clip: visible, not yet recorded: fleet worker; proved by the_split_divider_is_a_seam_not_a_bar (3 tests)*
+
 ## 2026-11-16
 
 - **473-review-fixes** A carves report reads its own map's ground and its own name, and refuses what the edit path refuses: a map name that is a path, and a carve list too large to flood-fill, both refused naming what they are rather than answered with an empty report or a stalled frame *No clip: a verb's refusals and the ground it reads; proved by crates/bevy_grimoire_core/tests/a_report_is_bounded_by_a_named_limit.rs and an_agent_can_ask_a_carve_list_what_it_made*
