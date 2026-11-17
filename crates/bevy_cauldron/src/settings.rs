@@ -331,6 +331,17 @@ pub struct EditorSettings {
     /// The shell line `TerminalAgent::Custom` types. Deliberately not in the settings catalogue: the
     /// Settings screen has no text control (#324), so this key is set in the file only.
     pub terminal_agent_command: Option<String>,
+    /// **The model the agent tab names on its launch line** (#477, `feedback-1794783326602`): an omp model id
+    /// (`anthropic/claude-sonnet-5-5`, or a fuzzy word like `sonnet`), passed as `--model`.
+    ///
+    /// **`None` passes no `--model`**, so omp picks — which is a different model on every machine, and the thing
+    /// the owner reported. A settings file names one once and every editor on the LAN starts the same agent. Only
+    /// an omp tab is handed it: a custom command keeps its own flags.
+    ///
+    /// A free-text key, not in the settings catalogue: the Settings screen has no text control, so it is set in
+    /// the file, as `terminal_agent_command` is. [`crate::terminal_agent::DEFAULT_MODEL`] is the id written beside
+    /// the row's description, so a person knows what to type.
+    pub terminal_agent_model: Option<String>,
     /// **Did the person leave the terminal collapsed or raised?** (#424) `None` until they raise or lower it: the pane then starts
     /// collapsed, on every screen. The editor writes `true` or `false` to the user's file when the pane is raised or lowered, so a
     /// relaunch opens it as it was left, the way the window's arrangement is kept. Not in the settings catalogue: it is a thing a
@@ -381,6 +392,7 @@ impl Default for EditorSettings {
             terminal_scrollback: crate::terminal::SCROLLBACK,
             terminal_agent: TerminalAgent::default(),
             terminal_agent_command: None,
+            terminal_agent_model: None,
             terminal_collapsed: None,
             terminal_shell: None,
             terminal_shell_args: Vec::new(),
@@ -445,6 +457,8 @@ pub struct SettingsLayer {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub terminal_agent_command: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub terminal_agent_model: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub terminal_collapsed: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub terminal_shell: Option<String>,
@@ -487,6 +501,7 @@ impl Default for SettingsLayer {
             terminal_scrollback: None,
             terminal_agent: None,
             terminal_agent_command: None,
+            terminal_agent_model: None,
             terminal_collapsed: None,
             terminal_shell: None,
             terminal_shell_args: None,
@@ -607,6 +622,9 @@ impl EditorSettings {
             out.terminal_agent = layer.terminal_agent.unwrap_or(out.terminal_agent);
             if let Some(command) = &layer.terminal_agent_command {
                 out.terminal_agent_command = Some(command.clone());
+            }
+            if let Some(model) = &layer.terminal_agent_model {
+                out.terminal_agent_model = Some(model.clone());
             }
             if let Some(collapsed) = layer.terminal_collapsed {
                 out.terminal_collapsed = Some(collapsed);

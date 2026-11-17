@@ -1473,7 +1473,7 @@ fn spawn_the_agent_card(commands: &mut Commands, body: Entity, post: &crate::ter
             Name::new("terminal agent card"),
         ))
         .with_children(|card| {
-            card.spawn(sentence(format!("Agent self test · {}", post.harness.name()), ink.read, TerminalAgentCardRow(None)));
+            card.spawn(sentence(post.heading(), ink.read, TerminalAgentCardRow(None)));
             for (index, (label, check)) in crate::terminal_agent::CHECK_LABELS.iter().zip(&post.checks).enumerate() {
                 card.spawn((
                     bevy_gooey::row_with(chrome::GAP_TIGHT_STEPS, bevy_gooey::RowLayout { align: Some(AlignItems::Center), ..default() }),

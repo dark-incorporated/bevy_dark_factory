@@ -102,6 +102,9 @@ pub struct Terminal {
     /// line: the person's settings, given by `terminal_view::take_the_terminal_settings`.
     agent: TerminalAgent,
     agent_command: Option<String>,
+    /// **The model an omp agent tab names on its launch line** (#477): the person's `terminal_agent_model`, given by
+    /// `terminal_view::take_the_terminal_settings`. `None` passes no `--model`, so omp picks its own.
+    agent_model: Option<String>,
     /// **The shell new tabs run**, the person's `terminal_shell` and its arguments; `None` is `$SHELL`.
     shell: Option<ShellChoice>,
     /// **The settings have been given at least once.** No shell opens before: a first tab that opened
@@ -294,6 +297,19 @@ impl Terminal {
     /// The custom harness's command line, when the settings set one.
     pub fn agent_command(&self) -> Option<&str> {
         self.agent_command.as_deref()
+    }
+
+    /// **The model an omp agent tab names** (`terminal_agent_model`), when the settings name one.
+    ///
+    /// Its own setter rather than a third argument to [`Self::set_agent`]: the two are separate keys and a person can change
+    /// either without touching the other, and every existing caller of `set_agent` keeps its meaning.
+    pub fn set_agent_model(&mut self, model: Option<String>) {
+        self.agent_model = model;
+    }
+
+    /// The model the settings name, when they name one.
+    pub fn agent_model(&self) -> Option<&str> {
+        self.agent_model.as_deref()
     }
 
     /// Have the person's settings been given yet? No shell opens before they are.
