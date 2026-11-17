@@ -387,6 +387,73 @@ pub fn build_headless_at(
     kit: Option<&str>,
     mode: crate::tiles::Mode,
 ) -> Result<App, String> {
+    build_stepped_at(root, map, kit, mode, Device::None)
+}
+
+/// **What renderer a stepped editor runs with.**
+///
+/// **One editor, two devices.** [`Device::None`] registers every render type and creates no adapter, which is
+/// what every other test in this crate wants: `Assets<Mesh>`, material plugins and the UI all build, nothing
+/// reads a pixel, and a test process needs no GPU. [`Device::Real`] asks wgpu for an adapter and a device, so
+/// the surfaces are actually rasterised — which is the only way a test can assert *a colour at a pixel*, and
+/// therefore the only way #472's cut can be proved rather than described.
+///
+/// **A real device is opt-in per test and skipped when there is none**, because a machine without one must not
+/// fail a suite it cannot answer for: see [`real_device_available`].
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum Device {
+    None,
+    Real,
+}
+
+/// **Whether this machine can rasterise at all**, so a pixel test skips rather than lies.
+///
+/// It asks wgpu for an adapter the same way the app will, so a host with no driver, no `/dev/dri` and no
+/// llvmpipe is told so before a test builds a whole editor around a frame it can never render.
+pub fn real_device_available() -> bool {
+    // **The question is asked of the app itself**, by building one on the real device and reading back whether
+    // the renderer produced a `RenderDevice`. That is the same code path a pixel test then uses, so a host that
+    // answers "yes" here is one where the picture really is rendered — and a host with no driver answers "no"
+    // rather than panicking inside `RenderPlugin`.
+    let root = std::env::temp_dir().join(format!("grimoire_device_probe_{}", std::process::id()));
+    if std::fs::create_dir_all(root.join("assets/grimoire")).is_err() {
+        return false;
+    }
+    let mut app = App::new();
+    app.add_plugins(
+        DefaultPlugins
+            .set(WindowPlugin {
+                primary_window: None,
+                exit_condition: bevy::window::ExitCondition::DontExit,
+                close_when_requested: false,
+                ..default()
+            })
+            .set(bevy::render::RenderPlugin {
+                render_creation: bevy::render::settings::RenderCreation::Automatic(Box::new(
+                    bevy::render::settings::WgpuSettings {
+                        backends: Some(bevy::render::settings::Backends::all()),
+                        ..default()
+                    },
+                )),
+                ..default()
+            })
+            .disable::<bevy::winit::WinitPlugin>()
+            .disable::<bevy::log::LogPlugin>()
+            .disable::<bevy::audio::AudioPlugin>(),
+    );
+    let ready = app.world().get_resource::<bevy::render::renderer::RenderDevice>().is_some();
+    let _ = std::fs::remove_dir_all(&root);
+    ready
+}
+
+/// **The stepped editor, on a chosen device.** [`build_headless_at`] is this with [`Device::None`].
+pub fn build_stepped_at(
+    root: &Path,
+    map: &str,
+    kit: Option<&str>,
+    mode: crate::tiles::Mode,
+    device: Device,
+) -> Result<App, String> {
     let workspace = crate::workspace::Workspace::showing(mode);
     let mut project = crate::project::Project::open(root, kit)?;
     // **The map is its own resource**, because four of the five doors do not have one — see
@@ -435,7 +502,12 @@ pub fn build_headless_at(
             .set(bevy::render::RenderPlugin {
                 render_creation: bevy::render::settings::RenderCreation::Automatic(Box::new(
                     bevy::render::settings::WgpuSettings {
-                        backends: None,
+                        // **`None` registers every render type and creates no device**; `all()` asks for a real
+                        // one, which is what a pixel test needs and every other test must not pay for.
+                        backends: match device {
+                            Device::None => None,
+                            Device::Real => Some(bevy::render::settings::Backends::all()),
+                        },
                         ..default()
                     },
                 )),

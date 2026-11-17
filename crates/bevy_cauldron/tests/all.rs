@@ -278,6 +278,7 @@ mod an_agent_can_place_a_piece;
 mod an_agent_can_search_the_operations;
 mod an_agent_can_see_inside_a_carved_map;
 mod an_agent_can_cut_into_a_carved_map;
+mod a_section_cut_shows_the_floor;
 mod an_agent_can_show_its_plan;
 mod an_agent_can_take_its_own_change_back;
 mod an_agent_change_is_on_the_receipt;
