@@ -137,8 +137,8 @@ fn outside_the_pane(app: &mut App, tag: &str) -> Vec<String> {
         // (`widgets.rs:106`: `TextLayout::new(Justify::Left, LineBreak::NoWrap)`), so a cell narrower
         // than its words is drawn out of it and no `TextLayout` written here can override it. The
         // history list is a `TableRows`, so its rows are the one place in this pane the editor does
-        // not own the text of. Named and counted rather than silently skipped: the count is asserted
-        // below, so this exemption cannot quietly grow to cover a second widget.
+        // not own the text of. Filed as **bevy_gooey#109**; named and counted rather than silently
+        // skipped, so this exemption cannot quietly grow to cover a second widget.
         if world.get::<bevy_gooey::Role>(entity) == Some(&bevy_gooey::Role::TableCellText) {
             gooey_cells += 1;
             continue;
