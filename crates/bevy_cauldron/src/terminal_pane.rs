@@ -1485,6 +1485,11 @@ fn spawn_the_agent_card(commands: &mut Commands, body: Entity, post: &crate::ter
                     row.spawn(sentence(format!("{label}: {}", check.detail()), check.ink(&ink), TerminalAgentCardRow(Some(index))));
                 });
             }
+            // **The servers this session has** (#484): a sentence, not a check, so it stands under the five rows and cannot be
+            // read as a sixth thing that passed. Absent on a pre-#484 card, which drew exactly the rows it drew before.
+            if let Some(servers) = post.servers_row() {
+                card.spawn(sentence(servers, ink.muted, TerminalAgentCardRow(None)));
+            }
             card.spawn((bevy_gooey::led(AGENT_LED_LABEL, post.led()), TerminalAgentCardLed, PaneLed(chrome::text::LABEL)));
         })
         .id();

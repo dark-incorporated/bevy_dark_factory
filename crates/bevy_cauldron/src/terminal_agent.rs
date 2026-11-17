@@ -282,6 +282,12 @@ pub struct AgentPost {
     /// **The model this tab was started with** (#477), as `--model` carried it: `None` when the settings named none, and omp
     /// then picks its own. The card's heading says it ([`AgentPost::heading`]), so a person can tell which model is answering.
     pub model: Option<String>,
+    /// **The MCP servers this session is meant to have** (#484): the editor's own plus the project's, as
+    /// [`crate::agent_servers::SessionServers`]. `None` on a tab whose launch never got as far as deciding them.
+    pub servers: Option<crate::agent_servers::SessionServers>,
+    /// **Why the project's `.mcp.json` gave no servers**, when it exists and could not be read: said on the card, so a typo
+    /// is visible and the session's own set is still what starts.
+    pub servers_problem: Option<String>,
     /// `session` changed since the resume record was last settled ([`keep_the_resume_record`]).
     session_changed: bool,
     /// A resumed agent never connected, so the session the record named cannot be resumed: the record is struck out.
@@ -305,6 +311,8 @@ impl AgentPost {
             session: None,
             resuming: None,
             model: None,
+            servers: None,
+            servers_problem: None,
             session_changed: false,
             resume_failed: false,
         }
@@ -473,6 +481,27 @@ impl AgentPost {
             None => format!("Agent self test · {}", self.harness.name()),
         }
     }
+
+    /// **The card's row for the servers a session has** (#484): the names the editor wrote into the session's config, and the
+    /// project's file's problem when it had one. `None` on a tab whose launch never decided them, so a card built before this
+    /// existed draws what it drew before rather than an empty row.
+    ///
+    /// **The set is what the editor wrote, not what omp loaded.** omp at v18.16.0 discovers its machine-level servers too, and
+    /// this row says what the session is *for*; the difference is requested upstream (`can1357/oh-my-pi#19573`) rather than
+    /// guessed at here.
+    pub fn servers_row(&self) -> Option<String> {
+        let servers = self.servers.as_ref()?;
+        let mut said = format!("{}: {}", Self::SERVER_ROW_LABEL, servers.words());
+        if let Some(problem) = &self.servers_problem {
+            said.push_str(" · ");
+            said.push_str(problem);
+        }
+        Some(said)
+    }
+
+    /// **The row the servers are named on**: after the decision model, so the five checks' rows keep their order and this reads
+    /// as what the session is, not as a sixth test that could fail.
+    pub const SERVER_ROW_LABEL: &str = "MCP servers";
 
     /// **The first check that failed, in a sentence** (`Agent connected: omp did not reach the editor…`), or `None` when none has.
     /// A failure's reason belongs on the card and in the LED's tooltip, never in a chip of the bar (#423).
@@ -665,16 +694,28 @@ pub fn plan_with_model(
             format!("the tools server is not at {}: build it with cargo build -p {MCP_BINARY}", setup.server.display()),
         );
     }
+    // **The session's servers are one set** (#484): the editor's, plus whatever the open project declares in its own
+    // `.mcp.json`. The plain harness config (`$CAULDRON_MCP_CONFIG`) stays the editor's server alone, because it is what a
+    // custom command is handed and that command's own config is its business; the omp extension folder's `.mcp.json` is
+    // where the whole session set is written, which is the file omp reads for this launch.
+    let (servers, servers_problem) = crate::agent_servers::project_servers_for(project);
+    post.servers = Some(servers.clone());
+    post.servers_problem = servers_problem;
     let config = mcp_config(&setup.server, port, &token, project, &[]);
+    let session_config = crate::agent_servers::session_config(&config, project);
     let config_text = match serde_json::to_string_pretty(&config) {
         Ok(text) => text + "\n",
         Err(e) => return nothing(post, format!("the MCP config did not serialise: {e}")),
+    };
+    let session_text = match serde_json::to_string_pretty(&session_config) {
+        Ok(text) => text + "\n",
+        Err(e) => return nothing(post, format!("the session's MCP config did not serialise: {e}")),
     };
     let config_file = setup.files.join(MCP_CONFIG_FILE);
     let omp_dir = setup.files.join(OMP_EXTENSION_DIR);
     let mut writes = vec![(config_file.clone(), config_text.clone())];
     if harness == TerminalAgent::OhMyPi {
-        writes.push((omp_dir.join(OMP_MCP_FILE), config_text));
+        writes.push((omp_dir.join(OMP_MCP_FILE), session_text));
         writes.push((omp_dir.join(OMP_EXTENSION_ENTRY), OMP_EXTENSION_SOURCE.to_owned()));
     }
     // **Written on every launch**: a harness reads its config when it starts, so the newest token is
