@@ -51,6 +51,8 @@ These keys work in every workspace.
 | `Cmd+S` | Any time | Save. |
 | `Cmd+\` | Any time | Snip an area. |
 | `Cmd+O` | Any time | Go back to the project page (it asks first when the map has unsaved changes). |
+| `Cmd+=` / `Cmd+-` | Any time | Step the whole interface's size — buttons, spacing and type together — up or down the ladder 100%, 110%, 125%, 150%, 175%, 200%. The Settings screen's **Interface size** row (`Cmd+,`) shows and sets the same value, so a chord and a slider are two hands on one number. `Cmd+=` is also `Cmd++` on a keyboard where `+` needs Shift. |
+| `Shift+Cmd+0` | Any time | Put the interface size back to 100% (`Shift+Ctrl+0` elsewhere). `Cmd+0` is the Design workspace, so the reset takes Shift. |
 | `Cmd+,` | Any time | Open the settings screen, or close it: every setting with its default, a search, and Reset. It is also the launcher's Settings button; its Project configuration button lists the family crates the project uses and the packs the kit leaves out (a switch each), and its Keymap button rebinds a command (a chord another command has is refused). A rebound command answers to its new chord at once; this page lists the chords it ships with. |
 | `Cmd+E` | Any time | Show the **Notifications** panel: every step and refusal of this session, newest first, each with the time it happened. The newest step that can be taken back has an **Undo** button, which works while the agent's writes are paused. `Esc` closes it and `Cmd+C` copies the list. |
 | `Cmd+J` | Any time | Show or hide the terminal (`Ctrl+J` elsewhere). It starts collapsed; the status band's **Terminal Cmd+J** label does the same. |

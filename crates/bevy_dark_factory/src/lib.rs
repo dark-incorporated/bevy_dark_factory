@@ -211,6 +211,7 @@ pub mod project_page;
 pub mod prose;
 pub mod recent;
 pub mod trusted;
+pub mod scale_chords;
 pub mod screen;
 pub mod selection;
 pub mod keymap_screen;

@@ -1588,10 +1588,17 @@ pub const BINDINGS: &[Binding] = &[
     )
     .at(Home::Control(ControlId::WorkspaceStrip)),
     // **`Cmd`/`Ctrl`+`0` is the tenth workspace, Design** (SG-05, #404), appended so no chord changes meaning.
-    b(
+    //
+    // **Shift must be up**, because `Cmd+Shift+0` is the interface size's reset
+    // (`scale_chords::reset_chord`, `feedback-1794783912982`). A row indifferent to Shift would fire
+    // the workspace *and* the reset on one press, which is the collision the scale issue's own note
+    // says to settle rather than shadow; `Shift` is the whole difference between the two chords, so
+    // stating it here is what keeps them two.
+    bs(
         Action::WorkspaceDesign,
         KeyCode::Digit0,
         true,
+        false,
         Context::Global,
         "0",
         "workspace 1 to 0",

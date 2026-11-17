@@ -115,6 +115,14 @@ fn reserved() -> Vec<(Taker, Shortcut)> {
         (taker, chord)
     }));
     out.extend(terminal_chords());
+    // **The interface's three size chords** (`scale_chords`, `feedback-1794783912982`). They are live
+    // on every screen and in no tab, so the screen must not let a command be rebound onto one: the
+    // chord answers first, and a command parked there would never fire.
+    out.extend(
+        crate::scale_chords::reserved_chords()
+            .into_iter()
+            .map(|(id, title, chord)| (Taker { id, title }, chord)),
+    );
     out
 }
 

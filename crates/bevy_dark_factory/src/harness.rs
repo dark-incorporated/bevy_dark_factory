@@ -126,6 +126,10 @@ pub fn add_editor_plugins(app: &mut App) -> &mut App {
                 // not in `EditorPlugin`, because `Cmd+D` has to work on the Projects home too, where
                 // the editor's plugins have not opened a door and none of their systems run.
                 crate::report::ReportPlugin,
+                // **`Cmd+=` / `Cmd+-` step the whole interface's size** (`feedback-1794783912982`).
+                // In the shared list for the report's reason: the chords are about the frame, so they
+                // work on the Projects home as well as in the editor.
+                crate::scale_chords::ScaleChordsPlugin,
                 // **The write-through** (`--live`): every committed change is saved at once, so a game
                 // watching the project reloads it. Inert unless `live::LiveWrite` is inserted.
                 crate::live::LivePlugin,
