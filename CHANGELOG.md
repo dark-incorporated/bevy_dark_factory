@@ -2,6 +2,13 @@
 
 What each change added, newest first. A visible change has a clip: click the still to play it. `python3 tools/changelog/changelog.py page --open` plays them all in one page.
 
+## 2026-11-17
+
+- **fold-chevron** `b3061c73` A fold draws a chevron rather than the letter v, and the icon vocabulary is decided *No clip: visible, not yet recorded: fleet worker*
+- **pane-reflow** `b3061c73` The left pane's controls stay inside the scroll viewport at every divider position *No clip: visible, not yet recorded: fleet worker*
+- **panels-inside** `b3061c73` No panel lays a control outside itself, at any width *No clip: visible, not yet recorded: fleet worker*
+- **place-rule** `b3061c73` The PLACE panel says what arms a row, and its rows read down as columns *No clip: visible, not yet recorded: fleet worker*
+
 ## 2026-11-16
 
 - **473-review-fixes** A carves report reads its own map's ground and its own name, and refuses what the edit path refuses: a map name that is a path, and a carve list too large to flood-fill, both refused naming what they are rather than answered with an empty report or a stalled frame *No clip: a verb's refusals and the ground it reads; proved by crates/bevy_grimoire_core/tests/a_report_is_bounded_by_a_named_limit.rs and an_agent_can_ask_a_carve_list_what_it_made*
