@@ -100,6 +100,17 @@ d3-flash's own launch script refuses to load unless home-still's `olmocr` is res
 and the coding model had just unloaded olmocr to take 20.5 GB. So every decide call in that arm was void, which is
 exactly the condition the issue says makes a run void.
 
+**And the gate is working, which is the one thing this ticket can still show**: the gated runner polled at 01:30:08
+and again at 01:35:10 UTC, got `500` both times, and **started no arm**. Its log line names the holder each time:
+
+```
+== Tue Nov 17 01:30:08 PM UTC 2026 still 500; tenant=none interactive=qwen3.8-27b state=resident idle=0s
+== Tue Nov 17 01:35:10 PM UTC 2026 still 500; tenant=none interactive=qwen3.8-27b state=resident idle=278s
+```
+
+`ask-two-arms-with` holds **0 `trial.json`** — there is nothing to mistake for a result. That is the difference
+between this attempt and the two void ones above.
+
 **What changed in the harness**: the runner is now gated on the endpoint. Before an arm starts, and every 60 s during
 it, one `noul` question is sent to d3-flash; the arms run only while it answers `200`, and an arm that produces void
 cells is re-run (up to three attempts) rather than reported. That gate is the reason no arm has started since 13:30
