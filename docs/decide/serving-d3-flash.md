@@ -113,6 +113,8 @@ Verified through llama-swap after the fix (`POST /upstream/d3-flash/v1/systemone
 
 **A request during a lease or olmocr's cold start still fails fast**, which is the intended `Error::Unreachable` path: measured 18:53 with a `gpu-tenant claim coding` held, the endpoint answered 500 in **0.26 s** rather than hanging, and the first request after the release loaded d3-flash in 14.4 s.
 
+**A second, unrelated failure mode: host RAM, not VRAM.** Twice while this was being measured (18:47:40, 18:55:55) `llama-swap.service` was SIGKILLed, taking d3-flash and olmocr down with it and leaving the endpoint 500ing in 0.25 s. `systemd-oomd` did it: *"Marked …/llama-swap.service for killing due to memory used (30200315904) / total (33545129984) and swap used (30.3/32 GB) being more than 90%"*, and it killed **273 and 303 processes in the unit**. The consumers were `hs-distill-server` (8.4 GB RSS), another agent's `fleet-gate-44.service` (2.1 GB) and a concurrent `bevy_cauldron` rustc build — none of them d3-flash's. big's total VRAM headroom has no bearing on this; a load is not the cause and no launch-script change prevents it. Check `free -g` before concluding the endpoint is broken: `llama-swap.service` answers `active` again within 5 s and the model reloads on the next request.
+
 ## Protocol
 
 **`/v1/systemone` speaks the same protocol v1 as clef-flash**: `state`, `images`, `questions` keyed by id with `instructions` (and `criteria` for `choice`/`score`) in; `{"model","answers":{id:{"type", "noul" | "choice"+"probabilities"+"confidence" | "score"+"legend"+"probabilities"+"confidence"}},"usage":{"input_tokens","output_tokens":0}}` out. `bevy_oracle::Request`/`Response` need no change. `output_tokens` is 0 on every call.
