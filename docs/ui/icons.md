@@ -8,11 +8,14 @@ mac_air, 2026-11-17 07:20):
 
 ## The two defects behind the note
 
-1. **A fold's caret was the letter `v`.** In `bevy_gooey`'s code editor the open fold drew `"v"` and the closed one `">"`,
-   so a control read as prose in a gutter. The editor drew the same pair in its own two list headers — the PLACE panel's
-   category bands (`editor.rs`) and the MESHES panel's pack bands (`tiles.rs`).
-2. **The shape was not the target.** Both carets are `Pickable::IGNORE`; only the gutter band beside them folds. That
-   half is `bevy_gooey`'s and is filed there, since the editor does not own that widget.
+1. **A fold's caret was the letter `v`.** `bevy_gooey`'s code editor draws `"v"` while open and `">"` while closed
+   (`code_overlay.rs:1099`, read in the pinned checkout), so a control read as prose in a gutter. The editor drew the same pair in its
+   own two fold controls — the PLACE panel's category bands (`editor.rs`) and the MESHES panel's pack bands (`tiles.rs`). Both of
+   the editor's now draw `▼`/`►`.
+2. **The shape was not the target — in the code editor.** There the chevron is `Pickable::IGNORE` and the whole line folds. That
+   widget is `bevy_gooey`'s, not this repository's file, so it is named for the crate's own repository and **not** fixed here. The
+   editor's own two fold controls have their caret inside a band that is already a `Button`, so a press on the glyph bubbles to it,
+   and `tests/a_press_on_a_fold_caret_folds_its_band.rs` presses at the caret's own rect to prove it.
 
 The second is why "add an icon font" is not the whole answer: a vocabulary does not make an affordance clickable. The
 first is the question this page answers.
