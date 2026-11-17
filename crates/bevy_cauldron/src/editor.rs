@@ -7121,7 +7121,15 @@ fn refresh_notes_list(
     for list in &lists {
         commands.entity(list).despawn_related::<Children>();
         commands.entity(list).with_children(|p| {
-            p.spawn(bevy_gooey::row(crate::chrome::GAP_TIGHT_STEPS)).with_children(|h| {
+            // **The row wraps rather than pushing its second button out of the pane** (#482). A
+            // button's label is `LineBreak::NoWrap` on purpose — a command that split across two lines
+            // would be hard to read — so a row of two of them cannot squeeze to a narrow pane, and at
+            // the divider's leftmost position it drew `Send all drafts` 32 px past the pane's edge.
+            p.spawn(bevy_gooey::row_with(
+                crate::chrome::GAP_TIGHT_STEPS,
+                bevy_gooey::RowLayout { wrap: Some(FlexWrap::Wrap), ..default() },
+            ))
+            .with_children(|h| {
                 crate::chrome::button(
                     h,
                     NotesFilterButton,
