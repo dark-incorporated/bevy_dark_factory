@@ -42,9 +42,10 @@ use crate::fixtures;
 /// The capture's window, physical px (`feedback-1794921716691`: 2560 x 1604).
 const WINDOW: (u32, u32) = (2560, 1604);
 
-/// The interface scales a panel is held at: the editor's own at a scale factor of 1, and roughly the capture's 2.4 over a 2.0
-/// display less the editor's 1.2 baseline.
-const INTERFACE_SCALES: [f32; 2] = [1.0, 2.0];
+/// The interface scales the issue names: `interface_scale` 1.0 and **1.6**, which is #494's own acceptance wording ("at the capture's
+/// width at `interface_scale` 1.0 and 1.6"). The capture itself was taken at a display scale of 2.4 over the editor's 1.2 baseline,
+/// so 1.6 sits between the editor's own identity and the frame's; the panel has to fit at both.
+const INTERFACE_SCALES: [f32; 2] = [1.0, 1.6];
 
 /// Frames a layout needs to settle after the width or the scale moves.
 const SETTLE_FRAMES: usize = 12;

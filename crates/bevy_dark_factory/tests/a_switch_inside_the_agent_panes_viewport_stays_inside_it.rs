@@ -145,6 +145,13 @@ fn move_the_divider(app: &mut App, fraction: f32) {
     settle(app);
 }
 
+/// **The Agent panel's viewport**, found without a mutable world: [`World::query_filtered`] needs `&mut World`, and the callers of
+/// [`spills`] hold the layout they are measuring. `AgentPane` *is* the viewport (`chrome::scroll_list` is what spawns it), so a
+/// component census over the entities is the same question and leaves the borrow alone.
+fn agent_viewport(world: &World) -> Option<Entity> {
+    world.iter_entities().map(|entity| entity.id()).find(|entity| world.get::<AgentPane>(*entity).is_some())
+}
+
 /// **Every node the Agent panel's viewport draws words in, and the switch it draws**, ends inside the viewport's content box, as
 /// sentences naming what did not.
 ///
@@ -162,10 +169,9 @@ fn move_the_divider(app: &mut App, fraction: f32) {
 ///   scroll's own gutters as overflow instead of the control the note pointed at.
 fn spills(app: &App, tag: &str) -> Vec<String> {
     let world = app.world();
-    let viewport = world
-        .query_filtered::<Entity, With<AgentPane>>()
-        .single(world)
-        .unwrap_or_else(|e| panic!("the Agent panel has one viewport: {e}"));
+    let Some(viewport) = agent_viewport(world) else {
+        return vec![format!("{tag}: the Agent panel has no viewport")];
+    };
     let Some(box_of) = border_box(world, viewport) else {
         return vec![format!("{tag}: the Agent panel's viewport is not laid out")];
     };
@@ -225,10 +231,7 @@ fn a_switch_inside_the_agent_panes_viewport_stays_inside_it() {
         app.world_mut().resource_mut::<UiScale>().0 = scale;
         move_the_divider(&mut app, LEFTMOST);
         let world = app.world();
-        let viewport = world
-            .query_filtered::<Entity, With<AgentPane>>()
-            .single(world)
-            .unwrap_or_else(|e| panic!("the Agent panel has one viewport: {e}"));
+        let viewport = agent_viewport(world).unwrap_or_else(|| panic!("the Agent panel has one viewport at interface scale {scale}"));
         // **The switch this capture points at is there**, by the role gooey gives a toggle and by the words it carries: a test
         // that measured a panel with no toggle in it would prove nothing about the toggle.
         let toggles: Vec<Entity> = under(world, viewport)
@@ -251,16 +254,13 @@ fn a_switch_inside_the_agent_panes_viewport_stays_inside_it() {
             .unwrap_or_else(|| panic!("a toggle draws a track at interface scale {scale}"));
         let track_box = border_box(world, track).unwrap_or_else(|| panic!("the track is laid out at interface scale {scale}"));
         seen_the_switch_at.push((scale, track_box.max.x));
-        // **The world borrow ends here**, before the spill check reads the layout it left: `spills` asks the same world and an
-        // overlapping `&World` beside a `&App` is two borrows of one value.
-        drop(world);
         refused.extend(spills(&app, &format!("[interface scale {scale}, divider at its leftmost]")));
     }
     // **The control is the one on the right of its row**, so the spill check above is of the thing the capture named: a track at the
     // row's far end is what a `SpaceBetween` layout puts there, and a track at the row's start would mean this measured something
     // else. The toggle's own box is the row.
     let world = app.world();
-    let viewport = world.query_filtered::<Entity, With<AgentPane>>().single(world).unwrap_or_else(|e| panic!("one viewport: {e}"));
+    let viewport = agent_viewport(world).unwrap_or_else(|| panic!("one viewport"));
     let pause = under(world, viewport)
         .into_iter()
         .filter(|e| world.get::<bevy_gooey::Role>(*e) == Some(&bevy_gooey::Role::Toggle))
