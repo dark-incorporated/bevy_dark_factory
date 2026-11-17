@@ -2,6 +2,10 @@
 
 What each change added, newest first. A visible change has a clip: click the still to play it. `python3 tools/changelog/changelog.py page --open` plays them all in one page.
 
+## 2026-11-17
+
+- **play-refusal-readable** `1bff932e` A refusal's strip is as tall as the refusal: the play.yaml message shows its whole YAML body and its trailing sentence instead of being cut at the strip's height (#479) *For you: When a project has no play.yaml the editor now shows the whole message telling you how to write one, instead of cutting off the part that tells you what it is for.* *No clip: visible, not yet recorded: fleet worker*
+
 ## 2026-11-16
 
 - **473-review-fixes** A carves report reads its own map's ground and its own name, and refuses what the edit path refuses: a map name that is a path, and a carve list too large to flood-fill, both refused naming what they are rather than answered with an empty report or a stalled frame *No clip: a verb's refusals and the ground it reads; proved by crates/bevy_grimoire_core/tests/a_report_is_bounded_by_a_named_limit.rs and an_agent_can_ask_a_carve_list_what_it_made*
