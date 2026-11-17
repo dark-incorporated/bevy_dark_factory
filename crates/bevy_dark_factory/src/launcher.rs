@@ -406,14 +406,12 @@ struct CardMenu;
 #[derive(Component)]
 pub struct ProjectCard {
     pub path: PathBuf,
-    key: String,
 }
 
 /// The card of a project whose folder is gone: it does not open, and offers Locate… and Remove.
 #[derive(Component)]
 pub struct MissingCard {
     pub path: PathBuf,
-    key: String,
 }
 
 
@@ -465,10 +463,22 @@ pub(crate) fn hide_the_divider(mut dividers: Query<&mut Node, With<bevy_gooey::S
     }
 }
 
-/// The names a card and the filter share: its folder's name, then the folder.
-fn card_key(path: &Path) -> String {
-    format!("{} {}", name_of(path), path.display())
+/// A card's folder name, the half of its key the filter trusts first.
+fn card_name(path: &Path) -> String {
+    name_of(path)
 }
+
+/// **A query long enough, and shaped like, a path** — the only kind that may match a card's
+/// folder rather than its name (owner, 2026-11-17). A folder path is where a person looks
+/// when the name they typed is not the name on the card, and a bare word of a few letters is
+/// not that: it is a name search, and treating it as a path made `alp` match every project
+/// under a directory called `blueprint`.
+fn looks_like_a_path(query: &str) -> bool {
+    query.len() >= PATH_QUERY_CHARS && (query.contains('/') || query.contains('\\'))
+}
+
+/// The shortest query treated as a path. Below it a query is a name (owner, 2026-11-17).
+const PATH_QUERY_CHARS: usize = 6;
 
 /// `text` cut in the middle with an ellipsis when it is longer than `max` characters.
 pub fn middle_ellipsis(text: &str, max: usize) -> String {
@@ -1019,13 +1029,12 @@ fn project_card(grid: &mut ChildSpawnerCommands, row: &Listed, art: &mut Art) {
     let path = row.project.path.clone();
     let picture = project_picture(&path, art.images, art.splash.clone(), art.pictures);
     let when = format!("Opened {}", ago(row.project.last_opened, art.now));
-    let key = card_key(&path);
     grid.spawn((
         // CHROME-OK: a card is none of chrome's three clickables, it is a gooey button's box holding a picture (bevy_gooey#41)
         // FOCUS-DECISION-REOPENED: a card is a button like gooey's own, reached by Tab and the arrows (`button_box` is a tab stop) on a screen no editor chord routes
         card_button(),
         ContextMenu(art.menu),
-        ProjectCard { path: path.clone(), key },
+        ProjectCard { path: path.clone() },
         // **A card is drawn a little smaller under the press** (UI-R04, #334), as gooey's own card cells are: a card here is a button
         // holding a picture, not gooey's `CardCell`, so it asks for the scale itself.
         bevy_gooey::PressScale(CARD_PRESS_SCALE),
@@ -1043,8 +1052,7 @@ fn project_card(grid: &mut ChildSpawnerCommands, row: &Listed, art: &mut Art) {
 
 fn missing_card(grid: &mut ChildSpawnerCommands, row: &Listed) {
     let path = row.project.path.clone();
-    let key = card_key(&path);
-    grid.spawn((card_layout(), MissingCard { path: path.clone(), key }))
+    grid.spawn((card_layout(), MissingCard { path: path.clone() }))
     .insert(Role::Card)
     .with_children(|card| {
         card.spawn(quiet(name_of(&path)));
@@ -1401,7 +1409,13 @@ fn redraw_the_cards(
     commands.entity(body).with_children(|body| projects_body(body, &launcher, &mut art));
 }
 
-/// Hides the cards the filter does not match, by [`fuzzy_score`] over each one's name and folder.
+/// Hides the cards the filter does not match, by [`fuzzy_score`] over the folder's **name first**
+/// and its path only when the name misses (owner, 2026-11-17).
+///
+/// The order is the whole point. [`fuzzy_score`] is a subsequence match, so a query matches
+/// anything whose text contains its letters in order — and every path on this machine now
+/// contains `blueprint`, which made `alp` match `b·l·ueprint … p` in every card. A name that
+/// matches wins outright; the path is the fallback it was always meant to be.
 /// A card of either kind, with the words the filter reads.
 type Filterable = (&'static mut Node, Option<&'static ProjectCard>, Option<&'static MissingCard>);
 
@@ -1409,8 +1423,16 @@ type Filterable = (&'static mut Node, Option<&'static ProjectCard>, Option<&'sta
 fn apply_filter(launcher: Res<Launcher>, mut cards: Query<Filterable, Or<(With<ProjectCard>, With<MissingCard>)>>) {
     let query = launcher.filter.trim();
     for (mut node, project, missing) in &mut cards {
-        let key = project.map(|c| c.key.as_str()).or(missing.map(|c| c.key.as_str())).unwrap_or_default();
-        let show = query.is_empty() || fuzzy_score(query, key).is_some();
+        let path = project.map(|c| c.path.as_path()).or(missing.map(|c| c.path.as_path()));
+        let show = query.is_empty()
+            || path.is_some_and(|path| {
+                // The name decides when it matches (owner, 2026-11-17). Otherwise the path is
+                // asked only when the query could *be* a path: a short word is a name search,
+                // and letting it fuzzy-match a folder path made `alp` hit `…/b·l·ueprint…`.
+                fuzzy_score(query, &card_name(path)).is_some()
+                    || (looks_like_a_path(query)
+                        && fuzzy_score(query, path.to_str().unwrap_or_default()).is_some())
+            });
         let display = if show { Display::Flex } else { Display::None };
         if node.display != display {
             node.display = display;
