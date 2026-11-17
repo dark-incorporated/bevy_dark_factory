@@ -87,6 +87,17 @@ if [ "${free:-0}" -lt "$NEED_MIB" ]; then
   exit 75
 fi
 
+# One more ask, with no sleep after it. The check above can pass and the embedder still return inside the
+# 4-5 s llama-server takes to page in 6.6 GB — measured 2026-11-16 (18:54:23): the check saw 7 366 free,
+# the load then failed with `unable to allocate CUDA0 buffer` and llama-swap answered 500 after 13.3 s.
+# Asking twice narrows the window to the load itself; it cannot be closed, because distill's indexer is a
+# separate process deciding on its own timer. A load that loses this race fails in seconds and the next
+# request starts it again, which is llama-swap's normal cold-start path.
+if [ -n "$token" ]; then
+  curl -sS -m 20 -o /dev/null -X POST "$DISTILL_RELEASE" \
+    -H "Authorization: Bearer $token" 2>/dev/null || true
+fi
+
 # No RAM-capped scope here (unlike `gpu-tenant run`): inside llama-swap's own cgroup the reaper counts this server
 # as a resident (llama-swap.service) and does not flag it as unclaimed GPU use. Fully offloaded, it holds ~1 GB of host RAM.
 exec "$D/llama-server" -m "$S/vllm-d3-flash-$QUANT.gguf" --mmproj "$S/mmproj-vllm-d3-flash-Q8_0.gguf" \

@@ -107,9 +107,11 @@ Three things that look like fixes and are not:
 - **A smaller ubatch at a larger context.** `-ub 1024` with `-c 4096 -np 2` still refused: the free-check ran while the embedder was reloading. Both the free-check and the load have to see the card with the embedder gone, which is why the script now polls for up to 60 s after asking rather than sleeping once.
 - **The vision budget is not reduced.** The image-token cap is applied to `n_ubatch`, not to context: both `-c 8192` and `-c 2048` log `cap image_max_tokens (original=1600) to 1024`, so an image keeps its full 1024 tokens at either size.
 
-Verified through llama-swap after the fix (`POST /upstream/d3-flash/v1/systemone`, the oracle fixture with `2026-10-24-S1.5.png`): cold start 13.4 s, then 0.76-0.85 s, four calls, `has_ui` 0.9195, `dominant` map_view 0.9003, `clarity` 2.606, `input_tokens` 1074, `output_tokens` 0 — identical to the 11-15 baseline table above.
+Verified through llama-swap after the fix (`POST /upstream/d3-flash/v1/systemone`, the oracle fixture with `2026-10-24-S1.5.png`): cold start 13.4 s, then 0.76-0.85 s, four calls, `has_ui` 0.9195, `dominant` map_view 0.9003, `clarity` 2.606, `input_tokens` 1074, `output_tokens` 0 — identical to the 11-15 baseline table above. After the second ask was added, three consecutive cold starts (`/api/models/unload` then a request) each answered in **10.4-10.5 s** with the same answer.
 
-**A residual limitation, not a bug:** home-still's indexer retries every 30 s, so a decision request that lands while the embedder is reloading may still lose the race (observed: three of four calls before the retry loop was added). The retry loop closes it in practice; a request during a running conversion of olmocr's own cold start still fails fast, which is the intended `Error::Unreachable` path.
+**The embedder can still win the race, and the script narrows rather than closes it.** Measured 18:54:23: the free-check saw 7 366 MiB, then the embedder came back inside the 4-5 s llama-server takes to page in 6.6 GB, the load failed with `unable to allocate CUDA0 buffer`, and llama-swap answered 500 after 13.3 s. distill's indexer is a separate process on its own 30 s timer, so no amount of asking can make the window zero. The script asks a second time immediately before `exec`; a load that still loses fails in seconds and the next request starts it again, which is llama-swap's normal cold-start path.
+
+**A request during a lease or olmocr's cold start still fails fast**, which is the intended `Error::Unreachable` path: measured 18:53 with a `gpu-tenant claim coding` held, the endpoint answered 500 in **0.26 s** rather than hanging, and the first request after the release loaded d3-flash in 14.4 s.
 
 ## Protocol
 
