@@ -1,6 +1,6 @@
 # The icon vocabulary: characters in the face, and the atlas for what a character cannot do
 
-Decided before the atlas grows again, from the owner's note in capture `feedback-1794921635359` (dark_factory 0.7.0,
+Decided before the atlas grows again, from the owner's note in capture `feedback-1794921635359` (DarkFactory 0.7.0,
 mac_air, 2026-11-17 07:20):
 
 > *"The "v" should collapse the text. And we should consider an icon solution for icons like up and down arrows, etc.
