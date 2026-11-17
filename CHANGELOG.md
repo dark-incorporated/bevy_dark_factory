@@ -2,6 +2,11 @@
 
 What each change added, newest first. A visible change has a clip: click the still to play it. `python3 tools/changelog/changelog.py page --open` plays them all in one page.
 
+## 2026-11-17
+
+- **480-chrome-readouts** `49ed5c7f02` The chrome bar's readouts are drawn a step smaller than the menu's words so the band of state reads as a strip, not a second menu row *For you: The strip under the menu now looks like readouts rather than a second menu.* *No clip: visible, not yet recorded: fleet worker*
+- **488-panel-authoring** `92b51ec881` A panel's authoring format is researched and recommended: the typed schema is the source of truth, YAML is its text form, and Markdown stays prose *No clip: a design document and its measured evidence; no code changed, so nothing in the editor's suite can fail on it -- see docs/design/2026-11-17-a-panels-authoring-format.md*
+
 ## 2026-11-16
 
 - **473-review-fixes** A carves report reads its own map's ground and its own name, and refuses what the edit path refuses: a map name that is a path, and a carve list too large to flood-fill, both refused naming what they are rather than answered with an empty report or a stalled frame *No clip: a verb's refusals and the ground it reads; proved by crates/blueprint_model/tests/a_report_is_bounded_by_a_named_limit.rs and an_agent_can_ask_a_carve_list_what_it_made*
