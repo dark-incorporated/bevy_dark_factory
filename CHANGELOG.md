@@ -4,6 +4,7 @@ What each change added, newest first. A visible change has a clip: click the sti
 
 ## 2026-11-17
 
+- **484-session-servers** `f37b3a00` An agent session's MCP servers are the editor's own plus the servers the open project declares in its .mcp.json, written into the session's config and named on the self-test card; starting an agent no longer means only the machine's list *For you: The agent you start from the editor now gets the editor's tools and whatever your project declares, and the self-test card lists them so you can see what your session has.* *No clip: visible, not yet recorded: fleet worker*
 - **477-agent-model** `7e8842d1` The agent tab opens omp on the model a person names in Settings (terminal_agent_model), in both the fresh and the resume form, and its self-test card says which model is answering; a model omp refuses fails the Agent connected row naming the id rather than falling back *For you: The agent the editor starts now runs the model you picked once in your settings, so every editor you open talks to the same model, and the self-test card tells you which one.* *No clip: visible, not yet recorded: fleet worker*
 
 ## 2026-11-16
