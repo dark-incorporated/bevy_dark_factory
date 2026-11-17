@@ -44,6 +44,20 @@ Run and green on the Mac, at `b3f215cf`:
 | `cargo nextest run -p bevy_cauldron_mcp` | nothing else in the server moved | 109 passed |
 | `cargo nextest run -p bevy_cauldron_bench` | nothing else in the runner moved | 170 passed, 9 skipped |
 
+## A void cell, recorded because it nearly became a result
+
+**The first attempt started an arm against the previous editor binary.** The chain that gates the run on the
+build checked only the MCP server (`--print-guide`, which only this commit has) and not `bevy_cauldron`, so the with
+arm began at 13:19:16 UTC against a `bevy_cauldron` from 06:17 while the editor at this commit was still compiling.
+It was stopped, and its directory was renamed `ask-two-arms-with-VOID-stale-editor` on big rather than deleted: of its
+60 `trial.json` files, **59 are `harness_error`** — 58 "the run was interrupted", 1 "this trial was stopped", plus one
+`pass`. **No figure in this file comes from it.**
+
+The gating is now on all three binaries: the builder touches `~/.cargo-target-gate/debug/.askhelps-b3f215cf` only
+after `cargo build` exits 0, and the chain refuses to start without it *and* without `bevy_cauldron` being newer
+than the build's start. That is the fix for a defect this ticket found in its own harness, and it is written here
+because a stale-binary run looks exactly like a real one in a report.
+
 ## The four numbers
 
 **Not yet measured.** They come from `2026-11-17-ask-two-arms-analyse.py <with-run> <without-run>`, which reads
