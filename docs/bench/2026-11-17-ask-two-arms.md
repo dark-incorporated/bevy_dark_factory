@@ -111,6 +111,39 @@ and again at 01:35:10 UTC, got `500` both times, and **started no arm**. Its log
 `ask-two-arms-with` holds **0 `trial.json`** — there is nothing to mistake for a result. That is the difference
 between this attempt and the two void ones above.
 
+## The blocker is structural, and it is this fleet's own coding model
+
+`gpu-tenant board` over one cycle, which is what rules out "wait a little longer":
+
+```
+07:41:13 qwen3.8-27b@big coding: released (exit 134)
+07:41:13 reaper evict: unloaded idle qwen3.8-27b; home-still is the default
+07:41:13 reaper warm: loading olmocr
+07:41:52 qwen3.8-27b@big coding: requested
+07:41:53 qwen3.8-27b@big coding: acquiring: unloaded olmocr; distill at 292 MiB
+07:41:53 qwen3.8-27b@big coding: resident (server pid 3787108; 21041 MiB was free)
+```
+
+The coding model holds 20.5 GB of the 24 GB card. When it releases, it is **requested again 39 seconds later, while
+`olmocr` is still loading** — and d3-flash's launch script needs olmocr *ready* (`curl .../running | grep
+'"model":"olmocr","state":"ready"'`) before it will load. So the window in which d3-flash could start is not merely
+short, it is empty: the model that has to be present first is always the thing being evicted.
+
+**This is not an external tenant.** `qwen3.8-27b` is the coding model this wave's own fleet workers run, so the
+benchmark is contending with the agents that are supposed to be producing work. `gpu-tenant status` says
+`tenant=none` throughout: no lease is held, so nothing yields to the benchmark.
+
+That is a decision for the owner, not one this ticket can take:
+
+- **run the arms in a quiet window** — the gate proceeds on its own the moment d3-flash answers `200` (it polls until
+  15:00 UTC, then stops and says so), or
+- **give the benchmark a GPU lease**, so `qwen3.8-27b` yields to it — the mechanism `gpu-tenant` exists for, and the
+  one the 2026-11-15 run did not use either.
+
+`D3_STANDALONE=1` would bypass d3-flash's olmocr check, and it was **not** used: that is home-still's eviction policy
+for a service this ticket does not own, and overriding it to get a number is how a measurement becomes a change
+nobody asked for.
+
 **What changed in the harness**: the runner is now gated on the endpoint. Before an arm starts, and every 60 s during
 it, one `noul` question is sent to d3-flash; the arms run only while it answers `200`, and an arm that produces void
 cells is re-run (up to three attempts) rather than reported. That gate is the reason no arm has started since 13:30
