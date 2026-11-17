@@ -1,7 +1,7 @@
 # Do agents ask, and does asking help? Two arms, measured (#457, DM-06)
 
-**Status: the switch is built and tested, and both arms are running on big (started 13:24 UTC 2026-11-17); the runs
-have not finished, so this file holds no measurement yet.**
+**Status: the switch is built and tested. The two arms have not produced a result: the decision model was down for
+the first attempt and the second is gated on it answering. This file holds no measurement, and says why.**
 Everything below that is a number was measured; everything that would be a result says where it will come from and
 is not filled in. A reader should treat this file as **incomplete** until its "The four numbers" section holds
 values read from `trial.json`.
@@ -73,6 +73,37 @@ The gating is now on all three binaries: the builder touches `~/.cargo-target-ga
 after `cargo build` exits 0, and the chain refuses to start without it *and* without `bevy_cauldron` being newer
 than the build's start. That is the fix for a defect this ticket found in its own harness, and it is written here
 because a stale-binary run looks exactly like a real one in a report.
+
+## Two void cells, recorded because each nearly became a result
+
+**#457's rule applied twice.** The issue says "A run whose decision endpoint was down is void, not a result." Both
+attempts so far were stopped under that rule, and both directories are kept on big rather than deleted, because a
+void run looks exactly like a real one in a report.
+
+| directory on big | what went wrong | its 60 `trial.json` |
+|---|---|---|
+| `ask-two-arms-with-VOID-stale-editor` | started against the *previous* editor binary: the gate checked only the MCP server | 58 "never started", 1 "stopped", **1 pass** |
+| `ask-two-arms-with-VOID-decide-down` | d3-flash evicted: `qwen3.8-27b` (the coding model) took the card at 07:29:19 and d3-flash cannot load beside it | 55 harness errors, 3 pass, 2 fail; **every `grimoire_decide` call answered `status 500 upstream command exited prematurely`** |
+
+**Root cause of the second**, measured, not guessed:
+
+```
+$ curl -X POST .../d3-flash/v1/systemone ...
+{"error":"unspecific error: upstream command exited prematurely","src":"llama-swap"}
+$ gpu-tenant status
+interactive=qwen3.8-27b state=resident idle=0s
+07:29:19 qwen3.8-27b@big coding: acquiring: unloaded olmocr; distill at 292 MiB
+07:29:19 qwen3.8-27b@big coding: resident (server pid 3678086; 20530 MiB was free)
+```
+
+d3-flash's own launch script refuses to load unless home-still's `olmocr` is resident (`gpu-tenant guard`, exit 75),
+and the coding model had just unloaded olmocr to take 20.5 GB. So every decide call in that arm was void, which is
+exactly the condition the issue says makes a run void.
+
+**What changed in the harness**: the runner is now gated on the endpoint. Before an arm starts, and every 60 s during
+it, one `noul` question is sent to d3-flash; the arms run only while it answers `200`, and an arm that produces void
+cells is re-run (up to three attempts) rather than reported. That gate is the reason no arm has started since 13:30
+UTC: `qwen3.8-27b` still holds the card.
 
 ## The four numbers
 
