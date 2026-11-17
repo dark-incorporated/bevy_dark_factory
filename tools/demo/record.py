@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
-"""Run a demo storyboard against a live bevy_grimoire editor and record it.
+"""Run a demo storyboard against a live bevy_blueprint editor and record it.
 
-usage: record.py <storyboard.json> --port <brp-port> --project <project-root> [--server <bevy_cauldron_mcp>]
+usage: record.py <storyboard.json> --port <brp-port> --project <project-root> [--server <dark_factory_mcp>]
 
 The editor must already be running on the project, with BEVY_BRP_PORT set to the port. The recorder
 never launches or closes the editor.
 
-Frames come from the editor's own grimoire_capture_sequence (no screen capture). A storyboard lists
+Frames come from the editor's own blueprint_capture_sequence (no screen capture). A storyboard lists
 `chunks`: one capture per chunk, each at the storyboard's fps. An agent operation can only be applied
 at the start of a sequence (frame 0 is the state before it), so every operation starts a new chunk.
 Chunk k is due at the sum of the seconds of the chunks before it. The person's input is injected over
@@ -20,8 +20,8 @@ Storyboard format (JSON):
     "name": "undo_place", "fps": 15,
     "setup": [{"key": "KeyJ", "mods": ["ControlLeft"]},   a chord before the capture (here: collapse the terminal)
               {"stage": "settings"},                    put the shell on one panel before the capture starts,
-                                                        through grimoire/stage_panel (the editor's own catalog)
-              {"mcp": "grimoire_frame_view", "args": {"target": {"rect": [-150, -110, 150, 110]}}}],
+                                                        through blueprint/stage_panel (the editor's own catalog)
+              {"mcp": "blueprint_frame_view", "args": {"target": {"rect": [-150, -110, 150, 110]}}}],
     "chunks": [ {"seconds": 6}, {"seconds": 4, "operation": {"name": "...", "parameters": {...}}},
                 {"seconds": 0.0667, "stage": "place"} ],   one chunk PER staged panel, staged before it starts
     "steps": [
@@ -51,12 +51,12 @@ Storyboard format (JSON):
       {"at": 4.5, "drop_file": "/tmp/crate.glb"},   a file dropped on the window, as the window system reports it
                                                 (a `FileDragAndDrop::DroppedFile` over BRP: no real drag can be made
                                                 under Xvfb)
-      {"at": 5.0, "mcp": "grimoire_frame_view", "args": {...}, "caption": "agent: frames the walls"},
-      {"at": 5.5, "mcp": "grimoire_apply_operation", "args": {...}, "as": "built"},
+      {"at": 5.0, "mcp": "blueprint_frame_view", "args": {...}, "caption": "agent: frames the walls"},
+      {"at": 5.5, "mcp": "blueprint_apply_operation", "args": {...}, "as": "built"},
                                                 saves the answer's operation_id; "$built" anywhere in a
                                                 later step's args is replaced by it (note_resolve's ops)
       {"at": 6.0, "caption": "person: ..."}
-      {"at": 7.0, "write": {"path": "assets/grimoire/standards.yaml", "text": "..."}}
+      {"at": 7.0, "write": {"path": "assets/blueprint/standards.yaml", "text": "..."}}
                                                 a person saving a project file (path under --project),
                                                 for a live reload; the editor reads it, nothing is injected.
                                                 "$now_ms" in the text is the time of the write in Unix
@@ -83,7 +83,7 @@ import urllib.request
 
 
 class McpClient:
-    """One bevy_cauldron_mcp process, spoken to over its stdio transport."""
+    """One dark_factory_mcp process, spoken to over its stdio transport."""
 
     def __init__(self, server, project, port, label):
         self.proc = subprocess.Popen(
@@ -128,7 +128,7 @@ class McpClient:
         try:
             return json.loads(text)
         except json.JSONDecodeError:
-            # A tool that answers in prose (`grimoire_style` returns the style's Markdown): a storyboard step that
+            # A tool that answers in prose (`blueprint_style` returns the style's Markdown): a storyboard step that
             # calls it needs the call made, not its answer parsed.
             return {"text": text}
 
@@ -158,7 +158,7 @@ def stage_a_panel(port, panel):
     The answer names the screen it staged and, for a workbench panel, the panel; a name the editor does not
     have is refused there, with the list it does have, so a storyboard's typo is a refusal rather than a take
     that quietly films the panel before it."""
-    reply = brp(port, "grimoire/stage_panel", {"panel": panel})
+    reply = brp(port, "blueprint/stage_panel", {"panel": panel})
     answer = reply.get("result", reply)
     if "refused" in answer or answer.get("error"):
         raise RuntimeError(f"stage_panel refused `{panel}`: {answer}")
@@ -167,7 +167,7 @@ def stage_a_panel(port, panel):
 
 def staged_panels(port):
     """Every panel a capture can be staged on, in the editor's own order, and the screen it is on now."""
-    reply = brp(port, "grimoire/stage_panels", {})
+    reply = brp(port, "blueprint/stage_panels", {})
     return reply.get("result", reply)
 
 
@@ -180,7 +180,7 @@ def plan_staged_panels(name, fps, panels):
     panel before its capture starts. The frame count is therefore the panel count, which the run checks rather
     than assumes.
 
-    **`fps` is the editor's range, not any number.** `grimoire_capture_sequence` refuses a rate outside
+    **`fps` is the editor's range, not any number.** `blueprint_capture_sequence` refuses a rate outside
     `MIN_FPS..=MAX_FPS`, so a plan below or above it is refused here rather than by a capture that fails halfway
     through a take."""
     if not MIN_FPS <= fps <= MAX_FPS:
@@ -270,7 +270,7 @@ def run_chunks(storyboard, server, project, port, timeline, errors):
             timeline.started[i].set()
             keep = keep_awake(port, timeline) if "operation" in chunk else None
             try:
-                answer = client.json_call("grimoire_capture_sequence", args)
+                answer = client.json_call("blueprint_capture_sequence", args)
             finally:
                 if keep:
                     keep()
@@ -544,7 +544,7 @@ def do_step(step, timeline, inj, agent, named=None):
                                               "value": {"DroppedFile": {"window": rows[0]["entity"], "path_buf": step["drop_file"]}}})
         timeline.add(t=timeline.now(), type="drop", path=step["drop_file"])
     elif kind == "stage":
-        # **The editor's own catalog, never a guessed pixel at a tab.** `grimoire/stage_panel` selects the
+        # **The editor's own catalog, never a guessed pixel at a tab.** `blueprint/stage_panel` selects the
         # panel's tab (or moves to its screen), so a clip of a panel starts on the panel itself however the
         # shell's layout has been rearranged.
         answer = stage_a_panel(inj.port, step["stage"])
@@ -649,10 +649,10 @@ def main():
     ap.add_argument("storyboard")
     ap.add_argument("--port", type=int, required=True)
     ap.add_argument("--project", required=True)
-    ap.add_argument("--server", default=os.environ.get("BEVY_GRIMOIRE_MCP") or shutil.which("bevy_cauldron_mcp"))
+    ap.add_argument("--server", default=os.environ.get("BEVY_BLUEPRINT_MCP") or shutil.which("dark_factory_mcp"))
     args = ap.parse_args()
     if not args.server:
-        sys.exit("bevy_cauldron_mcp not found: pass --server or set BEVY_GRIMOIRE_MCP")
+        sys.exit("dark_factory_mcp not found: pass --server or set BEVY_BLUEPRINT_MCP")
 
     with open(args.storyboard) as fh:
         sb = json.load(fh)

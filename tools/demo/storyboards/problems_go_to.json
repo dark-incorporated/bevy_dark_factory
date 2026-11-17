@@ -11,7 +11,7 @@
    ]
   },
   {
-   "mcp": "grimoire_frame_view",
+   "mcp": "blueprint_frame_view",
    "args": {
     "target": "map"
    }
@@ -39,7 +39,7 @@
   },
   {
    "write": {
-    "path": "assets/grimoire/maps/bedroom.relations.yaml",
+    "path": "assets/blueprint/maps/bedroom.relations.yaml",
     "text": "version: 1\nrelations:\n- of: sofa\n  kind: !Faces bed\n- of: armchair\n  kind: !Near\n    to: coffee_table\n    within: 0.2\n- of: lamp\n  kind: !Near\n    to: plant\n    within: 2.0\n"
    },
    "at": 0.1

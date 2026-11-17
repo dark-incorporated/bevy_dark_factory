@@ -3,10 +3,10 @@
 Focus: epic #330 (owner's steer) · Commits: bevy_gooey 5b022a1 · Machine: big · Outcome: shipped (in bevy_gooey)
 
 ## Summary
-None of the epic's bevy_grimoire items (UI-R01 to UI-R06, #331 to #336) is ready: all wait on bevy_gooey. This pass built G-48, elevation as data (bevy-coven/bevy_gooey#55), in `~/family_src/bevy_emerge_loop/bevy_gooey`, after claiming it. G-48 is one of UI-R02 #332's needs, and G-49 waits on it.
+None of the epic's bevy_blueprint items (UI-R01 to UI-R06, #331 to #336) is ready: all wait on bevy_gooey. This pass built G-48, elevation as data (bevy-coven/bevy_gooey#55), in `~/family_src/bevy_emerge_loop/bevy_gooey`, after claiming it. G-48 is one of UI-R02 #332's needs, and G-49 waits on it.
 
 ## Baseline
-bevy_grimoire gate and `accept.py`: not run, because no bevy_grimoire code changed. Load 17, free disk 59 GB (99% used). GPU unleased at the start; leased twice for about 40 s each (`gpu-tenant run 3d --who bevy_gooey@big`) to render the stills.
+bevy_blueprint gate and `accept.py`: not run, because no bevy_blueprint code changed. Load 17, free disk 59 GB (99% used). GPU unleased at the start; leased twice for about 40 s each (`gpu-tenant run 3d --who bevy_gooey@big`) to render the stills.
 
 ## Enhancement: G-48 (bevy-coven/bevy_gooey#55)
 - **Goal:** a skin's shadows are data, stacked per height and drawn in CSS terms.
@@ -37,7 +37,7 @@ None (the reference is Rune).
 Not measured. A shadow is written only when the skin's stack for it differs (`set_if_neq`). The new system runs only on a changed role.
 
 ## Acceptance
-`accept.py`: not run, because no bevy_grimoire code changed.
+`accept.py`: not run, because no bevy_blueprint code changed.
 
 ## Review
 The reviewer subagent ran. It confirmed the CSS-blur-to-deviation factor and that `UiScale` is in the scale factor. Its findings, and what became of them:
@@ -54,7 +54,7 @@ Also fixed: the field doc had the wrong default.
 bevy_gooey: one new file, `tests/elevation.rs`, and its `mod elevation;` line in `tests/all.rs`. No existing test changed.
 
 ## Release
-None here: nothing in bevy_grimoire's packages changed. bevy_gooey's release belongs to its own loop.
+None here: nothing in bevy_blueprint's packages changed. bevy_gooey's release belongs to its own loop.
 
 ## Next focus
 G-49, the Desk preset; it needs G-47 and G-48, both now closed. After it, G-52 (whole-pixel text), and then UI-R02 #332 can take the gooey pin.

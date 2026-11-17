@@ -9,7 +9,7 @@
 //! **The two layers, and what each may say.**
 //!
 //! - The person's file ([`user_file`]) chooses. No file, or no key, is `local`.
-//! - The project's file ([`project_file`], `assets/grimoire/editor.yaml`) **cannot**: a project that could say `remote`
+//! - The project's file ([`project_file`], `assets/blueprint/editor.yaml`) **cannot**: a project that could say `remote`
 //!   would switch its own agents' pictures off the LAN for everyone who opens it. A project file that names the key
 //!   at all is a [`SettingsProblem`] naming the file, and the person's choice stands.
 //!
@@ -19,8 +19,8 @@
 //! `OPENROUTER_API_KEY` is not a setting and is not read here (see [`Endpoints::from_env`]).
 
 use crate::{Config, DecisionModel, Endpoints, Error};
-use bevy_grimoire_core::reload_check::{GRIMOIRE_DIR, PROJECT_SETTINGS_FILE};
-use bevy_grimoire_core::user_dirs;
+use blueprint_model::reload_check::{BLUEPRINT_DIR, PROJECT_SETTINGS_FILE};
+use blueprint_model::user_dirs;
 use serde::Deserialize;
 use std::fmt;
 use std::path::{Path, PathBuf};
@@ -83,14 +83,14 @@ fn read_layer(path: &Path) -> Result<Option<DecisionModel>, String> {
     Ok(layer.and_then(|l| l.decision_model))
 }
 
-/// **The person's settings file** (`<config_dir>/Grimoire/settings.yaml`), or `None` on a platform with no config directory.
+/// **The person's settings file** (`<config_dir>/Blueprint/settings.yaml`), or `None` on a platform with no config directory.
 pub fn user_file() -> Option<PathBuf> {
     user_dirs::settings_file()
 }
 
-/// **A project's settings file** (`<root>/assets/grimoire/editor.yaml`).
+/// **A project's settings file** (`<root>/assets/blueprint/editor.yaml`).
 pub fn project_file(root: &Path) -> PathBuf {
-    root.join(GRIMOIRE_DIR).join(PROJECT_SETTINGS_FILE)
+    root.join(BLUEPRINT_DIR).join(PROJECT_SETTINGS_FILE)
 }
 
 /// **Which model decides**: the person's file, else [`DecisionModel::Local`]; a project file that names the key is a

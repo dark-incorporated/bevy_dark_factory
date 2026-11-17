@@ -66,7 +66,7 @@ could not show — no; (5) what remains — the per-click scroll in the harness,
 
 ## Release
 
-None here: nothing packaged changed (`bevy_cauldron` is `publish = false`). The crate fixes are on
+None here: nothing packaged changed (`bevy_dark_factory` is `publish = false`). The crate fixes are on
 `bevy_elements`' `main`; its version and release are that crate's own loop's business.
 
 ## Next focus

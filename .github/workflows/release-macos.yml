@@ -1,14 +1,14 @@
-name: Release Cauldron (macOS)
-# **The downloadable app** (`tools/release/macos/build_app.sh`): a tag `bevy_cauldron-vX.Y.Z` builds Cauldron.app
+name: Release DarkFactory (macOS)
+# **The downloadable app** (`tools/release/macos/build_app.sh`): a tag `bevy_dark_factory-vX.Y.Z` builds DarkFactory.app
 # with every family crate, signs it with the Developer ID, notarizes and staples it, and publishes the DMG, the
 # update zip and SHA256SUMS as a GitHub Release, which is what the in-app updater reads (`src/update.rs`).
 # **Runs on mac_air, a self-hosted runner** (owner, 2026-11-04): a hosted macOS job waited minutes for a machine and
-# started cold. mac_air is the Mac the owner compiles on; its runner (`~/actions-runner-bevy_grimoire`, a launchd
+# started cold. mac_air is the Mac the owner compiles on; its runner (`~/actions-runner-bevy_blueprint`, a launchd
 # agent) keeps the cargo target between runs, so a release rebuilds only what changed. mac_air asleep or off means
 # the job waits in the queue: there is no hosted fallback. Fork pull requests need approval before any job runs.
 on:
   push:
-    tags: ["bevy_cauldron-v*"]
+    tags: ["bevy_dark_factory-v*"]
   workflow_dispatch:
     inputs:
       publish:
@@ -48,31 +48,31 @@ jobs:
         run: git lfs pull --include="docs/changelog/media/*.png"
       # Outside the checkout, which `actions/checkout` cleans: this is what makes the next release incremental.
       - name: Keep the cargo target between runs
-        run: echo "CARGO_TARGET_DIR=$HOME/actions-runner-bevy_grimoire/cargo-target" >> "$GITHUB_ENV"
+        run: echo "CARGO_TARGET_DIR=$HOME/actions-runner-bevy_blueprint/cargo-target" >> "$GITHUB_ENV"
       - name: Version
         id: version
         run: |
-          V=$(cargo metadata --format-version 1 --no-deps | python3 -c 'import json, sys; print(next(p["version"] for p in json.load(sys.stdin)["packages"] if p["name"] == "bevy_cauldron"))')
+          V=$(cargo metadata --format-version 1 --no-deps | python3 -c 'import json, sys; print(next(p["version"] for p in json.load(sys.stdin)["packages"] if p["name"] == "bevy_dark_factory"))')
           echo "v=$V" >> "$GITHUB_OUTPUT"
-          if [ "$GITHUB_EVENT_NAME" = push ] && [ "$GITHUB_REF_NAME" != "bevy_cauldron-v$V" ]; then
-            echo "tag $GITHUB_REF_NAME does not match bevy_cauldron $V" >&2
+          if [ "$GITHUB_EVENT_NAME" = push ] && [ "$GITHUB_REF_NAME" != "bevy_dark_factory-v$V" ]; then
+            echo "tag $GITHUB_REF_NAME does not match bevy_dark_factory $V" >&2
             exit 1
           fi
       # **The benchmark is printed beside a release and never stops it** (owner, 2026-11-16; it was a refusal under BM-05,
       # #415, and is advisory until the editor is built out): the check reads a report committed under docs/bench/runs/ for the
       # code being released and prints its comparison with the previous release's report. It reads the committed report; the run itself happens where an editor can open a window
       # (docs/loop/RUNNING-A-LOOP.md). Before the signing, the notarization and the app build, so a refused release costs only
-      # the small `cauldron-bench` build (no editor), not the hours of the signed app. An ad-hoc build is never published and
+      # the small `dark_factory-bench` build (no editor), not the hours of the signed app. An ad-hoc build is never published and
       # proves the build only, so it skips this.
       - name: The benchmark gate
         if: github.event_name == 'push' || inputs.publish
         env:
           V: ${{ steps.version.outputs.v }}
         run: |
-          cargo build --release -p bevy_cauldron_bench --bin cauldron-bench
+          cargo build --release -p bevy_dark_factory_bench --bin dark_factory-bench
           # **Advisory, not a gate** (owner, 2026-11-16): the benchmark is printed and never refuses a release while
           # the editor is still being built out. `bench_gate.py check` keeps its refusals; the wrapper drops the exit code.
-          bash tools/release/bench_advisory.sh --release "$GITHUB_SHA" --version "$V" --bench "$CARGO_TARGET_DIR/release/cauldron-bench"
+          bash tools/release/bench_advisory.sh --release "$GITHUB_SHA" --version "$V" --bench "$CARGO_TARGET_DIR/release/dark_factory-bench"
       - name: Import the Developer ID certificate and the notary key
         if: env.DEVELOPER_ID == 'true'
         env:
@@ -103,26 +103,26 @@ jobs:
             *) echo "the identity's team is not APPLE_TEAM_ID: $IDENTITY" >&2; exit 1 ;;
           esac
           echo "$P8_BASE64" | base64 --decode > "$RUNNER_TEMP/AuthKey.p8"
-          echo "CAULDRON_SIGN_IDENTITY=$IDENTITY" >> "$GITHUB_ENV"
-          echo "CAULDRON_NOTARIZE=1" >> "$GITHUB_ENV"
+          echo "DARK_FACTORY_SIGN_IDENTITY=$IDENTITY" >> "$GITHUB_ENV"
+          echo "DARK_FACTORY_NOTARIZE=1" >> "$GITHUB_ENV"
           echo "APPLE_NOTARY_KEY_PATH=$RUNNER_TEMP/AuthKey.p8" >> "$GITHUB_ENV"
-          echo "CAULDRON_KEYCHAIN=$KC" >> "$GITHUB_ENV"
+          echo "DARK_FACTORY_KEYCHAIN=$KC" >> "$GITHUB_ENV"
       - name: Build, sign, notarize
         env:
           APPLE_NOTARY_KEY_ID: ${{ secrets.APPLE_NOTARY_KEY_ID }}
           APPLE_NOTARY_ISSUER_ID: ${{ secrets.APPLE_NOTARY_ISSUER_ID }}
         run: tools/release/macos/build_app.sh
-      # **A release is the app that an agent can drive and that shows a window** (#306, #307): the fresh Cauldron.app is
+      # **A release is the app that an agent can drive and that shows a window** (#306, #307): the fresh DarkFactory.app is
       # launched on mac_air with a scratch HOME, driven through its own bundled MCP server, and refused when its window
       # self-check reads black. Publishing below runs only when every step before it passed.
       - name: Drive the fresh app through its own MCP
         # A tag push always drives it. A dispatch may switch it off, and only for the reason in the input's description.
         if: github.event_name == 'push' || inputs.smoke
-        run: python3 tools/release/macos/smoke_app.py --app dist/Cauldron.app --out dist/smoke
+        run: python3 tools/release/macos/smoke_app.py --app dist/DarkFactory.app --out dist/smoke
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: cauldron-macos
+          name: dark_factory-macos
           path: |
             dist/*.dmg
             dist/*.zip
@@ -140,15 +140,15 @@ jobs:
             echo "an ad-hoc build is never published: it does not open on another Mac" >&2
             exit 1
           fi
-          gh release create "bevy_cauldron-v$V" dist/Cauldron-*.dmg dist/Cauldron-*.zip dist/SHA256SUMS \
-            --target "$GITHUB_SHA" --title "Cauldron $V" --generate-notes
+          gh release create "bevy_dark_factory-v$V" dist/DarkFactory-*.dmg dist/DarkFactory-*.zip dist/SHA256SUMS \
+            --target "$GITHUB_SHA" --title "DarkFactory $V" --generate-notes
       - name: Remove the signing keychain and the notary key
         if: always()
         run: |
           if [ -f "$RUNNER_TEMP/keychains-before" ]; then
             security list-keychains -d user -s $(cat "$RUNNER_TEMP/keychains-before")
           fi
-          if [ -n "${CAULDRON_KEYCHAIN:-}" ]; then
-            security delete-keychain "$CAULDRON_KEYCHAIN"
+          if [ -n "${DARK_FACTORY_KEYCHAIN:-}" ]; then
+            security delete-keychain "$DARK_FACTORY_KEYCHAIN"
           fi
           rm -f "$RUNNER_TEMP/AuthKey.p8" "$RUNNER_TEMP/cert.p12" "$RUNNER_TEMP/keychains-before"

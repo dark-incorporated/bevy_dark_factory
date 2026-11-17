@@ -1,0 +1,273 @@
+//! **`dark_factory-labels`**: the commands that work on the turn ledger. Two:
+//!
+//! ```text
+//! dark_factory-labels assess [--project <root>] [--limit <turns>] [--allow-remote] [--no-fast]
+//! dark_factory-labels export --out <dir> [--labels <dir>] [--oldest <version>] [--include-old-builds] [--share <n>]
+//! dark_factory-labels report --out <dir> [--labels <dir>] [--project <root>]
+//! ```
+//!
+//! `assess` (DL-04, #463) asks the person's chosen decision model (Local or Remote, as Settings and `settings.yaml` say; never the other one) to
+//! answer every question of every turn this assessor version has not assessed, three times each, and appends the answers to the ledger as
+//! `assessment` lines. It runs in its own process, so the editor's frame loop never waits for it. **Remote sends the pictures off this machine**,
+//! so it refuses unless `--allow-remote` is given.
+//!
+//! `export` (DL-06, #465) resolves the tiers and writes the training set as Valen's JSONL, split by scene: `<out>/train.jsonl`,
+//! `<out>/eval.jsonl`, `<out>/holdout.jsonl`, the pictures under `<out>/images/` and the counts in `<out>/summary.json`. It is derived: nothing is
+//! written into the labels folder, and two exports of one ledger are byte-identical.
+//!
+//! `report` (DL-08, #467) writes `<out>/report.md` and `<out>/report.json` beside an export: the numbers that say whether the set is worth training on
+//! (the assessor's agreement with the person, the fast model's with both, the class balance, the holdout's size, and what escalation saved). It reads
+//! the ledger and the export and writes nothing into the labels folder, and two reports of one ledger are byte-identical.
+
+use std::path::PathBuf;
+use std::process::ExitCode;
+
+use bevy_dark_factory::label_report;
+use bevy_dark_factory::turn_assess::assess_ledger_with;
+use bevy_dark_factory::turn_export::{self, Options};
+use bevy_dark_factory::turn_store::Store;
+
+const USAGE: &str = "usage:\n  dark_factory-labels assess [--project <root>] [--limit <turns>] [--allow-remote] [--no-fast]\n  dark_factory-labels export --out <dir> [--labels <dir>] [--oldest <version>] [--include-old-builds] [--share <n>]\n  dark_factory-labels report --out <dir> [--labels <dir>] [--project <root>]";
+
+fn main() -> ExitCode {
+    let args: Vec<String> = std::env::args().skip(1).collect();
+    match args.first().map(String::as_str) {
+        Some("assess") => assess(&args[1..]),
+        Some("export") => export(&args[1..]),
+        Some("report") => report(&args[1..]),
+        _ => {
+            eprintln!("{USAGE}");
+            ExitCode::from(2)
+        }
+    }
+}
+
+/// **The flags of one command**: what follows each flag, and which switches are there.
+struct Args {
+    flags: Vec<String>,
+    values: Vec<(String, String)>,
+}
+
+impl Args {
+    /// **Read the flags a command takes.** A flag the command does not name is an error saying so, never ignored: a typo that silently exports
+    /// every build is worse than one that stops.
+    fn read(rest: &[String], takes_a_value: &[&str], switches: &[&str], command: &str) -> Result<Args, String> {
+        let mut args = Args { flags: Vec::new(), values: Vec::new() };
+        let mut at = 0;
+        while let Some(arg) = rest.get(at) {
+            if let Some(flag) = switches.iter().find(|flag| **flag == arg.as_str()) {
+                args.flags.push((*flag).to_owned());
+                at += 1;
+            } else if let Some(flag) = takes_a_value.iter().find(|flag| **flag == arg.as_str()) {
+                let Some(value) = rest.get(at + 1) else {
+                    return Err(format!("{flag} needs a value, and none follows it.\n{USAGE}"));
+                };
+                args.values.push(((*flag).to_owned(), value.clone()));
+                at += 2;
+            } else {
+                return Err(format!("`{arg}` is not an argument of {command}.\n{USAGE}"));
+            }
+        }
+        Ok(args)
+    }
+
+    fn get(&self, flag: &str) -> Option<&str> {
+        self.values.iter().find(|(name, _)| name == flag).map(|(_, value)| value.as_str())
+    }
+
+    fn has(&self, flag: &str) -> bool {
+        self.flags.iter().any(|name| name == flag)
+    }
+}
+
+/// **The labels folder**, or the reason there is none on this platform.
+fn labels_dir() -> Result<PathBuf, String> {
+    blueprint_model::user_dirs::labels_dir().ok_or_else(|| "this platform has no data directory, so there is no ledger".to_owned())
+}
+
+fn assess(rest: &[String]) -> ExitCode {
+    let args = match Args::read(rest, &["--project", "--limit"], &["--allow-remote", "--no-fast"], "assess") {
+        Ok(args) => args,
+        Err(why) => {
+            eprintln!("{why}");
+            return ExitCode::from(2);
+        }
+    };
+    let project = args.get("--project").map(PathBuf::from);
+    let limit = match args.get("--limit").map(str::parse::<usize>) {
+        Some(Ok(limit)) => Some(limit),
+        Some(Err(_)) => {
+            eprintln!("--limit is a number of turns.\n{USAGE}");
+            return ExitCode::from(2);
+        }
+        None => None,
+    };
+    let allow_remote = args.has("--allow-remote");
+    let dir = match labels_dir() {
+        Ok(dir) => dir,
+        Err(why) => {
+            eprintln!("{why}");
+            return ExitCode::FAILURE;
+        }
+    };
+    let root = project.unwrap_or_else(|| std::env::current_dir().unwrap_or_default());
+    let source = bevy_dark_factory::decision_model::Source::process();
+    let transport = source.asking(&root);
+    // **The fast pass is the same person's decision model** (DL-08, #467): there is one model chosen, so the answers that decide escalation come from
+    // the model that would be the student, never from a second one nobody chose. `--no-fast` asks the assessor everything, which is what a caller with
+    // no calibrated model in hand wants, and what this command did before escalation existed.
+    let fast: Option<&dyn bevy_oracle::Transport> = (!args.has("--no-fast")).then_some(transport.as_ref() as &dyn bevy_oracle::Transport);
+    // **Which model is chosen, read once**: the refusal a Remote choice needs is the same for both passes, so it is said before either is asked.
+    let remote = source.config(&root).is_ok_and(|config| config.protocol.site() == bevy_oracle::DecisionModel::Remote);
+    if remote && !allow_remote {
+        // **Said once, before anything is asked**: the fast pass sends the pictures too, and a Remote fast pass without leave would send them before
+        // the assessor's own refusal is reached.
+        eprintln!(
+            "dark_factory-labels: the decision model chosen is Remote, so both the fast pass and the assessor would send the turns' pictures off this \
+             machine; run it again with --allow-remote to say that is fine, or choose Local in Settings"
+        );
+        return ExitCode::FAILURE;
+    }
+    let mut store = Store::new(dir);
+    match assess_ledger_with(&mut store, fast, transport.as_ref(), allow_remote, limit) {
+        Ok(batch) => {
+            println!(
+                "assessed {} turn(s); {} had been assessed by this version already; the fast model answered {} turn(s) and saved {} question(s) from the assessor",
+                batch.assessed, batch.already, batch.fast, batch.saved
+            );
+            ExitCode::SUCCESS
+        }
+        Err(why) => {
+            eprintln!("dark_factory-labels: {why}");
+            ExitCode::FAILURE
+        }
+    }
+}
+
+fn report(rest: &[String]) -> ExitCode {
+    let args = match Args::read(rest, &["--out", "--labels", "--project"], &[], "report") {
+        Ok(args) => args,
+        Err(why) => {
+            eprintln!("{why}");
+            return ExitCode::from(2);
+        }
+    };
+    let Some(out) = args.get("--out").map(PathBuf::from) else {
+        eprintln!("report needs --out, the folder the export was written into: the report goes beside it.\n{USAGE}");
+        return ExitCode::from(2);
+    };
+    let labels = match args.get("--labels").map(PathBuf::from).map_or_else(labels_dir, Ok) {
+        Ok(dir) => dir,
+        Err(why) => {
+            eprintln!("{why}");
+            return ExitCode::FAILURE;
+        }
+    };
+    // **The checks a calibration lives in** (DM-04, #455): the project's own over the editor's, which is the file the editor's own checks read. A
+    // model with no record reads `waiting`, and a checks file that does not read is named rather than silently reported as uncalibrated.
+    let root = args.get("--project").map(PathBuf::from);
+    let checks = match &root {
+        Some(root) => bevy_oracle::Checks::for_project(root),
+        None => Ok(bevy_oracle::Checks::builtin()),
+    };
+    let checks = match checks {
+        Ok(checks) => checks,
+        Err(why) => {
+            eprintln!("dark_factory-labels: {why}");
+            return ExitCode::FAILURE;
+        }
+    };
+    match label_report::report(&labels, &out, &checks) {
+        Ok(report) => {
+            println!(
+                "wrote {} and {} to {}: {} turn(s), {} answered, {} gold, {} objective, {} silver; the assessor {}; distilling {}",
+                label_report::REPORT_FILE,
+                label_report::REPORT_JSON,
+                out.display(),
+                report.summary.turns,
+                report.summary.answered,
+                report.summary.gold,
+                report.summary.objective,
+                report.summary.silver,
+                match report.assessor.holdout.share() {
+                    Some(share) => format!("agreed with the person on {:.0}% of {} holdout question(s)", share * 100.0, report.assessor.holdout.questions),
+                    None => "was not compared on the holdout yet".to_owned(),
+                },
+                report.distil.state
+            );
+            ExitCode::SUCCESS
+        }
+        Err(why) => {
+            eprintln!("dark_factory-labels: {why}");
+            ExitCode::FAILURE
+        }
+    }
+}
+
+fn export(rest: &[String]) -> ExitCode {
+    let flags = ["--out", "--labels", "--oldest", "--share"];
+    let args = match Args::read(rest, &flags, &["--include-old-builds"], "export") {
+        Ok(args) => args,
+        Err(why) => {
+            eprintln!("{why}");
+            return ExitCode::from(2);
+        }
+    };
+    let Some(out) = args.get("--out").map(PathBuf::from) else {
+        eprintln!("export needs --out, the folder to write the set into.\n{USAGE}");
+        return ExitCode::from(2);
+    };
+    let labels = args.get("--labels").map(PathBuf::from);
+    let mut options = Options { include_old_builds: args.has("--include-old-builds"), ..Options::default() };
+    if let Some(oldest) = args.get("--oldest") {
+        // **A bound that is not a version is refused here**, naming it: `0.6.8` reads as three numbers, and an `--oldest` that cannot be read would
+        // let every build through instead of the ones asked for.
+        if turn_export::parse_version(oldest).is_none() {
+            eprintln!("`{oldest}` is not a version for --oldest: it reads as three numbers, like 0.6.8.\n{USAGE}");
+            return ExitCode::from(2);
+        }
+        options.oldest_build = oldest.to_owned();
+    }
+    if let Some(share) = args.get("--share") {
+        match share.parse::<u32>() {
+            Ok(share) if share > 0 => options.eval_share = share,
+            _ => {
+                eprintln!("--share is one scene in how many, so it is a positive number.\n{USAGE}");
+                return ExitCode::from(2);
+            }
+        }
+    }
+    let labels = match labels.map_or_else(labels_dir, Ok) {
+        Ok(dir) => dir,
+        Err(why) => {
+            eprintln!("{why}");
+            return ExitCode::FAILURE;
+        }
+    };
+    match turn_export::export(&labels, &out, &options) {
+        Ok(exported) => {
+            println!(
+                "wrote {} train, {} eval and {} holdout record(s) with {} picture(s) to {}; parked {} question(s), {} teacher error(s), left out {} record(s)",
+                exported.train,
+                exported.eval,
+                exported.holdout,
+                exported.images,
+                out.display(),
+                exported.parked.len(),
+                exported.teacher_errors(),
+                exported.left_out.len()
+            );
+            for (kind, count) in exported.parked_by_kind() {
+                println!("  parked {count}: {kind}");
+            }
+            for (kind, count) in exported.left_out_by_kind() {
+                println!("  left out {count}: {kind}");
+            }
+            ExitCode::SUCCESS
+        }
+        Err(why) => {
+            eprintln!("dark_factory-labels: {why}");
+            ExitCode::FAILURE
+        }
+    }
+}

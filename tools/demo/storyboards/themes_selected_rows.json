@@ -40,7 +40,7 @@
    "at": 2.7
   },
   {
-   "mcp": "grimoire_run_command",
+   "mcp": "blueprint_run_command",
    "args": {
     "id": "workspace.design"
    },
@@ -58,7 +58,7 @@
    "at": 4.8
   },
   {
-   "mcp": "grimoire_run_command",
+   "mcp": "blueprint_run_command",
    "args": {
     "id": "workspace.files"
    },
@@ -77,7 +77,7 @@
    "at": 7.5
   },
   {
-   "mcp": "grimoire_run_command",
+   "mcp": "blueprint_run_command",
    "args": {
     "id": "workspace.map"
    },
@@ -86,28 +86,28 @@
   },
   {
    "write": {
-    "path": "assets/grimoire/editor.yaml",
+    "path": "assets/blueprint/editor.yaml",
     "text": "version: 1\ntheme: Parchment\n"
    },
    "caption": "Parchment",
    "at": 9.8
   },
   {
-   "mcp": "grimoire_run_command",
+   "mcp": "blueprint_run_command",
    "args": {
     "id": "workspace.design"
    },
    "at": 10.4
   },
   {
-   "mcp": "grimoire_run_command",
+   "mcp": "blueprint_run_command",
    "args": {
     "id": "workspace.files"
    },
    "at": 11.600000000000001
   },
   {
-   "mcp": "grimoire_run_command",
+   "mcp": "blueprint_run_command",
    "args": {
     "id": "workspace.map"
    },
@@ -115,28 +115,28 @@
   },
   {
    "write": {
-    "path": "assets/grimoire/editor.yaml",
+    "path": "assets/blueprint/editor.yaml",
     "text": "version: 1\ntheme: HighContrast\n"
    },
    "caption": "HighContrast",
    "at": 13.8
   },
   {
-   "mcp": "grimoire_run_command",
+   "mcp": "blueprint_run_command",
    "args": {
     "id": "workspace.design"
    },
    "at": 14.4
   },
   {
-   "mcp": "grimoire_run_command",
+   "mcp": "blueprint_run_command",
    "args": {
     "id": "workspace.files"
    },
    "at": 15.600000000000001
   },
   {
-   "mcp": "grimoire_run_command",
+   "mcp": "blueprint_run_command",
    "args": {
     "id": "workspace.map"
    },

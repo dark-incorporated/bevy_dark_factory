@@ -10,14 +10,14 @@ map: bench_storeroom
 prompt: |
   Remove both crates from the store room, and nothing else.
 
-  When it is done, hand the result back with grimoire_present.
+  When it is done, hand the result back with blueprint_present.
 setup: []
 solution:
   - op: placement_remove
     params: {id: crate_a}
   - op: placement_remove
     params: {id: crate_b}
-  - op: grimoire_present
+  - op: blueprint_present
     params:
       title: Both crates are gone
       summary: The two crates are removed from the store room. The shelf, the drawer and the plant are where they were.

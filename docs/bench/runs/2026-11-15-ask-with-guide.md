@@ -17,7 +17,7 @@
 
 ## Agent errors
 
-4 call(s) to a tool that does not exist in `bed-against-the-north-wall` trial 2, `clear-the-overlap-keep-both` trial 1, `set-the-gates-health` trial 1, `set-the-gates-health` trial 2. The agent was told so by its harness and went on, so each trial is scored: these are the agent's own mistakes and not the harness's. By the name called: `xd__mcp__cauldron_grimoire_guide` ×1, `xd__read` ×1, `xd_read` ×1, `xd_read_placeholder` ×1.
+4 call(s) to a tool that does not exist in `bed-against-the-north-wall` trial 2, `clear-the-overlap-keep-both` trial 1, `set-the-gates-health` trial 1, `set-the-gates-health` trial 2. The agent was told so by its harness and went on, so each trial is scored: these are the agent's own mistakes and not the harness's. By the name called: `xd__mcp__dark_factory_blueprint_guide` ×1, `xd__read` ×1, `xd_read` ×1, `xd_read_placeholder` ×1.
 
 ## The suite
 
@@ -80,48 +80,48 @@
 
 - first failing check: `handback_contains` — wanted a hand-back stating three, dresser; measured the hand-back \`Bedroom census: 3 pieces, dresser nearest the north wall\` does not state \`three\`
 - its last 3 call(s), oldest first:
-  - `grimoire_guide {}`
-  - `grimoire_state {}`
-  - `grimoire_present {"check":[{"placements":["dresser"],"what":"The dresser is the piece closest to the north wall"}],"inferred":["'The bedroom map' is the open map bench_bedroom (…`
+  - `blueprint_guide {}`
+  - `blueprint_state {}`
+  - `blueprint_present {"check":[{"placements":["dresser"],"what":"The dresser is the piece closest to the north wall"}],"inferred":["'The bedroom map' is the open map bench_bedroom (…`
 
 ### `count-what-the-bedroom-holds`, trial 2
 
 - first failing check: `handback_contains` — wanted a hand-back stating three, dresser; measured the hand-back \`Bedroom: 3 pieces, dresser nearest the north wall\` does not state \`three\`
 - its last 3 call(s), oldest first:
-  - `grimoire_guide {}`
-  - `grimoire_state {}`
-  - `grimoire_present {"check":[],"inferred":["North is -Z, as the map file's header says, so the north wall is the z = -2.5 plane","Each placement's 'at' is [x, z] in map metres"],"…`
+  - `blueprint_guide {}`
+  - `blueprint_state {}`
+  - `blueprint_present {"check":[],"inferred":["North is -Z, as the map file's header says, so the north wall is the z = -2.5 plane","Each placement's 'at' is [x, z] in map metres"],"…`
 
 ### `count-what-the-bedroom-holds`, trial 3
 
 - first failing check: `handback_contains` — wanted a hand-back stating three, dresser; measured the hand-back \`Bedroom census: 3 pieces, dresser nearest the north wall\` does not state \`three\`
 - its last 3 call(s), oldest first:
-  - `grimoire_guide {}`
-  - `grimoire_state {}`
-  - `grimoire_present {"check":[{"placements":["dresser"],"what":"The dresser sits closest to the north wall (z = -2.0 vs wall at z = -2.5)"}],"inferred":["'The bedroom map' is bench…`
+  - `blueprint_guide {}`
+  - `blueprint_state {}`
+  - `blueprint_present {"check":[{"placements":["dresser"],"what":"The dresser sits closest to the north wall (z = -2.0 vs wall at z = -2.5)"}],"inferred":["'The bedroom map' is bench…`
 
 ### `hedge-along-the-south-edge`, trial 3
 
 - first failing check: `placements_within` — wanted 6 × a \`plant_b\`, all inside x -4.00..4.00, z 2.20..3.00; measured 0 × a \`plant_b\` on the map, 0 of them inside x -4.00..4.00, z 2.20..3.00, and the task wants 6 all inside
 - its last 5 call(s), oldest first:
-  - `grimoire_style {}`
-  - `grimoire_list_pieces {}`
-  - `grimoire_preview_operation (refused) {"operation":"placement_add","parameters":{"at":[-2.5,2.6],"piece":"plant_b"}}`
-  - `grimoire_list_operations {"query":"placement"}`
-  - `grimoire_preview_operation (refused) {"operation":"placement_add","parameters":{"at":[-2.5,2.6],"piece":"plant_b","replace":true}}`
+  - `blueprint_style {}`
+  - `blueprint_list_pieces {}`
+  - `blueprint_preview_operation (refused) {"operation":"placement_add","parameters":{"at":[-2.5,2.6],"piece":"plant_b"}}`
+  - `blueprint_list_operations {"query":"placement"}`
+  - `blueprint_preview_operation (refused) {"operation":"placement_add","parameters":{"at":[-2.5,2.6],"piece":"plant_b","replace":true}}`
 
 ### `turn-the-wardrobe-into-the-room`, trial 3
 
 - first failing check: `oplog_has` — wanted at least 1 applied \`placement_set_yaw\` line\(s\); measured 0 applied \`placement_set_yaw\` line\(s\), and the task wants at least 1
 - its last 5 call(s), oldest first:
-  - `grimoire_capture_still {"label":"before_wardrobe"}`
-  - `grimoire_preview_operation {"operation":"placement_set_pose","parameters":{"id":"wardrobe","tip":[0,0],"yaw":90}}`
-  - `grimoire_apply_operation {"operation":"placement_set_pose","parameters":{"id":"wardrobe","tip":[0,0],"yaw":90}}`
-  - `grimoire_decide {"questions":{"faces":{"instructions":"The tall dresser's doors/drawer fronts face into the room, away from the wall.","type":"noul"},"stays":{"instructions":"T…`
-  - `grimoire_present {"check":[{"placements":["wardrobe"],"what":"Doors face the room (south) while the wardrobe stays flush on the north wall"}],"inferred":["The descriptor's front…`
+  - `blueprint_capture_still {"label":"before_wardrobe"}`
+  - `blueprint_preview_operation {"operation":"placement_set_pose","parameters":{"id":"wardrobe","tip":[0,0],"yaw":90}}`
+  - `blueprint_apply_operation {"operation":"placement_set_pose","parameters":{"id":"wardrobe","tip":[0,0],"yaw":90}}`
+  - `blueprint_decide {"questions":{"faces":{"instructions":"The tall dresser's doors/drawer fronts face into the room, away from the wall.","type":"noul"},"stays":{"instructions":"T…`
+  - `blueprint_present {"check":[{"placements":["wardrobe"],"what":"Doors face the room (south) while the wardrobe stays flush on the north wall"}],"inferred":["The descriptor's front…`
 
 ## Where the agent stumbles (dev tasks)
 
-- tools called most: `grimoire_apply_operation` ×82, `grimoire_list_operations` ×73, `grimoire_state` ×65, `grimoire_guide` ×61, `grimoire_present` ×60, `grimoire_decide` ×38, `grimoire_preview_operation` ×36, `grimoire_list_pieces` ×32
-- refusals by tool: `grimoire_preview_operation` ×7, `grimoire_style` ×3, `grimoire_run_command` ×1
+- tools called most: `blueprint_apply_operation` ×82, `blueprint_list_operations` ×73, `blueprint_state` ×65, `blueprint_guide` ×61, `blueprint_present` ×60, `blueprint_decide` ×38, `blueprint_preview_operation` ×36, `blueprint_list_pieces` ×32
+- refusals by tool: `blueprint_preview_operation` ×7, `blueprint_style` ×3, `blueprint_run_command` ×1
 - wishes, by the tool wished for: `A read-only tool that gives a placement's world-facing compass side, and the yaw that would put its front on a named side.` ×1

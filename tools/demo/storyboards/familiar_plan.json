@@ -1,5 +1,5 @@
 {
-  "name": "familiar_plan",
+  "name": "night_shift_plan",
   "fps": 10,
   "scale": 1,
   "width": 900,
@@ -17,7 +17,7 @@
       ]
     },
     {
-      "mcp": "grimoire_frame_view",
+      "mcp": "blueprint_frame_view",
       "args": {
         "target": {
           "rect": [
@@ -68,7 +68,7 @@
     },
     {
       "at": 5.5,
-      "mcp": "grimoire_apply_operation",
+      "mcp": "blueprint_apply_operation",
       "args": {
         "operation": "plan_set",
         "parameters": {
@@ -99,7 +99,7 @@
     },
     {
       "at": 9.9,
-      "mcp": "grimoire_apply_operation",
+      "mcp": "blueprint_apply_operation",
       "args": {
         "operation": "plan_set",
         "parameters": {

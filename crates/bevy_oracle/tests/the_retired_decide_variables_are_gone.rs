@@ -9,7 +9,7 @@ use std::path::{Path, PathBuf};
 
 /// The prefix, spelled in two pieces so that this file does not contain what it forbids.
 fn retired_prefix() -> String {
-    ["GRIMOIRE_", "DECIDE_"].concat()
+    ["BLUEPRINT_", "DECIDE_"].concat()
 }
 
 fn sources(dir: &Path, out: &mut Vec<PathBuf>) {

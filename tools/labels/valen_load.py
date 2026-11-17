@@ -3,7 +3,7 @@
 
 usage: valen_load.py <export-dir> [<export-dir>...]
 
-`cauldron-labels export` writes `<out>/train.jsonl`, `<out>/eval.jsonl` and `<out>/holdout.jsonl` in Valen's training
+`dark_factory-labels export` writes `<out>/train.jsonl`, `<out>/eval.jsonl` and `<out>/holdout.jsonl` in Valen's training
 format, with the pictures under `<out>/images/`. This runs `valen.data.schema.read_jsonl`, the reader Valen's own
 training uses, over each file that exists, so "the exported JSONL loads with Valen's own data loader" is a command a
 person can run rather than a claim. Nothing here re-implements the contract: a record the reader refuses prints the

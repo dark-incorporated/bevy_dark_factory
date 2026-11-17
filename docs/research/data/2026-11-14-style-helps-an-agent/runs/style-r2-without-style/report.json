@@ -190,11 +190,11 @@
           "wanted": "`gate_light.radius_m` in `furniture/data/gate_light.yaml` ≥ 2 and ≤ 5",
           "measured": "`gate_light.radius_m` in `furniture/data/gate_light.yaml` is 10.5, and it should be at most 5",
           "last_calls": [
-            "grimoire_apply_operation (refused) {\"operation\":\"data_set\",\"parameters\":{\"file\":\"lighting/gate\",\"path\":\"gate_light.ambient_lux\",\"value\":3}}",
-            "grimoire_apply_operation {\"operation\":\"data_set\",\"parameters\":{\"file\":\"lighting/gate\",\"path\":\"gate_light.radius_m\",\"value\":10.5}}",
-            "grimoire_apply_operation {\"operation\":\"data_set\",\"parameters\":{\"file\":\"lighting/gate\",\"path\":\"gate_light.flicker_hz\",\"value\":7.5}}",
-            "grimoire_apply_operation {\"operation\":\"data_set\",\"parameters\":{\"file\":\"lighting/gate\",\"path\":\"gate_light.ambient_lux\",\"value\":3.5}}",
-            "grimoire_present {\"check\":[{\"what\":\"Tint 'amber': confirm the game reads that string as a tint (the file gave no list of valid names).\"},{\"what\":\"Intensity 2000 lm / radius 10.5…"
+            "blueprint_apply_operation (refused) {\"operation\":\"data_set\",\"parameters\":{\"file\":\"lighting/gate\",\"path\":\"gate_light.ambient_lux\",\"value\":3}}",
+            "blueprint_apply_operation {\"operation\":\"data_set\",\"parameters\":{\"file\":\"lighting/gate\",\"path\":\"gate_light.radius_m\",\"value\":10.5}}",
+            "blueprint_apply_operation {\"operation\":\"data_set\",\"parameters\":{\"file\":\"lighting/gate\",\"path\":\"gate_light.flicker_hz\",\"value\":7.5}}",
+            "blueprint_apply_operation {\"operation\":\"data_set\",\"parameters\":{\"file\":\"lighting/gate\",\"path\":\"gate_light.ambient_lux\",\"value\":3.5}}",
+            "blueprint_present {\"check\":[{\"what\":\"Tint 'amber': confirm the game reads that string as a tint (the file gave no list of valid names).\"},{\"what\":\"Intensity 2000 lm / radius 10.5…"
           ]
         }
       ],
@@ -238,10 +238,10 @@
           "wanted": "`gatekeeper.greeting.text` in `furniture/data/gatekeeper.yaml` contains `toll`",
           "measured": "`gatekeeper.greeting.text` in `furniture/data/gatekeeper.yaml` is \"Halt there, traveller. This is the courtyard gate, and I keep it. State your name and your business, and if both are honest, you may pass.\", and it should contain `toll`",
           "last_calls": [
-            "grimoire_guide {}",
-            "grimoire_list_operations {\"query\":\"data_set\"}",
-            "grimoire_apply_operation {\"operation\":\"data_set\",\"parameters\":{\"file\":\"dialogue/gatekeeper\",\"path\":\"gatekeeper.greeting.text\",\"value\":\"Halt there, traveller. This is the courtyard gate,…",
-            "grimoire_present {\"check\":[{\"what\":\"Whether the stern 'Halt there' opening suits the game's intended tone; it could be warmer.\"},{\"what\":\"Whether the gatekeeper should demand a …"
+            "blueprint_guide {}",
+            "blueprint_list_operations {\"query\":\"data_set\"}",
+            "blueprint_apply_operation {\"operation\":\"data_set\",\"parameters\":{\"file\":\"dialogue/gatekeeper\",\"path\":\"gatekeeper.greeting.text\",\"value\":\"Halt there, traveller. This is the courtyard gate,…",
+            "blueprint_present {\"check\":[{\"what\":\"Whether the stern 'Halt there' opening suits the game's intended tone; it could be warmer.\"},{\"what\":\"Whether the gatekeeper should demand a …"
           ]
         }
       ],
@@ -250,22 +250,22 @@
     }
   ],
   "tool_counts": {
-    "grimoire_apply_operation": 11,
-    "grimoire_guide": 2,
-    "grimoire_list_operations": 2,
-    "grimoire_present": 2,
-    "grimoire_preview_operation": 1,
-    "grimoire_state": 1
+    "blueprint_apply_operation": 11,
+    "blueprint_guide": 2,
+    "blueprint_list_operations": 2,
+    "blueprint_present": 2,
+    "blueprint_preview_operation": 1,
+    "blueprint_state": 1
   },
   "refusals_by_tool": {
-    "grimoire_apply_operation": 3
+    "blueprint_apply_operation": 3
   },
   "wishes_by_tool": {},
   "harness_error_reasons": [
     {
       "task": "dress-the-market-area",
       "trial": 1,
-      "reason": "the transcript shows a tool `xd___mcp__cauldron_grimoire_guide` that is neither the editor's nor the harness's own set, so the profile was not isolated"
+      "reason": "the transcript shows a tool `xd___mcp__dark_factory_blueprint_guide` that is neither the editor's nor the harness's own set, so the profile was not isolated"
     }
   ],
   "preflight": {

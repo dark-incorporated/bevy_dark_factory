@@ -1,4 +1,4 @@
-# bevy_grimoire: world-building from an authored example, as a set of crates for Bevy 0.20.
+# bevy_blueprint: world-building from an authored example, as a set of crates for Bevy 0.20.
 # Extracted from foundation_vs_slop (history kept) and relicensed MIT OR Apache-2.0.
 [workspace]
 members = ["crates/*", "games/*"]
@@ -19,7 +19,7 @@ ron = "0.12.2"
 # missing field (#200). Read only on a refusal, to say where, never to decide.
 serde_path_to_error = "0.1"
 # **The YAML reader and writer, and the event parser that says where a node stands.** `serde_yaml_ng`
-# reads a project file (GD-01, #363, `bevy_grimoire_core/src/yaml.rs`) and follows YAML 1.2, so only
+# reads a project file (GD-01, #363, `blueprint_model/src/yaml.rs`) and follows YAML 1.2, so only
 # `true` and `false` are booleans. Its reader resolves an anchor silently, reports a duplicate key with
 # no position, and accepts a leading tab, so the text is walked first by `saphyr-parser`, which reports
 # every node's path and position: that walk is where each refusal is refused, at its own line and field
@@ -78,27 +78,27 @@ incremental = false
 [profile.dev.package."*"]
 opt-level = 3
 
-# **The workspace's own test binaries are stripped of symbols.** `bevy_cauldron` has ~90 integration
+# **The workspace's own test binaries are stripped of symbols.** `bevy_dark_factory` has ~90 integration
 # tests, each linking a full Bevy app into its own ~250 MB executable; `strip -x` takes one from 252 MB
 # to 137 MB, ~45% of the ~22 GB they occupy in the shared target dir. Only this package was overridden
-# at first, so every *other* member kept its debuginfo: measured 2026-11-02 on big, a `bevy_grimoire`,
-# `bevy_devshot` or `bevy_grimoire_anim` test binary was **2.0 GB**, and `strip -x` takes each to about
+# at first, so every *other* member kept its debuginfo: measured 2026-11-02 on big, a `bevy_blueprint`,
+# `bevy_devshot` or `bevy_blueprint_anim` test binary was **2.0 GB**, and `strip -x` takes each to about
 # 65 MB (97% smaller). With 50 such binaries over 1 GB in `target/` (134 GB total), and an aborted link
 # leaving a 2 GB `.tmp` behind, that is the difference between a build that fits beside its siblings and
 # one that fills the disk.
 #
 # The cost is that a panic's backtrace shows no function names (the panic message and line are
 # unaffected). A dependency keeps the build it already has; these are this workspace's own packages.
-[profile.dev.package.bevy_cauldron]
+[profile.dev.package.bevy_dark_factory]
 strip = "symbols"
 
-[profile.dev.package.bevy_grimoire]
+[profile.dev.package.bevy_blueprint]
 strip = "symbols"
 
 [profile.dev.package.bevy_devshot]
 strip = "symbols"
 
-[profile.dev.package.bevy_grimoire_anim]
+[profile.dev.package.bevy_blueprint_anim]
 strip = "symbols"
 
 [profile.dev.package.bevy_oracle]

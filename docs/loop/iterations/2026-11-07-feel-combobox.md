@@ -1,12 +1,12 @@
 # 2026-11-07 feel series: G-66 combobox built in bevy_gooey (v0.43.0), and the eight standing demos re-recorded
 
-Focus: epic #330 (owner's steer, which now also says re-record the demo GIFs each loop) · Commits: bevy_gooey 4a29aab (merged 32dfb72), release 1f7e4ad; bevy_grimoire demos below · Machine: big · Outcome: shipped
+Focus: epic #330 (owner's steer, which now also says re-record the demo GIFs each loop) · Commits: bevy_gooey 4a29aab (merged 32dfb72), release 1f7e4ad; bevy_blueprint demos below · Machine: big · Outcome: shipped
 
 ## Summary
 G-66 (bevy-coven/bevy_gooey#73) is a labelled field with a popover list under it that narrows as the player types. UI-R03 (#333) has no open Needs left: the next pass moves the editor's pin to v0.43.0. The eight standing GIFs and `editor.png` were re-recorded on the current editor (origin/main 3e9d9bb8), under a private Xvfb on big.
 
 ## Baseline
-bevy_grimoire code was not touched, so its gate and `accept.py` did not run. Disk on big was 640 GB free after the runner caches pruned, load high from CI.
+bevy_blueprint code was not touched, so its gate and `accept.py` did not run. Disk on big was 640 GB free after the runner caches pruned, load high from CI.
 
 ## Enhancement: G-66 combobox
 - **Change:** `src/combobox.rs`: `combobox(label, options)`, `ComboOption { id, label, detail, enabled }`, `ComboValue`, `Combobox` (state), `combobox_by_input`, `update_comboboxes`, `keep_focus_on_escape`; hooks in `text.rs` (Enter belongs to an open list) and `nav.rs` (Up and Down belong to the field).
@@ -30,10 +30,10 @@ All eight GIFs and `editor.png` re-recorded from the editor built at 3e9d9bb8, w
 - **Captions:** frame counts updated (hero 116, agent-drives 78, agent-removes-then-undo 48, place-and-undo 50); `stale.py` says all nine fresh. The fridge preview that stands at the pointer in `hero` and `agent-removes-then-undo` was in the old files too.
 
 ## Test diffs
-New `tests/combobox.rs` and its `mod` line in `tests/all.rs` (bevy_gooey). None in bevy_grimoire.
+New `tests/combobox.rs` and its `mod` line in `tests/all.rs` (bevy_gooey). None in bevy_blueprint.
 
 ## Release
-bevy_gooey **v0.43.0**, https://crates.io/crates/bevy_gooey/0.43.0 (tag v0.43.0, commit 1f7e4ad). MINOR: `cargo semver-checks` flagged `begin_entrances` (the sibling pass's G-65). It also ships G-53 and G-65 from the sibling pass. bevy_grimoire has no crate change.
+bevy_gooey **v0.43.0**, https://crates.io/crates/bevy_gooey/0.43.0 (tag v0.43.0, commit 1f7e4ad). MINOR: `cargo semver-checks` flagged `begin_entrances` (the sibling pass's G-65). It also ships G-53 and G-65 from the sibling pass. bevy_blueprint has no crate change.
 
 ## Next focus
 UR03 (#333): move the editor's gooey pin to v0.43.0 (editor tests that read a tooltip need `TooltipSettings { delay_seconds: 0.0 }`, and ones that read a scroll after a key need `MotionSettings::off()`), then adopt the variants, default button, control size and combobox. Re-record the demos again after it.

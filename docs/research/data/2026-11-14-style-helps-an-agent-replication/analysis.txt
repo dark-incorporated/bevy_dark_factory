@@ -6,18 +6,18 @@ write-the-gatekeepers-greeting: without 3.00/6  with 6.00/6  (5 and 5 runs)
 lines satisfied per task-triple (max 24): without 10.40  with 24.00
 PRIMARY  difference with - without: +13.60  95% bootstrap interval [+13.20, +14.00]  ->  better
 second reading, exact permutation test (arm labels exchanged within a task), two-sided p = 0.0000
-route of the with-style runs: tool 10, file 0, both 4, neither 1  (called grimoire_style, with or without a page: 93%; the tool alone, no page: 67%; needed 70% of the first)
+route of the with-style runs: tool 10, file 0, both 4, neither 1  (called blueprint_style, with or without a page: 93%; the tool alone, no page: 67%; needed 70% of the first)
   D over the 10 with-style runs by route `tool` (3 tasks): +13.60  [+13.20, +14.00]  (descriptive, a thin cell)
   D over the 4 with-style runs by route `both` (3 tasks): +13.60  [+13.20, +14.00]  (descriptive, a thin cell)
   D over the 1 with-style runs by route `neither` (1 tasks): +3.00  [+3.00, +3.00]  (descriptive, a thin cell)
-CLAIM: `grimoire_style` changes what an agent builds: the tool share was met and D is better
-with-style runs that called grimoire_style before their first edit: 14 of 15
-with-style runs whose own grimoire_present call cited followed lines: 15 of 15
-without-style runs offered grimoire_style (must be 0): 0
-without-style runs that tried the hidden grimoire_style by its device path: 0 of 15 (0 writes, 0 reads)
+CLAIM: `blueprint_style` changes what an agent builds: the tool share was met and D is better
+with-style runs that called blueprint_style before their first edit: 14 of 15
+with-style runs whose own blueprint_present call cited followed lines: 15 of 15
+without-style runs offered blueprint_style (must be 0): 0
+without-style runs that tried the hidden blueprint_style by its device path: 0 of 15 (0 writes, 0 reads)
 wishes made by with-style runs: 2
-  - dress-the-market-area {"after": {"presentation": "present-1"}, "example_call": "grimoire_preview_operation {\"operation\":\"placement_add\",\"parameters\":{\"piece\":\"awning_canvas\",\"at\":[-8.85,9.0],\"yaw\":180}}", "hardship": "placement_add silently replaced a stall when I put an awning at the same spot; I only found out from the result line and had to undo. I also could not tell whether a piece can be lifted overhead, and could not set lantern light because bevy_lights is not in family.yaml.", "task": "dressed the market rectangle with three stalls, awnings, lanterns and a few props", "tool": "A grimoire_preview_operation report for placement_add that lists which existing placements the new piece would replace or overlap, before anything is written."}
-  - write-the-gatekeepers-greeting {"after": {"presentation": "present-1"}, "example_call": "grimoire_list_operations {\"name\": \"data_set\"}", "hardship": "grimoire_style refused topic `dialogue` (only `style` exists) after I guessed it; the data_set parameters were buried in a 29KB operations list I had to grep from an artifact", "task": "wrote the gatekeeper's greeting into dialogue/gatekeeper", "tool": "grimoire_list_operations with a name filter, returning only the named operation's schema."}
+  - dress-the-market-area {"after": {"presentation": "present-1"}, "example_call": "blueprint_preview_operation {\"operation\":\"placement_add\",\"parameters\":{\"piece\":\"awning_canvas\",\"at\":[-8.85,9.0],\"yaw\":180}}", "hardship": "placement_add silently replaced a stall when I put an awning at the same spot; I only found out from the result line and had to undo. I also could not tell whether a piece can be lifted overhead, and could not set lantern light because bevy_lights is not in family.yaml.", "task": "dressed the market rectangle with three stalls, awnings, lanterns and a few props", "tool": "A blueprint_preview_operation report for placement_add that lists which existing placements the new piece would replace or overlap, before anything is written."}
+  - write-the-gatekeepers-greeting {"after": {"presentation": "present-1"}, "example_call": "blueprint_list_operations {\"name\": \"data_set\"}", "hardship": "blueprint_style refused topic `dialogue` (only `style` exists) after I guessed it; the data_set parameters were buried in a 29KB operations list I had to grep from an artifact", "task": "wrote the gatekeeper's greeting into dialogue/gatekeeper", "tool": "blueprint_list_operations with a name filter, returning only the named operation's schema."}
 
 === SECOND (post-hoc) ANALYSIS: tool use read from trial.json tool_log, direct and xd:// calls ===
 harness errors (not scored): 0
@@ -27,18 +27,18 @@ write-the-gatekeepers-greeting: without 3.00/6  with 6.00/6  (5 and 5 runs)
 lines satisfied per task-triple (max 24): without 10.40  with 24.00
 PRIMARY  difference with - without: +13.60  95% bootstrap interval [+13.20, +14.00]  ->  better
 second reading, exact permutation test (arm labels exchanged within a task), two-sided p = 0.0000
-route of the with-style runs: tool 11, file 0, both 4, neither 0  (called grimoire_style, with or without a page: 100%; the tool alone, no page: 73%; needed 70% of the first)
+route of the with-style runs: tool 11, file 0, both 4, neither 0  (called blueprint_style, with or without a page: 100%; the tool alone, no page: 73%; needed 70% of the first)
   D over the 11 with-style runs by route `tool` (3 tasks): +13.60  [+13.20, +14.00]  (descriptive, a thin cell)
   D over the 4 with-style runs by route `both` (3 tasks): +13.60  [+13.20, +14.00]  (descriptive, a thin cell)
-CLAIM: `grimoire_style` changes what an agent builds: the tool share was met and D is better
-with-style runs that called grimoire_style before their first edit: 15 of 15
-with-style runs whose own grimoire_present call cited followed lines: 15 of 15
-without-style runs offered grimoire_style (must be 0): 0
-without-style runs that tried the hidden grimoire_style by its device path: 0 of 15 (0 writes, 0 reads)
+CLAIM: `blueprint_style` changes what an agent builds: the tool share was met and D is better
+with-style runs that called blueprint_style before their first edit: 15 of 15
+with-style runs whose own blueprint_present call cited followed lines: 15 of 15
+without-style runs offered blueprint_style (must be 0): 0
+without-style runs that tried the hidden blueprint_style by its device path: 0 of 15 (0 writes, 0 reads)
 wishes made by with-style runs: 2
-  - dress-the-market-area {"after": {"presentation": "present-1"}, "example_call": "grimoire_preview_operation {\"operation\":\"placement_add\",\"parameters\":{\"piece\":\"awning_canvas\",\"at\":[-8.85,9.0],\"yaw\":180}}", "hardship": "placement_add silently replaced a stall when I put an awning at the same spot; I only found out from the result line and had to undo. I also could not tell whether a piece can be lifted overhead, and could not set lantern light because bevy_lights is not in family.yaml.", "task": "dressed the market rectangle with three stalls, awnings, lanterns and a few props", "tool": "A grimoire_preview_operation report for placement_add that lists which existing placements the new piece would replace or overlap, before anything is written."}
-  - write-the-gatekeepers-greeting {"after": {"presentation": "present-1"}, "example_call": "grimoire_list_operations {\"name\": \"data_set\"}", "hardship": "grimoire_style refused topic `dialogue` (only `style` exists) after I guessed it; the data_set parameters were buried in a 29KB operations list I had to grep from an artifact", "task": "wrote the gatekeeper's greeting into dialogue/gatekeeper", "tool": "grimoire_list_operations with a name filter, returning only the named operation's schema."}
-agent errors, without-style: 3 of 15 scored runs had at least one (3 calls); direct-name editor calls counted: 0; tools refused: xd___mcp__cauldron_grimoire_guide, xd__mcp__cauldron_grimoire_guide
-agent errors, with-style: 3 of 15 scored runs had at least one (3 calls); direct-name editor calls counted: 7; tools refused: xd__mcp__cauldron_grimoire_guide
+  - dress-the-market-area {"after": {"presentation": "present-1"}, "example_call": "blueprint_preview_operation {\"operation\":\"placement_add\",\"parameters\":{\"piece\":\"awning_canvas\",\"at\":[-8.85,9.0],\"yaw\":180}}", "hardship": "placement_add silently replaced a stall when I put an awning at the same spot; I only found out from the result line and had to undo. I also could not tell whether a piece can be lifted overhead, and could not set lantern light because bevy_lights is not in family.yaml.", "task": "dressed the market rectangle with three stalls, awnings, lanterns and a few props", "tool": "A blueprint_preview_operation report for placement_add that lists which existing placements the new piece would replace or overlap, before anything is written."}
+  - write-the-gatekeepers-greeting {"after": {"presentation": "present-1"}, "example_call": "blueprint_list_operations {\"name\": \"data_set\"}", "hardship": "blueprint_style refused topic `dialogue` (only `style` exists) after I guessed it; the data_set parameters were buried in a 29KB operations list I had to grep from an artifact", "task": "wrote the gatekeeper's greeting into dialogue/gatekeeper", "tool": "blueprint_list_operations with a name filter, returning only the named operation's schema."}
+agent errors, without-style: 3 of 15 scored runs had at least one (3 calls); direct-name editor calls counted: 0; tools refused: xd___mcp__dark_factory_blueprint_guide, xd__mcp__dark_factory_blueprint_guide
+agent errors, with-style: 3 of 15 scored runs had at least one (3 calls); direct-name editor calls counted: 7; tools refused: xd__mcp__dark_factory_blueprint_guide
 Fisher exact, runs with an agent error (with-style 3 of 15 against without-style 3 of 15), two-sided p = 1.0000
 harness errors (not scored): without-style 0, with-style 0

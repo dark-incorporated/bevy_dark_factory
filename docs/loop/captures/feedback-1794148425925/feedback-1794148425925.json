@@ -5,7 +5,7 @@
   "audience": "developers",
   "app_version": "0.5.0",
   "screen": "editor",
-  "project": "/Users/ladvien/Documents/Cauldron Projects/lavender_hills",
+  "project": "/Users/ladvien/Documents/DarkFactory Projects/lavender_hills",
   "map": "deadite_caverns",
   "tool": "Place",
   "window": {
@@ -53,7 +53,7 @@
     }
   ],
   "relations": [],
-  "note": "If there was an agent in process, Cauldron should remember it and restart there.  For example, capturing omp's resume ID on exit and automaticaly resuming with that id on restart.",
+  "note": "If there was an agent in process, DarkFactory should remember it and restart there.  For example, capturing omp's resume ID on exit and automaticaly resuming with that id on restart.",
   "picture": {
     "file": "feedback-1794148425925.png",
     "size": [

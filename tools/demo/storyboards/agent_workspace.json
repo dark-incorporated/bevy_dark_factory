@@ -25,7 +25,7 @@
   "steps": [
     {
       "at": 0.3,
-      "mcp": "grimoire_apply_operation",
+      "mcp": "blueprint_apply_operation",
       "args": {
         "operation": "placement_add",
         "parameters": {
@@ -39,7 +39,7 @@
     },
     {
       "at": 1.0,
-      "mcp": "grimoire_run_command",
+      "mcp": "blueprint_run_command",
       "args": {
         "id": "workspace.agent"
       },
@@ -47,7 +47,7 @@
     },
     {
       "at": 1.5,
-      "mcp": "grimoire_apply_operation",
+      "mcp": "blueprint_apply_operation",
       "args": {
         "operation": "placement_add",
         "parameters": {
@@ -61,7 +61,7 @@
     },
     {
       "at": 2.7,
-      "mcp": "grimoire_apply_operation",
+      "mcp": "blueprint_apply_operation",
       "args": {
         "operation": "placement_add",
         "parameters": {
@@ -75,11 +75,11 @@
     },
     {
       "at": 2.8,
-      "caption": "the change the Familiar just made is a row, with Look and Undo"
+      "caption": "the change the NightShift just made is a row, with Look and Undo"
     },
     {
       "at": 3.9,
-      "mcp": "grimoire_apply_operation",
+      "mcp": "blueprint_apply_operation",
       "args": {
         "operation": "placement_add",
         "parameters": {
@@ -97,7 +97,7 @@
     },
     {
       "at": 5.1,
-      "mcp": "grimoire_apply_operation",
+      "mcp": "blueprint_apply_operation",
       "args": {
         "operation": "placement_add",
         "parameters": {
@@ -115,7 +115,7 @@
     },
     {
       "at": 6.3,
-      "mcp": "grimoire_apply_operation",
+      "mcp": "blueprint_apply_operation",
       "args": {
         "operation": "placement_add",
         "parameters": {
@@ -129,7 +129,7 @@
     },
     {
       "at": 7.5,
-      "mcp": "grimoire_apply_operation",
+      "mcp": "blueprint_apply_operation",
       "args": {
         "operation": "placement_add",
         "parameters": {

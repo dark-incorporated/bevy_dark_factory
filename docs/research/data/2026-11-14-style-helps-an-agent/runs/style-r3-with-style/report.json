@@ -216,27 +216,27 @@
     }
   ],
   "tool_counts": {
-    "grimoire_apply_operation": 12,
-    "grimoire_guide": 1,
-    "grimoire_list_operations": 1,
-    "grimoire_present": 1,
-    "grimoire_state": 1,
-    "grimoire_style": 2
+    "blueprint_apply_operation": 12,
+    "blueprint_guide": 1,
+    "blueprint_list_operations": 1,
+    "blueprint_present": 1,
+    "blueprint_state": 1,
+    "blueprint_style": 2
   },
   "refusals_by_tool": {
-    "grimoire_apply_operation": 4
+    "blueprint_apply_operation": 4
   },
   "wishes_by_tool": {},
   "harness_error_reasons": [
     {
       "task": "dress-the-market-area",
       "trial": 1,
-      "reason": "the transcript shows a tool `xd__mcp__cauldron_grimoire_guide` that is neither the editor's nor the harness's own set, so the profile was not isolated"
+      "reason": "the transcript shows a tool `xd__mcp__dark_factory_blueprint_guide` that is neither the editor's nor the harness's own set, so the profile was not isolated"
     },
     {
       "task": "write-the-gatekeepers-greeting",
       "trial": 1,
-      "reason": "the transcript shows a tool `xd__mcp__cauldron_grimoire_guide` that is neither the editor's nor the harness's own set, so the profile was not isolated"
+      "reason": "the transcript shows a tool `xd__mcp__dark_factory_blueprint_guide` that is neither the editor's nor the harness's own set, so the profile was not isolated"
     }
   ],
   "preflight": {

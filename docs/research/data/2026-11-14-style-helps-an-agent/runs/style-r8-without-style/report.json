@@ -185,11 +185,11 @@
           "wanted": "`gate_light.radius_m` in `furniture/data/gate_light.yaml` ≥ 2 and ≤ 5",
           "measured": "`gate_light.radius_m` in `furniture/data/gate_light.yaml` is 8.0, and it should be at most 5",
           "last_calls": [
-            "grimoire_apply_operation {\"operation\":\"data_set\",\"parameters\":{\"file\":\"lighting/gate\",\"path\":\"gate_light.tint\",\"value\":\"amber\"}}",
-            "grimoire_apply_operation (refused) {\"operation\":\"data_set\",\"parameters\":{\"file\":\"lighting/gate\",\"path\":\"gate_light.ambient_lux\",\"value\":2}}",
-            "grimoire_apply_operation {\"operation\":\"data_set\",\"parameters\":{\"file\":\"lighting/gate\",\"path\":\"gate_light.flicker_hz\",\"value\":8.5}}",
-            "grimoire_apply_operation {\"operation\":\"data_set\",\"parameters\":{\"file\":\"lighting/gate\",\"path\":\"gate_light.ambient_lux\",\"value\":2.5}}",
-            "grimoire_present {\"check\":[{\"what\":\"tint: 'amber' - confirm the game accepts that tint name (the previous value was 'white')\"},{\"what\":\"intensity_lm 1500 / radius_m 8.0 left at …"
+            "blueprint_apply_operation {\"operation\":\"data_set\",\"parameters\":{\"file\":\"lighting/gate\",\"path\":\"gate_light.tint\",\"value\":\"amber\"}}",
+            "blueprint_apply_operation (refused) {\"operation\":\"data_set\",\"parameters\":{\"file\":\"lighting/gate\",\"path\":\"gate_light.ambient_lux\",\"value\":2}}",
+            "blueprint_apply_operation {\"operation\":\"data_set\",\"parameters\":{\"file\":\"lighting/gate\",\"path\":\"gate_light.flicker_hz\",\"value\":8.5}}",
+            "blueprint_apply_operation {\"operation\":\"data_set\",\"parameters\":{\"file\":\"lighting/gate\",\"path\":\"gate_light.ambient_lux\",\"value\":2.5}}",
+            "blueprint_present {\"check\":[{\"what\":\"tint: 'amber' - confirm the game accepts that tint name (the previous value was 'white')\"},{\"what\":\"intensity_lm 1500 / radius_m 8.0 left at …"
           ]
         }
       ],
@@ -230,26 +230,26 @@
     }
   ],
   "tool_counts": {
-    "grimoire_apply_operation": 7,
-    "grimoire_guide": 1,
-    "grimoire_list_operations": 1,
-    "grimoire_present": 1,
-    "grimoire_state": 1
+    "blueprint_apply_operation": 7,
+    "blueprint_guide": 1,
+    "blueprint_list_operations": 1,
+    "blueprint_present": 1,
+    "blueprint_state": 1
   },
   "refusals_by_tool": {
-    "grimoire_apply_operation": 2
+    "blueprint_apply_operation": 2
   },
   "wishes_by_tool": {},
   "harness_error_reasons": [
     {
       "task": "dress-the-market-area",
       "trial": 1,
-      "reason": "the transcript shows a tool `xd__mcp__cauldron_grimoire_guide` that is neither the editor's nor the harness's own set, so the profile was not isolated"
+      "reason": "the transcript shows a tool `xd__mcp__dark_factory_blueprint_guide` that is neither the editor's nor the harness's own set, so the profile was not isolated"
     },
     {
       "task": "write-the-gatekeepers-greeting",
       "trial": 1,
-      "reason": "the transcript shows a tool `xd___mcp__cauldron_grimoire_guide` that is neither the editor's nor the harness's own set, so the profile was not isolated"
+      "reason": "the transcript shows a tool `xd___mcp__dark_factory_blueprint_guide` that is neither the editor's nor the harness's own set, so the profile was not isolated"
     }
   ],
   "preflight": {

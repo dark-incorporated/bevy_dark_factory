@@ -17,7 +17,7 @@
       ]
     },
     {
-      "mcp": "grimoire_apply_operation",
+      "mcp": "blueprint_apply_operation",
       "args": {
         "operation": "map_set_settings",
         "parameters": {
@@ -45,11 +45,11 @@
         420,
         320
       ],
-      "caption": "agent: grimoire_apply_operation places a pouffe in the far corner"
+      "caption": "agent: blueprint_apply_operation places a pouffe in the far corner"
     },
     {
       "at": 0.4,
-      "mcp": "grimoire_apply_operation",
+      "mcp": "blueprint_apply_operation",
       "args": {
         "operation": "placement_add",
         "parameters": {
@@ -67,7 +67,7 @@
     },
     {
       "at": 1.9,
-      "mcp": "grimoire_apply_operation",
+      "mcp": "blueprint_apply_operation",
       "args": {
         "operation": "placement_add",
         "parameters": {
@@ -85,7 +85,7 @@
     },
     {
       "at": 3.4,
-      "mcp": "grimoire_apply_operation",
+      "mcp": "blueprint_apply_operation",
       "args": {
         "operation": "placement_add",
         "parameters": {
@@ -103,29 +103,29 @@
     },
     {
       "at": 4.9,
-      "mcp": "grimoire_undo_operation",
+      "mcp": "blueprint_undo_operation",
       "args": {
         "operation_id": null
       }
     },
     {
       "at": 5.8,
-      "caption": "agent: grimoire_undo_operation takes the third one back"
+      "caption": "agent: blueprint_undo_operation takes the third one back"
     },
     {
       "at": 6.4,
-      "mcp": "grimoire_undo_operation",
+      "mcp": "blueprint_undo_operation",
       "args": {
         "operation_id": null
       }
     },
     {
       "at": 7.3,
-      "caption": "an undo frames where the change was, and the receipt says the Familiar placed pouffe@3"
+      "caption": "an undo frames where the change was, and the receipt says the NightShift placed pouffe@3"
     },
     {
       "at": 7.9,
-      "mcp": "grimoire_apply_operation",
+      "mcp": "blueprint_apply_operation",
       "args": {
         "operation": "placement_add",
         "parameters": {

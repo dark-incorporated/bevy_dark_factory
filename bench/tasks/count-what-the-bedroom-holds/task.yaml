@@ -17,10 +17,10 @@ prompt: |
   Look at the bedroom map and tell me two things: how many pieces stand on it, and which one is nearest the
   north wall.
 
-  Do not change anything. Answer with grimoire_present, putting the count and the piece in the summary.
+  Do not change anything. Answer with blueprint_present, putting the count and the piece in the summary.
 setup: []
 solution:
-  - op: grimoire_present
+  - op: blueprint_present
     params:
       title: The bedroom holds three pieces
       summary: Three pieces stand on the bedroom map — a dresser, a chair and a drawer. The dresser is the one nearest the north wall, at z = -2.0.

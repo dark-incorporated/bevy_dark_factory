@@ -5,7 +5,7 @@ from pathlib import Path
 from PIL import Image
 sha, src = sys.argv[1], Path(sys.argv[2])
 png = Path(sys.argv[3]) if len(sys.argv) > 3 else None
-repo = Path.home() / "bevy_grimoire"
+repo = Path.home() / "bevy_blueprint"
 readme = repo / "docs/media/README.md"
 lines = readme.read_text().split("\n")
 def row_of(name):

@@ -10,7 +10,7 @@ Gate: green on `main` at pass start (push at 190 s). `accept.py` not run: nothin
 
 ## Cluster
 - **#327** (bug, oldest unprotected): not reproduced, guard test added, left open. Live under Xvfb with a 15 fps and a 4 fps capture and `editor.ron` rewritten mid-capture: columns 147 to 105 on main, 161 to 113 on a build from before `9cb98fa6`; a 213 report is the runaway `9cb98fa6` fixed (hypothesis, said so on the issue). A `record.py` run of the terminal-settings storyboard with the same write ended at 113 columns.
-- **#324** (owner): slice 4, `terminal_shell` and `terminal_shell_args`. Stays open: `CAULDRON_PROJECT` from the assumed decision is still not in (the session knows a working directory, not a project), and the settings screen still has no text control.
+- **#324** (owner): slice 4, `terminal_shell` and `terminal_shell_args`. Stays open: `DARK_FACTORY_PROJECT` from the assumed decision is still not in (the session knows a working directory, not a project), and the settings screen still has no text control.
 - **#322**: unchanged since pass 465's diagnosis (camera ease uses `10.0 * dt`; needs an owner call on protected tests).
 - Skipped: #331 to #336 (wait on bevy_gooey#51 and #76), #325 (not started: link detection is new surface; the budget went to the demos), the panel series (#236 to #260, all wait on #210's protected `chrome::NAME` spellings).
 
@@ -38,7 +38,7 @@ No reviewer subagent was spawned. Self-review: (1) Does `set_shell` run before `
 Two new files (`a_settings_edit_during_a_capture_reaches_the_terminal`, `the_terminal_runs_the_shell_it_is_set_to`), each one `mod` line in `all.rs` (the owner's exception for a new editor test file). No existing assertion changed.
 
 ## Release
-None by this pass's own choice: no packaged crate changed (`bevy_cauldron` is `publish = false`); the editor's version `0.4.1` was not bumped, as no release was asked.
+None by this pass's own choice: no packaged crate changed (`bevy_dark_factory` is `publish = false`); the editor's version `0.4.1` was not bumped, as no release was asked.
 
 ## Next focus
-#324's `CAULDRON_PROJECT` and a settings-screen text field, once bevy_gooey has a text control the screen can use (check `bevy_gooey#76`); #325 link opening.
+#324's `DARK_FACTORY_PROJECT` and a settings-screen text field, once bevy_gooey has a text control the screen can use (check `bevy_gooey#76`); #325 link opening.

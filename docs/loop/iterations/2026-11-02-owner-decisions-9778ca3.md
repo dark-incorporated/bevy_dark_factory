@@ -24,7 +24,7 @@ reference in the protected tests by whether gooey can carry it says otherwise:
 exception. Filed as **bevy-coven/bevy_gooey#37 (G-33)**, added to UI-00.
 
 ## Enhancement: K reveals the overlay, in the crate
-Files: `crates/bevy_cauldron/src/ui.rs`, `tests/the_shortcut_overlay_answers_to_k.rs` (new).
+Files: `crates/bevy_dark_factory/src/ui.rs`, `tests/the_shortcut_overlay_answers_to_k.rs` (new).
 `EditorUiPlugin` installs `ShortcutBadges { hold: Reveal::Key(KeyCode::KeyK), delay_seconds: 0.0 }`.
 Zero delay because `K` is not a chord prefix: the 0.3 s default exists to stop a modifier flashing the
 screen on the way to `Ctrl+S`, and nothing types `K` to reach a chord.
@@ -56,7 +56,7 @@ New `tests/the_shortcut_overlay_answers_to_k.rs` + its one `mod` line (owner exc
 No existing assertion touched.
 
 ## Release
-None: `bevy_cauldron` is `publish = false`; no packaged crate changed.
+None: `bevy_dark_factory` is `publish = false`; no packaged crate changed.
 
 ## Next focus
 #152's fixture text and #201's `assert_ne!`, both now granted.

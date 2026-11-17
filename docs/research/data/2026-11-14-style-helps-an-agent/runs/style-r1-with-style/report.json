@@ -230,19 +230,19 @@
     }
   ],
   "tool_counts": {
-    "grimoire_apply_operation": 31,
-    "grimoire_guide": 3,
-    "grimoire_list_operations": 3,
-    "grimoire_list_pieces": 1,
-    "grimoire_present": 3,
-    "grimoire_preview_operation": 2,
-    "grimoire_state": 3,
-    "grimoire_style": 4,
-    "grimoire_undo_operation": 3
+    "blueprint_apply_operation": 31,
+    "blueprint_guide": 3,
+    "blueprint_list_operations": 3,
+    "blueprint_list_pieces": 1,
+    "blueprint_present": 3,
+    "blueprint_preview_operation": 2,
+    "blueprint_state": 3,
+    "blueprint_style": 4,
+    "blueprint_undo_operation": 3
   },
   "refusals_by_tool": {
-    "grimoire_apply_operation": 4,
-    "grimoire_style": 1
+    "blueprint_apply_operation": 4,
+    "blueprint_style": 1
   },
   "wishes_by_tool": {},
   "harness_error_reasons": [],

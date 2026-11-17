@@ -13,7 +13,7 @@ One pass, in order:
 1. `ssh big 'cd ~/bevy_emerge_loop && git worktree add --detach ~/pN-wt <sha>'`, then give every script `WT` and `TAG` for the
    pass: `ssh big env WT=/home/<user>/pN-wt TAG=pN bash /tmp/build.sh` (`env` is the form fish accepts).
 2. Push a branch from the Mac (`git push big:bevy_emerge_loop HEAD:refs/heads/pN-a`), then `cargo.sh pN-a cargo clippy ...`
-   or `cargo.sh pN-a cargo nextest run -p bevy_cauldron ...` (it checks the ref out in `$WT` on the shared target).
+   or `cargo.sh pN-a cargo nextest run -p bevy_dark_factory ...` (it checks the ref out in `$WT` on the shared target).
 3. `build.sh` builds the editor and the MCP server to `/tmp/${TAG}_new/` and `/tmp/${TAG}_agent/`.
 4. `rec.sh <storyboard>` records one storyboard on a fresh editor (display :89, port 15767) and leaves `/tmp/${TAG}_<name>.mp4`
    and a contact sheet in `/tmp/${TAG}_rec_<name>/sheet.png`; look at the sheet. `retake.sh "<gif names>"` is

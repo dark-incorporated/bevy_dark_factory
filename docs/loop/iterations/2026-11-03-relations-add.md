@@ -22,9 +22,9 @@ none.
 ## Enhancement: `relations_add`, the constraint layer's missing authoring door (#137)
 
 Goal: a person or an agent can add a relation to a map without a text editor.
-Files: `crates/bevy_cauldron/src/ops_relations.rs` (new `relations_add` module), `ops.rs` (registry row
+Files: `crates/bevy_dark_factory/src/ops_relations.rs` (new `relations_add` module), `ops.rs` (registry row
 and `UI_ENTRY_POINTS` row), `tests/relations_add_is_an_operation.rs` (new), `tests/all.rs` (one `mod`).
-Proof: `cargo test -p bevy_cauldron --test editor relations_add_is_an_operation::` — 4 passed;
+Proof: `cargo test -p bevy_dark_factory --test editor relations_add_is_an_operation::` — 4 passed;
 `operations_have_two_front_ends::` — 11 passed; clippy clean over `--all-targets`.
 
 The operation takes `of`, `kind` and `hard` — **the file's own shape**, deserialised through
@@ -42,7 +42,7 @@ vocabulary that drifts. It:
 "undo only", so a caller who wanted to delete a relation was refused and told to use `operation_undo`.
 Deleting a relation is a change a caller may ask for, the same as deleting a piece; the gate is gone.
 
-MCP: no new tool — the generic `grimoire_apply_operation` reaches it by name, which is the rule for a
+MCP: no new tool — the generic `blueprint_apply_operation` reaches it by name, which is the rule for a
 small tool surface. Preview: `plan` reports `would` and the exact text it would write. Undo: `Undo::Inverse`,
 the relation by value.
 
@@ -69,18 +69,18 @@ Reviewer could not run (no subagent spawned inside the budget). Five questions, 
 3. **Can a typo'd piece id look like a working relation?** No — refused, with the near misses named.
 4. **Can the undo remove the wrong relation?** No: the inverse is the relation by value, and the test
    adds a second relation between the target and the undo to prove it.
-5. **Does it add a fourteenth MCP tool?** No; it goes through `grimoire_apply_operation`.
+5. **Does it add a fourteenth MCP tool?** No; it goes through `blueprint_apply_operation`.
 
 ## Test diffs
 
-- `crates/bevy_cauldron/tests/all.rs`: one `mod relations_add_is_an_operation;` line, in order (the
+- `crates/bevy_dark_factory/tests/all.rs`: one `mod relations_add_is_an_operation;` line, in order (the
   standing exception for a new editor test file).
-- `crates/bevy_cauldron/tests/relations_add_is_an_operation.rs`: new.
+- `crates/bevy_dark_factory/tests/relations_add_is_an_operation.rs`: new.
 - No existing assertion changed.
 
 ## Release
 
-None: `bevy_cauldron` is `publish = false`; no publishable crate's files changed.
+None: `bevy_dark_factory` is `publish = false`; no publishable crate's files changed.
 
 ## Next focus
 

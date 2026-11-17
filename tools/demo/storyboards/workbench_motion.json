@@ -84,7 +84,7 @@
     },
     {
       "at": 9.6,
-      "mcp": "grimoire_apply_operation",
+      "mcp": "blueprint_apply_operation",
       "args": {
         "operation": "placement_add",
         "parameters": {

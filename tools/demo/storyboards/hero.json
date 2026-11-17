@@ -11,7 +11,7 @@
  ],
  "setup": [
   {
-   "mcp": "grimoire_frame_view",
+   "mcp": "blueprint_frame_view",
    "args": {
     "target": {
      "rect": [
@@ -81,7 +81,7 @@
   },
   {
    "at": 3.85,
-   "mcp": "grimoire_list_snips",
+   "mcp": "blueprint_list_snips",
    "args": {
     "limit": 1
    },

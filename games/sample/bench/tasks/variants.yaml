@@ -6,12 +6,12 @@
 # Both arms are the same agent, model, tasks and editor; the only difference is whether the agent can know the sample game's style.
 #
 # - `with-style`: nothing is hidden, and the game's design pages are laid over the trial's copy (a trial copies only `assets/`, and `design/` sits
-#   beside it, so without the overlay there would be no style to serve). The agent is offered `grimoire_style`.
-# - `without-style`: `grimoire_style` is **absent from the tool list** (not refused when called), and no design page is laid over the copy, so the
+#   beside it, so without the overlay there would be no style to serve). The agent is offered `blueprint_style`.
+# - `without-style`: `blueprint_style` is **absent from the tool list** (not refused when called), and no design page is laid over the copy, so the
 #   style is not on the agent's disk either. An arm that kept the pages on disk would be one where a shell can read what the tool is
 #   withheld from.
 #
-# The comparison is `cauldron-bench compare <without-style report> <with-style report>`, so "better" means the with-style arm did better.
+# The comparison is `dark_factory-bench compare <without-style report> <with-style report>`, so "better" means the with-style arm did better.
 version: 1
 variants:
   - name: with-style
@@ -20,4 +20,4 @@ variants:
       - design/levels/courtyard/style.md
   - name: without-style
     hide_tools:
-      - grimoire_style
+      - blueprint_style

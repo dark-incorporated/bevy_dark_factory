@@ -17,7 +17,7 @@
       ]
     },
     {
-      "mcp": "grimoire_frame_view",
+      "mcp": "blueprint_frame_view",
       "args": {
         "target": {
           "rect": [

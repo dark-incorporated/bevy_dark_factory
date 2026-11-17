@@ -21,7 +21,7 @@
   "steps": [
     {
       "at": 1.2,
-      "mcp": "grimoire_apply_operation",
+      "mcp": "blueprint_apply_operation",
       "args": {
         "operation": "placement_add",
         "parameters": {
@@ -36,7 +36,7 @@
     },
     {
       "at": 2.4,
-      "mcp": "grimoire_apply_operation",
+      "mcp": "blueprint_apply_operation",
       "args": {
         "operation": "placement_add",
         "parameters": {
@@ -50,7 +50,7 @@
     },
     {
       "at": 3.6,
-      "mcp": "grimoire_apply_operation",
+      "mcp": "blueprint_apply_operation",
       "args": {
         "operation": "placement_add",
         "parameters": {

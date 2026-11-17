@@ -14,7 +14,7 @@ prompt: |
   as a reading nook: a chair, a small table (the coffee table) to the chair's east and close to it, and a lamp standing on the
   table. Keep all three inside that corner and clear of one another.
 
-  When the nook is furnished, hand the result back with grimoire_present.
+  When the nook is furnished, hand the result back with blueprint_present.
 setup: []
 solution:
   - op: placement_add
@@ -30,7 +30,7 @@ solution:
     params:
       piece: lamp
       at: [-2.5, -2.0]
-  - op: grimoire_present
+  - op: blueprint_present
     params:
       title: A reading nook in the north-west corner
       summary: A chair faces east in the corner, with a coffee table just east of it and a lamp on the table.

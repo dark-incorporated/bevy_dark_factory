@@ -77,7 +77,7 @@ OUTCOMES = ("reproduced", "not_reproduced")
 # checkable form of "capture more information" rather than "I could not see it".
 MIN_ATTEMPTS_UNREPRODUCED = 3
 
-# **The files a capture is made of**, from the names the writer uses (`bevy_grimoire_core::feedback`'s
+# **The files a capture is made of**, from the names the writer uses (`blueprint_model::feedback`'s
 # own helpers): the record, its frame, the log tail, and the pictures a pick is outlined in — one of
 # `_picks`/`_subject` depending on the record's version, and it is genuinely absent for some captures,
 # so a missing optional file is not an error.
@@ -169,8 +169,8 @@ def _ssh(host, script, allow_failure=False):
 # space in it.
 _FEEDBACK_DIR = (
     'if [ "$(uname -s)" = Darwin ]; then '
-    'd="$HOME/Library/Application Support/Grimoire/feedback"; '
-    'else d="${XDG_DATA_HOME:-$HOME/.local/share}/Grimoire/feedback"; fi; '
+    'd="$HOME/Library/Application Support/Blueprint/feedback"; '
+    'else d="${XDG_DATA_HOME:-$HOME/.local/share}/Blueprint/feedback"; fi; '
 )
 
 

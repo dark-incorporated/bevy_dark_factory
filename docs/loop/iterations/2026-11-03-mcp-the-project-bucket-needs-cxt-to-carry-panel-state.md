@@ -41,7 +41,7 @@ shows the `lamp_tall` row going from grey to highlighted teal.
 
 **The operation is confirmed working, and the third attempt proved it beyond doubt:** a live screenshot
 after `brush_arm lamp_tall` shows the `lamp_tall` row with its amber border and green tint while `pipe`
-is plain, with `grimoire/state` reporting `"armed_piece":"lamp_tall"`.
+is plain, with `blueprint/state` reporting `"armed_piece":"lamp_tall"`.
 
 **What the clip actually needs, learned from three tries:** a single row's tint is a small share of any
 frame that also holds the palette's icons and counts, so the 5% floor cannot be met by a 30-px amber

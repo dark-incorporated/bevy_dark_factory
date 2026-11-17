@@ -5,7 +5,7 @@
  "width": 960,
  "setup": [
   {
-   "mcp": "grimoire_frame_view",
+   "mcp": "blueprint_frame_view",
    "args": {
     "target": {
      "rect": [
@@ -18,7 +18,7 @@
    }
   },
   {
-   "mcp": "grimoire_apply_operation",
+   "mcp": "blueprint_apply_operation",
    "args": {
     "operation": "tree_edit",
     "parameters": {

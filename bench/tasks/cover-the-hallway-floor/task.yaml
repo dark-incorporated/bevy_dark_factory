@@ -13,14 +13,14 @@ map: bench_hallway
 prompt: |
   Cover the whole floor of the hallway with the plain grey floor tile (the piece called floor), edge to edge.
 
-  When the floor is covered, hand the result back with grimoire_present.
+  When the floor is covered, hand the result back with blueprint_present.
 setup: []
 solution:
   - op: fill
     params:
       piece: floor
       at: [0.0, 0.0]
-  - op: grimoire_present
+  - op: blueprint_present
     params:
       title: The hallway floor is tiled
       summary: The hallway's floor is covered edge to edge with the grey floor tile, twelve tiles in two rows of six.

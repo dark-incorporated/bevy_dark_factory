@@ -16,7 +16,7 @@ prompt: |
   Put a chair to the left of the desk in the study (the west side, with north at the top of the map), close
   to it and turned to face the desk.
 
-  When the chair is in place, hand the result back with grimoire_present.
+  When the chair is in place, hand the result back with blueprint_present.
 setup: []
 solution:
   - op: placement_add
@@ -24,7 +24,7 @@ solution:
       piece: chair
       at: [-0.85, -1.0]
       yaw: 90.0
-  - op: grimoire_present
+  - op: blueprint_present
     params:
       title: A chair at the desk's west side
       summary: A chair stands to the west of the desk, 0.15 m from it, turned to face east towards the desk.

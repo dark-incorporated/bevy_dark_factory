@@ -94,7 +94,7 @@
         "name": null,
         "role": "Button",
         "control": null,
-        "text": "bevy_grimoire"
+        "text": "bevy_blueprint"
       }
     ]
   },

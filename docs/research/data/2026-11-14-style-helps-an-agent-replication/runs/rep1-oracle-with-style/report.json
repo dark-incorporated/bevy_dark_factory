@@ -231,8 +231,8 @@
     }
   ],
   "tool_counts": {
-    "grimoire_apply_operation": 20,
-    "grimoire_present": 3
+    "blueprint_apply_operation": 20,
+    "blueprint_present": 3
   },
   "refusals_by_tool": {},
   "wishes_by_tool": {},

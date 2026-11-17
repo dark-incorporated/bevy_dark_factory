@@ -23,9 +23,9 @@ none.
 ## Enhancement: the shared list's words read the skin (UI-02, #210)
 
 Goal: a project's skin file reaches the words in every row of the Meshes and Tiles lists.
-Files: `crates/bevy_cauldron/src/tiles.rs` (`ListInk`, `draw_ink`'s signature, `rebuild_candidates`' skin
+Files: `crates/bevy_dark_factory/src/tiles.rs` (`ListInk`, `draw_ink`'s signature, `rebuild_candidates`' skin
 param), `tests/the_lists_words_come_from_the_skin.rs` (new), `tests/all.rs` (one `mod` line).
-Proof: `cargo test -p bevy_cauldron --test editor the_lists_words_come_from_the_skin::` — 3 passed; the
+Proof: `cargo test -p bevy_dark_factory --test editor the_lists_words_come_from_the_skin::` — 3 passed; the
 full editor suite **1210 passed, 0 failed**; clippy clean over `--all-targets`.
 
 `ListInk::of` reads `GooeySkin`'s `text`, `text_muted`, `accent` and `danger`, and falls back to
@@ -72,14 +72,14 @@ Reviewer could not run (no subagent spawned inside the budget). Five questions, 
 
 ## Test diffs
 
-- `crates/bevy_cauldron/tests/all.rs`: one `mod the_lists_words_come_from_the_skin;` line, in order (the
+- `crates/bevy_dark_factory/tests/all.rs`: one `mod the_lists_words_come_from_the_skin;` line, in order (the
   standing exception for a new editor test file).
-- `crates/bevy_cauldron/tests/the_lists_words_come_from_the_skin.rs`: new.
+- `crates/bevy_dark_factory/tests/the_lists_words_come_from_the_skin.rs`: new.
 - No existing assertion changed.
 
 ## Release
 
-None: `bevy_cauldron` is `publish = false`; no publishable crate's files changed.
+None: `bevy_dark_factory` is `publish = false`; no publishable crate's files changed.
 
 ## Next focus
 

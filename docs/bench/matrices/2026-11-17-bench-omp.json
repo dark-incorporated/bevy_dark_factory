@@ -55,13 +55,13 @@
       "cost_per_trial_usd": 0.14102583333333332,
       "frontier": "on",
       "tool_counts": {
-        "grimoire_apply_operation": 2,
-        "grimoire_decide": 1,
-        "grimoire_guide": 3,
-        "grimoire_list_operations": 2,
-        "grimoire_list_pieces": 3,
-        "grimoire_present": 3,
-        "grimoire_state": 3
+        "blueprint_apply_operation": 2,
+        "blueprint_decide": 1,
+        "blueprint_guide": 3,
+        "blueprint_list_operations": 2,
+        "blueprint_list_pieces": 3,
+        "blueprint_present": 3,
+        "blueprint_state": 3
       },
       "refusals_by_tool": {},
       "wishes_by_tool": {}
@@ -112,15 +112,15 @@
       "cost_per_trial_usd": 0.07253291666666667,
       "frontier": "on",
       "tool_counts": {
-        "grimoire_apply_operation": 1,
-        "grimoire_capture_still": 3,
-        "grimoire_guide": 1,
-        "grimoire_list_operations": 1,
-        "grimoire_list_pieces": 3,
-        "grimoire_open_project": 2,
-        "grimoire_present": 3,
-        "grimoire_preview_operation": 1,
-        "grimoire_state": 4
+        "blueprint_apply_operation": 1,
+        "blueprint_capture_still": 3,
+        "blueprint_guide": 1,
+        "blueprint_list_operations": 1,
+        "blueprint_list_pieces": 3,
+        "blueprint_open_project": 2,
+        "blueprint_present": 3,
+        "blueprint_preview_operation": 1,
+        "blueprint_state": 4
       },
       "refusals_by_tool": {},
       "wishes_by_tool": {}

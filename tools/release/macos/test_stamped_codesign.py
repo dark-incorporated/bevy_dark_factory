@@ -34,7 +34,7 @@ def run_with(stub_body: str) -> tuple[int, int, str]:
         stub.chmod(0o755)
         driver = tmp / "driver.sh"
         driver.write_text("set -e\n" + function_text() + '\nstamped_codesign --force --sign x thing\n')
-        env = {**os.environ, "PATH": f"{tmp / 'bin'}:{os.environ['PATH']}", "CAULDRON_SIGN_WAIT_S": "0"}
+        env = {**os.environ, "PATH": f"{tmp / 'bin'}:{os.environ['PATH']}", "DARK_FACTORY_SIGN_WAIT_S": "0"}
         done = subprocess.run(["bash", str(driver)], env=env, capture_output=True, text=True)
         count = int((tmp / "count").read_text()) if (tmp / "count").exists() else 0
         return done.returncode, count, done.stderr

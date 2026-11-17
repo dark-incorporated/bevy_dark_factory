@@ -13,4 +13,4 @@ variants:
   # cannot frame a picture of the result.
   - name: no-frame-view
     hide_tools:
-      - grimoire_frame_view
+      - blueprint_frame_view

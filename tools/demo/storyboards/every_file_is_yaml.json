@@ -25,7 +25,7 @@
   "steps": [
     {
       "at": 0.0,
-      "mcp": "grimoire_run_command",
+      "mcp": "blueprint_run_command",
       "args": {
         "id": "workspace.files"
       },
@@ -33,7 +33,7 @@
     },
     {
       "at": 0.25,
-      "mcp": "grimoire_apply_operation",
+      "mcp": "blueprint_apply_operation",
       "args": {
         "operation": "placement_add",
         "parameters": {
@@ -47,7 +47,7 @@
     },
     {
       "at": 0.8,
-      "mcp": "grimoire_apply_operation",
+      "mcp": "blueprint_apply_operation",
       "args": {
         "operation": "placement_add",
         "parameters": {
@@ -61,7 +61,7 @@
     },
     {
       "at": 1.25,
-      "mcp": "grimoire_apply_operation",
+      "mcp": "blueprint_apply_operation",
       "args": {
         "operation": "placement_add",
         "parameters": {
@@ -79,7 +79,7 @@
     },
     {
       "at": 2.25,
-      "mcp": "grimoire_apply_operation",
+      "mcp": "blueprint_apply_operation",
       "args": {
         "operation": "placement_add",
         "parameters": {
@@ -94,14 +94,14 @@
     {
       "at": 3.0,
       "write": {
-        "path": "assets/grimoire/maps/bedroom.map.yaml",
+        "path": "assets/blueprint/maps/bedroom.map.yaml",
         "text": ""
       },
       "caption": "person: save the file"
     },
     {
       "at": 3.25,
-      "mcp": "grimoire_apply_operation",
+      "mcp": "blueprint_apply_operation",
       "args": {
         "operation": "placement_add",
         "parameters": {
@@ -115,7 +115,7 @@
     },
     {
       "at": 4.25,
-      "mcp": "grimoire_apply_operation",
+      "mcp": "blueprint_apply_operation",
       "args": {
         "operation": "placement_add",
         "parameters": {
@@ -133,7 +133,7 @@
     },
     {
       "at": 5.25,
-      "mcp": "grimoire_apply_operation",
+      "mcp": "blueprint_apply_operation",
       "args": {
         "operation": "placement_add",
         "parameters": {
@@ -147,7 +147,7 @@
     },
     {
       "at": 6.0,
-      "mcp": "grimoire_run_command",
+      "mcp": "blueprint_run_command",
       "args": {
         "id": "workspace.files"
       },
@@ -155,7 +155,7 @@
     },
     {
       "at": 6.25,
-      "mcp": "grimoire_apply_operation",
+      "mcp": "blueprint_apply_operation",
       "args": {
         "operation": "placement_add",
         "parameters": {
@@ -169,7 +169,7 @@
     },
     {
       "at": 7.25,
-      "mcp": "grimoire_apply_operation",
+      "mcp": "blueprint_apply_operation",
       "args": {
         "operation": "placement_add",
         "parameters": {
