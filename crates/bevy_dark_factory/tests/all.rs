@@ -26,6 +26,8 @@ mod a_project_skin_previews_only_in_the_panel;
 mod a_reference_is_followed_from_where_it_is_written;
 mod a_rigs_clip_is_found_by_the_finder;
 mod a_saved_arrangement_is_the_one_the_editor_shows;
+mod a_capture_is_filed_as_an_issue;
+mod a_capture_is_filed_as_an_issue_in_order;
 mod a_scale_chord_steps_the_whole_interface;
 mod a_second_press_of_the_quit_key_ends_a_quit_that_is_stuck;
 mod a_settings_change_updates_only_its_row;

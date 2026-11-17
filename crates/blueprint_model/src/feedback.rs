@@ -479,6 +479,288 @@ pub struct ReportFiles {
     pub log: Option<PathBuf>,
 }
 
+/// **A capture as a GitHub issue** (#495): the title and the seven-section body, built from the record
+/// alone.
+///
+/// `docs/loop/captures/ISSUE-FORMAT.md` is the contract, and this module is its engine-free half —
+/// pure functions over a [`Report`], so the format is tested without a window and an agent can preview
+/// an issue without filing one. The filing itself (copy, commit, push, verify, `gh issue create`) is
+/// the editor's, in `report_issue.rs`, because it runs processes and must not block a frame.
+pub mod issue {
+    use super::{Audience, Pick, Report, Subject};
+
+    /// **The repository captures are filed against.**
+    pub const REPO: &str = concat!("dark-incorporated/", "bev", "y_dark_factory");
+
+    /// **Where a capture's files live in the repository**, as a path under the root.
+    pub fn capture_dir(stem: &str) -> String {
+        format!("docs/loop/captures/{stem}")
+    }
+
+    /// **The URL an issue embeds a picture at**, on `branch`.
+    ///
+    /// `main` is the better home — a branch deleted after merge leaves the issue's pictures dead — and
+    /// the filing sequence verifies these answer `200` before the issue exists, because an issue whose
+    /// pictures 404 is worse than no issue.
+    pub fn raw_url(branch: &str, stem: &str, file: &str) -> String {
+        format!("https://raw.githubusercontent.com/{REPO}/{branch}/{}/{file}", capture_dir(stem))
+    }
+
+    /// **The issue's title**: the note's first sentence, then the capture, as the format names them.
+    ///
+    /// The note is often a whole paragraph with a second thought after it; the title takes its first
+    /// sentence so the list reads as the defect, and the capture's stem is always there so a reader can
+    /// find the record it came from.
+    pub fn title(report: &Report) -> String {
+        let said = report.note.trim();
+        let first = said
+            .split_inclusive(['.', '?', '!'])
+            .next()
+            .unwrap_or(said)
+            .trim()
+            .trim_end_matches(['.', '?', '!'])
+            .trim();
+        let what = if first.is_empty() { "A capture with no note" } else { first };
+        // A title is a line: a note with a newline in it has its first line, not its first paragraph.
+        let what = what.lines().next().unwrap_or(what).trim();
+        format!("{what} ({})", report.stem)
+    }
+
+    /// **The seven sections**, in the order `ISSUE-FORMAT.md` states them.
+    ///
+    /// One: provenance, read from the record. Two: the picked picture, then the frame. Three: the
+    /// note, verbatim, blockquoted. Four: the measured facts — each pick's own numbers. Five: current
+    /// behaviour, where the reader is told what the record states and nothing it does not. Six: what
+    /// is wanted. Seven: acceptance.
+    ///
+    /// **Sections 5 to 7 are the filing person's to fill.** A record says what was on screen; it
+    /// cannot say which file is responsible or what a test could prove, and inventing that would be
+    /// the plausible-sounding issue the format warns about. So they are written as headings with the
+    /// record's own evidence beside them, and an issue filed from a capture without a person's words
+    /// says so plainly.
+    pub fn body(report: &Report) -> String {
+        let mut out = String::new();
+        out.push_str(&provenance(report));
+        out.push_str("\n\n");
+        out.push_str(&pictures(report));
+        out.push_str("\n\n");
+        out.push_str(&note(report));
+        out.push_str("\n\n");
+        out.push_str(&facts(report));
+        out.push_str("\n\n## Current behaviour\n\n");
+        out.push_str(&current(report));
+        out.push_str("\n\n## Wanted\n\n");
+        out.push_str(&wanted(report));
+        out.push_str("\n\n## Acceptance\n\n");
+        out.push_str(&acceptance(report));
+        out.push('\n');
+        out
+    }
+
+    /// **Section 1.** The first line, read from the record.
+    pub fn provenance(report: &Report) -> String {
+        let window = format!(
+            "{}x{}",
+            report.window.physical[0], report.window.physical[1]
+        );
+        let screen = if report.screen.is_empty() { "no screen".to_owned() } else { report.screen.clone() };
+        let project = report
+            .project
+            .as_deref()
+            .and_then(|p| std::path::Path::new(p).file_name().and_then(|n| n.to_str()))
+            .unwrap_or("no project");
+        let map = report.map.as_deref().unwrap_or("no map");
+        format!(
+            "**From the owner's capture, `{}`** — DarkFactory {}, {}, {}, {} at `ui_scale` {}, {screen} {project} / {map}, {}.",
+            report.stem,
+            report.app_version,
+            audience_word(report.audience),
+            window,
+            report.window.logical[0].round(),
+            report.window.ui_scale,
+            when(report.taken_at_ms),
+        )
+    }
+
+    /// **Section 2.** The picked picture, and the frame beneath it.
+    pub fn pictures(report: &Report) -> String {
+        let frame = raw_url("main", &report.stem, &report.picture.file);
+        match report.picks_picture.as_ref() {
+            Some(picks) => format!(
+                "![the thing the note points at]({})\n\nFrame: ![whole window]({frame})",
+                raw_url("main", &report.stem, &picks.file)
+            ),
+            // A screen pick is the whole picture already; there is nothing a second one adds.
+            None => format!("Frame: ![whole window]({frame})"),
+        }
+    }
+
+    /// **Section 3.** The note, verbatim, blockquoted. Never summarised.
+    pub fn note(report: &Report) -> String {
+        let said = if report.note.trim().is_empty() { "*(the capture carried no note)*" } else { report.note.trim_end() };
+        said.lines().map(|line| format!("> {line}")).collect::<Vec<_>>().join("\n")
+    }
+
+    /// **Section 4.** What each pick names, and the numbers the record carries for it.
+    pub fn facts(report: &Report) -> String {
+        let mut out = String::from("## Measured facts\n\n");
+        for (i, pick) in report.picks.iter().enumerate() {
+            out.push_str(&format!("- **Pick {}**: {}\n", i + 1, describe(pick)));
+        }
+        if !report.relations.is_empty() {
+            out.push_str("\nHow the picks sit against each other:\n\n");
+            for pair in &report.relations {
+                out.push_str(&format!(
+                    "- picks {} and {}: {:?}, {} px² shared, {} in front\n",
+                    pair.a + 1,
+                    pair.b + 1,
+                    pair.kind,
+                    pair.overlap_px2.round(),
+                    pair.front + 1
+                ));
+            }
+        }
+        if let Some(log) = report.log.as_deref() {
+            out.push_str(&format!("\nThe editor's log tail is `{}` in the same folder.\n", log));
+        }
+        out
+    }
+
+    /// **Section 5**, where the record can be read for what it says about the picture: the tool armed,
+    /// the screen, the interface scale. What the code is doing is a person's sentence, not the
+    /// record's, so this section says what the record states and stops.
+    fn current(report: &Report) -> String {
+        let mut lines = Vec::new();
+        if let Some(tool) = report.tool.as_deref() {
+            lines.push(format!("The `{tool}` tool was armed."));
+        }
+        lines.push(format!(
+            "The editor was on the **{}** screen{}.",
+            report.screen,
+            report.map.as_deref().map(|m| format!(", map `{m}`")).unwrap_or_default()
+        ));
+        lines.push(format!(
+            "The layout was drawn at `ui_scale` {} ({}x{} logical pixels, scale factor {}).",
+            report.window.ui_scale, report.window.logical[0].round(), report.window.logical[1].round(), report.window.scale_factor
+        ));
+        lines.push(
+            "**What is responsible is not in the record.** Read the file and the symbol the note points at, and say so \
+             here before this issue is worked — a section that says `the divider is too thick` costs a pass an hour."
+                .to_owned(),
+        );
+        lines.join("\n\n")
+    }
+
+    /// **Section 6**, the note's ask, checkable.
+    fn wanted(report: &Report) -> String {
+        format!(
+            "What the words above ask for, stated so a test can tell whether it happened. The capture is of \
+             **{}**; the note is the evidence, and a change that makes the next capture of the same \
+             thing different is the test.\n\n**This section is the filing person's** — the record says where \
+             the pointer was and what the screen held, and no more.",
+            describe(&report.picks[0])
+        )
+    }
+
+    /// **Section 7**, the boxes.
+    fn acceptance(_report: &Report) -> String {
+        "- [ ] A headless test reproduces the defect the note names, and fails before the fix.\n\
+         - [ ] The same test passes after it.\n\
+         - [ ] Every behaviour named above is proved by its own test, not by the suite being green.\n\
+         - [ ] The changelog line names the test that proves it."
+            .to_owned()
+    }
+
+    /// **One pick, as a reader acts on it.**
+    fn describe(pick: &Pick) -> String {
+        match &pick.subject {
+            Subject::Element(element) => {
+                let path: Vec<String> = element
+                    .path
+                    .iter()
+                    .map(|step| {
+                        let name = step.name.clone().unwrap_or_else(|| "unnamed".to_owned());
+                        match (&step.role, &step.text) {
+                            (Some(role), Some(text)) => format!("{name} ({role}) \"{text}\""),
+                            (Some(role), None) => format!("{name} ({role})"),
+                            (None, Some(text)) => format!("{name} \"{text}\""),
+                            (None, None) => name,
+                        }
+                    })
+                    .collect();
+                format!(
+                    "element, `rect_px` [{}, {}, {}, {}] — path {} — pointer at ({}, {})",
+                    element.rect_px[0],
+                    element.rect_px[1],
+                    element.rect_px[2],
+                    element.rect_px[3],
+                    path.join(" > "),
+                    pick.at[0].round(),
+                    pick.at[1].round()
+                )
+            }
+            Subject::Area { rect_px } => format!(
+                "area, `rect_px` [{}, {}, {}, {}] — pointer at ({}, {})",
+                rect_px[0], rect_px[1], rect_px[2], rect_px[3],
+                pick.at[0].round(), pick.at[1].round()
+            ),
+            Subject::Screen => "the whole screen".to_owned(),
+            Subject::Scene(scene) => {
+                let cell = scene
+                    .cell
+                    .map(|c| format!(", cell [{}, {}]", c[0], c[1]))
+                    .unwrap_or_default();
+                format!(
+                    "scene point, world ({:.2}, {:.2}, {:.2}){cell}, camera at ({:.2}, {:.2}, {:.2}) looking ({:.3}, {:.3}, {:.3})",
+                    scene.world[0],
+                    scene.world[1],
+                    scene.world[2],
+                    scene.camera.translation[0],
+                    scene.camera.translation[1],
+                    scene.camera.translation[2],
+                    scene.camera.forward[0],
+                    scene.camera.forward[1],
+                    scene.camera.forward[2],
+                )
+            }
+        }
+    }
+
+    fn audience_word(audience: Audience) -> &'static str {
+        match audience {
+            Audience::Developers => "developers",
+            Audience::Project => "project",
+        }
+    }
+
+    /// **The clock, as `YYYY-MM-DD HH:MM` in UTC**, from the record's Unix milliseconds.
+    ///
+    /// Hand-rolled rather than a date crate: this is the only place the model needs a calendar, and a
+    /// dependency for one line of prose is a dependency every consumer of the engine-free core pays
+    /// for.
+    fn when(taken_at_ms: u64) -> String {
+        let secs = taken_at_ms / 1000;
+        let (days, rem) = (secs / 86_400, secs % 86_400);
+        let (hour, minute) = (rem / 3600, (rem % 3600) / 60);
+        let (year, month, day) = civil_from_days(days as i64);
+        format!("{year:04}-{month:02}-{day:02} {hour:02}:{minute:02} UTC")
+    }
+
+    /// **A day count since 1970-01-01 as a civil date**, Hinnant's `civil_from_days`.
+    fn civil_from_days(days: i64) -> (i64, u32, u32) {
+        let z = days + 719_468;
+        let era = z.div_euclid(146_097);
+        let doe = z.rem_euclid(146_097);
+        let yoe = (doe - doe / 1460 + doe / 36_524 - doe / 146_096) / 365;
+        let y = yoe + era * 400;
+        let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+        let mp = (5 * doy + 2) / 153;
+        let d = (doy - (153 * mp + 2) / 5 + 1) as u32;
+        let m = if mp < 10 { mp + 3 } else { mp - 9 } as u32;
+        (if m <= 2 { y + 1 } else { y }, m, d)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

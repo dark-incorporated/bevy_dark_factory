@@ -195,6 +195,7 @@ pub mod data_view;
 pub mod reference_view;
 pub mod reload_files;
 pub mod report;
+pub mod report_issue;
 pub mod ops_play;
 pub mod ops_notes;
 pub mod ops_board;

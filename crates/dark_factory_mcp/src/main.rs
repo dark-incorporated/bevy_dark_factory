@@ -35,6 +35,7 @@
 //! | `blueprint_list_snips` | the snips the person took, newest first, with the newest picture |
 //! | `blueprint_feedback_list` | the reports the person filed about DarkFactory itself, newest first |
 //! | `blueprint_project_feedback_list` | the reports the person filed about the open project, newest first |
+//! | `blueprint_feedback_file_issue` | one report as the GitHub issue the loop reads: title, seven-section body, picture URLs |
 //! | `blueprint_style` | the style of one place, game to area, behind the person's trust, with the pictures it cites |
 //! | `blueprint_style_propose` | propose a change to the game's or a region's style page, which the person keeps or discards |
 //! | `blueprint_list_rules` | the block rules a layout is generated from, as the project states them |
@@ -44,7 +45,7 @@
 //! | `blueprint_open_project` | open a project folder in the running editor, from any screen including the Projects home |
 //! | `blueprint_self_test` | the power-on self test an agent runs when DarkFactory's terminal starts it |
 //!
-//! **Twenty-nine tools, and the set is small on purpose.** An agent's context is spent on the tools it
+//! **Thirty tools, and the set is small on purpose.** An agent's context is spent on the tools it
 //! is offered, and a catalogue of ninety-six verbs is a catalogue of ninety-six things to choose
 //! badly from. **The operation tools are a discovery surface**: the first names what exists, and
 //! the others preview, run and take back what it names. Later iterations add one tool per
@@ -289,6 +290,14 @@ pub struct ListSnipsParams {
 /// **Five snips, a screenful of metadata.**
 fn five() -> usize {
     5
+}
+
+/// **The parameters of `blueprint_feedback_file_issue`** (#495): the report's stem.
+#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct FeedbackIssueParams {
+    /// **The report's stem**, its folder name: `feedback-1794921159460`.
+    pub stem: String,
 }
 
 /// **The parameters of `blueprint_feedback_list` and `blueprint_project_feedback_list`.**
@@ -1940,6 +1949,68 @@ impl Blueprint {
             }
         };
         Ok(list_reports(&dir, p.limit))
+    }
+
+    /// **`blueprint_feedback_file_issue` -- file one capture as a GitHub issue** (#495).
+    ///
+    /// **The same body builder the editor's own filing uses** (`blueprint_model::feedback::issue`), so
+    /// an agent that read a capture files it exactly as the editor would. It answers the body and the
+    /// title, and files nothing: the copy, the commit, the push and the `gh` call are the editor's
+    /// (`report_issue`), because they need the checkout and the person's own hands on the settings.
+    /// An agent that wants the issue opened hands this body to `gh` itself.
+    #[tool(
+        name = "blueprint_feedback_file_issue",
+        description = "Turn one report a person filed about the editor into the GitHub issue the \
+                       loop reads: the seven sections in the order docs/loop/captures/ISSUE-FORMAT.md \
+                       states them — the provenance read from the record, both pictures embedded on \
+                       the repository's raw URLs, the note verbatim in a blockquote, the measured \
+                       facts of every pick, then Current behaviour, Wanted and Acceptance — and the \
+                       title. Give the report's stem (its folder name). Writes nothing and opens no \
+                       issue: it answers the title and the body, so an agent can read it before \
+                       anything is filed. A stem the folder does not hold is refused, naming it.",
+        annotations(
+            title = "Turn a captured report into a GitHub issue body",
+            read_only_hint = true,
+            destructive_hint = false,
+            idempotent_hint = true,
+            open_world_hint = false
+        )
+    )]
+    async fn feedback_file_issue(
+        &self,
+        Parameters(p): Parameters<FeedbackIssueParams>,
+    ) -> Result<CallToolResult, ErrorData> {
+        let dir = match blueprint_model::user_dirs::feedback_dir() {
+            Some(dir) => dir,
+            None => {
+                return Ok(refusal(
+                    "this system has no data directory, so there are no reports to file.",
+                ));
+            }
+        };
+        let (reports, problems) = blueprint_model::feedback::read_reports(&dir);
+        let Some(report) = reports.into_iter().find(|r| r.stem == p.stem) else {
+            return Ok(refusal(&format!(
+                "`{}` is not a report in {}{}",
+                p.stem,
+                dir.display(),
+                if problems.is_empty() { String::new() } else { format!(" (unreadable: {})", problems.join("; ")) },
+            )));
+        };
+        Ok(CallToolResult::success(vec![rmcp::model::ContentBlock::text(
+            serde_json::json!({
+                "stem": report.stem,
+                "title": blueprint_model::feedback::issue::title(&report),
+                "body": blueprint_model::feedback::issue::body(&report),
+                "repo": blueprint_model::feedback::issue::REPO,
+                "branch": format!("capture/{}", report.stem),
+                "pictures": [
+                    blueprint_model::feedback::issue::raw_url("main", &report.stem, &blueprint_model::feedback::picks_picture_file(&report.stem)),
+                    blueprint_model::feedback::issue::raw_url("main", &report.stem, &blueprint_model::feedback::picture_file(&report.stem)),
+                ],
+            })
+            .to_string(),
+        )]))
     }
 
     /// **`blueprint_project_feedback_list` -- the reports the person filed about the open project.**

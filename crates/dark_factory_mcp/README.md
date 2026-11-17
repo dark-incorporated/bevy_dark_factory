@@ -55,7 +55,7 @@ ssh <mac> /Applications/DarkFactory.app/Contents/MacOS/dark_factory_mcp
 
 ## The tools
 
-There are 29 tools, and the set is small on purpose: an agent pays for every tool it is offered, on every turn. The operation tools are a discovery surface. `blueprint_list_operations` says what the editor can do (`query` searches, `operation` answers for one with its parameters and an example), `blueprint_preview_operation` shows what one would change, `blueprint_apply_operation` runs it and records it in the operation log, and `blueprint_undo_operation` takes one back.
+There are 30 tools, and the set is small on purpose: an agent pays for every tool it is offered, on every turn. The operation tools are a discovery surface. `blueprint_list_operations` says what the editor can do (`query` searches, `operation` answers for one with its parameters and an example), `blueprint_preview_operation` shows what one would change, `blueprint_apply_operation` runs it and records it in the operation log, and `blueprint_undo_operation` takes one back.
 
 | group | tools |
 |---|---|

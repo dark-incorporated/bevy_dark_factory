@@ -130,6 +130,8 @@ pub fn add_editor_plugins(app: &mut App) -> &mut App {
                 // In the shared list for the report's reason: the chords are about the frame, so they
                 // work on the Projects home as well as in the editor.
                 crate::scale_chords::ScaleChordsPlugin,
+                // **A capture filed as an issue** (#495): the answer of a filing, said in the band.
+                crate::report_issue::ReportIssuePlugin,
                 // **The write-through** (`--live`): every committed change is saved at once, so a game
                 // watching the project reloads it. Inert unless `live::LiveWrite` is inserted.
                 crate::live::LivePlugin,

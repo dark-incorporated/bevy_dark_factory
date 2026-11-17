@@ -1557,6 +1557,48 @@ fn save(report: &mut ReportEdit, world: &mut World) {
     close_the_box(report, world);
     let shown = crate::launcher::shown_folder(&dir);
     world.spawn(bevy_gooey::toast(format!("report saved to {shown}")));
+    // **And filed as an issue, when the person asked for that** (#495): after the four files are on
+    // disk, so the filing copies what was actually written. Off is off — no copy, no branch, no issue.
+    file_the_issue(world, &record, &dir);
+}
+
+/// **File the capture as an issue, when the settings say so** (#495).
+///
+/// The filing runs on its own thread: `git` and `gh` are seconds long and network-bound, and a save
+/// must not stall a frame. Its answer lands in [`crate::report_issue::Filed`] for the status band, and
+/// nothing waits on it.
+fn file_the_issue(world: &mut World, record: &Report, dir: &std::path::Path) {
+    let Some(settings) = world.get_resource::<crate::settings::EditorSettings>() else { return };
+    if !settings.capture_issue {
+        return;
+    }
+    let checkout = std::path::PathBuf::from(settings.capture_issue_repo.trim());
+    if checkout.as_os_str().is_empty() {
+        // **On, with nowhere to put it, is said rather than silently local** — the row's own words say
+        // an empty checkout keeps captures local, and a switch that then did nothing would be the
+        // quiet no-op this codebase refuses.
+        world.spawn(bevy_gooey::toast_alert(crate::report_issue::NO_CHECKOUT).sticky());
+        return;
+    }
+    let capture = crate::report_issue::Capture {
+        stem: record.stem.clone(),
+        files: crate::report_issue::capture_files(dir, record),
+        report: record.clone(),
+    };
+    let branch = format!("capture/{}", capture.stem);
+    let (tx, rx) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        let step = crate::report_issue::file(
+            &crate::report_issue::SystemRunner,
+            &checkout,
+            blueprint_model::feedback::issue::REPO,
+            &branch,
+            &capture.report,
+            &capture.files,
+        );
+        let _ = tx.send(step);
+    });
+    world.insert_resource(crate::report_issue::Pending { rx: Some(std::sync::Mutex::new(rx)) });
 }
 
 /// **Close the report and despawn its box, in one act.** A save runs inside an exclusive system, so

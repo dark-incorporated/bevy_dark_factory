@@ -158,6 +158,16 @@ pub const CATALOGUE: &[Setting] = &[
         description: "Keep a record of each agent turn, for training the editor's decision model: the pictures before and after, what was asked, what was done and what you did about it. It is kept on this computer, in the Blueprint folder of your data directory, never in a project, and nothing is sent anywhere. Collection stops by itself at 2 GB. Off, no picture is taken and nothing is written.",
         kind: Kind::Switch,
     },
+    // **A capture filed as an issue** (#495): one switch, off by default so a person opts in once, and
+    // one row naming the checkout that receives it. An empty checkout means captures stay local, which
+    // is what the row's description says.
+    Setting {
+        key: "capture_issue",
+        label: "File captures as issues",
+        category: "Decisions",
+        description: "When you press Cmd+D, copy the capture into the checkout below, commit it on a branch of its own, push it, and open a GitHub issue in the editor's repository with the pictures embedded. Off, a capture is only saved to this computer.",
+        kind: Kind::Switch,
+    },
     Setting {
         key: "reduced_motion",
         label: "Reduced motion",
@@ -355,6 +365,7 @@ impl EditorSettings {
             "terminal_scrollback" => Value::Option(scrollback_index(self.terminal_scrollback)),
             "terminal_agent" => Value::Option(agent_index(self.terminal_agent)),
             "decision_model" => Value::Option(decision_index(self.decision_model)),
+            "capture_issue" => Value::On(self.capture_issue),
             _ => return None,
         })
     }
@@ -395,6 +406,10 @@ impl SettingsLayer {
             "terminal_scrollback" => self.terminal_scrollback.map(|lines| Value::Option(scrollback_index(lines))),
             "terminal_agent" => self.terminal_agent.map(|a| Value::Option(agent_index(a))),
             "decision_model" => self.decision_model.map(|m| Value::Option(decision_index(m))),
+            "capture_issue" => self.capture_issue.map(Value::On),
+            // **The checkout is not a catalogue row** (#495): it is drawn in the switch's own row as a
+            // text field, the way the Custom agent's command is, so the screen owns its write.
+            "capture_issue_repo" => None,
             _ => None,
         }
     }
@@ -418,6 +433,7 @@ impl SettingsLayer {
             ("terminal_scrollback", Value::Option(i)) => self.terminal_scrollback = Some(scrollback_at(i)),
             ("terminal_agent", Value::Option(i)) => self.terminal_agent = Some(agent_at(i)),
             ("decision_model", Value::Option(i)) => self.decision_model = Some(decision_at(i)),
+            ("capture_issue", Value::On(on)) => self.capture_issue = Some(on),
             _ => return false,
         }
         true
@@ -442,6 +458,8 @@ impl SettingsLayer {
             "terminal_scrollback" => self.terminal_scrollback = None,
             "terminal_agent" => self.terminal_agent = None,
             "decision_model" => self.decision_model = None,
+            "capture_issue" => self.capture_issue = None,
+            "capture_issue_repo" => self.capture_issue_repo = None,
             _ => {}
         }
     }

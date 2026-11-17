@@ -100,7 +100,9 @@ pub(crate) enum Layer {
     /// This build cannot name the file (no user settings folder, or no project open).
     Unavailable,
     Missing,
-    Read(SettingsLayer),
+    /// **Boxed**: a `SettingsLayer` holds every key, so it is the large variant of a value this
+    /// screen copies per look, and `large_enum_variant` is right that the two small ones pay for it.
+    Read(Box<SettingsLayer>),
     Unreadable(String),
 }
 
@@ -110,7 +112,7 @@ impl Layer {
         let file = path.to_string_lossy().replace('\\', "/");
         match std::fs::read_to_string(path) {
             Ok(text) => match SettingsLayer::read(&file, &text) {
-                Ok(layer) => Layer::Read(layer),
+                Ok(layer) => Layer::Read(Box::new(layer)),
                 Err(r) => Layer::Unreadable(format!("{file} does not read ({}): {}", r.field.as_deref().unwrap_or("file"), r.reason)),
             },
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => Layer::Missing,
@@ -977,6 +979,7 @@ fn setting_row(
 ) -> impl Bundle {
     let shown = own.unwrap_or(below);
     let key = setting.key;
+    let has_own = own.is_some();
     (
         bevy_gooey::column(0.0),
         bevy_gooey::Spacing { margin: crate::chrome::margin_bottom(crate::chrome::STEP_GROUP), ..default() },
@@ -1049,8 +1052,8 @@ fn setting_row(
             }
             row.spawn((
                 bevy_gooey::row_with(crate::chrome::GAP_GROUP_STEPS, bevy_gooey::RowLayout { align: Some(AlignItems::Center), wrap: Some(FlexWrap::Wrap), ..default() }),
-                SettingLine { key, own: own.is_some(), overridden, default: default_value },
-                line_children(setting, own.is_some(), overridden, default_value),
+                SettingLine { key, own: has_own, overridden, default: default_value },
+                line_children(setting, has_own, overridden, default_value),
             ));
         })),
     )
