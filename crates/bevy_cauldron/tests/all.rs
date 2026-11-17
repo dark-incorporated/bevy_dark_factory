@@ -549,6 +549,7 @@ mod volume_wears_its_cover;
 mod water_place_is_an_operation;
 mod water_run_settles_a_pond;
 mod world_gizmos_stay_in_the_world;
+mod workspace_chords_work_over_the_activity_bar;
 
 mod schemas_are_written_where_an_outside_editor_looks;
 

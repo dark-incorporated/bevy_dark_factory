@@ -69,7 +69,7 @@ impl Plugin for ActivityBarPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(
             Update,
-            (keep_the_activity_bar, describe_the_tabs, follow_the_workspace)
+            (keep_the_activity_bar, describe_the_tabs, keep_the_tooltips_true, follow_the_workspace)
                 .chain()
                 .after(crate::chrome::FrameSystems)
                 .run_if(in_state(Screen::Editor)),
@@ -223,10 +223,18 @@ fn go_to_the_workspace(change: On<ValueChange<usize>>, strips: Query<&ActivitySt
     });
 }
 
-/// **Give each tab its tooltip: the workspace's name and its shortcut.**
+/// **Give each tab its tooltip: the workspace's name, its chord, and — when the chord cannot fire — why** (#483).
 ///
-/// gooey's tab draws the name as its tooltip already; this adds the chord on a keycap beside it, from the
-/// workspace's own command (`workspace.<id>`), so the bar and the keys cannot disagree.
+/// gooey's tab draws the name as its tooltip already; this adds the chord on a keycap beside it, from the workspace's own command
+/// (`workspace.<id>`), so the bar and the keys cannot disagree.
+///
+/// **A chord refused in the live context says so.** The workspace chords are `Context::Global`, and the one context that refuses every
+/// other one is [`crate::keys::Context::Typing`] — a text field, or the terminal holding the keys. The owner, with the pointer on this
+/// bar: *"It seems like the shortcuts don't work for these?"*, and the report's first candidate was exactly this. Measured: the chords
+/// open their workspaces from anywhere, pointer over the bar or over the map
+/// (`tests/workspace_chords_work_over_the_activity_bar.rs`), but **a shell that holds the keys makes the editor `Typing`**, and then
+/// no workspace chord fires. A tooltip that showed the key alone would promise something the press cannot do, so while the chord is
+/// refused the tooltip names who has the keys.
 fn describe_the_tabs(
     mut commands: Commands,
     live: Option<Res<crate::keys::Live>>,
@@ -241,8 +249,53 @@ fn describe_the_tabs(
         let Some(action) = Action::ALL.into_iter().find(|a| a.workspace() == Some(workspace)) else { continue };
         let command = crate::commands::command(action);
         let shortcut = live.as_deref().map_or(command.shortcut, |live| command.shortcut_in(*live));
-        commands.entity(tab).insert(Tooltip::new(workspace.title()).with_shortcut(shortcut));
+        let tooltip = Tooltip::new(tooltip_words(workspace, live.as_deref())).with_shortcut(shortcut);
+        commands.entity(tab).insert(tooltip);
     }
+}
+
+/// **Keep every tab's tooltip current as the keys change hands** (#483): the words name who has the keys while a chord is refused, and
+/// [`describe_the_tabs`] runs only on a tab's first frame, so without this a tooltip written while a shell held the keys would still say
+/// so after the keys went back to the editor.
+fn keep_the_tooltips_true(
+    live: Option<Res<crate::keys::Live>>,
+    tabs: Query<(Entity, &ChildOf, &mut Tooltip)>,
+    lists: Query<(&Children, &ChildOf)>,
+    strips: Query<&ActivityStrip>,
+) {
+    if live.as_ref().is_none_or(|live| !live.is_changed()) {
+        return;
+    }
+    for (tab, parent, mut tooltip) in tabs {
+        let Ok((siblings, list_parent)) = lists.get(parent.parent()) else { continue };
+        let Ok(strip) = strips.get(list_parent.parent()) else { continue };
+        let Some(workspace) = siblings.iter().position(|s| s == tab).and_then(|i| strip.0.get(i)).copied() else { continue };
+        let said = tooltip_words(workspace, live.as_deref());
+        if tooltip.text != said {
+            tooltip.text = said;
+        }
+    }
+}
+
+/// **What a tab's tooltip says**: its name, and the reason its chord cannot fire when there is one.
+///
+/// The words are the workspace's title alone in every context the chord works in, so the common case reads exactly as it did before
+/// (#483 changes nothing a person sees unless they are typing). While the editor is [`crate::keys::Context::Typing`], it names who has
+/// the keys: a shell that holds them is the case the owner's report is about, and a text field is the same gate.
+pub fn tooltip_words(workspace: Workspace, live: Option<&crate::keys::Live>) -> String {
+    let Some(action) = Action::ALL.into_iter().find(|a| a.workspace() == Some(workspace)) else {
+        return workspace.title().to_owned();
+    };
+    let refused = live.is_some_and(|live| !crate::keys::fires_in(crate::keys::binding(action).context, live.0));
+    if !refused {
+        return workspace.title().to_owned();
+    }
+    let who = if live.is_some_and(|live| live.0 == crate::keys::Context::Typing) {
+        "the terminal or a text field has the keys"
+    } else {
+        "this screen does not take it"
+    };
+    format!("{} — {}: click instead", workspace.title(), who)
 }
 
 /// **The indicator is on the workspace that is open**, whichever way it was reached — a key, the menu, the
