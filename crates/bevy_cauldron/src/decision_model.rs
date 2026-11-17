@@ -309,6 +309,30 @@ pub fn paint_the_led(
     }
 }
 
+/// **The decision chip is a readout in a strip, not a verb in a menu** (#480).
+///
+/// `bevy_gooey::led` draws its label at the skin's own `text_size` (`led.rs:100`), which is the size the
+/// menu's titles are drawn at — so the one item on the chrome bar that gooey spawns read as a menu word
+/// while the three the editor spawns were moved to `text::HINT`. The chip's word is a `Text` this crate
+/// already owns and repaints ([`paint_the_led`]), so it is typed here once, and the bar is one role.
+pub fn quiet_the_decision_chip(
+    leds: Query<&Children, With<DecisionLed>>,
+    words: Query<&Text, (Without<LedWord>, Without<crate::chrome::TypeRole>)>,
+    mut commands: Commands,
+) {
+    for children in &leds {
+        for child in children.iter() {
+            // **Only a word that has never been typed**, so this writes once per label. An
+            // unconditional `insert` marks the node `Changed<TextFont>` every frame, which is a
+            // relayout of the bar and a redraw of the glyphs sixty times a second for one setting
+            // that never changes.
+            if words.get(child).is_ok() {
+                commands.entity(child).insert(crate::chrome::typed(crate::chrome::text::HINT));
+            }
+        }
+    }
+}
+
 /// **The LED draws its dot and the model's name, not its state word**: the hover says the state in a sentence, and the bar beside it
 /// has little room. The word stays in the world (hidden, not removed), so the LED keeps its accessible state name and a test reads it.
 fn quiet_the_word(leds: Query<&Children, Added<DecisionLed>>, mut words: Query<&mut Node, With<LedWord>>) {
@@ -327,7 +351,17 @@ pub struct DecisionModelPlugin;
 impl Plugin for DecisionModelPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<DecisionState>()
-            .add_systems(Update, (paint_the_led.after(crate::settings::sync_settings), quiet_the_word));
+            .add_systems(
+                Update,
+                (
+                    paint_the_led.after(crate::settings::sync_settings),
+                    quiet_the_word,
+                    // **After the skin, so gooey's own `text_size` on the LED's label is beaten** (#480):
+                    // `apply_skin` restyles `Role::Label` every time a widget's state changes, and it
+                    // would put the label back at the skin's size if this ran before it.
+                    quiet_the_decision_chip.after(bevy_gooey::GooeySystems::Style),
+                ),
+            );
     }
 }
 
