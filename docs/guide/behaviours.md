@@ -1,6 +1,6 @@
 # Behaviours
 
-A behaviour is a component `bevy_grimoire` ships, so a game gets one by adding `BehaviourPlugin` and a person
+A behaviour is a component `bevy_blueprint` ships, so a game gets one by adding `BehaviourPlugin` and a person
 or an agent configures it in a YAML file. Nothing is scripted: a behaviour whose fields can describe it lives
 here, and anything else is a script (GD-06).
 
@@ -95,5 +95,5 @@ The same collision is why **the behaviours do not register themselves**. Bevy 0.
 derived type process-wide, so a shipped `Health` would make a game's own `Health` ambiguous in that game's
 files and the reader would refuse both. `BehaviourPlugin` is the opt-in: a game that does not add it has none
 of these types in its registry, and a game that does add it and also has its own `Health` writes
-`bevy_grimoire::behaviours::Health` for this one — the type has exactly that one reflected path, because the
+`bevy_blueprint::behaviours::Health` for this one — the type has exactly that one reflected path, because the
 module's own submodules are private.

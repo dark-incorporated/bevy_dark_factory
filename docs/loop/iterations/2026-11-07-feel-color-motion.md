@@ -6,7 +6,7 @@ Focus: epic #330 (owner's steer) · Commits: bevy_gooey 779849f, b9aa28c (merged
 G-44 (bevy-coven/bevy_gooey#51), colour motion, is built and released. It was one of the two needs of UI-R01 #331, and with G-46 from pass 464 both are now closed: #331 is ready for its pin move. The loop's steer to publish after each issue is followed: bevy_gooey v0.40.1 is on crates.io.
 
 ## Baseline
-The bevy_grimoire gate and `accept.py` were not run: no bevy_grimoire code changed.
+The bevy_blueprint gate and `accept.py` were not run: no bevy_blueprint code changed.
 
 ## Enhancement: G-44 (bevy-coven/bevy_gooey#51)
 - **Change:** `src/color_motion.rs`.
@@ -41,7 +41,7 @@ None. The reference is Rune's README, "Animation".
 Not measured. The settled path is a change-tick test per styled node and no lookups.
 
 ## Acceptance
-`accept.py` was not run: no bevy_grimoire code changed.
+`accept.py` was not run: no bevy_blueprint code changed.
 
 ## Review
 An independent `reviewer` ran: 3 P2 and 4 P3, all fixed before the commit.

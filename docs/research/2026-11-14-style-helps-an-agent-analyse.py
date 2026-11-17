@@ -6,16 +6,16 @@ usage:  analyse.py <without run>[,<run>...] <with run>[,<run>...]     two or mor
         analyse.py --routes <run>[,<run>...]                           each trial's route, citations and attempts at the hidden tool (the probe: READ this and check it by hand against the transcript before the 30 runs)
         analyse.py --assemble <name> <run>,<run>...                    one run directory <name> from one-trial rounds (trials renumbered, headers merged, refused if the rounds were run differently), for `report` and `compare`
 
-Python 3 standard library only.  It reads `trial.json` (the runner's record) and `transcript.jsonl` (the agent's own stream) under ~/.local/state/cauldron-bench/<run>/.
+Python 3 standard library only.  It reads `trial.json` (the runner's record) and `transcript.jsonl` (the agent's own stream) under ~/.local/state/dark_factory-bench/<run>/.
 """
 import itertools, json, math, os, random, re, shutil, sys, tempfile
 from collections import Counter
 from fractions import Fraction
 from pathlib import Path
 
-STATE = Path(os.environ["HOME"]) / ".local/state/cauldron-bench"
+STATE = Path(os.environ["HOME"]) / ".local/state/dark_factory-bench"
 SEED, RESAMPLES, LOW, HIGH = 0x5EED_D4A2_B3C1_0413, 10_000, 0.025, 0.975   # the runner's BOOTSTRAP_RESAMPLES, BOOTSTRAP_SEED, INTERVAL_LOW, INTERVAL_HIGH
-TOOL_SHARE_MIN = 0.70            # the share of with-style runs that must have called `grimoire_style` for a claim about the tool
+TOOL_SHARE_MIN = 0.70            # the share of with-style runs that must have called `blueprint_style` for a claim about the tool
 # 0-based positions of the checks that are guards, not lines, and how many lines each task has (see "The lines" in the pre-registration).
 GUARDS = {"dress-the-market-area": {0, 10}, "light-the-gate-at-night": {0, 10}, "write-the-gatekeepers-greeting": {0}}
 LINES_PER_TASK = {"dress-the-market-area": 9, "light-the-gate-at-night": 9, "write-the-gatekeepers-greeting": 6}
@@ -61,21 +61,21 @@ def events(transcript):
 
 
 def hidden_attempts(calls):
-    """(writes, reads) of the device path of `grimoire_style` itself (never `grimoire_style_propose`): an agent calling, or looking up, a tool; in the without-style arm that tool is absent."""
-    own = [(name, args) for kind, name, args in calls if kind == "device" and re.search(r"grimoire_style(?!_)", str(args.get("path", "")))]
+    """(writes, reads) of the device path of `blueprint_style` itself (never `blueprint_style_propose`): an agent calling, or looking up, a tool; in the without-style arm that tool is absent."""
+    own = [(name, args) for kind, name, args in calls if kind == "device" and re.search(r"blueprint_style(?!_)", str(args.get("path", "")))]
     return sum(n == "write" for n, _ in own), sum(n == "read" for n, _ in own)
 
 
 def route_of(calls):
-    """`tool`: called grimoire_style and opened no design page by a generic tool; `file`: the reverse; `both`; `neither`."""
-    tool = any(kind == "mcp" and name == "grimoire_style" for kind, name, _ in calls)
+    """`tool`: called blueprint_style and opened no design page by a generic tool; `file`: the reverse; `both`; `neither`."""
+    tool = any(kind == "mcp" and name == "blueprint_style" for kind, name, _ in calls)
     file = any(kind == "generic" and re.search(r"design[/\\]", json.dumps(args)) for kind, _, args in calls)
     return {(True, False): "tool", (False, True): "file", (True, True): "both", (False, False): "neither"}[(tool, file)]
 
 
 def cited_followed(calls):
-    """Whether the agent's own `grimoire_present` call carried a non-empty `followed` list (never a tool result or the agent's prose)."""
-    return any(kind == "mcp" and name == "grimoire_present" and isinstance(args, dict) and args.get("followed") for kind, name, args in calls)
+    """Whether the agent's own `blueprint_present` call carried a non-empty `followed` list (never a tool result or the agent's prose)."""
+    return any(kind == "mcp" and name == "blueprint_present" and isinstance(args, dict) and args.get("followed") for kind, name, args in calls)
 
 
 def load(runs, state=None):
@@ -93,7 +93,7 @@ def load(runs, state=None):
                 cells[task].append({
                     "lines": sum(c["passed"] for i, c in enumerate(t["checks"]) if i not in guards),
                     "route": route_of(calls), "followed": cited_followed(calls),
-                    "style_before_edit": next((n == "grimoire_style" for k, n, _ in calls if k == "mcp" and n in ("grimoire_style", "grimoire_apply_operation")), False),
+                    "style_before_edit": next((n == "blueprint_style" for k, n, _ in calls if k == "mcp" and n in ("blueprint_style", "blueprint_apply_operation")), False),
                     "wishes": t["wishes"], "offered": t["tools_offered"],
                     "hidden_writes": hidden_attempts(calls)[0], "hidden_reads": hidden_attempts(calls)[1],
                 })
@@ -164,7 +164,7 @@ def analyse(without, with_, errors, rng=None):
     out["style_before_edit"] = sum(r["style_before_edit"] for r in runs)
     out["followed"] = sum(r["followed"] for r in runs)
     out["wishes"] = [(t, w) for t in tasks for r in with_[t] for w in r["wishes"]]
-    out["without_offered_style"] = sum("grimoire_style" in r["offered"] for t in tasks for r in without[t])
+    out["without_offered_style"] = sum("blueprint_style" in r["offered"] for t in tasks for r in without[t])
     out["without_attempts"] = {"runs": sum(r.get("hidden_writes", 0) > 0 for t in tasks for r in without[t]), "writes": sum(r.get("hidden_writes", 0) for t in tasks for r in without[t]),
                                "reads": sum(r.get("hidden_reads", 0) for t in tasks for r in without[t]), "of": sum(len(without[t]) for t in tasks)}
     out["per_task"] = {t: (mean([r["lines"] for r in without[t]]), mean([r["lines"] for r in with_[t]]), len(without[t]), len(with_[t])) for t in tasks}
@@ -183,15 +183,15 @@ def report(a):
     print(f"lines satisfied per task-triple (max {a['max_lines']}): without {a['m_without']:.2f}  with {a['m_with']:.2f}")
     print(f"PRIMARY  difference with - without: {a['d']:+.2f}  95% bootstrap interval [{a['lo']:+.2f}, {a['hi']:+.2f}]  ->  {a['verdict']}")
     print(f"second reading, exact permutation test (arm labels exchanged within a task), two-sided p = {a['p_permutation']:.4f}")
-    print("route of the with-style runs: " + ", ".join(f"{k} {v}" for k, v in a["routes"].items()) + f"  (called grimoire_style, with or without a page: {a['tool_share']:.0%}; the tool alone, no page: {a['tool_only_share']:.0%}; needed {TOOL_SHARE_MIN:.0%} of the first)")
+    print("route of the with-style runs: " + ", ".join(f"{k} {v}" for k, v in a["routes"].items()) + f"  (called blueprint_style, with or without a page: {a['tool_share']:.0%}; the tool alone, no page: {a['tool_only_share']:.0%}; needed {TOOL_SHARE_MIN:.0%} of the first)")
     for k, r in a["by_route"].items():
         print(f"  D over the {r['n']} with-style runs by route `{k}` ({len(r['tasks'])} tasks): {r['d']:+.2f}  [{r['lo']:+.2f}, {r['hi']:+.2f}]  (descriptive, a thin cell)")
-    print("CLAIM: " + ("`grimoire_style` changes what an agent builds: the tool share was met and D is better" if a["tool_claim_allowed"] else "the style, available to the agent, " + ("changed what it built" if a["verdict"] == "better" else "did not measurably change what it built") + "; nothing is claimed about the tool in particular"))
-    print(f"with-style runs that called grimoire_style before their first edit: {a['style_before_edit']} of {sum(a['routes'].values())}")
-    print(f"with-style runs whose own grimoire_present call cited followed lines: {a['followed']} of {sum(a['routes'].values())}")
-    print(f"without-style runs offered grimoire_style (must be 0): {a['without_offered_style']}")
+    print("CLAIM: " + ("`blueprint_style` changes what an agent builds: the tool share was met and D is better" if a["tool_claim_allowed"] else "the style, available to the agent, " + ("changed what it built" if a["verdict"] == "better" else "did not measurably change what it built") + "; nothing is claimed about the tool in particular"))
+    print(f"with-style runs that called blueprint_style before their first edit: {a['style_before_edit']} of {sum(a['routes'].values())}")
+    print(f"with-style runs whose own blueprint_present call cited followed lines: {a['followed']} of {sum(a['routes'].values())}")
+    print(f"without-style runs offered blueprint_style (must be 0): {a['without_offered_style']}")
     w = a["without_attempts"]
-    print(f"without-style runs that tried the hidden grimoire_style by its device path: {w['runs']} of {w['of']} ({w['writes']} writes, {w['reads']} reads)")
+    print(f"without-style runs that tried the hidden blueprint_style by its device path: {w['runs']} of {w['of']} ({w['writes']} writes, {w['reads']} reads)")
     print(f"wishes made by with-style runs: {len(a['wishes'])}")
     for task, w in a["wishes"]:
         print("  -", task, json.dumps(w))
@@ -202,7 +202,7 @@ SAME_IN_EVERY_ROUND = ("commit", "guide_sha256", "agent", "agent_version", "mode
 
 
 def assemble(dest, runs, state=None):
-    """One run directory `dest` from the one-trial rounds `runs`, for `cauldron-bench report` and `compare` (which read one run per arm).
+    """One run directory `dest` from the one-trial rounds `runs`, for `dark_factory-bench report` and `compare` (which read one run per arm).
 
     The trials of each task are renumbered in round order and only `trial.json` and `transcript.jsonl` are kept. The merged `run.json` is the first round's with `label` = dest and
     `trials` = the rounds per task; it is only made if every round was run alike (the editor commit, the guide, the agent and its version, the model, the arm, the suite and the host
@@ -274,17 +274,17 @@ def selftest():
     # a transcript: the route and the citations come from the agent's own calls, in its own tool arguments only
     mcp = lambda name, args: {"type": "tool_execution_end", "result": {"details": {"xdev": {"args": args, "inner": {"mcpToolName": name}}}}}
     gen = lambda name, args: {"type": "message_update", "assistantMessageEvent": {"type": "toolcall_end", "toolCall": {"name": name, "arguments": args}}}
-    assert route_of(events_from([mcp("grimoire_style", {"map": "courtyard"})])) == "tool"
+    assert route_of(events_from([mcp("blueprint_style", {"map": "courtyard"})])) == "tool"
     assert route_of(events_from([gen("read", {"path": "design/style.md"})])) == "file"
-    assert route_of(events_from([gen("bash", {"command": "cat design/levels/courtyard/style.md"}), mcp("grimoire_style", {})])) == "both"
-    assert route_of(events_from([gen("read", {"path": "assets/grimoire/maps/courtyard.map.yaml"}), mcp("grimoire_style_propose", {})])) == "neither"
-    assert route_of(events_from([gen("write", {"path": "xd://mcp__cauldron_grimoire_style", "content": "{}"})])) == "neither"   # the device path is counted as the MCP call, not as a file
-    assert cited_followed(events_from([mcp("grimoire_present", {"title": "t", "followed": [{"path": "design/style.md", "line": 3}]})]))
-    assert not cited_followed(events_from([mcp("grimoire_present", {"title": "t"}), mcp("grimoire_state", {"followed": [1]}), gen("read", {"path": "followed"})]))
-    # editor tools asked for by their device path (`write xd://mcp__<server>_grimoire_style`) are the agent trying a tool: in the without-style arm that tool is absent
-    assert hidden_attempts(events_from([gen("write", {"path": "xd://mcp__cauldron_grimoire_style", "content": "{}"})])) == (1, 0)
-    assert hidden_attempts(events_from([gen("read", {"path": "xd://mcp__cauldron_grimoire_style"}), gen("write", {"path": "xd://mcp__cauldron_grimoire_style_propose", "content": "{}"})])) == (0, 1)
-    assert hidden_attempts(events_from([mcp("grimoire_state", {})])) == (0, 0)
+    assert route_of(events_from([gen("bash", {"command": "cat design/levels/courtyard/style.md"}), mcp("blueprint_style", {})])) == "both"
+    assert route_of(events_from([gen("read", {"path": "assets/blueprint/maps/courtyard.map.yaml"}), mcp("blueprint_style_propose", {})])) == "neither"
+    assert route_of(events_from([gen("write", {"path": "xd://mcp__dark_factory_blueprint_style", "content": "{}"})])) == "neither"   # the device path is counted as the MCP call, not as a file
+    assert cited_followed(events_from([mcp("blueprint_present", {"title": "t", "followed": [{"path": "design/style.md", "line": 3}]})]))
+    assert not cited_followed(events_from([mcp("blueprint_present", {"title": "t"}), mcp("blueprint_state", {"followed": [1]}), gen("read", {"path": "followed"})]))
+    # editor tools asked for by their device path (`write xd://mcp__<server>_blueprint_style`) are the agent trying a tool: in the without-style arm that tool is absent
+    assert hidden_attempts(events_from([gen("write", {"path": "xd://mcp__dark_factory_blueprint_style", "content": "{}"})])) == (1, 0)
+    assert hidden_attempts(events_from([gen("read", {"path": "xd://mcp__dark_factory_blueprint_style"}), gen("write", {"path": "xd://mcp__dark_factory_blueprint_style_propose", "content": "{}"})])) == (0, 1)
+    assert hidden_attempts(events_from([mcp("blueprint_state", {})])) == (0, 0)
     # the 70% rule counts the runs that only used the tool separately from the runs that used both, and reports both numbers
     a = analyse(without, with_, 0)
     assert abs(a["tool_only_share"] - 5 / 15) < 1e-9 and abs(a["tool_share"] - 10 / 15) < 1e-9

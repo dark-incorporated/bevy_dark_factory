@@ -40,7 +40,7 @@ passing cases are characterisation and say so; the failing case is `#[ignore]`d 
 quietly dropped or made to pass.
 
 ## Release
-None: `bevy_cauldron` is `publish = false`, and this pass touched one keyword and tests.
+None: `bevy_dark_factory` is `publish = false`, and this pass touched one keyword and tests.
 
 ## Next focus
 Turn the ignored case green: a counter in `on_row_click` says whether the press reaches the row at all.

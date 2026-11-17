@@ -6,7 +6,7 @@
   "setup": [],
   "chunks": [{"seconds": 10}],
   "steps": [
-    {"at": 0.2, "caption": "the bedroom project, open in the Cauldron"},
+    {"at": 0.2, "caption": "the bedroom project, open in the DarkFactory"},
     {"at": 1.0, "key": "Comma", "mods": ["ControlLeft"], "caption": "person: Ctrl+, opens the settings, over the map"},
     {"at": 2.6, "cursor": [640, 571]},
     {"at": 3.0, "click": [640, 571], "caption": "person: Project configuration"},

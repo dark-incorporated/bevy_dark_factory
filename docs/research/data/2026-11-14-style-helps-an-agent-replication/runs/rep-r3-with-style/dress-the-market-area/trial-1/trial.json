@@ -75,11 +75,11 @@
   "edits_behind": [],
   "model": "anthropic/claude-sonnet-5-5",
   "outcome": "pass",
-  "prompt": "The market area of the courtyard is empty: the rectangle with x from -10 to -2 and z from 2 to 10 (north is -z). Dress it as a market.\n\nPlace three market stalls (`market_stall`), and then whatever else from the library a market needs. Keep everything inside the rectangle and clear of one another.\n\nWhen it is dressed, hand the result back with grimoire_present, and name every piece you placed.\n",
+  "prompt": "The market area of the courtyard is empty: the rectangle with x from -10 to -2 and z from 2 to 10 (north is -z). Dress it as a market.\n\nPlace three market stalls (`market_stall`), and then whatever else from the library a market needs. Keep everything inside the rectangle and clear of one another.\n\nWhen it is dressed, hand the result back with blueprint_present, and name every piece you placed.\n",
   "reason": "",
   "refusals": 1,
   "refusals_by_tool": {
-    "grimoire_apply_operation": 1
+    "blueprint_apply_operation": 1
   },
   "score": {
     "passed": 11,
@@ -100,151 +100,151 @@
   "tokens_out": 15581,
   "tool_call_count": 24,
   "tool_calls": [
-    "grimoire_guide",
-    "grimoire_state",
-    "grimoire_list_pieces",
-    "grimoire_list_operations",
-    "grimoire_style",
-    "grimoire_apply_operation",
-    "grimoire_apply_operation",
-    "grimoire_apply_operation",
-    "grimoire_apply_operation",
-    "grimoire_undo_operation",
-    "grimoire_apply_operation",
-    "grimoire_apply_operation",
-    "grimoire_apply_operation",
-    "grimoire_apply_operation",
-    "grimoire_apply_operation",
-    "grimoire_apply_operation",
-    "grimoire_apply_operation",
-    "grimoire_apply_operation",
-    "grimoire_apply_operation",
-    "grimoire_apply_operation",
-    "grimoire_state",
-    "grimoire_capture_still",
-    "grimoire_present",
-    "grimoire_wish"
+    "blueprint_guide",
+    "blueprint_state",
+    "blueprint_list_pieces",
+    "blueprint_list_operations",
+    "blueprint_style",
+    "blueprint_apply_operation",
+    "blueprint_apply_operation",
+    "blueprint_apply_operation",
+    "blueprint_apply_operation",
+    "blueprint_undo_operation",
+    "blueprint_apply_operation",
+    "blueprint_apply_operation",
+    "blueprint_apply_operation",
+    "blueprint_apply_operation",
+    "blueprint_apply_operation",
+    "blueprint_apply_operation",
+    "blueprint_apply_operation",
+    "blueprint_apply_operation",
+    "blueprint_apply_operation",
+    "blueprint_apply_operation",
+    "blueprint_state",
+    "blueprint_capture_still",
+    "blueprint_present",
+    "blueprint_wish"
   ],
   "tool_log": [
     {
       "args": "{}",
       "refused": false,
-      "tool": "grimoire_guide"
+      "tool": "blueprint_guide"
     },
     {
       "args": "{}",
       "refused": false,
-      "tool": "grimoire_state"
+      "tool": "blueprint_state"
     },
     {
       "args": "{}",
       "refused": false,
-      "tool": "grimoire_list_pieces"
+      "tool": "blueprint_list_pieces"
     },
     {
       "args": "{}",
       "refused": false,
-      "tool": "grimoire_list_operations"
+      "tool": "blueprint_list_operations"
     },
     {
       "args": "{\"at\":[-6,6],\"map\":\"courtyard\"}",
       "refused": false,
-      "tool": "grimoire_style"
+      "tool": "blueprint_style"
     },
     {
       "args": "{\"operation\":\"placement_add\",\"parameters\":{\"at\":[-8.85,9],\"piece\":\"market_stall\",\"yaw\":180}}",
       "refused": false,
-      "tool": "grimoire_apply_operation"
+      "tool": "blueprint_apply_operation"
     },
     {
       "args": "{\"operation\":\"placement_add\",\"parameters\":{\"at\":[-5.9,9],\"piece\":\"market_stall\",\"yaw\":180}}",
       "refused": false,
-      "tool": "grimoire_apply_operation"
+      "tool": "blueprint_apply_operation"
     },
     {
       "args": "{\"operation\":\"placement_add\",\"parameters\":{\"at\":[-3.15,9],\"piece\":\"market_stall\",\"yaw\":180}}",
       "refused": false,
-      "tool": "grimoire_apply_operation"
+      "tool": "blueprint_apply_operation"
     },
     {
       "args": "{\"operation\":\"placement_add\",\"parameters\":{\"at\":[-8.85,9],\"piece\":\"awning_canvas\",\"yaw\":180}}",
       "refused": false,
-      "tool": "grimoire_apply_operation"
+      "tool": "blueprint_apply_operation"
     },
     {
       "args": "{\"operation_id\":\"0003-8515\"}",
       "refused": false,
-      "tool": "grimoire_undo_operation"
+      "tool": "blueprint_undo_operation"
     },
     {
       "args": "{\"operation\":\"placement_add\",\"parameters\":{\"at\":[-8.85,7.6],\"piece\":\"awning_canvas\",\"yaw\":180}}",
       "refused": false,
-      "tool": "grimoire_apply_operation"
+      "tool": "blueprint_apply_operation"
     },
     {
       "args": "{\"operation\":\"placement_add\",\"parameters\":{\"at\":[-5.9,7.6],\"piece\":\"awning_canvas\",\"yaw\":180}}",
       "refused": false,
-      "tool": "grimoire_apply_operation"
+      "tool": "blueprint_apply_operation"
     },
     {
       "args": "{\"operation\":\"placement_add\",\"parameters\":{\"at\":[-3.15,7.6],\"piece\":\"awning_canvas\",\"yaw\":180}}",
       "refused": false,
-      "tool": "grimoire_apply_operation"
+      "tool": "blueprint_apply_operation"
     },
     {
       "args": "{\"operation\":\"placement_add\",\"parameters\":{\"at\":[-8.85,9.8],\"piece\":\"lantern_oil\"}}",
       "refused": false,
-      "tool": "grimoire_apply_operation"
+      "tool": "blueprint_apply_operation"
     },
     {
       "args": "{\"operation\":\"placement_add\",\"parameters\":{\"at\":[-5.9,9.8],\"piece\":\"lantern_oil\"}}",
       "refused": false,
-      "tool": "grimoire_apply_operation"
+      "tool": "blueprint_apply_operation"
     },
     {
       "args": "{\"operation\":\"placement_add\",\"parameters\":{\"at\":[-3.15,9.8],\"piece\":\"lantern_oil\"}}",
       "refused": false,
-      "tool": "grimoire_apply_operation"
+      "tool": "blueprint_apply_operation"
     },
     {
       "args": "{\"operation\":\"placement_add\",\"parameters\":{\"at\":[-7.35,9],\"piece\":\"barrel_oak\"}}",
       "refused": false,
-      "tool": "grimoire_apply_operation"
+      "tool": "blueprint_apply_operation"
     },
     {
       "args": "{\"operation\":\"placement_add\",\"parameters\":{\"at\":[-4.5,9],\"piece\":\"sack_grain\"}}",
       "refused": false,
-      "tool": "grimoire_apply_operation"
+      "tool": "blueprint_apply_operation"
     },
     {
       "args": "{\"operation\":\"placement_add\",\"parameters\":{\"at\":[-6,4.5],\"piece\":\"bench_plank\"}}",
       "refused": false,
-      "tool": "grimoire_apply_operation"
+      "tool": "blueprint_apply_operation"
     },
     {
       "args": "{\"dry_run\":true,\"operation\":\"placement_set_family\",\"parameters\":{\"crate\":\"bevy_lights\",\"id\":\"lantern_oil@8\",\"value\":\"{base: 900.0, phase: 1.3, depth: 0.15}\"}}",
       "refused": true,
-      "tool": "grimoire_apply_operation"
+      "tool": "blueprint_apply_operation"
     },
     {
       "args": "{}",
       "refused": false,
-      "tool": "grimoire_state"
+      "tool": "blueprint_state"
     },
     {
       "args": "{\"label\":\"market_dressed\"}",
       "refused": false,
-      "tool": "grimoire_capture_still"
+      "tool": "blueprint_capture_still"
     },
     {
       "args": "{\"check\":[{\"placements\":[\"awning_canvas@5\",\"awning_canvas@6\",\"awning_canvas@7\"],\"what\":\"Awnings stand in front of the stalls rather than over them; confirm that…",
       "refused": false,
-      "tool": "grimoire_present"
+      "tool": "blueprint_present"
     },
     {
-      "args": "{\"after\":{\"presentation\":\"present-1\"},\"example_call\":\"grimoire_preview_operation {\\\"operation\\\":\\\"placement_add\\\",\\\"parameters\\\":{\\\"piece\\\":\\\"awning_canvas\\\",\\\"…",
+      "args": "{\"after\":{\"presentation\":\"present-1\"},\"example_call\":\"blueprint_preview_operation {\\\"operation\\\":\\\"placement_add\\\",\\\"parameters\\\":{\\\"piece\\\":\\\"awning_canvas\\\",\\\"…",
       "refused": false,
-      "tool": "grimoire_wish"
+      "tool": "blueprint_wish"
     }
   ],
   "tools_offered": [
@@ -266,34 +266,34 @@
     "run_experiment",
     "log_experiment",
     "update_notes",
-    "grimoire_apply_operation",
-    "grimoire_capture_sequence",
-    "grimoire_capture_still",
-    "grimoire_decide",
-    "grimoire_feedback_list",
-    "grimoire_frame_view",
-    "grimoire_guide",
-    "grimoire_jobs_stop",
-    "grimoire_lesson",
-    "grimoire_list_operations",
-    "grimoire_list_pieces",
-    "grimoire_list_rules",
-    "grimoire_list_snips",
-    "grimoire_open_project",
-    "grimoire_present",
-    "grimoire_preview_operation",
-    "grimoire_project_feedback_list",
-    "grimoire_read_log",
-    "grimoire_read_oplog",
-    "grimoire_run_command",
-    "grimoire_schema",
-    "grimoire_self_test",
-    "grimoire_snip",
-    "grimoire_state",
-    "grimoire_style",
-    "grimoire_style_propose",
-    "grimoire_undo_operation",
-    "grimoire_wish"
+    "blueprint_apply_operation",
+    "blueprint_capture_sequence",
+    "blueprint_capture_still",
+    "blueprint_decide",
+    "blueprint_feedback_list",
+    "blueprint_frame_view",
+    "blueprint_guide",
+    "blueprint_jobs_stop",
+    "blueprint_lesson",
+    "blueprint_list_operations",
+    "blueprint_list_pieces",
+    "blueprint_list_rules",
+    "blueprint_list_snips",
+    "blueprint_open_project",
+    "blueprint_present",
+    "blueprint_preview_operation",
+    "blueprint_project_feedback_list",
+    "blueprint_read_log",
+    "blueprint_read_oplog",
+    "blueprint_run_command",
+    "blueprint_schema",
+    "blueprint_self_test",
+    "blueprint_snip",
+    "blueprint_state",
+    "blueprint_style",
+    "blueprint_style_propose",
+    "blueprint_undo_operation",
+    "blueprint_wish"
   ],
   "trial": 1,
   "undos": 1,
@@ -304,10 +304,10 @@
       "after": {
         "presentation": "present-1"
       },
-      "example_call": "grimoire_preview_operation {\"operation\":\"placement_add\",\"parameters\":{\"piece\":\"awning_canvas\",\"at\":[-8.85,9.0],\"yaw\":180}}",
+      "example_call": "blueprint_preview_operation {\"operation\":\"placement_add\",\"parameters\":{\"piece\":\"awning_canvas\",\"at\":[-8.85,9.0],\"yaw\":180}}",
       "hardship": "placement_add silently replaced a stall when I put an awning at the same spot; I only found out from the result line and had to undo. I also could not tell whether a piece can be lifted overhead, and could not set lantern light because bevy_lights is not in family.yaml.",
       "task": "dressed the market rectangle with three stalls, awnings, lanterns and a few props",
-      "tool": "A grimoire_preview_operation report for placement_add that lists which existing placements the new piece would replace or overlap, before anything is written."
+      "tool": "A blueprint_preview_operation report for placement_add that lists which existing placements the new piece would replace or overlap, before anything is written."
     }
   ]
 }

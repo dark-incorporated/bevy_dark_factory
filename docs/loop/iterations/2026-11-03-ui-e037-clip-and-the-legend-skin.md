@@ -19,7 +19,7 @@ Must-fix: blocks y (it blocked E-037's clip across four passes), common n, no wo
 records and `check.py` passes all four criteria.
 Root cause: **three separate operational faults, none in the recorder.**
 1. `cp -r assets /tmp/p` into an *existing* dir nested it as `/tmp/p/assets/assets`, so the editor refused the
-   project (`assets/grimoire/kits.ron: No such file or directory`) and every capture was the same error dialog.
+   project (`assets/blueprint/kits.ron: No such file or directory`) and every capture was the same error dialog.
 2. `brush_arm pipe` is a no-op when `pipe` is already armed — `{"outcome":"applied"}` but `affected: 0`, so a
    second recording against the same editor had nothing to show.
 3. The change is concentrated: **31.6% inside a 120 px crop at x=664, y=352**, but **2.7%** across its
@@ -29,7 +29,7 @@ static 1.50 s, size 0.29 MB).
 
 ## Enhancement: the keyboard legend draws in the editor skin's ink (UI-02, #210)
 Goal: a project's skin file reaches the badge layer, the last surface read *while* learning the editor.
-Files: `crates/bevy_cauldron/src/badges.rs`, new `tests/a_badge_draws_in_the_skins_ink.rs`.
+Files: `crates/bevy_dark_factory/src/badges.rs`, new `tests/a_badge_draws_in_the_skins_ink.rs`.
 Proof: reverting `BadgeInk::of` to the constants fails with *"a labelled cluster stands on the skin's
 `surface`"*; restored, all 3 pass. `editor_skin().problems()` is `0 -> []` with 12 tones.
 MCP: none. Undo: none (a colour source, not an edit).
@@ -58,18 +58,18 @@ Reviewer not spawned. Self-review, mine:
   existing `Shortcut` SystemParam rather than the lint being silenced.
 
 ## Test diffs
-- `crates/bevy_cauldron/tests/all.rs`: one added `mod a_badge_draws_in_the_skins_ink;` (the assumed owner
+- `crates/bevy_dark_factory/tests/all.rs`: one added `mod a_badge_draws_in_the_skins_ink;` (the assumed owner
   exception for a new test file). Nothing else.
-- New: `crates/bevy_cauldron/tests/a_badge_draws_in_the_skins_ink.rs` (3 tests).
+- New: `crates/bevy_dark_factory/tests/a_badge_draws_in_the_skins_ink.rs` (3 tests).
 - No existing assertion was changed, removed, loosened or re-pinned.
 
 ## Release
-None: `bevy_grimoire_rng`, `_solver` and `_snip` show no diff under `crates/<crate>` since their tags (the
+None: `blueprint_rng`, `_solver` and `_snip` show no diff under `crates/<crate>` since their tags (the
 `CHANGED` line was `Cargo.toml` from the pin move, not the crate), and every other publishable crate is
-unchanged. `bevy_cauldron` is `publish = false`.
+unchanged. `bevy_dark_factory` is `publish = false`.
 
 ## Left alone, named
-`crates/bevy_cauldron/tests/the_shells_divider_moves_under_a_drag.rs` — **another agent was editing this clone
+`crates/bevy_dark_factory/tests/the_shells_divider_moves_under_a_drag.rs` — **another agent was editing this clone
 while this pass ran**: the file appeared at 06:52, was rewritten at 07:01 with different content, and its
 `all.rs` `mod` lines were being reordered around mine. It is untracked, does not compile
 (`bevy::picking::events::PointerState` has no `pressing()`/`dragging()` in Bevy 0.20), and it blocked the

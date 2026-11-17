@@ -59,9 +59,9 @@ The crate is authoring time only: nothing here ships in a game, and it has no Be
 ## Learn more
 
 - [Checking captures with the decision model](https://github.com/dark-incorporated/bevy_dark_factory/blob/main/docs/decide/checking-captures.md) and [serving clef-flash](https://github.com/dark-incorporated/bevy_dark_factory/blob/main/docs/decide/serving-clef-flash.md).
-- The editor's MCP server exposes this to an agent as `grimoire_decide`: see [the MCP tool reference](https://github.com/dark-incorporated/bevy_dark_factory/blob/main/docs/mcp-tools.md).
+- The editor's MCP server exposes this to an agent as `blueprint_decide`: see [the MCP tool reference](https://github.com/dark-incorporated/bevy_dark_factory/blob/main/docs/mcp-tools.md).
 - [Changelog](https://github.com/dark-incorporated/bevy_dark_factory/blob/main/CHANGELOG.md) of the repository this crate lives in.
-- Part of Dark Inc.: the [family table](https://github.com/dark-incorporated) lists the other crates, and [the book page for this repository](https://dark-incorporated.github.io/crates/bevy_grimoire.html) says how they fit together.
+- Part of Dark Inc.: the [family table](https://github.com/dark-incorporated) lists the other crates, and [the book page for this repository](https://dark-incorporated.github.io/crates/bevy_blueprint.html) says how they fit together.
 
 ## Who and licence
 

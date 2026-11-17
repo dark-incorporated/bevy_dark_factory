@@ -17,7 +17,7 @@
 
 ## Agent errors
 
-6 call(s) to a tool that does not exist in `cover-the-hallway-floor` trial 3, `hedge-along-the-south-edge` trial 2, `lamp-on-the-bedside-table` trial 2, `make-a-cellar-map` trial 3. The agent was told so by its harness and went on, so each trial is scored: these are the agent's own mistakes and not the harness's. By the name called: `xd__mcp__cauldron_grimoire_guide` ×3, `xd___read` ×1, `xd__mcp__cauldron_grimoire_list_operations` ×1, `xd__mcp__cauldron_grimoire_state` ×1.
+6 call(s) to a tool that does not exist in `cover-the-hallway-floor` trial 3, `hedge-along-the-south-edge` trial 2, `lamp-on-the-bedside-table` trial 2, `make-a-cellar-map` trial 3. The agent was told so by its harness and went on, so each trial is scored: these are the agent's own mistakes and not the harness's. By the name called: `xd__mcp__dark_factory_blueprint_guide` ×3, `xd___read` ×1, `xd__mcp__dark_factory_blueprint_list_operations` ×1, `xd__mcp__dark_factory_blueprint_state` ×1.
 
 ## The suite
 
@@ -80,30 +80,30 @@
 
 - first failing check: `handback_contains` — wanted a hand-back stating three, dresser; measured the hand-back \`Bedroom census: 3 pieces, dresser nearest north wall\` does not state \`three\`
 - its last 3 call(s), oldest first:
-  - `grimoire_guide {}`
-  - `grimoire_state {}`
-  - `grimoire_present {"check":[{"placements":["dresser"],"what":"The dresser sits closest to the north wall"}],"inferred":["The bedroom map is bench_bedroom, the map open in the edi…`
+  - `blueprint_guide {}`
+  - `blueprint_state {}`
+  - `blueprint_present {"check":[{"placements":["dresser"],"what":"The dresser sits closest to the north wall"}],"inferred":["The bedroom map is bench_bedroom, the map open in the edi…`
 
 ### `count-what-the-bedroom-holds`, trial 3
 
 - first failing check: `handback_contains` — wanted a hand-back stating three, dresser; measured the hand-back \`Bedroom: 3 pieces, dresser nearest the north wall\` does not state \`three\`
 - its last 3 call(s), oldest first:
-  - `grimoire_guide {}`
-  - `grimoire_state {}`
-  - `grimoire_present {"check":[{"placements":["dresser"],"what":"The dresser, the piece nearest the north wall"}],"inferred":["North is -Z, as the map file's header says, so the nor…`
+  - `blueprint_guide {}`
+  - `blueprint_state {}`
+  - `blueprint_present {"check":[{"placements":["dresser"],"what":"The dresser, the piece nearest the north wall"}],"inferred":["North is -Z, as the map file's header says, so the nor…`
 
 ### `hedge-along-the-south-edge`, trial 2
 
 - first failing check: `placements_within` — wanted 6 × a \`plant_b\`, all inside x -4.00..4.00, z 2.20..3.00; measured 0 × a \`plant_b\` on the map, 0 of them inside x -4.00..4.00, z 2.20..3.00, and the task wants 6 all inside
 - its last 5 call(s), oldest first:
-  - `grimoire_preview_operation null`
-  - `grimoire_list_operations null`
-  - `grimoire_list_pieces null`
-  - `grimoire_preview_operation null`
-  - `grimoire_preview_operation null`
+  - `blueprint_preview_operation null`
+  - `blueprint_list_operations null`
+  - `blueprint_list_pieces null`
+  - `blueprint_preview_operation null`
+  - `blueprint_preview_operation null`
 
 ## Where the agent stumbles (dev tasks)
 
-- tools called most: `grimoire_apply_operation` ×97, `grimoire_list_operations` ×91, `grimoire_state` ×73, `grimoire_present` ×65, `grimoire_guide` ×62, `grimoire_capture_still` ×36, `grimoire_list_pieces` ×34, `grimoire_preview_operation` ×33
-- refusals by tool: `grimoire_decide` ×16, `grimoire_apply_operation` ×10, `grimoire_preview_operation` ×4, `grimoire_present` ×1
+- tools called most: `blueprint_apply_operation` ×97, `blueprint_list_operations` ×91, `blueprint_state` ×73, `blueprint_present` ×65, `blueprint_guide` ×62, `blueprint_capture_still` ×36, `blueprint_list_pieces` ×34, `blueprint_preview_operation` ×33
+- refusals by tool: `blueprint_decide` ×16, `blueprint_apply_operation` ×10, `blueprint_preview_operation` ×4, `blueprint_present` ×1
 - wishes, by the tool wished for: `A piece-facing lookup that returns a placement's world facing as a compass face, and the yaw that gives a requested face.` ×1

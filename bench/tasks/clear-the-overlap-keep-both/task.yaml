@@ -12,7 +12,7 @@ prompt: |
   The problems list shows an overlap: the chair is inside the desk. Clear it, and keep every piece the room
   has: the chair, the desk and the plant.
 
-  When the list is clear, hand the result back with grimoire_present.
+  When the list is clear, hand the result back with blueprint_present.
 setup: []
 solution:
   - op: placement_remove
@@ -22,7 +22,7 @@ solution:
       piece: chair
       at: [0.0, 1.1]
       yaw: 180.0
-  - op: grimoire_present
+  - op: blueprint_present
     params:
       title: The chair is clear of the desk
       summary: The chair stands 0.65 m south of the desk, facing it, and the overlap is gone. The desk and the plant are where they were.

@@ -58,7 +58,7 @@ COLUMNS = ["pass", "seq", "phase", "kind", "category", "tool", "start", "seconds
 MARK = re.compile(r"steps\.py\s+mark\s+([A-Za-z0-9_.:-]+)")
 # **Where a pass actually begins.** A pass is one invocation of the loop command, and omp writes that
 # invocation into the session as a user message whose text is the command's own header
-# (`# bevy_grimoire: one build-loop pass`). Re-running the command inside one session therefore
+# (`# bevy_blueprint: one build-loop pass`). Re-running the command inside one session therefore
 # leaves a marker per pass, which is the only boundary available when no driver is watching:
 # measured 2026-11-03, one hand-driven session held 98 of them.
 PASS_MARK = re.compile(r"^#\s+\S+:\s+one\s+\S+\s+pass\b", re.M)

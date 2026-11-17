@@ -19,7 +19,7 @@ Pre-flight turn (one real model turn before any trial, in no trial's cost): 4 fr
 
 ## Agent errors
 
-1 call(s) to a tool that does not exist in `write-the-gatekeepers-greeting` trial 1. The agent was told so by its harness and went on, so each trial is scored: these are the agent's own mistakes and not the harness's. By the name called: `xd__mcp__cauldron_grimoire_guide` ×1.
+1 call(s) to a tool that does not exist in `write-the-gatekeepers-greeting` trial 1. The agent was told so by its harness and went on, so each trial is scored: these are the agent's own mistakes and not the harness's. By the name called: `xd__mcp__dark_factory_blueprint_guide` ×1.
 
 ## The suite
 
@@ -46,6 +46,6 @@ Pre-flight turn (one real model turn before any trial, in no trial's cost): 4 fr
 
 ## Where the agent stumbles (dev tasks)
 
-- tools called most: `grimoire_apply_operation` ×27, `grimoire_state` ×4, `grimoire_style` ×4, `grimoire_guide` ×3, `grimoire_list_operations` ×3, `grimoire_present` ×3, `grimoire_capture_still` ×1, `grimoire_list_pieces` ×1
-- refusals by tool: `grimoire_apply_operation` ×5, `grimoire_style` ×1
-- wishes, by the tool wished for: `A grimoire_preview_operation report for placement_add that lists which existing placements the new piece would replace or overlap, before anything is written.` ×1
+- tools called most: `blueprint_apply_operation` ×27, `blueprint_state` ×4, `blueprint_style` ×4, `blueprint_guide` ×3, `blueprint_list_operations` ×3, `blueprint_present` ×3, `blueprint_capture_still` ×1, `blueprint_list_pieces` ×1
+- refusals by tool: `blueprint_apply_operation` ×5, `blueprint_style` ×1
+- wishes, by the tool wished for: `A blueprint_preview_operation report for placement_add that lists which existing placements the new piece would replace or overlap, before anything is written.` ×1

@@ -12,14 +12,14 @@ prompt: |
   The wardrobe (the tall dresser against the north wall) stands with its doors to the wall. Turn it to face
   into the room, and leave it where it is.
 
-  When it is done, hand the result back with grimoire_present.
+  When it is done, hand the result back with blueprint_present.
 setup: []
 solution:
   - op: placement_set_yaw
     params:
       id: wardrobe
       yaw: 90.0
-  - op: grimoire_present
+  - op: blueprint_present
     params:
       title: The wardrobe faces into the room
       summary: The wardrobe is turned a quarter turn so its doors face south into the room, and it has not moved.

@@ -626,9 +626,9 @@
           "wanted": "a hand-back stating three, dresser",
           "measured": "the hand-back `Bedroom census: 3 pieces, dresser nearest north wall` does not state `three`",
           "last_calls": [
-            "grimoire_guide {}",
-            "grimoire_state {}",
-            "grimoire_present {\"check\":[{\"placements\":[\"dresser\"],\"what\":\"The dresser sits closest to the north wall\"}],\"inferred\":[\"The bedroom map is bench_bedroom, the map open in the edi…"
+            "blueprint_guide {}",
+            "blueprint_state {}",
+            "blueprint_present {\"check\":[{\"placements\":[\"dresser\"],\"what\":\"The dresser sits closest to the north wall\"}],\"inferred\":[\"The bedroom map is bench_bedroom, the map open in the edi…"
           ]
         },
         {
@@ -637,9 +637,9 @@
           "wanted": "a hand-back stating three, dresser",
           "measured": "the hand-back `Bedroom: 3 pieces, dresser nearest the north wall` does not state `three`",
           "last_calls": [
-            "grimoire_guide {}",
-            "grimoire_state {}",
-            "grimoire_present {\"check\":[{\"placements\":[\"dresser\"],\"what\":\"The dresser, the piece nearest the north wall\"}],\"inferred\":[\"North is -Z, as the map file's header says, so the nor…"
+            "blueprint_guide {}",
+            "blueprint_state {}",
+            "blueprint_present {\"check\":[{\"placements\":[\"dresser\"],\"what\":\"The dresser, the piece nearest the north wall\"}],\"inferred\":[\"North is -Z, as the map file's header says, so the nor…"
           ]
         }
       ],
@@ -807,11 +807,11 @@
           "wanted": "6 × a `plant_b`, all inside x -4.00..4.00, z 2.20..3.00",
           "measured": "0 × a `plant_b` on the map, 0 of them inside x -4.00..4.00, z 2.20..3.00, and the task wants 6 all inside",
           "last_calls": [
-            "grimoire_preview_operation null",
-            "grimoire_list_operations null",
-            "grimoire_list_pieces null",
-            "grimoire_preview_operation null",
-            "grimoire_preview_operation null"
+            "blueprint_preview_operation null",
+            "blueprint_list_operations null",
+            "blueprint_list_pieces null",
+            "blueprint_preview_operation null",
+            "blueprint_preview_operation null"
           ]
         }
       ],
@@ -1301,28 +1301,28 @@
     }
   ],
   "tool_counts": {
-    "grimoire_apply_operation": 97,
-    "grimoire_capture_still": 36,
-    "grimoire_decide": 29,
-    "grimoire_frame_view": 2,
-    "grimoire_guide": 62,
-    "grimoire_list_operations": 91,
-    "grimoire_list_pieces": 34,
-    "grimoire_present": 65,
-    "grimoire_preview_operation": 33,
-    "grimoire_project_feedback_list": 1,
-    "grimoire_read_oplog": 8,
-    "grimoire_schema": 10,
-    "grimoire_state": 73,
-    "grimoire_style": 8,
-    "grimoire_undo_operation": 4,
-    "grimoire_wish": 1
+    "blueprint_apply_operation": 97,
+    "blueprint_capture_still": 36,
+    "blueprint_decide": 29,
+    "blueprint_frame_view": 2,
+    "blueprint_guide": 62,
+    "blueprint_list_operations": 91,
+    "blueprint_list_pieces": 34,
+    "blueprint_present": 65,
+    "blueprint_preview_operation": 33,
+    "blueprint_project_feedback_list": 1,
+    "blueprint_read_oplog": 8,
+    "blueprint_schema": 10,
+    "blueprint_state": 73,
+    "blueprint_style": 8,
+    "blueprint_undo_operation": 4,
+    "blueprint_wish": 1
   },
   "refusals_by_tool": {
-    "grimoire_apply_operation": 10,
-    "grimoire_decide": 16,
-    "grimoire_present": 1,
-    "grimoire_preview_operation": 4
+    "blueprint_apply_operation": 10,
+    "blueprint_decide": 16,
+    "blueprint_present": 1,
+    "blueprint_preview_operation": 4
   },
   "wishes_by_tool": {
     "A piece-facing lookup that returns a placement's world facing as a compass face, and the yaw that gives a requested face.": 1
@@ -1333,8 +1333,8 @@
   "agent_errors": 6,
   "agent_errors_by_tool": {
     "xd___read": 1,
-    "xd__mcp__cauldron_grimoire_guide": 3,
-    "xd__mcp__cauldron_grimoire_list_operations": 1,
-    "xd__mcp__cauldron_grimoire_state": 1
+    "xd__mcp__dark_factory_blueprint_guide": 3,
+    "xd__mcp__dark_factory_blueprint_list_operations": 1,
+    "xd__mcp__dark_factory_blueprint_state": 1
   }
 }

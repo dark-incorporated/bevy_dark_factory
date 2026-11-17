@@ -42,7 +42,7 @@ library is installed (UI-01), guarded so a second add is a no-op.
 `ENVIRONMENT` 898 → **−21.5**.
 
 **Regression check, failing first.** `tests/the_wheel_scrolls_a_panel.rs` could not compile before the
-plugin existed (`cannot find value ScrollWheelPlugin in module bevy_cauldron::ui`) and passes now. Clippy
+plugin existed (`cannot find value ScrollWheelPlugin in module bevy_dark_factory::ui`) and passes now. Clippy
 `-D warnings` clean.
 
 ## Still open on #283
@@ -61,7 +61,7 @@ button the issue is a stale storyboard and closes with its clip.
 
 ## Test diffs
 
-- `crates/bevy_cauldron/tests/the_wheel_scrolls_a_panel.rs` (new), one `mod` line in `tests/all.rs`
+- `crates/bevy_dark_factory/tests/the_wheel_scrolls_a_panel.rs` (new), one `mod` line in `tests/all.rs`
   (standing exception). No existing assertion changed.
 
 ## Review
@@ -74,7 +74,7 @@ remains — the gutter, and re-cutting `clock_scrub.json`.
 
 ## Release
 
-None: nothing packaged changed (`bevy_cauldron` is `publish = false`).
+None: nothing packaged changed (`bevy_dark_factory` is `publish = false`).
 
 ## Next focus
 

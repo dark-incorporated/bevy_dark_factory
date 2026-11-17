@@ -49,7 +49,7 @@ state this `Ctx` cannot carry.
 `camera` and `view` pinned sets updated from the code's answer. No assertion removed or loosened.
 
 ## Release
-None — `bevy_cauldron` is `publish = false`.
+None — `bevy_dark_factory` is `publish = false`.
 
 ## Next focus
 One of the 28 `Project` verbs whose handler already fits `Ctx` — `EditTile` or `PickComposition` are the

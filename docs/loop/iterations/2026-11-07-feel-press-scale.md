@@ -3,10 +3,10 @@
 Focus: epic #330 (owner's steer) · Commits: bevy_gooey 7d06510 · Machine: big · Outcome: shipped (in bevy_gooey)
 
 ## Summary
-No bevy_grimoire item in the epic is ready. UI-R01 #331 waits on G-44 and on G-46, which is blocked on the evaluator, and so do UI-R02 to UI-R06, which depend on it. Of the ready bevy_gooey items, G-57 (tooltip timing, #64) turned out blocked as well: `tests/tooltip.rs:215-217` pins a tooltip opening on one pointer move, on a real-time clock. The block is recorded on #64 with a recommendation. This pass built G-54, press scale (bevy-coven/bevy_gooey#61), one of UI-R04 #334's needs.
+No bevy_blueprint item in the epic is ready. UI-R01 #331 waits on G-44 and on G-46, which is blocked on the evaluator, and so do UI-R02 to UI-R06, which depend on it. Of the ready bevy_gooey items, G-57 (tooltip timing, #64) turned out blocked as well: `tests/tooltip.rs:215-217` pins a tooltip opening on one pointer move, on a real-time clock. The block is recorded on #64 with a recommendation. This pass built G-54, press scale (bevy-coven/bevy_gooey#61), one of UI-R04 #334's needs.
 
 ## Baseline
-The bevy_grimoire gate and `accept.py` were not run: no bevy_grimoire code changed.
+The bevy_blueprint gate and `accept.py` were not run: no bevy_blueprint code changed.
 
 ## Enhancement: G-54 (bevy-coven/bevy_gooey#61)
 - **Change:** `src/press_scale.rs` adds `PressScale` (default 0.97) and `PressScaled`.
@@ -30,7 +30,7 @@ None (the reference is Rune: `el/visuals.rs:241-250`, `input/hover.rs:360-361`, 
 Not measured. One `Pressed` check per card or slot per frame, and a subtree walk only while one is shrunk.
 
 ## Acceptance
-`accept.py` was not run: no bevy_grimoire code changed.
+`accept.py` was not run: no bevy_blueprint code changed.
 
 ## Review
 The reviewer subagent ran and confirmed the restore-in-`First` design: no reader gets the wrong transform. Its three P2 findings are fixed:
@@ -51,7 +51,7 @@ The sixth, a cancelled click still completing a `DoublePress`, is left and recor
 bevy_gooey: the new `tests/press_scale.rs` and its `mod press_scale;` line. No existing test changed.
 
 ## Release
-None here: nothing in bevy_grimoire's packages changed. G-54 is in bevy_gooey's Unreleased section.
+None here: nothing in bevy_blueprint's packages changed. G-54 is in bevy_gooey's Unreleased section.
 
 ## Next focus
 The epic is now gated on the owner: G-46 (#53) and G-57 (#64) need an evaluator change in bevy_gooey, and G-44 likely does too. The ready gooey items left are G-58 (scroll glide), G-60/61 (need G-44) and G-64 (popover entrance). Check each one's protected tests before claiming.

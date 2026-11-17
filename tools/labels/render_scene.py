@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
-"""Draw one map in a real editor and write its picture: the renderer `cauldron-negatives` calls (DL-05, #464).
+"""Draw one map in a real editor and write its picture: the renderer `dark_factory-negatives` calls (DL-05, #464).
 
 usage: render_scene.py <project-root> <map> <out.png>      (needs DISPLAY, a private Xvfb: never :0)
 
-environment: EDITOR_BIN  the `bevy_cauldron` binary (default: `bevy_cauldron` beside this repository's target/debug)
+environment: EDITOR_BIN  the `bevy_dark_factory` binary (default: `bevy_dark_factory` beside this repository's target/debug)
              SETTLE_S    seconds to wait after the editor answers BRP, for the palette's thumbnails to bake (default 45)
 
-It starts the editor on the project as `bevy_cauldron . <map>` with its own HOME and a free BRP port, takes the editor's own picture
+It starts the editor on the project as `bevy_dark_factory . <map>` with its own HOME and a free BRP port, takes the editor's own picture
 (`bevy_fairy/screenshot`, source window: the world and the interface, as the person sees them, with the whole map framed) and closes the editor. The project it is
-given is changed by nothing but the editor's own start-up: `cauldron-negatives` hands it a scratch copy, never the person's project.
+given is changed by nothing but the editor's own start-up: `dark_factory-negatives` hands it a scratch copy, never the person's project.
 """
 import base64
 import json
@@ -43,9 +43,9 @@ def main():
     root, name, out = sys.argv[1:]
     if not os.environ.get("DISPLAY"):
         sys.exit("set DISPLAY to a private Xvfb, never :0")
-    editor = os.environ.get("EDITOR_BIN") or shutil.which("bevy_cauldron")
+    editor = os.environ.get("EDITOR_BIN") or shutil.which("bevy_dark_factory")
     if not editor:
-        sys.exit("set EDITOR_BIN to the bevy_cauldron binary")
+        sys.exit("set EDITOR_BIN to the bevy_dark_factory binary")
     settle = float(os.environ.get("SETTLE_S", "45"))
     port = free_port()
     home = tempfile.mkdtemp(prefix="render-scene-home-")
@@ -53,7 +53,7 @@ def main():
     proc = subprocess.Popen(
         [editor, ".", name], cwd=root, stdin=subprocess.DEVNULL, stdout=log, stderr=log,
         env={**os.environ, "HOME": home, "XDG_DATA_HOME": os.path.join(home, "data"), "XDG_CONFIG_HOME": os.path.join(home, "config"),
-             "BEVY_BRP_PORT": str(port), "GRIMOIRE_BENCH_RUN": "1", "GRIMOIRE_FULLSCREEN": "1"},
+             "BEVY_BRP_PORT": str(port), "BLUEPRINT_BENCH_RUN": "1", "BLUEPRINT_FULLSCREEN": "1"},
     )
     try:
         for _ in range(120):
@@ -68,7 +68,7 @@ def main():
             sys.exit("the editor never answered BRP")
         time.sleep(settle)
         # **The whole map, in view**: the camera moves, the map does not (nothing is logged), and the window is what a person sees.
-        brp(port, "grimoire/frame_view", {"target": "map"})
+        brp(port, "blueprint/frame_view", {"target": "map"})
         time.sleep(3)
         asked = brp(port, "bevy_fairy/screenshot", {"source": "window"})
         deadline = time.time() + 30

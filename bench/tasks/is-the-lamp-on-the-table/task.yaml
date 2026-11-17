@@ -16,11 +16,11 @@ tags: [verify, handback]
 map: bench_lamp_check
 prompt: |
   Check whether the lamp in the bedroom is sitting on the small table beside the bed. Do not change anything. Tell me what
-  you found with grimoire_present: begin the summary with `ANSWER: yes` or `ANSWER: no`, then say what the lamp is
+  you found with blueprint_present: begin the summary with `ANSWER: yes` or `ANSWER: no`, then say what the lamp is
   standing on.
 setup: []
 solution:
-  - op: grimoire_present
+  - op: blueprint_present
     params:
       title: The lamp is not on the table
       summary: "ANSWER: no. The lamp is standing on the floor beside the small table, not on it. Nothing was changed."

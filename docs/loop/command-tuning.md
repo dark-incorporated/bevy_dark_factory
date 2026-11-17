@@ -48,15 +48,15 @@ issue rather than waiting again.
 **Measured.** Pass 425 ran in a private worktree on the shared `CARGO_TARGET_DIR`. Twice a run used
 artifacts another tree had built: a test run executed `main`'s editor binary (1,427 tests, without
 the pass's new module) after 0.3 s of "compiling", and the push gate was refused by five
-`bevy_grimoire_core` tests whose `CARGO_MANIFEST_DIR` named a deleted worktree
-(`/home/ladvien/coven-wt/grimoire-279/...: No such file or directory`). Cargo's dep-info stores paths
+`blueprint_model` tests whose `CARGO_MANIFEST_DIR` named a deleted worktree
+(`/home/ladvien/coven-wt/blueprint-279/...: No such file or directory`). Cargo's dep-info stores paths
 relative to the package, so it checks *this* tree's files against the *other* tree's fingerprint, and
 files older than that fingerprint read as fresh. Each cost a full cycle: about 8 minutes for the test
 run and 10 for the refused gate.
 
 **Change.** In a worktree on the shared target, `touch` every file the worktree changed before each
 cargo run (`git status --short | awk '{print $2}' | xargs touch`), and before the push also every
-source of a crate whose tests read files from their own tree (`find crates/bevy_grimoire_core -name
+source of a crate whose tests read files from their own tree (`find crates/blueprint_model -name
 '*.rs' -exec touch {} +`). A gate refusal whose message names another tree's path is this, not the
 pass's code: touch and push again.
 

@@ -1,0 +1,61 @@
+[package]
+name = "bevy_dark_factory_bench"
+version = "0.1.0"
+edition = "2024"
+description = "A benchmark task for the DarkFactory: its prompt, its fixture, its checks, and the grader that measures a run from the files it left."
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/bevy-coven/bevy_blueprint"
+keywords = ["bevy", "gamedev", "level-design", "benchmark"]
+categories = ["game-development"]
+rust-version = "1.88"
+# **Not on crates.io**, the same call `bevy_dark_factory` makes: this is a harness that runs a benchmark against
+# this repository's own editor and fixture, and nothing outside the workspace has a use for it.
+publish = false
+
+# **Engine-free, on purpose.** A task's checks are measured from the files a run left — the map, the
+# library, the operation log — so the grader holds no `bevy` type and needs no window, no device and
+# no editor process to answer. That is what lets the same grader score a headless proof in the push
+# gate (`every_task_is_valid`) and a real agent's trial, and it is the rule the checks exist for: a
+# check that called the operation which made the change could not catch that operation's bug.
+[dependencies]
+blueprint_model = { path = "../blueprint_model" }
+serde.workspace = true
+serde_json.workspace = true
+# The digest a file's bytes are compared by (`unchanged` checks), the workspace's one digest.
+sha2.workspace = true
+# **The runner's HTTP client, and its only network code** (BM-02, #412): one POST per BRP call to an
+# editor on this machine. `ureq` is already in the workspace's graph through the MCP server, which speaks
+# the same protocol to the same door, so this is the same client rather than a second dialect of it.
+ureq = { version = "3", features = ["json"] }
+
+# **Unix only** (Linux for `detach`, any Unix for the interrupt handler, #433): `detach` marks a child's inherited descriptors close-on-exec and asks the
+# kernel to signal it when the harness dies (`close_range`, `prctl`). `libc` is already in `Cargo.lock` through Bevy's
+# graph, so this adds an edge and no crate.
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
+[[bin]]
+name = "dark_factory-bench"
+path = "src/bin/dark_factory_bench.rs"
+
+# **The proof that every task is valid**, and it is a test of THIS crate** (BM-01, #411).
+#
+# It lives here rather than in `bevy_dark_factory`'s test binary for one reason that decides it: #411's own
+# acceptance is `cargo nextest run --workspace`, and a test of the benchmark that ran under another
+# crate's name would go on passing while `-p bevy_dark_factory_bench` proved nothing. So the crate that owns
+# the task format owns the proof that its tasks are solvable, and the editor is a dev-dependency here.
+[dev-dependencies]
+# **The real editor, headless**, because a task is proved by the editor's own dispatch: `setup` and
+# `solution` are applied through `ops::dispatch`, the same function an agent's `blueprint_apply_operation`
+# reaches, and the hand-back is made over the bridge the MCP server calls. `default-features = false`
+# would drop `debugger`, which owns the bridge, so the default build is what a proof needs.
+bevy_dark_factory = { path = "../bevy_dark_factory" }
+bevy.workspace = true
+# **The agent's bridge**, so a task's `blueprint_present` step is made the way an agent makes one. The
+# editor puts it behind its `debugger` feature, which is on by default; a test that added the plugin itself
+# would be proving a graph the editor does not build.
+bevy_debugger_bevy = { package = "bevy_fairy", git = "https://github.com/bevy-coven/bevy_fairy", rev = "06c9c1805651fabb2474a9d09af84c761be406aa", default-features = false, features = ["plugin", "plugin-guide", "plugin-screenshot"] }
+# **The editor's own widget library, at the editor's own revision**, so a test reads the tooltip a disabled
+# button carries as the type that put it there (BM-07, #417). The same git revision as `bevy_dark_factory`'s, so
+# the lock holds one copy.
+bevy_gooey = { git = "https://github.com/bevy-coven/bevy_gooey", rev = "f1904be", features = ["serde", "reflect"] }

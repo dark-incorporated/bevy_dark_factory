@@ -75,11 +75,11 @@
   "edits_behind": [],
   "model": "anthropic/claude-sonnet-5-5",
   "outcome": "fail",
-  "prompt": "The gate is lit for the day, and night is coming. Set the gate's light up for the night, in the game's data for it (the registered file `lighting/gate`).\n\nWhen it is set, hand the result back with grimoire_present, and say what each setting is now.\n",
+  "prompt": "The gate is lit for the day, and night is coming. Set the gate's light up for the night, in the game's data for it (the registered file `lighting/gate`).\n\nWhen it is set, hand the result back with blueprint_present, and say what each setting is now.\n",
   "reason": "",
   "refusals": 3,
   "refusals_by_tool": {
-    "grimoire_apply_operation": 3
+    "blueprint_apply_operation": 3
   },
   "score": {
     "passed": 5,
@@ -100,97 +100,97 @@
   "tokens_out": 4983,
   "tool_call_count": 15,
   "tool_calls": [
-    "grimoire_guide",
-    "grimoire_state",
-    "grimoire_list_operations",
-    "grimoire_schema",
-    "grimoire_apply_operation",
-    "grimoire_apply_operation",
-    "grimoire_apply_operation",
-    "grimoire_apply_operation",
-    "grimoire_apply_operation",
-    "grimoire_apply_operation",
-    "grimoire_apply_operation",
-    "grimoire_apply_operation",
-    "grimoire_apply_operation",
-    "grimoire_apply_operation",
-    "grimoire_present"
+    "blueprint_guide",
+    "blueprint_state",
+    "blueprint_list_operations",
+    "blueprint_schema",
+    "blueprint_apply_operation",
+    "blueprint_apply_operation",
+    "blueprint_apply_operation",
+    "blueprint_apply_operation",
+    "blueprint_apply_operation",
+    "blueprint_apply_operation",
+    "blueprint_apply_operation",
+    "blueprint_apply_operation",
+    "blueprint_apply_operation",
+    "blueprint_apply_operation",
+    "blueprint_present"
   ],
   "tool_log": [
     {
       "args": "{}",
       "refused": false,
-      "tool": "grimoire_guide"
+      "tool": "blueprint_guide"
     },
     {
       "args": "{}",
       "refused": false,
-      "tool": "grimoire_state"
+      "tool": "blueprint_state"
     },
     {
       "args": "{}",
       "refused": false,
-      "tool": "grimoire_list_operations"
+      "tool": "blueprint_list_operations"
     },
     {
       "args": "{\"kind\":\"data_registry\"}",
       "refused": false,
-      "tool": "grimoire_schema"
+      "tool": "blueprint_schema"
     },
     {
       "args": "{\"operation\":\"data_set\",\"parameters\":{\"file\":\"lighting/gate\",\"path\":\"gate_light.colour_temperature_k\",\"value\":2200}}",
       "refused": false,
-      "tool": "grimoire_apply_operation"
+      "tool": "blueprint_apply_operation"
     },
     {
       "args": "{\"operation\":\"data_set\",\"parameters\":{\"file\":\"lighting/gate\",\"path\":\"gate_light.intensity_lm\",\"value\":2400}}",
       "refused": false,
-      "tool": "grimoire_apply_operation"
+      "tool": "blueprint_apply_operation"
     },
     {
       "args": "{\"operation\":\"data_set\",\"parameters\":{\"file\":\"lighting/gate\",\"path\":\"gate_light.radius_m\",\"value\":10}}",
       "refused": true,
-      "tool": "grimoire_apply_operation"
+      "tool": "blueprint_apply_operation"
     },
     {
       "args": "{\"operation\":\"data_set\",\"parameters\":{\"file\":\"lighting/gate\",\"path\":\"gate_light.flicker\",\"value\":true}}",
       "refused": false,
-      "tool": "grimoire_apply_operation"
+      "tool": "blueprint_apply_operation"
     },
     {
       "args": "{\"operation\":\"data_set\",\"parameters\":{\"file\":\"lighting/gate\",\"path\":\"gate_light.flicker_hz\",\"value\":6}}",
       "refused": true,
-      "tool": "grimoire_apply_operation"
+      "tool": "blueprint_apply_operation"
     },
     {
       "args": "{\"operation\":\"data_set\",\"parameters\":{\"file\":\"lighting/gate\",\"path\":\"gate_light.tint\",\"value\":\"amber\"}}",
       "refused": false,
-      "tool": "grimoire_apply_operation"
+      "tool": "blueprint_apply_operation"
     },
     {
       "args": "{\"operation\":\"data_set\",\"parameters\":{\"file\":\"lighting/gate\",\"path\":\"gate_light.ambient_lux\",\"value\":2}}",
       "refused": true,
-      "tool": "grimoire_apply_operation"
+      "tool": "blueprint_apply_operation"
     },
     {
       "args": "{\"operation\":\"data_set\",\"parameters\":{\"file\":\"lighting/gate\",\"path\":\"gate_light.radius_m\",\"value\":10.5}}",
       "refused": false,
-      "tool": "grimoire_apply_operation"
+      "tool": "blueprint_apply_operation"
     },
     {
       "args": "{\"operation\":\"data_set\",\"parameters\":{\"file\":\"lighting/gate\",\"path\":\"gate_light.flicker_hz\",\"value\":6.5}}",
       "refused": false,
-      "tool": "grimoire_apply_operation"
+      "tool": "blueprint_apply_operation"
     },
     {
       "args": "{\"operation\":\"data_set\",\"parameters\":{\"file\":\"lighting/gate\",\"path\":\"gate_light.ambient_lux\",\"value\":2.5}}",
       "refused": false,
-      "tool": "grimoire_apply_operation"
+      "tool": "blueprint_apply_operation"
     },
     {
       "args": "{\"check\":[{\"what\":\"intensity_lm 2400 and ambient_lux 2.5: is the night bright enough at the gate, and dark enough elsewhere?\"},{\"what\":\"tint 'amber': confirm th…",
       "refused": false,
-      "tool": "grimoire_present"
+      "tool": "blueprint_present"
     }
   ],
   "tools_offered": [
@@ -212,33 +212,33 @@
     "run_experiment",
     "log_experiment",
     "update_notes",
-    "grimoire_apply_operation",
-    "grimoire_capture_sequence",
-    "grimoire_capture_still",
-    "grimoire_decide",
-    "grimoire_feedback_list",
-    "grimoire_frame_view",
-    "grimoire_guide",
-    "grimoire_jobs_stop",
-    "grimoire_lesson",
-    "grimoire_list_operations",
-    "grimoire_list_pieces",
-    "grimoire_list_rules",
-    "grimoire_list_snips",
-    "grimoire_open_project",
-    "grimoire_present",
-    "grimoire_preview_operation",
-    "grimoire_project_feedback_list",
-    "grimoire_read_log",
-    "grimoire_read_oplog",
-    "grimoire_run_command",
-    "grimoire_schema",
-    "grimoire_self_test",
-    "grimoire_snip",
-    "grimoire_state",
-    "grimoire_style_propose",
-    "grimoire_undo_operation",
-    "grimoire_wish"
+    "blueprint_apply_operation",
+    "blueprint_capture_sequence",
+    "blueprint_capture_still",
+    "blueprint_decide",
+    "blueprint_feedback_list",
+    "blueprint_frame_view",
+    "blueprint_guide",
+    "blueprint_jobs_stop",
+    "blueprint_lesson",
+    "blueprint_list_operations",
+    "blueprint_list_pieces",
+    "blueprint_list_rules",
+    "blueprint_list_snips",
+    "blueprint_open_project",
+    "blueprint_present",
+    "blueprint_preview_operation",
+    "blueprint_project_feedback_list",
+    "blueprint_read_log",
+    "blueprint_read_oplog",
+    "blueprint_run_command",
+    "blueprint_schema",
+    "blueprint_self_test",
+    "blueprint_snip",
+    "blueprint_state",
+    "blueprint_style_propose",
+    "blueprint_undo_operation",
+    "blueprint_wish"
   ],
   "trial": 1,
   "undos": 0,

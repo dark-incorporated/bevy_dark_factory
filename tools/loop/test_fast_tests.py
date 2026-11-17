@@ -90,7 +90,7 @@ class TestTheGuidanceSaysTheSame(unittest.TestCase):
 
     def test_no_instruction_still_tells_a_pass_to_run_cargo_test(self):
         """**The command is the prompt a pass copies from.** A pass on big ran
-        `cargo test -p bevy_cauldron --test editor <name>::` because a line still said so, after the
+        `cargo test -p bevy_dark_factory --test editor <name>::` because a line still said so, after the
         gate itself had moved. Every `cargo test` left in the command must be one nextest cannot run
         (`--doc`, `--test readme`) or a note about the past — and the scratch case below proves the
         check sees the drift rather than passing on a comment that happens to name nextest."""
@@ -98,7 +98,7 @@ class TestTheGuidanceSaysTheSame(unittest.TestCase):
         self.assertEqual(offenders, [],
                          "the loop command still tells a pass to run `cargo test`; a pass copies "
                          "the command, so this is how the slow runner came back after the gate moved")
-        drift = "Run one file's tests with `cargo test -p bevy_cauldron --test editor <name>::`."
+        drift = "Run one file's tests with `cargo test -p bevy_dark_factory --test editor <name>::`."
         self.assertEqual(len(slow_runner_instructions(drift)), 1,
                          "the check must flag the exact instruction that a pass copied")
 

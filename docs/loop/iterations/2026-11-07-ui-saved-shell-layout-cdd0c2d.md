@@ -59,7 +59,7 @@ fallback questions were answered here instead.
 None to an existing test. One new file, its one `mod` line in `all.rs`.
 
 ## Release
-`bevy_cauldron` is `publish = false`; nothing packaged changed, so nothing was published.
+`bevy_dark_factory` is `publish = false`; nothing packaged changed, so nothing was published.
 
 ## Next focus
 The next ready `ui` issue once gooey closes another of UI-R01..R06's needs; until then #327 (a settings

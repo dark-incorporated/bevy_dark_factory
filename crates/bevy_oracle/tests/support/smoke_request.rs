@@ -34,7 +34,7 @@ pub fn is_lfs_pointer(path: &std::path::Path) -> bool {
 /// The request, with the public image as a base64 PNG data URL.
 pub fn request() -> Request {
     let png = std::fs::read(public_image_path()).expect("the public changelog image is in the repo");
-    Request::new("A screenshot of the bevy_grimoire map editor.")
+    Request::new("A screenshot of the bevy_blueprint map editor.")
         .with_image(data_url(&png))
         .with_question("has_ui", Question::noul("Does the image show an editor window with panels or a toolbar?"))
         .with_question(

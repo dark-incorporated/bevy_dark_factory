@@ -1,6 +1,6 @@
 # A capture becomes an issue in this shape
 
-A person presses `Cmd+D` (report to the people who make Cauldron) or `Cmd+Shift+D` (report about the
+A person presses `Cmd+D` (report to the people who make DarkFactory) or `Cmd+Shift+D` (report about the
 open project) and the editor writes one capture: a record, the frame, the picture with the picks
 outlined, and the tail of the log. That is evidence, not a bug report. This file is the shape that
 turns one into the other — the same seven sections every time, so an agent reading the issue list can
@@ -46,7 +46,7 @@ say why in the section's place.
 1. **Provenance**, as the first line, read from the record and never typed by hand:
 
    ```
-   **From the owner's capture, `feedback-<stem>`** — Cauldron <app_version>, <host>, <backend>, <window logical> at `ui_scale` <n>, <screen> <project> / <map>, <date and time>. The note: *"<the note, verbatim>"* — <what was picked, by its node path and `rect_px`>.
+   **From the owner's capture, `feedback-<stem>`** — DarkFactory <app_version>, <host>, <backend>, <window logical> at `ui_scale` <n>, <screen> <project> / <map>, <date and time>. The note: *"<the note, verbatim>"* — <what was picked, by its node path and `rect_px`>.
    ```
 
    The backend and the OS are in the capture's `.log` (`AdapterInfo { … backend: … }`,
@@ -71,7 +71,7 @@ say why in the section's place.
    `[INFERENCE]`.
 
 5. **Current behaviour**, naming the file and the symbol responsible where it is known
-   (`crates/bevy_cauldron/src/<file>.rs`, `<fn>`), and what the constant or the role is today. An
+   (`crates/bevy_dark_factory/src/<file>.rs`, `<fn>`), and what the constant or the role is today. An
    issue that says "the divider is too thick" costs a pass an hour; one that says "`chrome::DIVIDER_W`
    is 24 logical px and gooey's `SPLIT_GRIP_THICKNESS` is 4, measured as a 33 px band at row y=700"
    costs it five minutes.
@@ -105,7 +105,7 @@ say why in the section's place.
 ## The editor's own path
 
 `#495` is the editor doing this itself, at the moment of the capture: the same seven sections built
-from the record by `bevy_grimoire_core::feedback::issue`, the same copy → commit → push → verify →
+from the record by `blueprint_model::feedback::issue`, the same copy → commit → push → verify →
 create sequence, one settings row naming the checkout that receives captures, and an MCP tool
-(`grimoire_feedback_file_issue`) so an agent can file one too. Until it lands, the procedure in
+(`blueprint_feedback_file_issue`) so an agent can file one too. Until it lands, the procedure in
 `.omp/commands/file-captures.md` is how a pass does it by hand, and this file is what it follows.

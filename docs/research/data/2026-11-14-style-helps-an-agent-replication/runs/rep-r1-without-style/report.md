@@ -46,34 +46,34 @@ Pre-flight turn (one real model turn before any trial, in no trial's cost): 4 fr
 
 - first failing check: `placements_within` — wanted 3 × a \`market_stall\`, all inside x -10.00..-2.00, z 8.50..9.50; measured 3 × a \`market_stall\` on the map, 0 of them inside x -10.00..-2.00, z 8.50..9.50, and the task wants 3 all inside; outside: \`market_stall@2\` at \(-8.50, 3.50\), \`market_stall@3\` at \(-6.00, 3.50\), \`market_stall@4\` at \(-3.50, 3.50\)
 - its last 5 call(s), oldest first:
-  - `grimoire_apply_operation {"operation":"placement_add","parameters":{"at":[-9.4,9.4],"piece":"crate_wood"}}`
-  - `grimoire_apply_operation {"operation":"placement_add","parameters":{"at":[-2.6,9.4],"piece":"barrel_oak"}}`
-  - `grimoire_apply_operation {"operation":"placement_add","parameters":{"at":[-6,9.5],"piece":"sack_grain"}}`
-  - `grimoire_capture_still {"label":"market_dressed"}`
-  - `grimoire_present {"check":[{"placements":["market_stall@2","market_stall@3","market_stall@4"],"what":"Stalls: market_stall@2 (-8.5,3.5), @3 (-6,3.5), @4 (-3.5,3.5). Check which …`
+  - `blueprint_apply_operation {"operation":"placement_add","parameters":{"at":[-9.4,9.4],"piece":"crate_wood"}}`
+  - `blueprint_apply_operation {"operation":"placement_add","parameters":{"at":[-2.6,9.4],"piece":"barrel_oak"}}`
+  - `blueprint_apply_operation {"operation":"placement_add","parameters":{"at":[-6,9.5],"piece":"sack_grain"}}`
+  - `blueprint_capture_still {"label":"market_dressed"}`
+  - `blueprint_present {"check":[{"placements":["market_stall@2","market_stall@3","market_stall@4"],"what":"Stalls: market_stall@2 (-8.5,3.5), @3 (-6,3.5), @4 (-3.5,3.5). Check which …`
 
 ### `light-the-gate-at-night`, trial 1
 
 - first failing check: `file_value` — wanted \`gate_light.radius_m\` in \`furniture/data/gate_light.yaml\` ≥ 2 and ≤ 5; measured \`gate_light.radius_m\` in \`furniture/data/gate_light.yaml\` is 8.0, and it should be at most 5
 - its last 5 call(s), oldest first:
-  - `grimoire_apply_operation {"operation":"data_set","parameters":{"file":"lighting/gate","path":"gate_light.tint","value":"amber"}}`
-  - `grimoire_apply_operation {"operation":"data_set","parameters":{"file":"lighting/gate","path":"gate_light.flicker","value":true}}`
-  - `grimoire_apply_operation (refused) {"operation":"data_set","parameters":{"file":"lighting/gate","path":"gate_light.ambient_lux","value":2}}`
-  - `grimoire_apply_operation {"operation":"data_set","parameters":{"file":"lighting/gate","path":"gate_light.ambient_lux","value":2.5}}`
-  - `grimoire_present {"check":[{"what":"Is intensity 1500 lm and radius 8 m too bright/wide for a flame light at night? Those two are the likeliest to need your taste."},{"what":"Do…`
+  - `blueprint_apply_operation {"operation":"data_set","parameters":{"file":"lighting/gate","path":"gate_light.tint","value":"amber"}}`
+  - `blueprint_apply_operation {"operation":"data_set","parameters":{"file":"lighting/gate","path":"gate_light.flicker","value":true}}`
+  - `blueprint_apply_operation (refused) {"operation":"data_set","parameters":{"file":"lighting/gate","path":"gate_light.ambient_lux","value":2}}`
+  - `blueprint_apply_operation {"operation":"data_set","parameters":{"file":"lighting/gate","path":"gate_light.ambient_lux","value":2.5}}`
+  - `blueprint_present {"check":[{"what":"Is intensity 1500 lm and radius 8 m too bright/wide for a flame light at night? Those two are the likeliest to need your taste."},{"what":"Do…`
 
 ### `write-the-gatekeepers-greeting`, trial 1
 
 - first failing check: `file_value` — wanted \`gatekeeper.greeting.text\` in \`furniture/data/gatekeeper.yaml\` contains \`toll\`; measured \`gatekeeper.greeting.text\` in \`furniture/data/gatekeeper.yaml\` is "Hold there, traveller. This is the courtyard gate. Tell me your name and what brings you, and I'll see you through.", and it should contain \`toll\`
 - its last 5 call(s), oldest first:
-  - `grimoire_guide {}`
-  - `grimoire_state {}`
-  - `grimoire_list_operations {}`
-  - `grimoire_apply_operation {"operation":"data_set","parameters":{"file":"dialogue/gatekeeper","path":"gatekeeper.greeting.text","value":"Hold there, traveller. This is the courtyard gate.…`
-  - `grimoire_present {"check":[{"what":"Whether the tone matches the game's setting: the registered pieces mix lanterns and market stalls with a neon sign and a vending machine."}],…`
+  - `blueprint_guide {}`
+  - `blueprint_state {}`
+  - `blueprint_list_operations {}`
+  - `blueprint_apply_operation {"operation":"data_set","parameters":{"file":"dialogue/gatekeeper","path":"gatekeeper.greeting.text","value":"Hold there, traveller. This is the courtyard gate.…`
+  - `blueprint_present {"check":[{"what":"Whether the tone matches the game's setting: the registered pieces mix lanterns and market stalls with a neon sign and a vending machine."}],…`
 
 ## Where the agent stumbles (dev tasks)
 
-- tools called most: `grimoire_apply_operation` ×23, `grimoire_guide` ×3, `grimoire_list_operations` ×3, `grimoire_present` ×3, `grimoire_state` ×3, `grimoire_preview_operation` ×2, `grimoire_capture_still` ×1, `grimoire_list_pieces` ×1
-- refusals by tool: `grimoire_apply_operation` ×1, `grimoire_preview_operation` ×1
+- tools called most: `blueprint_apply_operation` ×23, `blueprint_guide` ×3, `blueprint_list_operations` ×3, `blueprint_present` ×3, `blueprint_state` ×3, `blueprint_preview_operation` ×2, `blueprint_capture_still` ×1, `blueprint_list_pieces` ×1
+- refusals by tool: `blueprint_apply_operation` ×1, `blueprint_preview_operation` ×1
 - wishes, by the tool wished for: none

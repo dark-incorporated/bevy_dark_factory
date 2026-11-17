@@ -21,8 +21,8 @@ FrameView names no operation and is on neither list: it is neither migrated nor 
 
 Both are the repo telling me the classification is not an arbitrary list. `operations_have_two_front_ends.rs`
 says of the `camera` set: *"A verb belongs here when a BRP method already moves the camera
-(`grimoire/frame_view`) or when a front end reads it every frame; **neither can be a `Ctx` operation**,
-and both are already reachable by an agent."* And `keys.rs:900` states it outright: `grimoire/frame_view`
+(`blueprint/frame_view`) or when a front end reads it every frame; **neither can be a `Ctx` operation**,
+and both are already reachable by an agent."* And `keys.rs:900` states it outright: `blueprint/frame_view`
 moves the Map camera and **is not an operation**.
 
 ## The survey that followed

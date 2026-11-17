@@ -180,7 +180,7 @@ fn remote_with_no_key_refuses_naming_the_variable_and_sends_nothing_anywhere() {
 fn a_project_file_that_sets_remote_is_a_problem_naming_it_and_the_choice_stays_the_persons() {
     let servers = Servers::up();
     let dir = folder("project");
-    let project = write(&dir, "assets/grimoire/editor.yaml", "version: 1\ndecision_model: remote\n");
+    let project = write(&dir, "assets/blueprint/editor.yaml", "version: 1\ndecision_model: remote\n");
     let e = servers.endpoints(Some("sk-or-test"));
 
     // The person chose nothing: the project's Remote does not become theirs.
@@ -188,7 +188,7 @@ fn a_project_file_that_sets_remote_is_a_problem_naming_it_and_the_choice_stays_t
     assert_eq!(none.chosen.model, DecisionModel::Local);
     assert_eq!(none.chosen.problems.len(), 1, "{:?}", none.chosen.problems);
     let problem = &none.chosen.problems[0];
-    assert!(problem.file.ends_with("assets/grimoire/editor.yaml"), "the problem names the file: {problem}");
+    assert!(problem.file.ends_with("assets/blueprint/editor.yaml"), "the problem names the file: {problem}");
     assert!(problem.to_string().contains("decision_model") && problem.reason.contains("remote"), "{problem}");
     assert_eq!(none.config.endpoint, servers.local.url);
 
@@ -200,7 +200,7 @@ fn a_project_file_that_sets_remote_is_a_problem_naming_it_and_the_choice_stays_t
     assert_eq!((theirs.chosen.model, theirs.chosen.problems.len()), (DecisionModel::Remote, 1));
 
     // A project that sets Local says nothing the person has not: also not its to say.
-    let local_project = write(&dir, "other/assets/grimoire/editor.yaml", "version: 1\ndecision_model: local\n");
+    let local_project = write(&dir, "other/assets/blueprint/editor.yaml", "version: 1\ndecision_model: local\n");
     assert_eq!(e.resolve(Some(&user_remote), Some(&local_project)).unwrap().chosen.model, DecisionModel::Remote);
     assert!(servers.local.hits().is_empty() && servers.remote.hits().is_empty(), "resolving sends nothing");
     std::fs::remove_dir_all(dir).unwrap();
@@ -209,7 +209,7 @@ fn a_project_file_that_sets_remote_is_a_problem_naming_it_and_the_choice_stays_t
 #[test]
 fn a_project_file_that_sets_nothing_here_is_no_problem() {
     let dir = folder("quiet");
-    let project = write(&dir, "assets/grimoire/editor.yaml", "version: 1\ntext_scale: 1.5\n");
+    let project = write(&dir, "assets/blueprint/editor.yaml", "version: 1\ntext_scale: 1.5\n");
     let chosen = choose(None, Some(&project)).unwrap();
     assert_eq!((chosen.model, chosen.problems.is_empty()), (DecisionModel::Local, true));
     std::fs::remove_dir_all(dir).unwrap();

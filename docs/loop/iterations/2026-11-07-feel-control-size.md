@@ -3,10 +3,10 @@
 Focus: epic #330 (owner's steer) · Commits: bevy_gooey 5c96d45 · Machine: big · Outcome: shipped (in bevy_gooey)
 
 ## Summary
-No bevy_grimoire item in the epic is ready: UI-R01 #331 needs G-44 and G-46. G-46, size motion (bevy-coven/bevy_gooey#53), was claimed first and found **blocked**: protected tests in `tests/split.rs` and `tests/section.rs` pin instant collapse and close on a real-time clock. The claim was released with the exact assertions and a recommendation (owner-approved `MotionSettings::off()` in those test apps). This pass then built G-50, control sizes (bevy-coven/bevy_gooey#57), one of UI-R03 #333's needs, which needs no evaluator change.
+No bevy_blueprint item in the epic is ready: UI-R01 #331 needs G-44 and G-46. G-46, size motion (bevy-coven/bevy_gooey#53), was claimed first and found **blocked**: protected tests in `tests/split.rs` and `tests/section.rs` pin instant collapse and close on a real-time clock. The claim was released with the exact assertions and a recommendation (owner-approved `MotionSettings::off()` in those test apps). This pass then built G-50, control sizes (bevy-coven/bevy_gooey#57), one of UI-R03 #333's needs, which needs no evaluator change.
 
 ## Baseline
-The bevy_grimoire gate and `accept.py` were not run: no bevy_grimoire code changed.
+The bevy_blueprint gate and `accept.py` were not run: no bevy_blueprint code changed.
 
 ## Blocked: G-46 (bevy-coven/bevy_gooey#53)
 Animating the size would re-pin these protected assertions, which is not an addition:
@@ -38,7 +38,7 @@ None (the reference is Rune: `crates/rune-kit/src/lib.rs:182-193`).
 Not measured: one more optional component read per restyled node.
 
 ## Acceptance
-`accept.py` was not run: no bevy_grimoire code changed.
+`accept.py` was not run: no bevy_blueprint code changed.
 
 ## Review
 The reviewer subagent ran and found no P1 problems: the unsized path is unchanged. Both P2 findings are fixed and tested:
@@ -54,7 +54,7 @@ The P3 findings are fixed too:
 bevy_gooey: the new `tests/control_size.rs` and its `mod control_size;` line. No existing test changed.
 
 ## Release
-None here: nothing in bevy_grimoire's packages changed. G-50 is in bevy_gooey's Unreleased section.
+None here: nothing in bevy_blueprint's packages changed. G-50 is in bevy_gooey's Unreleased section.
 
 ## Next focus
 UI-R01 #331 waits on G-44 and on G-46, which is blocked on the evaluator. G-51 (button variants) needs G-44. The next ready items are G-54 (press scale) and G-57 (tooltip timing; check its protected tooltip tests first).

@@ -5,7 +5,7 @@
   "width": 900,
   "setup": [
     {
-      "mcp": "grimoire_apply_operation",
+      "mcp": "blueprint_apply_operation",
       "args": {
         "operation": "door_open",
         "parameters": {
@@ -23,7 +23,7 @@
   "steps": [
     {
       "at": 0.3,
-      "mcp": "grimoire_apply_operation",
+      "mcp": "blueprint_apply_operation",
       "args": {
         "operation": "piece_select",
         "parameters": {
@@ -39,7 +39,7 @@
     },
     {
       "at": 2.0,
-      "mcp": "grimoire_apply_operation",
+      "mcp": "blueprint_apply_operation",
       "args": {
         "operation": "piece_select",
         "parameters": {
@@ -50,7 +50,7 @@
     },
     {
       "at": 2.9,
-      "mcp": "grimoire_apply_operation",
+      "mcp": "blueprint_apply_operation",
       "args": {
         "operation": "piece_select",
         "parameters": {

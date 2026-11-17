@@ -3,10 +3,10 @@
 Focus: epic #330 (owner's steer) · Commits: bevy_gooey a596481 (merge c69b73b) · Machine: big · Outcome: shipped (in bevy_gooey)
 
 ## Summary
-None of the epic's bevy_grimoire items (UI-R01..R06, #331-#336) was ready at the start: all wait on bevy_gooey. This pass claimed and built G-52 (bevy-coven/bevy_gooey#59), the last open need of UI-R02 #332, in `~/family_src/bevy_emerge_loop/bevy_gooey`. Every widget's text size is now rounded up to a whole number of device pixels at the node's scale.
+None of the epic's bevy_blueprint items (UI-R01..R06, #331-#336) was ready at the start: all wait on bevy_gooey. This pass claimed and built G-52 (bevy-coven/bevy_gooey#59), the last open need of UI-R02 #332, in `~/family_src/bevy_emerge_loop/bevy_gooey`. Every widget's text size is now rounded up to a whole number of device pixels at the node's scale.
 
 ## Baseline
-The bevy_grimoire gate and `accept.py` were not run: no bevy_grimoire code changed.
+The bevy_blueprint gate and `accept.py` were not run: no bevy_blueprint code changed.
 
 ## Enhancement: G-52 (bevy-coven/bevy_gooey#59)
 - **Goal:** glyphs set at a whole pixel size at 1.25x and 1.5x, not softened between two.
@@ -33,7 +33,7 @@ None (the reference is Rune: `crates/rune/README.md` "Layout", `runtime/commit/t
 Not measured: one `ceil` per restyled text.
 
 ## Acceptance
-`accept.py` was not run: no bevy_grimoire code changed.
+`accept.py` was not run: no bevy_blueprint code changed.
 
 ## Review
 The reviewer subagent ran. It found one P2 and three P3 items, and all are fixed:
@@ -46,7 +46,7 @@ The reviewer subagent ran. It found one P2 and three P3 items, and all are fixed
 bevy_gooey: one new file, `tests/text_grid.rs`, and its `mod text_grid;` line in `tests/all.rs`. No existing test changed.
 
 ## Release
-None here: nothing in bevy_grimoire's packages changed. bevy_gooey's own loop released v0.39.0 during this pass, with G-47, G-48, G-49 and its own G-42. G-52 is in its Unreleased section for its next release.
+None here: nothing in bevy_blueprint's packages changed. bevy_gooey's own loop released v0.39.0 during this pass, with G-47, G-48, G-49 and its own G-42. G-52 is in its Unreleased section for its next release.
 
 ## Next focus
 UI-R02 #332 now has every gooey need closed, but it depends on UI-R01 #331. #331 still needs the motion items G-43..G-46 (gooey#50-#53); G-42 closed in gooey's own loop this pass. The next pass takes the next ready feel item in bevy_gooey that its loop is not holding.

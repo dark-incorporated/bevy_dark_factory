@@ -291,9 +291,9 @@ class TestAPassWithNoDriver(unittest.TestCase):
         driver watching.
         """
         mark = {"type": "message", "timestamp": at(0), "message": {"role": "user",
-                "content": "# bevy_grimoire: one build-loop pass\n\nYou are one pass of a Wiggum loop"}}
+                "content": "# bevy_blueprint: one build-loop pass\n\nYou are one pass of a Wiggum loop"}}
         mark2 = {"type": "message", "timestamp": at(600), "message": {"role": "user",
-                 "content": "# bevy_grimoire: one build-loop pass\n\nYou are one pass of a Wiggum loop"}}
+                 "content": "# bevy_blueprint: one build-loop pass\n\nYou are one pass of a Wiggum loop"}}
         other = {"type": "message", "timestamp": at(300), "message": {"role": "user",
                  "content": "Can you label the blocked issues?"}}
         self.assertTrue(steps.is_pass_mark(mark))

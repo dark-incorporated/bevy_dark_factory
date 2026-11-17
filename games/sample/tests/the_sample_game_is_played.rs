@@ -6,7 +6,7 @@
 //!
 //! **The playthrough is scripted input**: the hero is walked with the keyboard resource (`D` held), onto the lever pad,
 //! through the open gate and onto the crown, and the test reads the events the scripts emit. **The same playthrough runs
-//! from the YAML and from the bake** (`cauldron bake`), and both reach `win` with the same number of entities after the
+//! from the YAML and from the bake** (`dark_factory bake`), and both reach `win` with the same number of entities after the
 //! first frame.
 
 use std::path::{Path, PathBuf};
@@ -14,9 +14,9 @@ use std::sync::Mutex;
 use std::time::Duration;
 
 use bevy::prelude::*;
-use bevy_grimoire::game::{GameDataPlugin, StartRefused};
-use bevy_grimoire_core::{bake, load};
-use bevy_grimoire_rhai::{ScriptEvent, ScriptProblem};
+use bevy_blueprint::game::{GameDataPlugin, StartRefused};
+use blueprint_model::{bake, load};
+use bevy_blueprint_rhai::{ScriptEvent, ScriptProblem};
 
 /// **The most lines `src/main.rs` may have**: the game is data, and a game whose Rust grows past this has stopped being one.
 const SAMPLE_MAIN_MAX_LINES: usize = 10;
@@ -36,7 +36,7 @@ fn sample() -> PathBuf {
 
 /// **A copy of the game's data**, in a scratch folder of this test's own.
 fn copy_of_the_game(tag: &str) -> PathBuf {
-    let root = std::env::temp_dir().join(format!("grimoire-sample-{tag}-{}", std::process::id()));
+    let root = std::env::temp_dir().join(format!("blueprint-sample-{tag}-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&root);
     for dir in ["assets", "game", "scripts"] {
         copy_tree(&sample().join(dir), &root.join(dir));

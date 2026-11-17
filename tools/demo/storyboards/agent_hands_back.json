@@ -11,7 +11,7 @@
   ],
   "setup": [
     {
-      "mcp": "grimoire_frame_view",
+      "mcp": "blueprint_frame_view",
       "args": {
         "target": {
           "rect": [
@@ -59,7 +59,7 @@
     },
     {
       "at": 4.5,
-      "mcp": "grimoire_apply_operation",
+      "mcp": "blueprint_apply_operation",
       "args": {
         "operation": "placement_set_yaw",
         "parameters": {
@@ -71,7 +71,7 @@
     },
     {
       "at": 5.4,
-      "mcp": "grimoire_present",
+      "mcp": "blueprint_present",
       "args": {
         "title": "the turned sofa",
         "summary": "Turned the sofa a quarter.",
