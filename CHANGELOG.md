@@ -2,6 +2,10 @@
 
 What each change added, newest first. A visible change has a clip: click the still to play it. `python3 tools/changelog/changelog.py page --open` plays them all in one page.
 
+## 2026-11-17
+
+- **490-view-depth-covers-the-ground** `b9917938e4` The Map camera's depth range covers the ground the map actually draws, so WASD panning no longer cuts a straight edge across the viewport *For you: Panning the map no longer cuts the ground away at a straight line, so what you see is the whole map wherever you walk to.* *No clip: visible, not yet recorded: fleet worker*
+
 ## 2026-11-16
 
 - **473-review-fixes** A carves report reads its own map's ground and its own name, and refuses what the edit path refuses: a map name that is a path, and a carve list too large to flood-fill, both refused naming what they are rather than answered with an empty report or a stalled frame *No clip: a verb's refusals and the ground it reads; proved by crates/blueprint_model/tests/a_report_is_bounded_by_a_named_limit.rs and an_agent_can_ask_a_carve_list_what_it_made*
