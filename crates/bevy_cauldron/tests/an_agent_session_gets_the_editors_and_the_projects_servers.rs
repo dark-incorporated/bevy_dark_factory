@@ -78,12 +78,41 @@ fn the_written_session_config_carries_the_editors_and_the_projects_servers_and_n
         "the editor's server carries the launch's token: {text}"
     );
     assert_eq!(config["mcpServers"]["alpha"]["command"], "/bin/alpha", "a project's server is written as the project declared it");
-    // **A machine-level entry is not in it**: the names a person's own `~/.omp/agent/mcp.json` has are absent unless the
-    // project declares one, which is what the assertion above establishes over the whole key list.
-    for machine in ["imessage-search", "home-still", "bambu-printer", "golem", "voice-pipeline"] {
-        assert!(!names.contains(&machine), "the machine's own `{machine}` server is not in the session's config: {text}");
-    }
+    // **Nothing else is in it**, which is the property, and it is checkable against a set computed here: the file's servers are
+    // exactly the editor's own plus the project's declarations, so a server from anywhere else — the machine's `~/.omp/agent/mcp.json`,
+    // another tool's config — could only appear by breaking that. (The editor never reads those files, so this asserts the universe
+    // rather than names a file could not contain.)
+    let mut expected = vec![EDITOR.to_owned(), "alpha".to_owned(), "zeta".to_owned()];
+    expected.sort();
+    let mut got: Vec<String> = names.iter().map(|name| (*name).to_owned()).collect();
+    got.sort();
+    assert_eq!(got, expected, "no server but the editor's and the project's: {text}");
+    // And the plain harness config the same launch wrote is the editor's server alone, so nothing arrived through that door either.
+    let plain = std::fs::read_to_string(setup.files.join("mcp.json")).unwrap_or_else(|e| panic!("{e}"));
+    let plain: Value = serde_json::from_str(&plain).unwrap_or_else(|e| panic!("{e}: {plain}"));
+    let plain_names: Vec<&str> = plain["mcpServers"].as_object().expect("servers").keys().map(String::as_str).collect();
+    assert_eq!(plain_names, [EDITOR], "the config a custom command would read carries the editor's server alone: {plain}");
     assert_eq!(launch.post.servers, Some(SessionServers { editor: true, project: vec!["alpha".to_owned(), "zeta".to_owned()] }));
+}
+
+/// **A project that declares the editor's own name lists it once** (manager review of #484): `session_config` refuses to let a project
+/// replace the editor's server, so the set the card prints must agree with the config rather than naming `cauldron` twice.
+#[test]
+fn a_project_that_declares_the_editors_name_lists_it_once() {
+    let setup = setup("shadowed");
+    let root = project("shadowed", r#"{"mcpServers": {"cauldron": {"type": "stdio", "command": "/bin/impostor"}, "mine": {"type": "stdio", "command": "/bin/mine"}}}"#);
+    let launch = terminal_agent::plan(TerminalAgent::OhMyPi, None, Some(&setup), Some(&root), 0.0);
+    assert_eq!(
+        launch.post.servers,
+        Some(SessionServers { editor: true, project: vec!["mine".to_owned()] }),
+        "the project's own server is listed, its impostor of the editor's name is not"
+    );
+    let row = launch.post.servers_row().expect("the card has its row");
+    assert_eq!(row.matches(EDITOR).count(), 1, "the card names the editor's server once: {row}");
+    // And the config it wrote keeps the editor's own server, which is the fact the set follows.
+    let text = std::fs::read_to_string(setup.files.join("omp").join(".mcp.json")).unwrap_or_else(|e| panic!("{e}"));
+    let config: Value = serde_json::from_str(&text).unwrap_or_else(|e| panic!("{e}: {text}"));
+    assert_ne!(config["mcpServers"][EDITOR]["command"], "/bin/impostor", "the editor's server stands: {text}");
 }
 
 /// **A project's `.mcp.json` is what the session gets, and a launch with no project has the editor's server alone.**

@@ -175,3 +175,55 @@ fn a_screen_without_a_refusal_leaves_the_row_as_it_was() {
     let post = terminal.agent_with_token_mut(&token).expect("the agent's record");
     assert!(matches!(post.checks[terminal_agent::CONNECTED_CHECK], terminal_agent::CheckStatus::Pending));
 }
+
+/// **A session that has connected stays connected**, whatever its screen says afterwards (manager review of #477).
+///
+/// The screen is the only channel the editor has, so it is also the channel an agent's own output arrives on: an agent that quotes this
+/// message in its answer, a tool result that contains it, or a person running `omp --model x` in the tab all put `Model "…" not found`
+/// on the rows. None of them is omp refusing the launch, and turning a passed **Agent connected** row into a failed one would mark a
+/// working session dead.
+#[test]
+fn a_connected_session_that_later_prints_the_refusal_stays_passed() {
+    let setup = setup("connected_then_quotes");
+    let mut launch = terminal_agent::plan_with_model(TerminalAgent::OhMyPi, None, Some(&setup), None, None, Some(MODEL), 0.0);
+    let token = launch.post.token.clone();
+    launch.post.started();
+    // The handshake arrives: the row passes, which is omp saying the model worked.
+    launch.post.hello(Some(("omp".to_owned(), "18".to_owned())), 22, 1.0);
+    let connected = launch.post.checks[terminal_agent::CONNECTED_CHECK].clone();
+    assert!(matches!(connected, terminal_agent::CheckStatus::Passed(_)), "{connected:?}");
+    let mut terminal = bevy_cauldron::terminal::Terminal::default();
+    terminal.spawn_agent(80, 24, Path::new("/tmp"), launch);
+    // Now the agent writes the words itself, as an answer or a tool result would.
+    let quoted = format!("The launcher reported: Model \"{MODEL}\" not found\n");
+    terminal.tab_mut().expect("the agent's tab").screen_mut().feed(quoted.as_bytes());
+    assert!(!terminal_agent::read_a_refused_model(&mut terminal), "a connected session is never read as a refusal");
+    let post = terminal.agent_with_token_mut(&token).expect("the agent's record");
+    assert_eq!(post.checks[terminal_agent::CONNECTED_CHECK], connected, "the passed row is untouched");
+    assert!(
+        matches!(post.checks[terminal_agent::SELF_TEST_CHECK], terminal_agent::CheckStatus::Pending),
+        "and the self test is still its own question: {:?}",
+        post.checks[terminal_agent::SELF_TEST_CHECK]
+    );
+}
+
+/// **A refusal naming some other model is not this tab's refusal** (manager review of #477): the tab runs `MODEL`, and a screen row
+/// quoting another id says nothing about whether this launch's model was accepted.
+#[test]
+fn a_refusal_of_another_model_leaves_the_waiting_row_alone() {
+    let setup = setup("other_model");
+    let mut launch = terminal_agent::plan_with_model(TerminalAgent::OhMyPi, None, Some(&setup), None, None, Some(MODEL), 0.0);
+    let token = launch.post.token.clone();
+    launch.post.started();
+    let mut terminal = bevy_cauldron::terminal::Terminal::default();
+    terminal.spawn_agent(80, 24, Path::new("/tmp"), launch);
+    let other = "Model \"openai/gpt-5.2-not-here\" not found\n";
+    terminal.tab_mut().expect("the agent's tab").screen_mut().feed(other.as_bytes());
+    assert!(!terminal_agent::read_a_refused_model(&mut terminal), "another id is not this launch's refusal");
+    let post = terminal.agent_with_token_mut(&token).expect("the agent's record");
+    assert!(
+        matches!(post.checks[terminal_agent::CONNECTED_CHECK], terminal_agent::CheckStatus::Pending),
+        "the row still waits for the handshake: {:?}",
+        post.checks[terminal_agent::CONNECTED_CHECK]
+    );
+}

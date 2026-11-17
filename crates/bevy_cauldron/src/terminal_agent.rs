@@ -491,7 +491,7 @@ impl AgentPost {
     /// guessed at here.
     pub fn servers_row(&self) -> Option<String> {
         let servers = self.servers.as_ref()?;
-        let mut said = format!("{}: {}", Self::SERVER_ROW_LABEL, servers.words());
+        let mut said = format!("{} (written for this session): {}", Self::SERVER_ROW_LABEL, servers.words());
         if let Some(problem) = &self.servers_problem {
             said.push_str(" · ");
             said.push_str(problem);
@@ -772,20 +772,28 @@ const REFUSED_ID_MAX: usize = 200;
 /// the default."*)
 ///
 /// The tab is a shell, so the editor holds no exit code: what it holds is the screen, and omp's refusal is two lines of it
-/// ([`MODEL_REFUSED_LEAD`]). `true` when the drawn tab's screen carries a refusal for a model, in which case its record's
-/// **Agent connected** row is failed with the id, omp's own words, and the setting to fix, and the two later rows are skipped: the
-/// session never started, so there is nothing to ask. Called each frame beside [`tick_the_agents`]; a card already failed is left
-/// alone, so a refusal is said once rather than re-stamped.
+/// ([`MODEL_REFUSED_LEAD`]). `true` when the drawn tab's screen carries a refusal **for the model this launch named**, in which case
+/// its record's **Agent connected** row is failed with the id, omp's own words, and the setting to fix, and the two later rows are
+/// skipped: the session never started, so there is nothing to ask.
+///
+/// **Only while the row is still waiting, and only for this tab's own model.** Two things that would otherwise turn a working session
+/// into a failed card: a session that has *connected* is a session omp accepted, so nothing later on its screen is a refusal of its
+/// launch — and an agent that quotes this message in its own answer, runs `omp --model x` in the tab, or prints a tool result holding
+/// the words is not omp refusing anything. So the scan is gated on [`CheckStatus::Pending`] and the id has to equal the model the tab
+/// was started with ([`AgentPost::model`]), which is the only model a refusal from this launch can name.
 pub fn read_a_refused_model(terminal: &mut Terminal) -> bool {
     let Some(tab) = terminal.tab_mut() else {
         return false;
     };
-    if !tab.agent().is_some_and(|post| !matches!(post.checks[CONNECTED], CheckStatus::Failed(_))) {
+    let Some(started_with) = tab.agent().and_then(|post| post.model.clone()) else {
+        return false;
+    };
+    if !tab.agent().is_some_and(|post| post.checks[CONNECTED] == CheckStatus::Pending) {
         return false;
     }
     // The rows as the pane last built them: a tab that is not drawn this frame has none, and its refusal is read the frame it is.
     let rows: Vec<String> = tab.screen_mut().lines().iter().map(|line| line.cells.iter().map(|cell| cell.ch).collect()).collect();
-    let Some(id) = refused_model_in(&rows) else {
+    let Some(id) = refused_model_in(&rows).filter(|id| *id == started_with) else {
         return false;
     };
     let Some(post) = tab.agent_mut() else {

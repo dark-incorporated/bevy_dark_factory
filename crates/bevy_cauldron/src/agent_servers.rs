@@ -79,11 +79,15 @@ impl SessionServers {
         names
     }
 
-    /// **The row's sentence**: the names, or why there is only one.
+    /// **The row's sentence**: the names written into this session's config, or why there is only one.
+    ///
+    /// **"written for this session", not "has"**: omp at v18.16.0 also loads the machine's own servers, so a row claiming the session
+    /// *has* only these would be false. What the editor can promise is what it wrote, and the difference is requested upstream
+    /// (`can1357/oh-my-pi#19573`).
     pub fn words(&self) -> String {
         let names = self.names();
         if names.is_empty() {
-            return "none".to_owned();
+            return "none written".to_owned();
         }
         let mut said = names.join(", ");
         if self.project.is_empty() {
@@ -138,11 +142,20 @@ fn server_count(config: &Value) -> usize {
 }
 
 /// **The server names a config declares**, sorted, capped at [`PROJECT_SERVERS_MAX`].
+///
+/// **A project that declares the editor's own name does not list it twice**: [`session_config`] refuses to let a project replace the
+/// editor's server ([`terminal_agent::MCP_SERVER_NAME`]), so the set the card prints names it once, in the editor's place, exactly as the
+/// config the session is handed does. Two readers of one fact, one answer.
 fn server_names_in(config: &Value) -> Vec<String> {
     let Some(servers) = config.get("mcpServers").and_then(Value::as_object) else {
         return Vec::new();
     };
-    let mut names: Vec<String> = servers.keys().take(PROJECT_SERVERS_MAX).cloned().collect();
+    let mut names: Vec<String> = servers
+        .keys()
+        .filter(|name| name.as_str() != terminal_agent::MCP_SERVER_NAME)
+        .take(PROJECT_SERVERS_MAX)
+        .cloned()
+        .collect();
     names.sort();
     names
 }
