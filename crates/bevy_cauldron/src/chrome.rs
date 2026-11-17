@@ -545,9 +545,27 @@ pub const VIEWPORT_MIN_W: f32 = 420.0;
 /// share is asked of the docks instead.
 pub const VIEWPORT_SHARE: f32 = 0.52;
 
-/// **What the shell's divider costs**, in the `Val::Px` units the panel widths are written in:
-/// gooey's divider is 29 px on screen at the editor's 1.2 scale, measured on big, 2026-11-03.
-pub const DIVIDER_W: f32 = 24.0;
+/// **What the shell's divider costs, in the `Val::Px` units the panel widths are written in**, and the
+/// width the divider's own node is given (#476).
+///
+/// gooey's divider is 29 px on screen at the editor's 1.2 scale, measured on big, 2026-11-03, and 24
+/// of that is the node. The owner's capture `feedback-1794783253218` asked for it **half as thick** —
+/// *"I like this being thick, but maybe only half as thick as this?"* — so the node is 12 and the
+/// channel is a seam rather than a bar a pointer must cross.
+///
+/// **The capture's pick is 58 px at `ui_scale` 2.4, which is `58 / 2.4 = 24.17`: this constant.** The
+/// issue it was filed as measured a 33 px band at `x=546..578` instead, but that band is the *left
+/// panel's own* scroll thumb and its fill, bounded by that panel's border — measured on the frame at
+/// both `y=700` and `y=900`. The divider is the `(34,34,34)` block at `612..665`. Half is the
+/// instruction that survives, and half of 24 is 12.
+///
+/// **12 is not a round number chosen for looks**: it is also why `skin.rs`'s `MIN_TARGET_PX` (24, WCAG
+/// 2.5.8's target size) can no longer be what decides this width. It did before — the divider measured
+/// 24 because gooey's floor and this constant agreed by coincidence, which is a fact stated in two
+/// places. [`size_the_split_dividers`] now writes the node from this constant, so the two cannot drift
+/// into disagreeing. The grip inside the channel stays gooey's 4 px, which reads as a mark rather than
+/// as a handle, and the whole channel is grabbable because `bevy_picking` answers the divider's box.
+pub const DIVIDER_W: f32 = 12.0;
 
 // ── the widget layer ─────────────────────────────────────────────────────────────────────────────
 
@@ -3543,6 +3561,56 @@ fn adopt_the_shell_split(
     }
 }
 
+/// **Every split divider is as wide as [`DIVIDER_W`]**, so one constant decides the seam (#476).
+///
+/// Before this, nothing in this crate wrote a divider's width: the number a person saw came from
+/// gooey's `apply_skin` (`Role::SplitDivider` -> `min_width: MIN_TARGET_PX`, 24 px, WCAG 2.5.8's target
+/// size), and `DIVIDER_W` was 24 as well — the same number in two places, agreeing by coincidence. The
+/// owner asked for half, and changing the constant alone would have changed nothing on screen: the skin
+/// restyles the node whenever a widget's state changes (`owns_parts` lists `Role::SplitDivider`), and a
+/// `min_width` of 24 keeps the channel 24 wide however narrow the `width` asks to be. So this writes
+/// **both**, and it writes them after the skin has had its say.
+///
+/// **Gated on a difference**, so a settled editor pays two `f32` comparisons per divider and writes
+/// nothing: an unconditional write would mark every divider `Changed<Node>` every frame and force a
+/// relayout of the whole shell.
+///
+/// **The axis is the divider's own.** A horizontal split's divider is as wide as this and as tall as the
+/// split; a vertical one's is the other way round. `SplitDivider::axis` is private to gooey, so the
+/// reading is the laid-out shape the split already gave it — the longer side — rather than a second
+/// guess at the axis from which split spawned it.
+fn size_the_split_dividers(mut dividers: Query<(&mut Node, &ComputedNode), With<bevy_gooey::SplitDivider>>) {
+    // A divider whose `width` is the seam: its node carries no width of its own (gooey's `split_divider`
+    // sets none), so `auto` under a row means "as wide as the grip inside", which the skin's `min_width`
+    // then floors at `MIN_TARGET_PX`. The seam is the narrow axis of the two.
+    for (mut node, computed) in &mut dividers {
+        let laid_out = computed.size();
+        // Before the first layout both are zero; the reading settles a frame later, and the write waits
+        // for it rather than guessing which axis this is.
+        if laid_out.x <= 0.0 || laid_out.y <= 0.0 {
+            continue;
+        }
+        let across_a_row = laid_out.x <= laid_out.y;
+        let (width, height) = if across_a_row {
+            (Val::Px(DIVIDER_W), Val::Auto)
+        } else {
+            (Val::Auto, Val::Px(DIVIDER_W))
+        };
+        // `min_*` is what the skin floors; it has to move with the size or the floor wins.
+        let (min_width, min_height) = if across_a_row {
+            (Val::Px(DIVIDER_W), Val::Auto)
+        } else {
+            (Val::Auto, Val::Px(DIVIDER_W))
+        };
+        if node.width != width || node.min_width != min_width {
+            node.width = width;
+            node.min_width = min_width;
+            node.height = height;
+            node.min_height = min_height;
+        }
+    }
+}
+
 /// **Give the left pane the width of the panel in it** (#282, #283).
 ///
 /// The split was spawned with `SplitFraction(0.22)`, which at a 1280 px window is a 204 px pane
@@ -3739,6 +3807,11 @@ impl Plugin for ChromePlugin {
                 (light_the_back_button, stand_down_the_back_chord, dim_the_ground)
                     .run_if(in_state(crate::screen::Screen::Editor)),
             )
+            // **The seam's width is this crate's, not gooey's** (#476). After `GooeySystems::Style`
+            // because that is what writes `Role::SplitDivider`'s `min_width`, and ungated by screen for
+            // the same reason the menu's rows are: a dock has dividers on every screen, and a query that
+            // matches nothing costs nothing.
+            .add_systems(Update, size_the_split_dividers.after(bevy_gooey::GooeySystems::Style))
             // **Gooey's own toast stack stands under the menu bar** (#305). Ungated by screen: a
             // toast can be raised before the editor's frame exists (the tour's offer) and on a
             // screen with no frame at all, and gooey puts its stack at the window's root every

@@ -248,6 +248,7 @@ mod the_selection_set_the_inspector_reads;
 mod the_agent_blocks_lines_are_gooey_rows;
 mod the_gooey_swaps_keep_what_a_person_saw;
 mod the_spacing_is_gooeys;
+mod the_split_divider_is_a_seam_not_a_bar;
 mod the_pages_and_spacers_are_gooeys;
 mod the_placed_nodes_are_gooeys;
 mod the_borders_and_paddings_are_gooeys;
