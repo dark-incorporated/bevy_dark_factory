@@ -111,6 +111,11 @@ impl fmt::Display for Error {
                 "decision endpoint {endpoint} declined to answer question `{question}`; a refusal is not a verdict, so no number was made of it"
             ),
             Error::OpenRouter { endpoint, failure, reason } => match failure {
+                OpenRouterFailure::ContentFiltered { detail } => write!(
+                    f,
+                    "{endpoint} answered {status}, its content filter refused this request's picture: {detail}",
+                    status = crate::openrouter::CONTENT_FILTER_STATUS
+                ),
                 OpenRouterFailure::CreditsExhausted => write!(
                     f,
                     "{endpoint} answered 402, the account or key is out of credits or at its limit: {reason}. Nothing was retried."

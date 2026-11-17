@@ -68,7 +68,10 @@ the same bytes; `e069-plan-panel/frame0.png` is a third file). A secret scanner 
 key, and stable, so no retry clears it. Each clip costs **two** rows — its own line and another line's — so six
 of the 122 samples are unanswerable through this provider.
 
-The record therefore says `set_size: 116` and carries all six exclusions:
+The record therefore says `set_size: 116` and carries all six exclusions. **The frame is prose, not a field**:
+the provider refuses a *request* and never says which of its four images tripped it, so a run cannot fill a
+`frame` — and a field a run leaves empty and a person fills by hand is one the next run silently erases. The
+image named above was found by isolating it one frame at a time, and it is recorded here.
 
 ```yaml
 set_size: 116
@@ -78,12 +81,18 @@ correct: 102
 wrong: 14
 excluded:
 - sample: 103-light-buttons
-  frame: frame1.png
   why: 'decision endpoint https://openrouter.ai/api/alpha/decisions refused the request with status 403:
     {"error":{"message":"Request blocked by content filter: [SECRET:bitcoin-wif-compressed]","code":403}}'
 # ... and the same for 103-light-buttons-mismatch, 103-overlay, 103-overlay-mismatch,
-# e069-plan-panel and e069-plan-panel-mismatch, each with the frame named above.
+# e069-plan-panel and e069-plan-panel-mismatch.
 ```
+
+**Only a content filter can become an exclusion.** `refuses_the_sample` accepts one thing: OpenRouter's
+`ContentFiltered` failure, a 403 whose body names the filter. A 429 halfway through a paced run, a 401, a 402, a
+404, any 5xx and any transport error **stop the run** and name the error, and no record is written — because a
+record made around them would be the samples before the failure presented as a measurement. Three tests hold the
+line: `a_rate_limit_midway_stops_the_run_and_names_itself`, `a_content_filter_refusal_excludes_exactly_that_sample`
+and `an_unreachable_endpoint_stops_the_run_rather_than_excluding_samples`.
 
 `set_size` is the number the threshold was **measured on**, never the set's nominal count, and
 `Calibration::states_the_set_it_measured(122)` holds `set_size + excluded.len() == 122` (116 + 6).

@@ -44,6 +44,8 @@ fn a_vendor_prefix_a_free_tag_and_a_dated_snapshot_are_the_same_model() {
         ("perplexity/pplx-decider-v1.3:free", ANSWERED),
         ("perplexity/pplx-decider-v1.3:free", "perplexity/pplx-decider-v1.3:free"),
         ("d3-flash", "d3-flash"),
+        // A record's file stem cannot hold `/`, so it names the model without its vendor and still matches.
+        ("pplx-decider-v1.3", "perplexity/pplx-decider-v1.3"),
     ] {
         assert!(bevy_oracle::names_the_same_model(label, answered), "`{label}` and `{answered}` are one model");
     }
@@ -53,6 +55,11 @@ fn a_vendor_prefix_a_free_tag_and_a_dated_snapshot_are_the_same_model() {
         (SLUG, "perplexity/sonar-pro"),
         // A snapshot date is stripped from the end only; a number inside the name is part of it.
         ("pplx-decider-v1.3", "pplx-decider-v4.3"),
+        // **Review C: the vendor is kept and `:` is kept unless it is `:free`.**
+        ("vendorA/x", "vendorB/x"),
+        ("sonar", "sonar:online"),
+        ("perplexity/sonar", "perplexity/sonar:online"),
+        ("pplx-decider-v1.3:fast", "pplx-decider-v1.3"),
     ] {
         assert!(
             !bevy_oracle::names_the_same_model(label, answered),
