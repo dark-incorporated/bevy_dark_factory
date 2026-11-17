@@ -956,6 +956,54 @@ pub fn run(options: &Options, held_out: Option<&Path>) -> Result<Vec<TrialRecord
     if options.agent == Agent::Omp {
         check_model_form(&options.model)?;
     }
+    let variants = Suite::variants(&options.root).map_err(|p| p.line())?;
+    let variant = match &options.variant {
+        Some(name) => Some(
+            variants
+                .iter()
+                .find(|v| &v.name == name)
+                .ok_or_else(|| {
+                    format!(
+                        "`{name}` is not an arm of this suite. The arms are: {}",
+                        if variants.is_empty() {
+                            "none — the suite states no variants.yaml".to_owned()
+                        } else {
+                            variants.iter().map(|v| v.name.as_str()).collect::<Vec<_>>().join(", ")
+                        }
+                    )
+                })?
+                .clone(),
+        ),
+        None => None,
+    };
+    // **An arm's omitted guide section is checked against the guide before any trial runs** (#457, DM-06).
+    //
+    // The server refuses an unknown heading at start, which is right but late: an arm whose heading had been
+    // renamed would be a harness error in all 60 trials, and a harness error is a fault of the harness, not an
+    // arm's measurement. So the name is checked here, against `guide.md`'s own headings, once — and before the
+    // editor is asked for its operations, which is the first thing that would fail on a host without one.
+    if let Some(v) = &variant
+        && !v.omit_guide_sections.is_empty()
+    {
+        let headings = crate::probe::guide_headings(&options.repo).ok_or_else(|| {
+            format!(
+                "the arm `{}` omits a guide section, but the shipped guide at {} could not be read",
+                v.name,
+                options.repo.join(crate::probe::GUIDE_PATH).display()
+            )
+        })?;
+        for omitted in &v.omit_guide_sections {
+            let wanted = if omitted.starts_with("## ") { omitted.clone() } else { format!("## {omitted}") };
+            if !headings.iter().any(|h| h == &wanted) {
+                return Err(format!(
+                    "the arm `{}` omits the guide section `{omitted}`, and the shipped guide has no such \
+                     heading. The sections are: {}",
+                    v.name,
+                    headings.join(", ")
+                ));
+            }
+        }
+    }
     let known = operations(&options.editor)?;
     let known_refs: Vec<&str> = known.iter().map(String::as_str).collect();
     let suite = Suite::load(&options.root, &options.tasks, &known_refs)
@@ -983,26 +1031,6 @@ pub fn run(options: &Options, held_out: Option<&Path>) -> Result<Vec<TrialRecord
             }
         }
         chosen
-    };
-    let variants = Suite::variants(&options.root).map_err(|p| p.line())?;
-    let variant = match &options.variant {
-        Some(name) => Some(
-            variants
-                .iter()
-                .find(|v| &v.name == name)
-                .ok_or_else(|| {
-                    format!(
-                        "`{name}` is not an arm of this suite. The arms are: {}",
-                        if variants.is_empty() {
-                            "none — the suite states no variants.yaml".to_owned()
-                        } else {
-                            variants.iter().map(|v| v.name.as_str()).collect::<Vec<_>>().join(", ")
-                        }
-                    )
-                })?
-                .clone(),
-        ),
-        None => None,
     };
     if !options.editor.is_file() {
         return Err(format!("the editor under test is not at {}", options.editor.display()));
@@ -1787,13 +1815,23 @@ fn one_trial(options: &Options, task: &Task, label: &str, trial: u32, variant: O
     }
     // **What the setup left**, which the byte comparisons are against.
     let before = Snapshot::read(&project, &task.map, Vec::new(), Default::default());
-    // **The agent's config, from the editor itself**, with this arm's `--hide-tools` and a fresh token.
-    let server_args: Vec<String> = match variant {
-        Some(v) if !v.hide_tools.is_empty() => {
-            vec!["--hide-tools".to_owned(), v.hide_tools.join(",")]
+    // **The agent's config, from the editor itself**, with this arm's `--hide-tools` and
+    // `--omit-guide-sections` and a fresh token.
+    //
+    // **The guide's argument is the arm's whole difference** (#457, DM-06). Both flags reach the server the
+    // editor launches, so the arm is the server's own configuration and not a file a runner edited: the
+    // shipped guide is one text, and `--omit-guide-sections` cuts a section out of it at serve time.
+    let mut server_args: Vec<String> = Vec::new();
+    if let Some(v) = variant {
+        if !v.hide_tools.is_empty() {
+            server_args.push("--hide-tools".to_owned());
+            server_args.push(v.hide_tools.join(","));
         }
-        _ => Vec::new(),
-    };
+        if !v.omit_guide_sections.is_empty() {
+            server_args.push("--omit-guide-sections".to_owned());
+            server_args.push(v.omit_guide_sections.join(","));
+        }
+    }
     let setup = match brp_call(
         editor.port,
         "grimoire/agent_setup",

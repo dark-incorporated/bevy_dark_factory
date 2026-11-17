@@ -594,6 +594,72 @@ pub const TOOLS: &[ToolDoc] = &[
 /// cannot drift from the operations that exist.
 pub const GUIDE: &str = include_str!("guide.md");
 
+/// **The prefix a section of the guide is introduced by.** A `##` heading, which is how the shipped guide is
+/// divided; a `##` inside a fenced code block would be a section by this rule, and the guide has none (its
+/// one fence is `json`).
+pub const SECTION_PREFIX: &str = "## ";
+
+/// **Where each section of `text` starts and ends**, by byte offset, as `(heading, from, to)`: `from` is the
+/// first byte of the heading's line and `to` is the first byte after the section's last line — the next
+/// `##` heading's line, or the end of the text. The text before the first heading is no section of its own
+/// and is never in this list, so a caller that omits sections always keeps the guide's opening.
+///
+/// **The heading keeps its `## ` prefix** (`## Hand back`), so a name this returns is the name a caller
+/// passes back to [`guide_without`], and the name `--list-guide-sections` prints is the one
+/// `--omit-guide-sections` accepts.
+pub fn sections(text: &str) -> Vec<(String, usize, usize)> {
+    let mut found: Vec<(String, usize, usize)> = Vec::new();
+    let mut offset = 0usize;
+    for line in text.split_inclusive('\n') {
+        if line.starts_with(SECTION_PREFIX) {
+            if let Some(previous) = found.last_mut() {
+                previous.2 = offset;
+            }
+            found.push((line.trim_end().to_owned(), offset, text.len()));
+        }
+        offset += line.len();
+    }
+    found
+}
+
+/// **Every section heading the shipped guide has, in the order it has them.**
+///
+/// A caller that names a section to omit is checked against this, so a run that asked to omit a heading the
+/// guide no longer has is refused rather than quietly measuring the whole guide (the same rule `--hide-tools`
+/// follows: an arm that silently removed nothing would report an arm it never ran).
+pub fn section_headings() -> Vec<String> {
+    sections(GUIDE).into_iter().map(|(heading, _, _)| heading).collect()
+}
+
+/// **The shipped guide with the named sections left out** (#457, DM-06).
+///
+/// **One text, one place the omission happens.** The guide is `guide.md`, compiled in once; this removes a
+/// named section from what is served, so a benchmark's two arms differ by this one argument and there is no
+/// second copy of the prose to drift. A name that is not a heading of the guide is **ignored here** and
+/// refused by the server at start ([`section_headings`] is what the refusal checks against), because this
+/// function's answer is still a guide an agent can read.
+pub fn guide_without(omitted: &[String]) -> String {
+    if omitted.is_empty() {
+        return GUIDE.to_owned();
+    }
+    // **The cut is the section's own bytes and nothing else.** A `sections` range ends at the next heading's
+    // first byte, so the blank line that separated the two sections belongs to the earlier one and survives:
+    // removing `[from, to)` leaves exactly one blank line where the section was, and no other byte of the
+    // guide is touched. A collapse pass over the whole text would trim prose elsewhere and make "the guide
+    // less this section" a claim about bytes nobody can check.
+    let mut out = String::with_capacity(GUIDE.len());
+    let mut cursor = 0usize;
+    for (heading, from, to) in sections(GUIDE) {
+        if !omitted.iter().any(|name| name == &heading) {
+            continue;
+        }
+        out.push_str(&GUIDE[cursor..from]);
+        cursor = to;
+    }
+    out.push_str(&GUIDE[cursor..]);
+    out
+}
+
 /// **The document, as markdown.**
 ///
 /// **One section per tool**, with its description, its annotations and its parameters.

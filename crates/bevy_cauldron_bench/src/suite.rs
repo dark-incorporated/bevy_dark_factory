@@ -52,6 +52,15 @@ pub struct Variant {
     /// **Project files laid over the trial's copy**, relative to the project root.
     #[serde(default)]
     pub overlay: Vec<String>,
+    /// **Sections of the shipped guide this arm does not serve** (#457, DM-06), by heading without the
+    /// `## ` (`Check your work by asking`).
+    ///
+    /// **The tool is still served.** This reaches the MCP server as `--omit-guide-sections`, so an arm can
+    /// ask what an agent does when the guide says nothing about a tool it still has. It is the one way to
+    /// run the without-the-section arm without a second copy of `guide.md`: the prose lives in one file and
+    /// the omission is an argument, so the two arms cannot drift into two guides.
+    #[serde(default)]
+    pub omit_guide_sections: Vec<String>,
 }
 
 /// **Every arm a suite states.**

@@ -7,6 +7,11 @@
 # `hide_tools` reaches the MCP server as `--hide-tools`, so the tool is **absent from the agent's tool
 # list** rather than refused when it is called: an agent that reads a tool's name spends a call learning it
 # cannot be used, which is a different question from "what does it do without this tool".
+#
+# `omit_guide_sections` reaches it as `--omit-guide-sections`, so a section of the shipped guide is **not
+# served** while the tool it names still is (#457, DM-06). The prose stays in one file — the shipped
+# `guide.md` — and the arm is an argument, because two copies of a guide drift and the arm that measured a
+# copy is not the arm a person is handed.
 version: 1
 variants:
   # The arm #412 asks for: the agent is not offered the camera, so a task can ask what it does when it
@@ -14,3 +19,12 @@ variants:
   - name: no-frame-view
     hide_tools:
       - grimoire_frame_view
+  # **The two arms of the look-then-ask question** (#457, DM-06): the guide as it ships, and the guide with
+  # "Check your work by asking" not served. `grimoire_decide` is offered in both, so the difference measured
+  # is what the guide says about it and nothing else. `ask-with-guide` names the omission as empty on
+  # purpose: the arms are then stated in one file, and a reader can see the only line that differs.
+  - name: ask-with-guide
+    omit_guide_sections: []
+  - name: ask-without-guide
+    omit_guide_sections:
+      - Check your work by asking

@@ -91,6 +91,22 @@ pub fn guide_sha256(repo: &Path) -> String {
     }
 }
 
+/// **The `##` headings the shipped guide in `repo` has**, in order, with the prefix (`## Hand back`), or
+/// `None` when the guide cannot be read.
+///
+/// **A suite's arm names a section to omit by its heading**, and this is what a run checks the name against
+/// before a trial starts: the MCP server refuses an unknown name at start, but that would be a harness error
+/// in every trial of the arm, which reads as a fault of the editor rather than of the arm's own argument.
+pub fn guide_headings(repo: &Path) -> Option<Vec<String>> {
+    let text = std::fs::read_to_string(repo.join(GUIDE_PATH)).ok()?;
+    Some(
+        text.lines()
+            .filter_map(|line| line.strip_prefix("## "))
+            .map(|heading| format!("## {}", heading.trim_end()))
+            .collect(),
+    )
+}
+
 /// **What `omp models find --json` lists a model at**, or `None`.
 fn price_of(model: &str) -> Option<Price> {
     let last = model.rsplit('/').next().unwrap_or(model);

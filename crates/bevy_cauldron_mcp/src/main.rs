@@ -668,6 +668,21 @@ pub struct Grimoire {
     /// reads the name, decides to try it, and burns a call learning it cannot. So this is the list the
     /// `tools/list` answer leaves out, and `call_tool` refuses a hidden name as it refuses an unknown one.
     hidden: Vec<String>,
+    /// **Sections of the shipped guide this server does not serve** (`--omit-guide-sections`, #457).
+    ///
+    /// **A benchmark arm, not a preference.** `grimoire_guide` is the one text an agent is told to read
+    /// before its first call, so the only honest way to ask what an agent does *without* one section of it
+    /// is to serve the guide with that section absent — a section that is present and disowned answers a
+    /// different question, the one `--hide-tools` refuses for the same reason. The names are headings of
+    /// `guide.md` exactly as it spells them (`## Check your work by asking`), checked at start against
+    /// [`docs::section_headings`], so a run that named a section the guide no longer has is refused rather
+    /// than measuring the whole guide while its report says one was removed.
+    ///
+    /// **What is not withheld: the tool.** `grimoire_decide` is served in both arms; this changes what the
+    /// guide says about it, and nothing else. The text removed is the guide's, in one place — `guide.md` is
+    /// compiled in once and [`docs::guide_without`] cuts sections out of it, so there is no second copy of
+    /// the prose that could drift from the first.
+    omitted_guide_sections: Vec<String>,
     tool_router: ToolRouter<Self>,
 }
 
@@ -684,13 +699,42 @@ impl Grimoire {
     /// not silently ignored: a benchmark arm naming a tool that does not exist would otherwise measure
     /// the full tool set while its report said one was missing.
     pub fn with_hidden(editor: Brp, project: Option<PathBuf>, hidden: Vec<String>) -> Self {
+        Self::with_arms(editor, project, hidden, Vec::new())
+    }
+
+    /// **The same server, with this arm's tool list and this arm's guide** (#457): the tools in `hidden` are
+    /// not served, and the guide is the shipped one less `omitted_guide_sections`.
+    ///
+    /// **One constructor for both switches**, so the two arms of a benchmark differ by the arguments they
+    /// give this and by nothing else in the server's construction.
+    pub fn with_arms(
+        editor: Brp,
+        project: Option<PathBuf>,
+        hidden: Vec<String>,
+        omitted_guide_sections: Vec<String>,
+    ) -> Self {
         let tool_router = Self::tool_router();
         Grimoire {
             editor,
             project,
             hidden,
+            omitted_guide_sections,
             tool_router,
         }
+    }
+
+    /// **The guide this server serves**: the shipped one, less this arm's omitted sections.
+    ///
+    /// Named `served_guide` and not `guide` because the `#[tool]` macro makes the tool's handler a method
+    /// called `guide`, and the arm's text is a different thing from the tool that serves it.
+    pub fn served_guide(&self) -> String {
+        docs::guide_without(&self.omitted_guide_sections)
+    }
+
+    /// **The sections this arm leaves out of the guide**, as headings, so a start can check each against the
+    /// guide's own.
+    pub fn omitted_guide_sections(&self) -> &[String] {
+        &self.omitted_guide_sections
     }
 
     /// **Every tool this build has**, whatever is hidden, so a start can check a `--hide-tools` name.
@@ -844,7 +888,9 @@ impl Grimoire {
         )
     )]
     async fn guide(&self) -> Result<CallToolResult, ErrorData> {
-        let mut text = docs::GUIDE.to_owned();
+        // **This arm's guide** (#457): the shipped text, less any section `--omit-guide-sections` named, so
+        // the benchmark's two arms differ in what an agent is told and in nothing else.
+        let mut text = self.served_guide();
         match self.editor.call("grimoire/agent_guide", json!({})).await {
             Ok(answer) => {
                 let layers = answer
@@ -2877,6 +2923,7 @@ impl rmcp::ServerHandler for Grimoire {
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut project: Option<PathBuf> = None;
     let mut hidden: Vec<String> = Vec::new();
+    let mut omitted_guide_sections: Vec<String> = Vec::new();
     let mut args = std::env::args().skip(1);
     while let Some(arg) = args.next() {
         match arg.as_str() {
@@ -2889,6 +2936,53 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 let given = args.next().unwrap_or_default();
                 hidden.extend(given.split(',').map(str::trim).filter(|n| !n.is_empty()).map(str::to_owned));
             }
+            // **A section of the shipped guide this server does not serve** (#457, DM-06), so a benchmark can
+            // ask what an agent does without it. Repeated flags accumulate, and a heading is given as
+            // `guide.md` spells it (`## Check your work by asking`) or without the `## ` (`Check your work by
+            // asking`); either way it is resolved to the guide's own heading at start. A name the guide has no
+            // heading for is refused, for `--hide-tools`' reason: an arm that removed nothing would report an
+            // arm it never ran.
+            "--omit-guide-sections" => {
+                let given = args.next().unwrap_or_default();
+                omitted_guide_sections.extend(
+                    given
+                        .split(',')
+                        .map(str::trim)
+                        .filter(|n| !n.is_empty())
+                        .map(|n| {
+                            if n.starts_with(docs::SECTION_PREFIX) {
+                                n.to_owned()
+                            } else {
+                                format!("{}{n}", docs::SECTION_PREFIX)
+                            }
+                        }),
+                );
+            }
+            "--list-guide-sections" => {
+                // **What a run may name**, so the arm's argument is read from the guide rather than guessed
+                // at, and a heading the guide renames is noticed by the run that names it.
+                for heading in docs::section_headings() {
+                    println!("{heading}");
+                }
+                return Ok(());
+            }
+            "--print-guide" => {
+                // **This arm's guide, exactly as `grimoire_guide` would serve its shipped layer**, so a
+                // benchmark can name and hash what an arm was told without an editor and without a copy of
+                // the text. The person's and the project's layers are not here: the editor serves those.
+                // `--omit-guide-sections` is honoured the same way, and refused the same way.
+                if let Some(unknown) =
+                    omitted_guide_sections.iter().find(|h| !docs::section_headings().iter().any(|k| k == *h))
+                {
+                    eprintln!(
+                        "bevy_cauldron_mcp: `{unknown}` is in --omit-guide-sections but the shipped guide has no such section."
+                    );
+                    eprintln!("The sections are: {}.", docs::section_headings().join(", "));
+                    std::process::exit(2);
+                }
+                print!("{}", docs::guide_without(&omitted_guide_sections));
+                return Ok(());
+            }
             "--emit-docs" => {
                 // **The document is written to stdout, and the shell redirects it.** The server
                 // never writes a file in the project — it does not own the project directory —
@@ -2899,12 +2993,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             "--help" | "-h" => {
                 println!(
                     "bevy_cauldron_mcp — the bevy_grimoire editor over the Model Context Protocol.\n\n\
-                     USAGE:\n    bevy_cauldron_mcp [--project <dir>] [--hide-tools <a,b>]\n\n\
+                     USAGE:\n    bevy_cauldron_mcp [--project <dir>] [--hide-tools <a,b>] \
+                     [--omit-guide-sections <heading,...>] [--list-guide-sections]\n\n\
                      --project <dir>   the project the editor is working on; the server refuses a \
                      change made while the editor has another one open. Without it the server \
                      follows whatever the editor has open, including none (the Projects home).\n\
                      --hide-tools <a,b> tool names that are not served at all, so an agent's tool list \
-                     does not hold them: a benchmark arm, not a permission.\n\n\
+                     does not hold them: a benchmark arm, not a permission.\n\
+                     --omit-guide-sections <heading,...> sections of the shipped guide that are not \
+                     served, by their heading without the `## ` (`Check your work by asking`): a \
+                     benchmark arm, not a permission, and the tool the section names is still served.\n\
+                     --list-guide-sections  print the headings --omit-guide-sections accepts, as \
+                     `guide.md` spells them, and exit.\n\
+                     --print-guide  print the guide's shipped layer as this arm serves it (less any \
+                     --omit-guide-sections), and exit.\n\n\
                      The editor's BRP endpoint comes from BEVY_BRP_PORT (default 15702), which is \
                      the same variable the editor reads."
                 );
@@ -2928,7 +3030,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         eprintln!("The tools are: {}.", known.join(", "));
         std::process::exit(2);
     }
-    let server = Grimoire::with_hidden(Brp::from_env(), project, hidden);
+    let server = Grimoire::with_arms(Brp::from_env(), project, hidden, omitted_guide_sections);
+    if let Some(unknown) = server.omitted_guide_sections().iter().find(|h| !docs::section_headings().iter().any(|k| k == *h)) {
+        eprintln!(
+            "bevy_cauldron_mcp: `{unknown}` is in --omit-guide-sections but the shipped guide has no such section."
+        );
+        eprintln!("The sections are: {}.", docs::section_headings().join(", "));
+        std::process::exit(2);
+    }
     // **The project is checked when a tool is called, not when the server starts.**
     //
     // **A server that refuses to start is a server an agent cannot ask anything.** The editor may
