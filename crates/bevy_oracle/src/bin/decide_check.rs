@@ -190,7 +190,21 @@ fn main() {
             eprintln!("{e}");
             std::process::exit(2);
         }
-        let expecting = bevy_oracle::Expecting::new(&transport, &args.model);
+        let expecting_inner = bevy_oracle::Expecting::new(&transport, &args.model);
+        // **The pace a free tier needs is held here, by the run that makes 122 requests** (#453): the
+        // transport never sleeps, so nothing below it would space the calls, and OpenRouter allows
+        // `FREE_REQUESTS_PER_MINUTE` a minute. A Local run is not paced: its endpoint is on this LAN and has no
+        // such limit.
+        let paced;
+        let expecting = if transport.site() == bevy_oracle::DecisionModel::Remote {
+            paced = bevy_oracle::Paced::every(
+                bevy_oracle::Paced::period_for_per_minute(bevy_oracle::FREE_REQUESTS_PER_MINUTE),
+                &expecting_inner,
+            );
+            bevy_oracle::Expecting::new(&paced, &args.model)
+        } else {
+            expecting_inner
+        };
         let check = bevy_oracle::clip_check(&args.check);
         let scored = match bevy_oracle::score_set(&check, &samples, &expecting) {
             Ok(s) => s,

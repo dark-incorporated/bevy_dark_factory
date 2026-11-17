@@ -1,6 +1,7 @@
 # The decision models side by side (#455, DM-04)
 
-Measured 2026-11-15 from mac_air against big's RTX 3090; nothing here is from a leaderboard. A calibration
+Measured 2026-11-15 (the two local models) and 2026-11-16 (pplx-decider, over OpenRouter) from mac_air;
+nothing here is from a leaderboard. A calibration
 belongs to one model: `fixtures/calibrations/<model>.yaml` is one model's record, a check carries one record
 per model (`Check::calibrations`), and a finding names the model that answered and says
 `uncalibrated for <model>` when the check has no record for it.
@@ -15,7 +16,7 @@ and a `noul`, a `choice` and a `score`), five warm calls after the first, by
 |---|---|---|---|---|---|---|---|
 | clef-flash Q4_K_M | local, big | 0.929 | map_view 0.978 | 2.15 | 620 | 0.213 s | 0 |
 | d3-flash Q4_K_M | local, big | 0.920 | map_view 0.900 | 2.64 | 1074 | 0.779 s | 0 |
-| perplexity/pplx-decider-v1.3:free | OpenRouter | waiting | waiting | waiting | waiting | waiting | waiting |
+| perplexity/pplx-decider-v1.3:free | OpenRouter | 0.987 | map_view 0.775 | 2.62 | 418 | 0.66 s (one call) | 0 |
 
 * **Latency is not a like-for-like column.** clef-flash was reached through an `ssh -L` tunnel to a server
   started by hand under a GPU lease (the committed measurement on big itself, 2026-11-02, is 0.187 s on 619
@@ -23,11 +24,13 @@ and a `noul`, a `choice` and a `score`), five warm calls after the first, by
   the input: d3-flash reads the same image as 1074 tokens against clef-flash's 620, which is most of why it is
   slower. Both answer the easy fixture the same way (has_ui, map_view); they differ on the `score`
   (clarity 2.64 against 2.15).
-* **pplx-decider is `waiting`, and the reason is not technical.** It needs `OPENROUTER_API_KEY`, which no host
-  has, and the owner's say-so twice over: that screenshots may leave the LAN (the fixture's image is the
-  public changelog still, but the clip set's images are the editor's own clips and never go to a remote
-  endpoint), and a quota that fits (the free tier is 20 requests a minute and 50 a day below $10 of credit;
-  the clip set is 122 requests). Nothing in that row is guessed.
+* **pplx-decider's row is one call, not five warm ones**, so its latency is not the median of 5 the local
+  columns are: `tools/decide/fixture_row.py` speaks System One only, and the remote path is a different
+  protocol, so the number is from the one recorded exchange (`fixtures/openrouter/`, 0.66 s including TLS;
+  `docs/decide/openrouter.md`). A second call 3 s later was not made: the free tier is 20 a minute and the
+  fixture is the same request the recorder already answered. Its answers are the *same* answers as the
+  local models' on this easy fixture (has_ui yes, map_view) and it reads the image as **418** input tokens
+  against d3-flash's 1074 — the image reaches Perplexity's adapter as far less text.
 
 ## 2. Agreement on the repo's own labelled clip set
 
@@ -40,7 +43,31 @@ and a `noul`, a `choice` and a `score`), five warm calls after the first, by
 | clef-flash (committed, 2026-11-03) | 0.6148 | 0.241 | 75 / 47 | `clip_calibration.yaml`, untouched |
 | clef-flash (this code, 2026-11-15) | 0.5328 | 0.530 | 65 / 57 | `calibrations/clef-flash.yaml` |
 | d3-flash (this code, 2026-11-15) | **0.8607** | 0.737 | 105 / 17 | `calibrations/d3-flash.yaml` |
-| perplexity/pplx-decider-v1.3:free | waiting | | | needs the key, the consent and the quota above |
+| perplexity/pplx-decider-v1.3:free | **blocked at sample 46 of 122** | | | see below |
+
+**pplx-decider's agreement is not measured, and the reason is a provider's content filter, not a quota.**
+Two runs of `decide_check --calibrate` stopped with the crate's own new named-sample error, and the answer is the
+same both times:
+
+```
+sample `103-light-buttons` could not be scored: decision endpoint https://openrouter.ai/api/alpha/decisions
+refused the request with status 403: {"error":{"message":"Request blocked by content filter:
+[SECRET:bitcoin-wif-compressed]","code":403}}
+```
+
+The trigger was isolated to one image, not the text: the sample's title alone answers, the still answers,
+`frame0.png` answers, and **`frame1.png` of `crates/bevy_oracle/fixtures/clips/103-light-buttons` is refused on
+its own**. It is a false positive — a secret scanner reading PNG entropy as a Bitcoin key — and it is stable, so
+no retry clears it. The set therefore cannot be run to completion against this provider as it stands, and a
+record made from the 45 samples before it would be a `set_size: 122` file whose counts came from 45. **No
+`calibrations/pplx-decider-v1.3.yaml` was written**: the row stays unmeasured rather than wrong.
+
+What it needs from the owner is one of: drop or replace that one sample in `clip_samples.yaml` (it is one of 122,
+and its match half `103-light-buttons-mismatch` is refused too for the same frame), or accept a record over 121
+samples written with its own `set_size`, or leave the remote row unmeasured and keep the local default. The
+crate's part is done and tested: `tests/a_refused_sample_is_named.rs` makes the next such stop name the sample
+instead of a bare 403, and `tests/a_snapshot_is_the_model_it_names.rs` lets a remote run be recorded at all
+(OpenRouter answers with `perplexity/pplx-decider-v1.3-20261112` for the `:free` slug the run is labelled with).
 
 **The 0.6148 is not comparable with the other rows, and the reason is a defect found while taking them.**
 `score_set` handed `calibrate` the label "its frames match its line" beside P(yes), but the check's yes means

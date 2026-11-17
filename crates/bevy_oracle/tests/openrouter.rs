@@ -380,12 +380,11 @@ fn recorded() -> std::path::PathBuf {
     std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("fixtures/openrouter")
 }
 
-/// Replays the one real exchange recorded with `Recorder` around [`Live`] over OpenRouter. It cannot
-/// run until someone with a key records it, and it must never pass silently without it: so it is
-/// ignored with the command that makes it runnable, and fails loudly with that command when run
-/// without the fixture. `OPENROUTER_API_KEY` exists on no host as of 2026-11-15.
+/// Replays the one real exchange recorded with `Recorder` around [`Live`] over OpenRouter, with no
+/// socket and no key: the fixture is a static request/response pair, so the replay is deterministic by
+/// construction (it is the same bytes every run). It is **not** skipped when the fixture is missing — it
+/// fails, naming the command that records it.
 #[test]
-#[ignore = "needs fixtures/openrouter recorded with OPENROUTER_API_KEY: run tools/decide/record-openrouter.sh"]
 fn the_recorded_openrouter_exchange_replays_with_no_network() {
     let replay = Replay::load(&recorded()).unwrap_or_else(|e| {
         panic!("{e}\nno recorded fixture yet: run `OPENROUTER_API_KEY=... tools/decide/record-openrouter.sh`")

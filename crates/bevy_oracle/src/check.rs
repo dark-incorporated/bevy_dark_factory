@@ -251,7 +251,10 @@ impl Check {
     /// The record this check earned for `model`, if any. A model nobody named has none.
     pub fn calibration_for(&self, model: Option<&str>) -> Option<&Calibration> {
         let model = model?;
-        self.calibrations.iter().find(|c| c.model == model)
+        // **A record named for the slug reads for its dated snapshot** (#455): OpenRouter answers
+        // `perplexity/pplx-decider-v1.3:free` with `perplexity/pplx-decider-v1.3-20261112`, and a finding that
+        // fell back to the author's default there would be an uncalibrated reading of a calibrated model.
+        self.calibrations.iter().find(|c| crate::transport::names_the_same_model(&c.model, model))
     }
 
     /// Whether this check may block the loop's gate when asked of `model`: it earned a calibration for

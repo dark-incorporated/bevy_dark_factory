@@ -160,7 +160,9 @@ pub fn score_set(
     for s in samples {
         let ev = evidence(&s.dir);
         let req = request(check, &s.title, &ev)?;
-        let response = crate::ask(transport, &req)?;
+        // **A sample's failure names the sample** (#455): an OpenRouter content filter refused one clip's
+        // images on 2026-11-16 and the bare status left nobody able to say which of 122 it was.
+        let response = crate::ask(transport, &req).map_err(|cause| crate::Error::Sample { id: s.id.clone(), cause: Box::new(cause) })?;
         // **A missing answer is an error, not a panic** (#112). The model occasionally returns an
         // `answers` map without this question — a truncated generation, or a server that decided the
         // state was empty. Indexing panicked on the 30th sample of a calibration run and lost every
