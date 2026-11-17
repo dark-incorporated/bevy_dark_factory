@@ -1,6 +1,6 @@
 //! **The PLACE list says what makes a row ready, and its cells line up** (#486).
 //!
-//! Found in a person's capture of the Map door (`feedback-1794784623926`, Cauldron 0.6.8, mac_air, 2560 x 1406 at `ui_scale` 2.4, map
+//! Found in a person's capture of the Map door (`feedback-1794784623926`, DarkFactory 0.6.8, mac_air, 2560 x 1406 at `ui_scale` 2.4, map
 //! `deadite_caverns`, the project's library empty): *"What makes these ready to use? And this layout feels a bit jumbled"*, with a pick on
 //! the PLACE list's own column.
 //!
@@ -24,9 +24,9 @@
 use bevy::prelude::*;
 use bevy::ui::{ComputedNode, UiGlobalTransform};
 
-use bevy_cauldron::chrome::{PanelWidth, Side};
-use bevy_cauldron::editor::{PaletteList, PaletteRow};
-use bevy_cauldron::harness;
+use bevy_dark_factory::chrome::{PanelWidth, Side};
+use bevy_dark_factory::editor::{PaletteList, PaletteRow};
+use bevy_dark_factory::harness;
 
 use crate::fixtures;
 
@@ -135,11 +135,11 @@ fn rows(app: &mut App) -> Vec<Row> {
         for node in under(world, entity) {
             let Some(text) = world.get::<Text>(node).map(|t| t.0.clone()) else { continue };
             let Some(box_) = border_box(world, node) else { continue };
-            if world.get::<bevy_cauldron::editor::PaletteArmedMark>(node).is_some() {
+            if world.get::<bevy_dark_factory::editor::PaletteArmedMark>(node).is_some() {
                 mark = Some((text, box_));
-            } else if world.get::<bevy_cauldron::editor::PaletteName>(node).is_some() {
+            } else if world.get::<bevy_dark_factory::editor::PaletteName>(node).is_some() {
                 name = Some((text, box_));
-            } else if world.get::<bevy_cauldron::editor::PaletteCost>(node).is_some() {
+            } else if world.get::<bevy_dark_factory::editor::PaletteCost>(node).is_some() {
                 count = Some((text, box_));
             }
         }
@@ -159,7 +159,7 @@ fn the_place_list_states_what_arms_a_row() {
     let world = app.world();
     let mut said: Vec<(Entity, String, Rect)> = Vec::new();
     for entity in under(world, panel) {
-        let Some(rule) = world.get::<bevy_cauldron::chrome::PaletteRule>(entity) else { continue };
+        let Some(rule) = world.get::<bevy_dark_factory::chrome::PaletteRule>(entity) else { continue };
         let Some(text) = world.get::<Text>(entity) else { panic!("the rule is drawn, so it has words") };
         let Some(rect) = border_box(world, entity) else { panic!("the rule is laid out") };
         said.push((entity, text.0.clone(), rect));
@@ -233,7 +233,7 @@ fn the_place_lists_cells_line_up_and_a_long_name_grows_only_its_own_row() {
 
     // **The mark is a shape, and it says whether this row is the one a click would place.** A rail and a fill say it in colour
     // alone, which a person who cannot separate the hues does not read.
-    let armed: Vec<usize> = drawn.iter().filter(|r| r.mark().0 == bevy_cauldron::glyphs::ARMED).map(|r| r.ix).collect();
+    let armed: Vec<usize> = drawn.iter().filter(|r| r.mark().0 == bevy_dark_factory::glyphs::ARMED).map(|r| r.ix).collect();
     assert_eq!(armed.len(), 1, "exactly one row wears the armed mark, and {:?} do: {:?}", armed, drawn.iter().map(|r| (&r.mark().0, r.ix)).collect::<Vec<_>>());
     for row in &drawn {
         assert!(
@@ -271,7 +271,7 @@ fn the_place_lists_cells_line_up_and_a_long_name_grows_only_its_own_row() {
     // **A long name grows its own row, and no other.**
     let long = drawn
         .iter()
-        .find(|r| r.name().0 == bevy_grimoire_core::naming::display_name(LONG_ID))
+        .find(|r| r.name().0 == blueprint_model::naming::display_name(LONG_ID))
         .unwrap_or_else(|| panic!("the long piece is drawn: {:?}", drawn.iter().map(|r| r.name().0.as_str()).collect::<Vec<_>>()));
     let others: Vec<&Row> = drawn.iter().filter(|r| r.ix != long.ix).collect();
     let short: Vec<f32> = others.iter().map(|r| r.rect.height()).collect();

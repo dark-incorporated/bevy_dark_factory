@@ -8,7 +8,7 @@
 //!
 //! The PLACE panel's category bands and the MESHES panel's pack bands drew their fold control as the **letter** `v` (`>` when
 //! folded) — a character a person reads as prose in a gutter rather than as the disclosure control it is. Both now draw
-//! [`bevy_cauldron::glyphs::FOLD_OPEN`] (`▼`) and [`bevy_cauldron::glyphs::FOLD_CLOSED`] (`►`).
+//! [`bevy_dark_factory::glyphs::FOLD_OPEN`] (`▼`) and [`bevy_dark_factory::glyphs::FOLD_CLOSED`] (`►`).
 //!
 //! # The second half, and where it lives
 //!
@@ -29,9 +29,9 @@
 use bevy::prelude::*;
 use bevy::ui::{ComputedNode, UiGlobalTransform};
 
-use bevy_cauldron::editor::{CategoryHeader, PaletteList};
-use bevy_cauldron::glyphs;
-use bevy_cauldron::harness;
+use bevy_dark_factory::editor::{CategoryHeader, PaletteList};
+use bevy_dark_factory::glyphs;
+use bevy_dark_factory::harness;
 
 use crate::fixtures;
 
@@ -176,7 +176,7 @@ fn a_press_on_the_caret_folds_the_band() {
     };
     let handle = app
         .world()
-        .get_resource::<bevy_cauldron::surface::Surface>()
+        .get_resource::<bevy_dark_factory::surface::Surface>()
         .map(|s| s.image.clone())
         .unwrap_or_default();
     let location = || bevy::picking::pointer::Location {

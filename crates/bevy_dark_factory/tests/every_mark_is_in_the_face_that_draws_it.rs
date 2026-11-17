@@ -11,14 +11,14 @@
 //!
 //! Three things are held:
 //!
-//! 1. every mark in [`bevy_cauldron::glyphs::MARKS`] is in the editor's face and in the terminal's, because both draw text;
+//! 1. every mark in [`bevy_dark_factory::glyphs::MARKS`] is in the editor's face and in the terminal's, because both draw text;
 //! 2. a fold's caret changes shape with the fold, and neither shape is a letter — read from the running editor rather than
 //!    from the source;
 //! 3. the marks are single characters, so a constant cannot quietly become a word.
 
 use bevy::prelude::*;
 
-use bevy_cauldron::glyphs;
+use bevy_dark_factory::glyphs;
 
 use crate::fixtures;
 
@@ -67,7 +67,7 @@ fn a_mark_is_one_character() {
 #[test]
 fn the_face_the_editor_runs_with_carries_every_mark() {
     let root = fixtures::Fixture::new(&format!("glyph_face_{}", std::process::id())).build("m");
-    let mut app = bevy_cauldron::harness::build_headless(&root, "m", None).unwrap_or_else(|e| panic!("the fixture project must open: {e}"));
+    let mut app = bevy_dark_factory::harness::build_headless(&root, "m", None).unwrap_or_else(|e| panic!("the fixture project must open: {e}"));
     for _ in 0..4 {
         app.update();
     }

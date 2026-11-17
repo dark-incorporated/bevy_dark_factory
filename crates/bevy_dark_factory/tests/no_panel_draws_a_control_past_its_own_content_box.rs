@@ -31,11 +31,11 @@ use bevy::prelude::*;
 use bevy::text::TextLayoutInfo;
 use bevy::ui::{ComputedNode, UiGlobalTransform, UiScale};
 
-use bevy_cauldron::agent_view::AgentPane;
-use bevy_cauldron::chrome::{self, PanelWidth, Side};
-use bevy_cauldron::editor::{MapControlsPane, PaletteList};
-use bevy_cauldron::harness;
-use bevy_cauldron::tiles::{CandidateList, Mode};
+use bevy_dark_factory::agent_view::AgentPane;
+use bevy_dark_factory::chrome::{self, PanelWidth, Side};
+use bevy_dark_factory::editor::{MapControlsPane, PaletteList};
+use bevy_dark_factory::harness;
+use bevy_dark_factory::tiles::{CandidateList, Mode};
 
 use crate::fixtures;
 
@@ -233,11 +233,11 @@ fn panels_here(app: &mut App) -> Vec<(&'static str, Entity, f32)> {
         out.push(("MESHES", panel_of(app, list, Side::Right, "the candidate list"), chrome::LIST_W));
     }
     // **FAMILIAR** (Agent door, left): the scrolling pane whose toggle the third capture points at.
-    let familiar = {
+    let night_shift = {
         let world = app.world_mut();
         world.query_filtered::<Entity, With<AgentPane>>().single(world).ok()
     };
-    if let Some(pane) = familiar {
+    if let Some(pane) = night_shift {
         out.push(("FAMILIAR", panel_of(app, pane, Side::Left, "the agent pane"), chrome::CONTROLS_W));
     }
     // **INSPECTOR** (Map door, left): the pane at a narrow divider (#482).

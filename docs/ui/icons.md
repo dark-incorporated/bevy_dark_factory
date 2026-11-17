@@ -1,6 +1,6 @@
 # The icon vocabulary: characters in the face, and the atlas for what a character cannot do
 
-Decided before the atlas grows again, from the owner's note in capture `feedback-1794921635359` (Cauldron 0.7.0,
+Decided before the atlas grows again, from the owner's note in capture `feedback-1794921635359` (dark_factory 0.7.0,
 mac_air, 2026-11-17 07:20):
 
 > *"The "v" should collapse the text. And we should consider an icon solution for icons like up and down arrows, etc.
@@ -24,7 +24,7 @@ first is the question this page answers.
 
 The editor already draws two kinds of icon and the choice is which one a new mark joins.
 
-||**Unicode characters** in the shipped face|**An embedded icon font** (a subset, e.g. Font Awesome Free)|**Grow the atlas** (`crates/bevy_cauldron/src/icons.rs`)|
+||**Unicode characters** in the shipped face|**An embedded icon font** (a subset, e.g. Font Awesome Free)|**Grow the atlas** (`crates/bevy_dark_factory/src/icons.rs`)|
 |---|---|---|---|
 |Licence|none beyond the face's own SIL OFL 1.1, already carried (`assets/fonts/FiraMono-OFL.txt`)|SIL OFL 1.1 for the font, **CC BY 4.0 for the icons**: attribution must ship in the build and in the About/credits surface|ours; no obligation|
 |Coverage|whatever the face's `cmap` maps — **measured 1350 code points** in `FiraMono-Regular.ttf`|exactly the subset built, and only that|whatever `tools/ui/make_icons.py` draws; every new mark is a repaint of the sheet **and** a name in `ICONS`|

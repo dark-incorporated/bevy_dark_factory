@@ -18,7 +18,7 @@
 //!
 //! `chrome::row_value` spawned a bare `Text`. A bare text has no least width and does not wrap, so its automatic minimum is its whole
 //! content — a file path, an agent's sentence, a list of effects — and the row it sits in is that wide whatever the pane says. The
-//! value is now [`bevy_cauldron::chrome::fill_text`]'s shape: a zero floor and a break at a letter. The pane's floor
+//! value is now [`bevy_dark_factory::chrome::fill_text`]'s shape: a zero floor and a break at a letter. The pane's floor
 //! (`SplitMin::new(DOCK_MIN_W + 2 * MARGIN, …)`) was already consistent with the panel's, so the width the pane reports is a width
 //! the panel can be laid out in.
 //!
@@ -33,9 +33,9 @@ use bevy::prelude::*;
 use bevy::text::TextLayoutInfo;
 use bevy::ui::{ComputedNode, UiGlobalTransform, UiScale};
 
-use bevy_cauldron::chrome::Frame;
-use bevy_cauldron::harness;
-use bevy_cauldron::tiles::Mode;
+use bevy_dark_factory::chrome::Frame;
+use bevy_dark_factory::harness;
+use bevy_dark_factory::tiles::Mode;
 
 use crate::fixtures;
 
@@ -143,7 +143,7 @@ fn editor(tag: &str) -> App {
 fn split_of(app: &mut App) -> Entity {
     let world = app.world_mut();
     world
-        .query_filtered::<Entity, With<bevy_cauldron::chrome::ShellSplit>>()
+        .query_filtered::<Entity, With<bevy_dark_factory::chrome::ShellSplit>>()
         .single(world)
         .unwrap_or_else(|e| panic!("the shell has one split: {e}"))
 }
@@ -162,7 +162,7 @@ fn move_the_divider(app: &mut App, fraction: f32) {
 /// what did not.
 ///
 /// The edge is the **viewport's content** box rather than the pane's border box, and the difference is the whole issue: the viewport
-/// keeps [`bevy_cauldron::chrome::SCROLL_GUTTER`] px on its right for the rail, so a switch that ends inside the *pane* can still be
+/// keeps [`bevy_dark_factory::chrome::SCROLL_GUTTER`] px on its right for the rail, so a switch that ends inside the *pane* can still be
 /// drawn over the scrollbar — which is exactly what `feedback-1794783669349` shows. A control is inside the pane and still wrong.
 ///
 /// The viewport's own rows are not walked: their overflow is what the scroll is for, and the rows below the fold are meant to be out
