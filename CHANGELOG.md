@@ -4,6 +4,7 @@ What each change added, newest first. A visible change has a clip: click the sti
 
 ## 2026-11-17
 
+- **left-pane-reflows** `956eb623b6` The left pane's rows reflow when the divider is dragged left *For you: Narrowing the left panel no longer pushes its buttons over the map's divider.* *No clip: visible, not yet recorded: fleet worker; proved by the_left_pane_reflows_when_the_divider_moves (2 tests)*
 - **split-divider-seam** `752fefdd74` The split divider is a 12 px seam instead of a 24 px bar *For you: The divider between the panel and the map is half as thick, so it reads as a seam.* *No clip: visible, not yet recorded: fleet worker; proved by the_split_divider_is_a_seam_not_a_bar (3 tests)*
 
 ## 2026-11-16
