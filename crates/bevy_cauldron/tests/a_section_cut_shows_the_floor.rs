@@ -127,6 +127,14 @@ fn at(px: &(u32, u32, Vec<u8>), x: u32, y: u32) -> Option<[u8; 3]> {
 
 /// **Skip rather than lie**: a host with no adapter, or a build with no mesher, cannot answer this question.
 ///
+/// **Measured on macOS 2026-11-17: `real_device_available()` answers NO in a test process**, so every test in this
+/// file skips here. The reason is the platform, not the code: `winit` refuses a second `EventLoop` in a process and
+/// a test runs on a worker thread, so an app built here never reaches a real `RenderDevice` — which is the same
+/// limit `the_surface_and_the_camera_agree` records when it spawns a `Window` *component* instead of a window. The
+/// pixel half therefore has to run under Xvfb on Linux, where `xvfb-run` gives the process a display, or in a
+/// dedicated binary that owns the main thread. **Until one of those runs it, this file proves nothing about
+/// pixels** and the issue must not be closed on it.
+///
 /// **A skipped test must say so out loud.** The first version of this file returned early and *passed*, and a
 /// green tick from a test that measured nothing is the failure this whole issue is about. So the skip is printed
 /// with its reason, and every test here is written to fail loudly when it runs and the picture is wrong.
