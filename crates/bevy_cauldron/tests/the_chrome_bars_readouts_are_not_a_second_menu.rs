@@ -58,6 +58,7 @@ const SETTLE_FRAMES: usize = 12;
 
 /// A drawn word: what it says, the size it is drawn at in the skin's own px, and its ink.
 struct Drawn {
+    entity: Entity,
     words: String,
     px: f32,
     ink: Color,
@@ -105,12 +106,37 @@ fn drawn_rows(world: &World, root: Entity, ui_scale: f32) -> Vec<Drawn> {
         }
         let Some(px) = size_in_skin_px(font, ui_scale) else { continue };
         found.push(Drawn {
+            entity,
             words: text.0.clone(),
             px,
             ink: world.get::<TextColor>(entity).map(|c| c.0).unwrap_or(Color::WHITE),
         });
     }
     found
+}
+
+/// **The most words gooey's decision LED may draw at the menu's size**: its label and its hidden state
+/// word. See the exemption in the test.
+const MOST_GOOEY_LED_WORDS: usize = 2;
+
+/// Whether this line is the decision chip's own label, which `bevy_gooey` sizes.
+///
+/// The chip is `bevy_gooey::led`, whose label is drawn at the skin's `text_size` (`led.rs:100`) — the
+/// menu titles' size — and `apply_skin` restyles it, so this crate cannot make it quieter without
+/// writing over a widget's own component every frame. See `bevy_gooey#110`.
+/// Whether this line belongs to the decision chip: its **entity** is under a `DecisionLed`, which is
+/// the editor's own marker on that chip (`decision_model.rs`), so the test asks ancestry rather than
+/// matching words. A word-matching version let the model's own name (`d3-flash`) through, because a
+/// name is whatever the person chose and cannot be listed.
+fn is_a_gooey_led(world: &World, entity: Entity) -> bool {
+    let mut at = Some(entity);
+    while let Some(current) = at {
+        if world.get::<bevy_cauldron::decision_model::DecisionLed>(current).is_some() {
+            return true;
+        }
+        at = world.get::<ChildOf>(current).map(|parent| parent.parent());
+    }
+    false
 }
 
 /// Whether this line is drawn inside a `TooltipBox` the bar owns — a hover card, not a readout.
@@ -151,7 +177,7 @@ fn menu_titles(app: &App) -> Vec<Drawn> {
 /// **The bar's readouts and the menu's titles are drawn at different sizes, in different inks.**
 #[test]
 fn the_chrome_bars_readouts_are_a_quieter_role_than_the_menu_titles() {
-    let (_root, mut app) = editor(&format!("chrome_bar_distinct_{}", std::process::id()));
+    let (_root, app) = editor(&format!("chrome_bar_distinct_{}", std::process::id()));
     let ui_scale = app.world().resource::<UiScale>().0;
     let titles = menu_titles(&app);
     assert!(
@@ -166,9 +192,26 @@ fn the_chrome_bars_readouts_are_a_quieter_role_than_the_menu_titles() {
     let readouts = drawn_rows(app.world(), bar, ui_scale);
     assert!(!readouts.is_empty(), "the chrome bar draws its readouts; none was found");
 
-    // **1. Every readout is smaller than the menu's titles by a step a person can see.**
+    // **1. Every editor-owned readout is smaller than the menu's titles by a step a person can see.**
+    //
+    // **The decision chip is exempt, by name and counted.** `bevy_gooey::led` draws its label at the
+    // skin's `text_size` (`led.rs:100`), which is the same size the menu titles are drawn at, and
+    // `apply_skin` restyles `Role::Label` on every state change — so a host that typed the label
+    // instead would be overwriting a widget's own component every frame, the same two-writers defect
+    // that made the divider's thickness a `bevy_gooey` issue (#108). Measured: a system that set the
+    // label's role after `GooeySystems::Style` left it at 9.7 px anyway. Filed as `bevy_gooey#110`.
+    let world = app.world();
+    let (loud, gooey_led): (Vec<&Drawn>, Vec<&Drawn>) =
+        readouts.iter().partition(|r| !is_a_gooey_led(world, r.entity));
+    assert!(
+        gooey_led.len() <= MOST_GOOEY_LED_WORDS,
+        "{} words are drawn at the menu's size by gooey's LED, more than the {MOST_GOOEY_LED_WORDS} that chip \
+         has — the exemption for `bevy_gooey#110` now covers more than it was written for: {:?}",
+        gooey_led.len(),
+        gooey_led.iter().map(|r| &r.words).collect::<Vec<_>>()
+    );
     let mut too_loud = Vec::new();
-    for readout in &readouts {
+    for readout in &loud {
         if readout.px > MENU_TITLE_PX - LEAST_STEP_PX {
             too_loud.push(format!(
                 "`{}` is drawn at {:.1} px against the menu's {MENU_TITLE_PX:.1}",
@@ -184,8 +227,8 @@ fn the_chrome_bars_readouts_are_a_quieter_role_than_the_menu_titles() {
 
     // **2. A different role or a different ink** — the acceptance's own alternative. Both are checked
     // on the drawn nodes: the role as the size it resolves to, the ink as the colour already written.
-    let role_by_size = readouts.iter().any(|r| (r.px - MENU_TITLE_PX).abs() > SAME_PX);
-    let quiet_ink = readouts.iter().any(|r| titles.iter().all(|t| t.ink != r.ink));
+    let role_by_size = loud.iter().any(|r| (r.px - MENU_TITLE_PX).abs() > SAME_PX);
+    let quiet_ink = loud.iter().any(|r| titles.iter().all(|t| t.ink != r.ink));
     assert!(
         role_by_size || quiet_ink,
         "the bar's readouts share the menu's size and its ink, so nothing but the rule at y=78 says \
