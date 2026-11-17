@@ -87,21 +87,32 @@ curl -s https://openrouter.ai/api/v1/key -H "Authorization: Bearer $OPENROUTER_A
 
 `the_recorded_openrouter_exchange_replays_with_no_network` (`tests/openrouter.rs`) replays it with no network. It is `#[ignore]`d with the command that makes it runnable, and fails loudly with that command if run before the fixture exists. After recording: `cargo nextest run -p bevy_oracle --test openrouter --run-ignored only`.
 
-**Status 2026-11-15: not recorded.** No `OPENROUTER_API_KEY` exists on any host, so no live call was made and no number below was measured. `fixtures/openrouter/` does not exist yet.
+**Status 2026-11-16: recorded.** `OPENROUTER_API_KEY` was present on mac_air for one session, the owner had given consent that the editor's clips may leave the LAN for calibration, and the account had 1000 free-model requests left (`free_model_daily_requests: used 0, limit 1000, remaining 1000`) against a $20 key budget with $0 spent. `crates/bevy_oracle/fixtures/openrouter/` holds the exchange, and `the_recorded_openrouter_exchange_replays_with_no_network` replays it with no socket and no key (it is no longer `#[ignore]`d; it fails, naming the recorder, when the fixture is absent).
 
-### To fill when a key is available
+### What the one recorded exchange measured (2026-11-16)
 
 |Field|Value|
 |---|---|
-|`provider` (expect `Perplexity`)||
-|`model` as answered||
-|`usage.cost` (expect 0)||
-|`usage.input_tokens`, for the smoke request||
-|Wall time, first call and warm||
-|Answers to `has_ui`, `dominant`, `clarity` against `fixtures/response.json` (clef-flash: 0.929, `map_view` 0.977, 2.14)||
-|Does a `score` answer carry `legend` (`Answer::Score.legend` defaults to empty when it does not)||
-|Image size or count ceiling (Perplexity states none)||
-|`zdr: true` honoured (a 404 here means the filter excluded the free endpoint)||
+|`provider`|`Perplexity` (the `zdr`/`only: [perplexity]` pin held; a 404 would have meant the filter excluded the free endpoint)|
+|`model` as answered|`perplexity/pplx-decider-v1.3-20261112` (a dated snapshot of the `:free` model the request named)|
+|`usage.cost`|0 (free tier)|
+|`usage.input_tokens`|418 for the smoke request (one 640x390 PNG, three questions)|
+|`usage.output_tokens`|3|
+|Wall time|0.66 s for the one call, including TLS and the connection to `openrouter.ai`|
+|`has_ui`|0.9866 (the editor is in the image)|
+|`dominant`|`map_view` 0.7749 (`blank` 0.2112, `text` 0.0139)|
+|`clarity`|2.617 on the five-level scale (weighted; probabilities 0.013 / 0.063 / 0.335 / 0.470 / 0.118)|
+|Does a `score` carry `legend`?|**Yes.** The answer carried `legend` mapping each level index to its word, so `Answer::Score.legend` is filled rather than defaulted|
+|Image size or count ceiling|Perplexity states none; the recorded call sent one. `MAX_IMAGES = 4` is `bevy_oracle`'s own limit, unverified against this provider|
+|`zdr: true` honoured|Yes: the call succeeded with the block present, so a zero-data-retention Perplexity endpoint exists for this model|
+
+Answers are not like-for-like with the local models (`models.md` §1): pplx-decider reads the same image as **418** input tokens against d3-flash's 1074 and clef-flash's 620, and its `clarity` 2.617 sits between d3-flash's 2.64 and clef-flash's 2.15.
+
+**The `model` field is not the string the request named, and that is normal.** OpenRouter answers with the dated snapshot it routed to (`perplexity/pplx-decider-v1.3-20261112`), not the `:free` alias. Comparing the two as typed would refuse every answer, so `bevy_oracle::names_the_same_model` compares a vendor prefix, a `:<variant>` billing suffix and a trailing `-<yyyymmdd>` snapshot date away; `Expecting`, `verify_served` and `Check::calibration_for` all use it. A different model (`pplx-decider-v1.2`, `sonar-pro`, `clef-flash`) is still refused, and `tests/a_snapshot_is_the_model_it_names.rs` pins both directions.
+
+### Pacing
+
+The calibration run makes 122 requests, so it holds the free tier's pace itself: `bevy_oracle::Paced` waits out one slot (`Paced::period_for_per_minute(20)` = 3 s) before each request it forwards, and `decide_check --calibrate` wraps the transport in it only when the run is `Remote` (`tests/the_free_tier_is_paced_by_the_caller.rs`). The transport still never sleeps and never retries: a 429 comes back as `Error::OpenRouter { RateLimited { retry_after } }` with OpenRouter's own reason.
 
 ## Sources
 

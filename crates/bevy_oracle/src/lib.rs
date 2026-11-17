@@ -27,9 +27,9 @@ mod transport;
 mod types;
 
 pub use b64::data_url;
-pub use calibrate::{Calibration, Sample, calibrate};
+pub use calibrate::{Calibration, Exclusion, Sample, calibrate};
 pub use check::{BUILTIN_CHECKS_YAML, CHECKS_VERSION, Check, PROJECT_CHECKS_FILE, Checks, Evidence, Finding};
-pub use clip::{FRAMES, LABELLED_FILE, Labelled, clip_check, load_labelled, score_set};
+pub use clip::{FRAMES, LABELLED_FILE, Labelled, clip_check, load_labelled, score_set, score_set_recording_exclusions};
 pub use config::{
     Config, DecisionModel, Endpoints, LOCAL_ENDPOINT, LOCAL_MODEL_NAME, OPENROUTER_ENDPOINT, OPENROUTER_KEY_VAR, OPENROUTER_MODEL, Protocol,
     REMOTE_WITHOUT_KEY, TIMEOUT_SECS,
@@ -37,7 +37,7 @@ pub use config::{
 pub use decision_model::{Answered, first_ipv4, Chosen, Resolved, SETTING_KEY, SettingsProblem, choose, probe, project_file, project_may_not_choose, user_file};
 pub use openrouter::{FREE_REQUESTS_PER_MINUTE, OpenRouterDecisions, OpenRouterFailure, wire_request};
 pub use run::{Verdict, evidence_from, run_checks};
-pub use transport::{Expecting, Http, Live, Recorder, Replay, Transport, verify_served};
+pub use transport::{Expecting, Http, Live, Paced, Recorder, Replay, Transport, names_the_same_model, verify_served};
 pub use types::{Answer, MAX_IMAGES, MAX_QUESTIONS, Question, Request, Response, Usage};
 
 use std::fmt;
@@ -57,6 +57,10 @@ pub enum Error {
     Fixture(String),
     /// A calibration was asked of a set that cannot calibrate.
     Calibration(String),
+    /// **One sample of a labelled set could not be scored** (#455), and which one is named. `cause` is what the
+    /// transport said (a refusal, an unreachable endpoint, an answer for another model); a bare status leaves the
+    /// person re-running the set by hand to find the sample that stopped it.
+    Sample { id: String, cause: Box<Error> },
     /// A `checks.yaml` that does not parse or breaks a rule (duplicate name, threshold outside 0..=1).
     Checks(String),
     /// A calibration was labelled for one model and the endpoint serves, or answered as, another. The
@@ -92,6 +96,7 @@ impl fmt::Display for Error {
             Error::Fixture(m) => write!(f, "decision fixture: {m}"),
             Error::Calibration(m) => write!(f, "decision calibration: {m}"),
             Error::Checks(m) => write!(f, "checks.yaml: {m}"),
+            Error::Sample { id, cause } => write!(f, "sample `{id}` could not be scored: {cause}"),
             Error::ModelMismatch { endpoint, label, served } => write!(
                 f,
                 "the run is labelled `{label}` but decision endpoint {endpoint} serves {}; a calibration belongs to one \

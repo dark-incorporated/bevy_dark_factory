@@ -1,0 +1,45 @@
+{
+  "model": "perplexity/pplx-decider-v1.3-20261112",
+  "answers": {
+    "clarity": {
+      "type": "score",
+      "score": 2.6169227705267746,
+      "legend": {
+        "0": "unreadable",
+        "1": "poor",
+        "2": "fair",
+        "3": "good",
+        "4": "excellent"
+      },
+      "probabilities": {
+        "0": 0.01312326020715688,
+        "1": 0.06346711383743242,
+        "2": 0.3350129052634022,
+        "3": 0.47015703660549657,
+        "4": 0.11823968408651193
+      },
+      "confidence": 0.5574595731098215
+    },
+    "dominant": {
+      "type": "choice",
+      "choice": "map_view",
+      "probabilities": {
+        "blank": 0.21119824366518147,
+        "map_view": 0.774855305944262,
+        "text": 0.013946450390556421
+      },
+      "confidence": 0.662282958916393
+    },
+    "has_ui": {
+      "type": "noul",
+      "noul": 0.9865795635924218
+    }
+  },
+  "usage": {
+    "input_tokens": 418,
+    "output_tokens": 3,
+    "cost": 0.0,
+    "provider": "Perplexity",
+    "id": "gen-dec-1794877197-rgV3ZpS4YyJauuvS657j"
+  }
+}
