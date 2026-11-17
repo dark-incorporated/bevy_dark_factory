@@ -12,8 +12,8 @@ http://big.local:8081/upstream/d3-flash/v1/systemone
 |---|---|
 |Server|llama.cpp release b11982 (`8a199ad31`), which has d3 support (PR #30383); `cuda-ece963` (build 1498) cannot load it. `LD_LIBRARY_PATH` carries the b11982 cudart directory (without it the CUDA backend silently fails to load and every request takes ~14 s on the CPU)|
 |Model|`ggml-org/vllm-d3-flash-GGUF`: `vllm-d3-flash-Q4_K_M.gguf` (6.6 GB, sha256 `b8753da4…`) and `mmproj-vllm-d3-flash-Q8_0.gguf` (0.62 GB, `0291125a…`); 8.95 B parameters, context 8192 of 262144 trained|
-|Launch|`tools/decide/serve-d3-flash.sh PORT` (installed as `~/.home-still/run-d3-flash.sh`): `gpu-tenant guard`, an olmocr-resident check, a VRAM check, then `llama-server -ngl 99 -c 8192 --ubatch-size 4096 --alias d3-flash`|
-|Memory|**7708 MiB VRAM** for the server (`nvidia-smi --query-compute-apps`), 23 496 of 24 576 MiB on the card with olmocr (12 670), laya (1 528), the reranker (920) and distill (292) resident: 680 MiB to spare. The script refuses to load below 8 192 MiB free|
+|Launch|`tools/decide/serve-d3-flash.sh PORT` (installed as `~/.home-still/run-d3-flash.sh`): `gpu-tenant guard`, an olmocr-resident check, a **distill-embedder release** (see below), a VRAM check, then `llama-server -ngl 99 -c 2048 --ubatch-size 1024 -np 1 --alias d3-flash`|
+|Memory|**7022 MiB VRAM** for the server, beside olmocr (13698), laya (1528), the reranker (920) and distill's embedder released (292): 337 MiB left on the card. The script refuses to load below 7 150 MiB free|
 |`/v1/models`|`architecture.output_modalities: ["decisions"]`, inputs text, image, video, `n_ctx` 8192, `ftype` Q4_K - Medium|
 
 ## How it stays out of everyone's way
@@ -94,6 +94,23 @@ d3 runs one forward pass per question: about 130 ms for the first and 135 ms for
 
 Five calls each were identical to the last digit. **The quant moves no probability by more than 0.007 and no answer** (same winner, same score band), and costs nothing in latency (the 3090 is not bound by the weights). Q8_0 does not fit beside olmocr (10 012 MiB against 8 393 free), so Q4_K_M is the served quant. Whether 0.007 matters for a check's threshold is DM-04's calibration to say; if it does, Q8_0 needs `D3_QUANT=Q8_0` and a card without olmocr (a lease).
 
+## What broke it, measured 2026-11-16
+
+The endpoint answered `500 {"error":"unspecific error: upstream command exited prematurely","src":"llama-swap"}` in 0.25 s — the launch script exiting 75 — for every request. Two independent causes, both measured, not inferred:
+
+1. **distill's embedder had grown from 292 MiB to 5430 MiB since 11-15.** On 11-15 the card held olmocr (12 670), laya (1 528), the reranker (920) and the embedder (292), leaving 8 393 MiB, and d3-flash fit at 8 192. By 11-16 the embedder held 5 430, leaving **3 424 MiB** — under half what the script required. `POST http://127.0.0.1:7434/embedder/release` with `HS_BACKEND_TOKEN` from `~/.home-still/secrets.env` returns its VRAM (measured: 200 `{"released":1}`, and 8 s later the card reported 7 366 free). The script now asks, exactly as `gpu-tenant`'s `prepare_card` does under a lease. It reloads on the next search, so the cost is one cold embed.
+2. **The old flags cost more than the card has.** `-c 8192` with the default slot count is *four* slots of 8192 tokens (`n_slots = 4, n_ctx_slot = 8192` in the log) and held **7 664 MiB**; olmocr itself had grown 12 670 → 13 698 since 11-15. `-c 2048 --ubatch-size 1024 -np 1` holds **7022 MiB** and still answers the fixture bit-identically.
+
+Three things that look like fixes and are not:
+
+- **`-np 1` at a larger context.** `-c 8192 -np 1` needs 7 514 MiB and does not fit; `-c 3072 -np 1` fits at 7 212 but leaves 149 MiB, and the image request's own 120 MiB `cudaMalloc` then fails *after* a successful load (server aborts on the first call).
+- **A smaller ubatch at a larger context.** `-ub 1024` with `-c 4096 -np 2` still refused: the free-check ran while the embedder was reloading. Both the free-check and the load have to see the card with the embedder gone, which is why the script now polls for up to 60 s after asking rather than sleeping once.
+- **The vision budget is not reduced.** The image-token cap is applied to `n_ubatch`, not to context: both `-c 8192` and `-c 2048` log `cap image_max_tokens (original=1600) to 1024`, so an image keeps its full 1024 tokens at either size.
+
+Verified through llama-swap after the fix (`POST /upstream/d3-flash/v1/systemone`, the oracle fixture with `2026-10-24-S1.5.png`): cold start 13.4 s, then 0.76-0.85 s, four calls, `has_ui` 0.9195, `dominant` map_view 0.9003, `clarity` 2.606, `input_tokens` 1074, `output_tokens` 0 — identical to the 11-15 baseline table above.
+
+**A residual limitation, not a bug:** home-still's indexer retries every 30 s, so a decision request that lands while the embedder is reloading may still lose the race (observed: three of four calls before the retry loop was added). The retry loop closes it in practice; a request during a running conversion of olmocr's own cold start still fails fast, which is the intended `Error::Unreachable` path.
+
 ## Protocol
 
 **`/v1/systemone` speaks the same protocol v1 as clef-flash**: `state`, `images`, `questions` keyed by id with `instructions` (and `criteria` for `choice`/`score`) in; `{"model","answers":{id:{"type", "noul" | "choice"+"probabilities"+"confidence" | "score"+"legend"+"probabilities"+"confidence"}},"usage":{"input_tokens","output_tokens":0}}` out. `bevy_oracle::Request`/`Response` need no change. `output_tokens` is 0 on every call.
@@ -114,6 +131,6 @@ The fixture's recorded clef-flash answers were `has_ui` 0.929, `dominant` map_vi
 ## What this found
 
 - **A name costs 57 s unless the client is IPv4-only.** `big.local` resolves to a link-local and two global IPv6 addresses as well as `192.168.1.110`, and big's firewall drops IPv6 SYNs to `:8081` (ssh on `:22` answers over IPv6). `curl` races the families and never notices; `ureq` tries the addresses in order, and the same `bevy_oracle` request that takes 0.44 s by IP took **56.9 s** by name, the whole 60 s timeout. `bevy_oracle::Http` now asks over IPv4 only (`a_name_is_resolved_to_its_ipv4_address_only`): 0.9 s by name. The firewall is not mine to change (needs root); opening `:8081` over IPv6 would make this unnecessary.
-- **VRAM is tight.** olmocr (12.7 GB), laya (1.5), the reranker (0.9) and distill (0.3) leave 8 393 MiB; d3-flash takes 7 708. A single editor test process on the card (490 MiB each) leaves too little, and the script then refuses with `needs 8192 MiB of VRAM and big has N free` (500, unreachable). With d3-flash resident distill's embedder cannot load: `ttl: 60` keeps that to a minute after the last decision.
+- **VRAM is tight, and it moved under the endpoint.** On 11-15 olmocr (12.7 GB), laya (1.5), the reranker (0.9) and distill (0.3) left 8 393 MiB and d3-flash took 7 708. On 11-16 olmocr held 13 698 and distill's embedder 5 430, leaving 3 424 free — the same script and the same model, refused. The lesson is that the free-check must be re-measured whenever home-still's own models grow, not that the number 8 192 was wrong. See "What broke it" above for the two fixes. With d3-flash resident distill's embedder cannot load: `ttl: 60` keeps that to a minute after the last decision.
 - **Changing `llama-swap.yaml` costs olmocr its load.** llama-swap stops every model on a reload; the reaper loads olmocr again within a minute, about 60 s of no olmocr (scribe had no conversation in flight both times).
 - **The first `hf download` ran at 1.4-7 MB/s on big and 36 MB/s on mac_air.** Ranged parallel `curl` brought 6.6 GB down in about 10 minutes.
