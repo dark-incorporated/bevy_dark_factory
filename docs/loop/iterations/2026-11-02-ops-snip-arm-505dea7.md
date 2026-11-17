@@ -18,7 +18,7 @@ gate passed in 238 s.
 
 Design points:
 - `writes()` empty and `Undo::None`: the *file* a completed rectangle writes is `snip_commit`'s work, not
-  this operation's. Arming a capture mode is not a change to the grimoire.
+  this operation's. Arming a capture mode is not a change to the blueprint.
 - A drag already in progress is cancelled by the key before dispatching — that is the key's own business,
   not a value an agent can hold.
 
@@ -44,7 +44,7 @@ verbs, and `FoldPack`/`Rescan`/`SuggestLabels` have handlers and are next.
 - Two UI-source scans widened from five files to six (`snip.rs` added).
 
 ## Release
-None — `bevy_cauldron` is `publish = false`.
+None — `bevy_dark_factory` is `publish = false`.
 
 ## Next focus
 `FoldPack` and `Rescan`: read the handler first, then classify.

@@ -34,7 +34,7 @@
     },
     {
       "at": 3.0,
-      "mcp": "grimoire_apply_operation",
+      "mcp": "blueprint_apply_operation",
       "args": {
         "operation": "placement_add",
         "parameters": {
@@ -50,7 +50,7 @@
     },
     {
       "at": 4.2,
-      "mcp": "grimoire_present",
+      "mcp": "blueprint_present",
       "args": {
         "title": "a wall piece",
         "summary": "Added a wall.",
@@ -72,7 +72,7 @@
     },
     {
       "at": 8.4,
-      "mcp": "grimoire_apply_operation",
+      "mcp": "blueprint_apply_operation",
       "args": {
         "operation": "placement_add",
         "parameters": {

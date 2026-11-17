@@ -21,8 +21,8 @@ none.
 ## Enhancement: the lens ratchet (#280)
 
 Goal: a lens that says "not built" cannot silently name work that is in the tree.
-Files: `crates/bevy_cauldron/tests/the_commands_lenses_match_the_tree.rs` (new), `tests/all.rs` (one `mod`).
-Proof: `cargo test -p bevy_cauldron --test editor the_commands_lenses_match_the_tree::` — 2 passed; and
+Files: `crates/bevy_dark_factory/tests/the_commands_lenses_match_the_tree.rs` (new), `tests/all.rs` (one `mod`).
+Proof: `cargo test -p bevy_dark_factory --test editor the_commands_lenses_match_the_tree::` — 2 passed; and
 **verified load-bearing** by pointing one lens at a path that exists, which fails with *"the set of stale
 lenses changed"*.
 
@@ -32,7 +32,7 @@ The measurement behind it, file by file:
 |---|---|
 | "no constraint layer" | `relations::Kind`, **11** kinds from `Faces` to `ReachableFrom`, `.relations.ron` beside the map, `relations_solve` + `relations_add`, `constraints.rs` beneath |
 | "Kit admission rules — not built" | `standards::{Standards, Rule, Dim, Why, Breach, MEET_WITHIN, Unnested}` |
-| "kit stress tests — not built" | `adjacency::ring` and `adjacency::room`, surfaced by `grimoire_state.stress` |
+| "kit stress tests — not built" | `adjacency::ring` and `adjacency::room`, surfaced by `blueprint_state.stress` |
 | "Role-weighted repetition" | `repetition::{repeats, Role}` |
 | "partially built … 14 tools today" | 17 tools; the count is now checked against the server's own `ToolDoc` table |
 | "Options on request" | `layout_propose`'s `options` |
@@ -72,7 +72,7 @@ Reviewer could not run (no subagent spawned inside the budget). Five questions, 
 
 ## Test diffs
 
-- `crates/bevy_cauldron/tests/all.rs`: one `mod the_commands_lenses_match_the_tree;` line (the standing
+- `crates/bevy_dark_factory/tests/all.rs`: one `mod the_commands_lenses_match_the_tree;` line (the standing
   exception for a new editor test file).
 - New test file. No existing assertion changed.
 

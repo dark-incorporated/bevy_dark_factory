@@ -219,9 +219,9 @@
           "wanted": "a hand-back stating three, dresser",
           "measured": "the hand-back `Bedroom count: 3 pieces; dresser nearest the north wall` does not state `three`",
           "last_calls": [
-            "grimoire_guide {}",
-            "grimoire_state {}",
-            "grimoire_present {\"check\":[{\"placements\":[\"dresser\"],\"what\":\"The dresser sits closest to the north wall (z=-2.0 versus z=-2.5 for the wall)\"}],\"inferred\":[\"Distance is measured …"
+            "blueprint_guide {}",
+            "blueprint_state {}",
+            "blueprint_present {\"check\":[{\"placements\":[\"dresser\"],\"what\":\"The dresser sits closest to the north wall (z=-2.0 versus z=-2.5 for the wall)\"}],\"inferred\":[\"Distance is measured …"
           ]
         }
       ],
@@ -268,17 +268,17 @@
     }
   ],
   "tool_counts": {
-    "grimoire_apply_operation": 1,
-    "grimoire_decide": 1,
-    "grimoire_guide": 3,
-    "grimoire_list_operations": 1,
-    "grimoire_list_pieces": 3,
-    "grimoire_present": 3,
-    "grimoire_preview_operation": 1,
-    "grimoire_state": 3
+    "blueprint_apply_operation": 1,
+    "blueprint_decide": 1,
+    "blueprint_guide": 3,
+    "blueprint_list_operations": 1,
+    "blueprint_list_pieces": 3,
+    "blueprint_present": 3,
+    "blueprint_preview_operation": 1,
+    "blueprint_state": 3
   },
   "refusals_by_tool": {
-    "grimoire_decide": 1
+    "blueprint_decide": 1
   },
   "wishes_by_tool": {},
   "harness_error_reasons": [],

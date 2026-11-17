@@ -20,10 +20,10 @@ issue recorded. · Regression check: the three tests now read `tests/fixtures/be
 
 ## Enhancement: an edit that only moves a piece keeps its entity (#201, acceptance item 5)
 Goal: move, turn, retint and retune preserve identity; a change of kind respawns that piece only.
-Files: `crates/bevy_grimoire/src/live.rs` (the plan split, the in-place retarget, riders),
-`crates/bevy_grimoire/src/lib.rs` (`placed_transform`, shared by spawn and move).
+Files: `crates/bevy_blueprint/src/live.rs` (the plan split, the in-place retarget, riders),
+`crates/bevy_blueprint/src/lib.rs` (`placed_transform`, shared by spawn and move).
 Proof: on the base, `an_edit_respawns_only_what_changed` fails with
-`assertion left != right failed: a moved placement is respawned`; with the change, `bevy_grimoire` is
+`assertion left != right failed: a moved placement is respawned`; with the change, `bevy_blueprint` is
 **40 passed, 0 failed** across six suites, clippy `-D warnings` clean.
 
 The split is two questions rather than one: `same_piece` is descriptor, host and map — what the thing
@@ -58,10 +58,10 @@ not discriminate; (5) *what did I get wrong* — I first added `moved` to the de
 despawned the very entity the slice exists to keep, and the suite caught it.
 
 ## Release
-**`bevy_grimoire v0.4.1`** — https://crates.io/crates/bevy_grimoire/0.4.1
-`cargo semver-checks check-release -p bevy_grimoire` said *"no semver update required"* (the one API
+**`bevy_blueprint v0.4.1`** — https://crates.io/crates/bevy_blueprint/0.4.1
+`cargo semver-checks check-release -p bevy_blueprint` said *"no semver update required"* (the one API
 change is the addition of `placed_transform`), so this is a PATCH bump. `cargo publish --dry-run` built
-the packaged crate, then `cargo publish` uploaded and resolved; tagged `bevy_grimoire-v0.4.1` and pushed.
+the packaged crate, then `cargo publish` uploaded and resolved; tagged `bevy_blueprint-v0.4.1` and pushed.
 
 ## Next focus
-Release `bevy_grimoire`, then #201 items 1, 2 and 4.
+Release `bevy_blueprint`, then #201 items 1, 2 and 4.

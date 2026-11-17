@@ -4,7 +4,7 @@ Focus: #129 E-002 · Commits: ec0a153..84a730e · Machine: big · Outcome: shipp
 
 ## Summary
 Pass 257 put `FrameView`, the four pans and the orbit keys in `View`, as candidates for a `Ctx`
-operation. The code says they are not: `grimoire/frame_view`'s own doc reads *"it is not an operation, it
+operation. The code says they are not: `blueprint/frame_view`'s own doc reads *"it is not an operation, it
 is not in the registry or the operation log, and it is not undoable"*. `Change::Camera` is the fifth kind
 and twelve verbs moved there. **Queue: 57 project, 16 view, 12 camera, 1 held, 3 modal.**
 
@@ -37,7 +37,7 @@ Added only. (5) *What remains?* The 57 project verbs, and a check of the 16 view
 The classification test gained a `Camera` assertion; nothing was removed or loosened.
 
 ## Release
-None — `bevy_cauldron` is `publish = false`.
+None — `bevy_dark_factory` is `publish = false`.
 
 ## Next focus
 Check the 16 `View` verbs for the camera/focus trap before migrating any of them.

@@ -12,14 +12,14 @@ map: bench_bedside
 prompt: |
   Put a lamp on the small table beside the bed in the bedroom.
 
-  When the lamp is in place, hand the result back with grimoire_present.
+  When the lamp is in place, hand the result back with blueprint_present.
 setup: []
 solution:
   - op: placement_add
     params:
       piece: lamp
       at: [0.1, -2.1]
-  - op: grimoire_present
+  - op: blueprint_present
     params:
       title: The lamp on the small table by the bed
       summary: A lamp stands on the small table beside the bed, near the bed's head.

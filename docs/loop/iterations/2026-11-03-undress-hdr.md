@@ -31,8 +31,8 @@ Std 1.7 is one flat colour, and it was unchanged ten seconds later — not a slo
 were healthy all along, which is why the issue's own [INFERENCE] pointed at the undress path.
 
 **Root cause, the editor's half.** `ElementsCamera` arrives with `#[require(Hdr)]`. `bevy_elements#55`
-says explicitly that `Hdr` is *"left to the caller (bevy_grimoire removes it itself)"* — and nothing here
-ever did: `grep -n 'Hdr' crates/bevy_cauldron/src/*.rs` had no non-comment hit. Removing the marker undid
+says explicitly that `Hdr` is *"left to the caller (bevy_blueprint removes it itself)"* — and nothing here
+ever did: `grep -n 'Hdr' crates/bevy_dark_factory/src/*.rs` had no non-comment hit. Removing the marker undid
 the crate's dressing but left a camera in **HDR**, the mode this editor's composition does not support.
 `dress_camera` now removes it with the marker (`b68be59`).
 
@@ -47,7 +47,7 @@ already closed.
 
 ## Test diffs
 
-- `crates/bevy_cauldron/tests/undressing_gives_the_editors_view_back.rs` (new), one `mod` line in
+- `crates/bevy_dark_factory/tests/undressing_gives_the_editors_view_back.rs` (new), one `mod` line in
   `tests/all.rs` (standing exception). No existing assertion changed.
 
 ## Review
@@ -61,7 +61,7 @@ but not recorded.
 
 ## Release
 
-None: nothing packaged changed (`bevy_cauldron` is `publish = false`).
+None: nothing packaged changed (`bevy_dark_factory` is `publish = false`).
 
 ## Next focus
 

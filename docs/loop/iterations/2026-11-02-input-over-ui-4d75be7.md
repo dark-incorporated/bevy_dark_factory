@@ -38,11 +38,11 @@ it. (4) *Protected files?* `screen::OWNERSHIP` gained one row — an **addition*
 exception for a new `Resource`. (5) *What remains?* The split's positional blocker.
 
 ## Test diffs
-One row added to `screen::OWNERSHIP` (`bevy_cauldron::view::OverUi`, `Session`). No assertion removed,
+One row added to `screen::OWNERSHIP` (`bevy_dark_factory::view::OverUi`, `Session`). No assertion removed,
 loosened or re-pinned.
 
 ## Release
-None — `bevy_cauldron` is `publish = false`.
+None — `bevy_dark_factory` is `publish = false`.
 
 ## Next focus
 Compare the click test's own pixel against every hovered rect with the split in; name the blocker.

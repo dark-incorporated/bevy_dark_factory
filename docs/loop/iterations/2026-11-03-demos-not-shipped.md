@@ -18,7 +18,7 @@ Gate: green before (`68da3cd`). `stale.py`: every standing demo fresh. No code c
 ### `98-preview` — cannot be recorded in this repository at all
 
 Its storyboard frames `placements: ["abbey", "well"]`. This repository ships **one** map, `bedroom`, an
-interior, and `grep -c 'abbey\|well' assets/grimoire/maps/bedroom.map.ron` is `0`. The clip needs either a
+interior, and `grep -c 'abbey\|well' assets/blueprint/maps/bedroom.map.ron` is `0`. The clip needs either a
 re-aimed storyboard or an outdoor map. The second is the better fix: a sky preview demo wants a sky.
 
 ### `98-clock-scrub` — recorded, measured, and the sky does not move

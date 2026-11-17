@@ -6,7 +6,7 @@ Focus: epic #330 (owner's steer) · Commits: bevy_gooey 75f8cc0 (not a commit of
 The owner had not replied to bevy-coven/bevy_gooey#76, and the loop's steer says "Always go with your recommendation and don't prompt me". So this pass applied #76's recommendation as an assumed decision, one file at a time: `tests/split.rs` and `tests/section.rs` run with `MotionSettings::off()`, and no assertion changed. It then built G-46, size motion (bevy-coven/bevy_gooey#53), one of UI-R01 #331's two remaining needs. The owner's interjected steer, "Ensure to publish a new version after each issue is pushed", is followed: bevy_gooey is released after the push (Release below).
 
 ## Baseline
-The bevy_grimoire gate and `accept.py` were not run: no bevy_grimoire code changed.
+The bevy_blueprint gate and `accept.py` were not run: no bevy_blueprint code changed.
 
 ## Assumed owner exception (#76): commit 75f8cc0
 Each file gains one line, `.insert_resource(MotionSettings::off())`, in its real-time `app()`. Both files pass 43/43 before the change and after it. No assertion changed. Recorded on #76, which the owner may override.
@@ -39,7 +39,7 @@ None (the reference is Rune: `README.md` "Animation", `rune-kit/src/shell/pane.r
 Not measured. One query over gliding bodies and splits only while they move.
 
 ## Acceptance
-`accept.py` was not run: no bevy_grimoire code changed.
+`accept.py` was not run: no bevy_blueprint code changed.
 
 ## Review
 An independent `reviewer` subagent ran. It found no P0 or P1. Every finding was fixed before the commit:

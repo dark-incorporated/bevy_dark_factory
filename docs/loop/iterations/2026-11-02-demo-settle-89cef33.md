@@ -64,7 +64,7 @@ placement. New: `test_a_widget_click_is_a_change_moment`, `test_a_settle_is_a_ch
 all passing.
 
 ## Release
-None: `bevy_cauldron` is `publish = false`; nothing packaged changed.
+None: `bevy_dark_factory` is `publish = false`; nothing packaged changed.
 
 ## Next focus
 #271's exposure transition, or the next owed clip whose change is neither faded nor thin.

@@ -23,8 +23,8 @@ Why the harness, and not the agent, failed these trials:
 
 | trials | reason | which |
 |---|---|---|
-| 3 | the transcript shows a tool \`xd__mcp__cauldron_grimoire_guide\` that is neither the editor's nor the harness's own set, so the profile was not isolated | `dress-the-market-area` trial 3, `write-the-gatekeepers-greeting` trial 3, `write-the-gatekeepers-greeting` trial 5 |
-| 1 | the transcript shows a tool \`xd___mcp__cauldron_grimoire_guide\` that is neither the editor's nor the harness's own set, so the profile was not isolated | `write-the-gatekeepers-greeting` trial 8 |
+| 3 | the transcript shows a tool \`xd__mcp__dark_factory_blueprint_guide\` that is neither the editor's nor the harness's own set, so the profile was not isolated | `dress-the-market-area` trial 3, `write-the-gatekeepers-greeting` trial 3, `write-the-gatekeepers-greeting` trial 5 |
+| 1 | the transcript shows a tool \`xd___mcp__dark_factory_blueprint_guide\` that is neither the editor's nor the harness's own set, so the profile was not isolated | `write-the-gatekeepers-greeting` trial 8 |
 
 ## The suite
 
@@ -51,6 +51,6 @@ Why the harness, and not the agent, failed these trials:
 
 ## Where the agent stumbles (dev tasks)
 
-- tools called most: `grimoire_apply_operation` ×228, `grimoire_style` ×29, `grimoire_list_operations` ×22, `grimoire_guide` ×20, `grimoire_present` ×20, `grimoire_state` ×19, `grimoire_undo_operation` ×9, `grimoire_list_pieces` ×7
-- refusals by tool: `grimoire_apply_operation` ×26, `grimoire_style` ×6, `grimoire_schema` ×3, `grimoire_preview_operation` ×2
-- wishes, by the tool wished for: `grimoire_preview_operation reporting, for placement_add, which existing placements the new piece would replace, before anything is applied.` ×1, `placement_move: change a placement's x,z by id, with a dry run listing what it would replace or overlap.` ×1
+- tools called most: `blueprint_apply_operation` ×228, `blueprint_style` ×29, `blueprint_list_operations` ×22, `blueprint_guide` ×20, `blueprint_present` ×20, `blueprint_state` ×19, `blueprint_undo_operation` ×9, `blueprint_list_pieces` ×7
+- refusals by tool: `blueprint_apply_operation` ×26, `blueprint_style` ×6, `blueprint_schema` ×3, `blueprint_preview_operation` ×2
+- wishes, by the tool wished for: `blueprint_preview_operation reporting, for placement_add, which existing placements the new piece would replace, before anything is applied.` ×1, `placement_move: change a placement's x,z by id, with a dry run listing what it would replace or overlap.` ×1

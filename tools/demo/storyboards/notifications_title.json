@@ -7,8 +7,8 @@
   "setup": [],
   "chunks": [{"seconds": 4.0}, {"seconds": 3.5}],
   "steps": [
-    {"at": 1.2, "mcp": "grimoire_apply_operation", "args": {"operation": "placement_add", "parameters": {"piece": "wall", "at": [-4.0, -4.0]}}, "caption": "agent: a change to the map"},
-    {"at": 2.6, "mcp": "grimoire_apply_operation", "args": {"operation": "placement_add", "parameters": {"piece": "wall", "at": [5.0, -5.0]}}},
+    {"at": 1.2, "mcp": "blueprint_apply_operation", "args": {"operation": "placement_add", "parameters": {"piece": "wall", "at": [-4.0, -4.0]}}, "caption": "agent: a change to the map"},
+    {"at": 2.6, "mcp": "blueprint_apply_operation", "args": {"operation": "placement_add", "parameters": {"piece": "wall", "at": [5.0, -5.0]}}},
     {"at": 4.0, "key": "KeyE", "mods": ["ControlLeft"], "caption": "person: Ctrl+E (Cmd+E on a Mac): the panel is titled NOTIFICATIONS"}
   ]
 }

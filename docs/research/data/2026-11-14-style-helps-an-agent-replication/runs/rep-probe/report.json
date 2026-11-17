@@ -124,14 +124,14 @@
     }
   ],
   "tool_counts": {
-    "grimoire_apply_operation": 9,
-    "grimoire_guide": 1,
-    "grimoire_list_operations": 1,
-    "grimoire_present": 1,
-    "grimoire_style": 1
+    "blueprint_apply_operation": 9,
+    "blueprint_guide": 1,
+    "blueprint_list_operations": 1,
+    "blueprint_present": 1,
+    "blueprint_style": 1
   },
   "refusals_by_tool": {
-    "grimoire_apply_operation": 1
+    "blueprint_apply_operation": 1
   },
   "wishes_by_tool": {},
   "harness_error_reasons": [],

@@ -18,7 +18,7 @@ gate passed in 189 s.
 
 Design points:
 - `writes()` empty and `Undo::None`, for the same reason the grid has them: a panel being up is not project
-  data, and `Cmd+Z` after `Cmd+E` must take back the last change to the grimoire.
+  data, and `Cmd+Z` after `Cmd+E` must take back the last change to the blueprint.
 - The key reads the panel's `Display` into `Ctx::view` before dispatching, so "up or down" is the
   operation's answer rather than a second opinion.
 
@@ -47,7 +47,7 @@ registry and the parity table. (4) *Protected files?* `operations_have_two_front
   the comment the file already carries for the identical failure.
 
 ## Release
-None — `bevy_cauldron` is `publish = false`.
+None — `bevy_dark_factory` is `publish = false`.
 
 ## Next focus
 Document `Shortcuts` and `Cancel` as staying unmigrated, with the reason each needs a different shape.

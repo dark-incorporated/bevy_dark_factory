@@ -33,7 +33,7 @@ fails when it has earned nothing — is the failure mode the issue exists to avo
 - **Built in** — `crates/bevy_oracle/fixtures/checks.yaml`, five yes/no questions about a close-up, a
   before/after pair and a whole view (`floating`, `clipping`, `out_of_area`, `blank_frame`,
   `toast_visible`).
-- **The project's** — `assets/grimoire/checks.yaml` in the project being checked, merged over the built-in
+- **The project's** — `assets/blueprint/checks.yaml` in the project being checked, merged over the built-in
   set by name, so a project can re-point a threshold without losing the rest.
 
 ## Evidence

@@ -63,8 +63,8 @@ One new test file. Two existing literals gained `correct`/`wrong` with `#[serde(
 an addition under the schema-field exception, marked in both.
 
 ## Release
-**bevy_grimoire_anim v0.1.7** — https://crates.io/crates/bevy_grimoire_anim/0.1.7 — API unchanged (202
-semver checks pass) but its published `Cargo.toml` now requires `bevy_grimoire_core` 0.7.0, a requirement
+**bevy_blueprint_anim v0.1.7** — https://crates.io/crates/bevy_blueprint_anim/0.1.7 — API unchanged (202
+semver checks pass) but its published `Cargo.toml` now requires `blueprint_model` 0.7.0, a requirement
 pass 272's core release left unreleased. `bevy_oracle` is `publish = false`.
 
 ## Next focus

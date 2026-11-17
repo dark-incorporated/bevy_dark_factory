@@ -14,7 +14,7 @@ Gate green at 350ad94. `accept.py` not run: no engine behaviour changed. Load 2.
 ## #201 closed — with the reason, not without it
 Its five acceptance items were met or explicitly resolved (pass 230). The residual case — rename **and**
 move in one save — cannot be fixed by `alias`, because:
-- `RenameMap`/`map_rename` renames the **map**; nothing in `crates/bevy_cauldron/src` assigns a `Placed::id`;
+- `RenameMap`/`map_rename` renames the **map**; nothing in `crates/bevy_dark_factory/src` assigns a `Placed::id`;
 - so a placement's id changes only when a person edits the file by hand, which is exactly the case where
   the rows carry no evidence to pair on.
 Recorded on **#129** as a slice it should hold (`placement_rename { from, to }`).
@@ -51,7 +51,7 @@ wrote the storyboard with `key`+`hold` instead of `hold`+`secs`, and took three 
 run because a held key is a still picture.
 
 ## Release
-None: `bevy_grimoire` unchanged; `bevy_cauldron` is `publish = false`.
+None: `bevy_blueprint` unchanged; `bevy_dark_factory` is `publish = false`.
 
 ## Next focus
 The UI series is blocked on G-33; the owed clips are the work.

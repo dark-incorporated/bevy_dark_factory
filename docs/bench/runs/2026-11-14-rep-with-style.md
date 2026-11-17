@@ -17,7 +17,7 @@
 
 ## Agent errors
 
-3 call(s) to a tool that does not exist in `write-the-gatekeepers-greeting` trial 3, `write-the-gatekeepers-greeting` trial 4, `write-the-gatekeepers-greeting` trial 5. The agent was told so by its harness and went on, so each trial is scored: these are the agent's own mistakes and not the harness's. By the name called: `xd__mcp__cauldron_grimoire_guide` ×3.
+3 call(s) to a tool that does not exist in `write-the-gatekeepers-greeting` trial 3, `write-the-gatekeepers-greeting` trial 4, `write-the-gatekeepers-greeting` trial 5. The agent was told so by its harness and went on, so each trial is scored: these are the agent's own mistakes and not the harness's. By the name called: `xd__mcp__dark_factory_blueprint_guide` ×3.
 
 ## The suite
 
@@ -44,6 +44,6 @@
 
 ## Where the agent stumbles (dev tasks)
 
-- tools called most: `grimoire_apply_operation` ×139, `grimoire_style` ×22, `grimoire_present` ×16, `grimoire_state` ×16, `grimoire_guide` ×15, `grimoire_list_operations` ×15, `grimoire_capture_still` ×5, `grimoire_list_pieces` ×5
-- refusals by tool: `grimoire_apply_operation` ×22, `grimoire_style` ×5, `grimoire_present` ×1, `grimoire_preview_operation` ×1
-- wishes, by the tool wished for: `A grimoire_preview_operation report for placement_add that lists which existing placements the new piece would replace or overlap, before anything is written.` ×1, `grimoire_list_operations with a name filter, returning only the named operation's schema.` ×1
+- tools called most: `blueprint_apply_operation` ×139, `blueprint_style` ×22, `blueprint_present` ×16, `blueprint_state` ×16, `blueprint_guide` ×15, `blueprint_list_operations` ×15, `blueprint_capture_still` ×5, `blueprint_list_pieces` ×5
+- refusals by tool: `blueprint_apply_operation` ×22, `blueprint_style` ×5, `blueprint_present` ×1, `blueprint_preview_operation` ×1
+- wishes, by the tool wished for: `A blueprint_preview_operation report for placement_add that lists which existing placements the new piece would replace or overlap, before anything is written.` ×1, `blueprint_list_operations with a name filter, returning only the named operation's schema.` ×1

@@ -1,24 +1,24 @@
 # 2026-11-05 feedback reports: one gesture, two channels, and what running it found
 
 Focus: the owner's brief — press a key, point at anything, say what is wrong — with two audiences
-(the people who make Cauldron, and whoever works the open project). Commits: `225b549`..`909a5ce`.
+(the people who make DarkFactory, and whoever works the open project). Commits: `225b549`..`909a5ce`.
 Machine: big. Outcome: shipped; the gate passed on `909a5ce` in 217 s, after three refusals that each
 found something real.
 
 ## What it is
 
-`Cmd+D` (`Ctrl+D`) reports on **Cauldron itself**: every screen, the Projects home included, no
+`Cmd+D` (`Ctrl+D`) reports on **DarkFactory itself**: every screen, the Projects home included, no
 project needed. `Cmd+Shift+D` reports on **the project that is open**, and is refused in a sentence
-where there is none. One mechanism (`crates/bevy_cauldron/src/report.rs`), parameterised by one value,
-`bevy_grimoire_core::feedback::Audience`, which chooses the folder and is written into the record.
+where there is none. One mechanism (`crates/bevy_dark_factory/src/report.rs`), parameterised by one value,
+`blueprint_model::feedback::Audience`, which chooses the folder and is written into the record.
 Two folders, two MCP readers, one gesture.
 
 | | Developers | Project |
 |---|---|---|
 | chord | Cmd+D | Cmd+Shift+D |
 | needs a project | no | yes |
-| folder | `<data dir>/Grimoire/feedback/` | `<project>/target/feedback/` |
-| tool | `grimoire_feedback_list` | `grimoire_project_feedback_list` |
+| folder | `<data dir>/Blueprint/feedback/` | `<project>/target/feedback/` |
+| tool | `blueprint_feedback_list` | `blueprint_project_feedback_list` |
 
 A report is four files under one stem: the whole frame as it was at the key, the same frame with the
 subject outlined, the record, and the log tail. A whole-screen report writes three: the second picture
@@ -26,7 +26,7 @@ would be the first.
 
 ## The record, and why it is in the engine-free crate
 
-`bevy_grimoire_core::feedback` holds the data and the reader and imports no `bevy` — `tests/engine_free.rs`
+`blueprint_model::feedback` holds the data and the reader and imports no `bevy` — `tests/engine_free.rs`
 is the ratchet. That is what lets the MCP server read a report without a renderer, and it is why the
 picture encoding lives in the editor: only the editor has a framebuffer.
 
@@ -54,7 +54,7 @@ them, and every one of them made the feature unusable for a person.
    report's click picked `Scrim` rather than the control under the pointer. Fixed by one close path that
    despawns in the same frame (`close_now` / `close_the_box`).
 4. **Every unnamed step of a chain carried a descendant's words.** The text fallback searched the whole
-   subtree, so the path from the home's `Screen` to a `Button` reported `Welcome to Cauldron` seven
+   subtree, so the path from the home's `Screen` to a `Button` reported `Welcome to DarkFactory` seven
    times and named nothing. Fixed by looking only at control-role children (`labels_of`).
 
 5. **Two gestures wrote `PickingSettings::is_enabled`.** The snip and the report each claimed to be its
@@ -76,7 +76,7 @@ before pointing at what was behind it.
 
 | refusal | what it found |
 |---|---|
-| 4 tests failed | the two-writer `PickingSettings` collision; `clamp_rect` clamping each corner against an edge it was already past; a test scratch folder named `bevy_grimoire_feedback_…` tripping `engine_free`'s scanner; and `Res<State<Screen>>` panicking in an app with no screens (`the_surface_and_the_camera_agree` builds the plugin set around a hand-made window), now `Option` |
+| 4 tests failed | the two-writer `PickingSettings` collision; `clamp_rect` clamping each corner against an edge it was already past; a test scratch folder named `bevy_blueprint_feedback_…` tripping `engine_free`'s scanner; and `Res<State<Screen>>` panicking in an app with no screens (`the_surface_and_the_camera_agree` builds the plugin set around a hand-made window), now `Option` |
 | clippy | a field assignment after `Default::default()` in the new `picking` test — the crate's own clippy does not see test code, the gate's `--all-targets -- -D warnings` does |
 
 
@@ -96,21 +96,21 @@ of the window recorded a y of 4000 in a 720-pixel frame, and no picture would ha
 - `a_person_reports_about_this_project` — 7 tests: a click on a piece is the scene with that piece's id,
   its cell and its world point; empty ground is the scene with no placement; a dialog over the map is
   interface, not the ground under it; the project channel names `target/feedback` and never
-  `assets/grimoire`; no `BINDINGS` row claims `Cmd+D`.
-- `bevy_grimoire_core` feedback — 8 tests: every subject kind round-trips, an unknown field is refused,
+  `assets/blueprint`; no `BINDINGS` row claims `Cmd+D`.
+- `blueprint_model` feedback — 8 tests: every subject kind round-trips, an unknown field is refused,
   the reader answers newest first, names a broken file and a record with no picture, a missing folder is
   no reports, and `last_lines` keeps its trailing newline.
-- `bevy_cauldron_mcp` — 57 tests, including `docs_are_current` and `the_reference_names_the_servers_own_tools`.
+- `dark_factory_mcp` — 57 tests, including `docs_are_current` and `the_reference_names_the_servers_own_tools`.
   The count test's vocabulary stopped at `twenty`; completed to `twenty-nine` rather than softened.
-- **Live, under Xvfb on big, with a real `bevy_cauldron` binary.** Both channels, on both screens:
+- **Live, under Xvfb on big, with a real `bevy_dark_factory` binary.** Both channels, on both screens:
   `Ctrl+D` on the Projects home, click the New project button, type, Save →
-  `feedback-1793882344600.{png,log}` + `_subject.png` + `.json` in `<data dir>/Grimoire/feedback/`,
+  `feedback-1793882344600.{png,log}` + `_subject.png` + `.json` in `<data dir>/Blueprint/feedback/`,
   the record's `subject.kind` `element` with an eleven-step path, 5,721 accent pixels in the outlined
   picture and 0 difference inside the rectangle. Then `Ctrl+Shift+D` in the editor on a project, a
   click on the map → `Picked: the map at -4.4, -1.1, cell (-5, -2)`, `kind: scene`, written under
   `<project>/target/feedback/`. Both MCP tools read them back over stdio: the project one answered with
   an `image` block and the record (paths filled in), the developers' one with `total: 0` before a report
-  was filed there and the record after, and `grimoire_project_feedback_list` with no `--project`
+  was filed there and the record after, and `blueprint_project_feedback_list` with no `--project`
   refused with its own sentence.
 
 ## Not done, deliberately
@@ -147,8 +147,8 @@ Score **23/40**. Five findings fixed, one **withdrawn**:
 
 | finding | outcome |
 |---|---|
-| P1 the first thing read on every launch was `Cauldron v0.2.4 is the newest release.` in the danger skin | **my own regression from `9c6cdf0`**, shipped in 0.2.4. `Updater::manual`: a pressed check answers, a launch check that finds nothing says nothing |
-| P1 the screen never said what Cauldron is for | the pitch names Bevy 0.20 and the agent; three numbered steps; the tour is on the page |
+| P1 the first thing read on every launch was `DarkFactory v0.2.4 is the newest release.` in the danger skin | **my own regression from `9c6cdf0`**, shipped in 0.2.4. `Updater::manual`: a pressed check answers, a launch check that finds nothing says nothing |
+| P1 the screen never said what DarkFactory is for | the pitch names Bevy 0.20 and the agent; three numbered steps; the tour is on the page |
 | P1 "headline = body = 10 px, nav out-sizes the headline" | **withdrawn.** My first pass measured whole-line bands and was wrong. Single glyphs against the skin's `text_size: 11.0` give headline 15, prose 11, nav 11, footnote 10 — the type was already sane |
 | P2 the hero is the loudest thing and the whitespace was not composed | top-aligned 560 px column; the crows stay the hero, as the owner asked |
 | P2 the sidebar carried one fact twice and gave a tab and a network action one skin | one quiet `v0.2.5 · up to date` line; a button only when `actionable()`; an accent rail on the selected tab |
@@ -156,7 +156,7 @@ Score **23/40**. Five findings fixed, one **withdrawn**:
 
 **Two corrections the process caught, both worth more than the findings.**
 
-1. **`no_internal_words_on_screen` refused my first copy.** It named `assets/grimoire`, and the ratchet is
+1. **`no_internal_words_on_screen` refused my first copy.** It named `assets/blueprint`, and the ratchet is
    right: a person never types that path. The sentence now says the *property* — nothing to export — and the
    test asserts both the property's presence and the absence of any `assets/` path.
 2. **`Take the tour` exists on two pages now**, by design (the welcome and `Learn`), so the launcher test's

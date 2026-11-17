@@ -50,7 +50,7 @@ No reviewer subagent spawned. Self-review, five questions: (1) Is there one path
 
 ## Release
 
-`bevy_cauldron` 0.4.6 (`880709c8`, tag `bevy_cauldron-v0.4.6`; not a crates.io crate). The workflow is not watched. 0.4.5's run passed its smoke on the first attempt (run 42435425188), so #338 was closed.
+`bevy_dark_factory` 0.4.6 (`880709c8`, tag `bevy_dark_factory-v0.4.6`; not a crates.io crate). The workflow is not watched. 0.4.5's run passed its smoke on the first attempt (run 42435425188), so #338 was closed.
 
 ## Clips and demos
 

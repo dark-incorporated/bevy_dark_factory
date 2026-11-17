@@ -11,7 +11,7 @@ use it to SEE a regression, and a refusal it prints is a finding to file, not a 
 
 # Why this exists
 
-The benchmark (`cauldron-bench`, `docs/bench/README.md`) is how this repository knows whether an agent can
+The benchmark (`dark_factory-bench`, `docs/bench/README.md`) is how this repository knows whether an agent can
 do the work the editor exists for. A release that nobody measured could have made the editor worse at that
 and said nothing, so the release step reads the benchmark before it builds anything heavy.
 
@@ -38,11 +38,11 @@ released** and **its comparison with the previous release's report is not `worse
   the tasks both runs scored). A baseline run with `--agent nothing` would make every release read
   `better`, and a model swap can hide a regression or fake one, so either is refused, naming what differs.
 - **It is compared with the previous release's report**: the newest report whose commit is the previous
-  `bevy_cauldron-v*` tag's code. When no report covers that release (the first release after this rule
+  `bevy_dark_factory-v*` tag's code. When no report covers that release (the first release after this rule
   landed), **the baseline report is the previous one** (BM-04: the newest `docs/bench/runs/*-baseline.json`).
   With no previous report and no baseline the release is refused, and says to commit one. A report that IS
   the baseline has nothing earlier to regress from and passes, saying so.
-- **`worse` stops it.** `cauldron-bench compare --json` says `worse` for the dev suite when its paired 95%
+- **`worse` stops it.** `dark_factory-bench compare --json` says `worse` for the dev suite when its paired 95%
   interval lies wholly below zero; the refusal names the tasks whose success fell. The held-out total is
   `worse` when it fell and the two runs' 95% intervals do not overlap; it is reported as two totals and
   **never by task**, because naming held-out tasks is what a held-out set exists to prevent (BM-00). A
@@ -55,7 +55,7 @@ for its fix (`docs/loop/RUNNING-A-LOOP.md`).
 # Where the run happens
 
 Not here. This reads the committed report. The run happens wherever an editor can open a window (big under
-Xvfb, or a Mac) and is committed with `cauldron-bench run --label <name>`; the command a pass runs before a
+Xvfb, or a Mac) and is committed with `dark_factory-bench run --label <name>`; the command a pass runs before a
 release is in `docs/loop/RUNNING-A-LOOP.md`, and every refusal says it too.
 
 # Assumed decisions
@@ -83,7 +83,7 @@ sys.path.insert(0, str(REPO / "tools" / "loop"))
 
 import version  # noqa: E402
 
-#: Where committed reports live (`cauldron-bench run --label`).
+#: Where committed reports live (`dark_factory-bench run --label`).
 RUNS_DIR = REPO / "docs" / "bench" / "runs"
 #: Trials of each task a release's run makes: the number `compare` needs to see a real move.
 RELEASE_TRIALS = 5
@@ -106,23 +106,23 @@ LOCK_PATH = "Cargo.lock"
 ROOT_MANIFEST_PATH = "Cargo.toml"
 #: Every crate's manifest: a release moves the editor's version and the library crates it publishes with it.
 CRATE_MANIFEST = re.compile(r"crates/.+/Cargo\.toml")
-#: A table header that holds a dependency's own keys, as in `[dependencies.bevy_grimoire_rhai]`.
+#: A table header that holds a dependency's own keys, as in `[dependencies.bevy_blueprint_rhai]`.
 DEPENDENCY_SUBTABLE = re.compile(r"\[(?:workspace\.)?(?:target\..+\.)?(?:dev-|build-)?dependencies\.[^\]]+\]")
 #: A table header whose lines are dependencies, as in `[dependencies]`, where one may be an inline table.
 DEPENDENCY_TABLE = re.compile(r"\[(?:workspace\.)?(?:target\..+\.)?(?:dev-|build-)?dependencies\]")
 VERSION_LINE = re.compile(r'version\s*=\s*"[^"]*"')
 #: What a version line reads as once the version is taken out, so two files can be compared without it.
 VERSION_PLACEHOLDER = "<release version>"
-#: The marker `cauldron-bench` puts on a commit when the tree had uncommitted changes.
+#: The marker `dark_factory-bench` puts on a commit when the tree had uncommitted changes.
 DIRTY_SUFFIX = "+dirty"
 #: A report's commit must be a whole sha: a ref name (`HEAD`, `main`) would be resolved to whatever it is today.
 FULL_SHA = re.compile(r"[0-9a-f]{40}")
-#: How `cauldron-bench` is run when no built binary is named.
-CARGO_BENCH = ["cargo", "run", "-q", "--release", "-p", "bevy_cauldron_bench", "--bin", "cauldron-bench", "--"]
+#: How `dark_factory-bench` is run when no built binary is named.
+CARGO_BENCH = ["cargo", "run", "-q", "--release", "-p", "bevy_dark_factory_bench", "--bin", "dark_factory-bench", "--"]
 #: The held-out tasks live outside every repository, on the share.
 HELD_OUT_DIR = "/mnt/codex_fs/bench/dark_factory/held_out"
 #: The three binaries a run needs side by side: the runner finds the editor and the MCP server beside itself.
-BUILD_COMMAND = "cargo build --release -p bevy_cauldron -p bevy_cauldron_mcp -p bevy_cauldron_bench"
+BUILD_COMMAND = "cargo build --release -p bevy_dark_factory -p dark_factory_mcp -p bevy_dark_factory_bench"
 #: The only difference between two runs a comparison may cross: the suite grows between releases.
 SUITE_DIFFERENCE = "the suites differ"
 #: Digits of a commit shown in a sentence.
@@ -137,7 +137,7 @@ def run_howto(label: str) -> str:
     """**The sentence that says how to make the report a refusal asks for.** Every refusal ends with it."""
     return (
         f"Where an editor can open a window (big, or a Mac): `{BUILD_COMMAND}` (the editor, its MCP server and the "
-        f"runner must sit side by side in target/release), then `target/release/cauldron-bench run --agent "
+        f"runner must sit side by side in target/release), then `target/release/dark_factory-bench run --agent "
         f"{RELEASE_AGENT} --model {RELEASE_MODEL} --trials {RELEASE_TRIALS} --jobs {RELEASE_JOBS} "
         f"--held-out {HELD_OUT_DIR} --label {label}`. `--model` is named because the runner's default model has no "
         f"quota today (every trial of it is a provider refusal), and the same one is named for every release run so "
@@ -148,7 +148,7 @@ def run_howto(label: str) -> str:
 
 
 class CompareError(Exception):
-    """`cauldron-bench compare` could not make the comparison, said in its own words."""
+    """`dark_factory-bench compare` could not make the comparison, said in its own words."""
 
 
 @dataclass(frozen=True)
@@ -304,7 +304,7 @@ class Git:
     def code_commit(self, sha: str) -> tuple[str | None, str | None]:
         """**The commit whose code `sha` releases**: itself, or for a `release: <v>` bump its parent.
 
-        A bump changes `crates/bevy_cauldron/Cargo.toml`, so its own `crates/` tree can never equal that of
+        A bump changes `crates/bevy_dark_factory/Cargo.toml`, so its own `crates/` tree can never equal that of
         the run it follows. It is a bump only while it carries manifests and `Cargo.lock` and nothing else
         (the editor's bump also moves the library crates released with it), and only version numbers in them
         (`_only_versions_changed`): a commit that carries more files is refused, and one that also changes a
@@ -486,7 +486,7 @@ def check(git, release: str, previous_code: str | None, entries: list[Entry], co
     """**Whether the release at `release` may go**, given every committed report.
 
     `release` is the code commit (`Git.code_commit` of what is being tagged); `previous_code` is the same for
-    the previous release, or `None`. `compare(a_name, b_name)` is `cauldron-bench compare --json` over two
+    the previous release, or `None`. `compare(a_name, b_name)` is `dark_factory-bench compare --json` over two
     reports and raises [`CompareError`]. `skipped` says which files under docs/bench/runs/ did not read; it is
     printed whether or not the release goes, because a report that is silently ignored may be the newest.
     """
@@ -590,7 +590,7 @@ def load_entries(runs: Path) -> tuple[list[Entry], list[str]]:
 
 
 def bench_compare(command: list[str], runs: Path):
-    """`compare` as the real `cauldron-bench compare --across --json`, over two reports by stem."""
+    """`compare` as the real `dark_factory-bench compare --across --json`, over two reports by stem."""
 
     def compare(a: str, b: str) -> dict:
         try:
@@ -601,11 +601,11 @@ def bench_compare(command: list[str], runs: Path):
         except OSError as error:
             raise CompareError(f"`{command[0]}` did not start: {error}") from error
         if done.returncode != 0:
-            raise CompareError(done.stderr.strip() or f"`cauldron-bench compare` exited {done.returncode}")
+            raise CompareError(done.stderr.strip() or f"`dark_factory-bench compare` exited {done.returncode}")
         try:
             return json.loads(done.stdout)
         except ValueError as error:
-            raise CompareError(f"`cauldron-bench compare --json` printed no JSON: {error}") from error
+            raise CompareError(f"`dark_factory-bench compare --json` printed no JSON: {error}") from error
 
     return compare
 
@@ -617,7 +617,7 @@ def main(argv: list[str] | None = None, git: Git | None = None) -> int:
     one.add_argument("--release", default="HEAD", help="the commit being released (default HEAD)")
     one.add_argument("--version", default=None, help="the version being released (default: the manifest's)")
     one.add_argument("--runs", type=Path, default=RUNS_DIR, help="the directory of committed reports")
-    one.add_argument("--bench", default=None, help="a built cauldron-bench binary (default: cargo run --release)")
+    one.add_argument("--bench", default=None, help="a built dark_factory-bench binary (default: cargo run --release)")
     args = parser.parse_args(argv)
 
     git = git or Git()

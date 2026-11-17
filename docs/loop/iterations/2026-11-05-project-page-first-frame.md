@@ -1,30 +1,30 @@
 # 2026-11-05 the Projects home's "garbled flash": what was measured, and what the measurement overtook
 
-Focus: the owner's report from Cauldron 0.2.5 on `mac_air` — pressing the card for `bevy_grimoire` on the
+Focus: the owner's report from DarkFactory 0.2.5 on `mac_air` — pressing the card for `bevy_blueprint` on the
 Projects home flashes something garbled before the project page paints. Machine: big. Outcome: the picture
 path is fixed and pinned by a test; **the flash itself did not reproduce**, and the first explanation for it
 was measured wrong and withdrawn rather than shipped as if it were the cause.
 
 ## The report
 
-`~/Library/Application Support/Grimoire/feedback/feedback-1793901499397.json` on `mac_air`: version 1,
+`~/Library/Application Support/Blueprint/feedback/feedback-1793901499397.json` on `mac_air`: version 1,
 `audience: developers`, `screen: launcher`, `app_version: 0.2.5`, window 2560x1406 physical / 1280x703
 logical, `scale_factor 2.0`, `ui_scale 2.4`. The pick is the card's own button, path
-`Screen › Split › SplitPane › Surface(0) › … › Button`, `text: "bevy_grimoire"`, rect `[605, 228, 1046, 577]`.
+`Screen › Split › SplitPane › Surface(0) › … › Button`, `text: "bevy_blueprint"`, rect `[605, 228, 1046, 577]`.
 The note: *"When I press this button, there is a garbled flash, before the UI paints correctly."*
 
 This build's `read_reports` refuses a version-1 file by name, so the record was read straight off disk.
 
 ## What was built
 
-`crates/bevy_cauldron/src/launcher.rs` gains `ProjectPictures`: **one decoded picture per (path, modified
+`crates/bevy_dark_factory/src/launcher.rs` gains `ProjectPictures`: **one decoded picture per (path, modified
 time)**. `project_picture` used to read, decode and `images.add` on every call — once per card on the home,
 once for the page's body, and again on every redraw — so a project's portrait was decoded and uploaded three
 or more times for one unchanged file. Both callers now share the handle. `Art` carries the cache,
 `fill_the_home`, `redraw_the_cards`, `fill_page` and `redraw` take `ResMut<ProjectPictures>`, and
 `PageBody` became `pub` so a test can tell the page from the home.
 
-`crates/bevy_cauldron/tests/the_project_page.rs` gains `the_first_frame_of_the_page_is_whole`, which drives a
+`crates/bevy_dark_factory/tests/the_project_page.rs` gains `the_first_frame_of_the_page_is_whole`, which drives a
 real click on a real card and asserts the frame the page first exists: one `LauncherRoot`, a `PageBody` and a
 map card, **every picture one the home already uploaded**, and every `SplitDivider` hidden.
 
@@ -39,7 +39,7 @@ extracted and prepared in that same frame, before the frame draws. The `Assets::
 plan proposed is a tautology besides: `Assets::add` inserts into the main world at once
 (`bevy_asset-0.20.0/src/assets.rs:401`), so it is `Some` the instant a picture is minted.
 
-Captured on big under Xvfb at 15 fps, `grimoire/capture_sequence` with the click at 0.40 s, against a
+Captured on big under Xvfb at 15 fps, `blueprint/capture_sequence` with the click at 0.40 s, against a
 **1 MiB 1024x1024** portrait — big enough that a late upload would be visible:
 
 | build | first frame of the page | band? |
@@ -80,11 +80,11 @@ the owner's call, not a pass's.
 | the same, with the fix | **PASS** |
 | `the_project_page` (20 tests) | 20 passed |
 | `the_launcher` (21 tests) | 21 passed |
-| `cargo clippy -p bevy_cauldron --all-targets -- -D warnings` | clean |
+| `cargo clippy -p bevy_dark_factory --all-targets -- -D warnings` | clean |
 | `changelog.py check` | consistent |
 
 Frames: `/tmp/pp-frames/big/` (base, large texture), `/tmp/pp-frames/after2/` (fixed),
-`/tmp/pp-frames/before2/` (base). The base binary used for the captures is `/tmp/bevy_cauldron_base`.
+`/tmp/pp-frames/before2/` (base). The base binary used for the captures is `/tmp/bevy_dark_factory_base`.
 
 ## A finding outside this item: text fields cannot paste
 
@@ -93,6 +93,6 @@ Asked mid-run and answered from the dependency graph, unchanged so far. `bevy_cl
 `bevy_clipboard` but not that feature — `cargo tree -e features | grep -c system_clipboard` is **0** in this
 workspace, and it is not declared anywhere in the manifests. `bevy_ui_widgets` does queue `TextEdit::Paste`
 (`text_input.rs:177`, `:196`), so the chord arrives; `Clipboard::fetch_text` then hands back the empty
-in-process string. Cauldron's own `arboard` (`crates/bevy_cauldron/Cargo.toml:152`) is used **write-only**, at
+in-process string. DarkFactory's own `arboard` (`crates/bevy_dark_factory/Cargo.toml:152`) is used **write-only**, at
 `launcher.rs:1003` and `notice.rs:370`, so nothing reads the system clipboard either. A fix is one feature
 (`bevy/system_clipboard`) and belongs in its own commit with its own test.

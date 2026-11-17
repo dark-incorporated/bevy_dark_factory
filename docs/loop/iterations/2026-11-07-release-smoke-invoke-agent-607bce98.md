@@ -18,7 +18,7 @@ Root cause: the smoke launches the app once and waits for its window to be front
 Fix: `tools/release/macos/smoke_app.py` retries a `NeverFocused` window up to `LAUNCH_ATTEMPTS` (3) with a fresh launch, `FOCUS_PATIENCE_S` (40) each; any other failure still fails at once. `tools/release/macos/test_smoke_app.py` (6 tests, 3 fail when the retry is mutated away). `Refs #338`, not closed until a release goes through the new smoke.
 
 ### 0.4.4 published by hand
-`gh release create bevy_cauldron-v0.4.4 …` with the artifacts the workflow built (SHA256SUMS checked, `stapler validate`, `spctl` "Notarized Developer ID", the smoke run by hand on that app passed). Commented on #337.
+`gh release create bevy_dark_factory-v0.4.4 …` with the artifacts the workflow built (SHA256SUMS checked, `stapler validate`, `spctl` "Notarized Developer ID", the smoke run by hand on that app passed). Commented on #337.
 
 ## Enhancement: the terminal starts no agent until Invoke Agent is pressed (the owner's message to the loop)
 
@@ -44,12 +44,12 @@ No reviewer subagent was spawned. Self-review, five questions: (1) does the Invo
 
 ## Test diffs
 
-- `crates/bevy_cauldron/tests/an_agent_tab_runs_its_self_test.rs`: the test presses `Invoke Agent` (`invoke_the_agent`, new, one call) before its assertions, which are unchanged: the first tab is still the agent's and every check is as before. Owner exception, the owner's own request ("you don't immediately engage the agent"), recorded in the commit message; none was written for it in advance, so this is an assumed owner exception.
-- `crates/bevy_cauldron/tests/all.rs`: one `mod` line. gooey `tests/all.rs`: two.
+- `crates/bevy_dark_factory/tests/an_agent_tab_runs_its_self_test.rs`: the test presses `Invoke Agent` (`invoke_the_agent`, new, one call) before its assertions, which are unchanged: the first tab is still the agent's and every check is as before. Owner exception, the owner's own request ("you don't immediately engage the agent"), recorded in the commit message; none was written for it in advance, so this is an assumed owner exception.
+- `crates/bevy_dark_factory/tests/all.rs`: one `mod` line. gooey `tests/all.rs`: two.
 
 ## Release
 
-`bevy_cauldron` 0.4.5 (`version.py next`; the Invoke Agent change is in it, the smoke retry is in the workflow's script), as its own commit `release: 0.4.5` at the end of this pass's push with the tag `bevy_cauldron-v0.4.5`. Not a crates.io crate (`publish = false`). The mac_air runner builds it; this pass does not watch or re-run the workflow. If its smoke refuses it again, the artifacts are in `~/actions-runner-bevy_grimoire/_work/bevy_grimoire/bevy_grimoire/dist` and `gh release create` publishes them as it did for 0.4.4.
+`bevy_dark_factory` 0.4.5 (`version.py next`; the Invoke Agent change is in it, the smoke retry is in the workflow's script), as its own commit `release: 0.4.5` at the end of this pass's push with the tag `bevy_dark_factory-v0.4.5`. Not a crates.io crate (`publish = false`). The mac_air runner builds it; this pass does not watch or re-run the workflow. If its smoke refuses it again, the artifacts are in `~/actions-runner-bevy_blueprint/_work/bevy_blueprint/bevy_blueprint/dist` and `gh release create` publishes them as it did for 0.4.4.
 
 ## Addendum: Enter presses Invoke Agent (after the 0.4.5 tag)
 
@@ -57,7 +57,7 @@ Self-review question 3 above was a real gap: a keyboard-only person with an agen
 
 ## Disk and leftovers
 
-Pass 1 removed 486 GB of regenerable build output on big and 12 GB of caches on mac_air (owner-granted). This pass removed its own worktrees (`~/p2-gooey-wt` and `~/p2-cauldron-wt` on big, `~/p2-gooey-wt` on mac) and `/tmp/p2_*`. Listed, not removed: worktrees `~/g17_base`, `~/g17_parked`, `~/g17s_base`, `~/bevy_elements_i70`, `~/bevy_elements_base70`, `~/bevy_before_target`, `~/bevy_lights_base_target` on big, and the `p1-*` and `p2-*` branches in `~/bevy_emerge_loop` and `~/bevy_gooey_loop` (a branch delete needs the owner's word).
+Pass 1 removed 486 GB of regenerable build output on big and 12 GB of caches on mac_air (owner-granted). This pass removed its own worktrees (`~/p2-gooey-wt` and `~/p2-dark_factory-wt` on big, `~/p2-gooey-wt` on mac) and `/tmp/p2_*`. Listed, not removed: worktrees `~/g17_base`, `~/g17_parked`, `~/g17s_base`, `~/bevy_elements_i70`, `~/bevy_elements_base70`, `~/bevy_before_target`, `~/bevy_lights_base_target` on big, and the `p1-*` and `p2-*` branches in `~/bevy_emerge_loop` and `~/bevy_gooey_loop` (a branch delete needs the owner's word).
 
 ## Next focus
 

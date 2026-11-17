@@ -37,7 +37,7 @@ was **added** to an existing module. (5) *What remains?* The split's positional 
 One new test in `headless.rs`. Nothing removed or loosened.
 
 ## Release
-None — `bevy_cauldron` is `publish = false`.
+None — `bevy_dark_factory` is `publish = false`.
 
 ## Next focus
 Compare the click test's own pixel against every hovered rect with the split in.

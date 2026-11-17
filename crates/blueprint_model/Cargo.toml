@@ -1,0 +1,71 @@
+[package]
+name = "blueprint_model"
+version = "0.12.0"
+edition = "2024"
+rust-version = "1.97.1"
+description = "Engine-free world-building core: constraint IR, solvers, WFC, deterministic RNG."
+# Relicensed MIT OR Apache-2.0 on extraction from foundation_vs_slop (owner decision, Sanctuary decision 0087).
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/bevy-coven/bevy_blueprint"
+
+# **No `bevy`, and that is the point of the crate.** Everything here is plain data and arithmetic, so
+# it can be consumed by the game, by the headless search, and by a standalone editor without any of
+# them agreeing on a renderer. `placement/ir.rs` has stated this invariant since before there was a
+# crate to enforce it; the crate is what turns the comment into a compiler error.
+#
+# Adding a `bevy` dependency here is a design change, not a convenience — see
+# `docs/2026-08-03-emerge-mapper-plan.md`.
+[dependencies]
+# The deterministic RNG, lifted out of this crate so a permissive sibling can share the exact same
+# generator rather than copy it. Re-exported as `blueprint_model::rng`, so this crate's callers are
+# unchanged. See `crates/blueprint_rng/CLAUDE.md` for why one definition is non-negotiable.
+blueprint_rng = { path = "../blueprint_rng", version = "0.1.0" }
+# The Boolean satisfiability back-end `constraints::Problem::solve` delegates to. Its own crate
+# because it is the one part of the constraint stack likely to be REPLACED, and because the decision
+# procedure knows nothing about grids or prototypes. It carries its own `tests/leaf.rs`, so the
+# boundary is policed on that side rather than taken on trust here.
+blueprint_solver = { path = "../blueprint_solver", version = "0.1.0" }
+serde.workspace = true
+# On a refused reload, the field the file is wrong at (`reload_check.rs`); never on the happy path.
+serde_path_to_error.workspace = true
+# Reading a `.glb`'s JSON chunk (`glb.rs`). Data only — no engine, no renderer. The reader is
+# hand-rolled rather than pulling a glTF crate, for the reason `tests/common/mod.rs` gives: it would
+# be "a second, differently-behaved reader of an asset the engine already parses its own way".
+serde_json.workspace = true
+rand.workspace = true
+rand_chacha.workspace = true
+# The digest a guide grant holds (`trust.rs`): whether a project's `AGENTS.md` is the text a person allowed.
+sha2.workspace = true
+# **The container a bake writes** (`bake.rs`, GD-08, #370): postcard over a value tree, so a release reads its data in
+# milliseconds where the YAML takes tens. Pure Rust, serde only, no engine.
+postcard = { version = "1.1", default-features = false, features = ["use-std"] }
+# The platform's per-user data and config folders (`user_dirs.rs`): the one place the editor and its MCP server
+# name where `recent.yaml`, `settings.yaml`, `trusted.yaml` and `dark_factory.log` live. No engine in it.
+dirs = "6"
+# The one YAML reader and writer every project file goes through (`yaml.rs`, GD-01, #363), and the event
+# parser that says where each node stands — which is what a refusal's line and field path come from.
+# Neither holds an engine type.
+serde_yaml_ng.workspace = true
+saphyr-parser.workspace = true
+# The JSON Schema each file kind publishes, generated from its type (`schema.rs`, GD-04, #366).
+schemars.workspace = true
+# **The CommonMark parser the design tree is read with** (SG-01, #400): the pictures a style text cites and
+# the links it makes. The same crate `bevy_gooey`'s Markdown view draws a page with (G-79), so the editor and
+# an agent list the same pictures for the same page. MIT, no engine in it.
+pulldown-cmark.workspace = true
+
+# **A JSON Schema validator, for the test and for nothing else** (#366). The schema tests check a fixture
+# against the schema an editor reads — a schema a wrong file passes is worse than none — and only a
+# validator can say so. It is a dev-dependency because nothing in the product validates a document
+# against a schema at runtime: an editor does, and this crate only generates the schema.
+[dev-dependencies]
+# **The RON reader, which is no longer a dependency of this crate** (GD-03, #365). The migration has to read
+# a release's files as it wrote them, and its tests compare the YAML it writes against the value those files
+# held; so the reader sits in `bevy_blueprint_migrate` and a TEST depends on it. `the_dependency_list_stays_closed`
+# only reads `[dependencies]`, so this is invisible to the ratchet, and that is the point: nothing in the
+# product half of this crate can reach RON.
+bevy_blueprint_migrate = { path = "../bevy_blueprint_migrate" }
+# **No default features**: with them, `jsonschema` is ~50 crates including `reqwest` and
+# `aws-lc-sys`, for a remote `$ref` resolver, a CLI and a language binding this test never uses. A schema
+# here is one local document whose `$defs` are in the same file, so nothing needs fetching.
+jsonschema = { version = "0.61", default-features = false }

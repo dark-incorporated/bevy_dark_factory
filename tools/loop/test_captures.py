@@ -303,14 +303,14 @@ class TheShow(Scratch):
                 "window": {"physical": [2560, 1406], "logical": [1280.0, 703.0], "scale_factor": 2.0,
                            "ui_scale": 2.4},
                 "subject": {"kind": "element", "rect_px": [605.0, 228.0, 1046.0, 577.0],
-                            "path": [{"name": None, "role": "Button", "control": None, "text": "bevy_grimoire"}]},
+                            "path": [{"name": None, "role": "Button", "control": None, "text": "bevy_blueprint"}]},
                 "note": "When I press this button, there is a garbled flash, before the UI paints correctly.",
             },
         )
         code, out = self.show("feedback-1793901499397")
         self.assertEqual(code, 0)
         self.assertIn("garbled flash", out)
-        self.assertIn('"bevy_grimoire"', out)
+        self.assertIn('"bevy_blueprint"', out)
         self.assertIn("record version 1", out)
 
     def test_a_version_two_record_is_read_through_picks_and_its_pointer_is_in_logical_px(self):

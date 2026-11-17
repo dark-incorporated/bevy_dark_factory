@@ -51,7 +51,7 @@ to the group's shape, and the click case is `#[ignore]d` with its finding. No as
 button-count case now asserts the group holds every tool **and** that no mode is also a one-shot button.
 
 ## Release
-None: only `bevy_cauldron` changed, and it is `publish = false`.
+None: only `bevy_dark_factory` changed, and it is `publish = false`.
 
 ## Next focus
 Find why the group's `ValueChange` never reaches the observer, then the clip the group is owed.

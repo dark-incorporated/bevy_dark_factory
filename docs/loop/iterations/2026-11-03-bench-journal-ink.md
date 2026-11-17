@@ -42,7 +42,7 @@ MCP: none. Preview/undo: n/a.
 
 ## Test diffs
 
-- `crates/bevy_cauldron/tests/all.rs`: one `mod the_benchs_labels_and_the_journal_take_the_skins_ink;`
+- `crates/bevy_dark_factory/tests/all.rs`: one `mod the_benchs_labels_and_the_journal_take_the_skins_ink;`
   (standing exception).
 - New test file, adopted from the parked branch and unmodified. No existing assertion changed.
 
@@ -57,7 +57,7 @@ holds only a partial `compose.rs` snapshot and `-concurrent`/`-b` the full tree;
 
 ## Release
 
-None: nothing packaged changed (`bevy_cauldron` is `publish = false`).
+None: nothing packaged changed (`bevy_dark_factory` is `publish = false`).
 
 ## Next focus
 

@@ -15,7 +15,7 @@ instead). Load 3.95, free disk 153 GB, available RAM 13 GB.
 ## Enhancement: the shell's regions and its divider
 Goal: the issue's first acceptance item — "a headless test finds each region by its accessible
 label" — plus the visible clip it asks for.
-Files: `crates/bevy_cauldron/src/chrome.rs`, one new test file, `tools/demo/storyboards/shell_regions.json`.
+Files: `crates/bevy_dark_factory/src/chrome.rs`, one new test file, `tools/demo/storyboards/shell_regions.json`.
 Proof: `the_shells_regions_are_labelled` failed at HEAD with
 `no laid-out node answers to "Viewport"; ... Laid out labels found: ["INSPECTOR", "PLACE", "MAP"]`
 and passes now. `the_shells_divider_resizes_the_docks` pins that the split keeps the geometry
@@ -37,7 +37,7 @@ and passes now. `the_shells_divider_resizes_the_docks` pins that the split keeps
 
 ## Test diffs
 Two new test files, no existing assertion changed:
-`crates/bevy_cauldron/tests/the_shell_s_regions_are_labelled_and_the_divider_moves.rs` plus its one
+`crates/bevy_dark_factory/tests/the_shell_s_regions_are_labelled_and_the_divider_moves.rs` plus its one
 `mod` line in `all.rs` (the owner's exception for a new editor test file).
 
 ## Review
@@ -55,15 +55,15 @@ Reviewer not spawned; self-review, mine:
 ## Release
 Two crates had real changes since their tags and are published from a green local gate:
 
-- **bevy_grimoire_core v0.7.0** — https://crates.io/crates/bevy_grimoire_core/0.7.0
+- **blueprint_model v0.7.0** — https://crates.io/crates/blueprint_model/0.7.0
   `AgentSettings::launch` gained a parameter (semver-checks: `method_parameter_count_changed`), so
   pre-1.0 it is a MINOR bump: 0.6.5 -> 0.7.0.
-- **bevy_grimoire v0.4.2** — https://crates.io/crates/bevy_grimoire/0.4.2
+- **bevy_blueprint v0.4.2** — https://crates.io/crates/bevy_blueprint/0.4.2
   Its API is unchanged (202 checks pass, no semver update required) but its published `Cargo.toml`
   now requires core 0.7.0, so the crate that ships is different: PATCH.
 
-`bevy_grimoire_rng`, `_solver`, `_anim` and `_snip` have no changed files of their own. `bevy_cauldron`
-and `bevy_cauldron_mcp` are `publish = false`.
+`blueprint_rng`, `_solver`, `_anim` and `_snip` have no changed files of their own. `bevy_dark_factory`
+and `dark_factory_mcp` are `publish = false`.
 
 ## Second slice: the split's floor
 `a_dock_resize_never_covers_the_viewport`: at `SplitFraction` 0.95 the viewport measured **47 px of a

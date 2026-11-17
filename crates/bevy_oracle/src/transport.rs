@@ -6,7 +6,7 @@ pub trait Transport {
     fn endpoint(&self) -> String;
 
     /// **Where this transport's answers are made**: [`DecisionModel::Local`] when nothing leaves the LAN,
-    /// [`DecisionModel::Remote`] when pictures may have. `grimoire_decide` says it in its answer's `where`.
+    /// [`DecisionModel::Remote`] when pictures may have. `blueprint_decide` says it in its answer's `where`.
     ///
     /// It is the person's choice, not a guess from an address, so a LAN address chosen as Local reads `local`. **The
     /// default is Remote**: a transport that does not say is read as the one that may have sent pictures away, never
