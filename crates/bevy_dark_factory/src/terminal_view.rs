@@ -220,6 +220,7 @@ fn take_the_terminal_settings(
         args: settings.terminal_shell_args.clone(),
     }));
     terminal.set_agent(settings.terminal_agent, settings.terminal_agent_command.clone());
+    terminal.set_agent_model(settings.terminal_agent_model.clone());
     // **The collapse a person left, when a file states one** (#424), taken when the *setting* changes, never again: the pane's own
     // raise and lower (a chord, the status bar's label) write the file, and a later read of that same value must not undo a raise
     // made since. A layer that states nothing leaves the pane as it starts, collapsed.

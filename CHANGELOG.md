@@ -2,6 +2,12 @@
 
 What each change added, newest first. A visible change has a clip: click the still to play it. `python3 tools/changelog/changelog.py page --open` plays them all in one page.
 
+## 2026-11-17
+
+- **483-bar-says-why** `b17702ed` A tab of the activity bar says who has the keys when its chord cannot fire, instead of showing a key that does nothing; with the editor holding the keys each tooltip is its workspace's name alone, as before *For you: When the terminal or a text field has the keyboard, the icons down the left no longer show a shortcut that will not work: they say so, and that clicking still takes you there.* *No clip: visible, not yet recorded: fleet worker*
+- **484-session-servers** `f37b3a00` The config the editor writes for an agent session carries the editor's own MCP server plus the servers the open project declares in its .mcp.json, and the self-test card names the servers written for the session; a machine-level server is not in that file. omp still loads its own machine-level servers beside it, which needs an upstream allow-list (#484 on can1357/oh-my-pi#19573) *For you: The agent you start from the editor is handed the editor's tools and whatever your project declares, and the self-test card lists the servers it was started with.* *No clip: visible, not yet recorded: fleet worker*
+- **477-agent-model** `7e8842d1` The agent tab opens omp on the model a person names in Settings (terminal_agent_model), in both the fresh and the resume form, and its self-test card says which model is answering; a model omp refuses fails the Agent connected row naming the id rather than falling back *For you: The agent the editor starts now runs the model you picked once in your settings, so every editor you open talks to the same model, and the self-test card tells you which one.* *No clip: visible, not yet recorded: fleet worker*
+
 ## 2026-11-16
 
 - **473-review-fixes** A carves report reads its own map's ground and its own name, and refuses what the edit path refuses: a map name that is a path, and a carve list too large to flood-fill, both refused naming what they are rather than answered with an empty report or a stalled frame *No clip: a verb's refusals and the ground it reads; proved by crates/blueprint_model/tests/a_report_is_bounded_by_a_named_limit.rs and an_agent_can_ask_a_carve_list_what_it_made*

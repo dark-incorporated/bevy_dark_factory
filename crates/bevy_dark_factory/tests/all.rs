@@ -34,6 +34,8 @@ mod a_style_rows_lines_are_gooey_rows;
 mod a_terminals_default_colours_follow_the_theme;
 mod a_terminals_hangup_wait_is_listed_for_the_exit_watchdog;
 mod a_workspace_switch_keeps_the_map;
+mod an_agent_session_gets_the_editors_and_the_projects_servers;
+mod an_agent_starts_with_the_model_the_settings_name;
 mod areas_drawn_on_the_map;
 mod back_and_forward_across_workspaces;
 mod back_and_forward_returns_to_a_cue_and_a_file;
@@ -547,6 +549,7 @@ mod volume_wears_its_cover;
 mod water_place_is_an_operation;
 mod water_run_settles_a_pond;
 mod world_gizmos_stay_in_the_world;
+mod workspace_chords_work_over_the_activity_bar;
 
 mod schemas_are_written_where_an_outside_editor_looks;
 

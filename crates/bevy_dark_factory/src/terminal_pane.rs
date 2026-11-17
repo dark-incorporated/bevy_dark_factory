@@ -1473,7 +1473,7 @@ fn spawn_the_agent_card(commands: &mut Commands, body: Entity, post: &crate::ter
             Name::new("terminal agent card"),
         ))
         .with_children(|card| {
-            card.spawn(sentence(format!("Agent self test · {}", post.harness.name()), ink.read, TerminalAgentCardRow(None)));
+            card.spawn(sentence(post.heading(), ink.read, TerminalAgentCardRow(None)));
             for (index, (label, check)) in crate::terminal_agent::CHECK_LABELS.iter().zip(&post.checks).enumerate() {
                 card.spawn((
                     bevy_gooey::row_with(chrome::GAP_TIGHT_STEPS, bevy_gooey::RowLayout { align: Some(AlignItems::Center), ..default() }),
@@ -1484,6 +1484,11 @@ fn spawn_the_agent_card(commands: &mut Commands, body: Entity, post: &crate::ter
                     row.spawn((bevy_gooey::led(*label, check.led()), TerminalCardRowLed(index), PaneLed(chrome::text::LABEL)));
                     row.spawn(sentence(format!("{label}: {}", check.detail()), check.ink(&ink), TerminalAgentCardRow(Some(index))));
                 });
+            }
+            // **The servers this session has** (#484): a sentence, not a check, so it stands under the five rows and cannot be
+            // read as a sixth thing that passed. Absent on a pre-#484 card, which drew exactly the rows it drew before.
+            if let Some(servers) = post.servers_row() {
+                card.spawn(sentence(servers, ink.muted, TerminalAgentCardRow(None)));
             }
             card.spawn((bevy_gooey::led(AGENT_LED_LABEL, post.led()), TerminalAgentCardLed, PaneLed(chrome::text::LABEL)));
         })

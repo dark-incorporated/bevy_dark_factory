@@ -40,6 +40,14 @@ pub const SELF_TEST_PROMPT: &str = "You are running in the terminal of DarkFacto
 pub const MCP_SERVER_NAME: &str = "dark_factory";
 /// The MCP server's binary, beside the editor's own.
 pub const MCP_BINARY: &str = "dark_factory_mcp";
+/// **The model the editor's agent tab names when a person asks for one** (#477, `feedback-1794783326602`): the id the
+/// Settings row's hint prints, spelled the exact `provider/model` omp matches without guessing, so the words in the hint
+/// and the model on the launch line cannot be two different answers.
+///
+/// **It is documentation, not a default.** No machine starts paying for a model because this constant exists: the setting
+/// is what names one ([`crate::settings::EditorSettings::terminal_agent_model`]), and a person who wants the editor's own
+/// answer types this id into their settings file.
+pub const DEFAULT_MODEL: &str = "anthropic/claude-sonnet-5-5";
 /// How long a started agent has to finish its MCP handshake.
 pub const AGENT_HELLO_TIMEOUT_S: f64 = 60.0;
 /// How long a connected agent has to run the self test: a model turn, plus a person answering an
@@ -107,6 +115,20 @@ const STARTED: usize = 1;
 const CONNECTED: usize = 2;
 const SELF_TEST: usize = 3;
 const DECISION: usize = 4;
+
+/// **The name the self test gives the decision model's check** (DM-03, #454): `blueprint_self_test` sends it with the other checks, and the card
+/// **The row a refusal by the harness itself fails**, named for a reader outside this module: the "Agent connected" row.
+pub const CONNECTED_CHECK: usize = CONNECTED;
+/// **The row that skips when the harness never started**: the "Agent self test" row.
+pub const SELF_TEST_CHECK: usize = SELF_TEST;
+
+/// **What omp writes to stderr when it does not know the model it was given**, as measured on 2026-11-17 (`omp --model
+/// no-such-model-xyz -p hi`, v18.16.0): `Model "<id>" not found`, then a line naming `omp models find`.
+///
+/// The editor reads these words to tell a refused model from a shell's ordinary output, because omp names no other channel: the tab
+/// is a shell, not a process whose exit code the editor holds.
+const MODEL_REFUSED_LEAD: &str = "Model \"";
+const MODEL_REFUSED_TAIL: &str = "\" not found";
 
 /// **The name the self test gives the decision model's check** (DM-03, #454): `blueprint_self_test` sends it with the other checks, and the card
 /// shows it as the row [`CHECK_LABELS`] names, not inside the agent self test's.
@@ -258,6 +280,15 @@ pub struct AgentPost {
     pub session: Option<String>,
     /// The session this launch was told to resume, when it was a resume.
     pub resuming: Option<String>,
+    /// **The model this tab was started with** (#477), as `--model` carried it: `None` when the settings named none, and omp
+    /// then picks its own. The card's heading says it ([`AgentPost::heading`]), so a person can tell which model is answering.
+    pub model: Option<String>,
+    /// **The MCP servers this session is meant to have** (#484): the editor's own plus the project's, as
+    /// [`crate::agent_servers::SessionServers`]. `None` on a tab whose launch never got as far as deciding them.
+    pub servers: Option<crate::agent_servers::SessionServers>,
+    /// **Why the project's `.mcp.json` gave no servers**, when it exists and could not be read: said on the card, so a typo
+    /// is visible and the session's own set is still what starts.
+    pub servers_problem: Option<String>,
     /// `session` changed since the resume record was last settled ([`keep_the_resume_record`]).
     session_changed: bool,
     /// A resumed agent never connected, so the session the record named cannot be resumed: the record is struck out.
@@ -280,6 +311,9 @@ impl AgentPost {
             project: None,
             session: None,
             resuming: None,
+            model: None,
+            servers: None,
+            servers_problem: None,
             session_changed: false,
             resume_failed: false,
         }
@@ -436,6 +470,40 @@ impl AgentPost {
         }
     }
 
+    /// **The card's heading: what is running, and which model answers it** (#477). The harness is what the card reports on; the
+    /// model is the thing a person who reported "which model am I talking to?" has to be able to read, and it is on the heading
+    /// because it belongs to the whole test rather than to one check.
+    ///
+    /// A tab started with no model says so in omp's own terms (`omp's own model`), never with a blank: a heading that dropped the
+    /// model would leave the question unanswered for exactly the tab that has no answer in the editor.
+    pub fn heading(&self) -> String {
+        match &self.model {
+            Some(model) => format!("Agent self test · {} · {model}", self.harness.name()),
+            None => format!("Agent self test · {}", self.harness.name()),
+        }
+    }
+
+    /// **The card's row for the servers a session has** (#484): the names the editor wrote into the session's config, and the
+    /// project's file's problem when it had one. `None` on a tab whose launch never decided them, so a card built before this
+    /// existed draws what it drew before rather than an empty row.
+    ///
+    /// **The set is what the editor wrote, not what omp loaded.** omp at v18.16.0 discovers its machine-level servers too, and
+    /// this row says what the session is *for*; the difference is requested upstream (`can1357/oh-my-pi#19573`) rather than
+    /// guessed at here.
+    pub fn servers_row(&self) -> Option<String> {
+        let servers = self.servers.as_ref()?;
+        let mut said = format!("{} (written for this session): {}", Self::SERVER_ROW_LABEL, servers.words());
+        if let Some(problem) = &self.servers_problem {
+            said.push_str(" · ");
+            said.push_str(problem);
+        }
+        Some(said)
+    }
+
+    /// **The row the servers are named on**: after the decision model, so the five checks' rows keep their order and this reads
+    /// as what the session is, not as a sixth test that could fail.
+    pub const SERVER_ROW_LABEL: &str = "MCP servers";
+
     /// **The first check that failed, in a sentence** (`Agent connected: omp did not reach the editor…`), or `None` when none has.
     /// A failure's reason belongs on the card and in the LED's tooltip, never in a chip of the bar (#423).
     pub fn failure(&self) -> Option<String> {
@@ -535,6 +603,10 @@ pub fn mcp_config(
 /// Check 0 fails, and nothing is typed, when the editor has no agent setup, no remote protocol, no
 /// server binary beside it, or a config could not be written. omp is given its config as an extension
 /// folder (`omp -e <dir>`); a custom command reads `$DARK_FACTORY_MCP_CONFIG` or `$DARK_FACTORY_MCP` itself.
+/// folder (`omp -e <dir>`); a custom command reads `$DARK_FACTORY_MCP_CONFIG` or `$DARK_FACTORY_MCP` itself.
+///
+/// **The model omp runs is the settings'** (#477): [`plan_with_model`] is what a launch from the editor uses, and this
+/// takes no model, so a caller that has none starts omp on its own pick.
 pub fn plan(
     harness: TerminalAgent,
     command: Option<&str>,
@@ -557,6 +629,31 @@ pub fn plan_resuming(
     resume: Option<&str>,
     now_s: f64,
 ) -> AgentLaunch {
+    plan_with_model(harness, command, setup, project, resume, None, now_s)
+}
+
+/// **[`plan_resuming`] with the model the settings name** (#477, `feedback-1794783326602`): `model` is typed as `--model` on an
+/// omp launch, so every editor on the LAN starts an agent the same way, and it is on the tab's card
+/// ([`AgentPost::heading`]).
+///
+/// **One builder, because there is one launch line.** The fresh form and the resume form are built in the same
+/// `match` below, so a flag added to one cannot be left off the other. `None` (or nothing but spaces) omits `--model`
+/// entirely: omp matches a model by name and an empty one is a value it would have to refuse, which is not something the
+/// editor should type into a person's shell.
+///
+/// Only an omp tab is handed it. A custom command keeps its own flags, which is what its name promises.
+pub fn plan_with_model(
+    harness: TerminalAgent,
+    command: Option<&str>,
+    setup: Option<&AgentSetup>,
+    project: Option<&Path>,
+    resume: Option<&str>,
+    model: Option<&str>,
+    now_s: f64,
+) -> AgentLaunch {
+    // **Only an omp tab is handed a model** (#477): a custom command keeps its own flags, and a harness the editor does not run
+    // gets none, so the value is dropped here rather than carried on a card that would then report a model nothing used.
+    let model = model.map(str::trim).filter(|m| !m.is_empty() && harness == TerminalAgent::OhMyPi);
     let token = format!(
         "{:x}",
         std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_nanos())
@@ -569,6 +666,8 @@ pub fn plan_resuming(
     let mut post = AgentPost::new(harness, token.clone(), first_word.to_owned(), now_s);
     post.project = project.map(Path::to_path_buf);
     post.resuming = resume.map(str::to_owned);
+    // Said on the card even when the launch is refused below: a person who set a model wants to read which one was asked for.
+    post.model = model.map(str::to_owned);
     let nothing = |mut post: AgentPost, why: String| {
         post.checks[SERVER] = CheckStatus::Failed(why);
         post.skip_from(STARTED, "nothing was started");
@@ -597,16 +696,28 @@ pub fn plan_resuming(
             format!("the tools server is not at {}: build it with cargo build -p {MCP_BINARY}", setup.server.display()),
         );
     }
+    // **The session's servers are one set** (#484): the editor's, plus whatever the open project declares in its own
+    // `.mcp.json`. The plain harness config (`$DARK_FACTORY_MCP_CONFIG`) stays the editor's server alone, because it is what a
+    // custom command is handed and that command's own config is its business; the omp extension folder's `.mcp.json` is
+    // where the whole session set is written, which is the file omp reads for this launch.
+    let (servers, servers_problem) = crate::agent_servers::project_servers_for(project);
+    post.servers = Some(servers.clone());
+    post.servers_problem = servers_problem;
     let config = mcp_config(&setup.server, port, &token, project, &[]);
+    let session_config = crate::agent_servers::session_config(&config, project);
     let config_text = match serde_json::to_string_pretty(&config) {
         Ok(text) => text + "\n",
         Err(e) => return nothing(post, format!("the MCP config did not serialise: {e}")),
+    };
+    let session_text = match serde_json::to_string_pretty(&session_config) {
+        Ok(text) => text + "\n",
+        Err(e) => return nothing(post, format!("the session's MCP config did not serialise: {e}")),
     };
     let config_file = setup.files.join(MCP_CONFIG_FILE);
     let omp_dir = setup.files.join(OMP_EXTENSION_DIR);
     let mut writes = vec![(config_file.clone(), config_text.clone())];
     if harness == TerminalAgent::OhMyPi {
-        writes.push((omp_dir.join(OMP_MCP_FILE), config_text));
+        writes.push((omp_dir.join(OMP_MCP_FILE), session_text));
         writes.push((omp_dir.join(OMP_EXTENSION_ENTRY), OMP_EXTENSION_SOURCE.to_owned()));
     }
     // **Written on every launch**: a harness reads its config when it starts, so the newest token is
@@ -622,14 +733,17 @@ pub fn plan_resuming(
         }
     }
     post.checks[SERVER] = CheckStatus::Passed(format!("{MCP_BINARY} on port {port}"));
+    // **The model flag, one expression both forms read.** `None` is no flag at all: `--model ''` is a value omp would refuse,
+    // and a person who names no model wants omp's own pick rather than an error.
+    let model_flag = model.map(|m| format!(" --model {}", shell_quote(m))).unwrap_or_default();
     let line = match harness {
         TerminalAgent::OhMyPi => match resume {
             Some(session) => {
                 post.checks[SELF_TEST] = CheckStatus::Skipped("a resumed session is not asked its self test again".to_owned());
                 post.checks[DECISION] = CheckStatus::Skipped("a resumed session is not asked its self test again".to_owned());
-                format!("omp -e {} --resume {}\r", shell_quote(&omp_dir.to_string_lossy()), shell_quote(session))
+                format!("omp -e {}{model_flag} --resume {}\r", shell_quote(&omp_dir.to_string_lossy()), shell_quote(session))
             }
-            None => format!("omp -e {} {}\r", shell_quote(&omp_dir.to_string_lossy()), shell_quote(SELF_TEST_PROMPT)),
+            None => format!("omp -e {}{model_flag} {}\r", shell_quote(&omp_dir.to_string_lossy()), shell_quote(SELF_TEST_PROMPT)),
         },
         TerminalAgent::Custom | TerminalAgent::Off => match command {
             Some(command) => format!("{command}\r"),
@@ -649,6 +763,71 @@ pub fn plan_resuming(
         ("DARK_FACTORY_SELF_TEST_PROMPT".to_owned(), SELF_TEST_PROMPT.to_owned()),
     ];
     AgentLaunch { line: line.into_bytes(), env, post }
+}
+
+/// `blueprint/agent_hello`'s body.
+/// **The longest a refusal's quoted id may be**: a model id is short, and a screen row that carried a whole paragraph of some
+/// program's output is not omp refusing a model. Comfortably over any `provider/model` and far under a row.
+const REFUSED_ID_MAX: usize = 200;
+
+/// **Did the agent tab's own screen say omp refused the model it was started with?** (#477's third design note: *"A model id that
+/// omp refuses must read back as a failed check on the self-test card, naming the id and what omp said, never a silent fallback to
+/// the default."*)
+///
+/// The tab is a shell, so the editor holds no exit code: what it holds is the screen, and omp's refusal is two lines of it
+/// ([`MODEL_REFUSED_LEAD`]). `true` when the drawn tab's screen carries a refusal **for the model this launch named**, in which case
+/// its record's **Agent connected** row is failed with the id, omp's own words, and the setting to fix, and the two later rows are
+/// skipped: the session never started, so there is nothing to ask.
+///
+/// **Only while the row is still waiting, and only for this tab's own model.** Two things that would otherwise turn a working session
+/// into a failed card: a session that has *connected* is a session omp accepted, so nothing later on its screen is a refusal of its
+/// launch — and an agent that quotes this message in its own answer, runs `omp --model x` in the tab, or prints a tool result holding
+/// the words is not omp refusing anything. So the scan is gated on [`CheckStatus::Pending`] and the id has to equal the model the tab
+/// was started with ([`AgentPost::model`]), which is the only model a refusal from this launch can name.
+pub fn read_a_refused_model(terminal: &mut Terminal) -> bool {
+    let Some(tab) = terminal.tab_mut() else {
+        return false;
+    };
+    let Some(started_with) = tab.agent().and_then(|post| post.model.clone()) else {
+        return false;
+    };
+    if !tab.agent().is_some_and(|post| post.checks[CONNECTED] == CheckStatus::Pending) {
+        return false;
+    }
+    // The rows as the pane last built them: a tab that is not drawn this frame has none, and its refusal is read the frame it is.
+    let rows: Vec<String> = tab.screen_mut().lines().iter().map(|line| line.cells.iter().map(|cell| cell.ch).collect()).collect();
+    let Some(id) = refused_model_in(&rows).filter(|id| *id == started_with) else {
+        return false;
+    };
+    let Some(post) = tab.agent_mut() else {
+        return false;
+    };
+    post.checks[CONNECTED] = CheckStatus::Failed(format!(
+        "{} refused the model {id:?}: it said {id:?} was not found, so no session started. Set terminal_agent_model in settings.yaml to a model omp has (omp models lists them), or leave the key out to run omp's own.",
+        post.harness.name()
+    ));
+    post.skip_from(SELF_TEST, "the agent never started");
+    post.revision += 1;
+    true
+}
+
+/// **The model a screen says omp refused**, when it says one: the id between [`MODEL_REFUSED_LEAD`] and [`MODEL_REFUSED_TAIL`] on a
+/// row, when it is short enough to be an id ([`REFUSED_ID_MAX`]) and is not empty.
+fn refused_model_in(rows: &[String]) -> Option<String> {
+    for row in rows {
+        let Some(at) = row.find(MODEL_REFUSED_LEAD) else {
+            continue;
+        };
+        let rest = &row[at + MODEL_REFUSED_LEAD.len()..];
+        let Some(end) = rest.find(MODEL_REFUSED_TAIL) else {
+            continue;
+        };
+        let id = &rest[..end];
+        if !id.is_empty() && id.len() <= REFUSED_ID_MAX {
+            return Some(id.to_owned());
+        }
+    }
+    None
 }
 
 /// `blueprint/agent_hello`'s body.
@@ -764,7 +943,15 @@ pub fn open_agent_tab_resuming(
     now_s: f64,
 ) -> usize {
     let project = root.and_then(crate::project_assets::ProjectRoot::current);
-    let launch = plan_resuming(terminal.agent(), terminal.agent_command(), setup, project.as_deref(), resume, now_s);
+    let launch = plan_with_model(
+        terminal.agent(),
+        terminal.agent_command(),
+        setup,
+        project.as_deref(),
+        resume,
+        terminal.agent_model(),
+        now_s,
+    );
     let cwd = terminal.next_cwd();
     terminal.spawn_agent(cols, rows, &cwd, launch)
 }
@@ -774,7 +961,16 @@ pub struct TerminalAgentPlugin;
 
 impl Plugin for TerminalAgentPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Update, (tick_the_agents, keep_the_resume_record));
+        // The refusal is read before the timeouts, so a tab whose model omp refused fails with omp's own words rather than the
+        // minute-long "did not reach the editor" a silent session would earn.
+        app.add_systems(Update, (read_the_refusal_each_frame, tick_the_agents, keep_the_resume_record).chain());
+    }
+}
+
+/// **[`read_a_refused_model`] for every agent tab whose screen is drawn this frame.**
+fn read_the_refusal_each_frame(mut terminal: ResMut<Terminal>) {
+    if read_a_refused_model(&mut terminal) {
+        terminal.set_changed();
     }
 }
 

@@ -100,7 +100,10 @@ pub(crate) enum Layer {
     /// This build cannot name the file (no user settings folder, or no project open).
     Unavailable,
     Missing,
-    Read(SettingsLayer),
+    /// The file's keys. **Boxed**: a layer holds every key a settings file may set, and the model id this screen cannot edit
+    /// (#477) put the whole enum over clippy's size budget beside a two-word reason, which is a stack copy per snapshot for
+    /// no gain.
+    Read(Box<SettingsLayer>),
     Unreadable(String),
 }
 
@@ -110,7 +113,7 @@ impl Layer {
         let file = path.to_string_lossy().replace('\\', "/");
         match std::fs::read_to_string(path) {
             Ok(text) => match SettingsLayer::read(&file, &text) {
-                Ok(layer) => Layer::Read(layer),
+                Ok(layer) => Layer::Read(Box::new(layer)),
                 Err(r) => Layer::Unreadable(format!("{file} does not read ({}): {}", r.field.as_deref().unwrap_or("file"), r.reason)),
             },
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => Layer::Missing,

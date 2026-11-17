@@ -198,7 +198,7 @@ pub const CATALOGUE: &[Setting] = &[
         key: "terminal_agent",
         label: "Terminal agent",
         category: "Terminal",
-        description: "The agent the terminal's Start agent button starts, connected to the editor's tools and checked with a self test. The terminal starts no agent by itself: a session costs tokens to warm up. Custom command runs terminal_agent_command from settings.yaml, and is offered once a command is set.",
+        description: "The agent the terminal's Start agent button starts, connected to the editor's tools and checked with a self test. The terminal starts no agent by itself: a session costs tokens to warm up. Custom command runs terminal_agent_command from settings.yaml, and is offered once a command is set. Which model omp runs is terminal_agent_model in settings.yaml: name one, like anthropic/claude-sonnet-5-5, and every editor starts the same agent; leave it out and omp picks, which is a different model on each machine.",
         kind: Kind::Options(TERMINAL_AGENTS),
     },
 ];

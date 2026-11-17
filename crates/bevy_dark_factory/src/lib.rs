@@ -246,6 +246,10 @@ pub mod surface;
 // tab starts and its self test, and `agent_resume.rs` is the record of which session a project had running.
 // See `terminal/mod.rs`.
 pub mod agent_resume;
+// **The MCP servers an agent session has** (#484): the editor's own plus whatever the project declares, as one set the
+// card shows and the config carries. omp has no allow-list at v18.16.0, so scoping it is requested upstream
+// (`can1357/oh-my-pi#19573`) and this module is the editor's side of the answer.
+pub mod agent_servers;
 pub mod terminal;
 pub mod terminal_agent;
 pub mod terminal_pane;
