@@ -2,6 +2,10 @@
 
 What each change added, newest first. A visible change has a clip: click the still to play it. `python3 tools/changelog/changelog.py page --open` plays them all in one page.
 
+## 2026-11-17
+
+- **477-agent-model** `7e8842d1` The agent tab opens omp on the model a person names in Settings (terminal_agent_model), in both the fresh and the resume form, and its self-test card says which model is answering; a model omp refuses fails the Agent connected row naming the id rather than falling back *For you: The agent the editor starts now runs the model you picked once in your settings, so every editor you open talks to the same model, and the self-test card tells you which one.* *No clip: visible, not yet recorded: fleet worker*
+
 ## 2026-11-16
 
 - **473-review-fixes** A carves report reads its own map's ground and its own name, and refuses what the edit path refuses: a map name that is a path, and a carve list too large to flood-fill, both refused naming what they are rather than answered with an empty report or a stalled frame *No clip: a verb's refusals and the ground it reads; proved by crates/bevy_grimoire_core/tests/a_report_is_bounded_by_a_named_limit.rs and an_agent_can_ask_a_carve_list_what_it_made*
