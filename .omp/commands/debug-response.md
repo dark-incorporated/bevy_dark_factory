@@ -23,6 +23,8 @@ A pass that stops early and cleanly costs one cycle. A pass that leaves a half-d
 
 **Captures are permanent.** Never move, rename or delete a capture's files. The history and its reviews depend on them.
 
+**A capture becomes an issue in one shape: `docs/loop/captures/ISSUE-FORMAT.md`.** That file is the contract — the seven sections, the two raw URLs, and the rule that an issue exists only after its pictures answer `200`. Filing is a separate job from answering (it needs no build and can be done in a batch), so `.omp/commands/file-captures.md` does it; this pass **reads** already-filed issues rather than filing its own. When a capture this pass answers has no issue and one is warranted, file it with that command's procedure first, and carry the number into the report.
+
 ## Hosts
 
 |name|what it is|use it for|
