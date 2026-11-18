@@ -2,6 +2,10 @@
 
 What each change added, newest first. A visible change has a clip: click the still to play it. `python3 tools/changelog/changelog.py page --open` plays them all in one page.
 
+## 2026-11-18
+
+- **491** `0` A modifier pressed in the report's note box no longer lands in the note and no chord saves it, so a note keeps exactly what was typed *No clip: a keyboard fix in a dialog with no new screen of its own; proved by tests/a_modifier_is_not_note_text.rs*
+
 ## 2026-11-17
 
 - **472-section-cut** blueprint_capture_still and blueprint_decide take cut_m: a section plane that removes what stands between the camera and a carved room, so the floor can be seen; hide alone draws the interior's near surface, the vault and the far walls, and never the floor *For you: A captured picture can now look at the floor of an underground room instead of the ceiling above it.* *No clip: a parameter and a view; proved by crates/dark_factory_mcp/tests/decide_hides_the_terrain.rs*

@@ -384,6 +384,11 @@ pub struct ReportOpen;
 #[derive(Component)]
 pub struct ReportBox;
 
+/// **The note box's own field's row**, so [`keep_the_note_boxs_keys`] can find the field Bevy's
+/// `TextInput` sits on and give it back the keyboard when something else took it (#491).
+#[derive(Component)]
+pub struct NoteField;
+
 /// Everything this module draws, so a test can find the outline and the hit test can ignore its own
 /// layer: the frozen picture covers the whole window, so without this every click would answer "a
 /// picture of the editor".
@@ -1367,17 +1372,19 @@ fn report_box(
                         bevy_gooey::text_area("What is wrong", "", 6),
                         bevy::input_focus::AutoFocus,
                         bevy_gooey::TextLimit(NOTE_MAX_CHARS),
+                        NoteField,
                         bevy_gooey::observe(
                             |change: On<bevy_gooey::ValueChange<String>>,
                              mut report: ResMut<ReportEdit>| {
                                 if let Some(open) = report.open.as_mut() {
                                     open.note = change.value.clone();
                                 }
-                                // **`Cmd+Enter` ends the edit** and the field reports one final
-                                // change; the button and the chord reach the same save.
-                                if change.is_final {
-                                    report.save_asked = true;
-                                }
+                                // **A final change is NOT a save** (#491). gooey reports one whenever
+                                // the edit ends for any reason: the field losing focus to a bare
+                                // `Alt` tapped for the menu bar, `Tab` moving on, or a chord. Saving
+                                // on it meant a note was written the moment the keyboard moved, and
+                                // the owner lost a note to `Cmd+J`. Only the person's own acts save:
+                                // the Save button, or `Cmd+Enter` ([`report_note_chord`]).
                             },
                         ),
                     ));
@@ -1406,6 +1413,75 @@ fn report_box(
                     });
                 });
         });
+}
+
+/// **`Cmd+Enter` in the note box saves; nothing else ends the note** (#491).
+///
+/// gooey's `text_area` finishes the edit on `Cmd+Enter` or `Ctrl+Enter` and reports one final
+/// `ValueChange` — but it reports a final change for *every* way an edit ends, including the field
+/// losing focus to a bare `Alt` tapped for the menu bar or a `Tab` moving on. So the final change is
+/// no longer a save (see the field's observer), and the chord is read here instead: the person's
+/// deliberate end of the edit is the one act that writes the report.
+fn report_note_chord(keys: Res<ButtonInput<KeyCode>>, mut report: ResMut<ReportEdit>) {
+    if report
+        .open
+        .as_ref()
+        .is_none_or(|open| open.phase != Phase::Note)
+    {
+        return;
+    }
+    let chord = keys.any_pressed([
+        KeyCode::ControlLeft,
+        KeyCode::ControlRight,
+        KeyCode::SuperLeft,
+        KeyCode::SuperRight,
+    ]);
+    if chord && keys.just_pressed(KeyCode::Enter) {
+        report.save_asked = true;
+    }
+}
+
+/// **The note box keeps the keyboard while it is up** (#491).
+///
+/// A bare `Alt` tapped for the menu bar, `Tab` moving on, or any other chord that moves the input
+/// focus used to take the keyboard out of the note mid-sentence and end the edit. The box is a
+/// gooey `dialog` over the whole window: while it is up, nothing behind it can be the person's
+/// target, so the focus belongs to its own field unless it is already inside the box (Cancel or
+/// Save, which are the box's own tab stops).
+fn keep_the_note_boxs_keys(
+    report: Res<ReportEdit>,
+    boxes: Query<Entity, With<ReportBox>>,
+    rows: Query<Entity, With<NoteField>>,
+    fields: Query<(Entity, &bevy_gooey::TextInputOf), With<bevy::ui_widgets::TextInput>>,
+    parents: Query<&ChildOf>,
+    mut focus: ResMut<InputFocus>,
+) {
+    if report
+        .open
+        .as_ref()
+        .is_none_or(|open| open.phase != Phase::Note)
+    {
+        return;
+    }
+    let Ok(box_) = boxes.single() else {
+        return;
+    };
+    let inside = |entity: Entity| {
+        entity == box_ || parents.iter_ancestors(entity).any(|parent| parent == box_)
+    };
+    if focus.get().is_some_and(inside) {
+        return;
+    }
+    let Ok(row) = rows.single() else {
+        return;
+    };
+    // **The field, not its row or its hint**: gooey puts `TextInputOf` on both, and a focused hint
+    // takes no keys. Bevy's `TextInput` is on the field (the terminal's `hold_the_keyboard` says the
+    // same and was measured the same way).
+    let Some((field, _)) = fields.iter().find(|(_, of)| of.0 == row) else {
+        return;
+    };
+    focus.set(field, bevy::input_focus::FocusCause::Navigated);
 }
 
 /// **The save the box asked for**, done in `Update` where a system may touch the world.
@@ -1805,6 +1881,9 @@ impl Plugin for ReportPlugin {
                     .after(report_pick)
                     .after(report_escape),
             )
+            // **The box's own keys, and its hold on them** (#491): `Cmd+Enter` saves, and nothing
+            // else takes the field's keyboard while the box is up.
+            .add_systems(Update, (report_note_chord, keep_the_note_boxs_keys).after(report_box))
             // **The save is exclusive**, so it is its own system: an observer cannot be one, and
             // the box's two buttons and the field's final change all reach it by asking.
             .add_systems(Update, report_save.after(report_box))
