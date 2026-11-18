@@ -198,7 +198,10 @@ fn the_chips_buttons_and_rows_keep_their_drawn_heights() {
     let mut drawn: Vec<f32> = world.query_filtered::<&ComputedNode, With<RowRest>>().iter(world).map(|c| c.size().y * c.inverse_scale_factor()).collect();
     drawn.sort_by(f32::total_cmp);
     // The terminal's own chips (two of the 20 px ones at 4a12b153) are laid out to nothing now: the pane is collapsed by default (#421), merged from fleet/seams. The rest are as they were.
-    let was = [0.0, 0.0, 0.0, 0.0, 0.0, 20.0, 20.0, 24.17, 24.17, 36.67];
+    // **The palette row lost 0.83 px to #494's chip** (owner's decision, 2026-11-18): a chip that can
+    // clip its own word no longer reserves the width of the word it drew past the pane. It was 36.67 at
+    // 4a12b153 and is 35.83 now; the other nine heights are unchanged, which is what this test is for.
+    let was = [0.0, 0.0, 0.0, 0.0, 0.0, 20.0, 20.0, 24.17, 24.17, 35.83];
     assert_eq!(drawn.len(), was.len(), "the Map door carries ten chips, buttons and rows: {drawn:?}");
     for (got, want) in drawn.iter().zip(was) {
         assert!((got - want).abs() < 0.1, "a box is {got} tall, it was {want}: {drawn:?}");
