@@ -2704,6 +2704,16 @@ pub fn row_label_with(
 /// [`row_value_wrapping`], in a block that grows with what it has to say.
 pub fn row_value(row: &mut ChildSpawnerCommands, text: impl Into<String>, colour: Color, marker: impl Bundle) {
     row.spawn((
+        // **The value gives way; the row does not** (#494). A flex item's automatic least width is its content, so a
+        // readout value longer than the pane kept its whole width and painted over the panel's border — measured,
+        // `nothing` ended 18 px past the INSPECTOR's content edge at interface scale 2.4. The floor goes on the value,
+        // one line, and the row it stands in clips what is left.
+        //
+        // **It is the value and not the row on purpose**: zeroing the *row's* least width let the INSPECTOR's rows
+        // collapse at a 1280x720 window, and `headless::no_badge_cluster_draws_through_another` measured
+        // `Control(Detail)` and `Control(Under)` overlapping by 186x142 px. A row that may be nothing wide is a row no
+        // badge can be placed on.
+        narrowing_label_one_line(),
         Text::new(text.into()),
         TextColor(colour),
         typed(text::BODY),
@@ -2945,20 +2955,6 @@ pub fn wrapping_row<'a>(parent: &'a mut ChildSpawnerCommands, gap: f32, margin: 
 /// the panel is shorter than its rows (a flex item that may shrink is made shorter than its text, which draws one line over the next).
 pub fn rigid_row<'a>(parent: &'a mut ChildSpawnerCommands, gap: f32, align: AlignItems) -> EntityCommands<'a> {
     parent.spawn(bevy_gooey::row_with(gap, bevy_gooey::RowLayout { align: Some(align), shrink: Some(0.0), ..default() }))
-}
-
-/// **A column that takes the room its row leaves and never widens it** (#494): [`bevy_gooey::fill_column`] with a zero
-/// least width.
-///
-/// gooey's `fill_column` is `flex_grow: 1`, `flex_shrink: 1`, `min_width: 0` in the *skin*, and the skin only restyles
-/// nodes that carry a `Role` — which it does. What it does not do is clip: a column with a value wider than itself hands
-/// the overflow to the panel. This is the same column with `clip`, for a value held to one line, so a word too long for
-/// the column is cut at the column's edge rather than painted over the panel's border.
-pub fn clipped_fill_column(gap: f32) -> impl Bundle {
-    (
-        bevy_gooey::fill_column(gap),
-        bevy_gooey::Sizing { clip: Some(true), ..default() },
-    )
 }
 
 /// **A [`gapped_row`] whose cells gather at the right edge** (#260): a dialog's answers.

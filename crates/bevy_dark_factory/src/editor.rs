@@ -3813,6 +3813,13 @@ fn spawn_panel(mut commands: Commands, frame: Res<crate::chrome::Frame>) {
                     let mut spawned = s.spawn((
                         bevy_gooey::sized(bevy_gooey::Sizing {
                             min_height: (field == Field::Last).then_some(bevy_gooey::Extent::LinesCeil(RECEIPT_LINES)),
+                            // **The row clips what does not fit** (#494): `nothing` was measured 18 px past the
+                            // INSPECTOR's content edge at interface scale 2.4, and the receipt's
+                            // `none — this project stamps nothing` 76 px past — the value kept its whole width and
+                            // painted over the panel's border. Its own least width is left alone: zeroing it is what
+                            // `headless::no_badge_cluster_draws_through_another` measured as `Control(Detail)` and
+                            // `Control(Under)` overlapping by 186x142 px at a 1280x720 window.
+                            clip: Some(true),
                             ..default()
                         }),
                         bevy_gooey::RowLayout {
@@ -3834,12 +3841,7 @@ fn spawn_panel(mut commands: Commands, frame: Res<crate::chrome::Frame>) {
                                 field.label(),
                                 ReceiptLabel,
                             );
-                            // **The receipt's column cuts what does not fit** ([`crate::chrome::clipped_fill_column`],
-                            // #494): a receipt longer than the pane — `none — this project stamps nothing` — is held to
-                            // its two reserved lines and the words that would cross the third are cut at the column,
-                            // rather than the value being one line that paints over the panel's border (measured 76 px
-                            // past the content edge at interface scale 2.4).
-                            row.spawn(crate::chrome::clipped_fill_column(0.0))
+                            row.spawn(bevy_gooey::fill_column(0.0))
                             .with_children(|col| {
                                 crate::chrome::row_value(col, "", crate::chrome::ink().text, Field::Last);
                             });
@@ -3852,13 +3854,11 @@ fn spawn_panel(mut commands: Commands, frame: Res<crate::chrome::Frame>) {
                             } else {
                                 crate::chrome::row_label(row, READOUT_LABEL_W, field.label());
                             }
-                            // **A readout value the pane is too narrow for is cut at the row** (#494): `nothing`, the
-                            // receipt of a removal that found nothing left to remove, was measured 18 px past the
-                            // INSPECTOR's content edge at interface scale 2.4. The value stays one line — the row's
-                            // `RECEIPT_LINES` arithmetic is the other test's — and the row's own box bounds it.
-                            row.spawn(crate::chrome::clipped_fill_column(0.0)).with_children(|col| {
-                                crate::chrome::row_value(col, "", crate::chrome::ink().text, field);
-                            });
+                            // **The value stays the row's own child** (#494). `inspector_names_broken_relations` reads a
+                            // readout's value as the row's direct child, and a wrapper column here made every value a
+                            // grandchild — the row then had no value at all as far as that test could see. What bounds
+                            // a value too long for the pane is the value's own floor and the row's clip, below.
+                            crate::chrome::row_value(row, "", crate::chrome::ink().text, field);
                         }
                     });
                 }
