@@ -4319,10 +4319,14 @@ fn rebuild_palette(
                             ))
                             .with_child((
                                 Text::new(if state.brush == Some(ix) { crate::chrome::ARMED_MARK } else { "" }),
-                                TextColor(crate::chrome::ink().accent),
+                                // **The mark reads on the row it marks, in the ink the cost beside it already takes**
+                                // ([`cost_ink`]): the mark stands *only* on the selected fill, and `Ink::accent` on
+                                // `Ink::row_selected` is 4.34:1 in Parchment — measured, and under AA. `Ink::text` is the
+                                // ink a quiet tone takes on that fill for the same reason.
+                                TextColor(crate::chrome::ink().text),
                                 PaletteArmedWords,
                                 // **The mark is the name's type size** (#486): with the row on
-                                // \`FlexStart\` the two cells now start at the same line, and the last
+                                // `FlexStart` the two cells now start at the same line, and the last
                                 // 2 px was the half-leading of an 10 px label beside an 11 px name.
                                 // A mark and a name are words a reader runs one eye along.
                                 crate::chrome::typed(crate::chrome::text::BODY),
