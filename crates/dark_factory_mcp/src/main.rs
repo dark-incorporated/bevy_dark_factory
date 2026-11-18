@@ -1515,22 +1515,28 @@ impl Blueprint {
     #[tool(
         name = "blueprint_capture_still",
         description = "A picture of the editor as it is now -- the world and the interface, because \
-                       the editor draws both into one image -- plus a state summary of the same \
-                       moment. The picture is returned as an image and written to a file whose path \
-                       is in the answer. The answer also carries a fingerprint of the picture's \
-                       bytes: two stills with the same fingerprint are the same picture, so compare \
-                       fingerprints rather than file paths to tell whether the screen changed. Use \
-                       this after a change to see what it did, or before one to see what it was \
-                       like. Pass source \"window\" to capture what the window itself shows (its \
-                       swapchain) instead of what the editor drew; on macOS an unfocused window \
-                       reads as one flat colour. Pass hide to take the map's own surfaces out of the \
-                       picture for it: [\"terrain\"] cuts the ground's outer skin away, so an \
-                       underground map's carved rooms are what the picture shows rather than the rock \
-                       they are cut into, lit from the side the camera is on rather than left as \
-                       shadows, and the camera is not moved. A view only: no file is written and the \
-                       map is not marked dirty. What was hidden is put back after the picture unless \
-                       restore is false, and the answer's hid field says what the picture was taken \
-                       with.",
+                      the editor draws both into one image -- plus a state summary of the same \
+                      moment. The picture is returned as an image and written to a file whose path \
+                      is in the answer. The answer also carries a fingerprint of the picture's \
+                      bytes: two stills with the same fingerprint are the same picture, so compare \
+                      fingerprints rather than file paths to tell whether the screen changed. Use \
+                      this after a change to see what it did, or before one to see what it was \
+                      like. Pass source \"window\" to capture what the window itself shows (its \
+                      swapchain) instead of what the editor drew; on macOS an unfocused window \
+                      reads as one flat colour. Pass hide to take the map's own surfaces out of the \
+                      picture for it: [\"terrain\"] cuts the ground's outer skin away, so what the \
+                      picture shows is the interior's NEAR surface -- the vault and the far walls, lit \
+                      from the side the camera is on rather than left as shadows -- instead of the rock \
+                      they are cut into. That is the shape of the void, not the room: the FLOOR is \
+                      behind the vault along every ray from above and is NOT drawn, and neither is a \
+                      column's cap. To see a room's floor, add cut_m: a section plane that removes \
+                      everything nearer the camera than that many metres, so the near half of the \
+                      interior goes and the floor is what the picture shows. cut_m is the caller's \
+                      deliberate section: it knows the value because it framed the room and knows its \
+                      size. The camera does not move, a view only: no file is written, the map is not \
+                      marked dirty, no operation log line is made, and what was hidden and the near \
+                      plane are both put back after the picture unless restore is false. The answer's \
+                      hid field says what the picture was taken with.",
         annotations(
             title = "Capture a still of the editor",
             read_only_hint = false,
