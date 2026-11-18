@@ -549,6 +549,9 @@ pub const OWNERSHIP: &[(&str, Ownership)] = &[
     ("bevy_dark_factory::report_issue::Filed", Ownership::Session),
     ("bevy_dark_factory::report_issue::Pending", Ownership::Session),
     // What the viewport drew, so a still can be cropped to it: this door's view, not the map's.
+    // The section plane a still may ask for (#472): a view state, put back after the picture and
+    // never written to the map.
+    ("bevy_dark_factory::view::SectionCut", Ownership::Session),
     ("bevy_dark_factory::view::DrawnExtent", Ownership::Session),
     ("bevy_dark_factory::present::Wishes", Ownership::Session),
     // A lesson cites a hand-back, so it lives as long as the hand-backs do (#351).
