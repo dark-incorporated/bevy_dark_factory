@@ -153,6 +153,7 @@ mod a_person_goes_to_anything;
 mod a_person_removes_a_box_and_undoes_it;
 mod a_person_removes_a_piece_and_undoes_it;
 mod a_fixture_project_is_yaml;
+mod a_folds_mark_is_a_chevron_the_face_has;
 mod a_project_command_needs_the_persons_trust;
 mod a_project_opens_in_the_same_process;
 mod a_projects_own_font_applies_when_it_is_opened_in_the_same_process;
