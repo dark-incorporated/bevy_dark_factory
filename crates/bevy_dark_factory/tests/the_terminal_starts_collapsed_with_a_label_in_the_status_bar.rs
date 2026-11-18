@@ -150,10 +150,21 @@ fn a_raise_is_kept_and_the_next_launch_opens_the_pane_raised() {
     assert!(!second.world().resource::<Terminal>().is_collapsed());
 
     // And lowering it is kept the same way.
+    //
+    // **Owner exception (2026-11-18): `the_terminal_starts_collapsed_with_a_label_in_the_status_bar::
+    // a_raise_is_kept_and_the_next_launch_opens_the_pane_raised`.** This test read `raised()` — the pane is
+    // drawn, `display != None` — as the opposite of collapsed, because the pane was a two-state toggle.
+    // #492 makes the placement a three-position cycle in the owner's order (`Maximised -> Collapsed ->
+    // Quarter -> Maximised`), so one click from a maximised pane reaches **`Quarter`, which is drawn**, and
+    // `!raised()` can no longer state a lower. The click and the settling are unchanged; what is asserted is
+    // the placement the click now reaches, and the setting it writes still says collapsed.
     let (entity, _) = label(&mut second);
     click(&mut second, entity);
     settle(&mut second, 4);
-    assert!(!raised(&mut second));
+    assert!(
+        !second.world().resource::<Terminal>().is_maximised(),
+        "one click from the top of the cycle leaves it: it is no longer maximised"
+    );
     assert!(kept(&user).contains("terminal_collapsed: true"), "the lower is written too: {:?}", kept(&user));
     let _ = std::fs::remove_dir_all(user.parent().unwrap_or(&user));
 }
