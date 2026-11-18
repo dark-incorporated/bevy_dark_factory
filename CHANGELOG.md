@@ -5,6 +5,7 @@ What each change added, newest first. A visible change has a clip: click the sti
 ## 2026-11-18
 
 - **488-panel-authoring-format** `4ed4e330` A panel's authoring format is researched with per-panel measurements: a typed struct drawn by gooey's inspector, with YAML as its text form, and Markdown stays prose *No clip: A design document: no code changed, so nothing in the editor's suite can fail on it -- see docs/design/panel-authoring-format.md*
+- **491** `0` A modifier pressed in the report's note box no longer lands in the note and no chord saves it, so a note keeps exactly what was typed *No clip: a keyboard fix in a dialog with no new screen of its own; proved by tests/a_modifier_is_not_note_text.rs*
 
 ## 2026-11-17
 
