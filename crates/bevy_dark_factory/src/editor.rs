@@ -9887,9 +9887,26 @@ pub struct Pose<'a> {
 /// [`EditorState`].
 #[derive(Resource, Default)]
 pub struct PlaceDrag {
-    /// Where the button went down, or `None` while only hovering.
+    /// Where the button went down, in map space, or `None` while only hovering.
     from: Option<(f32, f32)>,
+    /// **Where the button went down on the screen**, in surface pixels.
+    ///
+    /// The map point alone cannot tell a drag from a click: the ground under a stationary cursor moves
+    /// when the viewport does, and a 1 px move of the camera's rect put the release half a metre away
+    /// and filled two cells from one click (measured on the panes cluster, whose narrower divider moves
+    /// the camera's viewport between the press and the release: press at `(20.0, 18.0)` and release at
+    /// `(19.9, 18.1)`, which snap to two different cells a whole metre apart). **A hand that has not
+    /// moved on screen has not dragged**, whatever the map says underneath it.
+    from_px: Option<Vec2>,
 }
+
+/// **How far the pointer may travel on screen and still be a click**, in surface pixels.
+///
+/// The same rule every windowing system uses to tell a click from a drag, and well under the
+/// [`CLICK_EPS`] of movement a hand actually makes while pressing a button. It is in *screen* px
+/// because that is the space the hand moved in; the map-space threshold in [`CLICK_EPS`] stays, for
+/// telling a snapped cell apart from its neighbour.
+const DRAG_SLOP_PX: f32 = 4.0;
 
 /// **The line being dragged out to run a piece along**, in map space.
 ///
@@ -11724,7 +11741,13 @@ fn drive_place(
 
     if mouse.just_pressed(MouseButton::Left) {
         drag.from = Some(at);
+        drag.from_px = pointer.0;
     }
+
+    // **A hand that has not moved on screen has not dragged** — see [`DRAG_SLOP_PX`]. The map point the
+    // same stationary cursor resolves to moves when the viewport does, so `from` and `at` can be a whole
+    // snapped cell apart after a press and a release that never moved.
+    let travelled = drag.from_px.zip(pointer.0).is_some_and(|(from, now)| now.distance(from) > DRAG_SLOP_PX);
 
     // The box, while it is being dragged. An outline rather than the removal tool's filled quad:
     // additive and destructive should not look the same, and an outline leaves the floor it is about
@@ -11733,8 +11756,9 @@ fn drive_place(
         // The same condition the release below commits on, `free` included — a box drawn for a drag
         // that is going to place one piece would be a preview of something that will not happen,
         // which is the one thing this editor's previews are held to.
-        let dragging =
-            !free && ((from.0 - at.0).abs() > CLICK_EPS || (from.1 - at.1).abs() > CLICK_EPS);
+        let dragging = travelled
+            && !free
+            && ((from.0 - at.0).abs() > CLICK_EPS || (from.1 - at.1).abs() > CLICK_EPS);
         if dragging {
             // **The ground the fill will cover, not the anchors it will place on** — see
             // `fill::covered_rect`, which carries the report this answers. The same `cell_extents`
@@ -11775,7 +11799,7 @@ fn drive_place(
     // clears 0.2 m without leaving the cell, and the box path would then quantise the result back to
     // that cell's centre. That is the fine placement the modifier exists for, silently discarded.
     // Holding it means "place one, exactly here".
-    if !free && ((from.0 - at.0).abs() > CLICK_EPS || (from.1 - at.1).abs() > CLICK_EPS) {
+    if travelled && !free && ((from.0 - at.0).abs() > CLICK_EPS || (from.1 - at.1).abs() > CLICK_EPS) {
         // The rung the author is holding right now — the same one `brush_at` just snapped `at` to,
         // so the box lays its pieces exactly where clicking each of them would have.
         let pitch = snap_level(&keyboard, rung.0).pitch(project.lattice.snap_divisor);

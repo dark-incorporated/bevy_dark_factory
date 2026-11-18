@@ -14,6 +14,7 @@
 //! **Tests now share a process**, with tests from other files running beside them: a scratch path
 //! must be unique to its test (its name and `std::process::id()`), never a fixed name.
 
+mod a_click_that_never_moved_places_one_piece;
 mod a_chord_shows_the_problems_list;
 mod a_custom_agent_without_a_command_is_a_settings_problem;
 mod a_dock_tab_reordered_glides_to_its_place;
