@@ -3039,7 +3039,17 @@ pub fn chip<'a>(
             CHIP_SPACING,
             bevy_gooey::Sides::all(EDGE_W),
             Some(0.0),
-            bevy_gooey::Sizing { min_width: Some(bevy_gooey::Extent::Px(0.0)), clip: Some(true), ..default() },
+            // **`max_width` is what actually bounds it** (#494). A zero least width alone only says the box *may* be
+            // narrower than its words; with `shrink: 0` nothing ever takes that room back, so the box still grew to its
+            // content and the overflow grew with the interface scale (measured on the PIECES panel at 158 px:
+            // 22 px past at scale 1, 31 at 1.6, 49 at 2.4). Holding it to its host is the bound that does not depend on
+            // a row deciding to squeeze it, and `clip` above cuts the word at the box edge.
+            bevy_gooey::Sizing {
+                min_width: Some(bevy_gooey::Extent::Px(0.0)),
+                max_width: Some(bevy_gooey::Extent::Percent(100.0)),
+                clip: Some(true),
+                ..default()
+            },
         ),
         BorderColor::all(border),
         BackgroundColor(fill),
@@ -3285,7 +3295,17 @@ pub fn button<'a>(
             BUTTON_SPACING,
             bevy_gooey::Sides::all(EDGE_W),
             Some(0.0),
-            bevy_gooey::Sizing { min_width: Some(bevy_gooey::Extent::Px(0.0)), clip: Some(true), ..default() },
+            // **`max_width` is what actually bounds it** (#494). A zero least width alone only says the box *may* be
+            // narrower than its words; with `shrink: 0` nothing ever takes that room back, so the box still grew to its
+            // content and the overflow grew with the interface scale (measured on the PIECES panel at 158 px:
+            // 22 px past at scale 1, 31 at 1.6, 49 at 2.4). Holding it to its host is the bound that does not depend on
+            // a row deciding to squeeze it, and `clip` above cuts the word at the box edge.
+            bevy_gooey::Sizing {
+                min_width: Some(bevy_gooey::Extent::Px(0.0)),
+                max_width: Some(bevy_gooey::Extent::Percent(100.0)),
+                clip: Some(true),
+                ..default()
+            },
         ),
         BorderColor::all(ink().panel_edge),
         BackgroundColor(ink().row_bg),
