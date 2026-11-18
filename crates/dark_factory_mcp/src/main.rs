@@ -1575,10 +1575,10 @@ impl Blueprint {
         let grabbed = self.grab(fairy_source).await;
         // **The person's screen goes back as it was**, whether the picture landed or not: a still is a
         // look, not a change to what they are looking at.
-        if p.restore {
-            if let Err(e) = self.set_cut(None).await {
-                return Ok(refusal(&format!("the camera's own range could not be put back: {e}")));
-            }
+        if p.restore
+            && let Err(e) = self.set_cut(None).await
+        {
+            return Ok(refusal(&format!("the camera's own range could not be put back: {e}")));
         }
         if p.restore && was.is_some()
             && let Err(e) = self.set_hidden(Some(&was.unwrap_or_default())).await
