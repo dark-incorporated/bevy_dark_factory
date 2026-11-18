@@ -80,6 +80,13 @@ answer — a compile sent to a host with no free RAM fails after the linker, hou
 | `four`, `one`, `two`, `three` | 4 | <10 | ~3.7 | cheap, roomy, but small |
 | `mac_air` | 10 | 32.9 | 6.7 | no editor tests — see below; disk too small for a Bevy `target/` |
 
+**The shared lock on `big` serialises every compile, so spend it on whole suites only** (measured
+2026-11-18). `/tmp/fleet/big-heavy.lock` is exclusive by design: a gate takes it for 25-50 minutes and nothing
+else on that host compiles meanwhile. Three workers sat at **0% CPU for 5-15 minutes** queued behind one
+bisect, which reads exactly like a hung test and is not one. Take the lock for a whole-suite run or a cold
+build; run a single test module without it. A run at 0% CPU for more than a minute is the queue:
+`pgrep -fa 'flock -x /tmp/fleet/big-heavy.lock'`.
+
 **`mac_air` takes no editor tests** (measured 2026-11-18). `cargo nextest run -p <editor crate>` sits at
 0% CPU for 15+ minutes there, repeatedly, on an idle host with 58 GB free — three separate workers lost
 15-20 minutes each before the cause was obvious. Every test that builds an `App` runs on `big` under
