@@ -487,12 +487,12 @@ impl AgentPost {
     /// project's file's problem when it had one. `None` on a tab whose launch never decided them, so a card built before this
     /// existed draws what it drew before rather than an empty row.
     ///
-    /// **The set is what the editor wrote, not what omp loaded.** omp at v18.16.0 discovers its machine-level servers too, and
-    /// this row says what the session is *for*; the difference is requested upstream (`can1357/oh-my-pi#19573`) rather than
-    /// guessed at here.
+    /// **The set is what the editor wrote, not what omp loaded.** omp discovers its machine-level servers with no way to scope
+    /// them (measured on v18.22.0: the table in [`crate::agent_servers`]'s header), and this row says what the session is
+    /// *for*; the difference is requested upstream (`can1357/oh-my-pi#19573`) rather than guessed at here.
     pub fn servers_row(&self) -> Option<String> {
         let servers = self.servers.as_ref()?;
-        let mut said = format!("{} (written for this session): {}", Self::SERVER_ROW_LABEL, servers.words());
+        let mut said = format!("{} (this session's set): {}", Self::SERVER_ROW_LABEL, servers.words());
         if let Some(problem) = &self.servers_problem {
             said.push_str(" · ");
             said.push_str(problem);
@@ -696,10 +696,11 @@ pub fn plan_with_model(
             format!("the tools server is not at {}: build it with cargo build -p {MCP_BINARY}", setup.server.display()),
         );
     }
-    // **The session's servers are one set** (#484): the editor's, plus whatever the open project declares in its own
-    // `.mcp.json`. The plain harness config (`$DARK_FACTORY_MCP_CONFIG`) stays the editor's server alone, because it is what a
-    // custom command is handed and that command's own config is its business; the omp extension folder's `.mcp.json` is
-    // where the whole session set is written, which is the file omp reads for this launch.
+    // **The session's servers are one set** (#484): the editor's, plus whatever the open project declares in any of the four
+    // files omp reads for a project ([`crate::agent_servers::PROJECT_SERVERS_FILES`]). The plain harness config
+    // (`$DARK_FACTORY_MCP_CONFIG`) stays the editor's server alone, because it is what a custom command is handed and that
+    // command's own config is its business; the omp extension folder's `.mcp.json` is where the whole session set is written,
+    // which is the file omp reads for this launch.
     let (servers, servers_problem) = crate::agent_servers::project_servers_for(project);
     post.servers = Some(servers.clone());
     post.servers_problem = servers_problem;
