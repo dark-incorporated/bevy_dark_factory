@@ -78,7 +78,13 @@ answer — a compile sent to a host with no free RAM fails after the linker, hou
 | `Cs-MacBook-Pro` | 10 | 96.3 | 0.4 | **saturated** — four loops and a build share it |
 | `big` | 24 | 83.2 | 4.0 | 2.8 GB available, swap already deep |
 | `four`, `one`, `two`, `three` | 4 | <10 | ~3.7 | cheap, roomy, but small |
-| `mac_air` | 10 | 32.9 | 6.7 | 7.4 GB disk free — too little for a Bevy `target/` |
+| `mac_air` | 10 | 32.9 | 6.7 | no editor tests — see below; disk too small for a Bevy `target/` |
+
+**`mac_air` takes no editor tests** (measured 2026-11-18). `cargo nextest run -p <editor crate>` sits at
+0% CPU for 15+ minutes there, repeatedly, on an idle host with 58 GB free — three separate workers lost
+15-20 minutes each before the cause was obvious. Every test that builds an `App` runs on `big` under
+`xvfb-run -a`, holding `flock -x /tmp/fleet/big-heavy.lock`; `mac_air` keeps the work whose tests touch no
+`App` at all.
 
 Two measurement traps the script already handles, and that a hand-written query will hit: the macOS
 exporter publishes **lowercase** memory names (`node_memory_free_bytes`, `node_memory_inactive_bytes`,
