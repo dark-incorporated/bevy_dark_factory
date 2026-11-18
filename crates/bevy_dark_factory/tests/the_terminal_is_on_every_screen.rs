@@ -272,8 +272,17 @@ fn primary_j_collapses_the_terminal_on_every_screen_and_brings_it_back_with_the_
     raise(&mut app);
     assert!(pane(&mut app).1, "raised");
 
+    // **Owner exception (2026-11-18): `the_terminal_is_on_every_screen.rs::primary_j_collapses_the_terminal_on_every_screen_and_brings_it_back_with_the_keys`:**
+    // this test used to pin a two-state toggle — `Primary+J` from a raised pane lowered it, and lowered it again. #492 makes the chord a
+    // three-position cycle (`Maximised -> Collapsed -> Quarter -> Maximised`, the owner's order), so the press after `Collapsed` raises to
+    // `Quarter` rather than lowering. The three assertions below are re-pinned to that cycle, with the same messages saying what they now
+    // assert; nothing else in this test changed.
     primary(&mut app, KeyCode::KeyJ);
-    assert!(!pane(&mut app).1, "Primary+J collapses the terminal on the home");
+    assert!(pane(&mut app).1, "the press from a raised pane covers the window: the cycle's first position is `Maximised` (#492)");
+    assert!(holds(&app), "and the shell keeps the keyboard, since a maximised pane is still being typed in");
+
+    primary(&mut app, KeyCode::KeyJ);
+    assert!(!pane(&mut app).1, "the next press collapses the terminal on the home");
     assert!(!holds(&app), "a collapsed terminal does not keep the keyboard");
 
     // The collapse is the person's, not the screen's: the next screen's pane is built collapsed.
@@ -281,11 +290,11 @@ fn primary_j_collapses_the_terminal_on_every_screen_and_brings_it_back_with_the_
     assert!(!pane(&mut app).1, "a terminal collapsed on the home is collapsed on the next screen too");
 
     primary(&mut app, KeyCode::KeyJ);
-    assert!(pane(&mut app).1, "Primary+J brings the terminal back");
+    assert!(pane(&mut app).1, "the press from collapsed brings the terminal back, to a quarter at the bottom (#492)");
     assert!(holds(&app), "and puts the keyboard in the shell, because a person who restores it means to type");
 
     primary(&mut app, KeyCode::KeyJ);
-    assert!(!pane(&mut app).1, "and collapses it again, keyboard in the shell or not");
+    assert!(pane(&mut app).1, "and the press from the quarter covers the window again, keyboard in the shell or not");
 }
 
 #[test]
