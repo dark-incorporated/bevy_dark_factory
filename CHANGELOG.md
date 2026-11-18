@@ -2,6 +2,10 @@
 
 What each change added, newest first. A visible change has a clip: click the still to play it. `python3 tools/changelog/changelog.py page --open` plays them all in one page.
 
+## 2026-11-18
+
+- **481-switch-fits** `PRE` A switch in the Agent panel reflows inside its column instead of drawing over the scrollbar *For you: The Pause and Answer hand-backs switches in the Agent panel now wrap their labels when the panel is narrow, so the switch stays inside the panel instead of spilling over the scrollbar.* *No clip: layout fix; proved by no_control_in_the_agent_panel_is_drawn_past_its_column and the_agent_panels_switch_is_inside_its_column*
+
 ## 2026-11-17
 
 - **472-section-cut** blueprint_capture_still and blueprint_decide take cut_m: a section plane that removes what stands between the camera and a carved room, so the floor can be seen; hide alone draws the interior's near surface, the vault and the far walls, and never the floor *For you: A captured picture can now look at the floor of an underground room instead of the ceiling above it.* *No clip: a parameter and a view; proved by crates/dark_factory_mcp/tests/decide_hides_the_terrain.rs*
