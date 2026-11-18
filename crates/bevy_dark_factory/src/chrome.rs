@@ -3025,16 +3025,20 @@ pub fn chip<'a>(
         // `style_list_rows` already keys on it and has never needed to know what it is painting.
         RowRest(fill),
         marker,
-        // **A chip gives way and cuts its own word** (#494). The capture that filed this is a chip: `NOT IMPORTED (0)` at
-        // the PIECES panel's drag minimum drew its fill **17 px past the panel's own right border** and out into the
-        // window's gutter. So the box may be narrower than its label (`min_width` 0, `shrink` 1) and it clips what does
-        // not fit — `clip`, because a chip is a fixed-height tile in a strip: one that *broke* its word would be two lines
-        // tall and would push the strip over the list below it, which
-        // `the_pieces_panels_text_stays_in_its_rows_and_inside_the_panel` measures as 12 px of glyph over glyph.
+        // **A chip cuts its own word, and never shrinks** (#494). The capture that filed this is a chip: `NOT IMPORTED (0)`
+        // at the PIECES panel's drag minimum drew its fill **17 px past the panel's own right border** and out into the
+        // window's gutter. So the box takes a zero least width and clips what does not fit — `clip`, because a chip is a
+        // fixed-height tile in a strip: one that *broke* its word would be two lines tall and would push the strip over the
+        // list below it, which `the_pieces_panels_text_stays_in_its_rows_and_inside_the_panel` measures as 12 px of glyph
+        // over glyph.
+        //
+        // **`shrink` stays `Some(0.0)`**, which `the_g87_nodes_are_gooeys` holds as *"6 x 3 px in, a 1 px edge, never
+        // shrinking"* — the owner's number, so this does not move it. The two levers are not the same one: the floor lets
+        // the box be *sized* narrower than its label, and `shrink` decides whether a crowded row takes that room back.
         held_box(
             CHIP_SPACING,
             bevy_gooey::Sides::all(EDGE_W),
-            Some(1.0),
+            Some(0.0),
             bevy_gooey::Sizing { min_width: Some(bevy_gooey::Extent::Px(0.0)), clip: Some(true), ..default() },
         ),
         BorderColor::all(border),
@@ -3274,10 +3278,13 @@ pub fn button<'a>(
         // 2.4). The floor lets the box narrow and `clip` bounds the word at the box's own edge, because the label keeps
         // **one line** — a command split across two lines is hard to read, the rule #482's own note states — and a row
         // that wraps (#482's fix) only helps where there is a second button to wrap onto.
+        //
+        // **`shrink` stays `Some(0.0)`**, for the chip's reason above: the floor and `shrink` are two different levers,
+        // and `the_g87_nodes_are_gooeys` holds the boxes to the owner's "never shrinking".
         held_box(
             BUTTON_SPACING,
             bevy_gooey::Sides::all(EDGE_W),
-            Some(1.0),
+            Some(0.0),
             bevy_gooey::Sizing { min_width: Some(bevy_gooey::Extent::Px(0.0)), clip: Some(true), ..default() },
         ),
         BorderColor::all(ink().panel_edge),
