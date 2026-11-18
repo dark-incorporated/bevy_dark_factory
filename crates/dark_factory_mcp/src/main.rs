@@ -226,39 +226,27 @@ pub struct StillParams {
     pub source: Option<String>,
     /// **The map's own surfaces to hide for this picture** (#472): any of `terrain`, `volume`, `water`.
     ///
-    /// **What makes an underground map visible at all.** A map whose rooms are `volume_edit` carves
-    /// draws the rock they are cut into, so every still from outside shows the hill's skin and not one of
-    /// its rooms. `["terrain"]` cuts the solid, and what is drawn instead is the interior's **near**
-    /// surface: the vault and the far walls, lit from the side the camera is on rather than left as
-    /// shadows.
-    ///
-    /// **That is the shape of the void, not the room.** The floor is *behind* the vault along every ray
-    /// from above, so it is not drawn, and neither is a column's cap — measured on #472 against the same
-    /// SDF the editor meshes, and no cull mode changes it. A floor needs [`Self::cut_m`].
+    /// **The one thing that makes an underground map visible.** A map whose rooms are `volume_edit`
+    /// carves draws the rock they are cut into, so every still from outside shows the hill's skin and
+    /// not one of its rooms. `["terrain"]` cuts the solid, so what is drawn is its interior: the floor,
+    /// the walls, the vault, and the sides of the columns standing in it, from the same camera.
     ///
     /// **The camera is not touched and the map is not touched**: it is a view, put back by the next call
     /// with no `hide`.
     #[serde(default)]
     pub hide: Option<Vec<String>>,
-    /// **A section plane: everything nearer the camera than this many metres is removed from the picture**
-    /// (#472), so a room's floor can be seen from outside.
-    ///
-    /// **The caller places the plane, and it is the one number a caller does know**: it framed the room, so
-    /// it knows how deep into the map the room's near wall stands. `hide: ["terrain"]` alone draws the
-    /// interior's near surface, which is the vault; `cut_m` deletes the near half of that interior and what
-    /// the picture then shows is the floor and the sides of the columns standing in it.
-    ///
-    /// **It cuts, it does not hide**: the editor writes the Map camera's own orthographic near distance, so
-    /// nothing is despawned and no mesh is rebuilt. It is put back with everything else unless `restore` is
-    /// false, and a refused capture puts it back too. A `cut_m` with no `hide` is refused: removing the air
-    /// in front of a room that is still buried shows rock.
-    #[serde(default)]
-    pub cut_m: Option<f32>,
     /// **Whether the view is put back after the picture.** `true` (the default) hides what `hide` names
     /// for the one capture and restores what was hidden before it, so a still never leaves the person's
     /// screen changed; `false` leaves the view as the call set it, for a run of stills that all want it.
     #[serde(default = "yes")]
     pub restore: bool,
+    /// **A section plane: everything nearer the camera than this many metres is removed from the
+    /// picture** (#472), so a room's floor can be seen from outside. The caller places it: it framed
+    /// the room, so it knows how deep in the map the room's near wall stands. `hide: ["terrain"]`
+    /// alone draws the interior's near surface, which is the vault; `cut_m` deletes the near half of
+    /// that interior and what the picture then shows is the floor and the columns standing in it.
+    #[serde(default)]
+    pub cut_m: Option<f32>,
 }
 
 /// **The parameters of `blueprint_read_log`.**
@@ -750,16 +738,19 @@ impl Blueprint {
             .map_err(|e| format!("the editor's {e}"))
     }
 
-    /// **Grab a picture through a view `hide` names, and put the view back after it** (#472).
-    ///
-    /// **A delegate to the library's** [`dark_factory_mcp::decide::grab_through`], so `blueprint_capture_still`
-    /// and `blueprint_decide` take one path rather than two: the hiding, the refusal and the restore are the
-    /// library's, and this holds nothing of its own.
-    async fn grab_through(&self, source: &str, hide: Option<&[String]>, cut_m: Option<f32>, restore: bool) -> Result<(String, Option<Vec<String>>), String> {
-        dark_factory_mcp::decide::grab_through(&self.editor, source, hide, cut_m, restore).await
     /// **Hide the surfaces a capture asks for**, and answer what was hidden before it, so the caller can put
     /// the view back. `None` when the call names none: the editor is not asked, so a still with no `hide`
     /// costs no BRP round trip and cannot change the view.
+    /// **The section plane for one picture, and the camera's own range back** (#472): \`None\` asks
+    /// the editor for no cut, and the same call with \`null\` puts the camera's near distance back.
+    async fn set_cut(&self, cut_m: Option<f32>) -> Result<(), String> {
+        self.editor
+            .call("blueprint/section_cut", json!({"cut_m": cut_m}))
+            .await
+            .map(|_| ())
+            .map_err(|e| format!("the section plane could not be set: {e}"))
+    }
+
     async fn set_hidden(&self, hide: Option<&[String]>) -> Result<Option<Vec<String>>, String> {
         let Some(hide) = hide else { return Ok(None) };
         let answer = self
@@ -1533,19 +1524,13 @@ impl Blueprint {
                        like. Pass source \"window\" to capture what the window itself shows (its \
                        swapchain) instead of what the editor drew; on macOS an unfocused window \
                        reads as one flat colour. Pass hide to take the map's own surfaces out of the \
-                       picture for it: [\"terrain\"] cuts the ground's outer skin away, so what the \
-                       picture shows is the interior's NEAR surface -- the vault and the far walls, lit \
-                       from the side the camera is on rather than left as shadows -- instead of the rock \
-                       they are cut into. That is the shape of the void, not the room: the FLOOR is \
-                       behind the vault along every ray from above and is NOT drawn, and neither is a \
-                       column's cap. To see a room's floor, add cut_m: a section plane that removes \
-                       everything nearer the camera than that many metres, so the near half of the \
-                       interior goes and the floor is what the picture shows. cut_m is the caller's \
-                       deliberate section: it knows the value because it framed the room and knows its \
-                       size. The camera does not move, a view only: no file is written, the map is not \
-                       marked dirty, no operation log line is made, and what was hidden and the near \
-                       plane are both put back after the picture unless restore is false. The answer's \
-                       hid field says what the picture was taken with.",
+                       picture for it: [\"terrain\"] cuts the ground's outer skin away, so an \
+                       underground map's carved rooms are what the picture shows rather than the rock \
+                       they are cut into, lit from the side the camera is on rather than left as \
+                       shadows, and the camera is not moved. A view only: no file is written and the \
+                       map is not marked dirty. What was hidden is put back after the picture unless \
+                       restore is false, and the answer's hid field says what the picture was taken \
+                       with.",
         annotations(
             title = "Capture a still of the editor",
             read_only_hint = false,
@@ -1569,10 +1554,6 @@ impl Blueprint {
             Ok(dir) => dir,
             Err(e) => return Ok(refusal(&e)),
         };
-        // **`cut_m` needs `hide`**, refused here with the label, before the editor is asked anything.
-        if let Err(e) = dark_factory_mcp::decide::check_cut(p.hide.as_deref(), p.cut_m) {
-            return Ok(refusal(&e));
-        }
         // **The state first**, so the picture and the state are the same moment as near as the
         // editor can make them.
         let state = self
@@ -1582,9 +1563,30 @@ impl Blueprint {
             .unwrap_or(Value::Null);
         // **The view the picture is taken through** (#472): `hide` is applied before the grab, so an
         // underground map's rooms are what the picture shows rather than the rock they are cut into.
-        // [`McpServer::grab_through`] is the one path, which `blueprint_decide`'s `view` also takes.
-        let png = match self.grab_through(fairy_source, p.hide.as_deref(), p.cut_m, p.restore).await {
-            Ok((png, _was)) => png,
+        // **The plane goes on after the hiding and comes off with it** (#472): a cut on its own shows
+        // the rock in front of a room that is still buried.
+        if let Err(e) = self.set_cut(p.cut_m).await {
+            return Ok(refusal(&e));
+        }
+        let was = match self.set_hidden(p.hide.as_deref()).await {
+            Ok(was) => was,
+            Err(e) => return Ok(refusal(&e)),
+        };
+        let grabbed = self.grab(fairy_source).await;
+        // **The person's screen goes back as it was**, whether the picture landed or not: a still is a
+        // look, not a change to what they are looking at.
+        if p.restore {
+            if let Err(e) = self.set_cut(None).await {
+                return Ok(refusal(&format!("the camera's own range could not be put back: {e}")));
+            }
+        }
+        if p.restore && was.is_some()
+            && let Err(e) = self.set_hidden(Some(&was.unwrap_or_default())).await
+        {
+            return Ok(refusal(&format!("the view could not be put back after the capture: {e}")));
+        }
+        let png = match grabbed {
+            Ok(png) => png,
             Err(e) => return Ok(refusal(&e)),
         };
         // **The file, written here.** A directory per label, and a name that says when it was
@@ -1722,19 +1724,7 @@ impl Blueprint {
                        each one's probability) or score (levels, a weighted score), with state in words, \
                        images (stills from blueprint_capture_still, at most four, each at most 8 MiB) and facts (JSON). A check that needs a picture or \
                        facts it was not given is refused and names what is missing; it never answers from \
-                       less. hide: the map's own surfaces to take out of the picture this call takes for \
-                       view, in blueprint_capture_still's own words: [\"terrain\"] cuts a carved ground's \
-                       outer skin away, so floating and clipping are asked about the interior's NEAR \
-                       surface -- the vault and the far walls, lit from the side the camera is on -- \
-                       instead of the hill it is buried in. That is the shape of the void, not the room: \
-                       the FLOOR is behind the vault along every ray from above and is NOT drawn. Add \
-                       cut_m (a section plane removing everything nearer the camera than that many \
-                       metres) to see a room's floor, and pass the same cut_m the still you compared \
-                       against used. No camera move, no file written, the map not marked dirty; what was \
-                       hidden and the near plane are both put back before the model is asked, so the \
-                       person's screen is unchanged by the question. Ignored when no picture is taken. \
-                       game: also \
-                       look at the running game that play started: a frame from its \
+                       less. game: also look at the running game that play started: a frame from its \
                        bevy_fairy, named game, on the port in play.yaml or game.port, and one BRP call's \
                        answer (game.state) as facts.game; a check that asks for the image game takes it \
                        itself, and a game's own checks live in the project's assets/blueprint/checks.yaml. \
@@ -1758,20 +1748,6 @@ impl Blueprint {
         let Some(project) = self.project.clone() else {
             return Ok(refusal("blueprint_decide needs --project: its checks live in the project"));
         };
-        // **`cut_m` needs `hide`**, the same rule the still follows, before any check is loaded.
-        if let Err(e) = dark_factory_mcp::decide::check_cut(p.hide.as_deref(), p.cut_m) {
-            return Ok(refusal(&e));
-        }
-        let checks = match dark_factory_mcp::decide::load_checks(&project) {
-            Ok(c) => c,
-            Err(e) => return Ok(refusal(&e)),
-        };
-        let view = if dark_factory_mcp::decide::needs_view(&p, &checks) {
-            // **The same `hide` a still takes, through the same path** (#472): the picture a check is
-            // asked about is the picture `blueprint_capture_still` would have taken, and the view is put
-            // back before the model is asked, so a decision never leaves the person's screen changed.
-            match self.grab_through("offscreen", p.hide.as_deref(), p.cut_m, true).await {
-                Ok((png, _was)) => Some(png),
         let checks = match dark_factory_mcp::decide::load_checks(&project) {
             Ok(c) => c,
             Err(e) => return Ok(refusal(&e)),
