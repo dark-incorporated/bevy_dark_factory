@@ -59,7 +59,9 @@ impl Runner for SystemRunner {
         for file in files {
             let Some(name) = file.file_name() else { continue };
             let to = dest.join(name);
-            std::fs::copy(file, &to).map_err(|e| format!("{} -> {}: {e}", file.display(), to.display()))?;
+            let bytes = std::fs::read(file).map_err(|e| format!("{}: {e}", file.display()))?;
+            blueprint_model::atomic_file::write(&to, &bytes)
+                .map_err(|e| format!("{} -> {}: {e}", file.display(), to.display()))?;
         }
         Ok(())
     }
@@ -100,7 +102,7 @@ impl Runner for SystemRunner {
 
     fn create_issue(&self, checkout: &Path, repo: &str, title: &str, body: &str) -> Result<String, String> {
         let dir = std::env::temp_dir().join(format!("dark_factory_issue_{}.md", std::process::id()));
-        std::fs::write(&dir, body).map_err(|e| format!("{}: {e}", dir.display()))?;
+        blueprint_model::atomic_file::write(&dir, body).map_err(|e| format!("{}: {e}", dir.display()))?;
         let out = Command::new("gh")
             .current_dir(checkout)
             .args(["issue", "create", "-R", repo, "--title", title, "--body-file"])
