@@ -89,6 +89,8 @@ The server speaks the Model Context Protocol over **stdio**, and reaches the run
 
 **Three tools that are not part of a task.** `blueprint_open_project` opens a project folder in the running editor, from any screen including the Projects home, and is the first call when they name a project rather than a map. `blueprint_jobs_stop` asks a background job such as the palette's thumbnail bake to stop, and `blueprint_self_test` is DarkFactory's power-on self test, run once when its own terminal starts you: it reads the state, counts the operations, takes one picture and returns them.
 
+**A bug you cannot fix is filed, not described.** `blueprint_feedback_file_issue` takes the capture you already made and files it as a GitHub issue on the project's repository, with the still, the operations and the facts attached: say the title and what you saw, and it returns the issue's URL. Use it when a defect is in the editor rather than in what you were asked to build — a hand-back sentence about a bug nobody files is a bug nobody fixes.
+
 ## After a task: reflect
 
 **Once you have handed back, look at what it cost.** After `blueprint_present`, or after `note_resolve` for a note, ask yourself one question: which single tool would most have made that easier? Then record the answer with `blueprint_wish` — exactly one wish, citing that hand-back. This is the one thing the person reading a finished result cannot see, and it is how the editor learns what it is missing.
