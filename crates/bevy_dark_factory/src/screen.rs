@@ -545,6 +545,11 @@ pub const OWNERSHIP: &[(&str, Ownership)] = &[
     // `HandBacks::asked` numbers presentations for the whole session, and a note's key carries the
     // map it is on, so the one-wish rule cannot read two hand-backs as one.
     ("bevy_dark_factory::present::HandBacks", Ownership::Session),
+    // A filed issue's answer and its in-flight step: this door's working state.
+    ("bevy_dark_factory::report_issue::Filed", Ownership::Session),
+    ("bevy_dark_factory::report_issue::Pending", Ownership::Session),
+    // What the viewport drew, so a still can be cropped to it: this door's view, not the map's.
+    ("bevy_dark_factory::view::DrawnExtent", Ownership::Session),
     ("bevy_dark_factory::present::Wishes", Ownership::Session),
     // A lesson cites a hand-back, so it lives as long as the hand-backs do (#351).
     ("bevy_dark_factory::present::Lessons", Ownership::Session),
