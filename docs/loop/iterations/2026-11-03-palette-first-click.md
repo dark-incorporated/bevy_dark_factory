@@ -84,14 +84,14 @@ Reviewer could not run (no subagent spawned inside the budget). Five questions, 
 
 ## Test diffs
 
-- `crates/bevy_cauldron/tests/a_row_click_while_filtering_arms_it.rs`: one test replaced
+- `crates/bevy_dark_factory/tests/a_row_click_while_filtering_arms_it.rs`: one test replaced
   (`blurring_the_filter_does_not_ask_the_palette_to_rebuild` → `blurring_the_filter_leaves_the_palette_rows_standing`)
   because the first asserted the helper's output and **passed with the fix reverted** — it could not
   fail. The replacement asserts row identity and does fail. No other assertion changed.
 
 ## Release
 
-None: `bevy_cauldron` is `publish = false`; no publishable crate's files changed.
+None: `bevy_dark_factory` is `publish = false`; no publishable crate's files changed.
 
 ## Next focus
 

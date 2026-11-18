@@ -9,8 +9,8 @@
   "steps": [
     {"at": 1.0, "key": "Digit9", "mods": ["ControlLeft"], "caption": "person: the Agent workspace"},
     {"at": 2.2, "click_label": "Answer hand-backs here", "caption": "person: Answer hand-backs here"},
-    {"at": 3.4, "mcp": "grimoire_style", "args": {"map": "courtyard"}, "caption": "agent: reads the style, grimoire_style"},
-    {"at": 4.4, "mcp": "grimoire_present", "args": {"title": "the gate lanterns", "summary": "Hung two lanterns at the gate.", "followed": [{"path": "design/style.md", "line": 5}, {"path": "design/levels/courtyard/style.md", "line": 7}]}, "caption": "agent: hands back, naming the style lines it followed"},
+    {"at": 3.4, "mcp": "blueprint_style", "args": {"map": "courtyard"}, "caption": "agent: reads the style, blueprint_style"},
+    {"at": 4.4, "mcp": "blueprint_present", "args": {"title": "the gate lanterns", "summary": "Hung two lanterns at the gate.", "followed": [{"path": "design/style.md", "line": 5}, {"path": "design/levels/courtyard/style.md", "line": 7}]}, "caption": "agent: hands back, naming the style lines it followed"},
     {"at": 6.0, "cursor": [330, 430], "caption": "the card lists each line, with a link to it"},
     {"at": 7.2, "click_label": "design/levels/courtyard/style.md:7", "caption": "person: click a line"},
     {"at": 8.6, "cursor": [700, 330], "caption": "the Design page, on that line"}

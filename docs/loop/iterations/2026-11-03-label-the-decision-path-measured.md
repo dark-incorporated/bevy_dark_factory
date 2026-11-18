@@ -16,13 +16,13 @@ Load 8.4, free disk 147 GB, available RAM 13 GB.
 
 **1. On the same labelled kit, both paths' agreement is measured and recorded, and a test reads it.**
 `fixtures/label_kit.ron` (12 real pieces, each labelled with the project's own `kind` reading from
-`assets/grimoire/library_from_manifests.ron`), `examples/label_compare.rs`, and
+`assets/blueprint/library_from_manifests.ron`), `examples/label_compare.rs`, and
 `fixtures/label_comparison.ron`: **decide 11/12 (92%), vlm 11/12 (92%)**, `clef-flash`, 2026-11-03.
 `tests/the_two_labelling_paths_are_compared.rs` reads it and refuses a record whose counts do not add up,
 whose set is not the committed one, or that shows the new path behind.
 
 **2. Both paths exist behind config, and the test selects the path.** `label_decide::Path` reads
-`GRIMOIRE_LABEL_PATH`: unset is `decide`, `vlm` is the old path, and any other value is refused, naming
+`BLUEPRINT_LABEL_PATH`: unset is `decide`, `vlm` is the old path, and any other value is refused, naming
 the bad value and both paths. A typo that quietly keeps the old path is how a migration stalls.
 
 **3. A vocabulary token the project lacks can never be suggested.** `request_for` builds the options *from*
@@ -57,16 +57,16 @@ Reviewer not spawned; self-review, mine:
 Two new test files and their two `mod` lines in `all.rs`. One new fixture set. No existing assertion changed.
 
 ## Release
-`bevy_grimoire_core` gained `Vocabularies::axis`, which the labeller uses, so three crates went out in
+`blueprint_model` gained `Vocabularies::axis`, which the labeller uses, so three crates went out in
 dependency order from a green local gate:
 
-- **bevy_grimoire_core v0.7.1** — https://crates.io/crates/bevy_grimoire_core/0.7.1 (an addition;
+- **blueprint_model v0.7.1** — https://crates.io/crates/blueprint_model/0.7.1 (an addition;
   semver-checks: 202 checks pass, no semver update required, so PATCH)
-- **bevy_grimoire v0.4.3** — https://crates.io/crates/bevy_grimoire/0.4.3 (API unchanged; its published
+- **bevy_blueprint v0.4.3** — https://crates.io/crates/bevy_blueprint/0.4.3 (API unchanged; its published
   `Cargo.toml` now requires core 0.7.1)
-- **bevy_grimoire_anim v0.1.8** — https://crates.io/crates/bevy_grimoire_anim/0.1.8 (same)
+- **bevy_blueprint_anim v0.1.8** — https://crates.io/crates/bevy_blueprint_anim/0.1.8 (same)
 
-`bevy_cauldron` is `publish = false`.
+`bevy_dark_factory` is `publish = false`.
 
 ## Next focus
 Remove `vlm.rs`: 2483 lines, 39 call sites in five modules, now permitted by the measurement.

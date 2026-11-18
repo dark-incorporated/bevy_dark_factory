@@ -55,7 +55,7 @@ blue would be exactly the false caption the docs rule forbids.
 **Reported on #282** with the discriminator for the two remaining causes: read `WorldClock`'s hour over
 BRP after pressing `23:00`. If it reads 23.0, the crate's sky is not following its own clock; if 12.0,
 `scrub_clock` or `ClockScrub` is not running. `WorldClock` is not in `world.list_resources` on this
-build, so that check needs a small `grimoire_state` field first.
+build, so that check needs a small `blueprint_state` field first.
 
 ## A storyboard lesson worth keeping
 
@@ -79,10 +79,10 @@ what remains — the `WorldClock` read, then the fix in whichever crate owns it.
 
 ## Release
 
-None here: nothing packaged changed (`bevy_cauldron` is `publish = false`). The crate fix is on
+None here: nothing packaged changed (`bevy_dark_factory` is `publish = false`). The crate fix is on
 `bevy_elements`' `main`.
 
 ## Next focus
 
-Expose `WorldClock`'s hour through `grimoire_state`, press `23:00`, and read it — that separates the two
+Expose `WorldClock`'s hour through `blueprint_state`, press `23:00`, and read it — that separates the two
 remaining causes on #282.

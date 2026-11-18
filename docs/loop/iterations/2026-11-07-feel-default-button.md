@@ -6,7 +6,7 @@ Focus: epic #330 (owner's steer) · Commits: bevy_gooey e5ac61b, release b66ec01
 G-59 (bevy-coven/bevy_gooey#66) is the next UI-R03 need that was ready (it needed G-51, closed last pass). Typing a name in a dialog and pressing Return now presses its default button. UI-R03 #333 still needs G-57, G-58 and G-66.
 
 ## Baseline
-bevy_grimoire was not touched, so its gate and `accept.py` did not run.
+bevy_blueprint was not touched, so its gate and `accept.py` did not run.
 
 ## Enhancement: G-59
 - **Change:** `src/default_button.rs`, `text_on_key_input` and `Confirm::default`.
@@ -39,7 +39,7 @@ None. The reference is Rune's README, "Key routing".
 Not measured.
 
 ## Acceptance
-`accept.py` not run: no bevy_grimoire code changed.
+`accept.py` not run: no bevy_blueprint code changed.
 
 ## Review
 An independent `reviewer` ran: 1 P2 and 4 P3, all fixed.

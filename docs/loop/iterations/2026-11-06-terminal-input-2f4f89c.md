@@ -41,7 +41,7 @@ New files: `src/terminal/input_tests.rs`, `tests/the_terminal_speaks_to_programs
 Changed: `src/terminal/flow_tests.rs` (written by pass 405), after the first push's gate refused `a_flood_never_holds_one_drain`. Cause measured: the tests used the process's `$SHELL`, fish 4 on the gate, which sends a Primary Device Attributes query at startup and runs nothing for 10 s when it is unanswered (these tests answer nothing; the editor does, via alacritty's `identify_terminal`); and back-to-back drains found the buffer empty under load (3 of 5 runs with 20 busy CPUs). Now `SHELL=/bin/sh` under a lock, as `tests.rs` does, the flood is waited for, and a frame passes before each drain. No assertion removed or loosened; 168/168 under SHELL=fish and 20 hogs (cedb963).
 
 ## Release
-Cauldron 0.3.2: `release: 0.3.2` (2f4f89c), tag `bevy_cauldron-v0.3.2`. Nothing on crates.io: no publishable crate changed (the editor is `publish = false`).
+DarkFactory 0.3.2: `release: 0.3.2` (2f4f89c), tag `bevy_dark_factory-v0.3.2`. Nothing on crates.io: no publishable crate changed (the editor is `publish = false`).
 
 ## Next focus
 Terminal step 5: link detection (`path:line:col` and URLs, Ctrl+click), then a translucent selection so a selected inverse cell stays legible.

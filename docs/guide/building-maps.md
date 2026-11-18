@@ -74,7 +74,7 @@ Or right-click the piece's row in the palette: its menu opens with Place, Mount 
 
 **Goal:** Change one number of a game's own tuning file, and see what you changed.
 
-1. List the file in `assets/grimoire/data.yaml`, as the game's guide describes. Without that file the DATA section says `no data files registered (data.yaml)` and shows no table.
+1. List the file in `assets/blueprint/data.yaml`, as the game's guide describes. Without that file the DATA section says `no data files registered (data.yaml)` and shows no table.
 2. In the INSPECTOR, find **DATA**. Each leaf of each registered file is a row of the table: file, path and value. Click a column's title to sort by it.
 3. Open a row with Enter or a double click. A text field opens over the value. Type the new value and press Enter.
 
@@ -197,7 +197,7 @@ An agent can lay only part of the map: `layout_propose` takes an `area`, `[x0, z
 1. Drag a png, jpg, jpeg, webp or gif file onto the editor window. Or type `ref <path> <caption>` in the terrain field. The caption says what to take from the picture ("the fog's colour, not its density"), not what it shows, and an empty one is refused.
 2. Say what to take from a dropped picture with `ref <path> <caption>` (a picture already on the board is re-captioned), and type `ref <path> remove` to take one off.
 
-**What you see:** The status line says `added <path> to the board of design/levels/<map>`. A picture from outside the project is copied into that place's `board/` folder first; one already inside the project stays where it is. A dropped picture carries `(caption needed: ...)` until you say what to take from it. The pictures are kept in `design/levels/<map>/board/board.yaml`, and an agent reads them in `grimoire_state.board` and cites a picture by its path (`board picture <path>: <caption>`). `Cmd+Z` takes the change back and leaves the copied file. A file that is not an image, a different picture under a name `board/` already holds, or a restricted picture under `assets/` is refused and nothing changes.
+**What you see:** The status line says `added <path> to the board of design/levels/<map>`. A picture from outside the project is copied into that place's `board/` folder first; one already inside the project stays where it is. A dropped picture carries `(caption needed: ...)` until you say what to take from it. The pictures are kept in `design/levels/<map>/board/board.yaml`, and an agent reads them in `blueprint_state.board` and cites a picture by its path (`board picture <path>: <caption>`). `Cmd+Z` takes the change back and leaves the copied file. A file that is not an image, a different picture under a name `board/` already holds, or a restricted picture under `assets/` is refused and nothing changes.
 
 ## Draw a style area on the map
 
@@ -239,8 +239,8 @@ An agent can lay only part of the map: `layout_propose` takes an `area`, `[x0, z
 ![The status band counts "Baking previews 5 of 90", then 8: the palette's portraits. A click opens the job list with its Stop row, Stop ends the bake, and the band goes quiet and stays quiet.](../changelog/media/2026-11-03-jobs.png)
 
 1. Open a project with a library. The editor bakes a portrait of every piece for the PLACE list, and the status band says so while it works.
-2. Click the words in the band. A list opens with one row per job. An agent reads the same thing: `grimoire_state.jobs` answers the words the band draws, with each job's key and fraction.
-3. Click a row to stop that job. An agent can make the same request with `grimoire_jobs_stop { "key": "thumbs" }`.
+2. Click the words in the band. A list opens with one row per job. An agent reads the same thing: `blueprint_state.jobs` answers the words the band draws, with each job's key and fraction.
+3. Click a row to stop that job. An agent can make the same request with `blueprint_jobs_stop { "key": "thumbs" }`.
 
 **What you see:** The band reads `Baking previews 3 of 40` and the number climbs. A piece whose bake was stopped keeps an empty tile rather than holding the whole library behind it. The band says nothing at all when no job is running, so a quiet band means quiet. Two jobs at once read as `Baking previews 3 of 40 +1`, and the list names every one.
 

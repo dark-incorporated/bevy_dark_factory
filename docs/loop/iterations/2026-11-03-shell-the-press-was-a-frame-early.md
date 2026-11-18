@@ -25,7 +25,7 @@ the live one never was — the whole class of fault this pass has been chasing.
 
 ## What remains, measured
 The drag still leaves `SplitFraction` at 0.22 live. Two candidate faults, both now readable in a single
-request thanks to pass 282's `grimoire/pointer`:
+request thanks to pass 282's `blueprint/pointer`:
 - does the `Move` this system writes reach `PointerState.dragging`?
 - is the divider what the press landed on (the `HoverMap` says it is, headlessly)?
 
@@ -43,10 +43,10 @@ Reviewer not spawned; self-review, mine:
 
 ## Test diffs
 None: the change is a schedule and the existing suite exercises both schedules. Pass 282's
-`grimoire/pointer` tests still pin the payload.
+`blueprint/pointer` tests still pin the payload.
 
 ## Release
-None: `bevy_cauldron` is `publish = false`.
+None: `bevy_dark_factory` is `publish = false`.
 
 ## Next focus
 Whether `inject_clicks`'s `Move` reaches `PointerState.dragging` live — one `world.query` away.

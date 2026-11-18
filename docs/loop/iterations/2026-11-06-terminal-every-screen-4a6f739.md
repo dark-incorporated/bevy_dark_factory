@@ -28,7 +28,7 @@ With the terminal at a fixed 320 px in a 1280x720 window (600 px of UI), the edi
 Reviewer not spawned. Self-review, mine: (1) A screen with no `TerminalDock` gets no pane — the editor docks its own, every other screen root names the marker. (2) Collapse survives screens through `Terminal.collapsed`; `step_aside_for_the_key_overlay` re-asserts `!collapsed` each frame, so a chord and the overlay cannot disagree. (3) `hold_the_keyboard` only clears `just_pressed`, so held modifiers still read for the shell's Ctrl/Alt. (4) Input focus is let go only if it is still the body. (5) Known gap: menu-item shortcuts (gooey `Shortcut` on menu rows, e.g. Ctrl+O) still fire while the shell has the keys — VS Code's commands-to-skip-shell question, not taken here.
 
 ## Release
-Cauldron 0.3.3: `release: 0.3.3` (4a6f739), tag `bevy_cauldron-v0.3.3` pushed. Nothing on crates.io: the editor is `publish = false` and no publishable crate changed.
+DarkFactory 0.3.3: `release: 0.3.3` (4a6f739), tag `bevy_dark_factory-v0.3.3` pushed. Nothing on crates.io: the editor is `publish = false` and no publishable crate changed.
 
 ## Next focus
 #317 (click to focus the terminal), then which window chords the shell should keep (Ctrl+O, Ctrl+P) while it holds the keyboard.

@@ -1,0 +1,77 @@
+{
+  "version": 2,
+  "stem": "feedback-1794921635359",
+  "taken_at_ms": 1794921635359,
+  "audience": "developers",
+  "app_version": "0.7.0",
+  "screen": "editor",
+  "project": "/Users/ladvien/Documents/DarkFactory Projects/lavender_hills",
+  "map": "deadite_caverns",
+  "tool": "Place",
+  "window": {
+    "physical": [
+      2560,
+      1604
+    ],
+    "logical": [
+      1280.0,
+      802.0
+    ],
+    "scale_factor": 2.0,
+    "ui_scale": 2.4
+  },
+  "picks": [
+    {
+      "subject": {
+        "kind": "scene",
+        "world": [
+          -100.44119,
+          0.0,
+          442.49066
+        ],
+        "map": [
+          -100.44119,
+          442.49066
+        ],
+        "cell": [
+          -101,
+          442
+        ],
+        "placement": null,
+        "camera": {
+          "translation": [
+            11.999999,
+            32.0,
+            11.999999
+          ],
+          "forward": [
+            -0.57735026,
+            -0.5773504,
+            -0.5773503
+          ]
+        }
+      },
+      "at": [
+        1379.0625,
+        891.3906
+      ]
+    }
+  ],
+  "relations": [],
+  "note": "The \"v\" should collapse the text. And we should consider an icon solution for icons like up and down arrows, etc.  Like font awesome, etc.",
+  "picture": {
+    "file": "feedback-1794921635359.png",
+    "size": [
+      2560,
+      1604
+    ]
+  },
+  "picks_picture": {
+    "file": "feedback-1794921635359_picks.png",
+    "size": [
+      2560,
+      1604
+    ]
+  },
+  "log": "feedback-1794921635359.log"
+}

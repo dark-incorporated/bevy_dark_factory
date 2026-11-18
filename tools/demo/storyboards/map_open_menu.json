@@ -5,7 +5,7 @@
   "width": 960,
   "setup": [
     {
-      "mcp": "grimoire_frame_view",
+      "mcp": "blueprint_frame_view",
       "args": {
         "target": {
           "placements": [
@@ -17,7 +17,7 @@
   ],
   "calls": [
     {
-      "mcp": "grimoire_list_operations",
+      "mcp": "blueprint_list_operations",
       "args": {}
     }
   ],

@@ -25,7 +25,7 @@ Why the harness, and not the agent, failed these trials:
 
 | trials | reason | which |
 |---|---|---|
-| 1 | the transcript shows a tool \`xd___mcp__cauldron_grimoire_guide\` that is neither the editor's nor the harness's own set, so the profile was not isolated | `write-the-gatekeepers-greeting` trial 1 |
+| 1 | the transcript shows a tool \`xd___mcp__dark_factory_blueprint_guide\` that is neither the editor's nor the harness's own set, so the profile was not isolated | `write-the-gatekeepers-greeting` trial 1 |
 
 ## The suite
 
@@ -52,6 +52,6 @@ Why the harness, and not the agent, failed these trials:
 
 ## Where the agent stumbles (dev tasks)
 
-- tools called most: `grimoire_apply_operation` ×27, `grimoire_style` ×3, `grimoire_guide` ×2, `grimoire_list_operations` ×2, `grimoire_present` ×2, `grimoire_state` ×2, `grimoire_capture_still` ×1, `grimoire_list_pieces` ×1
-- refusals by tool: `grimoire_apply_operation` ×4
+- tools called most: `blueprint_apply_operation` ×27, `blueprint_style` ×3, `blueprint_guide` ×2, `blueprint_list_operations` ×2, `blueprint_present` ×2, `blueprint_state` ×2, `blueprint_capture_still` ×1, `blueprint_list_pieces` ×1
+- refusals by tool: `blueprint_apply_operation` ×4
 - wishes, by the tool wished for: none

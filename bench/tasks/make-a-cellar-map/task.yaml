@@ -10,14 +10,14 @@ map: bench_bedroom
 prompt: |
   Make a new map called cellar, 12 m wide (x) and 8 m deep (z). Leave the bedroom map alone.
 
-  When the map is made, hand the result back with grimoire_present.
+  When the map is made, hand the result back with blueprint_present.
 setup: []
 solution:
   - op: map_create
     params:
       name: cellar
       bounds: [12.0, 3.0, 8.0]
-  - op: grimoire_present
+  - op: blueprint_present
     params:
       title: A cellar map
       summary: A new map called cellar, 12 m wide and 8 m deep, is made. The bedroom map is unchanged.

@@ -4,7 +4,7 @@
  "scale": 1,
  "width": 960,
  "setup": [
-  {"mcp": "grimoire_frame_view", "args": {"target": {"placements": ["floor_lamp", "bed"]}}}
+  {"mcp": "blueprint_frame_view", "args": {"target": {"placements": ["floor_lamp", "bed"]}}}
  ],
  "chunks": [
   {"seconds": 3},

@@ -40,7 +40,7 @@ is only the plumbing. (4) *Protected files?* None. (5) *What remains?* Six other
 None — an existing test became the regression check.
 
 ## Release
-None — `bevy_cauldron` is `publish = false`.
+None — `bevy_dark_factory` is `publish = false`.
 
 ## Next focus
 `drive_place` onto `panel_under_pointer`, with a reproducer; then the split's pixel.

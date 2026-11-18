@@ -17,7 +17,7 @@ prompt: |
 
   Write what the gatekeeper says to greet the visitor, in the game's data for the gatekeeper (the registered file `dialogue/gatekeeper`, the leaf `gatekeeper.greeting.text`).
 
-  When it is written, hand the result back with grimoire_present.
+  When it is written, hand the result back with blueprint_present.
 setup: []
 solution:
   - op: data_set
@@ -25,7 +25,7 @@ solution:
       file: dialogue/gatekeeper
       path: gatekeeper.greeting.text
       value: Evening, friend. The toll is two coins, and the gate shuts at dusk.
-  - op: grimoire_present
+  - op: blueprint_present
     params:
       title: The gatekeeper's greeting is written
       summary: The gatekeeper now greets a visitor with a short greeting in the game's data.

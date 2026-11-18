@@ -11,7 +11,7 @@
    ]
   },
   {
-   "mcp": "grimoire_apply_operation",
+   "mcp": "blueprint_apply_operation",
    "args": {
     "operation": "note_add",
     "parameters": {
@@ -23,7 +23,7 @@
    }
   },
   {
-   "mcp": "grimoire_frame_view",
+   "mcp": "blueprint_frame_view",
    "args": {
     "target": "map"
    }

@@ -15,7 +15,7 @@ prompt: |
   The yard slopes down towards one of its corners. Put a pond in the lowest corner: one lake at least 3 m
   across. Do not change the ground.
 
-  When the pond is placed, hand the result back with grimoire_present.
+  When the pond is placed, hand the result back with blueprint_present.
 setup: []
 solution:
   - op: water_place
@@ -23,7 +23,7 @@ solution:
       map: bench_yard
       place:
         Lake: {x: -8.0, z: 8.0, radius_m: 2.5, level_m: 0.4}
-  - op: grimoire_present
+  - op: blueprint_present
     params:
       title: A pond in the south-west corner
       summary: The yard falls to its south-west corner, and a pond 5 m across is there at (-8, 8). The ground is unchanged.

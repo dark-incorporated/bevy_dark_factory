@@ -25,7 +25,7 @@ Why the harness, and not the agent, failed these trials:
 
 | trials | reason | which |
 |---|---|---|
-| 2 | the transcript shows a tool \`xd__mcp__cauldron_grimoire_guide\` that is neither the editor's nor the harness's own set, so the profile was not isolated | `dress-the-market-area` trial 1, `write-the-gatekeepers-greeting` trial 1 |
+| 2 | the transcript shows a tool \`xd__mcp__dark_factory_blueprint_guide\` that is neither the editor's nor the harness's own set, so the profile was not isolated | `dress-the-market-area` trial 1, `write-the-gatekeepers-greeting` trial 1 |
 
 ## The suite
 
@@ -56,14 +56,14 @@ Why the harness, and not the agent, failed these trials:
 
 - first failing check: `file_value` — wanted \`gate_light.radius_m\` in \`furniture/data/gate_light.yaml\` ≥ 2 and ≤ 5; measured \`gate_light.radius_m\` in \`furniture/data/gate_light.yaml\` is 8.0, and it should be at most 5
 - its last 5 call(s), oldest first:
-  - `grimoire_apply_operation (refused) {"operation":"data_set","parameters":{"file":"lighting/gate","path":"gate_light.flicker_hz","value":8}}`
-  - `grimoire_apply_operation {"operation":"data_set","parameters":{"file":"lighting/gate","path":"gate_light.flicker_hz","value":8.5}}`
-  - `grimoire_apply_operation {"operation":"data_set","parameters":{"file":"lighting/gate","path":"gate_light.tint","value":"amber"}}`
-  - `grimoire_apply_operation {"operation":"data_set","parameters":{"file":"lighting/gate","path":"gate_light.ambient_lux","value":2.5}}`
-  - `grimoire_present {"check":[{"what":"intensity_lm 900 and radius_m 8.0 together: does the lit pool read well against ambient_lux 2.5?"},{"what":"tint 'amber': confirm the game ac…`
+  - `blueprint_apply_operation (refused) {"operation":"data_set","parameters":{"file":"lighting/gate","path":"gate_light.flicker_hz","value":8}}`
+  - `blueprint_apply_operation {"operation":"data_set","parameters":{"file":"lighting/gate","path":"gate_light.flicker_hz","value":8.5}}`
+  - `blueprint_apply_operation {"operation":"data_set","parameters":{"file":"lighting/gate","path":"gate_light.tint","value":"amber"}}`
+  - `blueprint_apply_operation {"operation":"data_set","parameters":{"file":"lighting/gate","path":"gate_light.ambient_lux","value":2.5}}`
+  - `blueprint_present {"check":[{"what":"intensity_lm 900 and radius_m 8.0 together: does the lit pool read well against ambient_lux 2.5?"},{"what":"tint 'amber': confirm the game ac…`
 
 ## Where the agent stumbles (dev tasks)
 
-- tools called most: `grimoire_apply_operation` ×7, `grimoire_guide` ×1, `grimoire_list_operations` ×1, `grimoire_present` ×1, `grimoire_state` ×1
-- refusals by tool: `grimoire_apply_operation` ×1
+- tools called most: `blueprint_apply_operation` ×7, `blueprint_guide` ×1, `blueprint_list_operations` ×1, `blueprint_present` ×1, `blueprint_state` ×1
+- refusals by tool: `blueprint_apply_operation` ×1
 - wishes, by the tool wished for: none

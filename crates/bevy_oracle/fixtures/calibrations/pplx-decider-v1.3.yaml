@@ -1,0 +1,22 @@
+check: clip_shows_its_title
+model: pplx-decider-v1.3
+set_size: 116
+agreement: 0.8793103448275862
+threshold: 0.8910357525872159
+date: 2026-11-17
+correct: 102
+wrong: 14
+excluded:
+- sample: 103-light-buttons
+  why: 'decision endpoint https://openrouter.ai/api/alpha/decisions refused the request with status 403: {"error":{"message":"Request blocked by content filter: [SECRET:bitcoin-wif-compressed]","code":403}}'
+- sample: 103-light-buttons-mismatch
+  why: 'decision endpoint https://openrouter.ai/api/alpha/decisions refused the request with status 403: {"error":{"message":"Request blocked by content filter: [SECRET:bitcoin-wif-compressed]","code":403}}'
+- sample: 103-overlay
+  why: 'decision endpoint https://openrouter.ai/api/alpha/decisions refused the request with status 403: {"error":{"message":"Request blocked by content filter: [SECRET:bitcoin-wif-compressed]","code":403}}'
+- sample: 103-overlay-mismatch
+  why: 'decision endpoint https://openrouter.ai/api/alpha/decisions refused the request with status 403: {"error":{"message":"Request blocked by content filter: [SECRET:bitcoin-wif-compressed]","code":403}}'
+- sample: e069-plan-panel
+  why: 'decision endpoint https://openrouter.ai/api/alpha/decisions refused the request with status 403: {"error":{"message":"Request blocked by content filter: [SECRET:bitcoin-wif-compressed]","code":403}}'
+- sample: e069-plan-panel-mismatch
+  why: 'decision endpoint https://openrouter.ai/api/alpha/decisions refused the request with status 403: {"error":{"message":"Request blocked by content filter: [SECRET:bitcoin-wif-compressed]","code":403}}'
+

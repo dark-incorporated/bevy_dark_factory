@@ -684,6 +684,49 @@ dependencies = [
 ]
 
 [[package]]
+name = "bevy_blueprint"
+version = "0.6.0"
+dependencies = [
+ "bevy",
+ "bevy_blueprint_rhai",
+ "bevy_remote",
+ "blueprint_model",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "bevy_blueprint_anim"
+version = "0.3.0"
+dependencies = [
+ "bevy",
+ "blueprint_model",
+]
+
+[[package]]
+name = "bevy_blueprint_migrate"
+version = "0.1.0"
+dependencies = [
+ "bevy_oracle",
+ "blueprint_model",
+ "ron",
+ "serde",
+ "serde_json",
+ "serde_yaml_ng",
+]
+
+[[package]]
+name = "bevy_blueprint_rhai"
+version = "0.2.0"
+dependencies = [
+ "bevy",
+ "blueprint_model",
+ "rhai",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "bevy_camera"
 version = "0.20.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -719,79 +762,6 @@ dependencies = [
  "isomesh 0.0.10",
  "libm",
  "serde",
-]
-
-[[package]]
-name = "bevy_cauldron"
-version = "0.6.9"
-dependencies = [
- "accesskit",
- "alacritty_terminal",
- "arboard",
- "base64 0.22.1",
- "bevy",
- "bevy_carnage",
- "bevy_devshot",
- "bevy_elements",
- "bevy_fairy",
- "bevy_flora",
- "bevy_gooey",
- "bevy_grimoire",
- "bevy_grimoire_anim",
- "bevy_grimoire_core",
- "bevy_grimoire_migrate",
- "bevy_grimoire_snip",
- "bevy_light_grid",
- "bevy_lights",
- "bevy_oracle",
- "bevy_orca",
- "bevy_siren",
- "bevy_society",
- "bevy_speech_bubbles",
- "bevy_stigmergy",
- "dirs",
- "image",
- "isomesh 0.0.11",
- "rfd",
- "rustix 1.1.5",
- "semver",
- "serde",
- "serde_json",
- "sha2",
- "ttf-parser",
- "ureq",
-]
-
-[[package]]
-name = "bevy_cauldron_bench"
-version = "0.1.0"
-dependencies = [
- "bevy",
- "bevy_cauldron",
- "bevy_fairy",
- "bevy_gooey",
- "bevy_grimoire_core",
- "libc",
- "serde",
- "serde_json",
- "sha2",
- "ureq",
-]
-
-[[package]]
-name = "bevy_cauldron_mcp"
-version = "0.1.0"
-dependencies = [
- "base64 0.22.1",
- "bevy_grimoire_core",
- "bevy_grimoire_snip",
- "bevy_oracle",
- "rmcp",
- "schemars",
- "serde",
- "serde_json",
- "tokio",
- "ureq",
 ]
 
 [[package]]
@@ -870,6 +840,63 @@ dependencies = [
  "serde",
  "thiserror 2.0.21",
  "variadics_please",
+]
+
+[[package]]
+name = "bevy_dark_factory"
+version = "0.7.0"
+dependencies = [
+ "accesskit",
+ "alacritty_terminal",
+ "arboard",
+ "base64 0.22.1",
+ "bevy",
+ "bevy_blueprint",
+ "bevy_blueprint_anim",
+ "bevy_blueprint_migrate",
+ "bevy_carnage",
+ "bevy_devshot",
+ "bevy_elements",
+ "bevy_fairy",
+ "bevy_flora",
+ "bevy_gooey",
+ "bevy_light_grid",
+ "bevy_lights",
+ "bevy_oracle",
+ "bevy_orca",
+ "bevy_siren",
+ "bevy_society",
+ "bevy_speech_bubbles",
+ "bevy_stigmergy",
+ "blueprint_model",
+ "dark_factory_snip",
+ "dirs",
+ "image",
+ "isomesh 0.0.11",
+ "rfd",
+ "rustix 1.1.5",
+ "semver",
+ "serde",
+ "serde_json",
+ "sha2",
+ "ttf-parser",
+ "ureq",
+]
+
+[[package]]
+name = "bevy_dark_factory_bench"
+version = "0.1.0"
+dependencies = [
+ "bevy",
+ "bevy_dark_factory",
+ "bevy_fairy",
+ "bevy_gooey",
+ "blueprint_model",
+ "libc",
+ "serde",
+ "serde_json",
+ "sha2",
+ "ureq",
 ]
 
 [[package]]
@@ -1252,95 +1279,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "bevy_grimoire"
-version = "0.6.0"
-dependencies = [
- "bevy",
- "bevy_grimoire_core",
- "bevy_grimoire_rhai",
- "bevy_remote",
- "serde",
- "serde_json",
-]
-
-[[package]]
-name = "bevy_grimoire_anim"
-version = "0.3.0"
-dependencies = [
- "bevy",
- "bevy_grimoire_core",
-]
-
-[[package]]
-name = "bevy_grimoire_core"
-version = "0.12.0"
-dependencies = [
- "bevy_grimoire_migrate",
- "bevy_grimoire_rng",
- "bevy_grimoire_solver",
- "dirs",
- "jsonschema",
- "postcard",
- "pulldown-cmark",
- "rand",
- "rand_chacha",
- "saphyr-parser",
- "schemars",
- "serde",
- "serde_json",
- "serde_path_to_error",
- "serde_yaml_ng",
- "sha2",
-]
-
-[[package]]
-name = "bevy_grimoire_migrate"
-version = "0.1.0"
-dependencies = [
- "bevy_grimoire_core",
- "bevy_oracle",
- "ron",
- "serde",
- "serde_json",
- "serde_yaml_ng",
-]
-
-[[package]]
-name = "bevy_grimoire_rhai"
-version = "0.2.0"
-dependencies = [
- "bevy",
- "bevy_grimoire_core",
- "rhai",
- "serde",
- "serde_json",
-]
-
-[[package]]
-name = "bevy_grimoire_rng"
-version = "0.1.0"
-dependencies = [
- "rand",
- "rand_chacha",
-]
-
-[[package]]
-name = "bevy_grimoire_snip"
-version = "0.1.0"
-dependencies = [
- "image",
- "serde",
- "serde_json",
-]
-
-[[package]]
-name = "bevy_grimoire_solver"
-version = "0.1.2"
-dependencies = [
- "batsat",
-]
-
-[[package]]
 name = "bevy_image"
 version = "0.20.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1651,7 +1589,7 @@ checksum = "bff34eb29ff4b8a8688bc7299f14fb6b597461ca80fec03ed7d22939ab33e48f"
 name = "bevy_oracle"
 version = "0.1.0"
 dependencies = [
- "bevy_grimoire_core",
+ "blueprint_model",
  "serde",
  "serde_json",
  "serde_yaml_ng",
@@ -2522,6 +2460,54 @@ dependencies = [
 ]
 
 [[package]]
+name = "blueprint_model"
+version = "0.12.0"
+dependencies = [
+ "bevy_blueprint_migrate",
+ "blueprint_rng",
+ "blueprint_solver",
+ "dirs",
+ "jsonschema",
+ "postcard",
+ "pulldown-cmark",
+ "rand",
+ "rand_chacha",
+ "saphyr-parser",
+ "schemars",
+ "serde",
+ "serde_json",
+ "serde_path_to_error",
+ "serde_yaml_ng",
+ "sha2",
+]
+
+[[package]]
+name = "blueprint_rng"
+version = "0.1.0"
+dependencies = [
+ "rand",
+ "rand_chacha",
+]
+
+[[package]]
+name = "blueprint_sample_game"
+version = "0.1.0"
+dependencies = [
+ "bevy",
+ "bevy_blueprint",
+ "bevy_blueprint_rhai",
+ "blueprint_model",
+ "serde_json",
+]
+
+[[package]]
+name = "blueprint_solver"
+version = "0.1.2"
+dependencies = [
+ "batsat",
+]
+
+[[package]]
 name = "borrow-or-share"
 version = "0.2.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3028,6 +3014,31 @@ name = "cursor-icon"
 version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f27ae1dd37df86211c42e150270f82743308803d90a6f6e6651cd730d5e1732f"
+
+[[package]]
+name = "dark_factory_mcp"
+version = "0.1.0"
+dependencies = [
+ "base64 0.22.1",
+ "bevy_oracle",
+ "blueprint_model",
+ "dark_factory_snip",
+ "rmcp",
+ "schemars",
+ "serde",
+ "serde_json",
+ "tokio",
+ "ureq",
+]
+
+[[package]]
+name = "dark_factory_snip"
+version = "0.1.0"
+dependencies = [
+ "image",
+ "serde",
+ "serde_json",
+]
 
 [[package]]
 name = "darling"
@@ -3797,17 +3808,6 @@ dependencies = [
  "presser",
  "thiserror 2.0.21",
  "windows",
-]
-
-[[package]]
-name = "grimoire_sample_game"
-version = "0.1.0"
-dependencies = [
- "bevy",
- "bevy_grimoire",
- "bevy_grimoire_core",
- "bevy_grimoire_rhai",
- "serde_json",
 ]
 
 [[package]]

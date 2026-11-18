@@ -54,7 +54,7 @@ needs a design answer and should be documented rather than left unexplained.
 - `view: None` added to `Ctx` literals in five test files: the sanctioned additive empty default.
 
 ## Release
-None — `bevy_cauldron` is `publish = false`; no packaged crate changed.
+None — `bevy_dark_factory` is `publish = false`; no packaged crate changed.
 
 ## Next focus
 `ShowErrors` and `Shortcuts` on the `view_cycle_grid` template; document `Cancel` as staying unmigrated.

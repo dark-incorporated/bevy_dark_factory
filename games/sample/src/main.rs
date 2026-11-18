@@ -1,5 +1,5 @@
 use bevy::prelude::*;
-use bevy_grimoire::GamePlugin;
+use bevy_blueprint::GamePlugin;
 
 fn main() {
     App::new().add_plugins((DefaultPlugins, GamePlugin)).run();

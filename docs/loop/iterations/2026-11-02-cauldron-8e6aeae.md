@@ -1,4 +1,4 @@
-# 2026-11-02 cauldron: pack switches on the configuration screen, two bevy_elements bugs fixed, a night clip
+# 2026-11-02 dark_factory: pack switches on the configuration screen, two bevy_elements bugs fixed, a night clip
 
 Focus: the editor's UI on bevy_gooey, then every other open issue · Commits: a16b150..8e6aeae · Machine: big · Outcome: shipped
 

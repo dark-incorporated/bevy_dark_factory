@@ -1,0 +1,13922 @@
+//! **The one place an edit is defined** — and the one place an edit is applied.
+//!
+//! # Why this module exists
+//!
+//! The editor had **two ways to change the same thing**, and they were not the same way:
+//!
+//! - a **key handler** in `editor.rs` / `tiles.rs` / `compose.rs`, which read the keyboard, read
+//!   some state, wrote some state, and put a line in the status bar;
+//! - a **file on disk**, which the editor read once, at open, and never again.
+//!
+//! So an **agent** — which reaches the editor over BRP — could not make an edit at all, because
+//! the only door was a key handler and an agent has no keyboard. And a **developer** who edited a
+//! data file in their editor saw nothing happen until they restarted the editor, which is the
+//! slowest possible feedback loop for the person who is trying to see what a change looks like.
+//!
+//! **This module is the third door, and the only one that is the definition.** An operation is
+//! named once, validated once, applied once, and undone once — and every front end (a key
+//! handler, a BRP command, an MCP tool) is a *thin* front end that builds the operation's
+//! parameters and dispatches it. **No front end changes editor state any other way**, and
+//! `tests/operations_have_two_front_ends.rs` says so.
+//!
+//! # The shape
+//!
+//! An operation is three things:
+//!
+//! | | what it is | why it is separate |
+//! |---|---|---|
+//! | **parameters** | a typed struct, with a JSON schema | so a key handler and an agent send the *same* thing, and a typo is a refusal rather than a silent no-op |
+//! | **plan** | a pure function: what would change | so **preview** is free — a plan that changes nothing is the preview |
+//! | **commit** | the one function that writes | so there is exactly one place a change is made, and it is not in a front end |
+//!
+//! **And the undo is declared, not inferred.** Each operation says how it is undone: an inverse
+//! delta for a cheap edit, a snapshot for a procedural one. The editor's own `Undo` stack is a
+//! *different* thing — it is the author's undo, at the keyboard — and the operation's undo
+//! strategy is what an agent's `blueprint_undo` uses.
+//!
+//! # The operation log
+//!
+//! **One append-only file, and it is the source of truth.** Every operation — from a key handler
+//! or from an agent — appends one line to `assets/blueprint/oplog.jsonl`. The line records who did
+//! it (a human or an agent, and which session), what it was, what it was called with, what came
+//! back, and — where the operation is procedural — the seed and the rules it ran under.
+//!
+//! **Undo is a new line, never a deletion.** The log is append-only, so the fact that something
+//! was undone is itself recorded; an agent can read what the human just did, and a session can be
+//! replayed.
+//!
+//! # What is not here yet
+//!
+//! **This is the first slice, and the slice is small.** One workflow — a map's own settings —
+//! goes through the registry, with both front ends. The rest of the editor's verbs still change
+//! state directly, and `tests/operations_have_two_front_ends.rs` carries an explicit allowlist of
+//! them, which later iterations shrink. **The allowlist is the work list**, and a verb leaving it
+//! is the point of the exercise.
+
+use std::path::PathBuf;
+
+use bevy::prelude::*;
+use serde::{Deserialize, Serialize};
+
+use crate::project::{OpenMap, Project};
+
+/// **A metre count with no trailing `.0`** — `32` rather than `32.0`, `3.5` as itself.
+///
+/// **It lives here, and not in the editor**, because the receipt that uses it is written by the
+/// operation, and a receipt's wording is part of the operation's contract.
+pub fn trim_metres(m: f32) -> String {
+    if (m - m.round()).abs() < 1e-4 {
+        format!("{m:.0}")
+    } else {
+        format!("{m:.1}")
+    }
+}
+
+/// **Where the operation log lives** — in the project's own directory.
+///
+/// **At the project level, not inside a kit's.** The log records what was done to *the project* —
+/// to its maps, its compositions, its vocabulary — and a project binds several kits. **A log
+/// inside the authoring kit's directory would be lost when the authoring kit changed**, and a
+/// project whose log moves when the author switches kits is not a log the author can rely on.
+///
+/// **In the project directory, not the user's home.** The log is about *this* project: an agent
+/// working on a game needs to know what was done to that game's map, and a log in a shared
+/// location would answer a different question.
+pub fn oplog_path(project: &Project) -> PathBuf {
+    oplog_path_at(&project.root)
+}
+
+/// **The log's path from a project root alone**, so a change made before a door is open — the menu's
+/// `map_create` — records itself in the same file the editor's changes do.
+pub fn oplog_path_at(root: &std::path::Path) -> PathBuf {
+    root.join("assets/blueprint").join("oplog.jsonl")
+}
+
+/// **Who did it.**
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Source {
+    /// A person at the keyboard.
+    #[default]
+    Human,
+    /// An agent, over BRP or MCP.
+    Agent,
+}
+
+/// **The version of a log line's shape** (#202). A line with no `version` was written before it existed
+/// and is the first.
+pub const OPLOG_VERSION: u32 = 1;
+
+/// **One line of the operation log.**
+///
+/// **Every field earns its place, and the two that look like bookkeeping are the ones an agent
+/// cannot work without.** `operation_id` is what the agent cites when it presents a change and
+/// what the human reverts by; `session` is what tells two agents' work apart in a log they both
+/// read.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Entry {
+    /// **The shape of this line**: [`OPLOG_VERSION`]. A line from before it existed has none and reads as
+    /// the first; a line of another version does not read. The readers that name what is wrong (the reload
+    /// verdict and the undo walk, [`undo_target`]) refuse it naming `version` and the version this build
+    /// reads; the readers that parse a line as an entry and skip one that does not read ([`read_entries`]
+    /// and the feeds built on it) skip it like a damaged one; `blueprint/oplog_read` returns the line as
+    /// JSON. An append never rewrites it.
+    #[serde(default = "blueprint_model::format_version::first", deserialize_with = "blueprint_model::format_version::read::<_, OPLOG_VERSION>")]
+    pub version: u32,
+    /// **Monotonic, from the log itself.** The count of lines before this one, so a reader can
+    /// ask for "everything after what I saw" without a timestamp comparison.
+    pub seq: u64,
+    /// **What the agent cites and the human reverts by.** Unique within a project.
+    pub operation_id: String,
+    /// **When it happened**, RFC 3339, UTC.
+    pub at: String,
+    /// **Who did it.**
+    pub source: Source,
+    /// **Which session.** The editor's own session, or the agent's.
+    pub session: String,
+    /// **The operation's name** — the same name the registry and the MCP tool use.
+    pub op: String,
+    /// **What it was called with**, verbatim. So a replay can send the same call.
+    pub params: serde_json::Value,
+    /// **What came back**: `applied` or `refused`. An undo is an `applied` line whose `undoes`
+    /// names the line it took back.
+    pub outcome: String,
+    /// **The refusal's text**, when the outcome is `refused`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub refusal: Option<String>,
+    /// **A one-line summary of the result**, for a reader who does not want to replay it.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub result: Option<String>,
+    /// **The seed, where the operation was procedural.** `None` for a deterministic edit.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub rng_seed: Option<u64>,
+    /// **The rules hash, where the operation ran under rules.** `None` for a deterministic edit.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub rules_hash: Option<String>,
+    /// **The operation this one undid**, when it is an undo.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub undoes: Option<String>,
+    /// **The parameters that put this line's change back**, for the same operation.
+    ///
+    /// **Recorded with the change, because only the change knows what it replaced.** An undo
+    /// read from the log afterwards cannot reconstruct the old values from the new ones. Lines
+    /// written before this field existed have none, and [`undo`] refuses them by name.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub inverse: Option<serde_json::Value>,
+    /// **The state this line left behind**, for the guard [`undo`] runs. See [`Outcome::after`].
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub after: Option<serde_json::Value>,
+}
+
+/// **The session this editor is running under.**
+///
+/// **One per launch, and it is what tells two agents' work apart in a log they both read.** The
+/// id is the process id and the start time, which is enough to be unique among the editors
+/// running on one machine and is free — no dependency, no clock call at every operation.
+///
+/// **It lives here, and not in the BRP bridge**, because the keyboard's own edits are in the log
+/// too, and a session id that only the agent's door could produce would leave the person's
+/// work without one.
+pub fn session_id() -> String {
+    format!("{}-{}", std::process::id(), editor_start())
+}
+
+/// **When this editor started, in seconds since the epoch.**
+///
+/// **Computed once and kept**, because the session id has to be stable for the editor's life and
+/// a per-call clock read would make it a different id every time.
+fn editor_start() -> u64 {
+    use std::sync::LazyLock;
+    static START: LazyLock<u64> = LazyLock::new(|| {
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs())
+            .unwrap_or(0)
+    });
+    *START
+}
+
+/// **How an operation is undone.**
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Undo {
+    /// **Nothing to undo** — the operation only read.
+    None,
+    /// **The inverse of the edit**, which is enough to put it back.
+    ///
+    /// For an edit that changed one field of one thing, the inverse is the field's old value.
+    /// Cheap, exact, and it does not need the whole map.
+    Inverse,
+    /// **A snapshot of what was there**, put back whole.
+    ///
+    /// For an operation whose effect cannot be expressed as a delta — a generator that laid a
+    /// hundred pieces, say. The snapshot is the map as it was.
+    Snapshot,
+}
+
+/// **Where the change an operation makes can be seen** (AF-01, #357).
+///
+/// **The editor follows the NightShift**: after every change an agent makes, the person's view goes to
+/// it. That needs one answer per operation to *where the change is*, and it comes from the operation
+/// itself — [`Outcome`] says what changed and not where to look, and most changes are not on the map
+/// at all (a library piece, a composition, a rig, a data file, a note).
+///
+/// # One vocabulary, three readers
+///
+/// The answer is what `blueprint/operation_apply`, `operation_preview` and `operation_undo` return as
+/// `shown`, and what the follow (#358, #359) frames or opens. **It is serialized with a `kind` tag**,
+/// so an agent reads the same words a person's editor acts on.
+///
+/// # It is a place, not an effect
+///
+/// Every variant names something a person can *look at*, and `Map`'s rectangle is in **map metres** —
+/// the coordinates a [`crate::editor::FrameTarget::Rect`] takes. Ids are the things to outline, so a
+/// follow can draw the change rather than only point at it.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum Shown {
+    /// **A place on the map**: map metres, and the ids to outline.
+    ///
+    /// `placements` is empty when the id is not known before the change — a placement's id is minted
+    /// at commit, so the answer names the box it will land in and no ids.
+    Map {
+        /// `[x0, z0, x1, z1]`, map metres, with `x0 <= x1` and `z0 <= z1`.
+        rect: [f32; 4],
+        /// The placement ids inside it that the change touched.
+        placements: Vec<String>,
+    },
+    /// **The whole map**: a change whose extent the parameters do not name (a flood fill, a terrain
+    /// field, the map's own settings).
+    MapWhole,
+    /// **One library piece**, by the id the Meshes shelf names it.
+    Piece { id: String },
+    /// **One tile** — a library piece's own lattice.
+    ///
+    /// **Its page is the Meshes panel, not the Tiles tab** (AF-03, #359), which is not what the name
+    /// suggests and was measured rather than guessed: `tiles::rebuild_detail` returns into
+    /// `build_detail` for `Mode::Tiles`, and that function draws the open *composition* — the TILE
+    /// heading, the envelope, the members. The `SUBGRID` block a lattice is edited in, and
+    /// `draw_subgrid`, `pick_lattice` and `click_lattice` with it, all run on the Meshes panel, whose
+    /// pane follows the focused library piece. Opening the Tiles tab for a lattice change would put
+    /// the person in front of a different subject and call it the one that changed.
+    ///
+    /// **Assumed decision (owner may override):** the issue text lists the three tabs as Meshes,
+    /// Tiles and Compose; the editor's Tiles tab shows a composition, so a `Tile` change goes to
+    /// Meshes, where its row and its lattice are both drawn. Moving it to Tiles needs a lattice on
+    /// that tab first, which is a change to what Tiles is for rather than to this page.
+    ///
+    /// It is listed apart from `Piece` in the enum because the two are different subjects even where
+    /// they share a page, and [`crate::reveal`] is the one place that decides which page a subject is
+    /// on.
+    Tile { id: String },
+    /// **One composition**, on the Compose tab.
+    Composition { id: String },
+    /// **One rig**, on the Anim tab.
+    Rig { id: String },
+    /// **One of a rig's clips** (NV-11, #391): slot `slot` of the rig's manifest entry, on the Anim tab. The bench plays a slot when its
+    /// chip is soloed, so this page is the rig selected with that slot soloed. No operation answers it: the Go to anything finder does,
+    /// for the clips it lists.
+    Clip { rig: String, slot: usize },
+    /// **A project file**, and the lines changed when the operation knows them (GD-14, #376).
+    File {
+        /// Relative to the project root, the way a refusal names one: `assets/blueprint/vocab.yaml`.
+        path: String,
+        /// `[first, last]`, 1-based, when the changed span is known.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        lines: Option<[u32; 2]>,
+    },
+    /// **One sound cue** (NV-07, #384), by the name `family/bevy_siren.ron` gives it: on the Sound workspace's cue list, selected. No
+    /// operation answers it: a reference that names a cue and the Go to anything finder do.
+    Cue { name: String },
+    /// **One note**, in the Notes panel and on the map where it was drawn.
+    Note { id: String },
+    /// **One section of the settings**, by the name the screen lists it under: a family crate's id, or
+    /// `packs` for the kit's own policy.
+    Settings { section: String },
+    /// **A background job in the status band**, by the producer's key (`crate::jobs`): work a person
+    /// watches there rather than on the map — a build (GD-09, #371), and what else grows a job later.
+    Job {
+        /// The producer's key, which is what the band's item and its popover name.
+        key: String,
+    },
+    /// **Nothing a person can look at.** Pinned by name in
+    /// `tests/an_operation_says_where_its_change_is_seen.rs`, so a new one is a visible decision.
+    Nowhere,
+}
+
+impl Shown {
+    /// **The change in words a refusal can name**: `a library piece `lamp_tall``, ``the file
+    /// `assets/blueprint/vocab.yaml` ``. Used where the editor cannot show it (AF-03, #359), so the
+    /// problem says which change it could not show rather than `Some(Shown { .. })`.
+    pub fn words(&self) -> String {
+        match self {
+            Shown::Map { rect, placements } => format!(
+                "a place on the map ({:.1}, {:.1})..({:.1}, {:.1}) with {} placement(s)",
+                rect[0], rect[1], rect[2], rect[3], placements.len()
+            ),
+            Shown::MapWhole => "the whole map".to_owned(),
+            Shown::Piece { id } => format!("the library piece `{id}`"),
+            Shown::Tile { id } => format!("the lattice of `{id}`"),
+            Shown::Composition { id } => format!("the composition `{id}`"),
+            Shown::Rig { id } => format!("the rig `{id}`"),
+            Shown::Clip { rig, slot } => format!("slot {slot} (a clip) of the rig `{rig}`"),
+            Shown::File { path, lines } => match lines {
+                Some([first, last]) => format!("the file `{path}` at lines {first}..{last}"),
+                _ => format!("the file `{path}`"),
+            },
+            Shown::Cue { name } => format!("the sound cue `{name}`"),
+            Shown::Note { id } => format!("the note `{id}`"),
+            Shown::Settings { section } => format!("the `{section}` settings"),
+            Shown::Job { key } => format!("the `{key}` job in the status band"),
+            Shown::Nowhere => "nothing to look at".to_owned(),
+        }
+    }
+}
+
+/// **How wide the box round a point is**, in metres, when the thing there has no measurement of its
+/// own — an unmeasured piece, a person's marker, a spring. **A rect of zero width is not a place**:
+/// the framing code refuses one, so an answer that could not be framed is not an answer.
+pub const POINT_BOX_M: f32 = 1.0;
+
+/// **The map-space box a piece covers**, standing at `at`, turned by `yaw`, tipped by `tip`.
+///
+/// The floor shadow of [`blueprint_model::descriptor::tipped_footprint`], turned the way the piece
+/// is drawn so a turned wall's box is wide instead of tall. `None` for a piece with no measurement.
+pub fn footprint_rect(
+    d: &blueprint_model::descriptor::Descriptor,
+    at: (f32, f32),
+    yaw: f32,
+    tip: (u8, u8),
+) -> Option<[f32; 4]> {
+    let (w, depth) = blueprint_model::descriptor::tipped_footprint(d, tip)?;
+    let turn = bevy_blueprint::draw_yaw(d, yaw).to_radians();
+    let (sin, cos) = turn.sin_cos();
+    let mut lo = (f32::INFINITY, f32::INFINITY);
+    let mut hi = (f32::NEG_INFINITY, f32::NEG_INFINITY);
+    for (sx, sz) in [(-0.5, -0.5), (-0.5, 0.5), (0.5, -0.5), (0.5, 0.5)] {
+        let (x, z) = (sx * w, sz * depth);
+        // Bevy's yaw about +Y turns +X toward −Z. A box's axis-aligned bounds are the same either
+        // way round, so this is the ordinary rotation and the sign convention cannot bite.
+        let (rx, rz) = (x * cos - z * sin, x * sin + z * cos);
+        lo = (lo.0.min(at.0 + rx), lo.1.min(at.1 + rz));
+        hi = (hi.0.max(at.0 + rx), hi.1.max(at.1 + rz));
+    }
+    lo.0.is_finite().then_some([lo.0, lo.1, hi.0, hi.1])
+}
+
+/// **The box round a point on the map**, [`POINT_BOX_M`] wide.
+pub fn point_box(at: (f32, f32)) -> [f32; 4] {
+    let half = POINT_BOX_M * 0.5;
+    [at.0 - half, at.1 - half, at.0 + half, at.1 + half]
+}
+
+/// **The one box round a set of boxes**: their union. `None` for an empty set.
+pub fn enclose(boxes: impl IntoIterator<Item = [f32; 4]>) -> Option<[f32; 4]> {
+    let mut out: Option<[f32; 4]> = None;
+    for b in boxes {
+        out = Some(match out {
+            None => b,
+            Some(o) => [o[0].min(b[0]), o[1].min(b[1]), o[2].max(b[2]), o[3].max(b[3])],
+        });
+    }
+    out
+}
+
+/// **The box a placement row covers**, read from its own `at`, `yaw` and `tip` and the library's
+/// measurement of its descriptor. [`POINT_BOX_M`] when the piece has no measurement.
+pub fn row_box(
+    library: &blueprint_model::library::Library,
+    row: &blueprint_model::map::Placed,
+) -> [f32; 4] {
+    library
+        .get(&row.descriptor)
+        .and_then(|d| footprint_rect(d, row.at, row.yaw, row.tip))
+        .unwrap_or_else(|| point_box(row.at))
+}
+
+/// **The box a run's path covers**: its `from`, its `to`, and every corner between them, each grown to
+/// [`POINT_BOX_M`] so the posts a run lays are inside it. `None` for a value that does not name a path.
+pub fn run_span_of(run: &serde_json::Value) -> Option<[f32; 4]> {
+    let path = run.get("run").unwrap_or(run);
+    let point = |v: Option<&serde_json::Value>| -> Option<(f32, f32)> {
+        let v = v?;
+        Some((v.get(0)?.as_f64()? as f32, v.get(1)?.as_f64()? as f32))
+    };
+    let mut points = vec![point(path.get("from"))?, point(path.get("to"))?];
+    for corner in path.get("corners").and_then(|c| c.as_array()).into_iter().flatten() {
+        points.extend(point(corner.get("at")));
+    }
+    enclose(points.into_iter().map(point_box))
+}
+
+/// **A project file, as a `Shown` names one**: relative to the project's root, the way a refusal does.
+pub(crate) fn shown_file(ctx: &Ctx, path: &std::path::Path, lines: Option<[u32; 2]>) -> Shown {
+    let relative = ctx
+        .root_or_project()
+        .and_then(|root| path.strip_prefix(root).ok().map(|p| p.to_string_lossy().replace('\\', "/")))
+        .unwrap_or_else(|| path.to_string_lossy().replace('\\', "/"));
+    Shown::File { path: relative, lines }
+}
+
+/// **A project file named the way the project's own files are**: a path relative to the root.
+pub(crate) fn shown_named(ctx: &Ctx, relative: &str) -> Shown {
+    match ctx.root_or_project() {
+        Some(root) => shown_file(ctx, &root.join(relative), None),
+        None => Shown::File { path: relative.to_owned(), lines: None },
+    }
+}
+
+/// **The box a placement named by this id covers now**, and the id, or [`Shown::MapWhole`] when there
+/// is no such placement on the open map — a removal has already taken it off, so the id is not there
+/// to measure.
+///
+/// **The one reader for every placement-addressed operation**, so a turn, a lift and a tip name their
+/// box the same way and a new one cannot get it wrong.
+pub(crate) fn shown_placement(ctx: &Ctx, id: &str) -> Shown {
+    let Some(open) = ctx.open.as_ref() else {
+        return Shown::MapWhole;
+    };
+    let Some(row) = open.map.placements.iter().find(|p| p.id == id) else {
+        return Shown::MapWhole;
+    };
+    let rect = match ctx.project.as_ref() {
+        Some(project) => row_box(&project.library, row),
+        None => point_box(row.at),
+    };
+    Shown::Map { rect, placements: vec![id.to_owned()] }
+}
+
+/// **The box a set of placement ids covers now**, and the ids that are still on the map.
+pub(crate) fn shown_placements(ctx: &Ctx, ids: &[String]) -> Shown {
+    let Some(open) = ctx.open.as_ref() else {
+        return Shown::MapWhole;
+    };
+    let mut boxes = Vec::new();
+    let mut present = Vec::new();
+    for id in ids {
+        let Some(row) = open.map.placements.iter().find(|p| &p.id == id) else {
+            continue;
+        };
+        boxes.push(match ctx.project.as_ref() {
+            Some(project) => row_box(&project.library, row),
+            None => point_box(row.at),
+        });
+        present.push(id.clone());
+    }
+    // **Nothing on the map is still the map**: an id the map does not hold would be refused, and the
+    // place a change to it would be seen is the map rather than nothing at all.
+    match enclose(boxes) {
+        Some(rect) => Shown::Map { rect, placements: present },
+        None => Shown::MapWhole,
+    }
+}
+
+/// **The box a set of map rows covers**, for an operation whose answer is the rows it touched.
+pub(crate) fn shown_rows(ctx: &Ctx, rows: &[blueprint_model::map::Placed]) -> Shown {
+    let Some(project) = ctx.project.as_ref() else {
+        return Shown::MapWhole;
+    };
+    if rows.is_empty() {
+        return Shown::MapWhole;
+    }
+    let boxes: Vec<[f32; 4]> = rows.iter().map(|r| row_box(&project.library, r)).collect();
+    let ids: Vec<String> = rows.iter().map(|r| r.id.clone()).collect();
+    match enclose(boxes) {
+        Some(rect) => Shown::Map { rect, placements: ids },
+        None => Shown::MapWhole,
+    }
+}
+
+/// **A refusal — the editor could not do what was asked.**
+///
+/// **One type, for both front ends.** A key handler and an agent get the *same* refusal, from
+/// the same place, with the same text — which is what makes the two front ends interchangeable
+/// rather than merely similar.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Refusal(pub String, Option<Box<blueprint_model::problem::Detail>>);
+
+impl Refusal {
+    /// A refusal that is its sentence. The sentence is `.0`, and is the problem's `what`.
+    pub fn new(text: impl Into<String>) -> Refusal {
+        Refusal(text.into(), None)
+    }
+
+    /// **A refusal that says where, why and what to do** (UI-05). The toast, the log row and an
+    /// agent's answer are all printed from [`Self::problem`], so none of them can leave a part out.
+    /// The detail is boxed so `Result<_, Refusal>`, which every operation returns, stays small.
+    pub fn with(text: impl Into<String>, detail: blueprint_model::problem::Detail) -> Refusal {
+        Refusal(text.into(), (!detail.is_empty()).then(|| Box::new(detail)))
+    }
+
+    /// **The one shape every surface prints**: `what` is `.0`, the rest is what the refusal was
+    /// given.
+    pub fn problem(&self) -> blueprint_model::problem::Problem {
+        match &self.1 {
+            Some(detail) => blueprint_model::problem::Problem::with(self.0.clone(), (**detail).clone()),
+            None => blueprint_model::problem::Problem::new(self.0.clone()),
+        }
+    }
+}
+
+/// **The refusal for a row a recorded change names and the map no longer has**: where it is (the
+/// row's id) and what to do, which is the order `undo_target` already enforces.
+fn gone_since_recorded(id: &str) -> Refusal {
+    use blueprint_model::problem::{Detail, Location};
+    Refusal::with(
+        format!("`{id}` is not on the map any more, so this cannot be taken back — something changed it since"),
+        Detail::default()
+            .at(Location::entity(id))
+            .fix("take back the newer change that touched it first, then this one"),
+    )
+}
+
+/// **The refusal for a placement id the map does not have** (`verb`: "removed", "turned"): where it
+/// is (the id named) and what to do. The sentence is the one every such refusal has always said.
+fn no_such_placement(id: &str, verb: &str) -> Refusal {
+    use blueprint_model::problem::{Detail, Location};
+    Refusal::with(
+        format!("no placement is called `{id}` on this map, so nothing was {verb}."),
+        Detail::default()
+            .at(Location::entity(id))
+            .fix("name a placement that is on the map, by the `id` its row has in the map file"),
+    )
+}
+
+/// **The one rule a map name a caller sends must pass**, before it becomes a file name: a map name is
+/// a stem, never a path, so it is refused when empty or when it holds `/`, `\` or `.`.
+///
+/// **The refusal says which name, and nothing was written** — and it is the *same* sentence for every
+/// operation, so the edit path and a read that names a map cannot disagree about which names exist. A
+/// read that skipped this rule reached outside `<blueprint_dir>/<kind>/` and answered an empty result
+/// for a directory that is not there, which read as "the map has none" rather than as a refusal.
+pub(crate) fn map_name(map: &str) -> Result<&str, Refusal> {
+    if map.is_empty() || map.contains(['/', '\\', '.']) {
+        return Err(Refusal::new(format!("`{map}` is not a map name. Nothing was written.")));
+    }
+    Ok(map)
+}
+
+/// **One row of a map, with where it sits** — so a removal can be put back exactly where it was.
+///
+/// An index and not just the row, because a map's order is meaningful: `at` decides nothing about
+/// precedence, but the file is a list an author reads, and a restoration that appended would move a
+/// piece from the middle of the file to its end on every undo/redo round trip.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Indexed<T> {
+    pub index: usize,
+    pub row: T,
+}
+
+/// **A change to a map's rows that can be undone by applying its own inverse.**
+///
+/// The shape every row-changing operation in this series shares, because the undo path re-dispatches
+/// an operation with its logged `inverse` as the parameters — so the inverse has to be expressible
+/// as *this operation's own parameters*. `RowDelta` is that vocabulary: what to take away, and what
+/// to put back, each with its index.
+///
+/// **It is pure and it does not save.** Applying it edits the map in memory and hands back the delta
+/// that would undo it; the caller decides when that map is written, which is what lets a save failure
+/// restore both.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct RowDelta {
+    #[serde(default)]
+    pub remove_placements: Vec<String>,
+    #[serde(default)]
+    pub remove_stamps: Vec<String>,
+    #[serde(default)]
+    pub add_placements: Vec<Indexed<blueprint_model::map::Placed>>,
+    #[serde(default)]
+    pub add_stamps: Vec<Indexed<blueprint_model::composition::Stamped>>,
+}
+
+impl RowDelta {
+    /// **Apply this delta to `map`, and return the delta that undoes it.**
+    ///
+    /// Three steps, in this order and for stated reasons:
+    ///
+    /// 1. **Find every row to remove before removing anything.** A missing id is refused with the id
+    ///    named — it means something else has changed the map since this delta was recorded, and a
+    ///    partial application followed by a refusal is worse than no application at all.
+    /// 2. **Record each removed row with its index, then remove in descending order**, so removing an
+    ///    earlier row cannot shift a later one out from under the loop.
+    /// 3. **Insert the additions in ascending order**, at `index.min(len)` — clamped because a delta
+    ///    recorded against a map that has since shrunk is still answerable: the row goes at the end
+    ///    rather than vanishing.
+    ///
+    /// An added id that is already on the map, and that this delta does not remove, is refused: two
+    /// rows with one id is a map the editor cannot address, and nothing downstream would say so.
+    pub fn apply(&self, map: &mut blueprint_model::map::Map) -> Result<RowDelta, Refusal> {
+        // 1 — find, and refuse before touching anything.
+        let mut doomed_placements: Vec<(usize, blueprint_model::map::Placed)> = Vec::new();
+        for id in &self.remove_placements {
+            let at = map
+                .placements
+                .iter()
+                .position(|p| &p.id == id)
+                .ok_or_else(|| {
+                    gone_since_recorded(id)
+                })?;
+            doomed_placements.push((at, map.placements[at].clone()));
+        }
+        let mut doomed_stamps: Vec<(usize, blueprint_model::composition::Stamped)> = Vec::new();
+        for id in &self.remove_stamps {
+            let at = map
+                .stamps
+                .iter()
+                .position(|s| &s.id == id)
+                .ok_or_else(|| {
+                    gone_since_recorded(id)
+                })?;
+            doomed_stamps.push((at, map.stamps[at].clone()));
+        }
+        // **A row this delta removes may come back changed** (a replaced row, as a relations solve
+        // moves one): only an id that stays on the map is a second row with one id.
+        for add in &self.add_placements {
+            if !self.remove_placements.contains(&add.row.id)
+                && map.placements.iter().any(|p| p.id == add.row.id)
+            {
+                return Err(Refusal::new(format!("`{}` is already on the map", add.row.id)));
+            }
+        }
+        for add in &self.add_stamps {
+            if !self.remove_stamps.contains(&add.row.id) && map.stamps.iter().any(|s| s.id == add.row.id) {
+                return Err(Refusal::new(format!("`{}` is already on the map", add.row.id)));
+            }
+        }
+
+        // 2 — remove descending, so indices stay valid.
+        doomed_placements.sort_by_key(|(i, _)| *i);
+        doomed_stamps.sort_by_key(|(i, _)| *i);
+        for (i, _) in doomed_placements.iter().rev() {
+            map.placements.remove(*i);
+        }
+        for (i, _) in doomed_stamps.iter().rev() {
+            map.stamps.remove(*i);
+        }
+
+        // 3 — add ascending, clamping to the map that is there now.
+        let mut added_placements = self.add_placements.clone();
+        added_placements.sort_by_key(|a| a.index);
+        for add in &added_placements {
+            let at = add.index.min(map.placements.len());
+            map.placements.insert(at, add.row.clone());
+        }
+        let mut added_stamps = self.add_stamps.clone();
+        added_stamps.sort_by_key(|a| a.index);
+        for add in &added_stamps {
+            let at = add.index.min(map.stamps.len());
+            map.stamps.insert(at, add.row.clone());
+        }
+
+        // **The inverse: what was added comes out, what was removed goes back at its index.**
+        Ok(RowDelta {
+            remove_placements: added_placements.iter().map(|a| a.row.id.clone()).collect(),
+            remove_stamps: added_stamps.iter().map(|a| a.row.id.clone()).collect(),
+            add_placements: doomed_placements
+                .into_iter()
+                .map(|(index, row)| Indexed { index, row })
+                .collect(),
+            add_stamps: doomed_stamps
+                .into_iter()
+                .map(|(index, row)| Indexed { index, row })
+                .collect(),
+        })
+    }
+
+    /// **The delta that undoes a logged operation, read from its `inverse`**, or `None` when the
+    /// operation changed more than rows. Most row operations log a `delta`; a removal logs the
+    /// `put_back` its own undo sends ([`placement_remove::PutBack`], [`stamp_remove::PutBack`]),
+    /// which is the same change: the rows it took, back at the indices they held. Reading both is
+    /// what lets a note whose work removed a piece be undone in one step (#95).
+    pub fn undoing(inverse: &serde_json::Value) -> Option<RowDelta> {
+        if let Some(delta) = inverse.get("delta") {
+            return serde_json::from_value(delta.clone()).ok();
+        }
+        let put_back = inverse.get("put_back")?;
+        if let Ok(pb) = serde_json::from_value::<placement_remove::PutBack>(put_back.clone()) {
+            let rows = pb
+                .rows
+                .into_iter()
+                .map(|r| serde_json::from_value(r.placed).map(|row| Indexed { index: r.index, row }))
+                .collect::<Result<Vec<_>, _>>()
+                .ok()?;
+            return Some(RowDelta { add_placements: rows, ..RowDelta::default() });
+        }
+        let pb = serde_json::from_value::<stamp_remove::PutBack>(put_back.clone()).ok()?;
+        let row = serde_json::from_value(pb.stamp).ok()?;
+        Some(RowDelta { add_stamps: vec![Indexed { index: pb.index, row }], ..RowDelta::default() })
+    }
+}
+
+impl std::fmt::Display for Refusal {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.0)
+    }
+}
+
+/// **What an operation would change, and what it changed.**
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Outcome {
+    /// **A one-line summary for a receipt.**
+    pub summary: String,
+    /// **What the operation would place or change**, as a count. `0` for a read.
+    pub affected: usize,
+    /// **Whether the map on disk changed.** The one thing a caller always wants to know.
+    pub saved: bool,
+    /// **The parameters that put this change back**, for the same operation — what
+    /// [`undo`] dispatches. `None` for an operation that declares no inverse.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub inverse: Option<serde_json::Value>,
+    /// **The part of the editor's state this change left behind**, as [`Operation::state`] reads
+    /// it. [`undo`] refuses when the state is no longer this, because something outside the log
+    /// changed it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub after: Option<serde_json::Value>,
+}
+
+/// **The result of a dispatch.**
+#[derive(Debug, Clone, PartialEq)]
+pub enum Applied {
+    /// **It happened.** The summary says what, and the id is what the agent cites.
+    Done {
+        /// **What happened.**
+        outcome: Outcome,
+        /// **The id the agent cites and the human reverts by.**
+        operation_id: String,
+        /// **The log's own record of it** — the same line that was appended.
+        ///
+        /// **Boxed, because the entry is a big datum and the refusal arm is not.** An enum whose
+        /// variants differ by four times their size costs every match on it the size of the
+        /// larger arm, and the refusal arm is on the hot path of every refused call.
+        entry: Box<Entry>,
+        /// **Where a person can see the change** ([`Operation::shows`], AF-01, #357).
+        ///
+        /// **Computed before the commit**, from the parameters — which is what makes a removal name
+        /// where the piece stood, a place name the box its minted id will land in, and a preview name
+        /// the same place its apply did.
+        shown: Shown,
+    },
+    /// **It could not.** The refusal says why.
+    Refused(Refusal),
+}
+
+/// **The context an operation runs in.**
+///
+/// **One context, both front ends.** A key handler and an agent build the same `Ctx` and call the
+/// same `dispatch`, so "the agent's undo works" and "the author's undo works" are the same
+/// statement about the same code.
+///
+/// **It owns what it carries, and that is what makes the operation trait dyn-compatible.** A
+/// context that borrowed the project and the map would put a lifetime on every method, and a
+/// trait with a lifetime on its methods cannot be a `dyn` — and the registry has to be a `dyn`,
+/// because a list of operations is looked up by name. **So the context takes them by value and
+/// gives them back.** One copy of a map's settings, and a file written once, is a price worth
+/// paying for a registry that can hold more than one operation.
+#[derive(Default)]
+pub struct Ctx {
+    /// **The project**, for the library and the paths.
+    pub project: Option<Project>,
+    /// **The project's root directory, when there is no loaded `Project` in hand.**
+    ///
+    /// The menu is the screen you are on *before* a door: it has a root and an unloaded library, and
+    /// opening the whole `Project` to make one map would parse every kit and require `vocab.yaml`.
+    /// What a *change made from the menu* needs is the root — the log line goes in it, and a map goes
+    /// in its `maps/`. An operation that needs the library says so, which is the refusal it already
+    /// has; nothing dispatched from the menu does.
+    pub root: Option<PathBuf>,
+    /// **The map being edited**, if there is one.
+    pub open: Option<OpenMap>,
+    /// **Who is doing it.**
+    pub source: Source,
+    /// **Which session.**
+    pub session: String,
+    /// **The layout standing on screen, when an operation needs to see it.**
+    ///
+    /// A proposal is not map data — nothing is written until the person or an agent keeps it — so it
+    /// travels in the context rather than in `OpenMap`. `layout_propose` writes one here, and
+    /// `layout_accept` / `layout_discard` take it away; every other operation leaves it alone, which
+    /// is why it defaults to `None` and why the front ends carry it across as a value rather than
+    /// reaching into a resource.
+    pub proposal: Option<crate::editor::Proposed>,
+    /// **Where this person's trust store is**, when it is not the user's data directory. An operation
+    /// that starts a program a project names (`play`) asks the store before it starts anything; a test
+    /// points this at a file of its own, so none reads or writes the real one.
+    pub trust_file: Option<PathBuf>,
+    /// **The view the person is looking through, when an operation changes it** (E-002, #129).
+    ///
+    /// A *view* verb — the grid rung, the problems panel, the shortcut overlay — writes nothing the
+    /// project keeps: no map, no file, no undo step. Before this field an operation had no way to reach
+    /// one at all, so those verbs could only ever be dispatched by a key, which made "both front ends
+    /// dispatch it" untrue for them. `None` means "no view is in hand" and an operation that needs one
+    /// says so, exactly as [`Ctx::open`] does for a map.
+    pub view: Option<crate::ops_view::View>,
+    /// **Which decision model is asked, and where each choice goes** (DM-03, #454), when the front end has the editor's own
+    /// ([`crate::decision_model::Decisions`]). `None` is the process's: the person's settings file, the shipped endpoints and the key
+    /// in the environment, exactly what the editor binary builds. A test points it at stand-in servers.
+    pub decisions: Option<crate::decision_model::Source>,
+}
+
+/// **A rung's name on the wire**, so an operation's answer and its parameter speak one vocabulary.
+pub(crate) fn view_name(rung: blueprint_model::grid::SnapLevel) -> &'static str {
+    match rung {
+        blueprint_model::grid::SnapLevel::Tile => "tile",
+        blueprint_model::grid::SnapLevel::Fine => "fine",
+        blueprint_model::grid::SnapLevel::Finer => "finer",
+    }
+}
+
+impl Ctx {
+    /// **Where a map goes** — the project's own directory when one is loaded, else the menu's.
+    ///
+    /// One question with one answer, so `map_create` does not have to know which screen called it.
+    pub fn maps_dir_or_project(&self) -> Option<PathBuf> {
+        self.project
+            .as_ref()
+            .map(|p| p.maps_dir.clone())
+            .or_else(|| self.root.as_ref().map(|r| r.join("assets/blueprint/maps")))
+    }
+
+    /// **The project's root**, loaded or not, so a log line has somewhere to go.
+    pub fn root_or_project(&self) -> Option<PathBuf> {
+        self.project
+            .as_ref()
+            .map(|p| p.root.clone())
+            .or_else(|| self.root.clone())
+    }
+}
+
+/// **An operation, as the registry knows it.**
+///
+/// **A trait object, not a generic.** The registry is a list of operations that different front
+/// ends look up by name, so the list has to be one type — and the parameters have to be erased,
+/// because a list of `dyn` operations cannot be generic over its own parameter type.
+///
+/// **The name is a method, not an associated constant.** A `const` cannot be read off a
+/// `dyn Operation`, and the registry's whole job is to look an operation up by name.
+pub trait Operation: 'static {
+    /// **The name the registry, the log and the MCP tool all use.**
+    ///
+    /// **Snake_case, and the same word the UI uses.** `map_set_settings` and `blueprint_map_set_settings`
+    /// are one operation, and the parity test says so.
+    fn name(&self) -> &'static str;
+
+    /// **How it is undone.**
+    fn undo(&self) -> Undo;
+
+    /// **The JSON schema of its parameters.**
+    ///
+    /// **A function, because a schema is built at run time** and a `const` cannot be. It is what
+    /// `docs/mcp-tools.md` is generated from and what an agent reads.
+    fn schema(&self) -> serde_json::Value;
+
+    /// **What would change, and whether it is allowed to.**
+    ///
+    /// **Pure: it changes nothing.** A plan that says "no" is a refusal; a plan that says "yes" is
+    /// what `commit` will do. **Preview is this function called and the result thrown away** —
+    /// which is why preview is free and cannot half-apply.
+    fn plan(&self, ctx: &Ctx, params: &serde_json::Value) -> Result<serde_json::Value, Refusal>;
+
+    /// **Do it.**
+    ///
+    /// **The only function in the editor that writes an operation's effect.** A front end calls
+    /// `dispatch`, never this.
+    fn commit(&self, ctx: &mut Ctx, params: &serde_json::Value) -> Result<Outcome, Refusal>;
+
+    /// **The part of the editor's state this operation's inverse restores**, named so it can be
+    /// compared: an undo is safe only while the state is still what the change left. `None` for an
+    /// operation with no inverse.
+    fn state(&self, _ctx: &Ctx) -> Option<serde_json::Value> {
+        None
+    }
+
+    /// **The same part, as the change recorded it in `after`**, for an operation whose change
+    /// touches one part of the map. An undo compares only that part, so an unrelated edit made
+    /// by hand does not block it. Defaults to the whole [`Operation::state`].
+    fn state_of(&self, ctx: &Ctx, _after: &serde_json::Value) -> Option<serde_json::Value> {
+        self.state(ctx)
+    }
+
+    /// **Whether these parameters are a change only an undo may make**, so a dispatch that is not an
+    /// undo refuses them. `false` for every operation but a removal's put-back (gap 2).
+    fn only_as_undo(&self, _params: &serde_json::Value) -> bool {
+        false
+    }
+
+    /// **Whether this operation writes the library** (`measured`, the Meshes door's data), or the
+    /// kit's policy beside it. Its logged change joins the Meshes history, so one Cmd+Z there takes
+    /// back the newest library change, whoever made it (cycle 9 gap 1). `false` unless it does.
+    fn writes_library(&self) -> bool {
+        false
+    }
+
+    /// **Whether this operation changes a view** (`Ctx::view`): what a person is looking through, not what the
+    /// project keeps. A front end that dispatches it carries the view in and applies the answer out; the BRP
+    /// door does the same for an agent (E-002, #129), so a view verb is one an agent can call and not only a
+    /// key. `false` unless it does, and `the_view_verbs_reach_an_agent` fails a verb that refuses for want of
+    /// a view and does not say so.
+    fn changes_view(&self) -> bool {
+        false
+    }
+
+    /// **The kinds of file this operation writes**, by `blueprint_model::reload::FileKind::id`,
+    /// its undo's writes included. **No default, so a new operation cannot skip it** (#198): an
+    /// operation that writes no file says `&[]`. `every_written_kind_has_a_reload_class` fails when an
+    /// id here is a kind the reload contract does not list, and the contract's guide table is
+    /// rendered from these.
+    fn writes(&self) -> &'static [&'static str];
+
+    /// **The RNG seed this operation ran under, for the log.** `None` unless the operation's result
+    /// depends on one — a proposal without its seed is a layout nobody can reproduce, which is the
+    /// complaint the brief already makes about a WFC run recorded without its RNG.
+    fn rng_seed(&self, _params: &serde_json::Value) -> Option<u64> {
+        None
+    }
+
+    /// **Where the change these parameters make can be seen** (AF-01, #357).
+    ///
+    /// **No default, so a new operation cannot skip it** — the same rule [`Self::writes`] follows
+    /// (#198). `Shown::Nowhere` is what an operation says when its change has nothing a person can
+    /// look at, and that answer is pinned by name in
+    /// `tests/an_operation_says_where_its_change_is_seen.rs`, so saying it is a decision a reader can
+    /// see rather than an omission nobody notices.
+    ///
+    /// **Pure, and computed from the parameters before the commit** — like [`Self::plan`], for the
+    /// same reason. A preview and its apply therefore name the same place, a person watching the
+    /// NightShift sees what is about to change before it changes, and a removal names where the piece
+    /// stood rather than nowhere. An undo needs nothing of its own: it shows what its inverse's
+    /// parameters show, because an inverse *is* its operation's parameters.
+    fn shows(&self, ctx: &Ctx, params: &serde_json::Value) -> Shown;
+}
+
+/// **Make a map** — the operation a developer's *"make me a courtyard"* becomes (E-008).
+///
+/// # Why this is an operation and not just the chooser's function
+///
+/// `catalog::create_map` writes a map's file, and it was the only way to make one: a person, at the
+/// keyboard, on the menu screen. The brief's second step is *"the in-editor agent turns that into
+/// typed editor operations"*, and the first thing anyone asks for is a place to work — so the
+/// simplest request in the whole loop had no tool behind it.
+///
+/// **The write itself is not duplicated.** This calls the same `catalog::create_map`, so the naming
+/// rule, the refusal for a name already in use, and the validate-then-atomic write are one
+/// implementation with two front ends rather than two that agree by habit.
+///
+/// # Undo
+///
+/// `Undo::Inverse`, and the inverse is the map's own **removal**: the delta a create leaves behind is
+/// a file that was not there. Undo does not restore anything — there was nothing before — it takes
+/// the new file away, which is the only truthful inverse of "this did not exist".
+pub mod map_create {
+    use super::*;
+    use serde_json::json;
+
+    /// **A removed map's file**, kept in the log so the removal can be put back exactly.
+    #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+    #[serde(deny_unknown_fields)]
+    pub struct Restore {
+        pub name: String,
+        pub text: String,
+    }
+
+    /// **The map to make.**
+    #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+    #[serde(deny_unknown_fields)]
+    pub struct Params {
+        /// **What it is called**, forced to snake_case by the same rule a file name uses.
+        #[serde(default)]
+        pub name: String,
+        /// **An undo's form: take this map's file away.** The inverse of a create; refused from an
+        /// agent ([`Operation::only_as_undo`]) and refused while that map is open.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        pub remove: Option<String>,
+        /// **A redo's form: write this map's file back, byte for byte.** The inverse of the removal.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        pub restore: Option<Restore>,
+        /// **How big, in metres on each axis.** Absent means a new map's default — 10 x 4 x 10 —
+        /// so an agent that only knows a name does not have to state a size it has no opinion about.
+        #[serde(default)]
+        pub bounds: Option<(f32, f32, f32)>,
+        /// **Where it sits in the world.** Absent means the origin.
+        #[serde(default)]
+        pub origin: Option<(f32, f32, f32)>,
+        /// **The header prose** — what the developer said they wanted, kept as data.
+        #[serde(default)]
+        pub note: Option<String>,
+    }
+
+    impl Params {
+        pub fn schema() -> serde_json::Value {
+            json!({
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["name"],
+                "properties": {
+                    "name": {
+                        "description": "What the map is called. Forced to snake_case: lowercase letters, digits and single underscores, starting with a letter.",
+                        "type": "string"
+                    },
+                    "bounds": {
+                        "description": "How big the map is, in metres on each axis, as [x, y, z]. Every axis is positive. Omit for a new map's default of 10 x 4 x 10.",
+                        "type": "array",
+                        "items": {"type": "number"},
+                        "minItems": 3,
+                        "maxItems": 3
+                    },
+                    "origin": {
+                        "description": "Where the map sits in the world, in metres, as [x, y, z]. Omit for the origin.",
+                        "type": "array",
+                        "items": {"type": "number"},
+                        "minItems": 3,
+                        "maxItems": 3
+                    },
+                    "note": {
+                        "description": "The map's note: what it is and why it is laid out this way, as data. This is where a request like 'a mossy ruined courtyard with two exits' is worth keeping.",
+                        "type": "string"
+                    }
+                }
+            })
+        }
+
+        pub fn parse(raw: &serde_json::Value) -> Result<Params, Refusal> {
+            serde_json::from_value(raw.clone()).map_err(|e| {
+                Refusal::new(format!(
+                    "these are not the parameters for making a map: {e}. The fields are `name`, `bounds`, `origin` and `note`, and `name` is required."
+                ))
+            })
+        }
+    }
+
+    pub struct MapCreate;
+
+    impl Operation for MapCreate {
+        fn name(&self) -> &'static str {
+            "map_create"
+        }
+        fn shows(&self, _ctx: &Ctx, _params: &serde_json::Value) -> Shown {
+            Shown::MapWhole
+        }
+        fn writes(&self) -> &'static [&'static str] {
+            &["map"]
+        }
+
+        /// **`Undo::Inverse`, and the inverse is this operation's own undo form.** `take_back`
+        /// applies an inverse by calling this same operation's `commit`, so the inverse of a create
+        /// is `{"remove": name}` and the inverse of that removal is `{"restore": {name, text}}`, the
+        /// file's bytes kept in the log. Both forms are [`Operation::only_as_undo`]: an agent
+        /// cannot delete a map by calling `map_create`. (E-066)
+        fn undo(&self) -> Undo {
+            Undo::Inverse
+        }
+
+        fn only_as_undo(&self, params: &serde_json::Value) -> bool {
+            Params::parse(params).is_ok_and(|p| p.remove.is_some() || p.restore.is_some())
+        }
+
+        fn schema(&self) -> serde_json::Value {
+            Params::schema()
+        }
+
+        fn plan(
+            &self,
+            ctx: &Ctx,
+            params: &serde_json::Value,
+        ) -> Result<serde_json::Value, Refusal> {
+            let p = Params::parse(params)?;
+            if p.remove.is_some() || p.restore.is_some() {
+                let (name, removing) = match (&p.remove, &p.restore) {
+                    (Some(n), None) => (n.clone(), true),
+                    (None, Some(r)) => (r.name.clone(), false),
+                    _ => {
+                        return Err(Refusal::new(
+                            "`remove` and `restore` are an undo's two forms and are never sent together.",
+                        ));
+                    }
+                };
+                let Some(maps_dir) = ctx.maps_dir_or_project() else {
+                    return Err(Refusal::new("no project is open, so there is no maps directory."));
+                };
+                let path = maps_dir.join(blueprint_model::naming::map_file_name(&name));
+                if removing {
+                    if ctx.open.as_ref().is_some_and(|o| o.map.name == name) {
+                        return Err(Refusal::new(format!(
+                            "`{name}` is the open map, so taking it away would leave the editor holding a map with no file. Open another map first."
+                        )));
+                    }
+                    if !path.exists() {
+                        return Err(Refusal::new(format!(
+                            "`{name}` has no file in this project, so there is nothing to take away."
+                        )));
+                    }
+                } else if path.exists() {
+                    return Err(Refusal::new(format!(
+                        "`{name}` exists again, so the removed file is not put back over it."
+                    )));
+                }
+                return Ok(json!({"name": name, "map": name, "removing": removing}));
+            }
+            let Some(maps_dir) = ctx.maps_dir_or_project() else {
+                return Err(Refusal::new("no project is open, so there is nowhere to put a map."));
+            };
+            let name = blueprint_model::naming::to_snake_case(&p.name);
+            if name.is_empty() {
+                return Err(Refusal::new(format!(
+                    "`{}` leaves nothing usable as a name. Names are snake_case — lowercase letters, digits and single underscores, starting with a letter.",
+                    p.name
+                )));
+            }
+            // **The same refusal `create_map` makes, said before anything is written.** A preview
+            // that would fail at commit is not a preview of the change; it is a preview of a
+            // refusal, and saying so here is what makes `dry_run` worth calling.
+            let path = maps_dir.join(blueprint_model::naming::map_file_name(&name));
+            if path.exists() {
+                return Err(Refusal::new(format!(
+                    "`{name}` already exists in this project. Pick another name, or open the one that is there."
+                )));
+            }
+            if let Some(b) = p.bounds
+                && (b.0 <= 0.0 || b.1 <= 0.0 || b.2 <= 0.0)
+            {
+                return Err(Refusal::new(format!(
+                    "a map's bounds are metres on each axis, and every one has to be positive — `{b:?}` is not."
+                )));
+            }
+            let default = blueprint_model::map::Map::default();
+            let bounds = p.bounds.unwrap_or(default.bounds);
+            let origin = p.origin.unwrap_or(default.origin);
+            Ok(json!({
+                "name": name,
+                "map": name,
+                "bounds": [bounds.0, bounds.1, bounds.2],
+                "origin": [origin.0, origin.1, origin.2],
+                "note": p.note,
+            }))
+        }
+
+        fn commit(&self, ctx: &mut Ctx, params: &serde_json::Value) -> Result<Outcome, Refusal> {
+            let plan = self.plan(ctx, params)?;
+            let name = plan["name"].as_str().unwrap_or_default().to_owned();
+            if let Some(removing) = plan.get("removing").and_then(serde_json::Value::as_bool) {
+                let p = Params::parse(params)?;
+                let maps_dir = ctx.maps_dir_or_project().ok_or_else(|| Refusal::new("no project is open."))?;
+                let path = maps_dir.join(blueprint_model::naming::map_file_name(&name));
+                let after = json!({"name": name, "map": name, "path": path.to_string_lossy()});
+                if removing {
+                    let text = std::fs::read_to_string(&path)
+                        .map_err(|e| Refusal::new(format!("could not read `{}`: {e}", path.display())))?;
+                    std::fs::remove_file(&path)
+                        .map_err(|e| Refusal::new(format!("could not remove `{}`: {e}", path.display())))?;
+                    return Ok(Outcome {
+                        summary: format!("took map `{name}` away; its file is kept in the log"),
+                        affected: 1,
+                        saved: true,
+                        inverse: Some(json!({"restore": {"name": name, "text": text}})),
+                        after: Some(after),
+                    });
+                }
+                let text = p.restore.map(|r| r.text).unwrap_or_default();
+                blueprint_model::save::save_atomic(&path, &text).map_err(Refusal::new)?;
+                return Ok(Outcome {
+                    summary: format!("put map `{name}` back from the log"),
+                    affected: 1,
+                    saved: true,
+                    inverse: Some(json!({"remove": name})),
+                    after: Some(after),
+                });
+            }
+            let read = |key: &str| -> (f32, f32, f32) {
+                let v = &plan[key];
+                (
+                    v[0].as_f64().unwrap_or(0.0) as f32,
+                    v[1].as_f64().unwrap_or(0.0) as f32,
+                    v[2].as_f64().unwrap_or(0.0) as f32,
+                )
+            };
+            let bounds = read("bounds");
+            let origin = read("origin");
+            let note = plan["note"].as_str().map(str::to_owned);
+
+            let Some(maps_dir) = ctx.maps_dir_or_project() else {
+                return Err(Refusal::new("no project is open, so there is nowhere to put a map."));
+            };
+            // **The chooser's own function, so the two front ends cannot drift.** Its refusals are
+            // already sentences an author can act on, and it is the write every other path uses.
+            let path = crate::catalog::create_map(&maps_dir, &name, bounds, origin, note.clone())
+                .map_err(Refusal::new)?;
+            let (x, y, z) = bounds;
+            Ok(Outcome {
+                summary: format!(
+                    "made map `{name}` — {} x {} x {} m, and the file was written",
+                    trim_metres(x),
+                    trim_metres(y),
+                    trim_metres(z)
+                ),
+                affected: 1,
+                saved: true,
+                // **The inverse is the removal of the file just made**, an undo form of this operation.
+                inverse: Some(json!({"remove": name})),
+                after: Some(json!({
+                    "name": name,
+                    "map": name,
+                    "bounds": [x, y, z],
+                    "origin": [origin.0, origin.1, origin.2],
+                    "note": note,
+                    "path": path.to_string_lossy(),
+                })),
+            })
+        }
+    }
+}
+
+/// **Propose a layout, change nothing, and let the person or the agent decide.**
+///
+/// The generate keys (`G`, `Shift+G`, `Cmd+G`) have always worked this way for a person: a layout is
+/// *offered*, drawn as outlines, and kept with `Enter` or thrown away with `Esc`. But the offer was
+/// `editor`'s own private act — five functions taking `&mut EditorState` — so an agent could not ask
+/// for one at all, and an agent is exactly who the brief's *"a mossy ruined courtyard with two
+/// exits"* is supposed to reach.
+///
+/// This is that offer with a name in the registry. It calls [`crate::editor::propose`], which reads a
+/// `Project` and an `OpenMap` and nothing else.
+///
+/// # It writes nothing, and says so
+///
+/// `undo()` is [`Undo::None`] because there is no change to take back: the map, the file and the
+/// library are untouched, and `after` carries `"preview_only": true` beside the rows so a caller
+/// cannot mistake the offer for the change. A standing proposal is taken away by
+/// [`layout_discard`], which is a different verb because it is a different act.
+pub mod layout_propose {
+    use super::*;
+    use serde_json::json;
+
+    /// **Where the rules come from, and the seed.**
+    #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+    #[serde(deny_unknown_fields)]
+    pub struct Params {
+        /// Which of the three sources lays the layout.
+        pub source: crate::editor::LayoutSource,
+        /// **The solver's seed.** Absent means the editor picks a fresh one per call.
+        ///
+        /// Named rather than hidden so the same seed on the same map lays the same layout — which is
+        /// what makes a proposal something an agent can talk about, and what a test can assert.
+        #[serde(default)]
+        pub seed: Option<u64>,
+        /// **How many distinct layouts to offer** (#153, "show me three"), 1 to [`MAX_OPTIONS`].
+        /// Absent offers none: the answer is the one layout `seed` lays, as before.
+        #[serde(default)]
+        pub options: Option<u32>,
+        /// **Lay only here** (#192, graybox first): `[x0, z0, x1, z1]` in map metres. Absent lays the
+        /// whole map. Keeping the layout replaces only the unpinned rows in it.
+        #[serde(default)]
+        pub area: Option<[f32; 4]>,
+    }
+
+    /// The most options one call offers. A person compares a handful, not a page.
+    pub const MAX_OPTIONS: u32 = 8;
+
+    /// How many seeds per asked option are tried before the answer says it found fewer.
+    const SEEDS_PER_OPTION: u64 = 4;
+
+    impl Params {
+        pub fn schema() -> serde_json::Value {
+            json!({
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["source"],
+                "properties": {
+                    "source": {
+                        "description": "Where the rules come from. `learned` continues what is already placed on the map (refuses an empty map); `declared` reads the kit's declared edge tokens (works on an empty map); `composed` builds from the kit's compositions and is the only source that lays stamps rather than pieces.",
+                        "type": "string",
+                        "enum": ["learned", "declared", "composed"]
+                    },
+                    "seed": {
+                        "description": "The solver's seed. Omit it and the editor picks a fresh one per call; the same seed on the same map lays the same layout. With `options`, the first seed tried.",
+                        "type": "integer",
+                        "minimum": 0
+                    },
+                    "options": {
+                        "description": "Offer this many distinct layouts (show me three), each with the seed that lays it: seeds are tried from `seed` upward and a layout identical to one already offered is skipped. The first option is the one that stands; propose another by its seed.",
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": MAX_OPTIONS
+                    },
+                    "area": {
+                        "description": "Lay only inside this rectangle, [x0, z0, x1, z1] in map metres (the same space as a placement's `at`), corners in either order: a cell is in it when the cell's centre is. The cells around it stay as they are and the new layout joins them; keeping it with `layout_accept` replaces only the unpinned rows in the area. Omit it to lay the whole map. Refused when it holds no cell of the map, or under the project's block rules.",
+                        "type": "array",
+                        "items": {"type": "number"},
+                        "minItems": 4,
+                        "maxItems": 4
+                    }
+                }
+            })
+        }
+
+        pub fn parse(raw: &serde_json::Value) -> Result<Params, Refusal> {
+            serde_json::from_value(raw.clone()).map_err(|e| {
+                Refusal::new(format!(
+                    "these are not the parameters for proposing a layout: {e}. The fields are \
+                     `source` (learned, declared or composed), `seed`, `options` and `area` \
+                     ([x0, z0, x1, z1] in map metres), and `source` is required."
+                ))
+            })
+            .and_then(|p: Params| match (p.options, p.area) {
+                (Some(n), _) if n == 0 || n > MAX_OPTIONS => Err(Refusal::new(format!(
+                    "`options` is {n}, and a proposal offers 1 to {MAX_OPTIONS} layouts."
+                ))),
+                (_, Some(a)) if !a.iter().all(|v| v.is_finite()) => Err(Refusal::new(format!(
+                    "`area` is {a:?}, and an area is four finite numbers: [x0, z0, x1, z1] in map metres."
+                ))),
+                _ => Ok(p),
+            })
+        }
+
+        /// The area to lay in, or `None` for the whole map.
+        pub fn area(&self) -> Option<blueprint_model::grammar::Area> {
+            self.area.map(|[x0, z0, x1, z1]| blueprint_model::grammar::Area { from: (x0, z0), to: (x1, z1) })
+        }
+    }
+
+    /// **One layout as a set of looks**: every piece and stamp by what it is, where (to the
+    /// millimetre) and how it is turned (to the degree), ids left out because they number rows,
+    /// not looks. Sorted, so two layouts are the same exactly when their keys are equal.
+    fn looks(p: &crate::editor::Proposed) -> Vec<(bool, String, i64, i64, i64)> {
+        let key = |stamp: bool, what: &str, at: (f32, f32), yaw: f32| {
+            (
+                stamp,
+                what.to_owned(),
+                (at.0 * 1000.0).round() as i64,
+                (at.1 * 1000.0).round() as i64,
+                // A row's yaw is already degrees (`Placed::yaw`, `Stamped::yaw`), #189.
+                (yaw.rem_euclid(360.0).round() as i64) % 360,
+            )
+        };
+        let mut out: Vec<_> = p
+            .placements
+            .iter()
+            .map(|q| key(false, &q.descriptor, q.at, q.yaw))
+            .chain(p.stamps.iter().map(|s| key(true, &s.of, s.at, s.yaw)))
+            .collect();
+        out.sort();
+        out
+    }
+
+    /// How many looks of `a` (sorted) are not in `b` (sorted), counting repeats.
+    fn not_in<T: Ord>(a: &[T], b: &[T]) -> usize {
+        let (mut i, mut j, mut n) = (0, 0, 0);
+        while i < a.len() {
+            if j < b.len() && b[j] < a[i] {
+                j += 1;
+            } else if j < b.len() && b[j] == a[i] {
+                i += 1;
+                j += 1;
+            } else {
+                n += 1;
+                i += 1;
+            }
+        }
+        n
+    }
+
+    /// **Up to `n` distinct layouts, seeds from `first` upward** (#153). A layout identical to one
+    /// already kept is skipped and counted; after `n * SEEDS_PER_OPTION` seeds the answer says how
+    /// many it found rather than padding. Each option names its seed, what it lays, its variety,
+    /// and `differs`: how many of its pieces the nearest other option does not have.
+    fn offer(
+        project: &crate::project::Project,
+        open: &crate::project::OpenMap,
+        source: crate::editor::LayoutSource,
+        area: Option<blueprint_model::grammar::Area>,
+        first: u64,
+        n: u32,
+    ) -> Result<serde_json::Value, Refusal> {
+        type Key = Vec<(bool, String, i64, i64, i64)>;
+        let mut kept: Vec<(u64, crate::editor::Proposed, Key)> = Vec::new();
+        let (mut duplicates, mut tried) = (0usize, 0u64);
+        while kept.len() < n as usize && tried < u64::from(n) * SEEDS_PER_OPTION {
+            let seed = first.wrapping_add(tried);
+            tried += 1;
+            let laid = crate::editor::propose_in(project, open, source, area, seed)
+                .map_err(Refusal::new)?;
+            let key = looks(&laid.proposed);
+            if kept.iter().any(|(_, _, k)| *k == key) {
+                duplicates += 1;
+                continue;
+            }
+            kept.push((seed, laid.proposed, key));
+        }
+        let options: Vec<serde_json::Value> = kept
+            .iter()
+            .enumerate()
+            .map(|(i, (seed, p, key))| {
+                let differs = kept
+                    .iter()
+                    .enumerate()
+                    .filter(|(j, _)| *j != i)
+                    .map(|(_, (_, _, other))| not_in(key, other))
+                    .min();
+                json!({
+                    "seed": seed,
+                    "laid": p.placements.len() + p.stamps.len(),
+                    "placements": p.placements.len(),
+                    "stamps": p.stamps.len(),
+                    "variety": p.variety.as_ref().map(|m| json!({
+                        "enclosure": m.enclosure,
+                        "regions": m.regions,
+                        "opening_density": m.opening_density,
+                        "cells": p.cells,
+                    })),
+                    // `null` for a lone option: there is nothing to differ from.
+                    "differs": differs,
+                })
+            })
+            .collect();
+        Ok(json!({
+            "options": options,
+            "asked": n,
+            "found": kept.len(),
+            "duplicates": duplicates,
+            "tried": tried,
+        }))
+    }
+
+    pub struct LayoutPropose;
+
+    impl Operation for LayoutPropose {
+        fn name(&self) -> &'static str {
+            "layout_propose"
+        }
+        fn shows(&self, _ctx: &Ctx, params: &serde_json::Value) -> Shown {
+            // **`area` takes its corners in either order**, and [`Shown::Map`] promises `x0 <= x1`
+            // and `z0 <= z1`, so the answer sorts them: a rectangle handed over sideways is the
+            // same area, and the frame code refuses an inverted box.
+            match Params::parse(params).ok().and_then(|p| p.area) {
+                Some([x0, z0, x1, z1]) => Shown::Map {
+                    rect: [x0.min(x1), z0.min(z1), x0.max(x1), z0.max(z1)],
+                    placements: Vec::new(),
+                },
+                None => Shown::MapWhole,
+            }
+        }
+        fn writes(&self) -> &'static [&'static str] {
+            &[]
+        }
+
+        /// **Nothing to undo**: a proposal is an offer, and the map is untouched. Taking a standing
+        /// proposal away is [`super::layout_discard`], which is its own verb.
+        fn undo(&self) -> Undo {
+            Undo::None
+        }
+
+        /// **The seed goes in the log.** Without it an agent's proposal is a layout nobody can
+        /// reproduce — the same complaint the brief makes about a WFC run recorded without its RNG.
+        fn rng_seed(&self, params: &serde_json::Value) -> Option<u64> {
+            serde_json::from_value::<Params>(params.clone())
+                .ok()
+                .and_then(|p| p.seed)
+        }
+
+        fn schema(&self) -> serde_json::Value {
+            Params::schema()
+        }
+
+        fn plan(&self, ctx: &Ctx, params: &serde_json::Value) -> Result<serde_json::Value, Refusal> {
+            let p = Params::parse(params)?;
+            let (Some(project), Some(open)) = (ctx.project.as_ref(), ctx.open.as_ref()) else {
+                return Err(Refusal::new(
+                    "no map is open, so there is nowhere to propose a layout.",
+                ));
+            };
+            let laid = crate::editor::propose_in(project, open, p.source, p.area(), p.seed.unwrap_or(1))
+                .map_err(Refusal::new)?;
+            let mut answer = json!({
+                "map": open.map.name,
+                "source": p.source,
+                "seed": p.seed,
+                "laid": laid.proposed.placements.len() + laid.proposed.stamps.len(),
+                "placements": laid.proposed.placements.len(),
+                "stamps": laid.proposed.stamps.len(),
+                "composes": laid.proposed.composes,
+                "preview_only": laid.proposed.preview_only,
+                "note": laid.note,
+                "warnings": laid.warnings,
+                // **How varied this proposal is (E-080).** `null` when the source has no wall
+                // interfaces to classify — a grammar learned from placements, or a rules block.
+                // The three fields are `range::measure`'s own, plus the size of the grid it
+                // measured, so a reader can tell a 16x16 solve from an empty one.
+                "variety": laid.proposed.variety.as_ref().map(|m| json!({
+                    "enclosure": m.enclosure,
+                    "regions": m.regions,
+                    "opening_density": m.opening_density,
+                    "cells": laid.proposed.cells,
+                })),
+            });
+            // **The options, beside the layout that stands** (#153). The first option is the
+            // layout above, laid by the same seed, so asking for options changes nothing about
+            // which one stands.
+            if let Some(n) = p.options
+                && let (Some(obj), serde_json::Value::Object(offered)) = (
+                    answer.as_object_mut(),
+                    offer(project, open, p.source, p.area(), p.seed.unwrap_or(1), n)?,
+                )
+            {
+                obj.extend(offered);
+            }
+            Ok(answer)
+        }
+
+        fn commit(&self, ctx: &mut Ctx, params: &serde_json::Value) -> Result<Outcome, Refusal> {
+            let p = Params::parse(params)?;
+            let after = self.plan(ctx, params)?;
+            let (Some(project), Some(open)) = (ctx.project.as_ref(), ctx.open.as_ref()) else {
+                return Err(Refusal::new(
+                    "no map is open, so there is nowhere to propose a layout.",
+                ));
+            };
+            // **The same computation the plan made**, so what was previewed is what stands — the
+            // preview is this operation's own plan thrown away, and it must not be a second opinion.
+            let laid = crate::editor::propose_in(project, open, p.source, p.area(), p.seed.unwrap_or(1))
+                .map_err(Refusal::new)?;
+            let note = laid.note.clone();
+            ctx.proposal = Some(laid.proposed);
+            Ok(Outcome {
+                summary: note,
+                affected: 0,
+                saved: false,
+                inverse: None,
+                after: Some(after),
+            })
+        }
+    }
+}
+
+/// **Keep the layout on screen** — `Enter`, and the agent's half of the same door.
+///
+/// The person's arm used to live inline in `apply_proposal`; this is the same write with a name, so
+/// an agent that proposed a layout can finish the job instead of leaving it on screen for somebody
+/// to press a key at.
+///
+/// # What it clears, and when that is decided
+///
+/// A grammar over descriptors lays pieces, so it clears the **unpinned placements**; a grammar over
+/// compositions lays stamps, so it clears the **unpinned stamps** and leaves the author's pieces
+/// alone. Which rows those are is read from the **live map at the moment of commitment**, never
+/// captured when the layout was proposed: an index held across the gap is a stale-index bug waiting
+/// for the first author who places something while a proposal is up.
+///
+/// The removed rows are recorded with their indices in the inverse, so `Cmd+Z` puts the sketch back
+/// where it was rather than at the end of the file.
+///
+/// # Undo
+///
+/// `Undo::Inverse`, and the inverse is this operation's own `delta` parameter — the vocabulary
+/// [`RowDelta`] gives every row-changing operation here. The `delta` form is marked
+/// [`Operation::only_as_undo`], so a bare `layout_accept {"delta": ...}` from an agent is refused:
+/// putting rows back is the undo stack's job, not something an agent may do directly.
+pub mod layout_accept {
+    use super::*;
+    use serde_json::json;
+
+    /// **Keep the proposal, or (as an undo) put rows back.**
+    #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+    #[serde(deny_unknown_fields)]
+    pub struct Params {
+        /// **The undo's own form.** Present only when this is being called to take a keep back.
+        #[serde(default)]
+        pub delta: Option<RowDelta>,
+    }
+
+    impl Params {
+        pub fn schema() -> serde_json::Value {
+            json!({
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                    "delta": {
+                        "description": "The rows an undo puts back. Only an undo may set this: to keep the layout on screen, call with no parameters.",
+                        "type": "object"
+                    }
+                }
+            })
+        }
+
+        pub fn parse(raw: &serde_json::Value) -> Result<Params, Refusal> {
+            serde_json::from_value(raw.clone()).map_err(|e| {
+                Refusal::new(format!(
+                    "these are not the parameters for keeping a layout: {e}. Call with no \
+                     parameters to keep the proposal on screen."
+                ))
+            })
+        }
+    }
+
+    /// **The preview-only sentence, in one place.** The key path and the operation both say it, and a
+    /// message that differs between them is a message one of them got wrong.
+    pub const PREVIEW_ONLY: &str = "preview only — the game lays these blocks out itself. Esc clears \
+                                    it; to fix a cell, place a tile there and pin it with O.";
+
+    pub struct LayoutAccept;
+
+    impl Operation for LayoutAccept {
+        fn name(&self) -> &'static str {
+            "layout_accept"
+        }
+        fn shows(&self, ctx: &Ctx, _params: &serde_json::Value) -> Shown {
+            // **The layout standing on screen**, which is what keeping it writes into the map.
+            match ctx.proposal.as_ref() {
+                Some(p) if !p.placements.is_empty() => shown_rows(ctx, &p.placements),
+                _ => Shown::MapWhole,
+            }
+        }
+        fn writes(&self) -> &'static [&'static str] {
+            &["map"]
+        }
+
+        fn undo(&self) -> Undo {
+            Undo::Inverse
+        }
+
+        fn only_as_undo(&self, params: &serde_json::Value) -> bool {
+            Params::parse(params).map(|p| p.delta.is_some()).unwrap_or(false)
+        }
+
+        fn schema(&self) -> serde_json::Value {
+            Params::schema()
+        }
+
+        fn plan(&self, ctx: &Ctx, params: &serde_json::Value) -> Result<serde_json::Value, Refusal> {
+            let p = Params::parse(params)?;
+            let Some(open) = ctx.open.as_ref() else {
+                return Err(Refusal::new("no map is open, so there is nothing to lay a layout on."));
+            };
+            if let Some(delta) = &p.delta {
+                // **Planned against a copy**, so the plan stays pure: the rows are counted, not moved.
+                let mut trial = open.map.clone();
+                delta.apply(&mut trial)?;
+                return Ok(json!({
+                    "map": open.map.name,
+                    "placements": trial.placements.len(),
+                    "stamps": trial.stamps.len(),
+                }));
+            }
+            let Some(proposed) = ctx.proposal.as_ref() else {
+                return Err(Refusal::new(
+                    "there is no layout to keep — propose one first (layout_propose)",
+                ));
+            };
+            if proposed.preview_only {
+                return Err(Refusal::new(PREVIEW_ONLY));
+            }
+            // **What it would clear**, read now. The count is the whole of `docs/ui.md` §3.2's delta:
+            // what changes, beside what is there.
+            let clears = if proposed.composes {
+                open.map.stamps.iter().filter(|s| proposed.replaces_stamp(&open.map, s)).count()
+            } else {
+                open.map.placements.iter().filter(|p| proposed.replaces_placement(&open.map, p)).count()
+            };
+            Ok(json!({
+                "map": open.map.name,
+                "laid": if proposed.composes {
+                    json!({"stamps": proposed.stamps.len()})
+                } else {
+                    json!({"placements": proposed.placements.len()})
+                },
+                "clears": clears,
+                "composes": proposed.composes,
+            }))
+        }
+
+        fn commit(&self, ctx: &mut Ctx, params: &serde_json::Value) -> Result<Outcome, Refusal> {
+            let p = Params::parse(params)?;
+            let Some(open) = ctx.open.as_mut() else {
+                return Err(Refusal::new("no map is open, so there is nothing to lay a layout on."));
+            };
+            let before = open.map.clone();
+
+            // **The undo's form: put the rows back, save, and hand back the delta that undoes it.**
+            if let Some(delta) = &p.delta {
+                let inverse = delta.apply(&mut open.map)?;
+                let (some, taken) = (
+                    inverse.add_placements.len() + inverse.add_stamps.len(),
+                    delta.remove_placements.len(),
+                );
+                let Some(project) = ctx.project.as_ref() else {
+                    return Err(Refusal::new("no project is open."));
+                };
+                let saved = match open.save(project) {
+                    Ok(()) => true,
+                    Err(e) => {
+                        // **The rows go back before the refusal**: the in-memory map and the file
+                        // must not disagree, or the dirty flag says "unsaved" about a change nobody
+                        // made.
+                        open.map = before;
+                        return Err(Refusal::new(format!(
+                            "the rows were put back but the file refused them, so nothing was \
+                             written: {e}"
+                        )));
+                    }
+                };
+                return Ok(Outcome {
+                    summary: format!("put back {some} row(s) and took away {taken}"),
+                    affected: some + delta.remove_placements.len(),
+                    saved,
+                    inverse: Some(json!({ "delta": inverse })),
+                    after: Some(json!({
+                        "map": open.map.name,
+                        "placements": open.map.placements.len(),
+                        "stamps": open.map.stamps.len(),
+                    })),
+                });
+            }
+
+            // **The keep.** Take the proposal, then reproduce the map edit it describes.
+            let Some(taken) = ctx.proposal.take() else {
+                return Err(Refusal::new(
+                    "there is no layout to keep — propose one first (layout_propose)",
+                ));
+            };
+            if taken.preview_only {
+                // **Put it back**, so the screen still has something to clear with Esc: the refusal
+                // must not throw away the very thing it refused to keep.
+                ctx.proposal = Some(taken);
+                return Err(Refusal::new(PREVIEW_ONLY));
+            }
+
+            // **Which rows go, read from the live map.** See the type's documentation for why this is
+            // not captured at propose time.
+            let removed: Vec<Indexed<blueprint_model::map::Placed>> = if taken.composes {
+                Vec::new()
+            } else {
+                open.map
+                    .placements
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, p)| taken.replaces_placement(&open.map, p))
+                    .map(|(index, row)| Indexed { index, row: row.clone() })
+                    .collect()
+            };
+            let unstamped: Vec<Indexed<blueprint_model::composition::Stamped>> = if taken.composes {
+                open.map
+                    .stamps
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, s)| taken.replaces_stamp(&open.map, s))
+                    .map(|(index, row)| Indexed { index, row: row.clone() })
+                    .collect()
+            } else {
+                Vec::new()
+            };
+            // Descending, so removing an earlier row cannot shift a later one out from under us.
+            for row in removed.iter().rev() {
+                open.map.placements.remove(row.index);
+            }
+            for row in unstamped.iter().rev() {
+                open.map.stamps.remove(row.index);
+            }
+
+            let count = taken.placements.len();
+            let stamped = taken.stamps.len();
+            let added: Vec<String> = taken.placements.iter().map(|p| p.id.clone()).collect();
+            let added_stamps: Vec<String> = taken.stamps.iter().map(|s| s.id.clone()).collect();
+            open.map.placements.extend(taken.placements);
+            open.map.stamps.extend(taken.stamps);
+
+            // **A save failure restores the map AND the proposal**, so a refusal leaves the screen
+            // exactly as it was and the person can try again or fix the file.
+            let Some(project) = ctx.project.as_ref() else {
+                open.map = before;
+                return Err(Refusal::new("no project is open."));
+            };
+            if let Err(e) = open.save(project) {
+                open.map = before;
+                // The rows are back in the proposal, rebuilt from what was just written into it.
+                ctx.proposal = Some(crate::editor::Proposed {
+                    composes: taken.composes,
+                    // **The measurement survives the put-back**, because the layout it measured did:
+                    // nothing was re-solved, only re-read from the map it was written into.
+                    variety: taken.variety,
+                    cells: taken.cells,
+                    placements: added
+                        .iter()
+                        .filter_map(|id| open.map.placements.iter().find(|p| &p.id == id).cloned())
+                        .collect(),
+                    stamps: added_stamps
+                        .iter()
+                        .filter_map(|id| open.map.stamps.iter().find(|s| &s.id == id).cloned())
+                        .collect(),
+                    cell: taken.cell,
+                    preview_only: taken.preview_only,
+                    area: taken.area,
+                    generation: taken.generation,
+                });
+                return Err(Refusal::new(format!(
+                    "the layout was laid but the file refused it, so nothing was written: {e}"
+                )));
+            }
+
+            let inverse = RowDelta {
+                remove_placements: added,
+                remove_stamps: added_stamps,
+                add_placements: removed,
+                add_stamps: unstamped,
+            };
+            Ok(Outcome {
+                summary: if taken.composes {
+                    format!("kept the layout: {stamped} stamped")
+                } else {
+                    format!("kept the layout: {count} placed")
+                },
+                affected: count + stamped,
+                saved: true,
+                inverse: Some(json!({ "delta": inverse })),
+                after: Some(json!({
+                    "map": open.map.name,
+                    "placements": open.map.placements.len(),
+                    "stamps": open.map.stamps.len(),
+                })),
+            })
+        }
+
+        fn state(&self, ctx: &Ctx) -> Option<serde_json::Value> {
+            let open = ctx.open.as_ref()?;
+            Some(json!({
+                "map": open.map.name,
+                "placements": open.map.placements.len(),
+                "stamps": open.map.stamps.len(),
+            }))
+        }
+    }
+}
+
+/// **Throw the layout away** — `Esc`, and the agent's half of the same door.
+///
+/// The map is untouched by a proposal, so throwing one away is not an undo: it writes nothing and
+/// records nothing to take back. It is a verb because *dropping the offer* is an act with a receipt,
+/// and because an agent that proposed a layout and thought better of it needs a way to say so.
+pub mod layout_discard {
+    use super::*;
+    use serde_json::json;
+
+    #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+    #[serde(deny_unknown_fields)]
+    pub struct Params {}
+
+    pub struct LayoutDiscard;
+
+    impl Operation for LayoutDiscard {
+        fn name(&self) -> &'static str {
+            "layout_discard"
+        }
+        fn shows(&self, _ctx: &Ctx, _params: &serde_json::Value) -> Shown {
+            Shown::Nowhere
+        }
+        fn writes(&self) -> &'static [&'static str] {
+            &[]
+        }
+
+        /// Nothing is written, so there is nothing to take back.
+        fn undo(&self) -> Undo {
+            Undo::None
+        }
+
+        fn schema(&self) -> serde_json::Value {
+            json!({"type": "object", "additionalProperties": false, "properties": {}})
+        }
+
+        fn plan(&self, ctx: &Ctx, _params: &serde_json::Value) -> Result<serde_json::Value, Refusal> {
+            if ctx.proposal.is_none() {
+                return Err(Refusal::new("there is no layout to throw away"));
+            }
+            Ok(json!({"map": ctx.open.as_ref().map(|o| o.map.name.clone())}))
+        }
+
+        fn commit(&self, ctx: &mut Ctx, _params: &serde_json::Value) -> Result<Outcome, Refusal> {
+            if ctx.proposal.take().is_none() {
+                return Err(Refusal::new("there is no layout to throw away"));
+            }
+            Ok(Outcome {
+                summary: "layout thrown away — the map is as it was".to_owned(),
+                affected: 0,
+                saved: false,
+                inverse: None,
+                after: Some(json!({"map": ctx.open.as_ref().map(|o| o.map.name.clone())})),
+            })
+        }
+    }
+}
+
+/// **Flood fill from a cell** — `F`, and the agent's half of it.
+///
+/// The fill itself is `fill::flood`, unchanged: it refuses a piece that mounts on something, it stops
+/// at anything already placed, and it stops at `MAX_CELLS` with a route to carry on. What was missing
+/// was a name in the registry, so an agent could not lay a floor.
+///
+/// # `at` is a cell, not a pixel
+///
+/// The start point is **the same value the click passes to `flood`** — `open.map.to_map_space((x, z))`
+/// from the cursor — so a caller is speaking map space in metres. A generator that reads placements
+/// sits on the 1 m grid; a person's brush may be on a finer one, and the pitch argument is theirs.
+pub mod fill {
+    use super::*;
+    use serde_json::json;
+
+    #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+    #[serde(deny_unknown_fields)]
+    pub struct Params {
+        /// **What to lay.** A descriptor id from the project's library.
+        ///
+        /// **Optional in the type and required in practice**, because the undo's form carries only
+        /// `delta` — `take_back` re-dispatches an operation with the inverse its log line recorded,
+        /// and a `required` field would make the undo unparseable. The refusal is made by `plan`, by
+        /// name, when a fill is asked for without a piece.
+        #[serde(default)]
+        pub piece: String,
+        /// **Where the flood starts**, in map space in metres. Absent only in the undo's form.
+        #[serde(default)]
+        pub at: (f32, f32),
+        #[serde(default)]
+        pub yaw: f32,
+        #[serde(default)]
+        pub tip: (u8, u8),
+        /// The cell pitch. Omitted means the project's default snap.
+        #[serde(default)]
+        pub pitch: Option<f32>,
+        /// **The undo's own form**: the placements a fill added, to be taken away again.
+        #[serde(default)]
+        pub delta: Option<RowDelta>,
+    }
+
+    impl Params {
+        pub fn schema() -> serde_json::Value {
+            json!({
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["piece", "at"],
+                "properties": {
+                    "piece": {
+                        "description": "The piece to lay, by descriptor id. blueprint_list_pieces lists them. A piece that mounts on a surface or a wall cannot be filled with, because a fill covers open floor.",
+                        "type": "string"
+                    },
+                    "at": {
+                        "description": "Where the flood starts, in map space in metres, as [x, z]. The same value a click passes: not a screen position.",
+                        "type": "array",
+                        "items": {"type": "number"},
+                        "minItems": 2,
+                        "maxItems": 2
+                    },
+                    "yaw": {
+                        "description": "The facing every filled piece takes, in degrees. Omit for 0.",
+                        "type": "number"
+                    },
+                    "tip": {
+                        "description": "Which variant of a tipped piece to lay, as [a, b]. Omit for [0, 0].",
+                        "type": "array",
+                        "items": {"type": "integer", "minimum": 0},
+                        "minItems": 2,
+                        "maxItems": 2
+                    },
+                    "pitch": {
+                        "description": "The cell pitch in metres. Omit for the project's default snap.",
+                        "type": "number"
+                    },
+                    "delta": {
+                        "description": "The rows an undo takes away. Only an undo may set this: to fill, call with `piece` and `at`.",
+                        "type": "object"
+                    }
+                }
+            })
+        }
+
+        pub fn parse(raw: &serde_json::Value) -> Result<Params, Refusal> {
+            serde_json::from_value(raw.clone()).map_err(|e| {
+                Refusal::new(format!(
+                    "these are not the parameters for a fill: {e}. The fields are `piece`, `at`, \
+                     `yaw`, `tip`, `pitch` and `delta`, and `piece` and `at` are required."
+                ))
+            })
+        }
+    }
+
+    pub struct Fill;
+
+    impl Operation for Fill {
+        fn name(&self) -> &'static str {
+            "fill"
+        }
+        fn shows(&self, ctx: &Ctx, params: &serde_json::Value) -> Shown {
+            match Params::parse(params) {
+                // **The undo names the rows it takes away**, so their boxes are answered exactly.
+                Ok(p) if p.delta.is_some() => {
+                    let rows: Vec<blueprint_model::map::Placed> = p
+                        .delta
+                        .iter()
+                        .flat_map(|d| d.remove_placements.iter())
+                        .filter_map(|id| ctx.open.as_ref()?.map.placements.iter().find(|q| &q.id == id).cloned())
+                        .collect();
+                    if rows.is_empty() { Shown::MapWhole } else { shown_rows(ctx, &rows) }
+                }
+                // **A flood fill's extent is not in its parameters** — it is whatever open floor the flood
+                // reaches — so the honest answer is the map.
+                _ => Shown::MapWhole,
+            }
+        }
+        fn writes(&self) -> &'static [&'static str] {
+            &["map"]
+        }
+
+        fn undo(&self) -> Undo {
+            Undo::Inverse
+        }
+
+        fn only_as_undo(&self, params: &serde_json::Value) -> bool {
+            Params::parse(params).map(|p| p.delta.is_some()).unwrap_or(false)
+        }
+
+        fn schema(&self) -> serde_json::Value {
+            Params::schema()
+        }
+
+        fn plan(&self, ctx: &Ctx, params: &serde_json::Value) -> Result<serde_json::Value, Refusal> {
+            let p = Params::parse(params)?;
+            let (Some(project), Some(open)) = (ctx.project.as_ref(), ctx.open.as_ref()) else {
+                return Err(Refusal::new("no map is open, so there is nowhere to fill."));
+            };
+            if let Some(delta) = &p.delta {
+                let mut trial = open.map.clone();
+                delta.apply(&mut trial)?;
+                return Ok(json!({
+                    "map": open.map.name,
+                    "placements": trial.placements.len(),
+                }));
+            }
+            let Some(descriptor) = project.library.get(&p.piece) else {
+                return Err(Refusal::new(format!(
+                    "`{}` is not a piece in this project — blueprint_list_pieces lists them",
+                    p.piece
+                )));
+            };
+            let pitch = p
+                .pitch
+                .unwrap_or_else(|| default_pitch(project.lattice.snap_divisor));
+            // **A dry run counts the cells and writes nothing.** The mint is the same shape the click
+            // uses, so the count is the count the fill would really lay.
+            let short = crate::editor::short_id(&descriptor.id).to_owned();
+            let mut n = crate::editor::next_id_after(&open.map);
+            let filled = crate::fill::flood(
+                &open.map,
+                descriptor,
+                p.at,
+                p.yaw,
+                p.tip,
+                pitch,
+                || {
+                    n += 1;
+                    format!("{short}@{n}")
+                },
+            )
+            .map_err(Refusal::new)?;
+            Ok(json!({
+                "map": open.map.name,
+                "would_fill": filled.placements.len(),
+                "truncated": filled.truncated,
+            }))
+        }
+
+        fn commit(&self, ctx: &mut Ctx, params: &serde_json::Value) -> Result<Outcome, Refusal> {
+            let p = Params::parse(params)?;
+            let Some(open) = ctx.open.as_mut() else {
+                return Err(Refusal::new("no map is open, so there is nowhere to fill."));
+            };
+            let before = open.map.clone();
+
+            if let Some(delta) = &p.delta {
+                let inverse = delta.apply(&mut open.map)?;
+                let taken = inverse.add_placements.len();
+                let Some(project) = ctx.project.as_ref() else {
+                    return Err(Refusal::new("no project is open."));
+                };
+                let saved = match open.save(project) {
+                    Ok(()) => true,
+                    Err(e) => {
+                        open.map = before;
+                        return Err(Refusal::new(format!(
+                            "the fill was taken away but the file refused it, so nothing was \
+                             written: {e}"
+                        )));
+                    }
+                };
+                return Ok(Outcome {
+                    summary: format!("took the fill away: {taken} piece(s)"),
+                    affected: taken,
+                    saved,
+                    inverse: Some(json!({ "delta": inverse })),
+                    after: Some(json!({
+                        "map": open.map.name,
+                        "placements": open.map.placements.len(),
+                        "truncated": false,
+                    })),
+                });
+            }
+
+            let Some(project) = ctx.project.as_ref() else {
+                return Err(Refusal::new("no project is open."));
+            };
+            let Some(descriptor) = project.library.get(&p.piece).cloned() else {
+                return Err(Refusal::new(format!(
+                    "`{}` is not a piece in this project — blueprint_list_pieces lists them",
+                    p.piece
+                )));
+            };
+            let pitch = p
+                .pitch
+                .unwrap_or_else(|| default_pitch(project.lattice.snap_divisor));
+            let short = crate::editor::short_id(&descriptor.id).to_owned();
+            let mut n = crate::editor::next_id_after(&open.map);
+            let filled = crate::fill::flood(
+                &open.map,
+                &descriptor,
+                p.at,
+                p.yaw,
+                p.tip,
+                pitch,
+                || {
+                    n += 1;
+                    format!("{short}@{n}")
+                },
+            )
+            .map_err(Refusal::new)?;
+            let count = filled.placements.len();
+            let added: Vec<String> = filled.placements.iter().map(|p| p.id.clone()).collect();
+            open.map.placements.extend(filled.placements);
+
+            let Some(project) = ctx.project.as_ref() else {
+                return Err(Refusal::new("no project is open."));
+            };
+            if let Err(e) = open.save(project) {
+                open.map = before;
+                return Err(Refusal::new(format!(
+                    "the fill was laid but the file refused it, so nothing was written: {e}"
+                )));
+            }
+            // **The cap's route is carried in the summary**, because a truncated fill looks exactly
+            // like a finished one and the message that says so is the only thing that distinguishes
+            // them. `CAP_ROUTE` names a route that works: a fill from a *new* cell.
+            let summary = if filled.truncated {
+                format!(
+                    "filled {count} and STOPPED at the {} cell cap. {}",
+                    crate::fill::MAX_CELLS,
+                    crate::fill::CAP_ROUTE
+                )
+            } else {
+                format!("filled {count} with {}", p.piece)
+            };
+            Ok(Outcome {
+                summary,
+                affected: count,
+                saved: true,
+                inverse: Some(json!({ "delta": { "remove_placements": added } })),
+                after: Some(json!({
+                    "map": open.map.name,
+                    "placements": open.map.placements.len(),
+                    "truncated": filled.truncated,
+                })),
+            })
+        }
+
+        fn state(&self, ctx: &Ctx) -> Option<serde_json::Value> {
+            let open = ctx.open.as_ref()?;
+            Some(json!({
+                "map": open.map.name,
+                "placements": open.map.placements.len(),
+            }))
+        }
+
+    }
+
+    /// The project's own default cell pitch, so an omitted `pitch` fills on the grid the kits are
+    /// authored on rather than on whatever the last brush used.
+    fn default_pitch(snap_divisor: u32) -> f32 {
+        blueprint_model::grid::SnapLevel::default().pitch(snap_divisor)
+    }
+}
+
+/// **Save the open map** — `Cmd+S` on the Map door, and the agent's half of it.
+///
+/// The save is `OpenMap::save`, unchanged: it validates, expands the stamps the way the game does,
+/// and refuses rather than writing a file the game cannot load. The value of the operation is that an
+/// agent can *finish*: every mutating operation already writes, but a proposal that was kept and a
+/// brush that was armed are different acts, and "save now" is what a person presses when they are
+/// done.
+///
+/// # Undo
+///
+/// `Undo::None`: a save changes no document. There is nothing to take back, and taking it back would
+/// mean restoring a file the author had already replaced.
+/// **The grid rung, cycled** (E-002, #129): the first verb whose whole effect is view state.
+///
+/// A key has always done this through `editor::cycle_grid`; an agent had no way to, because an operation
+/// could not reach a view. `Ctx::view` is that way, and this operation is what proves it: the key and the
+/// MCP call dispatch the same operation, and `the_same_view_change_by_key_and_by_mcp_is_one_operation`
+/// holds them to it.
+/// **The journal panel, up or down** (E-002, #129): a view verb with a panel for its effect.
+///
+/// `Cmd+E` has always toggled it by writing `Display` on the panel's node. That is view state, so the
+/// operation carries it in `Ctx::view` and the front end applies what comes back — the same shape
+/// `view_cycle_grid` proved.
+/// **Arm a tool, or put it back** (E-002, #129): what a click on the map does next.
+///
+/// `CloneMode` and `RunMode` are two keys onto one rule — press the tool's key to arm it, press it again
+/// to return to `Tool::Place`. That rule is `editor::arm_tool_in`, and this operation calls it rather
+/// than restating it, so a third tool key costs a line in `tools` and nothing else.
+///
+/// **A view operation, not an edit.** `writes()` is empty and `Undo::None`: arming the clone tool changes
+/// what the next click does, and `Cmd+Z` after arming must take back the last change to the map, not
+/// disarm a tool someone chose on purpose.
+/// **Arm or cancel the snip** (E-002, #129): `Cmd+\` takes a rectangle, and the same key puts it away.
+///
+/// `snip::snip_key` is the key; this is the same toggle on the value, so an agent can arm a capture the
+/// way a person does. **A view operation**: it writes no map, and a completed rectangle disarms it
+/// through the drag's own path rather than through this one.
+pub mod snip_arm {
+    use super::*;
+    use serde_json::json;
+
+    #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+    #[serde(deny_unknown_fields)]
+    pub struct Params {}
+
+    pub struct SnipArm;
+
+    impl Operation for SnipArm {
+        fn name(&self) -> &'static str {
+            "snip_arm"
+        }
+        fn changes_view(&self) -> bool {
+            true
+        }
+        fn shows(&self, _ctx: &Ctx, _params: &serde_json::Value) -> Shown {
+            Shown::Nowhere
+        }
+        fn writes(&self) -> &'static [&'static str] {
+            // A capture mode is not the blueprint; the *file* a completed snip writes is `snip_commit`'s,
+            // and that is the operation a project needs, not this one.
+            &[]
+        }
+
+        fn undo(&self) -> Undo {
+            Undo::None
+        }
+
+        fn schema(&self) -> serde_json::Value {
+            json!({"type": "object", "additionalProperties": false, "properties": {}})
+        }
+
+        fn plan(&self, ctx: &Ctx, _params: &serde_json::Value) -> Result<serde_json::Value, Refusal> {
+            let Some(view) = ctx.view.as_ref() else {
+                return Err(Refusal::new(
+                    "no view is in hand, so there is no snip to arm. An editor front end carries one \
+                     in `Ctx::view`.",
+                ));
+            };
+            Ok(json!({ "now": if view.snip_armed { "disarm" } else { "arm" } }))
+        }
+
+        fn commit(&self, ctx: &mut Ctx, params: &serde_json::Value) -> Result<Outcome, Refusal> {
+            self.plan(ctx, params)?;
+            let Some(view) = ctx.view.as_mut() else {
+                return Err(Refusal::new("no view is in hand, so there is no snip to arm."));
+            };
+            let armed = view.toggle_snip();
+            Ok(Outcome {
+                summary: if armed {
+                    "snip armed: drag a rectangle over the editor".to_owned()
+                } else {
+                    "snip cancelled, nothing was saved".to_owned()
+                },
+                affected: 0,
+                saved: false,
+                inverse: None,
+                after: Some(json!({ "armed": armed })),
+            })
+        }
+    }
+}
+
+pub mod tool_arm {
+    use super::*;
+    use crate::ops_view::View;
+    use serde_json::json;
+
+    /// The tools a key can arm, as an agent names them. Kept beside the operation so the schema and the
+    /// parse cannot disagree.
+    pub const TOOLS: &[&str] = &["clone", "run", "move", "remove", "note"];
+
+    #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+    #[serde(deny_unknown_fields)]
+    pub struct Params {
+        /// One of [`TOOLS`].
+        pub tool: String,
+    }
+
+    pub struct ToolArm;
+
+    impl Operation for ToolArm {
+        fn name(&self) -> &'static str {
+            "tool_arm"
+        }
+        fn changes_view(&self) -> bool {
+            true
+        }
+        fn shows(&self, _ctx: &Ctx, _params: &serde_json::Value) -> Shown {
+            Shown::Nowhere
+        }
+        fn writes(&self) -> &'static [&'static str] {
+            // A tool is what the next click does, not something the blueprint keeps.
+            &[]
+        }
+
+        fn undo(&self) -> Undo {
+            Undo::None
+        }
+
+        fn schema(&self) -> serde_json::Value {
+            json!({
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["tool"],
+                "properties": {
+                    "tool": {"type": "string", "enum": TOOLS},
+                },
+            })
+        }
+
+        fn plan(&self, ctx: &Ctx, params: &serde_json::Value) -> Result<serde_json::Value, Refusal> {
+            let Some(view) = ctx.view.as_ref() else {
+                return Err(Refusal::new(
+                    "no view is in hand, so there is no tool to arm. An editor front end carries one \
+                     in `Ctx::view`.",
+                ));
+            };
+            let tool = tool_from_view(view, params)?;
+            Ok(json!({
+                "from": crate::ops_view::tool_name(view.tool),
+                "to": crate::ops_view::tool_name(tool),
+            }))
+        }
+
+        fn commit(&self, ctx: &mut Ctx, params: &serde_json::Value) -> Result<Outcome, Refusal> {
+            self.plan(ctx, params)?;
+            let Some(view) = ctx.view.as_mut() else {
+                return Err(Refusal::new("no view is in hand, so there is no tool to arm."));
+            };
+            let tool = tool_from_view(view, params)?;
+            // The chord is the caller's, not the operation's: an agent has none, and the summary is the
+            // only place it is said out loud.
+            let said = view.arm(tool, "");
+            Ok(Outcome {
+                summary: said,
+                affected: 0,
+                saved: false,
+                inverse: None,
+                after: Some(json!({ "tool": crate::ops_view::tool_name(view.tool) })),
+            })
+        }
+    }
+
+    fn tool_from_view(
+        _view: &View,
+        params: &serde_json::Value,
+    ) -> Result<crate::editor::Tool, Refusal> {
+        let name = params
+            .get("tool")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| Refusal::new(format!("`tool` is missing; say one of {}", TOOLS.join(", "))))?;
+        crate::ops_view::tool_from_name(name).ok_or_else(|| {
+            Refusal::new(format!(
+                "`{name}` is not a tool; say one of {}",
+                TOOLS.join(", ")
+            ))
+        })
+    }
+}
+
+pub mod view_toggle_journal {
+    use super::*;
+    use serde_json::json;
+
+    #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+    #[serde(deny_unknown_fields)]
+    pub struct Params {}
+
+    pub struct ViewToggleJournal;
+
+    impl Operation for ViewToggleJournal {
+        fn name(&self) -> &'static str {
+            "view_toggle_journal"
+        }
+        fn changes_view(&self) -> bool {
+            true
+        }
+        fn shows(&self, _ctx: &Ctx, _params: &serde_json::Value) -> Shown {
+            Shown::Nowhere
+        }
+        fn writes(&self) -> &'static [&'static str] {
+            // A panel being up is not project data: no map, no file, no undo step.
+            &[]
+        }
+
+        fn undo(&self) -> Undo {
+            // **Not an edit.** `Cmd+Z` after `Cmd+E` must take back the last change to the blueprint,
+            // not reopen a panel the person closed on purpose.
+            Undo::None
+        }
+
+        fn schema(&self) -> serde_json::Value {
+            json!({"type": "object", "additionalProperties": false, "properties": {}})
+        }
+
+        fn plan(&self, ctx: &Ctx, _params: &serde_json::Value) -> Result<serde_json::Value, Refusal> {
+            let Some(view) = ctx.view.as_ref() else {
+                return Err(Refusal::new(
+                    "no view is in hand, so there is no journal to toggle. An editor front end carries one \
+                     in `Ctx::view`.",
+                ));
+            };
+            Ok(json!({ "now": if view.journal_open { "down" } else { "up" } }))
+        }
+
+        fn commit(&self, ctx: &mut Ctx, params: &serde_json::Value) -> Result<Outcome, Refusal> {
+            self.plan(ctx, params)?;
+            let Some(view) = ctx.view.as_mut() else {
+                return Err(Refusal::new("no view is in hand, so there is no journal to toggle."));
+            };
+            let open = view.toggle_journal();
+            Ok(Outcome {
+                summary: if open { "journal up".to_owned() } else { "journal down".to_owned() },
+                affected: 0,
+                saved: false,
+                inverse: None,
+                after: Some(json!({ "journal": if open { "up" } else { "down" } })),
+            })
+        }
+    }
+}
+
+/// **The rig bench's ghost, up or down** (E-002, #129): the translucent second figure that plays the
+/// *measured* gait over the declared one, which `G` and the ghost chip toggle.
+///
+/// View state, like the journal: the toggle is the operation's and the front end applies what comes back, so
+/// the key, the chip and an agent's call decide what "toggle" means in one place. It writes nothing the
+/// project keeps and has no undo step, for the journal's reason: `Cmd+Z` must take back the last change to
+/// the blueprint, not hide an overlay the person put up on purpose.
+pub mod view_toggle_ghost {
+    use super::*;
+    use serde_json::json;
+
+    #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+    #[serde(deny_unknown_fields)]
+    pub struct Params {}
+
+    pub struct ViewToggleGhost;
+
+    impl Operation for ViewToggleGhost {
+        fn name(&self) -> &'static str {
+            "view_toggle_ghost"
+        }
+        fn shows(&self, _ctx: &Ctx, _params: &serde_json::Value) -> Shown {
+            Shown::Nowhere
+        }
+        fn writes(&self) -> &'static [&'static str] {
+            // An overlay on the bench is not project data: no map, no file, no undo step.
+            &[]
+        }
+        fn changes_view(&self) -> bool {
+            true
+        }
+
+        fn undo(&self) -> Undo {
+            Undo::None
+        }
+
+        fn schema(&self) -> serde_json::Value {
+            json!({"type": "object", "additionalProperties": false, "properties": {}})
+        }
+
+        fn plan(&self, ctx: &Ctx, _params: &serde_json::Value) -> Result<serde_json::Value, Refusal> {
+            let Some(view) = ctx.view.as_ref() else {
+                return Err(Refusal::new(
+                    "no view is in hand, so there is no ghost to toggle. An editor front end carries one \
+                     in `Ctx::view`.",
+                ));
+            };
+            Ok(json!({ "now": if view.ghost { "off" } else { "on" } }))
+        }
+
+        fn commit(&self, ctx: &mut Ctx, params: &serde_json::Value) -> Result<Outcome, Refusal> {
+            self.plan(ctx, params)?;
+            let Some(view) = ctx.view.as_mut() else {
+                return Err(Refusal::new("no view is in hand, so there is no ghost to toggle."));
+            };
+            let on = view.toggle_ghost();
+            Ok(Outcome {
+                summary: if on {
+                    "ghost on: the measured gait plays over the declared one".to_owned()
+                } else {
+                    "ghost off".to_owned()
+                },
+                affected: 0,
+                saved: false,
+                inverse: None,
+                after: Some(json!({ "ghost": if on { "on" } else { "off" } })),
+            })
+        }
+    }
+}
+
+/// **What the outliner's eye and locks do, as operations** (UI-51, #237; E-002, #129): `placement_set_hidden`,
+/// `layer_set_visible` and `placement_set_locked`.
+///
+/// **View state, like the rung and the journal**: they change what a person looks through and what a click may do,
+/// not what the map holds. A hidden piece stays on the map, in the file, in the solver's view and in every other
+/// operation's reach; a lock is a guard on the viewport's pointer tools, so an operation still moves and removes a
+/// locked piece. They write nothing the project keeps and have no undo step, for the journal's reason: `Cmd+Z` takes
+/// back the last change to the blueprint, not a piece's eye. The outliner's row menu and an agent's call
+/// (`blueprint/operation_apply`) are the two front ends, and both carry the sight in `Ctx::view`.
+pub mod sight {
+    use super::*;
+    use super::list_walk::need_view;
+    use crate::outliner::{LAYERS, layer_of};
+    use serde_json::json;
+
+    /// **A piece the eye or the lock is asked about must be on the map**, when a map is in hand: an id a typo made is
+    /// a refusal, not a mark on a piece that does not exist. A call with no map in hand (a front end that carries
+    /// only the view) is not refused for it.
+    fn on_the_map(ctx: &Ctx, id: &str) -> Result<(), Refusal> {
+        match ctx.open.as_ref() {
+            Some(open) if !open.map.placements.iter().any(|p| p.id == id) => Err(Refusal::new(format!(
+                "there is no placement `{id}` on this map. `blueprint/state` lists the ids."
+            ))),
+            _ => Ok(()),
+        }
+    }
+
+    fn need_view_mut<'a>(ctx: &'a mut Ctx, what: &str) -> Result<&'a mut crate::ops_view::View, Refusal> {
+        ctx.view.as_mut().ok_or_else(|| {
+            Refusal::new(format!(
+                "no view is in hand, so there is nothing to {what}. An editor front end carries one in `Ctx::view`."
+            ))
+        })
+    }
+
+    fn parse<T: serde::de::DeserializeOwned>(params: &serde_json::Value, fields: &str) -> Result<T, Refusal> {
+        serde_json::from_value(params.clone())
+            .map_err(|e| Refusal::new(format!("these are not the parameters: {e}. The fields are {fields}, and nothing else.")))
+    }
+
+    /// **Take one piece out of the viewport, or put it back.**
+    pub mod placement_set_hidden {
+        use super::*;
+
+        #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+        #[serde(deny_unknown_fields)]
+        pub struct Params {
+            /// The placement's id, as the map file and `blueprint/state` name it.
+            pub id: String,
+            /// `true` takes the piece out of the viewport for this session; `false` puts it back.
+            pub hidden: bool,
+        }
+
+        pub struct PlacementSetHidden;
+
+        impl Operation for PlacementSetHidden {
+            fn name(&self) -> &'static str {
+                "placement_set_hidden"
+            }
+            fn changes_view(&self) -> bool {
+                true
+            }
+            fn shows(&self, _ctx: &Ctx, _params: &serde_json::Value) -> Shown {
+                Shown::Nowhere
+            }
+            fn writes(&self) -> &'static [&'static str] {
+                // **Nothing the project keeps**: the map has no "hidden" field and this does not add one.
+                &[]
+            }
+            fn undo(&self) -> Undo {
+                Undo::None
+            }
+            fn schema(&self) -> serde_json::Value {
+                json!({
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": ["id", "hidden"],
+                    "properties": {
+                        "id": {"type": "string", "description": "The placement's id, as the map file names it."},
+                        "hidden": {"type": "boolean", "description": "true takes the piece out of the viewport for this session; false puts it back. The piece stays on the map and in the file either way."},
+                    },
+                })
+            }
+            fn plan(&self, ctx: &Ctx, params: &serde_json::Value) -> Result<serde_json::Value, Refusal> {
+                let p: Params = parse(params, "`id` and `hidden`")?;
+                let view = need_view(ctx, "hide")?;
+                on_the_map(ctx, &p.id)?;
+                Ok(json!({ "id": p.id, "from": view.eyes.is_hidden(&p.id), "to": p.hidden }))
+            }
+            fn commit(&self, ctx: &mut Ctx, params: &serde_json::Value) -> Result<Outcome, Refusal> {
+                self.plan(ctx, params)?;
+                let p: Params = parse(params, "`id` and `hidden`")?;
+                need_view_mut(ctx, "hide")?.eyes.set(&p.id, p.hidden);
+                Ok(Outcome {
+                    summary: if p.hidden {
+                        format!("{} is out of the viewport for this session; it is still on the map", p.id)
+                    } else {
+                        format!("{} is back in the viewport", p.id)
+                    },
+                    affected: 0,
+                    saved: false,
+                    inverse: None,
+                    after: Some(json!({ "id": p.id, "hidden": p.hidden })),
+                })
+            }
+        }
+    }
+
+    /// **Hide a whole layer of the map, or show it again.**
+    pub mod layer_set_visible {
+        use super::*;
+
+        #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+        #[serde(deny_unknown_fields)]
+        pub struct Params {
+            /// One of [`LAYERS`].
+            pub layer: String,
+            /// `true` shows the layer's pieces; `false` takes them out of the viewport.
+            pub visible: bool,
+        }
+
+        pub struct LayerSetVisible;
+
+        impl LayerSetVisible {
+            /// The pieces standing in `layer`, as the outliner groups them ([`layer_of`]), when a map and a project
+            /// are in hand; `None` otherwise, which is only a count the receipt cannot give.
+            fn pieces_in(ctx: &Ctx, layer: &str) -> Option<usize> {
+                let (open, project) = (ctx.open.as_ref()?, ctx.project.as_ref()?);
+                Some(open.map.placements.iter().filter(|p| layer_of(&project.library, p) == layer).count())
+            }
+        }
+
+        impl Operation for LayerSetVisible {
+            fn name(&self) -> &'static str {
+                "layer_set_visible"
+            }
+            fn changes_view(&self) -> bool {
+                true
+            }
+            fn shows(&self, _ctx: &Ctx, _params: &serde_json::Value) -> Shown {
+                Shown::Nowhere
+            }
+            fn writes(&self) -> &'static [&'static str] {
+                &[]
+            }
+            fn undo(&self) -> Undo {
+                Undo::None
+            }
+            fn schema(&self) -> serde_json::Value {
+                json!({
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": ["layer", "visible"],
+                    "properties": {
+                        "layer": {"type": "string", "enum": LAYERS, "description": "The layer a piece stands in, from its descriptor's mount: floor, wall, ceiling, surface, opening or decal."},
+                        "visible": {"type": "boolean", "description": "false takes every piece of the layer out of the viewport for this session; true shows them again. They stay on the map."},
+                    },
+                })
+            }
+            fn plan(&self, ctx: &Ctx, params: &serde_json::Value) -> Result<serde_json::Value, Refusal> {
+                let p: Params = parse(params, "`layer` and `visible`")?;
+                let view = need_view(ctx, "hide")?;
+                if !LAYERS.contains(&p.layer.as_str()) {
+                    return Err(Refusal::new(format!("`{}` is not a layer; say one of {}", p.layer, LAYERS.join(", "))));
+                }
+                Ok(json!({ "layer": p.layer, "from": !view.eyes.layer_hidden(&p.layer), "to": p.visible, "pieces": Self::pieces_in(ctx, &p.layer) }))
+            }
+            fn commit(&self, ctx: &mut Ctx, params: &serde_json::Value) -> Result<Outcome, Refusal> {
+                self.plan(ctx, params)?;
+                let p: Params = parse(params, "`layer` and `visible`")?;
+                let pieces = Self::pieces_in(ctx, &p.layer);
+                need_view_mut(ctx, "hide")?.eyes.set_layer(&p.layer, !p.visible);
+                let held = pieces.map_or_else(String::new, |n| format!(" ({n} piece(s))"));
+                Ok(Outcome {
+                    summary: if p.visible {
+                        format!("the {} layer is back in the viewport{held}", p.layer)
+                    } else {
+                        format!("the {} layer is out of the viewport for this session{held}; it is still on the map", p.layer)
+                    },
+                    affected: 0,
+                    saved: false,
+                    inverse: None,
+                    after: Some(json!({ "layer": p.layer, "visible": p.visible })),
+                })
+            }
+        }
+    }
+
+    /// **Lock one piece against the viewport's clicks, or unlock it.**
+    pub mod placement_set_locked {
+        use super::*;
+        #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+        #[serde(deny_unknown_fields)]
+        pub struct Params {
+            /// The placement's id, as the map file and `blueprint/state` name it.
+            pub id: String,
+            /// `true` locks the piece against the viewport's move and removal clicks; `false` unlocks it.
+            pub locked: bool,
+        }
+
+        pub struct PlacementSetLocked;
+
+        impl Operation for PlacementSetLocked {
+            fn name(&self) -> &'static str {
+                "placement_set_locked"
+            }
+            fn changes_view(&self) -> bool {
+                true
+            }
+            fn shows(&self, _ctx: &Ctx, _params: &serde_json::Value) -> Shown {
+                Shown::Nowhere
+            }
+            fn writes(&self) -> &'static [&'static str] {
+                &[]
+            }
+            fn undo(&self) -> Undo {
+                Undo::None
+            }
+            fn schema(&self) -> serde_json::Value {
+                json!({
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": ["id", "locked"],
+                    "properties": {
+                        "id": {"type": "string", "description": "The placement's id, as the map file names it."},
+                        "locked": {"type": "boolean", "description": "true locks the piece against the viewport's move and removal clicks for this session; false unlocks it. Operations (placement_remove, placement_set_pose and the rest) still act on a locked piece, and it is not placement_set_pin, which keeps the piece from the generator."},
+                    },
+                })
+            }
+            fn plan(&self, ctx: &Ctx, params: &serde_json::Value) -> Result<serde_json::Value, Refusal> {
+                let p: Params = parse(params, "`id` and `locked`")?;
+                let view = need_view(ctx, "lock")?;
+                on_the_map(ctx, &p.id)?;
+                Ok(json!({ "id": p.id, "from": view.locks.is_locked(&p.id), "to": p.locked }))
+            }
+            fn commit(&self, ctx: &mut Ctx, params: &serde_json::Value) -> Result<Outcome, Refusal> {
+                self.plan(ctx, params)?;
+                let p: Params = parse(params, "`id` and `locked`")?;
+                need_view_mut(ctx, "lock")?.locks.set(&p.id, p.locked);
+                Ok(Outcome {
+                    summary: if p.locked {
+                        format!("{} is locked: a click will not move or remove it", p.id)
+                    } else {
+                        format!("{} is unlocked", p.id)
+                    },
+                    affected: 0,
+                    saved: false,
+                    inverse: None,
+                    after: Some(json!({ "id": p.id, "locked": p.locked })),
+                })
+            }
+        }
+    }
+}
+
+/// **The composition picker's cursor and its hold on the arrows, as operations** (E-002, #129 slice 22):
+/// `composition_picker_walk` (the picker's Shift+up and Shift+down) and `composition_picker_toggle` (`P`).
+///
+/// **View state**, like the grid rung: which row the cursor is on and whether the arrows walk the picker rather than
+/// the palette are what a person is looking through, not what the project keeps. They travel in `Ctx::view`
+/// (`picker_selected`, `picker_active`), so the keys and an agent's call decide what "walk" means in one place: it
+/// **clamps at the ends**, where the key used to carry that rule alone. Arming what the cursor is on is already
+/// `composition_arm`.
+pub mod composition_picker {
+    use super::*;
+    use super::list_walk::need_view;
+    use serde_json::json;
+
+    /// **Move the picker's cursor one row**, clamped to the project's compositions.
+    pub mod composition_picker_walk {
+        use super::*;
+
+        #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+        #[serde(deny_unknown_fields)]
+        pub struct Params {
+            /// `"prev"` or `"next"`.
+            pub by: String,
+        }
+
+        /// The two directions an agent names, beside the schema so the parse and the schema cannot disagree.
+        pub const DIRECTIONS: &[&str] = &["prev", "next"];
+
+        pub struct CompositionPickerWalk;
+
+        impl CompositionPickerWalk {
+            /// Where the cursor lands, and what is there: the walk's own rule, one copy for plan and commit.
+            fn landing(ctx: &Ctx, params: &serde_json::Value) -> Result<(usize, String), Refusal> {
+                let p: Params = serde_json::from_value(params.clone())
+                    .map_err(|e| Refusal::new(format!("these are not a walk: {e}. The only field is `by`, `prev` or `next`.")))?;
+                let by: i64 = match p.by.as_str() {
+                    "prev" => -1,
+                    "next" => 1,
+                    other => return Err(Refusal::new(format!("`{other}` is not a direction; say one of {}", DIRECTIONS.join(", ")))),
+                };
+                let view = need_view(ctx, "walk")?;
+                let compositions = &ctx
+                    .project
+                    .as_ref()
+                    .ok_or_else(|| Refusal::new("no project is open, so there are no compositions to walk."))?
+                    .compositions
+                    .compositions;
+                let Some(last) = compositions.len().checked_sub(1) else {
+                    return Err(Refusal::new("the project has no compositions, so there is nothing to walk."));
+                };
+                // **Clamped, where it once wrapped**: an author holding an arrow at the end of a list stops there.
+                let to = (view.picker_selected as i64 + by).clamp(0, last as i64) as usize;
+                Ok((to, compositions[to].id.clone()))
+            }
+        }
+
+        impl Operation for CompositionPickerWalk {
+            fn name(&self) -> &'static str {
+                "composition_picker_walk"
+            }
+            fn changes_view(&self) -> bool {
+                true
+            }
+            fn shows(&self, _ctx: &Ctx, _params: &serde_json::Value) -> Shown {
+                Shown::Nowhere
+            }
+            fn writes(&self) -> &'static [&'static str] {
+                &[]
+            }
+            fn undo(&self) -> Undo {
+                Undo::None
+            }
+            fn schema(&self) -> serde_json::Value {
+                json!({
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": ["by"],
+                    "properties": {
+                        "by": {"type": "string", "enum": DIRECTIONS, "description": "Which way to move the composition picker's cursor one row. It stops at the ends of the list. `composition_arm` arms what it is on."},
+                    },
+                })
+            }
+            fn plan(&self, ctx: &Ctx, params: &serde_json::Value) -> Result<serde_json::Value, Refusal> {
+                let (to, id) = Self::landing(ctx, params)?;
+                Ok(json!({ "to": to, "composition": id }))
+            }
+            fn commit(&self, ctx: &mut Ctx, params: &serde_json::Value) -> Result<Outcome, Refusal> {
+                let (to, id) = Self::landing(ctx, params)?;
+                let Some(view) = ctx.view.as_mut() else {
+                    return Err(Refusal::new("no view is in hand, so there is no picker to walk."));
+                };
+                view.picker_selected = to;
+                Ok(Outcome {
+                    summary: format!("the picker's cursor is on `{id}`"),
+                    affected: 0,
+                    saved: false,
+                    inverse: None,
+                    after: Some(json!({ "selected": to, "composition": id })),
+                })
+            }
+        }
+    }
+
+    /// **Give the arrows to the picker, or give them back to the palette.**
+    pub mod composition_picker_toggle {
+        use super::*;
+
+        #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+        #[serde(deny_unknown_fields)]
+        pub struct Params {}
+
+        pub struct CompositionPickerToggle;
+
+        impl Operation for CompositionPickerToggle {
+            fn name(&self) -> &'static str {
+                "composition_picker_toggle"
+            }
+            fn changes_view(&self) -> bool {
+                true
+            }
+            fn shows(&self, _ctx: &Ctx, _params: &serde_json::Value) -> Shown {
+                Shown::Nowhere
+            }
+            fn writes(&self) -> &'static [&'static str] {
+                &[]
+            }
+            fn undo(&self) -> Undo {
+                Undo::None
+            }
+            fn schema(&self) -> serde_json::Value {
+                json!({"type": "object", "additionalProperties": false, "properties": {}})
+            }
+            fn plan(&self, ctx: &Ctx, _params: &serde_json::Value) -> Result<serde_json::Value, Refusal> {
+                let view = need_view(ctx, "toggle")?;
+                Ok(json!({ "now": if view.picker_active { "palette" } else { "picker" } }))
+            }
+            fn commit(&self, ctx: &mut Ctx, params: &serde_json::Value) -> Result<Outcome, Refusal> {
+                self.plan(ctx, params)?;
+                let Some(view) = ctx.view.as_mut() else {
+                    return Err(Refusal::new("no view is in hand, so there is no picker to toggle."));
+                };
+                view.picker_active = !view.picker_active;
+                Ok(Outcome {
+                    summary: if view.picker_active {
+                        "Shift+up and Shift+down walk the compositions — Enter arms one".to_owned()
+                    } else {
+                        "the arrows walk the palette".to_owned()
+                    },
+                    affected: 0,
+                    saved: false,
+                    inverse: None,
+                    after: Some(json!({ "arrows": if view.picker_active { "picker" } else { "palette" } })),
+                })
+            }
+        }
+    }
+}
+
+/// **What every cursor-walking operation shares** (E-002, #129): the two directions an agent names, the stride a held
+/// Shift walks, and the one reading of a direction, so the COMPOSE tab's lists, the rig bench's and the Tiles page's
+/// walks cannot come to disagree about what `prev`, `next` or a stride mean.
+pub mod list_walk {
+    use super::{Ctx, Refusal};
+
+    /// The two directions an agent names, beside the schemas so the parse and the schemas cannot disagree.
+    pub const DIRECTIONS: &[&str] = &["prev", "next"];
+
+    /// **The band at the bottom of the candidate list**, as its heading spells it and as `pack_fold` answers it.
+    /// Named because the operation writes it twice — in its `plan` and in its `commit` — and a reader of the answer
+    /// should not have to believe two literals agree.
+    pub const EXCLUDED_BAND: &str = "EXCLUDED";
+
+    /// **The Tiles page's row zero, as the page draws it** — what `tile_page_walk` names in its answer. The index of
+    /// that row is `build::NEW_TILE_ROW` (`0`); this is the label, and the two are different kinds of thing.
+    pub const NEW_TILE_LABEL: &str = "+ New Tile";
+
+    /// **Rows a Shift-held walk strides**, the key's own accelerator, in list rows.
+    pub const STRIDE_ROWS: usize = 5;
+
+    /// **The most rows one call may walk**, in list rows: far past any list, so a request is a stride and not an overflow.
+    pub const MAX_ROWS: usize = 1000;
+
+    /// **A walk's default stride**, one row: what an arrow key walks without Shift.
+    pub fn one_row() -> usize {
+        1
+    }
+
+    /// **A direction as a step**: `prev` is `-1` and `next` is `1`.
+    pub fn direction(by: &str) -> Result<i64, Refusal> {
+        match by {
+            "prev" => Ok(-1),
+            "next" => Ok(1),
+            other => Err(Refusal::new(format!("`{other}` is not a direction; say one of {}", DIRECTIONS.join(", ")))),
+        }
+    }
+
+    /// **The view the caller carries in, or the refusal that says what a call without one cannot do.**
+    ///
+    /// Four view modules wrote this function word for word (E-002, #129 review): a fifth copy is how the sentence a refused
+    /// agent reads drifts into five sentences. `what` completes it — "so there is nothing to **walk**".
+    pub fn need_view<'a>(ctx: &'a Ctx, what: &str) -> Result<&'a crate::ops_view::View, Refusal> {
+        ctx.view.as_ref().ok_or_else(|| {
+            Refusal::new(format!(
+                "no view is in hand, so there is nothing to {what}. An editor front end carries one in `Ctx::view`."
+            ))
+        })
+    }
+
+    /// **`rows` is a stride this walk accepts**, or the refusal that says the range.
+    pub fn check_rows(rows: usize) -> Result<usize, Refusal> {
+        if (1..=MAX_ROWS).contains(&rows) {
+            Ok(rows)
+        } else {
+            Err(Refusal::new(format!("`rows` is {rows}, and a walk is 1 to {MAX_ROWS} rows")))
+        }
+    }
+}
+
+/// **The COMPOSE tab's cursors** (E-002, #129 slice 23): the two lists' walk, which list the arrows walk, and the
+/// carousel's step. Three view operations, one body of rules: the key and an agent's call cannot disagree about
+/// them. A cursor is what a person is looking at, so none of these writes a file or takes an undo step.
+pub mod compose_cursor {
+    use super::*;
+    use crate::compose::Pane;
+    use crate::ops_view::{ComposeCursor, select_group};
+    use serde_json::json;
+
+    use super::list_walk::{DIRECTIONS, MAX_ROWS, check_rows, direction};
+
+    fn cursor_in<'a>(ctx: &'a Ctx, what: &str) -> Result<(&'a ComposeCursor, &'a [blueprint_model::composition::Composition]), Refusal> {
+        let view = ctx.view.as_ref().ok_or_else(|| {
+            Refusal::new(format!(
+                "no view is in hand, so there is no COMPOSE cursor to {what}. An editor front end carries one in `Ctx::view`."
+            ))
+        })?;
+        let project = ctx
+            .project
+            .as_ref()
+            .ok_or_else(|| Refusal::new("no project is open, so there are no compositions to walk."))?;
+        Ok((&view.compose, &project.compositions.compositions))
+    }
+
+    /// The one body of the three operations' `plan` and `commit`: where the cursors land and the sentence for it.
+    struct Landing {
+        cursor: ComposeCursor,
+        said: String,
+    }
+
+    impl Landing {
+        fn json(&self, compositions: &[blueprint_model::composition::Composition]) -> serde_json::Value {
+            json!({
+                "selected": self.cursor.selected,
+                "member": self.cursor.member,
+                "list": if self.cursor.members_focused { "members" } else { "compositions" },
+                "composition": compositions.get(self.cursor.selected).map(|c| c.id.clone()),
+            })
+        }
+    }
+
+    /// **Commit a landing into the view**, and answer as an `Outcome`.
+    fn settle(ctx: &mut Ctx, landing: Landing) -> Result<Outcome, Refusal> {
+        let after = {
+            let compositions = ctx.project.as_ref().map(|p| p.compositions.compositions.as_slice()).unwrap_or_default();
+            landing.json(compositions)
+        };
+        let Some(view) = ctx.view.as_mut() else {
+            return Err(Refusal::new("no view is in hand, so there is no COMPOSE cursor to move."));
+        };
+        view.compose = landing.cursor;
+        Ok(Outcome { summary: landing.said, affected: 0, saved: false, inverse: None, after: Some(after) })
+    }
+
+    /// **Walk whichever list has the arrows**, clamped at its ends — the walk `Shift` strides five rows of.
+    pub mod compose_walk {
+        use super::*;
+
+        #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+        #[serde(deny_unknown_fields)]
+        pub struct Params {
+            /// `"prev"` or `"next"`. Exactly one of `by` and `to` is named.
+            #[serde(default)]
+            pub by: Option<String>,
+            /// **The row to land on**, for a click on a row and for an agent that knows which one it wants. Clamped, like
+            /// a walk, because the list it names may have shrunk since the caller read it.
+            #[serde(default)]
+            pub to: Option<usize>,
+            /// How many rows, `1` unless given. Shift is `5`.
+            #[serde(default = "crate::ops::list_walk::one_row")]
+            pub rows: usize,
+        }
+
+        pub struct ComposeWalk;
+
+        impl ComposeWalk {
+            pub(super) fn landing(ctx: &Ctx, params: &serde_json::Value) -> Result<Landing, Refusal> {
+                let p: Params = serde_json::from_value(params.clone()).map_err(|e| {
+                    Refusal::new(format!("these are not a walk: {e}. The fields are `by` (`prev` or `next`) or `to` (a row), and `rows`."))
+                })?;
+                check_rows(p.rows)?;
+                let (cursor, compositions) = cursor_in(ctx, "walk")?;
+                let here = compositions.get(cursor.selected);
+                let n = if cursor.members_focused { here.map_or(0, |c| c.members.len()) } else { compositions.len() };
+                let Some(last) = n.checked_sub(1) else {
+                    return Err(Refusal::new(match (cursor.members_focused, here) {
+                        // **Guidance for an empty MEMBERS list**, the sentence the key has always said.
+                        (true, Some(c)) => crate::compose::nothing_to_walk(c),
+                        _ => "the project has no compositions, so there is nothing to walk.".to_owned(),
+                    }));
+                };
+                // **Clamped, where it once wrapped**: an author holding an arrow at the end of a list stops there. A `to`
+                // is clamped by the same rule and for the same reason — the list may have shrunk since the caller read it.
+                let at = if cursor.members_focused { cursor.member } else { cursor.selected };
+                let to = match (p.by.as_deref(), p.to) {
+                    (Some(by), None) => (at as i64 + direction(by)? * p.rows as i64).clamp(0, last as i64) as usize,
+                    (None, Some(to)) => to.min(last),
+                    _ => {
+                        return Err(Refusal::new(
+                            "name exactly one of `by` (walk `prev` or `next`) and `to` (land on a row), not both and not neither.",
+                        ));
+                    }
+                };
+                let mut landed = *cursor;
+                let said = if cursor.members_focused {
+                    landed.member = to;
+                    here.and_then(|c| c.members.get(to)).map_or_else(|| format!("member {to}"), |m| format!("member `{}`", m.id))
+                } else {
+                    select_group(&mut landed.selected, &mut landed.member, to);
+                    format!("`{}`", compositions[to].id)
+                };
+                Ok(Landing { cursor: landed, said: format!("the cursor is on {said}") })
+            }
+        }
+
+        impl Operation for ComposeWalk {
+            fn name(&self) -> &'static str {
+                "compose_walk"
+            }
+            fn changes_view(&self) -> bool {
+                true
+            }
+            fn shows(&self, _ctx: &Ctx, _params: &serde_json::Value) -> Shown {
+                Shown::Nowhere
+            }
+            fn writes(&self) -> &'static [&'static str] {
+                &[]
+            }
+            fn undo(&self) -> Undo {
+                Undo::None
+            }
+            fn schema(&self) -> serde_json::Value {
+                json!({
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": ["by"],
+                    "properties": {
+                        "by": {"type": "string", "enum": DIRECTIONS, "description": "Which way to move the cursor of whichever COMPOSE list has the arrows (`compose_focus` chooses it). It stops at the ends of the list."},
+                        "rows": {"type": "integer", "minimum": 1, "maximum": MAX_ROWS, "description": "How many rows to move: 1 unless given. Shift+arrow moves 5."},
+                    },
+                })
+            }
+            fn plan(&self, ctx: &Ctx, params: &serde_json::Value) -> Result<serde_json::Value, Refusal> {
+                let landing = Self::landing(ctx, params)?;
+                let (_, compositions) = cursor_in(ctx, "walk")?;
+                Ok(landing.json(compositions))
+            }
+            fn commit(&self, ctx: &mut Ctx, params: &serde_json::Value) -> Result<Outcome, Refusal> {
+                let landing = Self::landing(ctx, params)?;
+                settle(ctx, landing)
+            }
+        }
+    }
+
+    /// **Choose which list the arrows walk**: the COMPOSITIONS list or the MEMBERS of the one selected.
+    pub mod compose_focus {
+        use super::*;
+
+        #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+        #[serde(deny_unknown_fields)]
+        pub struct Params {
+            /// `"prev"` or `"next"`: the other list, because there are two. Exactly one of `by` and `list` is named.
+            #[serde(default)]
+            pub by: Option<String>,
+            /// **The list to hand the arrows to**, `compositions` or `members`, for a click that lands in one.
+            #[serde(default)]
+            pub list: Option<String>,
+        }
+
+        pub struct ComposeFocus;
+
+        impl ComposeFocus {
+            pub(super) fn landing(ctx: &Ctx, params: &serde_json::Value) -> Result<Landing, Refusal> {
+                let p: Params = serde_json::from_value(params.clone()).map_err(|e| {
+                    Refusal::new(format!("these are not a focus: {e}. Name `by` (`prev` or `next`) or `list` (`compositions` or `members`)."))
+                })?;
+                let (cursor, compositions) = cursor_in(ctx, "move")?;
+                let pane = if cursor.members_focused { Pane::Members } else { Pane::Groups };
+                let to = match (p.by.as_deref(), p.list.as_deref()) {
+                    (Some(by), None) => pane.step(direction(by)? as i32),
+                    (None, Some("compositions")) => Pane::Groups,
+                    (None, Some("members")) => Pane::Members,
+                    (None, Some(other)) => {
+                        return Err(Refusal::new(format!("`{other}` is not a COMPOSE list; say `compositions` or `members`.")));
+                    }
+                    _ => {
+                        return Err(Refusal::new(
+                            "name exactly one of `by` (step to the other list) and `list` (the list to take), not both and not neither.",
+                        ));
+                    }
+                };
+                let mut landed = *cursor;
+                landed.members_focused = to == Pane::Members;
+                // **Handing the arrows to an empty MEMBERS list says so.** The focus still moves — a mode you can see is what
+                // this pane was rebuilt for — and the sentence names the state instead of announcing a list that answers nothing.
+                let said = match compositions.get(cursor.selected) {
+                    Some(c) if to == Pane::Members && c.members.is_empty() => crate::compose::nothing_to_walk(c),
+                    _ => to.label().to_owned(),
+                };
+                Ok(Landing { cursor: landed, said })
+            }
+        }
+
+        impl Operation for ComposeFocus {
+            fn name(&self) -> &'static str {
+                "compose_focus"
+            }
+            fn changes_view(&self) -> bool {
+                true
+            }
+            fn shows(&self, _ctx: &Ctx, _params: &serde_json::Value) -> Shown {
+                Shown::Nowhere
+            }
+            fn writes(&self) -> &'static [&'static str] {
+                &[]
+            }
+            fn undo(&self) -> Undo {
+                Undo::None
+            }
+            fn schema(&self) -> serde_json::Value {
+                json!({
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                        "by": {"type": "string", "enum": DIRECTIONS, "description": "Which way to move the COMPOSE tab's focus between its two lists, COMPOSITIONS and MEMBERS. There are two, so either direction chooses the other. Name this or `list`, not both."},
+                        "list": {"type": "string", "enum": ["compositions", "members"], "description": "The list to hand the arrows to, for a click that lands in one. Name this or `by`, not both."},
+                    },
+                })
+            }
+            fn plan(&self, ctx: &Ctx, params: &serde_json::Value) -> Result<serde_json::Value, Refusal> {
+                let landing = Self::landing(ctx, params)?;
+                let (_, compositions) = cursor_in(ctx, "move")?;
+                Ok(landing.json(compositions))
+            }
+            fn commit(&self, ctx: &mut Ctx, params: &serde_json::Value) -> Result<Outcome, Refusal> {
+                let landing = Self::landing(ctx, params)?;
+                settle(ctx, landing)
+            }
+        }
+    }
+
+    /// **Step the carousel round its ring**: the previous or next composition becomes the focal one.
+    pub mod compose_carousel_step {
+        use super::*;
+
+        #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+        #[serde(deny_unknown_fields)]
+        pub struct Params {
+            /// `"prev"` or `"next"`. Exactly one of `by` and `to` is named.
+            #[serde(default)]
+            pub by: Option<String>,
+            /// **The composition to make focal**, as an index into the project's compositions, for a click on its row.
+            #[serde(default)]
+            pub to: Option<usize>,
+        }
+
+        pub struct ComposeCarouselStep;
+
+        impl ComposeCarouselStep {
+            pub(super) fn landing(ctx: &Ctx, params: &serde_json::Value) -> Result<Landing, Refusal> {
+                let p: Params = serde_json::from_value(params.clone()).map_err(|e| {
+                    Refusal::new(format!("these are not a step: {e}. Name `by` (`prev` or `next`) or `to` (a row)."))
+                })?;
+                let (cursor, compositions) = cursor_in(ctx, "step")?;
+                if compositions.is_empty() {
+                    return Err(Refusal::new("the project has no compositions, so there is no carousel to step."));
+                }
+                // **It wraps, where the lists clamp**: `O` and `P` are the one way to move between groups from anywhere on the
+                // tab, so a ring means the key always answers. The focus is left alone. A `to` is clamped instead: a click
+                // names a row that exists on screen, and a ring would turn a stale index into a different group.
+                let to = match (p.by.as_deref(), p.to) {
+                    (Some(by), None) => (cursor.selected as i64 + direction(by)?).rem_euclid(compositions.len() as i64) as usize,
+                    (None, Some(to)) => to.min(compositions.len() - 1),
+                    _ => {
+                        return Err(Refusal::new(
+                            "name exactly one of `by` (step `prev` or `next`) and `to` (make a row focal), not both and not neither.",
+                        ));
+                    }
+                };
+                let mut landed = *cursor;
+                select_group(&mut landed.selected, &mut landed.member, to);
+                Ok(Landing { cursor: landed, said: format!("the carousel is on `{}`", compositions[to].id) })
+            }
+        }
+
+        impl Operation for ComposeCarouselStep {
+            fn name(&self) -> &'static str {
+                "compose_carousel_step"
+            }
+            fn changes_view(&self) -> bool {
+                true
+            }
+            fn shows(&self, _ctx: &Ctx, _params: &serde_json::Value) -> Shown {
+                Shown::Nowhere
+            }
+            fn writes(&self) -> &'static [&'static str] {
+                &[]
+            }
+            fn undo(&self) -> Undo {
+                Undo::None
+            }
+            fn schema(&self) -> serde_json::Value {
+                json!({
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                        "by": {"type": "string", "enum": DIRECTIONS, "description": "Which way to step the COMPOSE carousel: the previous or next composition becomes the focal one. It wraps round the ring and leaves the focused list alone. Name this or `to`, not both."},
+                        "to": {"type": "integer", "minimum": 0, "description": "The composition to make focal, as its row in the project's compositions, for a click on its row. Clamped to the list. Name this or `by`, not both."},
+                    },
+                })
+            }
+            fn plan(&self, ctx: &Ctx, params: &serde_json::Value) -> Result<serde_json::Value, Refusal> {
+                let landing = Self::landing(ctx, params)?;
+                let (_, compositions) = cursor_in(ctx, "step")?;
+                Ok(landing.json(compositions))
+            }
+            fn commit(&self, ctx: &mut Ctx, params: &serde_json::Value) -> Result<Outcome, Refusal> {
+                let landing = Self::landing(ctx, params)?;
+                settle(ctx, landing)
+            }
+        }
+    }
+}
+
+/// **The rig bench's list and the Tiles page's list, walked** (E-002, #129 slice 24): up and down on the Anim tab and on
+/// the Tiles page. Two view operations on the rules `list_walk` shares; a cursor is what a person is looking at, so
+/// neither writes a file or takes an undo step.
+pub mod list_cursors {
+    use super::list_walk::{DIRECTIONS, MAX_ROWS, NEW_TILE_LABEL, check_rows, direction, need_view, one_row};
+    use super::*;
+    use serde_json::json;
+
+    /// **Walk the rig bench's list**, round its ring — the walk `Shift` strides five rows of.
+    pub mod rig_walk {
+        use super::*;
+
+        #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+        #[serde(deny_unknown_fields)]
+        pub struct Params {
+            /// `"prev"` or `"next"`. Exactly one of `by` and `to` is named.
+            #[serde(default)]
+            pub by: Option<String>,
+            /// **The rig to land on**, as its row in the manifest, for a click on its row or its summary row.
+            #[serde(default)]
+            pub to: Option<usize>,
+            /// How many rows, `1` unless given. Shift is `5`.
+            #[serde(default = "one_row")]
+            pub rows: usize,
+        }
+
+        pub struct RigWalk;
+
+        impl RigWalk {
+            /// Where the cursor lands and the rig there: the walk's own rule, one copy for plan and commit.
+            fn landing(ctx: &Ctx, params: &serde_json::Value) -> Result<(usize, String), Refusal> {
+                let p: Params = serde_json::from_value(params.clone()).map_err(|e| {
+                    Refusal::new(format!("these are not a walk: {e}. The fields are `by` (`prev` or `next`) or `to` (a row), and `rows`."))
+                })?;
+                check_rows(p.rows)?;
+                let rigs = &need_view(ctx, "walk")?.rig;
+                let n = rigs.names.len();
+                if n == 0 {
+                    return Err(Refusal::new("the rig bench lists no rigs, so there is nothing to walk. Open the Anim tab on a project with a rigs.ron."));
+                }
+                // **Clamped below the list's length**: this list wraps, and on a short list a stride of exactly `n` is the
+                // identity wearing a jump's clothes. **A stride longer than that is refused rather than silently cut**
+                // (E-002, #129 review): `rows` is advertised as 1 to 1000, and an answer that quietly walked 1 of the
+                // 900 an agent asked for would be a lie about what happened. A list of one rig has no stride at all.
+                let cap = n.saturating_sub(1);
+                let rows = p.rows.min(cap).max(1);
+                if p.by.is_some() && p.rows > cap {
+                    return Err(Refusal::new(format!(
+                        "`rows` is {}, and this list is {n} rigs: a stride longer than {} would land where the walk started. \
+                         Say {cap} or fewer, or use `to` to name the rig.",
+                        p.rows,
+                        cap.saturating_sub(1).max(1)
+                    )));
+                }
+                let to = match (p.by.as_deref(), p.to) {
+                    (Some(by), None) => (rigs.selected as i64 + direction(by)? * rows as i64).rem_euclid(n as i64) as usize,
+                    // **A click clamps**: it names a row that exists on screen, and a ring would turn a stale index into a
+                    // different rig.
+                    (None, Some(to)) => to.min(n - 1),
+                    _ => {
+                        return Err(Refusal::new(
+                            "name exactly one of `by` (walk `prev` or `next`) and `to` (land on a row), not both and not neither.",
+                        ));
+                    }
+                };
+                Ok((to, rigs.names[to].clone()))
+            }
+        }
+
+        impl Operation for RigWalk {
+            fn name(&self) -> &'static str {
+                "rig_walk"
+            }
+            fn changes_view(&self) -> bool {
+                true
+            }
+            fn shows(&self, _ctx: &Ctx, _params: &serde_json::Value) -> Shown {
+                Shown::Nowhere
+            }
+            fn writes(&self) -> &'static [&'static str] {
+                &[]
+            }
+            fn undo(&self) -> Undo {
+                Undo::None
+            }
+            fn schema(&self) -> serde_json::Value {
+                json!({
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                        "by": {"type": "string", "enum": DIRECTIONS, "description": "Which way to move the rig bench's cursor along the rig list. The list is a ring: it wraps from the last rig to the first. Name this or `to`, not both."},
+                        "to": {"type": "integer", "minimum": 0, "description": "The rig to land on, as its row in the manifest, for a click on its row or the summary's. Clamped to the list. Name this or `by`, not both."},
+                        "rows": {"type": "integer", "minimum": 1, "maximum": MAX_ROWS, "description": "How many rows to move: 1 unless given. Shift+arrow moves 5. Ignored with `to`."},
+                    },
+                })
+            }
+            fn plan(&self, ctx: &Ctx, params: &serde_json::Value) -> Result<serde_json::Value, Refusal> {
+                let (to, rig) = Self::landing(ctx, params)?;
+                Ok(json!({ "selected": to, "rig": rig }))
+            }
+            fn commit(&self, ctx: &mut Ctx, params: &serde_json::Value) -> Result<Outcome, Refusal> {
+                let (to, rig) = Self::landing(ctx, params)?;
+                let Some(view) = ctx.view.as_mut() else {
+                    return Err(Refusal::new("no view is in hand, so there is no rig bench to walk."));
+                };
+                view.rig.selected = to;
+                // **Walking to a rig is looking at one**, as the key always did: the summary face gives way.
+                view.rig.all = false;
+                Ok(Outcome {
+                    summary: format!("the rig bench is on `{rig}`"),
+                    affected: 0,
+                    saved: false,
+                    inverse: None,
+                    after: Some(json!({ "selected": to, "rig": rig })),
+                })
+            }
+        }
+    }
+
+    /// **Walk the Tiles page's rows**, clamped at its ends: `+ New Tile`, then the kit's tiles, then the draft.
+    pub mod tile_page_walk {
+        use super::*;
+
+        #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+        #[serde(deny_unknown_fields)]
+        pub struct Params {
+            /// `"prev"` or `"next"`.
+            pub by: String,
+            /// How many rows, `1` unless given. Shift is `5`.
+            #[serde(default = "one_row")]
+            pub rows: usize,
+        }
+
+        pub struct TilePageWalk;
+
+        impl TilePageWalk {
+            /// Where the cursor lands and what is there: the walk's own rule, one copy for plan and commit.
+            fn landing(ctx: &Ctx, params: &serde_json::Value) -> Result<(usize, String), Refusal> {
+                let p: Params = serde_json::from_value(params.clone())
+                    .map_err(|e| Refusal::new(format!("these are not a walk: {e}. The fields are `by`, `prev` or `next`, and `rows`.")))?;
+                let by = direction(&p.by)?;
+                check_rows(p.rows)?;
+                let page = need_view(ctx, "walk")?.tile_page.ok_or_else(|| {
+                    Refusal::new("the Tiles page is not up, so there is no tile cursor to move. Open the Tiles tab first (`door_open`).")
+                })?;
+                let Some(last) = page.rows.checked_sub(1) else {
+                    return Err(Refusal::new("the Tiles page has no rows, so there is nothing to walk."));
+                };
+                // **Clamped, where an arrow at the end of a list stops**, rather than wrapping to the other end of it.
+                let to = (page.row as i64 + by * p.rows as i64).clamp(0, last as i64) as usize;
+                let said = match crate::build::row_composition(to) {
+                    None => NEW_TILE_LABEL.to_owned(),
+                    Some(ix) => ctx
+                        .project
+                        .as_ref()
+                        .and_then(|project| project.compositions.compositions.get(ix))
+                        .map_or_else(|| "the draft".to_owned(), |c| format!("`{}`", c.id)),
+                };
+                Ok((to, said))
+            }
+        }
+
+        impl Operation for TilePageWalk {
+            fn name(&self) -> &'static str {
+                "tile_page_walk"
+            }
+            fn changes_view(&self) -> bool {
+                true
+            }
+            fn shows(&self, _ctx: &Ctx, _params: &serde_json::Value) -> Shown {
+                Shown::Nowhere
+            }
+            fn writes(&self) -> &'static [&'static str] {
+                &[]
+            }
+            fn undo(&self) -> Undo {
+                Undo::None
+            }
+            fn schema(&self) -> serde_json::Value {
+                json!({
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": ["by"],
+                    "properties": {
+                        "by": {"type": "string", "enum": DIRECTIONS, "description": "Which way to move the Tiles page's cursor along its rows (`+ New Tile`, then the kit's tiles). It stops at the ends of the page. Refused unless the Tiles page is up."},
+                        "rows": {"type": "integer", "minimum": 1, "maximum": MAX_ROWS, "description": "How many rows to move: 1 unless given. Shift+arrow moves 5."},
+                    },
+                })
+            }
+            fn plan(&self, ctx: &Ctx, params: &serde_json::Value) -> Result<serde_json::Value, Refusal> {
+                let (to, said) = Self::landing(ctx, params)?;
+                Ok(json!({ "row": to, "on": said }))
+            }
+            fn commit(&self, ctx: &mut Ctx, params: &serde_json::Value) -> Result<Outcome, Refusal> {
+                let (to, said) = Self::landing(ctx, params)?;
+                let Some(page) = ctx.view.as_mut().and_then(|v| v.tile_page.as_mut()) else {
+                    return Err(Refusal::new("the Tiles page is not up, so there is no tile cursor to move."));
+                };
+                page.row = to;
+                Ok(Outcome {
+                    summary: format!("the Tiles page's cursor is on {said}"),
+                    affected: 0,
+                    saved: false,
+                    inverse: None,
+                    after: Some(json!({ "row": to, "on": said })),
+                })
+            }
+        }
+    }
+}
+
+/// **The candidate list's folds and the filter boxes' keyboard** (E-002, #129 slice 25): `Space` on a heading, and `F` and
+/// `/`. Two view operations: which group is folded and which box has the keyboard are what a person is looking through,
+/// so neither writes a file or takes an undo step.
+pub mod shelf_cursors {
+    use super::*;
+    use super::list_walk::{EXCLUDED_BAND, need_view};
+    use crate::ops_view::{pane_from_name, pane_name, pane_names};
+    use serde_json::json;
+
+    /// **Open or close a group on the candidate list**: a pack, or the `EXCLUDED` band at the bottom.
+    pub mod pack_fold {
+        use super::*;
+
+        #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+        #[serde(deny_unknown_fields)]
+        pub struct Params {
+            /// The pack's folder, as its heading spells it. Exactly one of `pack` and `excluded` is named.
+            #[serde(default)]
+            pub pack: Option<String>,
+            /// `true` for the `EXCLUDED` band instead of a pack.
+            #[serde(default)]
+            pub excluded: bool,
+            /// `true` folds the group away (closes it), `false` opens it; absent toggles, as `Space` does.
+            #[serde(default)]
+            pub folded: Option<bool>,
+        }
+
+        /// What the call names, and whether that group ends up folded.
+        struct Landing {
+            /// The pack's folder, or `None` for the `EXCLUDED` band.
+            pack: Option<String>,
+            folded: bool,
+        }
+
+        pub struct PackFold;
+
+        impl PackFold {
+            fn landing(ctx: &Ctx, params: &serde_json::Value) -> Result<Landing, Refusal> {
+                let p: Params = serde_json::from_value(params.clone()).map_err(|e| {
+                    Refusal::new(format!("these are not a fold: {e}. The fields are `pack` or `excluded`, and `folded`."))
+                })?;
+                let view = need_view(ctx, "fold")?;
+                let pack = match (p.pack, p.excluded) {
+                    (Some(pack), false) if !pack.is_empty() => Some(pack),
+                    (None, true) => None,
+                    _ => {
+                        return Err(Refusal::new(
+                            "name exactly one group: `pack` (the pack's folder, as its heading spells it) or `excluded: true` (the EXCLUDED band).",
+                        ));
+                    }
+                };
+                let now_folded = match &pack {
+                    Some(pack) => view.packs.folded.contains(pack),
+                    None => !view.packs.excluded_open,
+                };
+                Ok(Landing { folded: p.folded.unwrap_or(!now_folded), pack })
+            }
+        }
+
+        impl Operation for PackFold {
+            fn name(&self) -> &'static str {
+                "pack_fold"
+            }
+            fn changes_view(&self) -> bool {
+                true
+            }
+            fn shows(&self, _ctx: &Ctx, _params: &serde_json::Value) -> Shown {
+                Shown::Nowhere
+            }
+            fn writes(&self) -> &'static [&'static str] {
+                &[]
+            }
+            fn undo(&self) -> Undo {
+                Undo::None
+            }
+            fn schema(&self) -> serde_json::Value {
+                json!({
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                        "pack": {"type": "string", "description": "The pack's folder, as its heading on the Meshes tab's candidate list spells it: a folder name under assets/, not a mesh path. A name no heading draws folds nothing and says so; it is not refused, because a pack can be added between a caller reading the list and calling. Name this or `excluded`, not both."},
+                        "excluded": {"type": "boolean", "description": "`true` for the EXCLUDED band at the bottom of the list instead of a pack."},
+                        "folded": {"type": "boolean", "description": "`true` folds the group away (the EXCLUDED band: closes it); `false` opens it. Absent toggles, as Space does."},
+                    },
+                })
+            }
+            fn plan(&self, ctx: &Ctx, params: &serde_json::Value) -> Result<serde_json::Value, Refusal> {
+                let l = Self::landing(ctx, params)?;
+                Ok(json!({ "group": l.pack.clone().unwrap_or_else(|| EXCLUDED_BAND.to_owned()), "folded": l.folded }))
+            }
+            fn commit(&self, ctx: &mut Ctx, params: &serde_json::Value) -> Result<Outcome, Refusal> {
+                let l = Self::landing(ctx, params)?;
+                let Some(view) = ctx.view.as_mut() else {
+                    return Err(Refusal::new("no view is in hand, so there is nothing to fold."));
+                };
+                let group = match &l.pack {
+                    Some(pack) => {
+                        if l.folded {
+                            view.packs.folded.insert(pack.clone());
+                        } else {
+                            view.packs.folded.remove(pack);
+                        }
+                        pack.clone()
+                    }
+                    None => {
+                        view.packs.excluded_open = !l.folded;
+                        EXCLUDED_BAND.to_owned()
+                    }
+                };
+                Ok(Outcome {
+                    summary: format!("`{group}` {}", if l.folded { "closed" } else { "opened" }),
+                    affected: 0,
+                    saved: false,
+                    inverse: None,
+                    after: Some(json!({ "group": group, "folded": l.folded })),
+                })
+            }
+        }
+    }
+
+    /// **Put the keyboard in a filter box**, and start its search fresh.
+    pub mod filter_focus {
+        use super::*;
+
+        #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+        #[serde(deny_unknown_fields)]
+        pub struct Params {
+            /// The box: `palette`, `candidates`, `rigs` or `tags`.
+            pub pane: String,
+        }
+
+        pub struct FilterFocus;
+
+        impl FilterFocus {
+            fn landing(ctx: &Ctx, params: &serde_json::Value) -> Result<crate::filter::Pane, Refusal> {
+                let p: Params = serde_json::from_value(params.clone())
+                    .map_err(|e| Refusal::new(format!("these are not a focus: {e}. The only field is `pane`.")))?;
+                need_view(ctx, "focus")?;
+                pane_from_name(&p.pane).ok_or_else(|| {
+                    Refusal::new(format!("`{}` is not a filter box; say one of {}", p.pane, pane_names().join(", ")))
+                })
+            }
+        }
+
+        impl Operation for FilterFocus {
+            fn name(&self) -> &'static str {
+                "filter_focus"
+            }
+            fn changes_view(&self) -> bool {
+                true
+            }
+            fn shows(&self, _ctx: &Ctx, _params: &serde_json::Value) -> Shown {
+                Shown::Nowhere
+            }
+            fn writes(&self) -> &'static [&'static str] {
+                &[]
+            }
+            fn undo(&self) -> Undo {
+                Undo::None
+            }
+            fn schema(&self) -> serde_json::Value {
+                json!({
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": ["pane"],
+                    "properties": {
+                        "pane": {"type": "string", "enum": pane_names(), "description": "Which filter box takes the keyboard: the Map tab's PLACE palette, the Meshes and Tiles tabs' candidate list, the Anim tab's rig list, or the tag block. Its search starts fresh."},
+                    },
+                })
+            }
+            fn plan(&self, ctx: &Ctx, params: &serde_json::Value) -> Result<serde_json::Value, Refusal> {
+                Ok(json!({ "pane": pane_name(Self::landing(ctx, params)?) }))
+            }
+            fn commit(&self, ctx: &mut Ctx, params: &serde_json::Value) -> Result<Outcome, Refusal> {
+                let pane = pane_name(Self::landing(ctx, params)?);
+                let Some(view) = ctx.view.as_mut() else {
+                    return Err(Refusal::new("no view is in hand, so there is no filter box to focus."));
+                };
+                view.filter_pane = Some(pane.to_owned());
+                // **The clear is the operation's** (E-002, #129 review M1): a front end writes it from the answer, so an
+                // agent naming the box that already has the keyboard starts its search fresh exactly as `F` does.
+                view.filter_fresh = true;
+                Ok(Outcome {
+                    summary: format!("the `{pane}` filter box has the keyboard"),
+                    affected: 0,
+                    saved: false,
+                    inverse: None,
+                    after: Some(json!({ "pane": pane })),
+                })
+            }
+        }
+    }
+
+    /// **What the two shelf operations share** (E-002, #129 slice 37): the cursor read off the view, the sentences, and the one reading
+    /// of where `right` lands.
+    pub mod shelf {
+        use super::*;
+        use crate::ops_view::{ShelfAnswer, ShelfCursor, ShelfHand};
+
+        /// **What a walk says when the library has nothing to land on**, as a note: guidance, not a refusal.
+        pub const LIBRARY_EMPTY_NOTE: &str = "the library is empty";
+
+        /// **What the Tiles tab says when its one list is empty**, as a problem: nothing can be built from no library.
+        pub const LIBRARY_EMPTY_PROBLEM: &str = "the library is empty — import a mesh on the Meshes tab before building";
+
+        /// **What a walk says when the candidate list has no rows and the front end gave no reason.**
+        pub const NOTHING_TO_WALK: &str = "nothing to walk";
+
+        /// **The shelf in hand**, or the refusal that says no shelf is up.
+        pub fn shelf_in<'a>(ctx: &'a Ctx, what: &str) -> Result<&'a ShelfCursor, Refusal> {
+            let shelf = &need_view(ctx, what)?.shelf;
+            if !shelf.up {
+                return Err(Refusal::new(format!(
+                    "no shelf is up, so there is nothing to {what}. The library and candidate lists are on the Meshes tab, and the Tiles tab has the library."
+                )));
+            }
+            Ok(shelf)
+        }
+
+        /// **The sentence for a selection**: which piece, and the key that removes it.
+        pub fn selected_says(id: &str) -> String {
+            format!("`{id}` selected — {} removes it", crate::keys::chord(crate::keys::Action::RemoveTile))
+        }
+
+        /// **Where entering the library shelf lands**: the row the cursor last stood on when the shelf still holds it, and otherwise the
+        /// first row.
+        pub fn landing(shelf: &ShelfCursor) -> Option<String> {
+            shelf
+                .remembered
+                .as_deref()
+                .filter(|id| shelf.library.iter().any(|had| had == id))
+                .map(str::to_owned)
+                .or_else(|| shelf.library.first().cloned())
+        }
+
+        /// **An answer that changes nothing and says why.**
+        pub fn nothing(said: impl Into<String>) -> (ShelfAnswer, String) {
+            (ShelfAnswer { say: true, ..ShelfAnswer::default() }, said.into())
+        }
+
+        /// **An answer that selects a library piece**: the Tiles tab says it (it writes the selection itself), and the Meshes tab's
+        /// selection says it through `piece_select`.
+        pub fn selects(shelf: &ShelfCursor, id: &str) -> (ShelfAnswer, String) {
+            (
+                ShelfAnswer { made: true, hand: Some(ShelfHand::Library(id.to_owned())), say: shelf.tiles_tab, ..ShelfAnswer::default() },
+                selected_says(id),
+            )
+        }
+
+        /// **The outcome of an answer**, written into the view the operation was handed.
+        pub fn settle(ctx: &mut Ctx, answer: ShelfAnswer, summary: String) -> Result<Outcome, Refusal> {
+            let Some(view) = ctx.view.as_mut() else {
+                return Err(Refusal::new("no view is in hand, so there is no shelf to change."));
+            };
+            let after = json!({ "selected": answer.selects(), "row": answer.row.clone() });
+            view.shelf.answer = answer;
+            Ok(Outcome { summary, affected: 0, saved: false, inverse: None, after: Some(after) })
+        }
+    }
+
+    /// **Choose which shelf list the arrows walk**, as `left` and `right` do and as the `CANDIDATES` and `LIBRARY` chips do.
+    pub mod shelf_focus {
+        use super::shelf::{LIBRARY_EMPTY_NOTE, NOTHING_TO_WALK, landing, nothing, settle, shelf_in};
+        use super::*;
+        use crate::ops_view::{ShelfAnswer, ShelfHand};
+
+        /// The two lists an agent names, beside the schema so the parse and the schema cannot disagree.
+        pub const LISTS: &[&str] = &["candidates", "library"];
+
+        #[derive(Debug, Clone, PartialEq, Deserialize)]
+        #[serde(deny_unknown_fields)]
+        pub struct Params {
+            /// `candidates` or `library`.
+            pub to: String,
+        }
+
+        pub struct ShelfFocus;
+
+        impl ShelfFocus {
+            fn decide(ctx: &Ctx, params: &serde_json::Value) -> Result<(ShelfAnswer, String), Refusal> {
+                let p: Params = serde_json::from_value(params.clone())
+                    .map_err(|e| Refusal::new(format!("this is not a list: {e}. The only field is `to`: {}.", LISTS.join(" or "))))?;
+                let shelf = shelf_in(ctx, "focus")?;
+                match p.to.as_str() {
+                    "candidates" => {
+                        let said = if shelf.rows.is_empty() {
+                            if shelf.empty.is_empty() { NOTHING_TO_WALK.to_owned() } else { shelf.empty.clone() }
+                        } else {
+                            "candidates".to_owned()
+                        };
+                        Ok((ShelfAnswer { made: true, hand: Some(ShelfHand::Candidates), say: true, ..ShelfAnswer::default() }, said))
+                    }
+                    "library" => match landing(shelf) {
+                        // **Arriving on the library is a selection only when none is made**: the seed is the arrival, and a selection
+                        // that is already made is left alone.
+                        Some(land) => Ok((
+                            ShelfAnswer {
+                                made: true,
+                                hand: shelf.selected.is_none().then_some(ShelfHand::Library(land)),
+                                clear_pack: true,
+                                say: true,
+                                ..ShelfAnswer::default()
+                            },
+                            "library".to_owned(),
+                        )),
+                        None => Ok(nothing(LIBRARY_EMPTY_NOTE)),
+                    },
+                    other => Err(Refusal::new(format!("`{other}` is not a list; say one of {}", LISTS.join(", ")))),
+                }
+            }
+        }
+
+        impl Operation for ShelfFocus {
+            fn name(&self) -> &'static str {
+                "shelf_focus"
+            }
+            fn changes_view(&self) -> bool {
+                true
+            }
+            fn shows(&self, _ctx: &Ctx, _params: &serde_json::Value) -> Shown {
+                Shown::Nowhere
+            }
+            fn writes(&self) -> &'static [&'static str] {
+                &[]
+            }
+            fn undo(&self) -> Undo {
+                Undo::None
+            }
+            fn schema(&self) -> serde_json::Value {
+                json!({
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": ["to"],
+                    "properties": {
+                        "to": {"type": "string", "enum": LISTS, "description": "Which list the arrows walk on the Meshes tab: the candidates (meshes not in the library yet) or the library shelf. Choosing the library selects the row the cursor last stood on (or the first) when none is selected."}
+                    }
+                })
+            }
+            fn plan(&self, ctx: &Ctx, params: &serde_json::Value) -> Result<serde_json::Value, Refusal> {
+                let (answer, said) = Self::decide(ctx, params)?;
+                Ok(json!({ "says": said, "selects": answer.selects() }))
+            }
+            fn commit(&self, ctx: &mut Ctx, params: &serde_json::Value) -> Result<Outcome, Refusal> {
+                let (answer, said) = Self::decide(ctx, params)?;
+                settle(ctx, answer, said)
+            }
+        }
+    }
+
+    /// **Walk the shelf one step or a stride**, as `up` and `down` do on the Meshes tab (the library or the candidates, whichever has the
+    /// arrows) and on the Tiles tab (its one list, a tile's source).
+    pub mod shelf_walk {
+        use super::list_walk::{check_rows, direction, one_row};
+        use super::shelf::{LIBRARY_EMPTY_NOTE, LIBRARY_EMPTY_PROBLEM, NOTHING_TO_WALK, landing, nothing, selects, settle, shelf_in};
+        use super::*;
+        use crate::ops_view::ShelfAnswer;
+
+        #[derive(Debug, Clone, PartialEq, Deserialize)]
+        #[serde(deny_unknown_fields)]
+        pub struct Params {
+            /// `prev` or `next`.
+            pub by: String,
+            /// How many rows one step is: one, or the long stride a held Shift walks.
+            #[serde(default = "one_row")]
+            pub rows: usize,
+        }
+
+        pub struct ShelfWalk;
+
+        impl ShelfWalk {
+            fn decide(ctx: &Ctx, params: &serde_json::Value) -> Result<(ShelfAnswer, String), Refusal> {
+                let p: Params = serde_json::from_value(params.clone())
+                    .map_err(|e| Refusal::new(format!("this is not a walk: {e}. The fields are `by` (prev or next) and `rows`, which is optional.")))?;
+                let step = direction(&p.by)?;
+                let stride = check_rows(p.rows)?;
+                let shelf = shelf_in(ctx, "walk")?;
+                // **On the Tiles tab there is only one list**: a tile member must name a library descriptor, and a candidate is not a
+                // legal source, so walking it there would move a focus the tile author cannot spend.
+                if shelf.tiles_tab && shelf.selected.is_none() {
+                    // **The press that establishes the selection lands ON the first row, and stops there**: a seed is not a step.
+                    return match shelf.library.first() {
+                        Some(first) => Ok(selects(shelf, first)),
+                        None => Err(Refusal::new(LIBRARY_EMPTY_PROBLEM)),
+                    };
+                }
+                match &shelf.selected {
+                    Some(id) => {
+                        let Some(at) = shelf.library.iter().position(|d| d == id) else {
+                            // **The selection was filtered out of the list: land on the row the cursor would land on** and keep going,
+                            // rather than going dead.
+                            return Ok(match landing(shelf) {
+                                Some(land) => selects(shelf, &land),
+                                None => nothing(LIBRARY_EMPTY_NOTE),
+                            });
+                        };
+                        let want = if step > 0 { at.saturating_add(stride) } else { at.saturating_sub(stride) };
+                        let last = shelf.library.len().saturating_sub(1);
+                        match shelf.library.get(want.min(last)) {
+                            Some(next) => Ok(selects(shelf, next)),
+                            None => Ok(nothing(LIBRARY_EMPTY_NOTE)),
+                        }
+                    }
+                    None => {
+                        // **Every row on screen, headings included**, so nothing visible is unreachable.
+                        let Some(top) = shelf.rows.first() else {
+                            return Ok(nothing(if shelf.empty.is_empty() { NOTHING_TO_WALK } else { shelf.empty.as_str() }));
+                        };
+                        let (row, said) = match shelf.here {
+                            Some(at) => {
+                                let want = if step > 0 { at.saturating_add(stride).min(shelf.rows.len() - 1) } else { at.saturating_sub(stride) };
+                                (shelf.rows[want].clone(), format!("row {} of {}", want + 1, shelf.rows.len()))
+                            }
+                            // **Not on screen at all** (a filter or a fold moved out from under the cursor): start from the top of what
+                            // can be seen, which is where the eye already is.
+                            None => (top.clone(), "back at the top of the list".to_owned()),
+                        };
+                        Ok((ShelfAnswer { made: true, row: Some(row), ..ShelfAnswer::default() }, said))
+                    }
+                }
+            }
+        }
+
+        impl Operation for ShelfWalk {
+            fn name(&self) -> &'static str {
+                "shelf_walk"
+            }
+            fn changes_view(&self) -> bool {
+                true
+            }
+            /// A walk that lands on a library piece moves the shelf's highlighted row and the detail pane to it; a walk of the
+            /// candidates, or one with no view to read, has no piece to name.
+            fn shows(&self, ctx: &Ctx, params: &serde_json::Value) -> Shown {
+                match Self::decide(ctx, params) {
+                    Ok((answer, _)) => answer.selects().map_or(Shown::Nowhere, |id| Shown::Piece { id: id.to_owned() }),
+                    Err(_) => Shown::Nowhere,
+                }
+            }
+            fn writes(&self) -> &'static [&'static str] {
+                &[]
+            }
+            fn undo(&self) -> Undo {
+                Undo::None
+            }
+            fn schema(&self) -> serde_json::Value {
+                json!({
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": ["by"],
+                    "properties": {
+                        "by": {"type": "string", "enum": list_walk::DIRECTIONS, "description": "The direction along the list the arrows have: the library shelf or the candidate list on the Meshes tab, the library on the Tiles tab."},
+                        "rows": {"type": "integer", "minimum": 1, "maximum": list_walk::MAX_ROWS, "description": "How many rows the step is; one by default. Five is the long stride a held Shift walks."}
+                    }
+                })
+            }
+            fn plan(&self, ctx: &Ctx, params: &serde_json::Value) -> Result<serde_json::Value, Refusal> {
+                let (answer, said) = Self::decide(ctx, params)?;
+                Ok(json!({ "says": said, "selects": answer.selects() }))
+            }
+            fn commit(&self, ctx: &mut Ctx, params: &serde_json::Value) -> Result<Outcome, Refusal> {
+                let (answer, said) = Self::decide(ctx, params)?;
+                settle(ctx, answer, said)
+            }
+        }
+    }
+}
+
+/// **The rig bench's stage** (E-002, #129 slice 26): whether the figure plays, the phase a scrub holds while it is
+/// paused, and the camera preset it is framed by. Three view operations on one body of rules, so `Space`, the held left
+/// and right arrows, `V` and an agent's call cannot disagree about what a toggle, a sweep or a cycle means. The stage is
+/// what a person is looking at: none of these writes a file or takes an undo step.
+pub mod stage {
+    use super::list_walk::need_view;
+    use super::*;
+    use crate::anim_stage::{CamPreset, FINE_DIVISOR, SCRUB_RATE};
+    use crate::ops_view::StageCursor;
+    use serde_json::json;
+
+    /// **The longest scrub one call may make**, in seconds of the key being held: far past any frame, so a request is a
+    /// sweep and not a spin.
+    pub const MAX_SCRUB_SECONDS: f32 = 60.0;
+
+    /// **A scrub's default length**, in seconds of the key being held: a quarter of a second is a short tap.
+    pub const DEFAULT_SCRUB_SECONDS: f32 = 0.25;
+
+    /// The two directions of a scrub, named as the keys are (`ScrubBack`, `ScrubFwd`).
+    pub const DIRECTIONS: &[&str] = &["back", "fwd"];
+
+    fn stage_in<'a>(ctx: &'a Ctx, what: &str) -> Result<&'a StageCursor, Refusal> {
+        Ok(&need_view(ctx, what)?.stage)
+    }
+
+    /// **Put the stage where an operation answered**, and say what happened.
+    fn settle(ctx: &mut Ctx, landed: StageCursor, summary: String, after: serde_json::Value) -> Result<Outcome, Refusal> {
+        let Some(view) = ctx.view.as_mut() else {
+            return Err(Refusal::new("no view is in hand, so there is no stage to change."));
+        };
+        view.stage = landed;
+        Ok(Outcome { summary, affected: 0, saved: false, inverse: None, after: Some(after) })
+    }
+
+    /// **Play the figure, or pause it into a scrub**, as `Space` does. The phase carries across the change.
+    pub mod stage_play {
+        use super::*;
+
+        #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+        #[serde(deny_unknown_fields)]
+        pub struct Params {
+            /// `true` plays, `false` pauses; absent toggles, as `Space` does.
+            #[serde(default)]
+            pub playing: Option<bool>,
+        }
+
+        pub struct StagePlay;
+
+        impl StagePlay {
+            fn landing(ctx: &Ctx, params: &serde_json::Value) -> Result<StageCursor, Refusal> {
+                let p: Params = serde_json::from_value(params.clone())
+                    .map_err(|e| Refusal::new(format!("these are not a play: {e}. The only field is `playing`, true or false.")))?;
+                let now = stage_in(ctx, "play or pause")?;
+                Ok(StageCursor { playing: p.playing.unwrap_or(!now.playing), ..*now })
+            }
+        }
+
+        impl Operation for StagePlay {
+            fn name(&self) -> &'static str {
+                "stage_play"
+            }
+            fn changes_view(&self) -> bool {
+                true
+            }
+            fn shows(&self, _ctx: &Ctx, _params: &serde_json::Value) -> Shown {
+                Shown::Nowhere
+            }
+            fn writes(&self) -> &'static [&'static str] {
+                &[]
+            }
+            fn undo(&self) -> Undo {
+                Undo::None
+            }
+            fn schema(&self) -> serde_json::Value {
+                json!({
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                        "playing": {"type": "boolean", "description": "`true` plays the staged figure at its own authored speed; `false` pauses it, and the arrows then scrub its phase. Absent toggles, as Space does."},
+                    },
+                })
+            }
+            fn plan(&self, ctx: &Ctx, params: &serde_json::Value) -> Result<serde_json::Value, Refusal> {
+                Ok(json!({ "playing": Self::landing(ctx, params)?.playing }))
+            }
+            fn commit(&self, ctx: &mut Ctx, params: &serde_json::Value) -> Result<Outcome, Refusal> {
+                let landed = Self::landing(ctx, params)?;
+                let summary = if landed.playing {
+                    "the figure plays"
+                } else {
+                    "the figure is paused: left and right scrub its phase"
+                };
+                settle(ctx, landed, summary.to_owned(), json!({ "playing": landed.playing }))
+            }
+        }
+    }
+
+    /// **Scrub the paused figure's phase**, for as long as a key would be held.
+    pub mod stage_scrub {
+        use super::*;
+
+        #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+        #[serde(deny_unknown_fields)]
+        pub struct Params {
+            /// `"back"` or `"fwd"`.
+            pub by: String,
+            /// For how long the key would be held, in seconds. The sweep is a quarter of the cycle per second.
+            #[serde(default = "default_seconds")]
+            pub seconds: f32,
+            /// `true` is Shift: a fifth of the sweep.
+            #[serde(default)]
+            pub fine: bool,
+        }
+
+        fn default_seconds() -> f32 {
+            DEFAULT_SCRUB_SECONDS
+        }
+
+        pub struct StageScrub;
+
+        impl StageScrub {
+            fn landing(ctx: &Ctx, params: &serde_json::Value) -> Result<StageCursor, Refusal> {
+                let p: Params = serde_json::from_value(params.clone()).map_err(|e| {
+                    Refusal::new(format!("these are not a scrub: {e}. The fields are `by`, `back` or `fwd`, `seconds` and `fine`."))
+                })?;
+                let by = match p.by.as_str() {
+                    "back" => -1.0,
+                    "fwd" => 1.0,
+                    other => {
+                        return Err(Refusal::new(format!("`{other}` is not a direction; say one of {}", DIRECTIONS.join(", "))));
+                    }
+                };
+                if !(p.seconds > 0.0 && p.seconds <= MAX_SCRUB_SECONDS) {
+                    return Err(Refusal::new(format!("`seconds` is {}, and a scrub is longer than 0 and at most {MAX_SCRUB_SECONDS}", p.seconds)));
+                }
+                let now = stage_in(ctx, "scrub")?;
+                if now.playing {
+                    return Err(Refusal::new(
+                        "the figure is playing, and it keeps its own phase; there is nothing to scrub. Pause it first (`stage_play`).",
+                    ));
+                }
+                let fine = if p.fine { FINE_DIVISOR } else { 1.0 };
+                let phase = bevy_blueprint_anim::wrap01(now.phase + by * SCRUB_RATE / fine * p.seconds);
+                Ok(StageCursor { phase, ..*now })
+            }
+        }
+
+        impl Operation for StageScrub {
+            fn name(&self) -> &'static str {
+                "stage_scrub"
+            }
+            fn changes_view(&self) -> bool {
+                true
+            }
+            fn shows(&self, _ctx: &Ctx, _params: &serde_json::Value) -> Shown {
+                Shown::Nowhere
+            }
+            fn writes(&self) -> &'static [&'static str] {
+                &[]
+            }
+            fn undo(&self) -> Undo {
+                Undo::None
+            }
+            fn schema(&self) -> serde_json::Value {
+                json!({
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": ["by"],
+                    "properties": {
+                        "by": {"type": "string", "enum": DIRECTIONS, "description": "Which way to scrub the paused figure's phase: `back` is the left arrow and `fwd` the right. Refused while the figure is playing (`stage_play` pauses it)."},
+                        "seconds": {"type": "number", "exclusiveMinimum": 0, "maximum": MAX_SCRUB_SECONDS, "description": "For how long the key would be held, in seconds: the phase moves a quarter of the cycle per second. A quarter of a second unless given."},
+                        "fine": {"type": "boolean", "description": "`true` is Shift held: a fifth of the sweep."},
+                    },
+                })
+            }
+            fn plan(&self, ctx: &Ctx, params: &serde_json::Value) -> Result<serde_json::Value, Refusal> {
+                Ok(json!({ "phase": Self::landing(ctx, params)?.phase }))
+            }
+            fn commit(&self, ctx: &mut Ctx, params: &serde_json::Value) -> Result<Outcome, Refusal> {
+                let landed = Self::landing(ctx, params)?;
+                settle(ctx, landed, format!("the phase is {:.3}", landed.phase), json!({ "phase": landed.phase }))
+            }
+        }
+    }
+
+    /// **Frame the stage camera**: the next preset, or the one named.
+    pub mod stage_camera {
+        use super::*;
+
+        #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+        #[serde(deny_unknown_fields)]
+        pub struct Params {
+            /// `figure`, `feet`, `side` or `ground`; absent steps to the next, as `V` does.
+            #[serde(default)]
+            pub preset: Option<String>,
+        }
+
+        pub struct StageCamera;
+
+        fn names() -> Vec<&'static str> {
+            CamPreset::ALL.into_iter().map(CamPreset::label).collect()
+        }
+
+        impl StageCamera {
+            fn landing(ctx: &Ctx, params: &serde_json::Value) -> Result<StageCursor, Refusal> {
+                let p: Params = serde_json::from_value(params.clone())
+                    .map_err(|e| Refusal::new(format!("these are not a framing: {e}. The only field is `preset`.")))?;
+                let now = stage_in(ctx, "frame")?;
+                let camera = match p.preset {
+                    None => now.camera.next(),
+                    Some(name) => CamPreset::from_label(&name)
+                        .ok_or_else(|| Refusal::new(format!("`{name}` is not a camera preset; say one of {}", names().join(", "))))?,
+                };
+                Ok(StageCursor { camera, ..*now })
+            }
+        }
+
+        impl Operation for StageCamera {
+            fn name(&self) -> &'static str {
+                "stage_camera"
+            }
+            fn changes_view(&self) -> bool {
+                true
+            }
+            fn shows(&self, _ctx: &Ctx, _params: &serde_json::Value) -> Shown {
+                Shown::Nowhere
+            }
+            fn writes(&self) -> &'static [&'static str] {
+                &[]
+            }
+            fn undo(&self) -> Undo {
+                Undo::None
+            }
+            fn schema(&self) -> serde_json::Value {
+                json!({
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                        "preset": {"type": "string", "enum": names(), "description": "How the rig bench's stage camera frames the figure: the whole figure, its feet, a low side profile, or near ground level. Absent steps to the next, as V does."},
+                    },
+                })
+            }
+            fn plan(&self, ctx: &Ctx, params: &serde_json::Value) -> Result<serde_json::Value, Refusal> {
+                Ok(json!({ "preset": Self::landing(ctx, params)?.camera.label() }))
+            }
+            fn commit(&self, ctx: &mut Ctx, params: &serde_json::Value) -> Result<Outcome, Refusal> {
+                let landed = Self::landing(ctx, params)?;
+                let preset = landed.camera.label();
+                settle(ctx, landed, format!("the stage camera frames the {preset}"), json!({ "preset": preset }))
+            }
+        }
+    }
+}
+
+/// **The Map camera, panned and turned** (E-002, #129 slice 31): `W`, `A`, `S` and `D` pan the view along the screen's own axes and
+/// `Q` and `E` turn it in quarters. Two view operations on one body of rules each, so a held key, a tap and an agent's call cannot
+/// disagree about how far a second of panning is or what a quarter turn means. The camera is what a person is looking through:
+/// none of these writes a file or takes an undo step.
+pub mod camera {
+    use super::list_walk::need_view;
+    use super::*;
+    use crate::ops_view::CameraCursor;
+    use crate::view::{PAN_SPEED, PANS, ROTATION_STEPS};
+    use serde_json::json;
+
+    /// **The longest pan one call may make**, in seconds of the key being held: far past any frame, so a request is a sweep
+    /// and not a flight across the map.
+    pub const MAX_PAN_SECONDS: f32 = 10.0;
+
+    /// **A pan's default length**, in seconds of the key being held: a quarter of a second is a short tap.
+    pub const DEFAULT_PAN_SECONDS: f32 = 0.25;
+
+    fn camera_in<'a>(ctx: &'a Ctx, what: &str) -> Result<&'a CameraCursor, Refusal> {
+        Ok(&need_view(ctx, what)?.camera)
+    }
+
+    /// **Put the camera where an operation answered**, and say what happened.
+    fn settle(ctx: &mut Ctx, landed: CameraCursor, summary: String, after: serde_json::Value) -> Result<Outcome, Refusal> {
+        let Some(view) = ctx.view.as_mut() else {
+            return Err(Refusal::new("no view is in hand, so there is no camera to move."));
+        };
+        view.camera = landed;
+        Ok(Outcome { summary, affected: 0, saved: false, inverse: None, after: Some(after) })
+    }
+
+    /// **Pan the view** along the screen's axes, as `W`, `A`, `S` and `D` do.
+    pub mod camera_pan {
+        use super::*;
+        use bevy::math::{Vec2, Vec3};
+
+        #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+        #[serde(deny_unknown_fields)]
+        pub struct Params {
+            /// The keys held, by name: `forward`, `back`, `left` and `right`. Two at once are the diagonal.
+            pub directions: Vec<String>,
+            /// For how long the keys would be held, in seconds.
+            #[serde(default = "default_seconds")]
+            pub seconds: f32,
+        }
+
+        fn default_seconds() -> f32 {
+            DEFAULT_PAN_SECONDS
+        }
+
+        pub struct CameraPan;
+
+        impl CameraPan {
+            fn landing(ctx: &Ctx, params: &serde_json::Value) -> Result<CameraCursor, Refusal> {
+                let p: Params = serde_json::from_value(params.clone()).map_err(|e| {
+                    Refusal::new(format!("these are not a pan: {e}. The fields are `directions`, a list of forward, back, left and right, and `seconds`."))
+                })?;
+                if !(p.seconds > 0.0 && p.seconds <= MAX_PAN_SECONDS) {
+                    return Err(Refusal::new(format!("`seconds` is {}, and a pan is longer than 0 and at most {MAX_PAN_SECONDS}", p.seconds)));
+                }
+                // **A key is held or it is not**, so a name said twice is one key.
+                let mut wish = Vec2::ZERO;
+                let mut named: Vec<&str> = Vec::new();
+                for name in &p.directions {
+                    let Some(&(_, said, dir)) = PANS.iter().find(|(_, said, _)| *said == name.as_str()) else {
+                        return Err(Refusal::new(format!("`{name}` is not a direction; say any of {}", names().join(", "))));
+                    };
+                    if !named.contains(&said) {
+                        named.push(said);
+                        wish += dir;
+                    }
+                }
+                if wish == Vec2::ZERO {
+                    return Err(Refusal::new(if named.is_empty() {
+                        "name at least one direction to pan: forward, back, left or right.".to_owned()
+                    } else {
+                        format!("{} cancel each other, so the view would not move.", named.join(" and "))
+                    }));
+                }
+                let now = camera_in(ctx, "pan")?;
+                // **A fraction of what is on screen, not a fixed number of metres**: the rule the keys always had.
+                let moved = crate::view::pan_direction(wish, now.yaw) * PAN_SPEED * now.height * p.seconds;
+                Ok(CameraCursor { focus: (Vec3::from(now.focus) + moved).to_array(), ..*now })
+            }
+        }
+
+        /// The four names an agent says, in the order of the keys, from the table the key loop reads.
+        pub fn names() -> Vec<&'static str> {
+            PANS.iter().map(|(_, said, _)| *said).collect()
+        }
+
+        impl Operation for CameraPan {
+            fn name(&self) -> &'static str {
+                "camera_pan"
+            }
+            fn changes_view(&self) -> bool {
+                true
+            }
+            fn shows(&self, _ctx: &Ctx, _params: &serde_json::Value) -> Shown {
+                Shown::Nowhere
+            }
+            fn writes(&self) -> &'static [&'static str] {
+                &[]
+            }
+            fn undo(&self) -> Undo {
+                Undo::None
+            }
+            fn schema(&self) -> serde_json::Value {
+                json!({
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": ["directions"],
+                    "properties": {
+                        "directions": {"type": "array", "minItems": 1, "items": {"type": "string", "enum": names()}, "description": "Which pan keys are held: `forward` is W, `left` A, `back` S and `right` D, along the screen's axes at the view's current turn. Two at once are the diagonal; opposite keys cancel and are refused."},
+                        "seconds": {"type": "number", "exclusiveMinimum": 0, "maximum": MAX_PAN_SECONDS, "description": "For how long the keys would be held, in seconds: the view moves 16/18 of what it shows per second. A quarter of a second unless given."},
+                    },
+                })
+            }
+            fn plan(&self, ctx: &Ctx, params: &serde_json::Value) -> Result<serde_json::Value, Refusal> {
+                Ok(json!({ "focus": Self::landing(ctx, params)?.focus }))
+            }
+            fn commit(&self, ctx: &mut Ctx, params: &serde_json::Value) -> Result<Outcome, Refusal> {
+                let landed = Self::landing(ctx, params)?;
+                let [x, _, z] = landed.focus;
+                settle(ctx, landed, format!("the camera looks at ({x:.1}, {z:.1})"), json!({ "focus": landed.focus }))
+            }
+        }
+    }
+
+    /// **Turn the view** in quarters, as `Q` and `E` do.
+    pub mod camera_turn {
+        use super::*;
+        use std::f32::consts::TAU;
+
+        /// The two ways to turn, named as the keys are (`TurnViewLeft`, `TurnViewRight`).
+        pub const DIRECTIONS: &[&str] = &["left", "right"];
+
+        #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+        #[serde(deny_unknown_fields)]
+        pub struct Params {
+            /// `"left"` or `"right"`.
+            pub by: String,
+            /// How many quarter turns, one unless given: at most a full turn.
+            #[serde(default = "one_quarter")]
+            pub quarters: u32,
+        }
+
+        fn one_quarter() -> u32 {
+            1
+        }
+
+        pub struct CameraTurn;
+
+        impl CameraTurn {
+            fn landing(ctx: &Ctx, params: &serde_json::Value) -> Result<CameraCursor, Refusal> {
+                let p: Params = serde_json::from_value(params.clone())
+                    .map_err(|e| Refusal::new(format!("these are not a turn: {e}. The fields are `by`, `left` or `right`, and `quarters`.")))?;
+                let sign = match p.by.as_str() {
+                    "left" => 1.0,
+                    "right" => -1.0,
+                    other => return Err(Refusal::new(format!("`{other}` is not a way to turn; say one of {}", DIRECTIONS.join(", ")))),
+                };
+                if !(1..=ROTATION_STEPS).contains(&p.quarters) {
+                    return Err(Refusal::new(format!("`quarters` is {}, and a turn is from 1 to {ROTATION_STEPS} quarters", p.quarters)));
+                }
+                let now = camera_in(ctx, "turn")?;
+                let goal_yaw = now.goal_yaw + sign * p.quarters as f32 * TAU / ROTATION_STEPS as f32;
+                Ok(CameraCursor { goal_yaw, ..*now })
+            }
+        }
+
+        impl Operation for CameraTurn {
+            fn name(&self) -> &'static str {
+                "camera_turn"
+            }
+            fn changes_view(&self) -> bool {
+                true
+            }
+            fn shows(&self, _ctx: &Ctx, _params: &serde_json::Value) -> Shown {
+                Shown::Nowhere
+            }
+            fn writes(&self) -> &'static [&'static str] {
+                &[]
+            }
+            fn undo(&self) -> Undo {
+                Undo::None
+            }
+            fn schema(&self) -> serde_json::Value {
+                json!({
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": ["by"],
+                    "properties": {
+                        "by": {"type": "string", "enum": DIRECTIONS, "description": "Which way to turn the view: `left` is Q and `right` is E."},
+                        "quarters": {"type": "integer", "minimum": 1, "maximum": ROTATION_STEPS, "description": "How many quarter turns: one unless given."},
+                    },
+                })
+            }
+            fn plan(&self, ctx: &Ctx, params: &serde_json::Value) -> Result<serde_json::Value, Refusal> {
+                Ok(json!({ "goal_yaw": Self::landing(ctx, params)?.goal_yaw }))
+            }
+            fn commit(&self, ctx: &mut Ctx, params: &serde_json::Value) -> Result<Outcome, Refusal> {
+                let landed = Self::landing(ctx, params)?;
+                settle(ctx, landed, "the view turns".to_owned(), json!({ "goal_yaw": landed.goal_yaw }))
+            }
+        }
+    }
+}
+
+/// **Check every rig on the bench**, as `C` does on the Anim tab (E-002, #129 slice 32): show the project-wide summary and ask
+/// the watcher to measure each rig that has no measurement yet. Reports persist for the session and the watcher re-measures on a
+/// real change, so only what is unmeasured is queued, and a second check is an instant summary. What a person is looking at (the
+/// summary face) and a request to the watcher; nothing is written to `rigs.yaml` and no undo step is taken.
+pub mod rig_check_all {
+    use super::list_walk::need_view;
+    use super::*;
+    use serde_json::json;
+
+    /// **The sentence for a check**: what the key has always said, written once for the operation's answer and the status line.
+    pub fn says(queued: usize) -> String {
+        if queued == 0 { "all rigs measured".to_owned() } else { format!("measuring {queued} rig(s)...") }
+    }
+
+    pub struct RigCheckAll;
+
+    impl RigCheckAll {
+        /// The rigs with no measurement yet, in manifest order: the rule, one copy for plan and commit.
+        fn unmeasured(ctx: &Ctx, params: &serde_json::Value) -> Result<Vec<String>, Refusal> {
+            match params {
+                serde_json::Value::Null => {}
+                serde_json::Value::Object(o) if o.is_empty() => {}
+                _ => return Err(Refusal::new("these are not a check: it takes no fields. Every rig on the bench is what it checks.")),
+            }
+            let rigs = &need_view(ctx, "check")?.rig;
+            Ok(rigs.names.iter().filter(|n| !rigs.measured.contains(n)).cloned().collect())
+        }
+    }
+
+    impl Operation for RigCheckAll {
+        fn name(&self) -> &'static str {
+            "rig_check_all"
+        }
+        fn changes_view(&self) -> bool {
+            true
+        }
+        fn shows(&self, _ctx: &Ctx, _params: &serde_json::Value) -> Shown {
+            Shown::Nowhere
+        }
+        fn writes(&self) -> &'static [&'static str] {
+            &[]
+        }
+        fn undo(&self) -> Undo {
+            Undo::None
+        }
+        fn schema(&self) -> serde_json::Value {
+            json!({"type": "object", "additionalProperties": false, "properties": {}})
+        }
+        fn plan(&self, ctx: &Ctx, params: &serde_json::Value) -> Result<serde_json::Value, Refusal> {
+            Ok(json!({ "queued": Self::unmeasured(ctx, params)? }))
+        }
+        fn commit(&self, ctx: &mut Ctx, params: &serde_json::Value) -> Result<Outcome, Refusal> {
+            let queued = Self::unmeasured(ctx, params)?;
+            let Some(view) = ctx.view.as_mut() else {
+                return Err(Refusal::new("no view is in hand, so there is no rig bench to check."));
+            };
+            view.rig.all = true;
+            view.rig.check = crate::ops_view::CheckAnswer { made: true, queued: queued.clone() };
+            Ok(Outcome { summary: says(queued.len()), affected: 0, saved: false, inverse: None, after: Some(json!({ "queued": queued })) })
+        }
+    }
+}
+
+/// **Rescan the kit's mesh directory**, as `R` does on the Meshes tab (E-002, #129 slice 33): meshes arrive while the editor is
+/// open, and an importer that only sees what was on disk at launch is one you have to restart to use. The operation answers
+/// that a scan is asked for and the front end reads the directory; what comes back is the tab's candidate list, which is what a
+/// person is looking at. It writes no file and takes no undo step.
+pub mod kit_rescan {
+    use super::list_walk::need_view;
+    use super::*;
+    use serde_json::json;
+
+    pub struct KitRescan;
+
+    impl KitRescan {
+        fn check(ctx: &Ctx, params: &serde_json::Value) -> Result<(), Refusal> {
+            match params {
+                serde_json::Value::Null => {}
+                serde_json::Value::Object(o) if o.is_empty() => {}
+                _ => return Err(Refusal::new("these are not a rescan: it takes no fields. The open project's mesh directory is what it reads.")),
+            }
+            need_view(ctx, "rescan")?;
+            if ctx.project.is_none() {
+                return Err(Refusal::new("no project is open, so there is no mesh directory to rescan."));
+            }
+            Ok(())
+        }
+    }
+
+    impl Operation for KitRescan {
+        fn name(&self) -> &'static str {
+            "kit_rescan"
+        }
+        fn changes_view(&self) -> bool {
+            true
+        }
+        fn shows(&self, _ctx: &Ctx, _params: &serde_json::Value) -> Shown {
+            Shown::Nowhere
+        }
+        fn writes(&self) -> &'static [&'static str] {
+            &[]
+        }
+        fn undo(&self) -> Undo {
+            Undo::None
+        }
+        fn schema(&self) -> serde_json::Value {
+            json!({"type": "object", "additionalProperties": false, "properties": {}})
+        }
+        fn plan(&self, ctx: &Ctx, params: &serde_json::Value) -> Result<serde_json::Value, Refusal> {
+            Self::check(ctx, params)?;
+            Ok(json!({ "rescan": true }))
+        }
+        fn commit(&self, ctx: &mut Ctx, params: &serde_json::Value) -> Result<Outcome, Refusal> {
+            Self::check(ctx, params)?;
+            if let Some(view) = ctx.view.as_mut() {
+                view.rescan = true;
+            }
+            Ok(Outcome { summary: "the mesh directory is read again".to_owned(), affected: 0, saved: false, inverse: None, after: Some(json!({ "rescan": true })) })
+        }
+    }
+}
+
+/// **Step the rig bench's history of `rigs.yaml`**, as Cmd+Z and Cmd+Shift+Z do on the Anim tab (E-002, #129 slice 35): the
+/// manifest the bench held before its newest write is written back, or the one a step back took away is put again. The bench
+/// records each manifest it replaces (an adopt, or an edit made under the tab), and the history is session state: the step takes
+/// the top of one stack, writes it through the one door to disk ([`crate::anim_tab::write_manifest`]: parsed first, saved
+/// atomically) and puts the text it replaced on the other, so **its inverse is the step the other way**. The answer is the
+/// stacks and the manifest now held ([`crate::ops_view::RigHistory`]), which the front end applies to the bench only when the
+/// write landed: a refused step costs no entry.
+pub mod rig_history_step {
+    use super::list_walk::need_view;
+    use super::*;
+    use crate::ops_view::RigHistory;
+    use serde_json::json;
+
+    /// **What a step says when the stack is empty**: guidance on the key and a refusal for an agent.
+    pub const NOTHING_TO_UNDO: &str = "nothing to undo on this tab";
+    pub const NOTHING_TO_REDO: &str = "nothing to redo on this tab";
+
+    /// **The sentence for a step**, written once for the operation's answer and the bench's status line.
+    pub fn says(back: bool) -> &'static str {
+        if back { "undid the last bench write" } else { "put the bench write back" }
+    }
+
+    #[derive(Debug, Clone, PartialEq, Deserialize)]
+    #[serde(deny_unknown_fields)]
+    struct Params {
+        /// `back` or `forward`.
+        by: String,
+    }
+
+    /// **Which way a step goes**, `true` for back, or the refusal that says what a direction is.
+    fn direction(params: &serde_json::Value) -> Result<bool, Refusal> {
+        let p: Params = serde_json::from_value(params.clone())
+            .map_err(|e| Refusal::new(format!("this is not a step: {e}. The field is `by`: `back` or `forward`.")))?;
+        match p.by.as_str() {
+            "back" => Ok(true),
+            "forward" => Ok(false),
+            other => Err(Refusal::new(format!("`{other}` is not a direction: `by` is `back` or `forward`."))),
+        }
+    }
+
+    pub struct RigHistoryStep;
+
+    impl RigHistoryStep {
+        /// **The step, computed and checked and not made**, so a preview refuses what the commit would: the direction, the
+        /// manifest to write, and the history after it.
+        fn step(ctx: &Ctx, params: &serde_json::Value) -> Result<(bool, String, RigHistory), Refusal> {
+            let back = direction(params)?;
+            let held = &need_view(ctx, "step")?.rig.history;
+            let (mut undo, mut redo) = (held.undo.clone(), held.redo.clone());
+            let Some(target) = (if back { undo.pop() } else { redo.pop() }) else {
+                return Err(Refusal::new(if back { NOTHING_TO_UNDO } else { NOTHING_TO_REDO }));
+            };
+            blueprint_model::rigs::Rigs::parse(&target).map_err(|e| Refusal::new(format!("NOT WRITTEN: {e}")))?;
+            if let Some(now) = &held.text {
+                if back { redo.push(now.clone()) } else { undo.push(now.clone()) }
+            }
+            let after = RigHistory { text: Some(target.clone()), undo, redo, stepped: Some(back) };
+            Ok((back, target, after))
+        }
+    }
+
+    impl Operation for RigHistoryStep {
+        fn name(&self) -> &'static str {
+            "rig_history_step"
+        }
+        fn changes_view(&self) -> bool {
+            true
+        }
+        /// **The manifest the step rewrites.**
+        fn shows(&self, ctx: &Ctx, _params: &serde_json::Value) -> Shown {
+            shown_named(ctx, crate::anim_tab::RIGS_FILE)
+        }
+        fn writes(&self) -> &'static [&'static str] {
+            &["rigs"]
+        }
+        /// **No inverse of its own**: the step the other way is the inverse, from the same history.
+        fn undo(&self) -> Undo {
+            Undo::None
+        }
+        fn schema(&self) -> serde_json::Value {
+            json!({
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["by"],
+                "properties": {
+                    "by": {"type": "string", "enum": ["back", "forward"], "description": "back restores the manifest the bench held before its newest write; forward puts back what a step back took away."}
+                }
+            })
+        }
+        fn plan(&self, ctx: &Ctx, params: &serde_json::Value) -> Result<serde_json::Value, Refusal> {
+            let (back, _, after) = Self::step(ctx, params)?;
+            Ok(json!({ "writes": crate::anim_tab::RIGS_FILE, "back": back, "undo_left": after.undo.len(), "redo_left": after.redo.len() }))
+        }
+        fn commit(&self, ctx: &mut Ctx, params: &serde_json::Value) -> Result<Outcome, Refusal> {
+            let (back, target, after) = Self::step(ctx, params)?;
+            let Some(project) = ctx.project.as_ref() else {
+                return Err(Refusal::new("no project is open, so there is no rig manifest to write."));
+            };
+            crate::anim_tab::write_manifest(&project.root, &target).map_err(|e| Refusal::new(format!("NOT WRITTEN: {e}")))?;
+            let (undo_left, redo_left) = (after.undo.len(), after.redo.len());
+            if let Some(view) = ctx.view.as_mut() {
+                view.rig.history = after;
+            }
+            Ok(Outcome {
+                summary: says(back).to_owned(),
+                affected: 1,
+                saved: false,
+                // **The step the other way is its inverse**, so a log line that cannot be written takes the step back: `take_back` runs
+                // `commit` again over the history this one left in the view, which restores `rigs.yaml` and the stacks together. The
+                // line is `Undo::None`, so `undo_target` never reads this; it exists for that one failure.
+                inverse: Some(json!({ "by": if back { "forward" } else { "back" } })),
+                after: Some(json!({ "back": back, "undo_left": undo_left, "redo_left": redo_left })),
+            })
+        }
+    }
+}
+
+/// **The lattice grid's cursor, stepped** (E-002, #129 slice 27): `F`, `H`, `T` and `G` step the selected cell along a
+/// layer and `[` and `]` step the layer the grid shows, on the Meshes tab. One view operation for the six keys, on the rules
+/// the keys always had: a step stops at the grid's edges, the cursor rides the layer instead of being dropped by it, and a
+/// layer step that goes nowhere changes nothing. A cursor is what a person is looking at, so it writes no file and takes no
+/// undo step.
+pub mod lattice_cursor_step {
+    use super::*;
+    use crate::ops_view::LatticeCursor;
+    use serde_json::json;
+
+    /// **The six steps an agent names**, in the order of the keys that make them, beside the schema so the parse and the
+    /// schema cannot disagree.
+    pub const STEPS: &[&str] = &["left", "right", "forward", "back", "down", "up"];
+
+    #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+    #[serde(deny_unknown_fields)]
+    pub struct Params {
+        /// One of [`STEPS`].
+        pub by: String,
+    }
+
+    pub struct LatticeCursorStep;
+
+    impl LatticeCursorStep {
+        /// **Where the cursor lands**: the one rule, for `plan` and `commit`.
+        fn landing(ctx: &Ctx, params: &serde_json::Value) -> Result<LatticeCursor, Refusal> {
+            let p: Params = serde_json::from_value(params.clone())
+                .map_err(|e| Refusal::new(format!("these are not a step: {e}. The only field is `by`, one of {}.", STEPS.join(", "))))?;
+            if !STEPS.contains(&p.by.as_str()) {
+                return Err(Refusal::new(format!("`{}` is not a step; say one of {}", p.by, STEPS.join(", "))));
+            }
+            let cursor = super::list_walk::need_view(ctx, "step")?.lattice.ok_or_else(|| {
+                Refusal::new(
+                    "no piece's lattice is up, so there is no grid cursor to step. Select a library piece on the Meshes tab (`piece_select`).",
+                )
+            })?;
+            let (dx, dy, dz) = cursor.div;
+            // A lattice with no cells in one direction has no cell to stand on; `divisions` refuses a zero, but this is a
+            // cursor and `dy - 1` on one would wrap to `u32::MAX`.
+            if dx == 0 || dy == 0 || dz == 0 {
+                return Err(Refusal::new(format!("the lattice is {dx}x{dy}x{dz}, which has no cell to stand on.")));
+            }
+            let mut layer = cursor.layer.min(dy - 1);
+            match p.by.as_str() {
+                "down" => layer = layer.saturating_sub(1),
+                "up" => layer = (layer + 1).min(dy - 1),
+                _ => {}
+            }
+            let layer_step = matches!(p.by.as_str(), "down" | "up");
+            // **A layer step that goes nowhere writes nothing**: the cursor stays where it was, including no cell at all.
+            if layer_step && layer == cursor.layer {
+                return Ok(cursor);
+            }
+            // **The cursor rides the layer rather than being dropped by it**: (x, z) stay and y moves, so walking up a
+            // lattice column stays on the column an author is looking at instead of clearing the selection every step.
+            let mut at = cursor.at.unwrap_or((0, layer, 0));
+            at.1 = layer;
+            match p.by.as_str() {
+                "left" => at.0 = at.0.saturating_sub(1),
+                "right" => at.0 = (at.0 + 1).min(dx - 1),
+                "forward" => at.2 = (at.2 + 1).min(dz - 1),
+                "back" => at.2 = at.2.saturating_sub(1),
+                _ => {}
+            }
+            at.0 = at.0.min(dx - 1);
+            at.2 = at.2.min(dz - 1);
+            Ok(LatticeCursor { layer, at: Some(at), ..cursor })
+        }
+    }
+
+    impl Operation for LatticeCursorStep {
+        fn name(&self) -> &'static str {
+            "lattice_cursor_step"
+        }
+        fn changes_view(&self) -> bool {
+            true
+        }
+        fn shows(&self, _ctx: &Ctx, _params: &serde_json::Value) -> Shown {
+            Shown::Nowhere
+        }
+        fn writes(&self) -> &'static [&'static str] {
+            &[]
+        }
+        fn undo(&self) -> Undo {
+            Undo::None
+        }
+        fn schema(&self) -> serde_json::Value {
+            json!({
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["by"],
+                "properties": {
+                    "by": {"type": "string", "enum": STEPS, "description": "Which way to step the lattice grid's cursor on the Meshes tab: `left`, `right`, `forward` and `back` move the selected cell along the layer shown (F, H, T and G), `down` and `up` show the previous or next layer (`[` and `]`) and the cursor rides it. Every step stops at the grid's edge. Refused unless a library piece is selected."},
+                },
+            })
+        }
+        fn plan(&self, ctx: &Ctx, params: &serde_json::Value) -> Result<serde_json::Value, Refusal> {
+            let landed = Self::landing(ctx, params)?;
+            Ok(json!({ "layer": landed.layer, "at": landed.at }))
+        }
+        fn commit(&self, ctx: &mut Ctx, params: &serde_json::Value) -> Result<Outcome, Refusal> {
+            let landed = Self::landing(ctx, params)?;
+            let Some(view) = ctx.view.as_mut() else {
+                return Err(Refusal::new("no view is in hand, so there is no grid cursor to step."));
+            };
+            view.lattice = Some(landed);
+            let summary = match landed.at {
+                Some((x, y, z)) => format!("the grid's cursor is on cell ({x}, {y}, {z})"),
+                None => format!("the grid shows layer {}", landed.layer),
+            };
+            Ok(Outcome { summary, affected: 0, saved: false, inverse: None, after: Some(json!({ "layer": landed.layer, "at": landed.at })) })
+        }
+    }
+}
+
+/// **The tile in hand, shaped** (E-002, #129 slice 28): `Space` takes the piece or puts it back, `,` and `.` walk the focus
+/// through the members, `J` makes the arrow ladder finer, `R` turns the focused member a quarter, the remove key takes it
+/// out and Shift and the remove key empty the tile, on the Tiles tab (slice 28), and the arrows nudge it, Shift and the arrows put it
+/// flush, Enter drops the picked piece and the hole key drops a hole (slice 29). Ten operations on the rules the keys always had,
+/// each on the tile the view carries.
+///
+/// **The draft is session state, not the project**: the tile is written to `compositions.yaml` only when `Cmd+S` saves it
+/// (`composition_define`), so none of these writes a file or takes an undo step of its own — the tab keeps a tile history of
+/// its own that `Cmd+Z` walks. Every change to the members goes through `build::edit_open`, the one door that re-resolves
+/// the hosts and keeps the result only if it still stands up, so a refusal leaves the tile as it was.
+///
+/// **They declare `Shown::Nowhere`** (`hand_operation!` hard-codes it): no `Shown` variant names the Tiles tab's draft, so the
+/// editor will not follow an agent's edit of it. The person sees the change where they already look, the tile's own panel.
+pub mod tile_hand {
+    use super::list_walk::{DIRECTIONS, direction, need_view};
+    use super::*;
+    use crate::ops_view::TileHand;
+    use blueprint_model::composition::Envelope;
+    use serde_json::json;
+
+    /// **The tile in hand**, or the refusal that says why there is none: no tile open, or one that claims no tile and so has
+    /// no grid to shape.
+    fn hand_of<'a>(ctx: &'a Ctx, what: &str) -> Result<&'a TileHand, Refusal> {
+        let hand = need_view(ctx, what)?
+            .tile_hand
+            .as_ref()
+            .ok_or_else(|| Refusal::new(crate::build::NO_TILE))?;
+        match hand.open.envelope {
+            Envelope::Bounded { .. } => Ok(hand),
+            _ => Err(Refusal::new(crate::build::claims_no_tile(&hand.open.id))),
+        }
+    }
+
+    fn library_of(ctx: &Ctx) -> Result<&blueprint_model::library::Library, Refusal> {
+        ctx.project
+            .as_ref()
+            .map(|p| &*p.library)
+            .ok_or_else(|| Refusal::new("no project is open, so the tile has no library to stand its members on."))
+    }
+
+    /// **Put the tile where an operation answered**, and say what happened.
+    fn settle(ctx: &mut Ctx, landed: TileHand, summary: String, after: serde_json::Value) -> Result<Outcome, Refusal> {
+        let Some(view) = ctx.view.as_mut() else {
+            return Err(Refusal::new("no view is in hand, so there is no tile to shape."));
+        };
+        view.tile_hand = Some(landed);
+        Ok(Outcome { summary, affected: 0, saved: false, inverse: None, after: Some(after) })
+    }
+
+    /// **Implement [`Operation`] for a tile-in-hand verb** from its name, its schema and its `landing`: the tile as it stands
+    /// after the call, the sentence for it and the answer. `plan` and `commit` read one `landing`, so a preview and an apply
+    /// cannot disagree.
+    macro_rules! hand_operation {
+        ($ty:ident, $name:literal, $schema:expr, $landing:path) => {
+            pub struct $ty;
+
+            impl Operation for $ty {
+                fn name(&self) -> &'static str {
+                    $name
+                }
+                fn changes_view(&self) -> bool {
+                    true
+                }
+                fn shows(&self, _ctx: &Ctx, _params: &serde_json::Value) -> Shown {
+                    Shown::Nowhere
+                }
+                fn writes(&self) -> &'static [&'static str] {
+                    &[]
+                }
+                fn undo(&self) -> Undo {
+                    Undo::None
+                }
+                fn schema(&self) -> serde_json::Value {
+                    $schema
+                }
+                fn plan(&self, ctx: &Ctx, params: &serde_json::Value) -> Result<serde_json::Value, Refusal> {
+                    let (_, _, after) = $landing(ctx, params)?;
+                    Ok(after)
+                }
+                fn commit(&self, ctx: &mut Ctx, params: &serde_json::Value) -> Result<Outcome, Refusal> {
+                    let (landed, summary, after) = $landing(ctx, params)?;
+                    settle(ctx, landed, summary, after)
+                }
+            }
+        };
+    }
+
+    /// **The one schema of a verb that takes nothing**: the tile in hand is what it acts on.
+    fn no_parameters() -> serde_json::Value {
+        json!({"type": "object", "additionalProperties": false, "properties": {}})
+    }
+
+    /// **A verb that takes nothing refuses anything it is given**, so a field an agent meant is never silently dropped. No
+    /// parameters at all, or an empty object, are both nothing.
+    fn no_fields(params: &serde_json::Value, what: &str) -> Result<(), Refusal> {
+        match params {
+            serde_json::Value::Null => Ok(()),
+            serde_json::Value::Object(o) if o.is_empty() => Ok(()),
+            _ => Err(Refusal::new(format!("these are not {what}: it takes no fields. The tile in hand is what it acts on."))),
+        }
+    }
+
+    /// **Take the piece, or put it back**, as `Space` does: whether the arrows steer the tile or walk the library list.
+    pub mod tile_hand_arm {
+        use super::*;
+
+        #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+        #[serde(deny_unknown_fields)]
+        pub struct Params {
+            /// `true` takes the piece, `false` puts it back; absent toggles, as `Space` does.
+            #[serde(default)]
+            pub placing: Option<bool>,
+        }
+
+        fn landing(ctx: &Ctx, params: &serde_json::Value) -> Result<(TileHand, String, serde_json::Value), Refusal> {
+            let p: Params = serde_json::from_value(params.clone())
+                .map_err(|e| Refusal::new(format!("these are not an arm: {e}. The only field is `placing`, true or false.")))?;
+            let hand = hand_of(ctx, "take or put back")?;
+            let placing = p.placing.unwrap_or(!hand.placing);
+            let said = if placing {
+                "placing — arrows move the tile, Enter drops, Esc puts it back"
+            } else {
+                "arrows walk the library"
+            };
+            Ok((TileHand { placing, ..hand.clone() }, said.to_owned(), json!({ "placing": placing })))
+        }
+
+        hand_operation!(
+            TileHandArm,
+            "tile_hand_arm",
+            json!({
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                    "placing": {"type": "boolean", "description": "`true` takes the piece, so the arrows steer the tile in hand; `false` puts it back, so they walk the library list. Absent toggles, as Space does. Refused unless a bounded tile is open."},
+                },
+            }),
+            landing
+        );
+    }
+
+    /// **Walk the focus through the tile's members**, clamped at the ends, as `,` and `.` do.
+    pub mod tile_member_focus {
+        use super::*;
+
+        #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+        #[serde(deny_unknown_fields)]
+        pub struct Params {
+            /// `"prev"` or `"next"`.
+            pub by: String,
+        }
+
+        fn landing(ctx: &Ctx, params: &serde_json::Value) -> Result<(TileHand, String, serde_json::Value), Refusal> {
+            let p: Params = serde_json::from_value(params.clone())
+                .map_err(|e| Refusal::new(format!("these are not a walk: {e}. The only field is `by`, `prev` or `next`.")))?;
+            let by = direction(&p.by)?;
+            let hand = hand_of(ctx, "walk")?;
+            let n = hand.open.members.len();
+            let Some(last) = n.checked_sub(1) else {
+                return Err(Refusal::new("nothing in the tile yet — Enter brings the picked mesh in"));
+            };
+            // **Clamped rather than wrapped**: the ends of a short list are somewhere an author can feel, and a focus that
+            // jumps from the last member to the first is the largest possible move on the smallest possible keystroke.
+            let focus = (hand.focus as i64 + by).clamp(0, last as i64) as usize;
+            let id = hand.open.members.get(focus).map(|m| m.id.clone()).unwrap_or_default();
+            Ok((TileHand { focus, ..hand.clone() }, format!("`{id}` — {} of {n}", focus + 1), json!({ "focus": focus, "member": id })))
+        }
+
+        hand_operation!(
+            TileMemberFocus,
+            "tile_member_focus",
+            json!({
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["by"],
+                "properties": {
+                    "by": {"type": "string", "enum": DIRECTIONS, "description": "Which way to move the focus through the open tile's members (`,` and `.`). It stops at the ends of the list. Refused when the tile has no members."},
+                },
+            }),
+            landing
+        );
+    }
+
+    /// **Make the arrow ladder finer by thirds, wrapping**, as `J` does: coarse is the span itself, then thirds, then ninths.
+    pub mod tile_grid_deepen {
+        use super::*;
+
+        fn landing(ctx: &Ctx, params: &serde_json::Value) -> Result<(TileHand, String, serde_json::Value), Refusal> {
+            no_fields(params, "a deepening")?;
+            let hand = hand_of(ctx, "deepen")?;
+            let project = ctx.project.as_ref().ok_or_else(|| Refusal::new("no project is open, so there is no snap divisor to deepen by."))?;
+            let depth = (hand.depth + 1) % crate::build::DEPTHS;
+            let n = project.lattice.snap_divisor.saturating_pow(depth).max(1);
+            let said = match depth {
+                0 => "grid: centre and flush — one press spans the tile".to_owned(),
+                _ => format!("grid: centre to flush in {n} steps — J deepens, and wraps"),
+            };
+            Ok((TileHand { depth, ..hand.clone() }, said, json!({ "depth": depth, "steps": n })))
+        }
+
+        hand_operation!(TileGridDeepen, "tile_grid_deepen", no_parameters(), landing);
+    }
+
+    /// **Turn the focused member a quarter**, as `R` does: a tile is a quarter-turn object, and anything between is a tile
+    /// the solver cannot reproduce.
+    pub mod tile_member_turn {
+        use super::*;
+
+        fn landing(ctx: &Ctx, params: &serde_json::Value) -> Result<(TileHand, String, serde_json::Value), Refusal> {
+            no_fields(params, "a turn")?;
+            let hand = hand_of(ctx, "turn")?;
+            if hand.focus >= hand.open.members.len() {
+                return Err(Refusal::new("nothing to turn yet — Enter brings the picked mesh in"));
+            }
+            let library = library_of(ctx)?;
+            let focus = hand.focus;
+            let mut open = Some(hand.open.clone());
+            // Through the door like every other verb: a quarter turn changes `brush_span`, so it changes what a piece touches
+            // and therefore what is mounted on it.
+            let (said, yaw) = crate::build::edit_open(&mut open, library, |comp| {
+                let Some(m) = comp.members.get_mut(focus) else {
+                    return Err("the focused member went away".to_owned());
+                };
+                m.yaw = (m.yaw + 90.0).rem_euclid(360.0);
+                Ok((format!("`{}` turned to {:.0}", m.id, m.yaw), m.yaw))
+            })
+            .map_err(Refusal::new)?;
+            let open = open.ok_or_else(|| Refusal::new(crate::build::NO_TILE))?;
+            Ok((TileHand { open, ..hand.clone() }, said, json!({ "yaw": yaw })))
+        }
+
+        hand_operation!(TileMemberTurn, "tile_member_turn", no_parameters(), landing);
+    }
+
+    /// **Take the focused member out of the tile**, as the remove key does. A host cannot be removed out from under what
+    /// rests on it: the door refuses, the tile is untouched, and the refusal names the fixture.
+    pub mod tile_member_remove {
+        use super::*;
+
+        fn landing(ctx: &Ctx, params: &serde_json::Value) -> Result<(TileHand, String, serde_json::Value), Refusal> {
+            no_fields(params, "a removal")?;
+            let hand = hand_of(ctx, "remove")?;
+            if hand.focus >= hand.open.members.len() {
+                return Err(Refusal::new("nothing to remove"));
+            }
+            let library = library_of(ctx)?;
+            let focus = hand.focus;
+            let mut open = Some(hand.open.clone());
+            let id = crate::build::edit_open(&mut open, library, |comp| {
+                if focus >= comp.members.len() {
+                    return Err("the focused member went away".to_owned());
+                }
+                Ok(comp.members.remove(focus).id)
+            })
+            .map_err(Refusal::new)?;
+            let open = open.ok_or_else(|| Refusal::new(crate::build::NO_TILE))?;
+            // **Clamped to what is left rather than stepped back**: removing the first member should leave the focus on the
+            // new first, not underflow to the last.
+            let left = open.members.len();
+            let focus = hand.focus.min(left.saturating_sub(1));
+            Ok((TileHand { open, focus, ..hand.clone() }, format!("`{id}` removed"), json!({ "removed": id, "members": left })))
+        }
+
+        hand_operation!(TileMemberRemove, "tile_member_remove", no_parameters(), landing);
+    }
+
+    /// **Empty the tile**, as Shift and the remove key do: one door call, so the tab's history records it as one step.
+    pub mod tile_clear {
+        use super::*;
+
+        fn landing(ctx: &Ctx, params: &serde_json::Value) -> Result<(TileHand, String, serde_json::Value), Refusal> {
+            no_fields(params, "a clearing")?;
+            let hand = hand_of(ctx, "empty")?;
+            let n = hand.open.members.len();
+            if n == 0 {
+                return Err(Refusal::new("the tile is already empty"));
+            }
+            let library = library_of(ctx)?;
+            let mut open = Some(hand.open.clone());
+            crate::build::edit_open(&mut open, library, |comp| {
+                comp.members.clear();
+                Ok(())
+            })
+            .map_err(Refusal::new)?;
+            let open = open.ok_or_else(|| Refusal::new(crate::build::NO_TILE))?;
+            let said = format!("emptied — {n} taken out, {} puts them back", crate::keys::chord(crate::keys::Action::UndoBuild));
+            Ok((TileHand { open, focus: 0, ..hand.clone() }, said, json!({ "taken_out": n })))
+        }
+
+        hand_operation!(TileClear, "tile_clear", no_parameters(), landing);
+    }
+
+    /// **A step along one axis**: `-1`, `0` or `1`, refused for anything else so a wild number is never silently clamped.
+    fn step_of(value: i32, field: &str) -> Result<i32, Refusal> {
+        if (-1..=1).contains(&value) {
+            Ok(value)
+        } else {
+            Err(Refusal::new(format!("`{field}` is {value}, and a step is -1, 0 or 1")))
+        }
+    }
+
+    /// **The project the tile stands in**: its library to measure the members against, its lattice for the ladder's
+    /// divisor and its vocabulary for a hole's token.
+    fn project_of(ctx: &Ctx) -> Result<&crate::project::Project, Refusal> {
+        ctx.project
+            .as_ref()
+            .ok_or_else(|| Refusal::new("no project is open, so the tile has no library to stand its members on."))
+    }
+
+    /// **The focused member and the tile's size**, or the guidance that there is none: an empty tile is told what to press.
+    fn focused_member<'a>(hand: &'a TileHand, what: &str) -> Result<(&'a blueprint_model::composition::Member, (f32, f32, f32)), Refusal> {
+        let Envelope::Bounded { size } = hand.open.envelope else {
+            return Err(Refusal::new(crate::build::claims_no_tile(&hand.open.id)));
+        };
+        hand.open
+            .members
+            .get(hand.focus)
+            .map(|m| (m, size))
+            .ok_or_else(|| Refusal::new(format!("nothing to {what} yet — Enter brings the picked mesh in")))
+    }
+
+    /// **Move the focused member to the next stop on its ladder**, as the four arrows and `[` and `]` do: sideways along
+    /// the tile's two axes (`x` and `z`, `-1` or `1`) and up or down a layer (`lift`). The stops divide the span between the
+    /// tile's centre and the flush position, so both are exactly reachable at every depth. A move that goes nowhere is
+    /// answered, not refused: the piece fills the tile on that axis, or the ladder ends where the piece meets the tile.
+    pub mod tile_member_nudge {
+        use super::*;
+
+        #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+        #[serde(deny_unknown_fields)]
+        pub struct Params {
+            /// The step along the tile's X axis: `-1`, `0` or `1`.
+            #[serde(default)]
+            pub x: i32,
+            /// The step along the tile's Z axis: `-1`, `0` or `1`.
+            #[serde(default)]
+            pub z: i32,
+            /// The step in layers: `-1` down, `1` up. A layer is the ladder's pitch at the depth the tile is on.
+            #[serde(default)]
+            pub lift: i32,
+        }
+
+        fn landing(ctx: &Ctx, params: &serde_json::Value) -> Result<(TileHand, String, serde_json::Value), Refusal> {
+            let p: Params = serde_json::from_value(params.clone())
+                .map_err(|e| Refusal::new(format!("these are not a nudge: {e}. The fields are `x`, `z` and `lift`, each -1, 0 or 1.")))?;
+            let (dx, dz, lift_by) = (step_of(p.x, "x")?, step_of(p.z, "z")?, step_of(p.lift, "lift")?);
+            if (dx, dz, lift_by) == (0, 0, 0) {
+                return Err(Refusal::new("a nudge moves somewhere: give `x`, `z` or `lift` as -1 or 1"));
+            }
+            let hand = hand_of(ctx, "move")?;
+            let (member, size) = focused_member(hand, "move")?;
+            let project = project_of(ctx)?;
+            let library = &*project.library;
+            let span = crate::build::member_span(member, library).unwrap_or((0.0, 0.0));
+            // **A hole has no width, so its ladder spans the whole tile**; its boundary stop is the one place the door
+            // refuses, by name, which is the honest answer for a slot that must sit strictly inside.
+            let f = (crate::build::flush_reach(size.0, span.0).max(0.0), crate::build::flush_reach(size.2, span.1).max(0.0));
+            let was = (member.at, member.lift);
+            let unmoved = |said: &str| Ok((hand.clone(), said.to_owned(), json!({ "moved": false, "at": [was.0.0, was.0.1], "lift": was.1 })));
+            // **A piece that fills the tile on the pressed axis has no travel there**: guidance, not a refusal. The floor is
+            // the usual case, a one-cell piece in a one-cell tile has nowhere to go that would not grow the tile.
+            let travel = (dx != 0 && f.0 > crate::build::ON_STOP) || (dz != 0 && f.1 > crate::build::ON_STOP);
+            if !travel && lift_by == 0 {
+                return unmoved("this piece fills the tile on that axis — [ and ] move layers instead");
+            }
+            let (divisor, depth, focus) = (project.lattice.snap_divisor, hand.depth, hand.focus);
+            let mut open = Some(hand.open.clone());
+            let (at, lift) = crate::build::edit_open(&mut open, library, |comp| {
+                let Some(m) = comp.members.get_mut(focus) else {
+                    return Err("the focused member went away".to_owned());
+                };
+                // **The next stop on the ladder, not a fixed pitch**: `ladder_step` carries the rationale.
+                m.at.0 = crate::build::ladder_step(m.at.0, f.0, divisor, depth, dx);
+                m.at.1 = crate::build::ladder_step(m.at.1, f.1, divisor, depth, dz);
+                // The floor is the floor: a member cannot be nudged under the tile it is in.
+                m.lift = (m.lift + lift_by as f32 * crate::build::lift_pitch(divisor, depth)).max(0.0);
+                Ok((m.at, m.lift))
+            })
+            .map_err(Refusal::new)?;
+            if (at, lift) == was {
+                // The terminal stop: a press outward there moves nothing, said because it is a dead key otherwise.
+                return unmoved("already at the flush stop — the ladder ends where the piece meets the tile");
+            }
+            let open = open.ok_or_else(|| Refusal::new(crate::build::NO_TILE))?;
+            let said = format!("({:+.3}, {:+.3}) at {:.3} m", at.0, at.1, lift);
+            Ok((TileHand { open, ..hand.clone() }, said, json!({ "moved": true, "at": [at.0, at.1], "lift": lift })))
+        }
+
+        hand_operation!(
+            TileMemberNudge,
+            "tile_member_nudge",
+            json!({
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                    "x": {"type": "integer", "minimum": -1, "maximum": 1, "description": "The step along the tile's X axis: -1 or 1; absent is none. The arrow keys' direction depends on the camera, so an agent names the tile's own axis."},
+                    "z": {"type": "integer", "minimum": -1, "maximum": 1, "description": "The step along the tile's Z axis: -1 or 1; absent is none."},
+                    "lift": {"type": "integer", "minimum": -1, "maximum": 1, "description": "The step in layers, as `]` (1) and `[` (-1) do; absent is none."},
+                },
+            }),
+            landing
+        );
+    }
+
+    /// **Put the focused member flush against one side of the tile**, as Shift and an arrow do: `x` or `z`, `-1` or `1`, one
+    /// of them. The position is a function of the piece's own width, which is why it is a verb the ladder's arithmetic
+    /// agrees with. A hole has no width, so it is refused; a flush that moves nothing says why.
+    pub mod tile_member_flush {
+        use super::*;
+
+        #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+        #[serde(deny_unknown_fields)]
+        pub struct Params {
+            /// The side along the tile's X axis: `-1` or `1`.
+            #[serde(default)]
+            pub x: i32,
+            /// The side along the tile's Z axis: `-1` or `1`.
+            #[serde(default)]
+            pub z: i32,
+        }
+
+        fn landing(ctx: &Ctx, params: &serde_json::Value) -> Result<(TileHand, String, serde_json::Value), Refusal> {
+            let p: Params = serde_json::from_value(params.clone())
+                .map_err(|e| Refusal::new(format!("these are not a flush: {e}. The fields are `x` and `z`, one of them -1 or 1.")))?;
+            let (x, z) = (step_of(p.x, "x")?, step_of(p.z, "z")?);
+            if (x != 0) == (z != 0) {
+                return Err(Refusal::new("a flush names one side: `x` or `z`, -1 or 1, and not both or neither"));
+            }
+            let hand = hand_of(ctx, "flush")?;
+            let (member, size) = focused_member(hand, "flush")?;
+            let library = library_of(ctx)?;
+            // The span is read before the door, because "this is a hole" is guidance too: a hole has no width, so "flush" is
+            // its position *on* the boundary, which `validate` refuses. Nudging is how a hole is placed.
+            let span = crate::build::member_span(member, library)
+                .ok_or_else(|| Refusal::new("a hole has no width to put flush — nudge it instead"))?;
+            let (was, focus) = (member.at, hand.focus);
+            let mut open = Some(hand.open.clone());
+            let to = crate::build::edit_open(&mut open, library, |comp| {
+                let Some(m) = comp.members.get_mut(focus) else {
+                    return Err("the focused member went away".to_owned());
+                };
+                m.at = crate::build::aligned(m.at, span, size, (x, z));
+                Ok(m.at)
+            })
+            .map_err(Refusal::new)?;
+            if was == to {
+                // **A flush that moves nothing says why**: a 0.1 x 1.0 m wall flushed along its length is a genuine no-op,
+                // which is indistinguishable from a key that never arrived. It names the axis that would move instead.
+                let across = if x != 0 { "up/down" } else { "left/right" };
+                let said = format!("already flush that way — this piece spans the tile on that axis. Shift+{across} moves it across instead");
+                return Ok((hand.clone(), said, json!({ "moved": false, "at": [to.0, to.1] })));
+            }
+            let open = open.ok_or_else(|| Refusal::new(crate::build::NO_TILE))?;
+            Ok((TileHand { open, ..hand.clone() }, format!("flush — ({:+.3}, {:+.3})", to.0, to.1), json!({ "moved": true, "at": [to.0, to.1] })))
+        }
+
+        hand_operation!(
+            TileMemberFlush,
+            "tile_member_flush",
+            json!({
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                    "x": {"type": "integer", "minimum": -1, "maximum": 1, "description": "Flush against the tile's -X (-1) or +X (1) side. Give `x` or `z`, not both."},
+                    "z": {"type": "integer", "minimum": -1, "maximum": 1, "description": "Flush against the tile's -Z (-1) or +Z (1) side. Give `x` or `z`, not both."},
+                },
+            }),
+            landing
+        );
+    }
+
+    /// **Drop a library piece into the open tile**, as Enter on the Meshes page does: it lands in the middle, the focus
+    /// follows it and it is taken in hand, so the arrows adjust what was just dropped. A member must name a library
+    /// descriptor: one measured but not imported would write a tile naming an id the library does not carry.
+    pub mod tile_member_drop {
+        use super::*;
+
+        #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+        #[serde(deny_unknown_fields)]
+        pub struct Params {
+            /// The library piece to drop, by its id.
+            pub descriptor: String,
+        }
+
+        fn landing(ctx: &Ctx, params: &serde_json::Value) -> Result<(TileHand, String, serde_json::Value), Refusal> {
+            let p: Params = serde_json::from_value(params.clone())
+                .map_err(|e| Refusal::new(format!("these are not a drop: {e}. The only field is `descriptor`, a library piece's id.")))?;
+            let hand = hand_of(ctx, "drop into")?;
+            let library = library_of(ctx)?;
+            let Some(guest) = library.get(&p.descriptor) else {
+                return Err(Refusal::new(format!("`{}` is not in the library yet — accept it on the Meshes tab first", p.descriptor)));
+            };
+            let mut open = Some(hand.open.clone());
+            let (focus, id) = crate::build::edit_open(&mut open, library, |comp| {
+                let i = crate::build::place(comp, guest)?;
+                Ok((i, comp.members[i].id.clone()))
+            })
+            .map_err(Refusal::new)?;
+            let open = open.ok_or_else(|| Refusal::new(crate::build::NO_TILE))?;
+            let n = open.members.len();
+            // **Focus follows the drop**, because turn and remove mean the one just put down; and **a drop leaves the piece
+            // in hand**, so the arrows adjust it rather than walking the library list.
+            let said = format!("`{}` dropped — {n} in the tile. Arrows move it, Esc goes back to the list", p.descriptor);
+            Ok((TileHand { open, focus, placing: true, ..hand.clone() }, said, json!({ "member": id, "members": n })))
+        }
+
+        hand_operation!(
+            TileMemberDrop,
+            "tile_member_drop",
+            json!({
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["descriptor"],
+                "properties": {
+                    "descriptor": {"type": "string", "description": "The library piece to drop into the open tile, by its id. Refused unless the library carries it, and unless a bounded tile is open."},
+                },
+            }),
+            landing
+        );
+    }
+
+    /// **Drop a hole into the open tile**: a position that says what may go there without saying what does. `accepts` is a
+    /// token of the project's slot axis, and absent is the first one, as the key always took.
+    pub mod tile_slot_drop {
+        use super::*;
+
+        #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+        #[serde(deny_unknown_fields)]
+        pub struct Params {
+            /// The slot token the hole accepts; absent is the axis's first.
+            #[serde(default)]
+            pub accepts: Option<String>,
+        }
+
+        fn landing(ctx: &Ctx, params: &serde_json::Value) -> Result<(TileHand, String, serde_json::Value), Refusal> {
+            let p: Params = serde_json::from_value(params.clone())
+                .map_err(|e| Refusal::new(format!("these are not a hole: {e}. The only field is `accepts`, a slot token.")))?;
+            let hand = hand_of(ctx, "drop a hole into")?;
+            let project = project_of(ctx)?;
+            let Some(first) = project.vocab.slot.names().next() else {
+                return Err(Refusal::new("no `slot` tokens declared — add one to vocab.yaml before dropping a hole"));
+            };
+            let accepts = match p.accepts {
+                None => first.to_owned(),
+                Some(named) if project.vocab.slot.names().any(|n| n == named) => named,
+                Some(named) => {
+                    let known: Vec<&str> = project.vocab.slot.names().collect();
+                    return Err(Refusal::new(format!("`{named}` is not a slot token in vocab.yaml; the declared ones are {}", known.join(", "))));
+                }
+            };
+            let mut open = Some(hand.open.clone());
+            let (focus, id) = crate::build::edit_open(&mut open, &project.library, |comp| {
+                let i = crate::build::place_slot(comp, &accepts)?;
+                Ok((i, comp.members[i].id.clone()))
+            })
+            .map_err(Refusal::new)?;
+            let open = open.ok_or_else(|| Refusal::new(crate::build::NO_TILE))?;
+            let n = open.members.len();
+            Ok((TileHand { open, focus, ..hand.clone() }, format!("hole for `{accepts}` dropped"), json!({ "member": id, "accepts": accepts, "members": n })))
+        }
+
+        hand_operation!(
+            TileSlotDrop,
+            "tile_slot_drop",
+            json!({
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                    "accepts": {"type": "string", "description": "The slot token the hole accepts, from vocab.yaml's slot axis; absent is the axis's first. Refused when the project declares none."},
+                },
+            }),
+            landing
+        );
+    }
+
+    /// **Step the Tiles tab's own history**, back or forward, as `Cmd+Z` and `Cmd+Shift+Z` do (E-002, #129 slice 30): the tile
+    /// as it stood before the last change, or after the last one taken back. The tab's history records every change to the
+    /// tile in hand, whoever made it, so this takes back an agent's nudge as it takes back a key's; it is its own inverse, and
+    /// the two directions are one body so they cannot drift apart. Nothing to step is refused, in the tab's own words.
+    pub mod tile_history_step {
+        use super::*;
+        use crate::ops_view::TileHistoryCursor;
+
+        #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+        #[serde(deny_unknown_fields)]
+        pub struct Params {
+            /// `"back"` undoes, `"forward"` redoes.
+            pub by: String,
+        }
+
+        /// What a step back is refused with when the history holds nothing before the tile. The key says it as a note: it is
+        /// guidance, and every other refusal is a problem.
+        pub const NOTHING_TO_UNDO: &str = "nothing to undo";
+        /// What a step forward is refused with when nothing was taken back.
+        pub const NOTHING_TO_REDO: &str = "nothing to redo";
+
+        /// The history after the step, the sentence for it and the answer.
+        fn landing(ctx: &Ctx, params: &serde_json::Value) -> Result<(TileHistoryCursor, String, serde_json::Value), Refusal> {
+            let p: Params = serde_json::from_value(params.clone())
+                .map_err(|e| Refusal::new(format!("these are not a step: {e}. The only field is `by`, `back` or `forward`.")))?;
+            let back = match p.by.as_str() {
+                "back" => true,
+                "forward" => false,
+                other => return Err(Refusal::new(format!("`{other}` is not a direction; say `back` or `forward`"))),
+            };
+            let now = need_view(ctx, "step the history of")?
+                .tile_history
+                .as_ref()
+                .ok_or_else(|| Refusal::new("no tile history is in hand, so there is nothing to step."))?;
+            let (mut past, mut future) = (now.past.clone(), now.future.clone());
+            let Some(to) = (if back { past.pop() } else { future.pop() }) else {
+                return Err(Refusal::new(if back { NOTHING_TO_UNDO } else { NOTHING_TO_REDO }));
+            };
+            // The description is made from copies: the stacks take the value.
+            let said = crate::build::step_says(&now.open, &to);
+            if back {
+                future.push(now.open.clone());
+            } else {
+                past.push(now.open.clone());
+            }
+            let n = to.as_ref().map_or(0, |c| c.members.len());
+            // The focus can outlive the members it indexed.
+            let focus = now.focus.min(n.saturating_sub(1));
+            let what = if back { "undo" } else { "redo" };
+            let after = json!({ "members": n, "past": past.len(), "future": future.len() });
+            Ok((TileHistoryCursor { open: to, focus, past, future }, format!("{what}: {said} — {n} in the tile"), after))
+        }
+
+        pub struct TileHistoryStep;
+
+        impl Operation for TileHistoryStep {
+            fn name(&self) -> &'static str {
+                "tile_history_step"
+            }
+            fn changes_view(&self) -> bool {
+                true
+            }
+            fn shows(&self, _ctx: &Ctx, _params: &serde_json::Value) -> Shown {
+                Shown::Nowhere
+            }
+            fn writes(&self) -> &'static [&'static str] {
+                &[]
+            }
+            fn undo(&self) -> Undo {
+                Undo::None
+            }
+            fn schema(&self) -> serde_json::Value {
+                json!({
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": ["by"],
+                    "properties": {
+                        "by": {"type": "string", "enum": ["back", "forward"], "description": "`back` takes back the last change to the tile in hand, as Cmd+Z does; `forward` puts back what was taken back, as Cmd+Shift+Z does. Refused when there is nothing to step."},
+                    },
+                })
+            }
+            fn plan(&self, ctx: &Ctx, params: &serde_json::Value) -> Result<serde_json::Value, Refusal> {
+                let (_, _, after) = landing(ctx, params)?;
+                Ok(after)
+            }
+            fn commit(&self, ctx: &mut Ctx, params: &serde_json::Value) -> Result<Outcome, Refusal> {
+                let (landed, summary, after) = landing(ctx, params)?;
+                let Some(view) = ctx.view.as_mut() else {
+                    return Err(Refusal::new("no view is in hand, so there is no tile history to step."));
+                };
+                // **The tile in hand is kept in step**, so a front end that applies it too does not put the old one back:
+                // a step that lands on no tile at all leaves none in hand.
+                view.tile_hand = landed.open.clone().map(|open| {
+                    let held = view.tile_hand.as_ref();
+                    TileHand { open, focus: landed.focus, depth: held.map_or(0, |h| h.depth), placing: held.is_some_and(|h| h.placing) }
+                });
+                view.tile_history = Some(landed);
+                Ok(Outcome { summary, affected: 0, saved: false, inverse: None, after: Some(after) })
+            }
+        }
+    }
+}
+
+pub mod view_cycle_grid {
+    use super::*;
+    use serde_json::json;
+
+    #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+    #[serde(deny_unknown_fields)]
+    pub struct Params {}
+
+    pub struct ViewCycleGrid;
+
+    impl Operation for ViewCycleGrid {
+        fn name(&self) -> &'static str {
+            "view_cycle_grid"
+        }
+        fn changes_view(&self) -> bool {
+            true
+        }
+        fn shows(&self, _ctx: &Ctx, _params: &serde_json::Value) -> Shown {
+            Shown::Nowhere
+        }
+        fn writes(&self) -> &'static [&'static str] {
+            // **Nothing the project keeps.** No map, no file: a rung is about this session's hand.
+            &[]
+        }
+
+        fn undo(&self) -> Undo {
+            // A view change is not an edit. Taking it back with Cmd+Z would undo the *piece* the
+            // person just placed while leaving the grid where they left it, which is worse than
+            // leaving both.
+            Undo::None
+        }
+
+        fn schema(&self) -> serde_json::Value {
+            json!({"type": "object", "additionalProperties": false, "properties": {}})
+        }
+
+        fn plan(&self, ctx: &Ctx, _params: &serde_json::Value) -> Result<serde_json::Value, Refusal> {
+            let Some(view) = ctx.view.as_ref() else {
+                return Err(Refusal::new(
+                    "no view is in hand, so there is no grid to cycle. An editor front end carries one in \
+                     `Ctx::view`; a headless caller that only wants the answer passes one.",
+                ));
+            };
+            let next = view.rung.next();
+            let divisor = ctx.project.as_ref().map(|p| p.lattice.snap_divisor);
+            Ok(json!({
+                "from": super::view_name(view.rung),
+                "to": super::view_name(next),
+                "pitch_m": divisor.map(|d| next.pitch(d)),
+            }))
+        }
+
+        fn commit(&self, ctx: &mut Ctx, params: &serde_json::Value) -> Result<Outcome, Refusal> {
+            let plan = self.plan(ctx, params)?;
+            let Some(view) = ctx.view.as_mut() else {
+                return Err(Refusal::new("no view is in hand, so there is no grid to cycle."));
+            };
+            let rung = view.cycle_grid();
+            Ok(Outcome {
+                summary: match plan["pitch_m"].as_f64() {
+                    Some(pitch) => format!("grid {pitch:.3} m — rung {}", super::view_name(rung)),
+                    None => format!("grid rung {}", super::view_name(rung)),
+                },
+                affected: 0,
+                saved: false,
+                inverse: None,
+                after: Some(json!({ "rung": super::view_name(rung) })),
+            })
+        }
+    }
+}
+
+pub mod map_save {
+    use super::*;
+    use serde_json::json;
+
+    #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+    #[serde(deny_unknown_fields)]
+    pub struct Params {}
+
+    pub struct MapSave;
+
+    impl Operation for MapSave {
+        fn name(&self) -> &'static str {
+            "map_save"
+        }
+        fn shows(&self, _ctx: &Ctx, _params: &serde_json::Value) -> Shown {
+            // **It writes the map that is already on screen**, so there is no new place to look at.
+            Shown::Nowhere
+        }
+        fn writes(&self) -> &'static [&'static str] {
+            &["map"]
+        }
+
+        fn undo(&self) -> Undo {
+            Undo::None
+        }
+
+        fn schema(&self) -> serde_json::Value {
+            json!({"type": "object", "additionalProperties": false, "properties": {}})
+        }
+
+        fn plan(&self, ctx: &Ctx, _params: &serde_json::Value) -> Result<serde_json::Value, Refusal> {
+            let Some(project) = ctx.project.as_ref() else {
+                return Err(Refusal::new("no project is open, so there is nothing to save."));
+            };
+            let Some(open) = ctx.open.as_ref() else {
+                return Err(Refusal::new("no map is open, so there is nothing to save."));
+            };
+            let path = project
+                .maps_dir
+                .join(blueprint_model::naming::map_file_name(&open.map.name));
+            Ok(json!({
+                "map": open.map.name,
+                "path": path.to_string_lossy(),
+                "dirty": open.dirty(),
+            }))
+        }
+
+        fn commit(&self, ctx: &mut Ctx, params: &serde_json::Value) -> Result<Outcome, Refusal> {
+            let plan = self.plan(ctx, params)?;
+            let (Some(project), Some(open)) = (ctx.project.as_ref(), ctx.open.as_mut()) else {
+                return Err(Refusal::new("no map is open, so there is nothing to save."));
+            };
+            match open.save(project) {
+                Ok(()) => Ok(Outcome {
+                    summary: format!("saved {}", plan["path"].as_str().unwrap_or_default()),
+                    affected: 0,
+                    saved: true,
+                    inverse: None,
+                    after: Some(json!({
+                        "map": open.map.name,
+                        "path": plan["path"],
+                        "dirty": false,
+                    })),
+                }),
+                // **A refusal of the whole operation**, not a half-applied change that reports
+                // success: the map is unchanged and the file is unchanged.
+                Err(e) => Err(Refusal::new(format!("NOT SAVED: {e}"))),
+            }
+        }
+    }
+}
+
+/// **Open a map by name** — the verb an agent needs the moment it has made one (E-067).
+///
+/// `map_create` could make a map and then the agent had no way in: `door_open` takes a door and a
+/// tab, and nothing took a map's name. The acceptance script's own third step failed on exactly this
+/// and had to relaunch the editor as a workaround — which is not something an agent can to do to a
+/// person's session.
+///
+/// # What it does, and what it does not
+///
+/// It reads the file through `OpenMap::open` — the same door the Map tab uses, so the naming rule and
+/// the refusal for a file that calls itself something else are one implementation — puts it in the
+/// context, and asks for the Map door. The switching itself is the editor's, in the next frame, for
+/// the same reason `door_open` waits: a map with unsaved edits asks the person before it is replaced.
+///
+/// **It is not `door_open` with a parameter.** Switching doors and choosing a map are two questions,
+/// and folding them would make a caller state a door it has no opinion about.
+pub mod map_open {
+    use super::*;
+    use serde_json::json;
+
+    #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+    #[serde(deny_unknown_fields)]
+    pub struct Params {
+        /// The map's name, as `blueprint_list_pieces`-style listings and `map_create` spell it.
+        pub name: String,
+    }
+
+    impl Params {
+        pub fn schema() -> serde_json::Value {
+            json!({
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["name"],
+                "properties": {
+                    "name": {
+                        "description": "The map to open, by name. The name IS its file (maps/<name>.map.yaml), so a name that does not exist is refused rather than started.",
+                        "type": "string"
+                    }
+                }
+            })
+        }
+
+        pub fn parse(raw: &serde_json::Value) -> Result<Params, Refusal> {
+            serde_json::from_value(raw.clone()).map_err(|e| {
+                Refusal::new(format!(
+                    "these are not the parameters for opening a map: {e}. The field is `name`, and \
+                     it is required."
+                ))
+            })
+        }
+    }
+
+    pub struct MapOpen;
+
+    impl Operation for MapOpen {
+        fn name(&self) -> &'static str {
+            "map_open"
+        }
+        fn shows(&self, _ctx: &Ctx, _params: &serde_json::Value) -> Shown {
+            Shown::MapWhole
+        }
+        fn writes(&self) -> &'static [&'static str] {
+            &[]
+        }
+
+        /// **`Undo::None`, and the honest reason is that opening a map is not an edit.** It changes
+        /// which document the editor is holding, not the document — the same argument `door_open`
+        /// makes. Undoing it would mean putting the previous map back, which is `map_open` with the
+        /// other name.
+        fn undo(&self) -> Undo {
+            Undo::None
+        }
+
+        fn schema(&self) -> serde_json::Value {
+            Params::schema()
+        }
+
+        fn plan(&self, ctx: &Ctx, params: &serde_json::Value) -> Result<serde_json::Value, Refusal> {
+            let p = Params::parse(params)?;
+            // **The menu's root is enough, and that is the whole point of this verb.** An agent makes
+            // a map from the menu (where there is a root and no loaded `Project`) and then wants in —
+            // so this loads the project from the root when nothing is loaded, exactly as the editor
+            // does on a door switching. Measured: without this, `map_open` right after `map_create`
+            // refused with *"no project is open"*, which is the same dead end E-067 described.
+            let loaded;
+            let project = match (ctx.project.as_ref(), ctx.root.as_ref()) {
+                (Some(p), _) => p,
+                (None, Some(root)) => {
+                    loaded = crate::project::Project::open(root, None).map_err(Refusal::new)?;
+                    &loaded
+                }
+                (None, None) => {
+                    return Err(Refusal::new(
+                        "no project is open, so there is no map to open.",
+                    ));
+                }
+            };
+            // **A map that does not exist is refused, and this is the one place that differs from
+            // the editor's own "new map" path.** `OpenMap::open` *starts* a map when the file is
+            // absent, which is exactly right for `map_create`'s caller and an author pressing `+ new
+            // map` — and wrong here: an agent asking to open a map it has not made would silently
+            // get an empty one under a name nobody chose, and would then work in the wrong document
+            // without ever being told. Measured: the first version of this operation did exactly
+            // that and answered `opened `no_such_map``.
+            let name = blueprint_model::naming::to_snake_case(&p.name);
+            let path = project
+                .maps_dir
+                .join(blueprint_model::naming::map_file_name(&name));
+            if !path.is_file() {
+                return Err(Refusal::new(format!(
+                    "`{}` is not a map in this project, so there is nothing to open. `map_create` \
+                     makes one; the maps directory holds the rest.",
+                    p.name
+                )));
+            }
+            // **The same reader the Map tab uses**, so a file that calls itself something else is
+            // refused here exactly as it is there. A refusal changes nothing.
+            let open = OpenMap::open(project, &p.name).map_err(Refusal::new)?;
+            Ok(json!({
+                "map": open.map.name,
+                "bounds": [open.map.bounds.0, open.map.bounds.1, open.map.bounds.2],
+                "placements": open.map.placements.len(),
+                "stamps": open.map.stamps.len(),
+                "dirty": open.dirty(),
+            }))
+        }
+
+        fn commit(&self, ctx: &mut Ctx, params: &serde_json::Value) -> Result<Outcome, Refusal> {
+            let plan = self.plan(ctx, params)?;
+            let p = Params::parse(params)?;
+            // **The project is loaded here too, and KEPT.** The plan may have loaded it from the
+            // menu's root; a commit that then refused because `ctx.project` was still `None` was the
+            // same dead end one step later — measured: `map_create` applied, `map_open` refused with
+            // "no project is open". Loading it into the context is what a switching needs anyway: the
+            // editor cannot show a map without the project it belongs to.
+            if ctx.project.is_none()
+                && let Some(root) = ctx.root.clone()
+            {
+                ctx.project = Some(crate::project::Project::open(&root, None).map_err(Refusal::new)?);
+            }
+            let Some(project) = ctx.project.as_ref() else {
+                return Err(Refusal::new(
+                    "no project is open, so there is no map to open.",
+                ));
+            };
+            // **A map with unsaved edits is not silently replaced.** The same guard the rest of the
+            // editor keeps: the person's work outranks an agent's convenience, and the route is to
+            // save it or open it again.
+            if let Some(previous) = ctx.open.as_ref()
+                && previous.dirty()
+                && previous.map.name != p.name
+            {
+                return Err(Refusal::new(format!(
+                    "`{}` has unsaved edits, so it was not replaced. Save it (map_save) and ask \
+                     again, or open it again to carry on.",
+                    previous.map.name
+                )));
+            }
+            let fresh = OpenMap::open(project, &p.name).map_err(Refusal::new)?;
+            let name = fresh.map.name.clone();
+            let placements = fresh.map.placements.len();
+            ctx.open = Some(fresh);
+            Ok(Outcome {
+                summary: format!("opened `{name}`"),
+                affected: 0,
+                saved: false,
+                inverse: None,
+                after: Some(json!({
+                    "map": name,
+                    "placements": placements,
+                    "bounds": plan["bounds"],
+                })),
+            })
+        }
+    }
+}
+
+/// **Place one piece** — the click, and the agent's half of it (S2.1).
+///
+/// **No operation added a row.** Every push of a placement was in the key/mouse path, so an agent
+/// could turn a piece, pin it, or remove it, and could not put one down — which is the first thing
+/// any request needs. The acceptance script's `place` step failed on exactly this.
+///
+/// The work is `editor::plan_placement`, which is the click's own code split at the point where it
+/// stops describing and starts writing. One function, so an agent's placement and a person's cannot
+/// disagree about what is already there, what a piece mounts to, or which rows it replaces.
+///
+/// # An overlap is refused unless `replace` is true (#443)
+///
+/// **The click replaces what it lands on, because a person sees the piece go. An agent that asked to ADD does not.** In the style
+/// study's runs an awning replaced a stall and the agent was never told. So the operation plans the placement the click would
+/// make, and when that plan would take a piece out it is refused, naming the piece being added and every piece in the way (id, kind,
+/// at, cell), unless the call says `replace: true`. A replacing add answers with what it replaced (`after.replaced`), which a
+/// hand-back that covers it lists as a replacement ([`crate::present::replacements`]). A piece that is only flush with another is
+/// not in its way, and the exact same piece in the same place is still "already there".
+///
+/// # Undo
+///
+/// `Undo::Inverse`: the inverse removes the row it added and puts back the rows it replaced, at their
+/// indices — the same [`RowDelta`] vocabulary every row-changing operation in this series uses.
+pub mod placement_add {
+    use super::*;
+    use serde_json::json;
+
+    #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+    #[serde(deny_unknown_fields)]
+    pub struct Params {
+        /// The piece, by descriptor id.
+        #[serde(default)]
+        pub piece: String,
+        /// **The piece's centre in map space, in metres**, used exactly as given — so a caller that
+        /// wants the 1 m grid must snap for itself. An absent `at` is the undo's form only.
+        #[serde(default)]
+        pub at: (f32, f32),
+        #[serde(default)]
+        pub yaw: f32,
+        #[serde(default)]
+        pub tip: (u8, u8),
+        /// **Replace what the piece lands on** (#443). Without it, a footprint that overlaps a piece already there is
+        /// refused, naming both, and nothing changes: an agent that asked to ADD must never lose a piece it was not told
+        /// about. With it, the overlapped pieces are taken out, and the answer names each.
+        #[serde(default)]
+        pub replace: bool,
+        /// **The undo's own form**: what to take away, and what to put back.
+        #[serde(default)]
+        pub delta: Option<RowDelta>,
+    }
+
+    impl Params {
+        pub fn schema() -> serde_json::Value {
+            json!({
+                "type": "object",
+                "additionalProperties": false,
+                "description": "Place one piece. A footprint that overlaps a piece already there is refused, naming both pieces, and nothing changes, unless replace is true; the answer to a replacing add names what it replaced (id, kind, at, cell). A person's click on the map still replaces what it lands on.",
+                "required": ["piece", "at"],
+                "properties": {
+                    "piece": {
+                        "description": "The piece to place, by descriptor id. blueprint_list_pieces lists them.",
+                        "type": "string"
+                    },
+                    "at": {
+                        "description": "The piece's centre in map space, in metres, as [x, z]. Used exactly as given, so snap it yourself if you want the 1 m grid pieces a generator reads sit on.",
+                        "type": "array",
+                        "items": {"type": "number"},
+                        "minItems": 2,
+                        "maxItems": 2
+                    },
+                    "yaw": {"type": "number", "description": "Facing in degrees. Omit for 0."},
+                    "tip": {
+                        "description": "Which variant of a tipped piece, as [a, b]. Omit for [0, 0].",
+                        "type": "array",
+                        "items": {"type": "integer", "minimum": 0},
+                        "minItems": 2,
+                        "maxItems": 2
+                    },
+                    "replace": {
+                        "type": "boolean",
+                        "default": false,
+                        "description": "true replaces the piece or pieces this one overlaps, and the answer names them. Omitted or false, an overlap is refused naming both pieces and nothing changes."
+                    },
+                    "delta": {
+                        "description": "The rows an undo moves. Only an undo may set this.",
+                        "type": "object"
+                    }
+                }
+            })
+        }
+
+        pub fn parse(raw: &serde_json::Value) -> Result<Params, Refusal> {
+            serde_json::from_value(raw.clone()).map_err(|e| {
+                Refusal::new(format!(
+                    "these are not the parameters for placing a piece: {e}. The fields are `piece`, \
+                     `at`, `yaw`, `tip`, `replace` and `delta`, and `piece` and `at` are required."
+                ))
+            })
+        }
+    }
+
+    /// **One row as an answer names it**: its id, its kind (the descriptor), where it stands and the 1 m cell its centre is in.
+    fn described(row: &blueprint_model::map::Placed) -> serde_json::Value {
+        json!({
+            "id": row.id,
+            "kind": row.descriptor,
+            "at": [row.at.0, row.at.1],
+            "cell": [row.at.0.floor() as i32, row.at.1.floor() as i32],
+        })
+    }
+
+    /// **The sentence for an add that would replace what it lands on** (#443), naming the piece being added and every piece
+    /// in its way, with each one's kind, place and cell, and the two ways on.
+    fn overlap_refusal(piece: &str, at: (f32, f32), open: &crate::project::OpenMap, replaces: &[usize]) -> String {
+        let in_the_way: Vec<String> = replaces
+            .iter()
+            .filter_map(|i| open.map.placements.get(*i))
+            .map(|row| {
+                format!(
+                    "`{}` ({}) at ({:.2}, {:.2}), cell [{}, {}]",
+                    row.id,
+                    row.descriptor,
+                    row.at.0,
+                    row.at.1,
+                    row.at.0.floor() as i32,
+                    row.at.1.floor() as i32
+                )
+            })
+            .collect();
+        format!(
+            "adding `{piece}` at ({:.2}, {:.2}) overlaps {}, and an add does not replace what it lands on unless asked. Choose \
+             another place, remove that piece first (`placement_remove`), or call `placement_add` again with `replace: true` to \
+             replace it. Nothing was changed.",
+            at.0,
+            at.1,
+            in_the_way.join(" and ")
+        )
+    }
+
+    pub struct PlacementAdd;
+
+    impl Operation for PlacementAdd {
+        fn name(&self) -> &'static str {
+            "placement_add"
+        }
+        fn shows(&self, ctx: &Ctx, params: &serde_json::Value) -> Shown {
+            match Params::parse(params) {
+                // **A delta's change is seen in two places, and the smaller one is usually the answer.**
+                //
+                // The rows it ADDS are a put-back — an undo of a removal, or the rows a place
+                // replaced — and they stand where they stand. The rows it REMOVES are the piece the
+                // placement minted, which is still on the map when `shows` is read (it runs before
+                // the commit), and that is exactly where the undone change was. **Reading only the
+                // additions answered `MapWhole` for an undo of a place on empty floor**, so the
+                // follow framed the whole map and the clip showed the camera flying out to the room
+                // instead of back to the corner (AF-02, #358 — measured on the recording).
+                Ok(p) if p.delta.is_some() => {
+                    let mut boxes = Vec::new();
+                    let mut ids: Vec<String> = Vec::new();
+                    for delta in p.delta.iter() {
+                        let added: Vec<blueprint_model::map::Placed> = delta
+                            .add_placements
+                            .iter()
+                            .map(|a| a.row.clone())
+                            .collect();
+                        if let Shown::Map { rect, placements } = shown_rows(ctx, &added) {
+                            boxes.push(rect);
+                            ids.extend(placements);
+                        }
+                        if let Shown::Map { rect, placements } =
+                            shown_placements(ctx, &delta.remove_placements)
+                        {
+                            boxes.push(rect);
+                            ids.extend(placements);
+                        }
+                    }
+                    match crate::ops::enclose(boxes) {
+                        Some(rect) => {
+                            // **Sorted then deduped**: the ids arrive in the order the two sides of
+                            // the delta named them, so a piece on both sides is not necessarily
+                            // adjacent and `dedup` alone would leave it twice (review of #358, nit b).
+                            ids.sort();
+                            ids.dedup();
+                            Shown::Map { rect, placements: ids }
+                        }
+                        // **Nothing on the map either way** is the map: an id this delta cannot
+                        // measure would be refused, so the place the change is seen is the map
+                        // rather than nothing at all.
+                        None => Shown::MapWhole,
+                    }
+                }
+                // **The id is minted at commit**, so the parameters name the box and no ids.
+                Ok(p) => {
+                    let rect = ctx
+                        .project
+                        .as_ref()
+                        .and_then(|pr| pr.library.get(&p.piece))
+                        .and_then(|d| footprint_rect(d, p.at, p.yaw, p.tip))
+                        .unwrap_or_else(|| point_box(p.at));
+                    Shown::Map { rect, placements: Vec::new() }
+                }
+                Err(_) => Shown::MapWhole,
+            }
+        }
+        fn writes(&self) -> &'static [&'static str] {
+            &["map"]
+        }
+
+        fn undo(&self) -> Undo {
+            Undo::Inverse
+        }
+
+        fn only_as_undo(&self, params: &serde_json::Value) -> bool {
+            Params::parse(params).map(|p| p.delta.is_some()).unwrap_or(false)
+        }
+
+        fn schema(&self) -> serde_json::Value {
+            Params::schema()
+        }
+
+        fn plan(&self, ctx: &Ctx, params: &serde_json::Value) -> Result<serde_json::Value, Refusal> {
+            let p = Params::parse(params)?;
+            let (Some(project), Some(open)) = (ctx.project.as_ref(), ctx.open.as_ref()) else {
+                return Err(Refusal::new("no map is open, so there is nowhere to place a piece."));
+            };
+            if let Some(delta) = &p.delta {
+                let mut trial = open.map.clone();
+                delta.apply(&mut trial)?;
+                return Ok(json!({
+                    "map": open.map.name,
+                    "placements": trial.placements.len(),
+                }));
+            }
+            let Some(descriptor) = project.library.get(&p.piece) else {
+                return Err(Refusal::new(format!(
+                    "`{}` is not a piece in this project — blueprint_list_pieces lists them",
+                    p.piece
+                )));
+            };
+            let planned = crate::editor::plan_placement(
+                project,
+                open,
+                descriptor,
+                p.at,
+                p.yaw,
+                p.tip,
+                crate::editor::next_id_after(&open.map) + 1,
+            )
+            .map_err(Refusal::new)?;
+            // **An add that would take a piece out is refused unless it says `replace`** (#443): the click replaces, because
+            // the person sees the piece go, and an agent that asked to ADD is told instead of losing one.
+            if !p.replace && !planned.replaces.is_empty() {
+                return Err(Refusal::new(overlap_refusal(&p.piece, p.at, open, &planned.replaces)));
+            }
+            let replaces: Vec<serde_json::Value> = planned
+                .replaces
+                .iter()
+                .filter_map(|i| open.map.placements.get(*i).map(described))
+                .collect();
+            Ok(json!({
+                "id": planned.placed.id,
+                "map": open.map.name,
+                "on": planned.placed.on,
+                "replaces": replaces,
+                "y": planned.y,
+            }))
+        }
+
+        fn commit(&self, ctx: &mut Ctx, params: &serde_json::Value) -> Result<Outcome, Refusal> {
+            let p = Params::parse(params)?;
+            let plan = self.plan(ctx, params)?;
+            let Some(open) = ctx.open.as_mut() else {
+                return Err(Refusal::new("no map is open, so there is nowhere to place a piece."));
+            };
+            let before = open.map.clone();
+
+            if let Some(delta) = &p.delta {
+                let inverse = delta.apply(&mut open.map)?;
+                let taken = inverse.add_placements.len();
+                let Some(project) = ctx.project.as_ref() else {
+                    return Err(Refusal::new("no project is open."));
+                };
+                let saved = match open.save(project) {
+                    Ok(()) => true,
+                    Err(e) => {
+                        open.map = before;
+                        return Err(Refusal::new(format!(
+                            "the rows were put back but the file refused them, so nothing was \
+                             written: {e}"
+                        )));
+                    }
+                };
+                return Ok(Outcome {
+                    summary: format!("took away {taken} row(s)"),
+                    affected: taken,
+                    saved,
+                    inverse: Some(json!({ "delta": inverse })),
+                    after: Some(json!({
+                        "map": open.map.name,
+                        "placements": open.map.placements.len(),
+                    })),
+                });
+            }
+
+            let (Some(project), Some(descriptor)) = (
+                ctx.project.as_ref(),
+                ctx.project
+                    .as_ref()
+                    .and_then(|pr| pr.library.get(&p.piece).cloned()),
+            ) else {
+                return Err(Refusal::new(format!(
+                    "`{}` is not a piece in this project — blueprint_list_pieces lists them",
+                    p.piece
+                )));
+            };
+            let planned = crate::editor::plan_placement(
+                project,
+                open,
+                &descriptor,
+                p.at,
+                p.yaw,
+                p.tip,
+                crate::editor::next_id_after(&open.map) + 1,
+            )
+            .map_err(Refusal::new)?;
+
+            // **The rows it replaces come out first, recorded with their indices** so the inverse can
+            // put each one back where it was rather than at the end of the file.
+            let replaced: Vec<Indexed<blueprint_model::map::Placed>> = planned
+                .replaces
+                .iter()
+                .filter_map(|i| {
+                    open.map
+                        .placements
+                        .get(*i)
+                        .map(|row| Indexed { index: *i, row: row.clone() })
+                })
+                .collect();
+            for row in replaced.iter().rev() {
+                open.map.placements.remove(row.index);
+            }
+            let id = planned.placed.id.clone();
+            let on = planned.placed.on.clone();
+            let y = planned.y;
+            open.map.placements.push(planned.placed);
+
+            let Some(project) = ctx.project.as_ref() else {
+                return Err(Refusal::new("no project is open."));
+            };
+            if let Err(e) = open.save(project) {
+                open.map = before;
+                return Err(Refusal::new(format!(
+                    "the piece was placed but the file refused it, so nothing was written: {e}"
+                )));
+            }
+
+            // **The receipt is the click's own sentence**, word for word: a person and an agent
+            // reading the same act must read the same words, or one of the two is a different
+            // feature.
+            let summary = match (on.clone(), replaced.is_empty()) {
+                (_, false) => format!(
+                    "replaced {} with {id}",
+                    replaced
+                        .iter()
+                        .map(|r| format!("`{}`", r.row.id))
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                ),
+                (Some(host), true) => format!("placed {id} on {host}"),
+                (None, true) => format!("placed {id} at ({:.2}, {:.2})", p.at.0, p.at.1),
+            };
+            Ok(Outcome {
+                summary,
+                affected: 1,
+                saved: true,
+                inverse: Some(json!({
+                    "delta": {
+                        "remove_placements": [id],
+                        "add_placements": replaced,
+                    }
+                })),
+                after: Some(json!({
+                    "map": plan["map"],
+                    "id": id,
+                    "removed": replaced.iter().map(|r| r.row.id.clone()).collect::<Vec<_>>(),
+                    // **What it replaced, as the refusal would have named it** (#443): id, kind, at and cell, so a
+                    // hand-back can list a replacement as one.
+                    "replaced": replaced.iter().map(|r| described(&r.row)).collect::<Vec<_>>(),
+                    "placements": open.map.placements.len(),
+                    "y": y,
+                })),
+            })
+        }
+
+        fn state(&self, ctx: &Ctx) -> Option<serde_json::Value> {
+            let open = ctx.open.as_ref()?;
+            Some(json!({
+                "map": open.map.name,
+                "placements": open.map.placements.len(),
+            }))
+        }
+    }
+}
+
+/// **Import a `.glb` inside the project as a kit piece** — the bridge from golem to the palette (S2.2).
+///
+/// # This is a bridge, not a second importer
+///
+/// **golem is ours and it makes the mesh** (`AGENTS.md`, "Blender is a tool we own"). What this
+/// operation does is the step after that: take a `.glb` that is already inside the project, measure it
+/// with `import::measure`, run the Meshes tab's own four admissions (`tiles::admit_candidate`), and
+/// write it into the library. It shares no code with golem and neither project knows the other's
+/// schema — golem writes `kit.yaml` for kitbashing in Blender, and this writes a `library.yaml`
+/// `Descriptor` for placing on a map. The duplication to refuse is a second *generator*, not a bridge.
+///
+/// # The path is confined to the project
+///
+/// The brief's rule for a file parameter, and the only shape it can take here: the `.glb` must resolve
+/// inside `<root>/assets`, which is the same directory `Descriptor::mesh` is relative to. A path that
+/// escapes is refused by name rather than canonicalized into somewhere unexpected.
+pub mod piece_import {
+    use super::*;
+    use serde_json::json;
+
+    #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+    #[serde(deny_unknown_fields)]
+    pub struct Params {
+        /// The `.glb`, relative to the project root — `assets/inbox/box.glb`.
+        #[serde(default)]
+        pub glb: Option<String>,
+        /// The id to import it under. Absent means the one the measurement proposes (the file stem).
+        #[serde(default)]
+        pub id: Option<String>,
+        /// **The undo's own form**: take this id out of the library.
+        #[serde(default)]
+        pub remove: Option<String>,
+        /// **The undo's own form**: put this descriptor back.
+        #[serde(default)]
+        pub restore: Option<blueprint_model::descriptor::Descriptor>,
+    }
+
+    impl Params {
+        pub fn schema() -> serde_json::Value {
+            json!({
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                    "glb": {
+                        "description": "The mesh to import, as a path relative to the project root. It must be inside the project's assets folder and must be a .glb: a .gltf is refused, because a .gltf is a file plus its .bin and golem exports .glb.",
+                        "type": "string"
+                    },
+                    "id": {
+                        "description": "The id to import it under. Omit and the file's stem is used, in the project's snake_case. A kit's ids are one namespace, so an id already in the library is refused rather than replaced.",
+                        "type": "string"
+                    },
+                    "remove": {
+                        "description": "The id an undo takes out of the library. Only an undo may set this.",
+                        "type": "string"
+                    },
+                    "restore": {
+                        "description": "The descriptor an undo puts back. Only an undo may set this.",
+                        "type": "object"
+                    }
+                }
+            })
+        }
+
+        pub fn parse(raw: &serde_json::Value) -> Result<Params, Refusal> {
+            serde_json::from_value(raw.clone()).map_err(|e| {
+                Refusal::new(format!(
+                    "these are not the parameters for importing a mesh: {e}. The fields are `glb`, \
+                     `id`, `remove` and `restore`; give `glb` to import, or `remove`/`restore` as an \
+                     undo."
+                ))
+            })
+        }
+    }
+
+    pub struct PieceImport;
+
+    impl Operation for PieceImport {
+        fn name(&self) -> &'static str {
+            "piece_import"
+        }
+        fn shows(&self, _ctx: &Ctx, params: &serde_json::Value) -> Shown {
+            match Params::parse(params) {
+                Ok(p) => {
+                    let id = p
+                        .remove
+                        .clone()
+                        .or_else(|| p.restore.as_ref().map(|d| d.id.clone()))
+                        .or(p.id.clone())
+                        .or_else(|| p.glb.as_deref().map(|g| {
+                            let stem = g.rsplit('/').next().unwrap_or(g);
+                            stem.strip_suffix(".glb").unwrap_or(stem).to_owned()
+                        }));
+                    match id {
+                        Some(id) => Shown::Piece { id },
+                        None => Shown::MapWhole,
+                    }
+                }
+                Err(_) => Shown::MapWhole,
+            }
+        }
+        fn writes(&self) -> &'static [&'static str] {
+            &["library"]
+        }
+
+        fn undo(&self) -> Undo {
+            Undo::Inverse
+        }
+
+        fn only_as_undo(&self, params: &serde_json::Value) -> bool {
+            Params::parse(params)
+                .map(|p| p.remove.is_some() || p.restore.is_some())
+                .unwrap_or(false)
+        }
+
+        /// **It writes the library**, so its logged change joins the Meshes history — the same rule
+        /// `label_set` follows, and the reason one Cmd+Z on that tab takes back the newest library
+        /// change whoever made it.
+        fn writes_library(&self) -> bool {
+            true
+        }
+
+        fn schema(&self) -> serde_json::Value {
+            Params::schema()
+        }
+
+        fn plan(&self, ctx: &Ctx, params: &serde_json::Value) -> Result<serde_json::Value, Refusal> {
+            let p = Params::parse(params)?;
+            let Some(project) = ctx.project.as_ref() else {
+                return Err(Refusal::new(
+                    "no project is open, so there is no library to import into.",
+                ));
+            };
+            if let Some(id) = &p.remove {
+                // **A preview of a removal asks the same question the removal does**, through the
+                // project rather than by writing: what places this, what names it in a composition.
+                let used = project.maps_that_place(id).map_err(Refusal::new)?;
+                if !used.is_empty() {
+                    return Err(Refusal::new(format!(
+                        "`{id}` is placed by {} — remove those placements first",
+                        used.iter().map(|m| format!("`{m}`")).collect::<Vec<_>>().join(", ")
+                    )));
+                }
+                return Ok(json!({"remove": id, "would": "take it out of the library"}));
+            }
+            if let Some(d) = &p.restore {
+                return Ok(json!({"restore": d.id, "would": "put it back"}));
+            }
+            let (abs, rel) = resolve(project, p.glb.as_deref())?;
+            let candidate = blueprint_model::import::measure(&abs, &rel, &project.measured);
+            if candidate.blocked() {
+                return Err(Refusal::new(format!(
+                    "this mesh cannot be measured, so there is nothing to add: {}",
+                    candidate
+                        .findings
+                        .iter()
+                        .map(|f| f.message.as_str())
+                        .collect::<Vec<_>>()
+                        .join("; ")
+                )));
+            }
+            let id = p.id.clone().unwrap_or_else(|| candidate.proposed.id.clone());
+            let descriptor = crate::tiles::admit_candidate(project, &candidate, &id)
+                .map_err(Refusal::new)?;
+            Ok(json!({
+                "id": descriptor.id,
+                "mesh": descriptor.mesh,
+                "triangles": candidate.triangles,
+                "kit": project.namespace,
+            }))
+        }
+
+        fn commit(&self, ctx: &mut Ctx, params: &serde_json::Value) -> Result<Outcome, Refusal> {
+            let p = Params::parse(params)?;
+            let plan = self.plan(ctx, params)?;
+            let Some(project) = ctx.project.as_mut() else {
+                return Err(Refusal::new(
+                    "no project is open, so there is no library to import into.",
+                ));
+            };
+
+            // **The undo's two forms.** A removal hands back the descriptor it took out, so the
+            // inverse is this operation again with `restore`.
+            if let Some(id) = &p.remove {
+                let before = project
+                    .measured
+                    .descriptors
+                    .iter()
+                    .find(|d| &d.id == id)
+                    .cloned()
+                    .ok_or_else(|| Refusal::new(format!("`{id}` is not in the library")))?;
+                crate::tiles::take_out_of_library(id, project).map_err(Refusal::new)?;
+                return Ok(Outcome {
+                    summary: format!("took `{id}` out of the library"),
+                    affected: 1,
+                    saved: true,
+                    inverse: Some(json!({"restore": before})),
+                    after: Some(json!({"id": id})),
+                });
+            }
+            if let Some(d) = &p.restore {
+                let mut trial = project.measured.clone();
+                trial.descriptors.push(d.clone());
+                crate::tiles::commit_measured(project, trial).map_err(Refusal::new)?;
+                return Ok(Outcome {
+                    summary: format!("put `{}` back in the library", d.id),
+                    affected: 1,
+                    saved: true,
+                    inverse: Some(json!({"remove": d.id})),
+                    after: Some(json!({"id": d.id})),
+                });
+            }
+
+            let (abs, rel) = resolve(project, p.glb.as_deref())?;
+            let candidate = blueprint_model::import::measure(&abs, &rel, &project.measured);
+            if candidate.blocked() {
+                return Err(Refusal::new(format!(
+                    "this mesh cannot be measured, so there is nothing to add: {}",
+                    candidate
+                        .findings
+                        .iter()
+                        .map(|f| f.message.as_str())
+                        .collect::<Vec<_>>()
+                        .join("; ")
+                )));
+            }
+            let id = p.id.clone().unwrap_or_else(|| candidate.proposed.id.clone());
+            let descriptor = crate::tiles::admit_candidate(project, &candidate, &id)
+                .map_err(Refusal::new)?;
+            let imported = descriptor.id.clone();
+            let mut trial = project.measured.clone();
+            trial.descriptors.push(descriptor);
+            crate::tiles::commit_measured(project, trial).map_err(Refusal::new)?;
+            // **The new piece's breaches of the project's standards** (#138 slice 3), read from the
+            // policy-applied library a placement uses, and from `standards.yaml` as it is now. Reported,
+            // not refused: the piece is admitted either way, and the summary says what it breaks.
+            let (standards, broken) = match project.library.get(&imported) {
+                Some(d) => crate::ops_brp::piece_standards_json(d, &project.project_dir),
+                None => (json!({"breaches": [], "error": null}), Vec::new()),
+            };
+            let summary = if broken.is_empty() {
+                format!("added `{imported}` — it is in the palette now")
+            } else {
+                format!(
+                    "added `{imported}` — it is in the palette now, and it breaks the project's \
+                     standards: {}",
+                    broken.join(", ")
+                )
+            };
+            Ok(Outcome {
+                summary,
+                affected: 1,
+                saved: true,
+                inverse: Some(json!({"remove": imported})),
+                after: Some(json!({
+                    "id": plan["id"],
+                    "kit": plan["kit"],
+                    "mesh": rel,
+                    "standards": standards,
+                })),
+            })
+        }
+    }
+
+    /// **The mesh's absolute path and its project-relative one**, or a refusal.
+    ///
+    /// Two questions in one place: is the file inside `<root>/assets` (the brief's rule for a path
+    /// parameter), and is it a `.glb` (the only container `import::measure` reads — a `.gltf` is a
+    /// file plus its `.bin`, and golem exports `.glb`).
+    fn resolve(
+        project: &Project,
+        glb: Option<&str>,
+    ) -> Result<(std::path::PathBuf, String), Refusal> {
+        let Some(glb) = glb else {
+            return Err(Refusal::new(
+                "no mesh to import — give `glb`, a path to a .glb inside this project's assets folder",
+            ));
+        };
+        let assets = project.root.join("assets");
+        let joined = project.root.join(glb);
+        let abs = joined
+            .canonicalize()
+            .map_err(|e| Refusal::new(format!("`{glb}`: {e}")))?;
+        let canonical_assets = assets.canonicalize().unwrap_or(assets);
+        if !abs.starts_with(&canonical_assets) {
+            return Err(Refusal::new(format!(
+                "`{glb}` is not inside this project's assets folder"
+            )));
+        }
+        if abs.extension().is_none_or(|e| e != "glb") {
+            return Err(Refusal::new(format!("`{glb}` is not a .glb file")));
+        }
+        let rel = abs
+            .strip_prefix(&canonical_assets)
+            .map(|r| r.to_string_lossy().replace('\\', "/"))
+            .unwrap_or_else(|_| glb.to_owned());
+        Ok((abs, rel))
+    }
+}
+
+/// **Send one piece back out of the library, and put it back (E-002, #129 slice 8).**
+///
+/// `Delete` on the Meshes tab's library shelf took a piece out of `library.yaml` with a write of its
+/// own, so an agent could import a piece and never un-import one (the removal existed only as
+/// `piece_import`'s undo form), the key left no operation-log line, and the registry's two-front-end
+/// rule listed it as unmigrated. This is the same removal, named: `id` takes the piece out, and the
+/// mesh it came from is a candidate again the next time the shelf is scanned.
+///
+/// # The refusals are the key's own
+///
+/// A piece a map places, or a composition holds, is refused by name and nothing is written: an
+/// orphaned placement is a piece that silently fails to appear. The plan asks the same questions the
+/// write does ([`crate::tiles::remove_blockers`], `Project::maps_that_place`), so a preview refuses
+/// what the commit would.
+///
+/// # Undo is the descriptor, back where it stood
+///
+/// The inverse is this operation again with `restore` (the whole descriptor as it was, authored
+/// judgements included) and `at` (the place it held among the library's descriptors, so the file is
+/// as it was when removals are undone newest first, as Cmd+Z does; an older removal undone first
+/// lands by its recorded place and the file's order may differ by one). **Both are undo-only** ([`Operation::only_as_undo`]): an agent that wants a mesh in
+/// the library imports it, measured fresh, with `piece_import`.
+pub mod piece_remove {
+    use super::*;
+    use blueprint_model::descriptor::Descriptor;
+    use serde_json::json;
+
+    #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+    #[serde(deny_unknown_fields)]
+    pub struct Params {
+        /// The library id to take out, as the Meshes shelf names it.
+        #[serde(default)]
+        pub id: Option<String>,
+        /// **Undo only.** The descriptor to put back.
+        #[serde(default)]
+        pub restore: Option<Descriptor>,
+        /// **Undo only.** Where `restore` stood among the library's descriptors.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        pub at: Option<usize>,
+    }
+
+    fn parse(raw: &serde_json::Value) -> Result<Params, Refusal> {
+        let p: Params = serde_json::from_value(raw.clone()).map_err(|e| {
+            Refusal::new(format!(
+                "this is not a piece to remove: {e}. The field is `id`, the piece's id in the library \
+                 (`site/wall`)."
+            ))
+        })?;
+        match (&p.id, &p.restore, p.at) {
+            (Some(_), None, None) | (None, Some(_), _) => Ok(p),
+            (None, None, _) => Err(Refusal::new(
+                "no piece to remove \u{2014} give `id`, the piece's id in the library (`site/wall`). \
+                 Nothing was changed.",
+            )),
+            _ => Err(Refusal::new(
+                "`id` takes a piece out; `restore` and `at` put one back and only an undo sends them, \
+                 and not with `id`. Nothing was changed.",
+            )),
+        }
+    }
+
+    /// **What would go, where it stood and the mesh that would come back**, or the refusal.
+    fn leaving(project: &Project, id: &str) -> Result<(Descriptor, usize, Option<String>), Refusal> {
+        let used = project.maps_that_place(id).map_err(Refusal::new)?;
+        if !used.is_empty() {
+            return Err(Refusal::new(format!(
+                "`{id}` is placed by {} \u{2014} remove those placements first",
+                used.iter().map(|m| format!("`{m}`")).collect::<Vec<_>>().join(", ")
+            )));
+        }
+        let mesh = crate::tiles::remove_blockers(id, project).map_err(Refusal::new)?;
+        let Some(at) = project.measured.descriptors.iter().position(|d| d.id == id) else {
+            return Err(Refusal::new(match project.kit_of(id) {
+                Some(kit) => format!(
+                    "`{id}` belongs to `{kit}`, not to `{}` \u{2014} open that kit to send it back.",
+                    project.namespace
+                ),
+                None => format!("`{id}` is not in this kit"),
+            }));
+        };
+        Ok((project.measured.descriptors[at].clone(), at, mesh))
+    }
+
+    /// **What an undo compares, and what the change answers in `after`.** The key is `id`, the name
+    /// every library change is scoped by, so a newer change to another piece never blocks this undo.
+    /// `mesh` rides along so the shelf can land on the reborn candidate without reading the file.
+    fn state_json(id: &str, removed: bool, mesh: Option<&str>) -> serde_json::Value {
+        json!({"id": id, "removed": removed, "mesh": mesh})
+    }
+
+    /// **Take one piece out of the library, or (an undo) put it back.**
+    pub struct PieceRemove;
+
+    impl Operation for PieceRemove {
+        fn name(&self) -> &'static str {
+            "piece_remove"
+        }
+        fn shows(&self, _ctx: &Ctx, params: &serde_json::Value) -> Shown {
+            match parse(params) {
+                Ok(p) => match p.restore.as_ref().map(|d| d.id.clone()).or_else(|| p.id.clone()) {
+                    Some(id) => Shown::Piece { id },
+                    None => Shown::MapWhole,
+                },
+                Err(_) => Shown::MapWhole,
+            }
+        }
+        fn writes(&self) -> &'static [&'static str] {
+            &["library"]
+        }
+
+        fn undo(&self) -> Undo {
+            Undo::Inverse
+        }
+
+        /// **It writes the library**, so its logged change joins the Meshes history, as an import's does.
+        fn writes_library(&self) -> bool {
+            true
+        }
+
+        /// **A put-back is never a request an agent may send.**
+        fn only_as_undo(&self, params: &serde_json::Value) -> bool {
+            parse(params).is_ok_and(|p| p.restore.is_some())
+        }
+
+        fn schema(&self) -> serde_json::Value {
+            json!({
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["id"],
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "description": "The piece's id in the library, as the Meshes shelf names it, e.g. site/wall. It is refused while a map places it or a composition holds it. Its mesh is a candidate again, measured fresh, with none of the piece's judgements; one undo puts the piece back exactly as it was."
+                    }
+                }
+            })
+        }
+
+        /// **Whether the piece is out of the library now**, against what the change recorded.
+        fn state_of(&self, ctx: &Ctx, after: &serde_json::Value) -> Option<serde_json::Value> {
+            let id = after.get("id")?.as_str()?;
+            let project = ctx.project.as_ref()?;
+            let present = project.measured.descriptors.iter().any(|d| d.id == id);
+            Some(json!({
+                "id": id,
+                "removed": !present,
+                "mesh": after.get("mesh").cloned().unwrap_or(serde_json::Value::Null),
+            }))
+        }
+
+        fn plan(&self, ctx: &Ctx, params: &serde_json::Value) -> Result<serde_json::Value, Refusal> {
+            let p = parse(params)?;
+            let Some(project) = ctx.project.as_ref() else {
+                return Err(Refusal::new(
+                    "no project is open, so there is no library to remove a piece from.",
+                ));
+            };
+            if let Some(d) = &p.restore {
+                if project.measured.descriptors.iter().any(|m| m.id == d.id) {
+                    return Err(Refusal::new(format!(
+                        "`{}` is already in the library, so nothing was put back.",
+                        d.id
+                    )));
+                }
+                let mut trial = project.measured.clone();
+                let at = p.at.unwrap_or(trial.descriptors.len()).min(trial.descriptors.len());
+                trial.descriptors.insert(at, d.clone());
+                crate::tiles::check_measured(project, &trial).map_err(Refusal::new)?;
+                return Ok(state_json(&d.id, false, d.mesh.as_deref()));
+            }
+            let id = p.id.as_deref().unwrap_or_default();
+            let (_, at, mesh) = leaving(project, id)?;
+            // **The project's own verdict, before anything is written**: a policy rule that names the
+            // piece, or a surface only it offered, refuses the library without it, and a preview must
+            // say so as the commit will.
+            let mut trial = project.measured.clone();
+            trial.descriptors.remove(at);
+            crate::tiles::check_measured(project, &trial).map_err(Refusal::new)?;
+            Ok(state_json(id, true, mesh.as_deref()))
+        }
+
+        fn commit(&self, ctx: &mut Ctx, params: &serde_json::Value) -> Result<Outcome, Refusal> {
+            let p = parse(params)?;
+            self.plan(ctx, params)?;
+            let Some(project) = ctx.project.as_mut() else {
+                return Err(Refusal::new(
+                    "no project is open, so there is no library to remove a piece from.",
+                ));
+            };
+            if let Some(d) = &p.restore {
+                let mut trial = project.measured.clone();
+                let at = p.at.unwrap_or(trial.descriptors.len()).min(trial.descriptors.len());
+                trial.descriptors.insert(at, d.clone());
+                crate::tiles::commit_measured(project, trial).map_err(Refusal::new)?;
+                return Ok(Outcome {
+                    summary: format!("put `{}` back in the library", d.id),
+                    affected: 1,
+                    saved: true,
+                    inverse: Some(json!({"id": d.id})),
+                    after: Some(state_json(&d.id, false, d.mesh.as_deref())),
+                });
+            }
+            let id = p.id.as_deref().unwrap_or_default();
+            let (before, at, mesh) = leaving(project, id)?;
+            crate::tiles::take_out_of_library(id, project).map_err(Refusal::new)?;
+            let summary = match &mesh {
+                Some(m) => format!(
+                    "sent `{id}` back out of the library \u{2014} `{m}` is a candidate again, measured fresh"
+                ),
+                None => format!("removed `{id}` from the library \u{2014} it named no mesh, so nothing came back"),
+            };
+            Ok(Outcome {
+                summary,
+                affected: 1,
+                saved: true,
+                inverse: Some(json!({"restore": before, "at": at})),
+                after: Some(state_json(id, true, mesh.as_deref())),
+            })
+        }
+    }
+}
+
+/// **Turn one library piece's mesh a quarter turn about an axis, and re-measure it (E-002, #129
+/// slice 9).**
+///
+/// `N`, `O` and `P` on the Meshes tab, the three rotate chips and the labeler's righting turned a
+/// library piece with a write of their own, so an agent could place a piece and never turn its mesh
+/// upright, no log line named the turn, and the registry's two-front-end rule listed the three keys
+/// as unmigrated. This is the same turn, named: `id` picks the piece, `axis` (`x`, `y` or `z`) the
+/// axis and `quarters` (1 to 3, default 1) the count, in one act with one re-measure.
+///
+/// # The refusals are the key's own
+///
+/// A turn about X or Z swaps the piece's height with a floor axis and has no mapping for authored
+/// cells, so a piece that has some is refused, naming the count, unless `force` is true, which clears
+/// them. A piece with no mesh, a mesh the file system cannot open and a library the project would
+/// refuse after the turn (a placed piece that no longer fits its lattice) are refused before anything
+/// is written, by the plan as well as the commit ([`crate::tiles::turn_descriptor`] is the one rule).
+///
+/// # Undo is the descriptor, as it was
+///
+/// The inverse is this operation again with `restore` (the whole descriptor before the turn: its
+/// rotation, extent, pivot, lift and lattice), an undo-only form ([`Operation::only_as_undo`]) an
+/// agent cannot send. A turn needs the mesh to be on disk, a put-back does not.
+pub mod piece_turn {
+    use super::*;
+    use blueprint_model::descriptor::Descriptor;
+    use serde_json::json;
+
+    #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+    #[serde(deny_unknown_fields)]
+    pub struct Params {
+        /// The library piece's id, as the Meshes shelf names it.
+        pub id: String,
+        /// `x`, `y` or `z`. Absent on an undo's put-back.
+        #[serde(default)]
+        pub axis: Option<String>,
+        /// Quarter turns, 1 to 3. Absent means one.
+        #[serde(default)]
+        pub quarters: Option<u8>,
+        /// Clear authored cells a turn about X or Z cannot carry, instead of refusing.
+        #[serde(default)]
+        pub force: bool,
+        /// **Undo only.** The descriptor to put back.
+        #[serde(default)]
+        pub restore: Option<Descriptor>,
+    }
+
+    enum Request {
+        Turn {
+            id: String,
+            axis: crate::tiles::RotateAxis,
+            quarters: u8,
+            force: bool,
+        },
+        Restore {
+            id: String,
+            restore: Box<Descriptor>,
+        },
+    }
+
+    fn request(raw: &serde_json::Value) -> Result<Request, Refusal> {
+        let p: Params = serde_json::from_value(raw.clone()).map_err(|e| {
+            Refusal::new(format!(
+                "this is not a turn: {e}. The fields are `id`, `axis` (`x`, `y` or `z`), `quarters` \
+                 (1 to 3) and `force`."
+            ))
+        })?;
+        match (p.axis, p.quarters, p.restore) {
+            (Some(axis), quarters, None) => {
+                let Some(axis) = crate::tiles::RotateAxis::parse(&axis) else {
+                    return Err(Refusal::new(format!(
+                        "`{axis}` is not an axis: give `x`, `y` or `z`. Nothing was turned."
+                    )));
+                };
+                let quarters = quarters.unwrap_or(1);
+                if !(1..=3).contains(&quarters) {
+                    return Err(Refusal::new(format!(
+                        "{quarters} quarter turns is not a turn: give 1, 2 or 3 (four is where the \
+                         piece started). Nothing was turned."
+                    )));
+                }
+                Ok(Request::Turn {
+                    id: p.id,
+                    axis,
+                    quarters,
+                    force: p.force,
+                })
+            }
+            (None, None, Some(restore)) if !p.force => {
+                if restore.id != p.id {
+                    return Err(Refusal::new(format!(
+                        "the put-back is `{}`, not `{}`. Nothing was changed.",
+                        restore.id, p.id
+                    )));
+                }
+                Ok(Request::Restore {
+                    id: p.id,
+                    restore: Box::new(restore),
+                })
+            }
+            (None, _, None) => Err(Refusal::new(
+                "a turn needs `id` and `axis` (`x`, `y` or `z`). Nothing was turned.",
+            )),
+            _ => Err(Refusal::new(
+                "`axis` turns a piece; `restore` puts one back and only an undo sends it, and not with \
+                 `axis`, `quarters` or `force`. Nothing was changed.",
+            )),
+        }
+    }
+
+    /// **What an undo compares, and what the change answers in `after`.** The key is `id`, the name
+    /// every library change is scoped by, so a newer change to another piece never blocks this undo.
+    fn state_json(d: &Descriptor) -> serde_json::Value {
+        json!({"id": d.id, "rotate": d.align.rotate})
+    }
+
+    struct Edit {
+        measured: blueprint_model::library::Library,
+        /// The descriptor as it stood, for the inverse.
+        before: Descriptor,
+        after: Descriptor,
+        summary: String,
+    }
+
+    /// **The edit, computed on a copy of the measured library.** Nothing is written here; the commit
+    /// does that, so a refused turn leaves the piece as it was.
+    fn edit(project: &Project, req: &Request) -> Result<Edit, Refusal> {
+        let id = match req {
+            Request::Turn { id, .. } | Request::Restore { id, .. } => id,
+        };
+        let mut measured = (*project.measured).clone();
+        let Some(index) = measured.descriptors.iter().position(|d| &d.id == id) else {
+            if let Some(ns) = project.other_kit_of(id) {
+                return Err(Refusal::new(format!(
+                    "`{id}` belongs to kit `{ns}`, not the kit being authored (`{}`), so nothing was turned.",
+                    project.namespace
+                )));
+            }
+            let ids: Vec<&str> = measured.descriptors.iter().map(|d| d.id.as_str()).collect();
+            let hint = match nearest_ids(&ids, id) {
+                near if near.is_empty() => String::new(),
+                near => format!(" Close ids: {}.", near.join(", ")),
+            };
+            return Err(Refusal::new(format!(
+                "no library piece is called `{id}`, so nothing was turned.{hint} Pick one from the \
+                 Meshes shelf."
+            )));
+        };
+        let before = measured.descriptors[index].clone();
+        let summary = match req {
+            Request::Turn {
+                axis,
+                quarters,
+                force,
+                ..
+            } => {
+                // **Before the extent moves**: a Y turn maps the cells onto the turned piece, and the
+                // mapping reads the divisions they were authored against, as the piece is placed.
+                let div_before = project
+                    .library
+                    .get(id)
+                    .and_then(|placed| project.divisions_of(placed).ok());
+                let d = &mut measured.descriptors[index];
+                crate::tiles::turn_descriptor(d, &project.root, *axis, *quarters, *force, div_before)
+                    .map_err(|why| Refusal::new(format!("{why}. Nothing was turned.")))?
+            }
+            Request::Restore { restore, .. } => {
+                measured.descriptors[index] = (**restore).clone();
+                format!("put `{id}` back as it was before it was turned")
+            }
+        };
+        let after = measured.descriptors[index].clone();
+        // **The project must take it, asked now**, so a preview refuses what the commit would refuse.
+        crate::tiles::check_measured(project, &measured).map_err(|why| {
+            Refusal::new(format!("the project would not take this, so nothing was turned: {why}"))
+        })?;
+        Ok(Edit {
+            measured,
+            before,
+            after,
+            summary,
+        })
+    }
+
+    /// **Turn one library piece's mesh, or (an undo) put it back.**
+    pub struct PieceTurn;
+
+    impl Operation for PieceTurn {
+        fn name(&self) -> &'static str {
+            "piece_turn"
+        }
+        fn shows(&self, _ctx: &Ctx, params: &serde_json::Value) -> Shown {
+            match request(params) {
+                Ok(Request::Turn { id, .. }) | Ok(Request::Restore { id, .. }) => Shown::Piece { id },
+                Err(_) => Shown::MapWhole,
+            }
+        }
+        fn writes(&self) -> &'static [&'static str] {
+            &["library"]
+        }
+
+        fn undo(&self) -> Undo {
+            Undo::Inverse
+        }
+
+        /// **It writes the library**, so its logged change joins the Meshes history, as an import's does.
+        fn writes_library(&self) -> bool {
+            true
+        }
+
+        /// **A put-back is never a request an agent may send.**
+        fn only_as_undo(&self, params: &serde_json::Value) -> bool {
+            matches!(request(params), Ok(Request::Restore { .. }))
+        }
+
+        fn schema(&self) -> serde_json::Value {
+            json!({
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["id", "axis"],
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "description": "The library piece's id, as blueprint/pieces names it, e.g. site/wall."
+                    },
+                    "axis": {
+                        "type": "string",
+                        "enum": ["x", "y", "z"],
+                        "description": "The axis to turn the piece's mesh about. A turn about x or z swaps its height with a floor axis and has no mapping for authored cells."
+                    },
+                    "quarters": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 3,
+                        "description": "How many quarter turns, in one act with one re-measure. Default 1."
+                    },
+                    "force": {
+                        "type": "boolean",
+                        "description": "Turn a piece that has authored cells about x or z anyway, clearing them. Without it such a piece is refused, naming the count."
+                    }
+                }
+            })
+        }
+
+        /// **The piece's rotation now**, against the one the change recorded. A piece that has gone
+        /// missing answers nothing, so an undo cannot match it.
+        fn state_of(&self, ctx: &Ctx, after: &serde_json::Value) -> Option<serde_json::Value> {
+            let id = after.get("id")?.as_str()?;
+            let project = ctx.project.as_ref()?;
+            let d = project.measured.descriptors.iter().find(|d| d.id == id)?;
+            Some(state_json(d))
+        }
+
+        fn plan(&self, ctx: &Ctx, params: &serde_json::Value) -> Result<serde_json::Value, Refusal> {
+            let req = request(params)?;
+            let Some(project) = ctx.project.as_ref() else {
+                return Err(Refusal::new("no project is open, so there is no library to turn a piece in."));
+            };
+            Ok(state_json(&edit(project, &req)?.after))
+        }
+
+        fn commit(&self, ctx: &mut Ctx, params: &serde_json::Value) -> Result<Outcome, Refusal> {
+            let req = request(params)?;
+            let Some(project) = ctx.project.as_mut() else {
+                return Err(Refusal::new("no project is open, so there is no library to turn a piece in."));
+            };
+            let Edit {
+                measured,
+                before,
+                after,
+                summary,
+            } = edit(project, &req)?;
+            crate::tiles::commit_measured(project, measured).map_err(Refusal::new)?;
+            Ok(Outcome {
+                summary,
+                affected: 1,
+                saved: true,
+                // **Redo is the same put-back**, of the turned descriptor.
+                inverse: Some(json!({"id": before.id, "restore": before})),
+                after: Some(state_json(&after)),
+            })
+        }
+    }
+}
+
+/// **Mark, open, type or forget cells of a library piece's lattice (E-002, #129 slice 10).**
+///
+/// The `Z`, `X` and `V` keys on the Meshes tab and the lattice grid's chips and headers wrote a
+/// piece's cells with a write of their own, so an agent could set a piece's edge tokens by labelling
+/// and never mark a cell solid or open, no log line named the edit, and the registry's two-front-end
+/// rule listed the three keys as unmigrated. This is the same edit, named: `id` picks the piece,
+/// `cells` the cells (`[x, y, z]`, any number, one act and one undo) and exactly one of `solid`
+/// (true marks them, false opens them), `edge` (a token; an empty one clears it) or `clear` (forget
+/// the cell) says what to do to them.
+///
+/// # The refusals are the grid's own
+///
+/// A cell outside the lattice the piece stands on is refused, naming it and the lattice's size,
+/// before any cell is written (the keys wrote the cells before it and then said the last was outside).
+/// An edit that would change nothing is refused too, so the log never holds an empty line.
+/// The plan asks the project as the commit does ([`crate::tiles::check_measured`]), so a token the
+/// vocabulary does not hold is refused in a preview.
+///
+/// # Undo is the lattice, as it was
+///
+/// The inverse is this operation again with `restore` (the whole lattice, or none), undo-only.
+pub mod piece_set_cells {
+    use super::*;
+    use blueprint_model::descriptor::{Descriptor, Subgrid};
+    use serde_json::json;
+
+    /// **What an undo puts back**: the lattice as it was, or none.
+    #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+    #[serde(deny_unknown_fields)]
+    pub struct Restore {
+        pub subgrid: Option<Subgrid>,
+    }
+
+    #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+    #[serde(deny_unknown_fields)]
+    pub struct Params {
+        /// The library piece's id, as the Meshes shelf names it.
+        pub id: String,
+        /// The cells, as `[x, y, z]`.
+        #[serde(default)]
+        pub cells: Vec<(u32, u32, u32)>,
+        /// `true` marks the cells solid, `false` opens them.
+        #[serde(default)]
+        pub solid: Option<bool>,
+        /// An edge token to put on the cells. An empty one takes the token off.
+        #[serde(default)]
+        pub edge: Option<String>,
+        /// Forget everything about the cells.
+        #[serde(default)]
+        pub clear: bool,
+        /// Per-cell edge tokens, each `{at: [x, y, z], token}`, written as one act. This is the verb that
+        /// keeps the edges a mesh scan derived: one token per boundary cell, not one token for every cell.
+        #[serde(default)]
+        pub edges: Option<Vec<EdgeAt>>,
+        /// `true` reads the piece's mesh and marks every cell it occupies solid (what `B` on the Meshes
+        /// tab does). It names its own cells, so it is given without `cells`; edge tokens and cells
+        /// already marked are left as they are.
+        #[serde(default)]
+        pub scan: bool,
+        /// **Undo only.** The lattice to put back.
+        #[serde(default)]
+        pub restore: Option<Restore>,
+    }
+
+    /// One cell and the edge token it takes.
+    #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+    #[serde(deny_unknown_fields)]
+    pub struct EdgeAt {
+        pub at: (u32, u32, u32),
+        pub token: String,
+    }
+
+    enum Change {
+        Solid(bool),
+        Edge(String),
+        Edges(Vec<((u32, u32, u32), String)>),
+        Scan,
+        Clear,
+    }
+
+    enum Request {
+        Set {
+            id: String,
+            cells: Vec<(u32, u32, u32)>,
+            change: Change,
+        },
+        Restore {
+            id: String,
+            restore: Restore,
+        },
+    }
+
+    fn request(raw: &serde_json::Value) -> Result<Request, Refusal> {
+        let p: Params = serde_json::from_value(raw.clone()).map_err(|e| {
+            Refusal::new(format!(
+                "this is not a cell edit: {e}. The fields are `id`, `cells` (`[x, y, z]` each) and one \
+                 of `solid`, `edge` or `clear`."
+            ))
+        })?;
+        if let Some(restore) = p.restore {
+            if p.cells.is_empty() && p.solid.is_none() && p.edge.is_none() && p.edges.is_none() && !p.clear && !p.scan {
+                return Ok(Request::Restore { id: p.id, restore });
+            }
+            return Err(Refusal::new(
+                "a put-back is the whole lattice, so it takes `id` and `restore` and nothing else; \
+                 only an undo sends it. Nothing was changed.",
+            ));
+        }
+        let verbs = usize::from(p.solid.is_some())
+            + usize::from(p.edge.is_some())
+            + usize::from(p.edges.is_some())
+            + usize::from(p.clear)
+            + usize::from(p.scan);
+        if verbs != 1 {
+            return Err(Refusal::new(
+                "an edit does one thing to its cells: give exactly one of `solid` (true or false), \
+                 `edge` (a token, empty to clear it), `edges` (a token for each cell), `clear` or \
+                 `scan`. Nothing was changed.",
+            ));
+        }
+        if p.scan {
+            if !p.cells.is_empty() {
+                return Err(Refusal::new(
+                    "`scan` names its own cells (the ones the mesh occupies), so give it without `cells`. \
+                     Nothing was changed.",
+                ));
+            }
+            return Ok(Request::Set { id: p.id, cells: Vec::new(), change: Change::Scan });
+        }
+        if let Some(edges) = p.edges {
+            if !p.cells.is_empty() {
+                return Err(Refusal::new(
+                    "`edges` names its own cells, so give it without `cells`. Nothing was changed.",
+                ));
+            }
+            if edges.is_empty() {
+                return Err(Refusal::new("no edges to write \u{2014} give `edges`, each `{at: [x, y, z], token}`. Nothing was changed."));
+            }
+            let mut seen: Vec<(u32, u32, u32)> = edges.iter().map(|e| e.at).collect();
+            seen.sort_unstable();
+            if let Some(pair) = seen.windows(2).find(|w| w[0] == w[1]) {
+                return Err(Refusal::new(format!(
+                    "cell {} is named twice in `edges`, so which token it takes is not said. Nothing was changed.",
+                    at_text(pair[0])
+                )));
+            }
+            return Ok(Request::Set {
+                id: p.id,
+                cells: edges.iter().map(|e| e.at).collect(),
+                change: Change::Edges(
+                    edges
+                        .into_iter()
+                        .map(|e| (e.at, blueprint_model::naming::to_snake_case(&e.token)))
+                        .collect(),
+                ),
+            });
+        }
+        if p.cells.is_empty() {
+            return Err(Refusal::new("no cells to edit \u{2014} give `cells`, each `[x, y, z]`. Nothing was changed."));
+        }
+        let change = match (p.solid, p.edge) {
+            (Some(solid), _) => Change::Solid(solid),
+            (_, Some(edge)) => Change::Edge(blueprint_model::naming::to_snake_case(&edge)),
+            _ => Change::Clear,
+        };
+        Ok(Request::Set {
+            id: p.id,
+            cells: p.cells,
+            change,
+        })
+    }
+
+    fn state_json(d: &Descriptor) -> serde_json::Value {
+        json!({"id": d.id, "lattice": d.subgrid})
+    }
+
+    struct Edit {
+        measured: blueprint_model::library::Library,
+        before: Restore,
+        after: Option<Subgrid>,
+        summary: String,
+        id: String,
+    }
+
+    fn at_text(at: (u32, u32, u32)) -> String {
+        format!("{},{},{}", at.0, at.1, at.2)
+    }
+
+    /// **The cells a piece's mesh occupies**, read the way the Meshes tab's scan reads it: in the
+    /// frame the piece's divisions were derived in (`align.rotate` already baked into its extent), so a
+    /// turned piece does not come back as a transposed lattice.
+    pub(crate) fn scan_cells(
+        project: &Project,
+        id: &str,
+        div: (u32, u32, u32),
+    ) -> Result<Vec<(u32, u32, u32)>, Refusal> {
+        let Some(d) = project.measured.descriptors.iter().find(|d| d.id == id) else {
+            return Err(Refusal::new(format!("no library piece is called `{id}`, so nothing was changed.")));
+        };
+        let Some(mesh) = d.mesh.clone() else {
+            return Err(Refusal::new(format!("`{id}` has no mesh to scan, so nothing was changed.")));
+        };
+        let rotate = match d.align.rotate {
+            Some(r) => blueprint_model::descriptor::quarter_turns_xyz(r, &d.id).map_err(Refusal::new)?,
+            None => (0, 0, 0),
+        };
+        let path = project.root.join("assets").join(&mesh);
+        blueprint_model::glb::Glb::open(&path)
+            .and_then(|glb| blueprint_model::import::occupancy(&glb, div, rotate))
+            .map_err(|why| Refusal::new(format!("{mesh}: {why}, so nothing was changed.")))
+    }
+
+    /// **The edit, computed on a copy of the measured library.** Nothing is written here.
+    fn edit(project: &Project, req: &Request) -> Result<Edit, Refusal> {
+        let id = match req {
+            Request::Set { id, .. } | Request::Restore { id, .. } => id,
+        };
+        let mut measured = (*project.measured).clone();
+        let Some(index) = measured.descriptors.iter().position(|d| &d.id == id) else {
+            if let Some(ns) = project.other_kit_of(id) {
+                return Err(Refusal::new(format!(
+                    "`{id}` belongs to kit `{ns}`, not the kit being authored (`{}`), so nothing was changed.",
+                    project.namespace
+                )));
+            }
+            let ids: Vec<&str> = measured.descriptors.iter().map(|d| d.id.as_str()).collect();
+            let hint = match nearest_ids(&ids, id) {
+                near if near.is_empty() => String::new(),
+                near => format!(" Close ids: {}.", near.join(", ")),
+            };
+            return Err(Refusal::new(format!(
+                "no library piece is called `{id}`, so nothing was changed.{hint} Pick one from the \
+                 Meshes shelf."
+            )));
+        };
+        let before = Restore {
+            subgrid: measured.descriptors[index].subgrid.clone(),
+        };
+        let summary = match req {
+            Request::Restore { restore, .. } => {
+                measured.descriptors[index].subgrid = restore.subgrid.clone();
+                format!("put `{id}`'s lattice back as it was")
+            }
+            Request::Set { cells, change, .. } => {
+                // **The lattice as the piece is placed**, the one a write is range-checked against.
+                let div = project
+                    .library
+                    .get(id)
+                    .ok_or_else(|| Refusal::new(format!("`{id}` is not in the layered library, so it has no lattice.")))
+                    .and_then(|placed| project.divisions_of(placed).map_err(Refusal::new))?;
+                let mut cells = if matches!(change, Change::Scan) {
+                    let found = scan_cells(project, id, div)?;
+                    if found.is_empty() {
+                        return Err(Refusal::new(format!(
+                            "the mesh of `{id}` occupies no cell of its {}x{}x{} lattice, so nothing was changed.",
+                            div.0, div.1, div.2
+                        )));
+                    }
+                    found
+                } else {
+                    cells.clone()
+                };
+                cells.sort_unstable();
+                cells.dedup();
+                if let Some(&out) = cells
+                    .iter()
+                    .find(|c| c.0 >= div.0 || c.1 >= div.1 || c.2 >= div.2)
+                {
+                    return Err(Refusal::new(format!(
+                        "cell {} is outside `{id}`'s {}x{}x{} lattice, so nothing was changed.",
+                        at_text(out),
+                        div.0,
+                        div.1,
+                        div.2
+                    )));
+                }
+                let d = &mut measured.descriptors[index];
+                let solid_now = |d: &Descriptor, at| {
+                    d.subgrid
+                        .as_ref()
+                        .is_some_and(|g| g.cells.iter().any(|c| c.at == at && c.solid))
+                };
+                match change {
+                    Change::Solid(want) => {
+                        for &at in &cells {
+                            match (*want, solid_now(d, at)) {
+                                (true, false) => {
+                                    d.lattice_mut().set_solid(at, div);
+                                }
+                                (false, true) => {
+                                    d.lattice_mut().toggle_solid(at, div);
+                                }
+                                _ => {}
+                            }
+                        }
+                    }
+                    Change::Edge(token) => {
+                        for &at in &cells {
+                            d.lattice_mut().set_edge(at, div, token);
+                        }
+                    }
+                    Change::Edges(edges) => {
+                        for (at, token) in edges {
+                            d.lattice_mut().set_edge(*at, div, token);
+                        }
+                    }
+                    Change::Scan => {
+                        for &at in &cells {
+                            if !solid_now(d, at) {
+                                d.lattice_mut().set_solid(at, div);
+                            }
+                        }
+                    }
+                    Change::Clear => {
+                        if let Some(grid) = d.subgrid.as_mut() {
+                            for &at in &cells {
+                                grid.clear(at);
+                            }
+                        }
+                    }
+                }
+                d.settle_lattice();
+                if d.subgrid == before.subgrid {
+                    return Err(Refusal::new(format!(
+                        "that would change nothing on `{id}` (the cells already are so), so nothing was changed."
+                    )));
+                }
+                let many = cells.len() > 1;
+                let which = if many {
+                    format!("{} cells", cells.len())
+                } else {
+                    format!("cell {}", at_text(cells[0]))
+                };
+                match change {
+                    Change::Solid(true) if many => format!("{which} solid"),
+                    Change::Solid(true) => format!("{which} is solid"),
+                    Change::Solid(false) if many => format!("{which} open"),
+                    Change::Solid(false) => format!("{which} is open"),
+                    Change::Edge(t) if t.is_empty() && many => format!("{which}' tokens cleared"),
+                    Change::Edge(t) if t.is_empty() => format!("{which} token cleared"),
+                    Change::Edge(t) if many => format!("{which} = `{t}`"),
+                    Change::Edge(t) => format!("{which} = `{t}`"),
+                    Change::Edges(_) if many => format!("{which}' edge tokens written"),
+                    Change::Edges(_) => format!("{which} edge token written"),
+                    Change::Scan => {
+                        let total = Subgrid::volume(div);
+                        let mesh = measured.descriptors[index].mesh.clone().unwrap_or_default();
+                        format!("scanned {mesh}: {} of {total} cells solid", cells.len())
+                    }
+                    Change::Clear => format!("{which} cleared"),
+                }
+            }
+        };
+        let after = measured.descriptors[index].subgrid.clone();
+        // **The project must take it, asked now**, so a preview refuses what the commit would refuse
+        // (an edge token the vocabulary does not hold).
+        crate::tiles::check_measured(project, &measured).map_err(|why| {
+            Refusal::new(format!("the project would not take this, so nothing was changed: {why}"))
+        })?;
+        Ok(Edit {
+            measured,
+            before,
+            after,
+            summary,
+            id: id.clone(),
+        })
+    }
+
+    /// **Edit cells of one library piece's lattice, or (an undo) put the lattice back.**
+    pub struct PieceSetCells;
+
+    impl Operation for PieceSetCells {
+        fn name(&self) -> &'static str {
+            "piece_set_cells"
+        }
+        fn shows(&self, _ctx: &Ctx, params: &serde_json::Value) -> Shown {
+            // **A piece's lattice is the Tiles tab's own panel**, keyed by the piece.
+            match params.get("id").and_then(serde_json::Value::as_str) {
+                Some(id) => Shown::Tile { id: id.to_owned() },
+                None => Shown::MapWhole,
+            }
+        }
+        fn writes(&self) -> &'static [&'static str] {
+            &["library"]
+        }
+
+        fn undo(&self) -> Undo {
+            Undo::Inverse
+        }
+
+        /// **It writes the library**, so its logged change joins the Meshes history.
+        fn writes_library(&self) -> bool {
+            true
+        }
+
+        /// **A put-back is never a request an agent may send.**
+        fn only_as_undo(&self, params: &serde_json::Value) -> bool {
+            matches!(request(params), Ok(Request::Restore { .. }))
+        }
+
+        fn schema(&self) -> serde_json::Value {
+            json!({
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["id"],
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "description": "The library piece's id, as blueprint/pieces names it, e.g. site/wall."
+                    },
+                    "cells": {
+                        "type": "array",
+                        "minItems": 1,
+                        "items": {"type": "array", "items": {"type": "integer", "minimum": 0}, "minItems": 3, "maxItems": 3},
+                        "description": "The lattice cells to edit, each [x, y, z]; required with solid, edge or clear, and not given with edges. A cell outside the piece's lattice refuses the whole edit."
+                    },
+                    "solid": {
+                        "type": "boolean",
+                        "description": "true marks the cells solid, false opens them. Give exactly one of solid, edge, edges, clear or scan."
+                    },
+                    "edge": {
+                        "type": "string",
+                        "description": "An edge token to put on the cells, snake-cased; the project's vocabulary must hold it. An empty string takes the token off."
+                    },
+                    "clear": {
+                        "type": "boolean",
+                        "description": "true forgets everything about the cells (solid and token)."
+                    },
+                    "scan": {
+                        "type": "boolean",
+                        "description": "true reads the piece's mesh and marks every cell it occupies solid (what B on the Meshes tab does); give it without cells. Edge tokens and cells already solid are kept, and a scan that would change nothing is refused."
+                    },
+                    "edges": {
+                        "type": "array",
+                        "minItems": 1,
+                        "items": {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "required": ["at", "token"],
+                            "properties": {
+                                "at": {"type": "array", "items": {"type": "integer", "minimum": 0}, "minItems": 3, "maxItems": 3},
+                                "token": {"type": "string", "description": "The edge token this cell takes, snake-cased; the project's vocabulary must hold it."}
+                            }
+                        },
+                        "description": "A token for each of several cells, written as one act (what keeping a mesh scan's derived edges writes): each {at: [x, y, z], token}. Replaces cells, and a cell named twice refuses the edit."
+                    }
+                }
+            })
+        }
+
+        /// **The piece's lattice now**, against the one the change recorded.
+        fn state_of(&self, ctx: &Ctx, after: &serde_json::Value) -> Option<serde_json::Value> {
+            let id = after.get("id")?.as_str()?;
+            let project = ctx.project.as_ref()?;
+            let d = project.measured.descriptors.iter().find(|d| d.id == id)?;
+            Some(state_json(d))
+        }
+
+        fn plan(&self, ctx: &Ctx, params: &serde_json::Value) -> Result<serde_json::Value, Refusal> {
+            let req = request(params)?;
+            let Some(project) = ctx.project.as_ref() else {
+                return Err(Refusal::new("no project is open, so there is no library to edit a lattice in."));
+            };
+            let e = edit(project, &req)?;
+            Ok(json!({"id": e.id, "lattice": e.after, "summary": e.summary}))
+        }
+
+        fn commit(&self, ctx: &mut Ctx, params: &serde_json::Value) -> Result<Outcome, Refusal> {
+            let req = request(params)?;
+            let Some(project) = ctx.project.as_mut() else {
+                return Err(Refusal::new("no project is open, so there is no library to edit a lattice in."));
+            };
+            let Edit {
+                measured,
+                before,
+                after,
+                summary,
+                id,
+            } = edit(project, &req)?;
+            crate::tiles::commit_measured(project, measured).map_err(Refusal::new)?;
+            Ok(Outcome {
+                summary,
+                affected: 1,
+                saved: true,
+                // **Redo is the same put-back**, of the edited lattice.
+                inverse: Some(json!({"id": id, "restore": before})),
+                after: Some(json!({"id": id, "lattice": after})),
+            })
+        }
+    }
+}
+
+/// **Add one token to an axis of the project's vocabulary (E-002, #129 slice 11).**
+///
+/// `Shift+T`, and the `+` chip on an axis row, opened a prompt whose Enter spliced `vocab.yaml` with a
+/// write of its own, so an agent could use the vocabulary and never grow it, no log line named the
+/// addition, and the registry's two-front-end rule listed `Shift+T` as unmigrated. This is the same
+/// addition, named: `axis` (`kind`, `effects`, `look` or `surfaces`), `name` (lowercase letters,
+/// digits and hyphens) and `note` (a sentence saying what it means).
+///
+/// # It is `blueprint_model::vocab::append_token`, and its refusals are that function's
+///
+/// The splice keeps every comment in the file, and every refusal it makes is this operation's: an axis
+/// the editor does not draw, a malformed name, an empty or unescapable note, a token the axis already
+/// holds and an axis already at the mask's limit. The plan runs the splice on a copy of the file, so a
+/// preview refuses what the commit would. A vocabulary the project cannot resolve afterwards puts the
+/// file back as it was.
+///
+/// # There is no undo, and that is the vocabulary's rule
+///
+/// A token's bit is its position, so a token is only ever appended: taking one out, or putting it back
+/// somewhere else, would re-point every mask already computed. Nothing has to be put back for an
+/// added token that nothing uses, and for one something uses, putting it back is the harm.
+pub mod vocab_add_token {
+    use super::*;
+    use serde_json::json;
+
+    #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+    #[serde(deny_unknown_fields)]
+    pub struct Params {
+        /// `kind`, `effects`, `look` or `surfaces`.
+        pub axis: String,
+        /// Lowercase letters, digits and hyphens, starting with a letter.
+        pub name: String,
+        /// A sentence saying what the token means.
+        pub note: String,
+    }
+
+    fn parse(raw: &serde_json::Value) -> Result<Params, Refusal> {
+        serde_json::from_value(raw.clone()).map_err(|e| {
+            Refusal::new(format!(
+                "this is not a token to add: {e}. The fields are `axis` (`kind`, `effects`, `look` or \
+                 `surfaces`), `name` and `note`."
+            ))
+        })
+    }
+
+    fn vocab_path(project: &Project) -> std::path::PathBuf {
+        project.root.join("assets/blueprint/vocab.yaml")
+    }
+
+    /// **The splice, run on a copy**, so a plan writes nothing.
+    fn dry_run(project: &Project, p: &Params) -> Result<(), Refusal> {
+        use std::sync::atomic::{AtomicU64, Ordering};
+        static COPIES: AtomicU64 = AtomicU64::new(0);
+        let path = vocab_path(project);
+        let text = std::fs::read_to_string(&path)
+            .map_err(|e| Refusal::new(format!("{}: {e}. Nothing was added.", path.display())))?;
+        let copy = std::env::temp_dir().join(format!(
+            "blueprint-vocab-plan-{}-{}.yaml",
+            std::process::id(),
+            COPIES.fetch_add(1, Ordering::Relaxed)
+        ));
+        blueprint_model::atomic_file::write_cache(&copy, text)
+            .map_err(|e| Refusal::new(format!("{}: {e}", copy.display())))?;
+        let tried = blueprint_model::vocab::append_token(&copy, &p.axis, &p.name, &p.note);
+        let _ = std::fs::remove_file(&copy);
+        tried.map_err(|e| Refusal::new(format!("{e}. Nothing was added.")))
+    }
+
+    /// **Add a token to an axis of the vocabulary.**
+    pub struct VocabAddToken;
+
+    impl Operation for VocabAddToken {
+        fn name(&self) -> &'static str {
+            "vocab_add_token"
+        }
+        fn shows(&self, ctx: &Ctx, _params: &serde_json::Value) -> Shown {
+            // **The vocabulary is one project file**, at the root of the blueprint directory.
+            shown_named(ctx, "assets/blueprint/vocab.yaml")
+        }
+        fn writes(&self) -> &'static [&'static str] {
+            &["vocab"]
+        }
+
+        fn undo(&self) -> Undo {
+            Undo::None
+        }
+
+        fn schema(&self) -> serde_json::Value {
+            json!({
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["axis", "name", "note"],
+                "properties": {
+                    "axis": {
+                        "type": "string",
+                        "enum": ["kind", "effects", "look", "surfaces"],
+                        "description": "The axis of the vocabulary to add to: what a piece is (kind), what it does (effects), how it looks (look) or what it offers (surfaces)."
+                    },
+                    "name": {
+                        "type": "string",
+                        "description": "The token, lowercase letters, digits and hyphens, starting with a letter, e.g. uses-electricity."
+                    },
+                    "note": {
+                        "type": "string",
+                        "description": "A sentence saying what the token means, without quotes, backslashes or control characters. A token is only ever appended, so it cannot be taken back."
+                    }
+                }
+            })
+        }
+
+        fn plan(&self, ctx: &Ctx, params: &serde_json::Value) -> Result<serde_json::Value, Refusal> {
+            let p = parse(params)?;
+            let Some(project) = ctx.project.as_ref() else {
+                return Err(Refusal::new("no project is open, so there is no vocabulary to add a token to."));
+            };
+            dry_run(project, &p)?;
+            Ok(json!({"axis": p.axis, "name": p.name}))
+        }
+
+        fn commit(&self, ctx: &mut Ctx, params: &serde_json::Value) -> Result<Outcome, Refusal> {
+            let p = parse(params)?;
+            let Some(project) = ctx.project.as_mut() else {
+                return Err(Refusal::new("no project is open, so there is no vocabulary to add a token to."));
+            };
+            dry_run(project, &p)?;
+            let path = vocab_path(project);
+            let was = std::fs::read_to_string(&path)
+                .map_err(|e| Refusal::new(format!("{}: {e}. Nothing was added.", path.display())))?;
+            blueprint_model::vocab::append_token(&path, &p.axis, &p.name, &p.note)
+                .map_err(|e| Refusal::new(format!("{e}. Nothing was added.")))?;
+            if let Err(why) = project.reload_vocab() {
+                // **The file goes back as it was**: a vocabulary the project cannot resolve is not
+                // one to leave on disk.
+                let _ = blueprint_model::save::save_atomic(&path, &was);
+                return Err(Refusal::new(format!("the project would not take it, so nothing was added: {why}")));
+            }
+            Ok(Outcome {
+                summary: format!("added `{}` to {}", p.name, p.axis),
+                affected: 1,
+                saved: true,
+                inverse: None,
+                after: Some(json!({"axis": p.axis, "name": p.name})),
+            })
+        }
+    }
+}
+
+/// **Adopt a rig's measured gait values into `rigs.yaml`** (E-002, #129 slice 13). Enter on the Anim tab
+/// and an agent's `apply` are this one operation: it measures the rig's mesh now, rewrites each gait
+/// slot that is not kept, stamps provenance and refuses the whole write unless the edited manifest
+/// parses back to what was built ([`crate::anim_tab::adopt_text`]). Undo puts the manifest back whole.
+pub mod rig_adopt_measured {
+    use super::*;
+    use serde_json::json;
+
+    #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+    #[serde(deny_unknown_fields)]
+    pub struct Params {
+        /// The rig's name in `rigs.yaml`.
+        pub rig: String,
+        /// Gait slots to hold back for this write only, by index in the rig's slot list.
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        pub skip_slots: Vec<usize>,
+        /// **Undo only.** The manifest as it was, put back whole.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        pub restore: Option<String>,
+    }
+
+    fn parse(raw: &serde_json::Value) -> Result<Params, Refusal> {
+        serde_json::from_value(raw.clone()).map_err(|e| {
+            Refusal::new(format!(
+                "this is not a rig to adopt measured values for: {e}. The fields are `rig` (a name in \
+                 rigs.yaml) and, optionally, `skip_slots` (slot indexes to leave as they are)."
+            ))
+        })
+    }
+
+    fn manifest(project: &Project) -> PathBuf {
+        project.root.join(crate::anim_tab::RIGS_FILE)
+    }
+
+    /// **FNV-1a of the manifest text**: stable across runs, because an undo compares it with what the log
+    /// recorded in an earlier session.
+    fn fnv(text: &str) -> String {
+        let mut h: u64 = 0xcbf2_9ce4_8422_2325;
+        for b in text.bytes() {
+            h ^= u64::from(b);
+            h = h.wrapping_mul(0x0000_0100_0000_01b3);
+        }
+        format!("{h:016x}")
+    }
+
+    fn state_json(rig: &str, text: &str) -> serde_json::Value {
+        json!({"id": format!("rig:{rig}"), "manifest": fnv(text)})
+    }
+
+    struct Edit {
+        path: PathBuf,
+        was: String,
+        text: String,
+        summary: String,
+    }
+
+    /// **The write, computed and checked and not made**, so a preview refuses what the commit would.
+    fn edit(project: &Project, p: &Params) -> Result<Edit, Refusal> {
+        let path = manifest(project);
+        let was = std::fs::read_to_string(&path)
+            .map_err(|e| Refusal::new(format!("{}: {e}. Nothing was changed.", path.display())))?;
+        if let Some(restore) = &p.restore {
+            blueprint_model::rigs::Rigs::parse(restore).map_err(|e| {
+                Refusal::new(format!("the manifest to put back does not read: {e}. Nothing was changed."))
+            })?;
+            return Ok(Edit {
+                path,
+                was,
+                text: restore.clone(),
+                summary: format!("put rigs.yaml back as it was before '{}' adopted its measured values", p.rig),
+            });
+        }
+        let rigs = blueprint_model::rigs::Rigs::parse(&was)
+            .map_err(|e| Refusal::new(format!("{}: {e}. Nothing was changed.", path.display())))?;
+        let Some(rig) = rigs.get(&p.rig) else {
+            return Err(Refusal::new(format!(
+                "no rig named `{}` in rigs.yaml (it has {}). Nothing was changed.",
+                p.rig,
+                rigs.rigs.keys().map(|k| format!("`{k}`")).collect::<Vec<_>>().join(", ")
+            )));
+        };
+        if let Some(bad) = p.skip_slots.iter().find(|i| **i >= rig.slots.len()) {
+            return Err(Refusal::new(format!(
+                "`{}` has {} slot(s), so slot {bad} cannot be skipped. Nothing was changed.",
+                p.rig,
+                rig.slots.len()
+            )));
+        }
+        let skip = p.skip_slots.iter().copied().collect();
+        let adopted = crate::anim_tab::adopt_text(&project.root, &was, &p.rig, &skip)
+            .map_err(|why| Refusal::new(format!("{why}. Nothing was changed.")))?;
+        if adopted.text == was {
+            return Err(Refusal::new(format!(
+                "`{}` already holds its measured values, so nothing was changed.",
+                p.rig
+            )));
+        }
+        Ok(Edit { path, was, summary: adopted.said(&p.rig), text: adopted.text })
+    }
+
+    /// **Adopt a rig's measured gait values, or put the manifest back.**
+    pub struct RigAdoptMeasured;
+
+    impl Operation for RigAdoptMeasured {
+        fn name(&self) -> &'static str {
+            "rig_adopt_measured"
+        }
+        fn shows(&self, _ctx: &Ctx, params: &serde_json::Value) -> Shown {
+            match params.get("rig").and_then(serde_json::Value::as_str) {
+                Some(id) => Shown::Rig { id: id.to_owned() },
+                None => Shown::MapWhole,
+            }
+        }
+        fn writes(&self) -> &'static [&'static str] {
+            &["rigs"]
+        }
+
+        fn undo(&self) -> Undo {
+            Undo::Inverse
+        }
+
+        /// **A manifest write is a kit-level change, scoped to its own rig** by the `id` its recorded state
+        /// carries, like a pack's exclusion: a bare `operation_undo` scopes past it to the open map's newest
+        /// change instead of reverting `rigs.yaml`, and it joins the Meshes history beside the other
+        /// library writes when an agent makes it.
+        fn writes_library(&self) -> bool {
+            true
+        }
+
+        /// **A put-back is never a request an agent may send.**
+        fn only_as_undo(&self, params: &serde_json::Value) -> bool {
+            parse(params).is_ok_and(|p| p.restore.is_some())
+        }
+
+        fn schema(&self) -> serde_json::Value {
+            json!({
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["rig"],
+                "properties": {
+                    "rig": {
+                        "type": "string",
+                        "description": "The rig's name in rigs.yaml, as the Anim tab lists it."
+                    },
+                    "skip_slots": {
+                        "type": "array",
+                        "items": {"type": "integer", "minimum": 0},
+                        "description": "Gait slots, by index in the rig's slot list, to leave as they are for this write only. A slot marked keep is always left alone."
+                    }
+                }
+            })
+        }
+
+        /// **Whether `rigs.yaml` is still what the change left**, against what it recorded.
+        fn state_of(&self, ctx: &Ctx, after: &serde_json::Value) -> Option<serde_json::Value> {
+            let rig = after.get("id")?.as_str()?.strip_prefix("rig:")?;
+            let text = std::fs::read_to_string(manifest(ctx.project.as_ref()?)).ok()?;
+            Some(state_json(rig, &text))
+        }
+
+        fn plan(&self, ctx: &Ctx, params: &serde_json::Value) -> Result<serde_json::Value, Refusal> {
+            let p = parse(params)?;
+            let Some(project) = ctx.project.as_ref() else {
+                return Err(Refusal::new("no project is open, so there is no rigs.yaml to adopt values into."));
+            };
+            let e = edit(project, &p)?;
+            let mut planned = state_json(&p.rig, &e.text);
+            planned["would"] = json!(e.summary);
+            Ok(planned)
+        }
+
+        fn commit(&self, ctx: &mut Ctx, params: &serde_json::Value) -> Result<Outcome, Refusal> {
+            let p = parse(params)?;
+            let Some(project) = ctx.project.as_ref() else {
+                return Err(Refusal::new("no project is open, so there is no rigs.yaml to adopt values into."));
+            };
+            let e = edit(project, &p)?;
+            blueprint_model::save::save_atomic(&e.path, &e.text).map_err(|why| {
+                Refusal::new(format!("rigs.yaml refused the change, so nothing was written: {why}"))
+            })?;
+            Ok(Outcome {
+                summary: e.summary,
+                affected: 1,
+                saved: true,
+                inverse: Some(json!({"rig": p.rig, "restore": e.was})),
+                after: Some(state_json(&p.rig, &e.text)),
+            })
+        }
+    }
+}
+
+/// **Every operation the editor knows, in one list.**
+///
+/// **The one list.** The MCP tool surface, the parity test and the log's vocabulary are all read
+/// from it, so they cannot disagree about what exists.
+pub fn registry() -> Vec<Box<dyn Operation>> {
+    vec![
+        Box::new(view_cycle_grid::ViewCycleGrid),
+        Box::new(view_toggle_journal::ViewToggleJournal),
+        Box::new(view_toggle_ghost::ViewToggleGhost),
+        Box::new(sight::placement_set_hidden::PlacementSetHidden),
+        Box::new(sight::layer_set_visible::LayerSetVisible),
+        Box::new(sight::placement_set_locked::PlacementSetLocked),
+        Box::new(composition_picker::composition_picker_walk::CompositionPickerWalk),
+        Box::new(composition_picker::composition_picker_toggle::CompositionPickerToggle),
+        Box::new(compose_cursor::compose_walk::ComposeWalk),
+        Box::new(compose_cursor::compose_focus::ComposeFocus),
+        Box::new(compose_cursor::compose_carousel_step::ComposeCarouselStep),
+        Box::new(list_cursors::rig_walk::RigWalk),
+        Box::new(list_cursors::tile_page_walk::TilePageWalk),
+        Box::new(shelf_cursors::pack_fold::PackFold),
+        Box::new(shelf_cursors::filter_focus::FilterFocus),
+        Box::new(shelf_cursors::shelf_walk::ShelfWalk),
+        Box::new(shelf_cursors::shelf_focus::ShelfFocus),
+        Box::new(stage::stage_play::StagePlay),
+        Box::new(stage::stage_scrub::StageScrub),
+        Box::new(stage::stage_camera::StageCamera),
+        Box::new(camera::camera_pan::CameraPan),
+        Box::new(camera::camera_turn::CameraTurn),
+        Box::new(rig_check_all::RigCheckAll),
+        Box::new(kit_rescan::KitRescan),
+        Box::new(rig_history_step::RigHistoryStep),
+        Box::new(crate::ops_tile_page::TilePageEnter),
+        Box::new(crate::ops_tile_page::TilePageLeave),
+        Box::new(crate::ops_tile_page::TileOpen),
+        Box::new(crate::ops_tile_page::TileClose),
+        Box::new(crate::ops_tile_page::TileNew),
+        Box::new(crate::ops_labeller::LabelsSuggest),
+        Box::new(crate::ops_labeller::LabelsWalk),
+        Box::new(crate::ops_labeller::LabelsAbandon),
+        Box::new(lattice_cursor_step::LatticeCursorStep),
+        Box::new(tile_hand::tile_hand_arm::TileHandArm),
+        Box::new(tile_hand::tile_member_focus::TileMemberFocus),
+        Box::new(tile_hand::tile_grid_deepen::TileGridDeepen),
+        Box::new(tile_hand::tile_member_turn::TileMemberTurn),
+        Box::new(tile_hand::tile_member_remove::TileMemberRemove),
+        Box::new(tile_hand::tile_clear::TileClear),
+        Box::new(tile_hand::tile_member_nudge::TileMemberNudge),
+        Box::new(tile_hand::tile_member_flush::TileMemberFlush),
+        Box::new(tile_hand::tile_member_drop::TileMemberDrop),
+        Box::new(tile_hand::tile_slot_drop::TileSlotDrop),
+        Box::new(tool_arm::ToolArm),
+        Box::new(tile_hand::tile_history_step::TileHistoryStep),
+        Box::new(snip_arm::SnipArm),
+        Box::new(map_create::MapCreate),
+        Box::new(map_set_settings::MapSetSettings),
+        Box::new(layout_propose::LayoutPropose),
+        Box::new(layout_accept::LayoutAccept),
+        Box::new(layout_discard::LayoutDiscard),
+        Box::new(fill::Fill),
+        Box::new(map_save::MapSave),
+        Box::new(map_open::MapOpen),
+        Box::new(placement_add::PlacementAdd),
+        Box::new(piece_import::PieceImport),
+        Box::new(piece_remove::PieceRemove),
+        Box::new(piece_turn::PieceTurn),
+        Box::new(piece_set_cells::PieceSetCells),
+        Box::new(vocab_add_token::VocabAddToken),
+        Box::new(rig_adopt_measured::RigAdoptMeasured),
+        Box::new(placement_set_pin::PlacementSetPin),
+        Box::new(placement_set_yaw::PlacementSetYaw),
+        Box::new(placement_set_tip::PlacementSetTip),
+        Box::new(placement_set_pose::PlacementSetPose),
+        Box::new(placement_set_lift::PlacementSetLift),
+        Box::new(placement_remove::PlacementRemove),
+        Box::new(stamp_remove::StampRemove),
+        Box::new(crate::ops_stamp::StampAdd),
+        Box::new(crate::ops_plan::PlanSet),
+        Box::new(crate::ops_relations::RelationsSolve),
+        Box::new(crate::ops_relations::relations_add::RelationsAdd),
+        Box::new(crate::ops_repetition::RepetitionVary),
+        Box::new(rules_set::RulesSet),
+        Box::new(map_rename::MapRename),
+        Box::new(brush_arm::BrushArm),
+        Box::new(composition_arm::CompositionArm),
+        Box::new(door_open::DoorOpen),
+        Box::new(piece_select::PieceSelect),
+        Box::new(label_set::LabelSet),
+        Box::new(piece_set_mount::PieceSetMount),
+        Box::new(crate::ops_kit::KitCreate),
+        Box::new(crate::ops_kit::KitSetAuthoring),
+        Box::new(crate::ops_piece::PieceSetNote),
+        Box::new(crate::ops_piece::PieceSetWidth),
+        Box::new(crate::ops_piece::PieceEdit),
+        Box::new(pack_set_excluded::PackSetExcluded),
+        Box::new(crate::ops_label_vlm::LabelSuggest),
+        Box::new(crate::ops_label_vlm::LabelApply),
+        Box::new(crate::ops_data::DataSet),
+        Box::new(crate::ops_files::FilesReplace),
+        Box::new(crate::ops_files::FileEdit),
+        Box::new(crate::ops_family::FamilySet),
+        Box::new(crate::ops_family::PlacementSetFamily),
+        #[cfg(feature = "bevy_light_grid")]
+        Box::new(crate::ops_light::LightMap),
+        #[cfg(feature = "bevy_lights")]
+        Box::new(crate::ops_pool::LightPoolBudget),
+        #[cfg(feature = "bevy_speech_bubbles")]
+        Box::new(crate::ops_dialogue::DialoguePreview),
+        Box::new(crate::ops_terrain::TerrainStroke),
+        Box::new(crate::ops_compose::CompositionDefine),
+        Box::new(crate::ops_compose::CompositionSetEnvelope),
+        Box::new(crate::ops_compose::CompositionRename),
+        #[cfg(all(feature = "bevy_orca", feature = "bevy_stigmergy"))]
+        Box::new(crate::ops_crowd::CrowdPreview),
+        #[cfg(feature = "bevy_carnage")]
+        Box::new(crate::ops_destructible::DestructibleSet),
+        #[cfg(feature = "bevy_carnage")]
+        Box::new(crate::ops_destructible::DestructibleHit),
+        Box::new(crate::ops_terrain::TerrainImport),
+        #[cfg(feature = "bevy_elements")]
+        Box::new(crate::ops_terrain::TerrainPreset),
+        Box::new(crate::ops_volume::VolumeEdit),
+        Box::new(crate::ops_volume::VolumeSet),
+        Box::new(crate::ops_forest::ForestScatter),
+        Box::new(crate::ops_tree::TreeEdit),
+        Box::new(crate::ops_people::PersonSet),
+        Box::new(crate::ops_people::PeopleRun),
+        Box::new(crate::ops_scripts::TriggerSet),
+        Box::new(crate::ops_water::WaterPlace),
+        Box::new(crate::ops_water::WaterRun),
+        Box::new(crate::ops_play::Play),
+        Box::new(crate::ops_play::PlayStop),
+        Box::new(crate::build_view::GameBuild),
+        Box::new(crate::ops_runs::RunAdd),
+        Box::new(crate::ops_runs::RunSet),
+        Box::new(crate::ops_runs::RunRemove),
+        Box::new(crate::ops_runs::PlacementsToRun),
+        Box::new(crate::ops_notes::NoteAdd),
+        Box::new(crate::ops_board::BoardSet),
+        Box::new(crate::ops_design::DesignAreaSet),
+        Box::new(crate::ops_design::StyleEdit),
+        Box::new(crate::ops_notes::NoteEdit),
+        Box::new(crate::ops_notes::NoteRemove),
+        Box::new(crate::ops_notes::NoteSend),
+        Box::new(crate::ops_notes::NoteClaim),
+        Box::new(crate::ops_notes::NoteRenew),
+        Box::new(crate::ops_notes::NoteRelease),
+        Box::new(crate::ops_notes::NoteAsk),
+        Box::new(crate::ops_notes::NoteAnswer),
+        Box::new(crate::ops_notes::NoteResolve),
+        Box::new(crate::ops_notes::NoteKeep),
+        Box::new(crate::ops_notes::NoteUndoWork),
+    ]
+}
+
+/// **The operation with this name.**
+pub fn find(name: &str) -> Option<Box<dyn Operation>> {
+    registry().into_iter().find(|op| op.name() == name)
+}
+
+/// **The operations a query names, best first** (#141).
+///
+/// **A capability search, not a page of every schema.** The registry is past sixty operations, and
+/// an agent choosing among that many by reading them all chooses worse. Each query word (two
+/// letters or more, case ignored) matches a word of the operation's name or of its parameter
+/// schema (property names, descriptions, enum values) that starts with it, or that shares with it
+/// a stem: a common start of four letters or more, missing at most the word's last letter and at
+/// most three of the query word's, so `carving` finds `Carve`, `notes` finds `note`, and
+/// `additionalProperties` does not find `additional`. A
+/// name hit scores 3 and a schema hit 1, per query word; an operation that scores nothing is left
+/// out, and ties keep the registry's order. An empty query names nothing.
+pub fn search(query: &str) -> Vec<Box<dyn Operation>> {
+    let terms = words(query);
+    let mut scored: Vec<(u32, Box<dyn Operation>)> = registry()
+        .into_iter()
+        .filter_map(|op| {
+            let name = words(op.name());
+            let mut schema = Vec::new();
+            schema_words(&op.schema(), &mut schema);
+            let hits = |list: &[String], term: &str| list.iter().any(|w| same_word(w, term));
+            let score: u32 = terms
+                .iter()
+                .map(|t| {
+                    if hits(&name, t) {
+                        3
+                    } else if hits(&schema, t) {
+                        1
+                    } else {
+                        0
+                    }
+                })
+                .sum();
+            (score > 0).then_some((score, op))
+        })
+        .collect();
+    scored.sort_by_key(|(score, _)| std::cmp::Reverse(*score));
+    scored.into_iter().map(|(_, op)| op).collect()
+}
+
+/// **The lowercase words of a text**, split on anything not a letter or digit, shorter than two
+/// letters dropped.
+fn words(text: &str) -> Vec<String> {
+    text.split(|c: char| !c.is_alphanumeric())
+        .filter(|w| w.len() >= 2)
+        .map(str::to_lowercase)
+        .collect()
+}
+
+/// **Whether a word of an operation matches a query word**, by the rule `search` states. Bytes, not
+/// chars, are compared, which only makes a non-ASCII stem stricter.
+fn same_word(word: &str, term: &str) -> bool {
+    if word.starts_with(term) {
+        return true;
+    }
+    let common = word.bytes().zip(term.bytes()).take_while(|(a, b)| a == b).count();
+    common >= 4 && common + 1 >= word.len() && term.len() - common <= 3
+}
+
+/// **Every word a schema says about its operation**: its property names, descriptions, titles and
+/// enum values, at any depth. JSON Schema's own keywords (`type`, `object`, `string`) are left out,
+/// so they match nothing.
+fn schema_words(schema: &serde_json::Value, out: &mut Vec<String>) {
+    use serde_json::Value;
+    let Value::Object(map) = schema else {
+        if let Value::Array(list) = schema {
+            list.iter().for_each(|v| schema_words(v, out));
+        }
+        return;
+    };
+    for (key, value) in map {
+        match (key.as_str(), value) {
+            ("properties", Value::Object(props)) => {
+                for (name, sub) in props {
+                    out.extend(words(name));
+                    schema_words(sub, out);
+                }
+            }
+            ("description" | "title", Value::String(s)) => out.extend(words(s)),
+            ("enum" | "const" | "examples", v) => strings(v, out),
+            (_, v @ (Value::Object(_) | Value::Array(_))) => schema_words(v, out),
+            _ => {}
+        }
+    }
+}
+
+/// **The words of every string in a value**, for an `enum` or `const`.
+fn strings(value: &serde_json::Value, out: &mut Vec<String>) {
+    match value {
+        serde_json::Value::String(s) => out.extend(words(s)),
+        serde_json::Value::Array(list) => list.iter().for_each(|v| strings(v, out)),
+        _ => {}
+    }
+}
+
+/// **The operations that have a UI entry point.**
+///
+/// **A map's settings are set from the Map door's own settings panel**, and the panel's verbs are
+/// the ones this run migrated. The list is a table rather than a scan, because a scan of the
+/// mapper's twenty thousand lines for "which key writes a map's origin" is a heuristic and a
+/// heuristic that finds nothing is not a proof.
+///
+/// **The project page's own entry points.** The screen where a project's maps begin —
+/// so the verb that makes one belongs here, because the editor has no map to make one from.
+///
+/// **Product code, not test code (E-086).** The parity test
+/// (`tests/operations_have_two_front_ends.rs`) reads this table and [`UI_ENTRY_POINTS`], so a new
+/// operation and its UI row land in one commit, and the test still fails an operation without one.
+pub const PAGE_ENTRY_POINTS: &[(&str, &str)] = &[
+    // **The new-map dialog**, whose Create dispatches `map_create`. The dialog is a front end: it collects the fields and hands
+    // them to the operation, so the naming rule, the refusal for a name in use and the write are one implementation (E-008).
+    ("map_create", "\"map_create\""),
+    // **The New kit dialog and a kit's Make default item** (E-002, #129 slice 20) dispatch `kit_create` and `kit_set_authoring`
+    // from the project page, which has a root and no loaded project.
+    ("kit_create", "\"kit_create\""),
+    ("kit_set_authoring", "\"kit_set_authoring\""),
+];
+
+/// **Each operation's UI entry point in the editor's screens**: the operation's name, and a piece
+/// of source the editor, screen, chooser or tiles module must contain for that entry point to be
+/// there. Read by the parity test (E-086).
+pub const UI_ENTRY_POINTS: &[(&str, &str)] = &[
+    // **The keep-as-group key** (Shift+B's box, then the group key `M`, a name and Enter) reaches
+    // `keep_set_as_group`, which dispatches `composition_define` with the set in hand as its `set`
+    // (E-002, #129 slice 14); an agent names placements as `from`, or a set of its own. Both end in
+    // `keep_as_group`, so the refusals, the replace rule and the write are shared (E-072).
+    ("composition_define", "keep_set_as_group("),
+    // **The Compose list's second click**: a click on the already-selected group toggles its
+    // envelope between anchored and bounded through `set_envelope`, which dispatches
+    // `composition_set_envelope` (E-072 slice 3).
+    ("composition_set_envelope", "set_envelope("),
+    // **The pin key and the pin-reason field**, which pin or unpin one placement. Both come to
+    // `set_pin`, which dispatches `placement_set_pin`, so the rule has one answer.
+    ("placement_set_pin", "set_pin("),
+    // **The turn keys**, R and T, which dispatch `placement_set_yaw` through `set_yaw`.
+    ("placement_set_yaw", "set_yaw("),
+    // **The tip keys**, Y and U, which dispatch `placement_set_tip` through `set_tip` (E-002, #129).
+    ("placement_set_tip", "set_tip("),
+    // **The lift keys**, `[` and `]`, which dispatch `placement_set_lift` through `set_lift` (E-002, #129).
+    ("placement_set_lift", "set_lift("),
+    // **The straighten key**, `V`, which dispatches `placement_set_pose` through `set_pose` with yaw 0 and
+    // an upright tip (E-002, #129 slice 5).
+    ("placement_set_pose", "set_pose("),
+    // **The grid key**, `J`, which dispatches `view_cycle_grid` through `cycle_grid` (E-002, #129). The
+    // rung is view state, so the key carries `Ctx::view` in and reads it back out; the operation is the
+    // one place that decides what a cycle means.
+    ("view_cycle_grid", "\"view_cycle_grid\""),
+    // **The journal key**, `Cmd+E`, which dispatches `view_toggle_journal` (E-002, #129). The panel's
+    // `Display` is what changes; the operation decides up or down and the front end applies it.
+    ("view_toggle_journal", "\"view_toggle_journal\", &serde_json"),
+    // **The ghost key and chip**, `G`, which dispatch `view_toggle_ghost` (E-002, #129). The bench's overlay is what
+    // changes; the operation decides on or off and the front end applies it.
+    ("view_toggle_ghost", "\"view_toggle_ghost\""),
+    // **The outliner's row menus** (UI-51, #237): Hide and Lock on a piece's row, and Hide layer on a layer's row,
+    // dispatch these through `outliner::dispatch_sight`, the same operations an agent calls.
+    ("placement_set_hidden", "\"placement_set_hidden\""),
+    ("layer_set_visible", "\"layer_set_visible\""),
+    ("placement_set_locked", "\"placement_set_locked\""),
+    // **The composition picker's keys** (E-002, #129 slice 22): `P` dispatches `composition_picker_toggle` and Shift+up
+    // and Shift+down dispatch `composition_picker_walk`, through `compose::picker`'s `act` and `walk`.
+    ("composition_picker_toggle", "\"composition_picker_toggle\""),
+    ("composition_picker_walk", "\"composition_picker_walk\""),
+    // **The COMPOSE tab's cursor keys** (E-002, #129 slice 23): up and down dispatch `compose_walk`, left and right
+    // `compose_focus`, and `O` and `P` `compose_carousel_step`, through `compose.rs`'s `walk`, `cycle_focus` and `step_carousel`.
+    ("compose_walk", "\"compose_walk\""),
+    ("compose_focus", "\"compose_focus\""),
+    ("compose_carousel_step", "\"compose_carousel_step\""),
+    // **The rig bench's and the Tiles page's list keys** (E-002, #129 slice 24): up and down dispatch `rig_walk` on the Anim tab
+    // (`anim_tab::move_selection`) and `tile_page_walk` on the Tiles page (`build::build_keys`).
+    ("rig_walk", "\"rig_walk\""),
+    ("tile_page_walk", "\"tile_page_walk\""),
+    // **The candidate list's fold key and the filter keys** (E-002, #129 slice 25): `Space` dispatches `pack_fold` (`tiles::commit_candidate`
+    // and the heading clicks), and `F` and `/` dispatch `filter_focus` (`tiles::focus_filter`).
+    ("pack_fold", "\"pack_fold\""),
+    ("filter_focus", "\"filter_focus\""),
+    // **The shelf's arrows and its two lists** (E-002, #129 slice 37): `up` and `down` (and Shift for the long stride) dispatch `shelf_walk`,
+    // and `left`, `right` and the `CANDIDATES` and `LIBRARY` chips dispatch `shelf_focus`, through `tiles::shelf_through_operation`.
+    ("shelf_walk", "\"shelf_walk\""),
+    ("shelf_focus", "\"shelf_focus\""),
+    // **The bench's stage keys** (E-002, #129 slice 26): `Space` dispatches `stage_play`, the held left and right arrows
+    // `stage_scrub`, and `V` `stage_camera`, through `anim_stage`'s `drive_bench_scrub` and `cycle_cam_preset`.
+    ("stage_play", "\"stage_play\""),
+    ("stage_scrub", "\"stage_scrub\""),
+    ("stage_camera", "\"stage_camera\""),
+    // **The Map camera keys** (E-002, #129 slice 31): `W`, `A`, `S` and `D` dispatch `camera_pan` and `Q` and `E` `camera_turn`,
+    // through `view::drive`.
+    ("camera_pan", "\"camera_pan\""),
+    ("camera_turn", "\"camera_turn\""),
+    // **The Anim tab's check key** (E-002, #129 slice 32): `C` dispatches `rig_check_all`, through `anim_tab::check_all_keys`.
+    ("rig_check_all", "\"rig_check_all\""),
+    // **The Meshes tab's rescan key** (E-002, #129 slice 33): `R` dispatches `kit_rescan`, through `tiles::rescan_key`.
+    ("kit_rescan", "\"kit_rescan\""),
+    // **The rig bench's history keys** (E-002, #129 slice 35): Cmd+Z and Cmd+Shift+Z on the Anim tab dispatch `rig_history_step`, through `anim_tab::bench_history_keys`.
+    ("rig_history_step", "\"rig_history_step\""),
+    // **The Tiles tab's page keys** (E-002, #129 slice 36): `right`, `left`, `Enter`, `C` and `N` (and the `+ New Tile` row's click)
+    // dispatch the page operations, through `build::page_through_operation`.
+    ("tile_page_enter", "\"tile_page_enter\""),
+    ("tile_page_leave", "\"tile_page_leave\""),
+    ("tile_open", "\"tile_open\""),
+    ("tile_close", "\"tile_close\""),
+    ("tile_new", "\"tile_new\""),
+    // **The labeller's keys** (E-002, #129 slice 34): `L` dispatches `labels_suggest`, `Shift+L` `labels_walk` and `Shift+Y`
+    // `labels_abandon`, through `labels::Labeller::dispatch`, the body an agent's call is carried out by too.
+    ("labels_suggest", "\"labels_suggest\""),
+    ("labels_walk", "\"labels_walk\""),
+    ("labels_abandon", "\"labels_abandon\""),
+    // **The lattice grid's cursor keys** (E-002, #129 slice 27): `F`, `H`, `T`, `G`, `[` and `]` dispatch `lattice_cursor_step`,
+    // through `tiles::lattice_keys`.
+    ("lattice_cursor_step", "\"lattice_cursor_step\""),
+    // **The tile-in-hand keys** (E-002, #129 slice 28): `Space` dispatches `tile_hand_arm`, `,` and `.` `tile_member_focus`,
+    // `J` `tile_grid_deepen`, `R` `tile_member_turn`, the remove key `tile_member_remove` and Shift with it `tile_clear`,
+    // through `build::build_keys`.
+    ("tile_hand_arm", "\"tile_hand_arm\""),
+    ("tile_member_focus", "\"tile_member_focus\""),
+    ("tile_grid_deepen", "\"tile_grid_deepen\""),
+    ("tile_member_turn", "\"tile_member_turn\""),
+    ("tile_member_remove", "\"tile_member_remove\""),
+    ("tile_clear", "\"tile_clear\""),
+    // **The tile's arrows, flush, drop and hole keys** (E-002, #129 slice 29): the arrows and `[` and `]` dispatch
+    // `tile_member_nudge`, Shift and the arrows `tile_member_flush`, Enter `tile_member_drop` and the hole key
+    // `tile_slot_drop`, through `build::build_keys`.
+    ("tile_member_nudge", "\"tile_member_nudge\""),
+    ("tile_member_flush", "\"tile_member_flush\""),
+    ("tile_member_drop", "\"tile_member_drop\""),
+    ("tile_slot_drop", "\"tile_slot_drop\""),
+    // **The tab's history keys** (E-002, #129 slice 30): `Cmd+Z` and `Cmd+Shift+Z` on the Tiles tab dispatch `tile_history_step`,
+    // through `build::tile_history`.
+    ("tile_history_step", "\"tile_history_step\""),
+    // **The clone and run keys**, which dispatch `tool_arm` through `arm_tool` (E-002, #129). Two keys,
+    // one rule: press to arm, press again to return to `Tool::Place`.
+    ("tool_arm", "\"tool_arm\""),
+    // **The snip key**, `Cmd+\\`, which dispatches `snip_arm` (E-002, #129). Arm and cancel are one
+    // toggle on `View::snip_armed`; the rectangle and its file are the drag's own path.
+    ("snip_arm", "\"snip_arm\""),
+    // **The map's name field**, which the N key opens. Enter dispatches `map_rename` through
+    // `rename_map`, so the name rule and the file's move are the operation's.
+    ("map_rename", "rename_map("),
+    // **The removal click**, which deletes one placement, and what stands on it, through
+    // `remove_placement`, which dispatches `placement_remove`.
+    ("placement_remove", "remove_placement("),
+    // **The stamp click**, which takes a whole stamp off the map through `delete_stamp`, which
+    // dispatches `stamp_remove`. A stamp is removed whole, never by a piece of it.
+    ("stamp_remove", "delete_stamp("),
+    // **The stamp click** also puts one on, through `stamp_here`, which asks `ops_stamp::plan_stamp`
+    // exactly as `stamp_add` does, so the id rule, the trial expansion and the refusals are shared.
+    ("stamp_add", "plan_stamp("),
+    // **The Map door's size field**, which edits one axis of the map's bounds and is the editor's
+    // own way of doing what `map_set_settings` does. It dispatches the operation.
+    ("map_set_settings", "SizeField(Axis)"),
+    // **The palette click**, which arms a piece through `on_row_click`, which calls `arm_piece`
+    // and dispatches `brush_arm`.
+    ("brush_arm", "arm_piece("),
+    // **The composition arm (E-002)**: the picker's `Enter`, a picker row's click and the COMPOSE
+    // tab's `Enter` all reach `arm_composition`, which dispatches `composition_arm`.
+    ("composition_arm", "arm_composition("),
+    // **The COMPOSE tab's name field (E-002, #129)**: `I` opens it and Enter reaches
+    // `editor::rename_composition`, which dispatches `composition_rename`.
+    ("composition_rename", "rename_composition("),
+    // **The three generate keys and the commit door** (S-001). `G`, `Shift+G` and `Cmd+G` all
+    // dispatch `layout_propose` through `propose_layout`; `Enter` dispatches `layout_accept`
+    // through `accept_layout`; `Esc` dispatches `layout_discard` through `discard_layout`.
+    ("layout_propose", "propose_layout("),
+    ("layout_accept", "accept_layout("),
+    ("layout_discard", "discard_layout("),
+    // **`F` floods** through `fill_at`, and **`Cmd+S` saves** through `save_map`; both dispatch the
+    // operation rather than calling `fill::flood` / `OpenMap::save` themselves.
+    ("fill", "fill_at("),
+    ("map_save", "save_map("),
+    // **The Map workspace's switch** — `screen::cross` opens a map that is not open through
+    // `session::open_map_now`, which dispatches `map_open`, so a person switching to the Map
+    // workspace, a map tab and an agent opening one by name are one operation.
+    ("map_open", "\"map_open\", &serde_json::json!"),
+    // **The placement click** — `place_one` calls `plan_placement` and dispatches
+    // `placement_add`, so a click and an agent put a piece down the same way (S2.1).
+    ("placement_add", "place_one("),
+    // **The Meshes tab's import door** — `commit_candidate` runs `admit_candidate` and dispatches
+    // `piece_import`, so an agent importing a .glb and a person accepting a scanned mesh are one
+    // operation (S2.2).
+    ("piece_import", "admit_candidate("),
+    // **The shelf's remove key (E-002, #129 slice 8)** — `Delete` on a library piece calls `remove_piece`
+    // and dispatches `piece_remove`, the same write an agent's `apply` makes.
+    ("piece_remove", "remove_piece("),
+    // **The mesh turn (E-002, #129 slice 9)** — `N`, `O`, `P` and the three rotate chips call
+    // `turn_piece` for a library piece and dispatch `piece_turn`, the same write an agent's `apply` makes.
+    ("piece_turn", "turn_piece("),
+    // **The lattice's cell verbs (E-002, #129 slice 10)** — `Z`, `X`, `V`, the grid's chips and its headers
+    // call `set_cells` for a library piece and dispatch `piece_set_cells`, the same write an agent's `apply` makes.
+    ("piece_set_cells", "set_cells("),
+    // **The vocabulary prompt (E-002, #129 slice 11)** — `Shift+T` and the `+` chip open it and its
+    // Enter calls `add_vocab_token`, which dispatches `vocab_add_token`.
+    ("vocab_add_token", "add_vocab_token("),
+    // **The Anim tab's Enter (E-002, #129 slice 13)** adopts the selected rig's measured gait values through
+    // `adopt_rig_measured`, which dispatches `rig_adopt_measured`, the same write an agent's `apply` makes.
+    ("rig_adopt_measured", "adopt_rig_measured("),
+    // **The door and tab keys and the door switch**, which open a door through `open_door`, and that
+    // runs the `door_open` operation (item 1 of cycle 8).
+    ("door_open", "open_door("),
+    // **The shelf's row click (E-044)**, which selects through `on_library_click`, which calls
+    // `select_piece` and dispatches `piece_select`.
+    ("piece_select", "select_piece("),
+    // **The label chips (E-042)**, which toggle one token on a library piece's axis through
+    // `toggle_tag`, which calls `set_label` and dispatches `label_set` with the person's source.
+    ("label_set", "set_label("),
+    // **The mount key and chip (E-002, #129 slice 6)** — `M` and a click on the mount value step the
+    // mount through `step_mount`, which calls `set_mount` and dispatches `piece_set_mount` for a
+    // library piece, the same write an agent's `apply` makes.
+    ("piece_set_mount", "set_mount("),
+    // **The Meshes tab's description field and SIZE field** (E-002, #129 slices 17 and 18): Enter in either
+    // reaches `set_note` or `set_width`, which dispatch `piece_set_note` and `piece_set_width` for a library
+    // piece.
+    ("piece_set_note", "set_note("),
+    ("piece_set_width", "set_width("),
+    // **The define key** (E-002, #129 slice 38): `Cmd+Delete` on the Map dispatches `piece_edit` through `send_to_tiles`.
+    ("piece_edit", "\"piece_edit\""),
+    // **The pack key (E-002, #129 slice 7)** — `Shift+R` on the Meshes tab calls `set_pack_excluded`
+    // and dispatches `pack_set_excluded`, the same policy write an agent's `apply` makes.
+    ("pack_set_excluded", "set_pack_excluded("),
+    // **The labeler's two halves (E-043)** — `L` photographs a piece and asks the model through
+    // `request_photos`, and the answer lands through `apply_suggestion`; `label_suggest` and
+    // `label_apply` are the same two steps for an agent that brings its own shots.
+    ("label_suggest", "request_photos("),
+    ("label_apply", "apply_suggestion("),
+    // **The rule seed field (E-081)** — `K` opens a one-number field and Enter dispatches
+    // `rules_set` through `set_rule_seed`, so a person tuning a rule and an agent calling the
+    // operation are one change with one undo.
+    ("rules_set", "set_rule_seed("),
+    // **The family settings field (#96)** — Enter on `<crate> <field> <value>` dispatches
+    // `family_set` through `set_family_field`, the same write an agent's `apply` makes.
+    ("family_set", "set_family_field("),
+    // **The LIGHT MAP button** shows or hides the overlay and, on showing it, dispatches `light_map` and says
+    // its receipt (#103). The observer is registered in `editor.rs`.
+    #[cfg(feature = "bevy_light_grid")]
+    ("light_map", "light_overlay::on_light_map_click"),
+    // **The POOL HERE button** dispatches `light_pool` at the point the camera looks at (#103).
+    #[cfg(feature = "bevy_lights")]
+    ("light_pool", "ops_pool::on_pool_click"),
+    // **A piece's family settings (#103)** — the same field with `@<id> <crate> <value>` dispatches
+    // `placement_set_family` through `set_piece_family`.
+    ("placement_set_family", "set_piece_family("),
+    // **The family field's `dialogue` line (#106)** — `dialogue <conversation> [option numbers]` dispatches
+    // `dialogue_preview` through `preview_dialogue`, the same walk an agent's `apply` makes.
+    #[cfg(feature = "bevy_speech_bubbles")]
+    ("dialogue_preview", "preview_dialogue("),
+    // **The Play / Stop buttons (#97)** — dispatch `play` and `play_stop` through `play_game` and
+    // `stop_game`, the same start and stop an agent's `apply` makes.
+    ("play", "play_game("),
+    ("play_stop", "stop_game("),
+    // **The Build button** (GD-09, #371) dispatches `game_build` through `build_game`, the same
+    // watched rebuild an agent's `apply` makes.
+    ("game_build", "build_game(&mut ctx, params)"),
+    // **The Data field (#86)** — Enter on `<file> <path> <value>` dispatches `data_set` through
+    // `set_data_leaf`, the same write an agent's `apply` makes.
+    ("data_set", "set_data_leaf("),
+    // **The project search panel's Replace all** (GD-13, #375) dispatches `files_replace` through `replace_all`: one log line and
+    // one undo for a replace across the project's files. **The file editor's field line** (GD-14, #376) dispatches `file_edit`
+    // through `set_the_field`, the same comment-keeping write an agent's `apply` makes.
+    ("files_replace", "replace_all("),
+    ("file_edit", "set_the_field("),
+    // **The Terrain field (#99)** — Enter on `<brush> <x> <z> <radius_m> <strength>` dispatches
+    // `terrain_stroke` through `sculpt_terrain`, the same write an agent's `apply` makes.
+    ("terrain_stroke", "sculpt_terrain("),
+    // **The Crowd field (#107)** — Enter on `<from_x> <from_z> <to_x> <to_z> <walkers>` dispatches
+    // `crowd_preview` through `run_crowd_preview`, the same measurement an agent's `apply` makes.
+    #[cfg(all(feature = "bevy_orca", feature = "bevy_stigmergy"))]
+    ("crowd_preview", "run_crowd_preview("),
+    ("terrain_import", "import_terrain("),
+    // **The Terrain field's `preset` line (#99)** — `preset <name> <seed> <cell_m> <cells_x> <cells_z>`
+    // dispatches `terrain_preset` through `preset_terrain`, the same bake an agent's `apply` makes.
+    #[cfg(feature = "bevy_elements")]
+    ("terrain_preset", "preset_terrain("),
+    // **The Terrain field's `forest` line (#102)** — `forest <x> <z> <radius_m> <spacing_m> <seed> <species>`
+    // dispatches `forest_scatter` through `scatter_forest`, the same write an agent's `apply` makes.
+    ("forest_scatter", "scatter_forest("),
+    // **The tree line (#102)** — `tree <name> [<preset>] [<field.path>=<value> ...]` in the terrain field dispatches
+    // `tree_edit` through `edit_tree`, the same write an agent's `apply` makes.
+    ("tree_edit", "edit_tree("),
+    // **The person line (#104)** — `person <name> [<x> <z>] [home=<id>] [work=<id>] [faction=<id>]` and `person <name> remove`
+    // in the terrain field dispatch `person_set` through `set_person`, the same write an agent's `apply` makes.
+    ("person_set", "set_person("),
+    // `people run [seed] [days]` in the same field dispatches `people_run` (a read: no undo) through `run_people`.
+    ("people_run", "run_people("),
+    // **The trigger line (#105)** — `trigger <id> | <on> | <if> | <then> [| people=..] [| faction=..] [| area=..]` and
+    // `trigger <id> remove` in the same field dispatch `trigger_set` through `set_trigger`.
+    ("trigger_set", "set_trigger("),
+    // **The destructible line (#108)** — `destructible <piece> on|off` and `hit <piece> <x> <y> <z> <radius_m>` in the
+    // terrain field dispatch `destructible_set` and `destructible_hit` through `mark_destructible` and `hit_destructible`.
+    #[cfg(feature = "bevy_carnage")]
+    ("destructible_set", "mark_destructible("),
+    #[cfg(feature = "bevy_carnage")]
+    ("destructible_hit", "hit_destructible("),
+    // **The water line (#100)** — `water <spring|sink|lake> ...` in the terrain field dispatches `water_place` through `place_water`.
+    ("water_place", "place_water("),
+    // **The volume line (#101)** — `volume add|carve sphere|box|capsule <numbers> [smooth_m]` and `volume clear` in the
+    // terrain field dispatch `volume_edit` through `edit_volume`.
+    ("volume_edit", "edit_volume("),
+    // **`volume set <file>`** in the same field dispatches `volume_set` through the same `edit_volume`:
+    // a person with a whole corrected list has a file, not twenty-six lines to retype (#474).
+    ("volume_set", "edit_volume("),
+    // `water run` in the same field dispatches `water_run` through `run_water`.
+    ("water_run", "run_water("),
+    // **The Note tool (#89)** — a dragged rectangle and the note box's Enter dispatch `note_add`
+    // through `add_note`; a click on a standing note opens it for `note_edit` (`edit_note`), and an
+    // emptied note is `note_remove` (`remove_note`).
+    ("note_add", "add_note("),
+    // **The board line (SG-03, #402)** — `ref <path> <caption>` and `ref <path> remove` in the terrain field, and a picture
+    // dropped on the window, dispatch `board_set` through `set_board`.
+    ("board_set", "set_board("),
+    // **The area line (SG-06, #405)** — `area <name> <x0> <z0> <x1> <z1>` and `area <name> remove` in the terrain field dispatch
+    // `design_area_set` through `set_area`, the same write an agent's `apply` makes.
+    ("design_area_set", "set_area("),
+    // **Keep on a style proposal (SG-07, #406)** — the AGENT block's Keep for a change an agent proposed to a style page dispatches
+    // `style_edit` as the person's, through `keep_this_style_change`, so a kept proposal is logged, granted and undone as an edit is.
+    ("style_edit", "keep_this_style_change("),
+    // **The Run tool (#115)** — a drag in run mode dispatches `run_add` through `add_run`; a drag that
+    // starts on an end of a standing run moves that end through `set_run` (`run_set`); a click on a
+    // run with the removal tool takes it off whole through `remove_run` (`run_remove`).
+    ("run_add", "add_run("),
+    ("run_set", "set_run("),
+    ("run_remove", "remove_run("),
+    // **Convert rows to a run (#115)** — a platform-modifier drag in run mode over standing rows
+    // dispatches `placements_to_run` through `rows_to_run_along`.
+    ("placements_to_run", "rows_to_run_along("),
+    ("note_edit", "edit_note("),
+    ("note_remove", "remove_note("),
+    // **Enter on the Note tool with no box open** sends every draft through `send_notes`, which
+    // dispatches `note_send` (#90).
+    ("note_send", "send_notes("),
+    // **The lease buttons on a note row (#91)** — Claim on a sent note, Renew and Release on a claimed
+    // one — dispatch through `lease_note`, as the person's side of an agent's lease: a person at the
+    // keyboard can hold a note, keep it, or take it back from an agent that stopped answering.
+    ("note_claim", "lease_note("),
+    ("note_renew", "lease_note("),
+    ("note_release", "lease_note("),
+    // **Ask, answer and finish (#92)** — a note the person holds shows Ask and Done buttons, and a
+    // note with a question standing shows Yes and No; all three dispatch through `talk_note`.
+    ("note_ask", "talk_note("),
+    ("note_answer", "talk_note("),
+    ("note_resolve", "talk_note("),
+    // **Keep and Undo this note (#93)** — a done note's row shows both; Keep dispatches `note_keep`
+    // through `talk_note`, Undo this note dispatches `note_undo_work` through `undo_note_work`.
+    ("note_keep", "talk_note("),
+    ("note_undo_work", "undo_note_work("),
+    // **The Terrain field's `plan clear` line (E-069)** dispatches `plan_set` with no items through
+    // `clear_plan`, so a person can empty an agent's plan the way an agent replaces it. The checklist
+    // panel that shows it is owed (it needs a display to verify).
+    ("plan_set", "clear_plan("),
+    // **The Terrain field's `relations solve` line (#137)** dispatches `relations_solve` through
+    // `solve_relations`, the same mend an agent's `apply` makes, with one undo.
+    ("relations_solve", "solve_relations("),
+    // **The relations file**, which a person edits by hand today: adding one through this operation
+    // is how the constraint layer stops being authorable only in a text editor (#137).
+    ("relations_add", "relations_add("),
+    // **The Terrain field's `repeats vary` line (#143)** dispatches `repetition_vary` through
+    // `vary_repeats`, the same turns an agent's `apply` makes, with one undo.
+    ("repetition_vary", "vary_repeats("),
+];
+
+/// **Apply an operation, and record what happened.**
+///
+/// **The one path.** A key handler calls this; a BRP command calls this; an MCP tool calls this.
+/// **Nobody calls `commit` directly**, and `tests/operations_have_two_front_ends.rs` holds that.
+///
+/// **And the log is written here, once**, so an operation cannot be applied without being
+/// recorded — which is what makes the log a source of truth rather than a report.
+pub fn dispatch(ctx: &mut Ctx, name: &str, params: &serde_json::Value) -> Result<Applied, Refusal> {
+    dispatch_as(ctx, name, params, None, When::Once)
+}
+
+/// **Apply an operation a held key is repeating, and change the same state without a second log line.**
+///
+/// **The first press is an ordinary [`dispatch`]**; only the repeats come through here. A held arrow fires at
+/// [`crate::keys::REPEAT_SECS`], so ten seconds on `↓` was ten seconds of `compose_walk` lines in the project's own
+/// log — a hundred of them — and `oplog_target` re-parses every line of that file for each Cmd+Z (`ops.rs`, the undo
+/// resolver). The log is a record of the changes a person and an agent made, and "I held the key down" is one act.
+///
+/// **Nothing else is skipped.** The parameters are validated by the operation's own `plan`, the state change is the
+/// operation's own `commit`, and a refusal is the same refusal — so a repeat cannot apply what a press would not, and
+/// the rules still live in one body. What is absent is the append, and with it the operation id: `Applied::Done`
+/// answers with an empty one, which is the honest answer for a change that has no line to cite.
+pub fn dispatch_repeat(ctx: &mut Ctx, name: &str, params: &serde_json::Value) -> Result<Applied, Refusal> {
+    dispatch_as(ctx, name, params, None, When::Repeating)
+}
+
+/// **The refusal for a change only an undo may make**, the same wherever it is found: [`dispatch`]
+/// and [`preview`] both give it.
+fn undo_only_refusal(name: &str) -> Refusal {
+    Refusal::new(format!(
+        "`{name}` with `put_back` is the undo of a logged removal, not a change. Take that removal \
+         back with `blueprint/operation_undo`, or Cmd+Z in the editor. Nothing was put back."
+    ))
+}
+
+/// **What [`dispatch`] would do, without doing it.** A preview goes through this, so it refuses
+/// what dispatch refuses: a preview never says "would change" for a change dispatch would not make.
+pub fn preview(
+    ctx: &Ctx,
+    op: &dyn Operation,
+    params: &serde_json::Value,
+) -> Result<serde_json::Value, Refusal> {
+    if op.only_as_undo(params) {
+        return Err(undo_only_refusal(op.name()));
+    }
+    op.plan(ctx, params)
+}
+
+/// **Where a preview says its change is seen** (AF-01, #357), with the same purity [`preview`] has.
+///
+/// **It is [`Operation::shows`] and nothing else**, so a preview and its apply cannot name different
+/// places: a preview that computed its own answer would be a second opinion about the same question.
+///
+/// **Infallible, because [`preview`] already refused what it would refuse.** `shows` is pure and
+/// answers for parameters a commit would reject — that is what lets a person see *where* a change
+/// that will be refused would have landed.
+pub fn preview_shows(ctx: &Ctx, op: &dyn Operation, params: &serde_json::Value) -> Shown {
+    op.shows(ctx, params)
+}
+
+/// **What a proposal would do, in the receipt's words** (AF-05, #361).
+///
+/// **The caller's own plan**, not a second `plan` call: `preview` already ran it, and running it again
+/// would be a second answer to what the change would be (and, for an operation with a side effect in
+/// `plan`, a second side effect).
+///
+/// **The plan's own summary, and nothing in front of it**: the receipt supplies the tense (`the NightShift
+/// is about to place bed@02`), so a preview and its apply describe one change in one set of words.
+pub fn preview_summary(op: &dyn Operation, plan: &serde_json::Value) -> String {
+    match plan.get("summary").and_then(serde_json::Value::as_str) {
+        Some(said) => said.to_owned(),
+        // **A plan that names no summary is one whose answer is the change itself** — a
+        // `placement_add`'s box, an undo's restore. Naming the operation is then the honest sentence.
+        None => format!("do `{}`", op.name()),
+    }
+}
+
+
+/// **[`dispatch`], with the line it undoes named** — the one path for a change and for its undo,
+/// so an undo is validated, written and logged exactly as the change was.
+/// **Whether this call writes a log line**: a press is one change, a held key's repeat is the same change again.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum When {
+    /// A press, a click or an agent's call: validated, committed and logged, as the log's own record.
+    Once,
+    /// A held key's repeat: validated and committed, not logged — see [`dispatch_repeat`].
+    Repeating,
+}
+
+fn dispatch_as(
+    ctx: &mut Ctx,
+    name: &str,
+    params: &serde_json::Value,
+    undoes: Option<&str>,
+    when: When,
+) -> Result<Applied, Refusal> {
+    let Some(op) = find(name) else {
+        return Err(Refusal::new(format!(
+            "`{name}` is not an operation this editor knows. The known ones are: {}.",
+            registry()
+                .iter()
+                .map(|o| o.name())
+                .collect::<Vec<_>>()
+                .join(", ")
+        )));
+    };
+    // **A change only an undo may make is refused from anywhere else** (gap 2). Only [`undo`] passes
+    // `undoes`, and it dispatches the line's own recorded inverse, so this is the one door a put-back
+    // comes through. Applied on its own, it would bring back a piece the person may have removed again.
+    if undoes.is_none() && op.only_as_undo(params) {
+        return Err(undo_only_refusal(name));
+    }
+    // **The plan runs first, always.** A refusal found by the plan is found before anything is
+    // written, so a refused operation changes nothing — not the map, not the file, not the log
+    // (beyond the record that it was refused, which is itself worth having).
+    op.plan(ctx, params)?;
+    // **And where the change is seen, from the parameters, before the commit** (AF-01, #357). Read
+    // here and not after, because a removal's piece is gone by then and a place's id is minted by it:
+    // the answer has to describe the change the parameters ask for.
+    let shown = op.shows(ctx, params);
+    let outcome = op.commit(ctx, params)?;
+    let mut entry = Entry {
+        version: OPLOG_VERSION,
+        seq: 0,
+        operation_id: String::new(),
+        at: now_rfc3339(),
+        source: ctx.source,
+        session: ctx.session.clone(),
+        op: name.to_owned(),
+        params: params.clone(),
+        outcome: "applied".to_owned(),
+        refusal: None,
+        result: Some(outcome.summary.clone()),
+        rng_seed: op.rng_seed(params),
+        rules_hash: None,
+        undoes: undoes.map(str::to_owned),
+        inverse: outcome.inverse.clone(),
+        after: outcome.after.clone(),
+    };
+    // **A log that could not be written is a refusal, and the change does not stay.**
+    //
+    // The log is the source of truth. An operation applied without a record of it is an operation
+    // that happened and cannot be told about or undone, so a failed append takes the change back
+    // through its recorded inverse and says so. The take-back itself is not logged: nothing the
+    // log should describe happened. See [`take_back`].
+    //
+    // **A repeat changes the state and writes nothing**: the press that started the hold is the log's record of it, so
+    // there is no line to append and no id to cite. The entry still describes the change; it just never reaches a file.
+    if when == When::Once {
+        append(ctx, &mut entry).map_err(|e| take_back(ctx, &*op, &outcome, e))?;
+    }
+    Ok(Applied::Done {
+        outcome,
+        operation_id: entry.operation_id.clone(),
+        entry: Box::new(entry),
+        shown,
+    })
+}
+
+/// **A change whose log line cannot be written is taken back, or the refusal says it stayed.**
+///
+/// The change is already in the map and the file when the append fails. Its recorded inverse is
+/// the put-back, so it is committed through the same operation, with no log line. The refusal
+/// then says the change was taken back. When there is no inverse, the refusal says either that
+/// nothing was changed (the operation changed nothing) or that the change is still in place, and
+/// it never claims the change was undone. A failed take-back also says the change is still in place.
+fn take_back(ctx: &mut Ctx, op: &dyn Operation, outcome: &Outcome, log_error: String) -> Refusal {
+    let Some(inverse) = outcome.inverse.as_ref() else {
+        // **An operation that changed nothing has nothing to keep in place.** Saying "still in
+        // place" would tell the author a change exists on the map when none does.
+        if !outcome.saved && outcome.affected == 0 {
+            return Refusal::new(format!(
+                "the operation could not be logged, so nothing was changed: {log_error}"
+            ));
+        }
+        return Refusal::new(format!(
+            "the operation was applied but could not be logged, and it records no inverse to take \
+             it back, so the change is still in place: {log_error}"
+        ));
+    };
+    match op.commit(ctx, inverse) {
+        Ok(_) => Refusal::new(format!(
+            "the operation could not be logged, so it was taken back and nothing was changed: \
+             {log_error}"
+        )),
+        Err(Refusal(why, _)) => Refusal::new(format!(
+            "the operation was applied but could not be logged, and taking it back failed, so the \
+             change is still in place: {log_error}. Taking it back said: {why}"
+        )),
+    }
+}
+
+/// **What an undo resolved to**: the change being taken back or put back, the log line whose
+/// inverse does it, and that inverse.
+#[derive(Debug, Clone)]
+pub struct UndoPlan {
+    /// **The change**, by the id of the line that first made it.
+    pub change: String,
+    /// **The line whose inverse is dispatched**: the change itself, or the newest undo or redo of
+    /// it. The new line's `undoes` names this one.
+    pub line: Entry,
+    /// **The parameters dispatched.**
+    pub inverse: serde_json::Value,
+    /// **Whether this puts the change back into effect** (a redo) rather than taking it back. The
+    /// editor's history records a put-back as its newest change, exactly as it records a new one.
+    pub restores: bool,
+}
+
+/// **The chains of changes in a log, and which stand.** A change is a chain: the line that made it, then any undo of it, then any undo of that (a redo), and so on.
+/// `chain_of` maps a line's operation id to its chain (the id of the line that began it), `in_effect` holds the chains that stand, and `newest` the position, in
+/// `lines`, of each chain's newest line. A new change starts in effect and each undo line flips its chain. The one rule [`undo_target`] picks what to take back
+/// by, and [`crate::present::replacements`] decides which replacements still stand by.
+pub(crate) struct Chains<'a> {
+    pub chain_of: std::collections::HashMap<&'a str, &'a str>,
+    pub in_effect: std::collections::HashSet<&'a str>,
+    pub newest: std::collections::HashMap<&'a str, usize>,
+}
+
+/// [`Chains`] of `lines`, which are the applied lines of the log in the order they were written.
+pub(crate) fn chains_of<'a>(lines: impl IntoIterator<Item = &'a Entry>) -> Chains<'a> {
+    let mut chains = Chains { chain_of: Default::default(), in_effect: Default::default(), newest: Default::default() };
+    for (i, line) in lines.into_iter().enumerate() {
+        let chain = match line.undoes.as_deref() {
+            None => line.operation_id.as_str(),
+            Some(undone) => chains.chain_of.get(undone).copied().unwrap_or(undone),
+        };
+        chains.chain_of.insert(line.operation_id.as_str(), chain);
+        // A new change starts in effect; an undo line flips its chain.
+        if line.undoes.is_none() || !chains.in_effect.remove(chain) {
+            chains.in_effect.insert(chain);
+        }
+        chains.newest.insert(chain, i);
+    }
+    chains
+}
+
+/// **Which change an undo takes back, and the parameters that do it.**
+///
+/// **Pure: it reads the log and changes nothing**, so a preview and an undo resolve the same way.
+///
+/// **A change is a chain**: the line that made it, then any undo of it, then any undo of that (a
+/// redo), and so on. Each chain is in effect or not, and its newest line is the one whose inverse
+/// flips it. With no `target`, the newest change in effect is taken back. A `target` names any line
+/// of a chain: in effect, the chain is taken back; out of effect, naming the chain's newest line
+/// puts it back (a redo), and naming an older line is refused, pointing at the newest.
+///
+/// **Two guards, because a newer change must never be overwritten:**
+/// - a change still in effect that is newer than this chain's newest line blocks it, named;
+/// - the state must still be what the chain's newest line left ([`Operation::state`]), or
+///   something changed it outside the log (a hand-edited file the watcher adopted, the menu, or a
+///   different map open), and the undo is refused, naming what differs.
+pub fn undo_target(ctx: &Ctx, target: Option<&str>) -> Result<UndoPlan, Refusal> {
+    use std::collections::HashMap;
+    let Some(project) = ctx.project.as_ref() else {
+        return Err(Refusal::new(
+            "no project is open, so there is no log to undo from.",
+        ));
+    };
+    // **A change that records no undo, by id and op name.** It stays out of the undo lines, so an
+    // undo of its id can say what it is rather than that it is not in the log.
+    let mut silent: HashMap<String, String> = HashMap::new();
+    let mut lines = Vec::new();
+    let entries = read_entries_strict(project, "what the newest change is")?;
+    for entry in entries {
+        let records_no_undo = find(&entry.op).is_some_and(|op| op.undo() == Undo::None);
+        if entry.outcome == "applied" {
+            if records_no_undo {
+                silent.insert(entry.operation_id.clone(), entry.op.clone());
+            } else {
+                lines.push(entry);
+            }
+        }
+    }
+    // **Each line's chain, whether each chain is in effect, and each chain's newest line.**
+    let Chains { chain_of, in_effect, newest } = chains_of(&lines);
+    // **The log is the project's; a change belongs to one map.** A line's map is the one its
+    // recorded state names, and only changes to the open map are picked, or can block.
+    let here = ctx.open.as_ref().map(|o| o.map.name.as_str());
+    // **A map's creation belongs to the project, not to the map it made** (E-066): it is taken back
+    // by naming it, whichever map is open, and it is never the "newest change" of the open map.
+    let map_of = |l: &Entry| {
+        if l.op == "map_create" {
+            return None;
+        }
+        l.after
+            .as_ref()
+            .and_then(|a| a.get("map"))
+            .and_then(|m| m.as_str())
+            .map(str::to_owned)
+    };
+    // **The piece a library change set**, named by the `id` its recorded state carries. A map's
+    // changes have no piece, and a library change shares a scope only with its own piece. A created
+    // map's scope is its own name, so two creations never block each other.
+    let piece_of = |l: &Entry| {
+        let key = if l.op == "map_create" { "name" } else { "id" };
+        l.after
+            .as_ref()
+            .and_then(|a| a.get(key))
+            .and_then(|i| i.as_str())
+            .map(str::to_owned)
+    };
+    let chain: &str = match target {
+        None => {
+            let Some(chain) = in_effect
+                .iter()
+                .copied()
+                .filter(|c| {
+                    let l = &lines[newest[c]];
+                    match map_of(l) {
+                        Some(m) => Some(m.as_str()) == here,
+                        // A line from before placements recorded their map belongs to the open
+                        // map; only a library change is scoped to no map at all.
+                        None => {
+                            l.op != "map_create"
+                                && !find(&l.op).is_some_and(|op| op.writes_library())
+                        }
+                    }
+                })
+                .max_by_key(|c| newest[c])
+            else {
+                return Err(Refusal::new(
+                    "nothing to undo: no change to the open map is still in effect.",
+                ));
+            };
+            chain
+        }
+        Some(id) => {
+            if let Some(op) = silent.get(id) {
+                return Err(Refusal::new(format!(
+                    "`{id}` is a {op} and changes nothing, so there is nothing to undo. \
+                     blueprint_read_oplog lists the changes that can be undone."
+                )));
+            }
+            let Some(chain) = chain_of.get(id).copied() else {
+                return Err(Refusal::new(format!(
+                    "no operation `{id}` is in the log. blueprint_read_oplog lists the ids."
+                )));
+            };
+            let head = &lines[newest[chain]].operation_id;
+            if !in_effect.contains(chain) && head != id {
+                return Err(Refusal::new(format!(
+                    "`{id}` is not in effect: `{head}` took it back. Undo `{head}` to put it back."
+                )));
+            }
+            chain
+        }
+    };
+    let line = &lines[newest[chain]];
+    let line_map = map_of(line);
+    if let Some(m) = line_map.as_deref()
+        && Some(m) != here
+    {
+        // **A map renamed since is not a map to open**: the change belongs to the map's old name
+        // (B-030), so the way back is the rename's undo, which puts the name back.
+        if let Some(rename) = lines.iter().rev().find(|l| {
+            l.op == "map_rename"
+                && in_effect.contains(chain_of[l.operation_id.as_str()])
+                && l.inverse
+                    .as_ref()
+                    .and_then(|i| i.get("name"))
+                    .and_then(|n| n.as_str())
+                    == Some(m)
+        }) {
+            return Err(Refusal::new(format!(
+                "`{}` changed map `{m}`, which `{}` has since renamed to `{}`. Undo `{}` first to \
+                 put the name back, then undo `{}`.",
+                line.operation_id,
+                rename.operation_id,
+                here.unwrap_or("none"),
+                rename.operation_id,
+                line.operation_id
+            )));
+        }
+        return Err(Refusal::new(format!(
+            "`{}` changed map `{m}`, and the open map is `{}`. Open `{m}` to take it back.",
+            line.operation_id,
+            here.unwrap_or("none")
+        )));
+    }
+    // **Guard 1: a newer change in the same scope, logged, still in effect.** A map's changes share
+    // the map, and a library change shares only its piece, so two label sets on different pieces
+    // never refuse each other (cycle 9 gap 3).
+    let same_scope = |other: &Entry| {
+        map_of(other) == line_map && (line_map.is_some() || piece_of(other) == piece_of(line))
+    };
+    let changed = match line_map {
+        Some(_) => "the map".to_owned(),
+        None => format!("`{}`", piece_of(line).unwrap_or_else(|| "the library".to_owned())),
+    };
+    if let Some(blocker) = in_effect
+        .iter()
+        .filter(|c| **c != chain && newest[*c] > newest[chain] && same_scope(&lines[newest[*c]]))
+        .map(|c| &lines[newest[c]])
+        .max_by_key(|l| l.seq)
+    {
+        return Err(Refusal::new(format!(
+            "`{}` ({} by {:?}) changed {} after `{}`, so putting the old values back would \
+             overwrite it. Undo `{}` first, or leave `{}` as it is.",
+            blocker.operation_id,
+            blocker.op,
+            blocker.source,
+            changed,
+            line.operation_id,
+            blocker.operation_id,
+            line.operation_id
+        )));
+    }
+    let Some(op) = find(&line.op) else {
+        return Err(Refusal::new(format!(
+            "`{}` is not an operation this editor knows.",
+            line.op
+        )));
+    };
+    // **Guard 2: the state is what the line left, or something changed it since.**
+    //
+    // **Compared on the keys `state_of` reports, on both sides.** The right side is the map now; the
+    // left is the logged `after`, and that carries fields the projection does not — a fill's
+    // `truncated`, a rename's `path`. Comparing the whole logged `after` against a projection
+    // refused an undo over a field that is a report and not a fact: measured on S1.5's own fill,
+    // `truncated is null and 0000-1764 left false`, which reads to an author as "somebody edited
+    // your map" when nobody did. What this guard means is *has the part of the map this change
+    // touched moved*, and that is a comparison of two projections.
+    if let (Some(now), Some(left)) = (
+        line.after.as_ref().and_then(|a| op.state_of(ctx, a)),
+        line.after.as_ref(),
+    ) {
+        // The logged row, cut down to the fields this operation's projection describes.
+        let left = match now.as_object() {
+            Some(keys) => {
+                let mut projected = serde_json::Map::new();
+                for key in keys.keys() {
+                    projected.insert(
+                        key.clone(),
+                        left.get(key).cloned().unwrap_or(serde_json::Value::Null),
+                    );
+                }
+                serde_json::Value::Object(projected)
+            }
+            // A projection that is not an object is the whole map, which is what it guarded before.
+            None => left.clone(),
+        };
+        if left != now {
+            // **A logged change is named first**: an undo or redo of another change to this map can
+            // be what moved the state, and blaming an edit outside the log would be false.
+            if let Some(later) = lines[newest[chain] + 1..]
+                .iter()
+                .rev()
+                .find(|l| same_scope(l))
+            {
+                return Err(Refusal::new(format!(
+                    "`{}` ({} by {:?}) changed {} after `{}`, so putting the old values back \
+                     would overwrite it. Take `{}` back, or put it back, first.",
+                    later.operation_id,
+                    later.op,
+                    later.source,
+                    changed,
+                    line.operation_id,
+                    later.operation_id
+                )));
+            }
+            let differs: Vec<String> = match (left.as_object(), now.as_object()) {
+                (Some(l), Some(n)) => l
+                    .keys()
+                    .filter(|k| l.get(*k) != n.get(*k))
+                    .map(|k| {
+                        format!(
+                            "{k} is {} and `{}` left {}",
+                            n.get(k.as_str()).unwrap_or(&serde_json::Value::Null),
+                            line.operation_id,
+                            l[k.as_str()]
+                        )
+                    })
+                    .collect(),
+                _ => vec![format!(
+                    "the state is {now} and `{}` left {left}",
+                    line.operation_id
+                )],
+            };
+            return Err(Refusal::new(format!(
+                "the map has changed outside the operation log since `{}` ({}): a file edited by \
+                 hand, the menu, or a different map open. Putting the old values back would \
+                 overwrite that, so nothing was changed.",
+                line.operation_id,
+                differs.join("; ")
+            )));
+        }
+    }
+    let Some(inverse) = line.inverse.clone() else {
+        return Err(Refusal::new(format!(
+            "`{}` recorded no inverse (it was logged before undo existed), so it cannot be taken \
+             back from the log.",
+            line.operation_id
+        )));
+    };
+    Ok(UndoPlan {
+        change: chain.to_owned(),
+        line: line.clone(),
+        inverse,
+        restores: !in_effect.contains(chain),
+    })
+}
+
+/// **Take one change back, or put it back, by dispatching the inverse its newest line recorded.**
+///
+/// **The undo is an operation like any other**: the inverse goes through [`dispatch`]'s own path
+/// (plan, commit, the file written, a new log line) and the new line's `undoes` names the line it
+/// inverted. **Nothing is deleted from the log.**
+pub fn undo(ctx: &mut Ctx, target: Option<&str>) -> Result<(UndoPlan, Applied), Refusal> {
+    let plan = undo_target(ctx, target)?;
+    let applied = dispatch_as(
+        ctx,
+        &plan.line.op,
+        &plan.inverse,
+        Some(&plan.line.operation_id),
+        When::Once,
+    )?;
+    Ok((plan, applied))
+}
+
+/// **Every line of the operation log, parsed** — or an empty list when there is no log yet.
+///
+/// **One reader**, because the undo walk and `blueprint/present` both need to know what the log holds
+/// and two parses would be two answers to "is this id real". A line that does not parse is skipped
+/// rather than failing the whole read: a log is append-only text, and one damaged line must not make
+/// every entry after it unreachable.
+pub fn read_entries(path: &std::path::Path) -> Vec<Entry> {
+    let Ok(text) = std::fs::read_to_string(path) else {
+        return Vec::new();
+    };
+    text.lines()
+        .filter(|l| !l.trim().is_empty())
+        .filter_map(|l| serde_json::from_str::<Entry>(l).ok())
+        .collect()
+}
+
+/// **Every line of the operation log, or a refusal naming the first line that does not read** (#207).
+///
+/// The reader for a decision that must not guess around a damaged line (the undo walk, a note's undo,
+/// the fence on an agent): [`read_entries`] skips such a line, which hides a newer change from an
+/// overlap check or credits an agent's pieces to a person. `cannot_say` finishes the sentence "the
+/// log does not read, so it cannot say ...". It names the line and field the way the reload verdict
+/// does (`oplog_view`), so one repaired line moves both.
+pub fn read_entries_strict(project: &Project, cannot_say: &str) -> Result<Vec<Entry>, Refusal> {
+    let path = oplog_path(project);
+    let text = std::fs::read_to_string(&path).unwrap_or_default();
+    blueprint_model::reload_check::read_lines("oplog", &crate::map_files::file_name(project, &path), &text).map_err(|r| {
+        Refusal::new(format!("the log does not read, so it cannot say {cannot_say}: {}. Nothing was changed.", r.sentence()))
+    })
+}
+
+/// **An operation id** — unique within a project, and short enough to read aloud.
+///
+/// **The sequence and the session's first four characters.** Two agents in one project therefore
+/// get different ids without a clock or a random source, and the id says which run made the
+/// change. The sequence is claimed by [`append`], under the log's lock.
+fn operation_id_for(seq: u64, session: &str) -> String {
+    let tag: String = session
+        .chars()
+        .filter(|c| c.is_ascii_alphanumeric())
+        .take(4)
+        .collect();
+    format!("{seq:04}-{tag}")
+}
+
+/// **When it happened, as RFC 3339 UTC.**
+///
+/// **Computed here, not passed in**, so a caller cannot record a time that is not the time.
+pub(crate) fn now_rfc3339() -> String {
+    // **`SystemTime` and a hand-rolled formatter**, because the crate has no date dependency and
+    // adding one for a timestamp is not worth it. The format is the RFC 3339 subset that matters:
+    // UTC, seconds precision, a `Z` suffix.
+    let secs = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs() as i64)
+        .unwrap_or(0);
+    let (y, mo, d, h, mi, s) = civil_from_unix(secs);
+    format!("{y:04}-{mo:02}-{d:02}T{h:02}:{mi:02}:{s:02}Z")
+}
+
+/// **The calendar date and time of a Unix timestamp, in UTC.**
+///
+/// **Howard Hinnant's `civil_from_days`**, which is the standard conversion and is exact for every
+/// date this century. It is here because the alternative is a dependency, and the alternative to
+/// *that* is a wrong timestamp.
+fn civil_from_unix(secs: i64) -> (i64, u32, u32, u32, u32, u32) {
+    let days = secs.div_euclid(86_400);
+    let rem = secs.rem_euclid(86_400);
+    let (h, mi, s) = (
+        (rem / 3600) as u32,
+        ((rem % 3600) / 60) as u32,
+        (rem % 60) as u32,
+    );
+    // Shift the epoch to 0000-03-01 so the leap day is the last day of the cycle.
+    let z = days + 719_468;
+    let era = z.div_euclid(146_097);
+    let doe = z.rem_euclid(146_097);
+    let yoe = (doe - doe / 1460 + doe / 36_524 - doe / 146_096) / 365;
+    let y = yoe + era * 400;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let d = (doy - (153 * mp + 2) / 5 + 1) as u32;
+    let m = if mp < 10 { mp + 3 } else { mp - 9 } as u32;
+    let y = if m <= 2 { y + 1 } else { y };
+    (y, m, d, h, mi, s)
+}
+
+/// **Append one entry to the log.**
+///
+/// **An append, not a replace.** The file is opened with `append(true)`, so the log cannot lose
+/// an earlier line by being rewritten — and the crate's own `save::save_atomic` rules do
+/// not apply to it, because it is not a document anybody edits.
+fn append(ctx: &Ctx, entry: &mut Entry) -> Result<(), String> {
+    // **A root is enough.** The log lives at a fixed place under it, and a change made from the menu
+    // has a root but no loaded `Project` — see `Ctx::root`.
+    let Some(root) = ctx.root_or_project() else {
+        return Err("no project is open, so there is nowhere to write the log.".to_owned());
+    };
+    let path = oplog_path_at(&root);
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent).map_err(|e| format!("{}: {e}", parent.display()))?;
+    }
+    let mut f = std::fs::OpenOptions::new()
+        .create(true)
+        .read(true)
+        .append(true)
+        .open(&path)
+        .map_err(|e| format!("{}: {e}", path.display()))?;
+    // **The sequence number is claimed under an exclusive lock, in the same step as the append.**
+    // Counting before the lock let two writers count the same number and write the same
+    // `operation_id` (E-004). The lock is advisory and released when `f` is dropped; it is held
+    // across processes, so an editor and an MCP server writing one project do not collide.
+    f.lock().map_err(|e| format!("{}: {e}", path.display()))?;
+    let (seq, torn) = {
+        use std::io::Read;
+        let mut text = String::new();
+        f.read_to_string(&mut text)
+            .map_err(|e| format!("{}: {e}", path.display()))?;
+        let seq = text.lines().filter(|l| !l.trim().is_empty()).count() as u64;
+        (seq, !text.is_empty() && !text.ends_with('\n'))
+    };
+    // **A torn last line ends before the new one starts.** A write cut short leaves text with no
+    // `\n`; appending straight after it glued the next entry onto the torn text and lost both (#206).
+    // The torn text stays one damaged line, which `oplog_view` names, and the entry is on its own.
+    if torn {
+        use std::io::Write;
+        f.write_all(b"\n").map_err(|e| format!("{}: {e}", path.display()))?;
+    }
+    entry.seq = seq;
+    entry.operation_id = operation_id_for(seq, &ctx.session);
+    // **A line that cannot be serialised is a failure, not a substitute.** A log line that says
+    // "unloggable" is a line about the log, in a log about the work, and a reader cannot tell
+    // the two apart.
+    let line = serde_json::to_string(&*entry)
+        .map_err(|e| format!("the log entry could not be written: {e}"))?;
+    use std::io::Write;
+    writeln!(f, "{line}").map_err(|e| format!("{}: {e}", path.display()))?;
+    f.sync_data()
+        .map_err(|e| format!("{}: {e}", path.display()))?;
+    Ok(())
+}
+
+/// The three ids closest to `bad`, nearest first.
+pub(crate) fn nearest_ids(ids: &[&str], bad: &str) -> Vec<String> {
+    let mut scored: Vec<(usize, &str)> =
+        ids.iter().map(|id| (blueprint_model::vocab::edit_distance(id, bad), *id)).collect();
+    scored.sort();
+    scored
+        .into_iter()
+        .take(3)
+        .map(|(_, id)| id.to_string())
+        .collect()
+}
+
+/// **The operations a map's own settings are changed by.**
+pub mod map_set_settings {
+    use super::*;
+    use serde_json::json;
+
+    /// **A map's own settings** — the fields an author tunes while looking at a result.
+    ///
+    /// **A partial update, and every field is optional.** "Change the map's bounds" is one call
+    /// with one field, and the fields not named keep their values. **A full replacement would be
+    /// a different operation**, and a worse one: an agent that wanted to change the bounds would
+    /// have to know and restate the origin and the note, and a restatement that got one field
+    /// wrong would silently rewrite it.
+    #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+    #[serde(deny_unknown_fields)]
+    pub struct Params {
+        /// **Where the map sits in the world**, in metres. A triple.
+        #[serde(default)]
+        pub origin: Option<(f32, f32, f32)>,
+        /// **How big the map is**, in metres on each axis. A triple.
+        #[serde(default)]
+        pub bounds: Option<(f32, f32, f32)>,
+        /// **One axis of the bounds, in metres.**
+        ///
+        /// **The UI's own shape, and it is here for the UI's reason.** The editor's size field
+        /// edits **one** axis at a time — X, then Y, then Z — and the author sees the other two
+        /// on screen while they type. **So the operation takes an axis as well as a whole
+        /// triple**, and the UI's field and an agent's call are the same call.
+        ///
+        /// **`None` means "the whole triple", and `bounds` and `axis` together are a refusal** —
+        /// two ways of saying the same thing is not a thing an operation should guess about.
+        #[serde(default)]
+        pub axis: Option<Axis>,
+        /// **The value for `axis`, in metres.**
+        ///
+        /// **Required when `axis` is given, and refused without it.** An axis with no value is a
+        /// half-said thing, and the operation says so rather than guessing.
+        #[serde(default)]
+        pub axis_value: Option<f32>,
+        /// **The named combination of kits the map offers**, or `None` for every bound kit.
+        ///
+        /// **Absent leaves it alone; `null` clears it.** See [`present`].
+        #[serde(default, deserialize_with = "present")]
+        pub bash: Option<Option<String>>,
+        /// **The map's note** — the header prose, as data. Absent leaves it; `null` clears it.
+        #[serde(default, deserialize_with = "present")]
+        pub note: Option<Option<String>>,
+        /// **The fraction of a generated region that should close into rooms**, `0.0..=1.0`.
+        ///
+        /// Tuning this is why the field exists: what an author means by "rooms" differs per map, and
+        /// the editor held one number for every map until E-005. Absent leaves it alone.
+        #[serde(default)]
+        pub enclosure_wish: Option<f32>,
+        /// **What that wish is worth** against the other terms of the solve. Absent leaves it alone.
+        #[serde(default)]
+        pub enclosure_weight: Option<u32>,
+    }
+
+    /// **A field that is present is `Some`, even when it is `null`.**
+    ///
+    /// serde reads an explicit `null` into `Option<Option<T>>` as the outer `None` — the same as an
+    /// absent field — so `"note": null` meant "leave the note alone", the operation answered
+    /// `applied`, and nothing changed, while the schema says null clears it. **Called only when the
+    /// field is present** (`#[serde(default)]` covers absence), so wrapping in `Some` is exact:
+    /// absent is `None`, `null` is `Some(None)`, a value is `Some(Some(v))`.
+    fn present<'de, D, T>(deserializer: D) -> Result<Option<Option<T>>, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+        T: Deserialize<'de>,
+    {
+        Option::<T>::deserialize(deserializer).map(Some)
+    }
+
+    /// **Which axis of the map's bounds.**
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+    #[serde(rename_all = "lowercase")]
+    pub enum Axis {
+        X,
+        Y,
+        Z,
+    }
+
+    impl Axis {
+        /// **The axis's own letter**, for a receipt.
+        pub fn label(self) -> &'static str {
+            match self {
+                Axis::X => "X",
+                Axis::Y => "Y",
+                Axis::Z => "Z",
+            }
+        }
+
+        /// **The axis's place in a bounds triple.**
+        pub fn index(self) -> usize {
+            match self {
+                Axis::X => 0,
+                Axis::Y => 1,
+                Axis::Z => 2,
+            }
+        }
+    }
+
+    impl Params {
+        /// **The JSON schema**, which is what an agent reads.
+        pub fn schema() -> serde_json::Value {
+            json!({
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                    "origin": {
+                        "type": "array",
+                        "items": {"type": "number"},
+                        "minItems": 3,
+                        "maxItems": 3,
+                        "description": "Where the map sits in the world, in metres, as [x, y, z]."
+                    },
+                    "bounds": {
+                        "type": "array",
+                        "items": {"type": "number"},
+                        "minItems": 3,
+                        "maxItems": 3,
+                        "description": "How big the map is, in metres on each axis, as [x, y, z]."
+                    },
+                    "axis": {
+                        "description": "One axis of the bounds, for an edit that changes one axis and leaves the others. Use `axis_value` for its size.",
+                        "type": ["string", "null"],
+                        "enum": ["x", "y", "z", null]
+                    },
+                    "axis_value": {
+                        "description": "The size of `axis`, in metres. Required when `axis` is given.",
+                        "type": "number"
+                    },
+                    "bash": {
+                        "description": "The named combination of kits the map offers. Null means every bound kit.",
+                        "type": ["string", "null"]
+                    },
+                    "note": {
+                        "description": "The map's note: the header prose, as data.",
+                        "type": ["string", "null"]
+                    },
+                    "enclosure_wish": {
+                        "description": "The fraction of a generated region that should close into rooms, 0.0 to 1.0. Used by the composition source, whose grammar has walls to close; the learned and declared sources derive no interfaces and ignore it. Soft: a region that cannot reach it returns its best arrangement and says so.",
+                        "type": "number",
+                        "minimum": 0.0,
+                        "maximum": 1.0
+                    },
+                    "enclosure_weight": {
+                        "description": "What the enclosure wish is worth against the other terms of the solve. Any positive value makes it decisive, because it is the only soft constraint in play.",
+                        "type": "integer",
+                        "minimum": 1
+                    }
+                }
+            })
+        }
+
+        /// **The parameters, parsed.**
+        ///
+        /// **`deny_unknown_fields`, so a typo is a refusal** rather than a field silently ignored
+        /// and an agent left to believe it changed something.
+        pub fn parse(raw: &serde_json::Value) -> Result<Params, Refusal> {
+            serde_json::from_value(raw.clone()).map_err(|e| {
+                Refusal::new(format!(
+                    "these are not a map's settings: {e}. The fields are `origin`, `bounds`, `axis`, \
+                     `axis_value`, `bash`, `note`, `enclosure_wish` and `enclosure_weight`, and \
+                     nothing else."
+                ))
+            })
+        }
+    }
+
+    /// **A map's own settings, changed.**
+    pub struct MapSetSettings;
+
+    impl Operation for MapSetSettings {
+        fn name(&self) -> &'static str {
+            "map_set_settings"
+        }
+        fn shows(&self, _ctx: &Ctx, _params: &serde_json::Value) -> Shown {
+            Shown::MapWhole
+        }
+        fn writes(&self) -> &'static [&'static str] {
+            &["map"]
+        }
+
+        fn undo(&self) -> Undo {
+            Undo::Inverse
+        }
+
+        fn schema(&self) -> serde_json::Value {
+            Params::schema()
+        }
+
+        fn state(&self, ctx: &Ctx) -> Option<serde_json::Value> {
+            ctx.open.as_ref().map(settings_of)
+        }
+
+        fn plan(
+            &self,
+            ctx: &Ctx,
+            params: &serde_json::Value,
+        ) -> Result<serde_json::Value, Refusal> {
+            let p = Params::parse(params)?;
+            // **A map has to be open.** A settings change with no map has no subject, and saying
+            // so is the whole refusal.
+            if ctx.open.is_none() {
+                return Err(Refusal::new(
+                    "no map is open, so there are no settings to change.",
+                ));
+            }
+            // **The bounds have to be positive.** A map with a zero or negative extent is a map
+            // whose edges are inside it, and the validators refuse it — so the refusal comes here,
+            // where the author is, rather than at the save.
+            if let Some(b) = p.bounds
+                && (b.0 <= 0.0 || b.1 <= 0.0 || b.2 <= 0.0)
+            {
+                return Err(Refusal::new(format!(
+                    "a map's bounds are metres on each axis, and every one has to be positive — `{b:?}` is not."
+                )));
+            }
+            // **An axis needs its value, and only its value.**
+            //
+            // **Two ways of saying the same thing is a refusal, not a guess.** A caller that
+            // sends both `bounds` and `axis` has said two things about the bounds, and the
+            // operation will not pick one — because picking wrong writes a size the author did
+            // not ask for.
+            if p.bounds.is_some() && p.axis.is_some() {
+                return Err(Refusal::new(
+                    "say the bounds one way or the other: `bounds` for all three axes, or `axis` and `axis_value` for one. Sending both is two answers to one question.",
+                ));
+            }
+            if p.axis.is_some() && p.axis_value.is_none() {
+                return Err(Refusal::new(
+                    "an axis needs its size: send `axis` and `axis_value` together.",
+                ));
+            }
+            if p.axis_value.is_some() && p.axis.is_none() {
+                return Err(Refusal::new(
+                    "`axis_value` is a size for an axis, and no axis was named.",
+                ));
+            }
+            // **And the axis's size has to be a size.** A map's axis runs `MIN_BOUND..MAX_BOUND`
+            // metres, and a value outside that is a map whose edges are inside it.
+            if let (Some(axis), Some(value)) = (p.axis, p.axis_value)
+                && !(value.is_finite() && value > 0.0)
+            {
+                return Err(Refusal::new(format!(
+                    "the {} axis is metres across the map, and it has to be a positive number — \
+                     `{value}` is not.",
+                    axis.label()
+                )));
+            }
+            // **The wish is a fraction, and a weight has to weigh something.**
+            //
+            // A wish outside `0.0..=1.0` is not a bigger ask, it is a number with no meaning — the
+            // solver compares it against the fraction of a region that closed. A weight of zero is
+            // the author switching the wish off while saying they want it, which is two answers to
+            // one question and is refused rather than silently guessed.
+            if let Some(wish) = p.enclosure_wish
+                && !(wish.is_finite() && (0.0..=1.0).contains(&wish))
+            {
+                return Err(Refusal::new(format!(
+                    "the enclosure wish is the fraction of a region that should close into rooms, \
+                     from 0 to 1 — `{wish}` is not."
+                )));
+            }
+            if let Some(weight) = p.enclosure_weight
+                && weight < 1
+            {
+                return Err(Refusal::new(
+                    "the enclosure weight is what the wish is worth, and it has to be at least 1 — \
+                     a wish worth nothing is a wish not being asked for.",
+                ));
+            }
+            // **The preview is the change, stated.**
+            Ok(json!({
+                "origin": p.origin,
+                "bounds": p.bounds,
+                "bash": p.bash,
+                "note": p.note,
+                "enclosure_wish": p.enclosure_wish,
+                "enclosure_weight": p.enclosure_weight,
+            }))
+        }
+
+        fn commit(&self, ctx: &mut Ctx, params: &serde_json::Value) -> Result<Outcome, Refusal> {
+            let p = Params::parse(params)?;
+            let Some(mut open) = ctx.open.take() else {
+                return Err(Refusal::new(
+                    "no map is open, so there are no settings to change.",
+                ));
+            };
+            // **The old values, for the undo.**
+            let old = Settings {
+                origin: open.map.origin,
+                bounds: open.map.bounds,
+                bash: open.map.bash.clone(),
+                note: open.map.note.clone(),
+                enclosure: open.map.enclosure,
+            };
+            if let Some(v) = p.origin {
+                open.map.origin = v;
+            }
+            if let Some(v) = p.bounds {
+                open.map.bounds = v;
+            }
+            // **One axis, and only that one.** The editor's size field edits X, then Y, then Z,
+            // and the author sees the other two on screen while they type — so an axis edit
+            // changes one number and leaves the other two exactly as they were.
+            if let (Some(axis), Some(value)) = (p.axis, p.axis_value) {
+                let (x, y, z) = open.map.bounds;
+                open.map.bounds = match axis {
+                    Axis::X => (value, y, z),
+                    Axis::Y => (x, value, z),
+                    Axis::Z => (x, y, value),
+                };
+            }
+            if let Some(v) = p.bash {
+                open.map.bash = v;
+            }
+            if let Some(v) = p.note {
+                open.map.note = v;
+            }
+            // **The wish, one field at a time**, the same partial-update rule as every other
+            // setting: an author tuning the weight keeps the fraction they already chose.
+            if let Some(v) = p.enclosure_wish {
+                open.map.enclosure.wish = v;
+            }
+            if let Some(v) = p.enclosure_weight {
+                open.map.enclosure.weight = v;
+            }
+            // **And the file, so the change is not only in memory.** The brief's rule: a live
+            // change is written back to the data file, so nothing exists only in memory.
+            //
+            // **The save is the map's own gate** — `OpenMap::save` validates, expands the stamps
+            // the way the game does, and refuses rather than writing a file the game cannot load.
+            // **A refusal to save is a refusal of the whole operation**, not a half-applied change
+            // that reports success.
+            let Some(project) = ctx.project.as_ref() else {
+                // **The map goes back before the refusal.** The commit took it out of the
+                // context, and a refusal that dropped it would leave the editor holding nothing
+                // — the map would come back as a default, and the author's work with it.
+                ctx.open = Some(open);
+                return Err(Refusal::new("no project is open."));
+            };
+            let saved = match open.save(project) {
+                Ok(()) => true,
+                Err(e) => {
+                    // **Put the map back.** The settings were changed in memory and the file
+                    // refused them, so the in-memory map and the file now disagree — and the
+                    // editor's own dirty flag would say the map is unsaved, which is true and
+                    // useless. **The old values go back, so the editor and the file agree.**
+                    open.map.origin = old.origin;
+                    open.map.bounds = old.bounds;
+                    open.map.bash = old.bash;
+                    open.map.note = old.note;
+                    open.map.enclosure = old.enclosure;
+                    ctx.open = Some(open);
+                    return Err(Refusal::new(format!(
+                        "the settings were changed but the file refused them, so nothing was \
+                         written: {e}"
+                    )));
+                }
+            };
+            // **The map goes back into the context, changed or not.** The refusal arm restores
+            // the old values *before* this, so the editor and the file always agree.
+            //
+            // **The receipt is written before the move**, because the map is the context's after
+            // this line and the summary is about the map.
+            let (x, y, z) = open.map.bounds;
+            let summary = format!(
+                "map is {} x {} x {} m, and the file was written",
+                trim_metres(x),
+                trim_metres(y),
+                trim_metres(z)
+            );
+            ctx.open = Some(open);
+            // **The inverse is the settings this change replaced, all four of them.** Naming every
+            // field, rather than only the ones that changed, keeps the undo exact when a field was
+            // absent (`null` clears it) and keeps it one call.
+            let inverse = serde_json::json!({
+                "origin": [old.origin.0, old.origin.1, old.origin.2],
+                "bounds": [old.bounds.0, old.bounds.1, old.bounds.2],
+                "bash": old.bash,
+                "note": old.note,
+                "enclosure_wish": old.enclosure.wish,
+                "enclosure_weight": old.enclosure.weight,
+            });
+            let after = ctx.open.as_ref().map(settings_of);
+            Ok(Outcome {
+                summary,
+                affected: 1,
+                saved,
+                inverse: Some(inverse),
+                after,
+            })
+        }
+    }
+
+    /// **Which map, and its four settings** — what an undo of a settings change compares before it
+    /// puts old values back. **The map's name is part of it**, because the log is the project's and
+    /// the operation acts on whichever map is open.
+    pub fn settings_of(open: &OpenMap) -> serde_json::Value {
+        json!({
+            "map": open.map.name,
+            "origin": [open.map.origin.0, open.map.origin.1, open.map.origin.2],
+            "bounds": [open.map.bounds.0, open.map.bounds.1, open.map.bounds.2],
+            "bash": open.map.bash,
+            "note": open.map.note,
+            "enclosure_wish": open.map.enclosure.wish,
+            "enclosure_weight": open.map.enclosure.weight,
+        })
+    }
+
+    /// **A map's settings, as they were.**
+    ///
+    /// **The inverse delta.** The undo of a settings change is the settings it replaced, and
+    /// that is a small thing to keep.
+    #[derive(Debug, Clone, PartialEq)]
+    pub struct Settings {
+        pub origin: (f32, f32, f32),
+        pub bounds: (f32, f32, f32),
+        pub bash: Option<String>,
+        pub note: Option<String>,
+        pub enclosure: blueprint_model::map::Enclosure,
+    }
+}
+
+/// **One placement's pin, set or cleared** — the operation behind the O key and the pin-reason field.
+///
+/// **Addressed by the placement's id, not its row.** A row is where the piece sits in the list
+/// this minute; the id is what the piece is called, and it does not change when another piece is
+/// removed. The undo names the id for the same reason.
+pub mod placement_set_pin {
+    use super::*;
+    use serde_json::json;
+
+    #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+    #[serde(deny_unknown_fields)]
+    pub struct Params {
+        /// The placement's id, as the map file and `blueprint/state` name it.
+        pub id: String,
+        /// `true` pins the piece; `false` unpins it.
+        pub pinned: bool,
+        /// **Why the piece is held.** Required when `pinned` is true, and refused when it is not:
+        /// an unpin takes no reason, and sending one is two answers to one question.
+        #[serde(default)]
+        pub because: Option<String>,
+    }
+
+    impl Params {
+        /// **The JSON schema**, which is what an agent reads.
+        pub fn schema() -> serde_json::Value {
+            json!({
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["id", "pinned"],
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "description": "The placement's id, as the map file names it."
+                    },
+                    "pinned": {
+                        "type": "boolean",
+                        "description": "true pins the piece so the solver routes around it; false unpins it."
+                    },
+                    "because": {
+                        "type": ["string", "null"],
+                        "description": "Why the piece is held. Required when pinned is true; refused otherwise."
+                    }
+                }
+            })
+        }
+
+        /// **The parameters, parsed.** `deny_unknown_fields`, so a typo is a refusal.
+        pub fn parse(raw: &serde_json::Value) -> Result<Params, Refusal> {
+            serde_json::from_value(raw.clone()).map_err(|e| {
+                Refusal::new(format!(
+                    "these are not a placement's pin: {e}. The fields are `id`, `pinned` and \
+                     `because`, and nothing else."
+                ))
+            })
+        }
+    }
+
+    /// **The one rule for a pin's reason**, in one place: a pin has a reason, an unpin has none.
+    /// Returns the reason as it will be stored, trimmed.
+    fn reason_of(p: &Params) -> Result<Option<String>, Refusal> {
+        match (p.pinned, p.because.as_deref().map(str::trim)) {
+            (true, Some(r)) if !r.is_empty() => Ok(Some(r.to_owned())),
+            (true, _) => Err(Refusal::new(
+                "a pin needs a reason, and it is what the author will read when they ask why the \
+                 piece is held. Nothing was pinned.",
+            )),
+            (false, None) => Ok(None),
+            (false, Some(_)) => Err(Refusal::new(
+                "an unpin takes no reason, so `because` has to be left out. Nothing was unpinned.",
+            )),
+        }
+    }
+
+    /// **The pins a map holds, as its id and reason**, which is the state an undo checks.
+    fn pins_of(open: &OpenMap) -> serde_json::Value {
+        let pins: Vec<serde_json::Value> = open
+            .map
+            .placements
+            .iter()
+            .filter(|p| p.owned)
+            .map(|p| json!([p.id, p.owned_because]))
+            .collect();
+        json!({"map": open.map.name, "pins": pins})
+    }
+
+    /// **Set or clear one placement's pin.**
+    pub struct PlacementSetPin;
+
+    impl Operation for PlacementSetPin {
+        fn name(&self) -> &'static str {
+            "placement_set_pin"
+        }
+        fn shows(&self, ctx: &Ctx, params: &serde_json::Value) -> Shown {
+            match params.get("id").and_then(serde_json::Value::as_str) {
+                Some(id) => shown_placement(ctx, id),
+                None => Shown::MapWhole,
+            }
+        }
+        fn writes(&self) -> &'static [&'static str] {
+            &["map"]
+        }
+
+        fn undo(&self) -> Undo {
+            Undo::Inverse
+        }
+
+        fn schema(&self) -> serde_json::Value {
+            Params::schema()
+        }
+
+        fn state(&self, ctx: &Ctx) -> Option<serde_json::Value> {
+            ctx.open.as_ref().map(pins_of)
+        }
+
+        fn plan(&self, ctx: &Ctx, params: &serde_json::Value) -> Result<serde_json::Value, Refusal> {
+            let p = Params::parse(params)?;
+            let Some(open) = ctx.open.as_ref() else {
+                return Err(Refusal::new(
+                    "no map is open, so there are no placements to pin.",
+                ));
+            };
+            if !open.map.placements.iter().any(|q| q.id == p.id) {
+                return Err(Refusal::new(format!(
+                    "no placement is called `{}` on this map, so nothing was pinned.",
+                    p.id
+                )));
+            }
+            let because = reason_of(&p)?;
+            Ok(json!({"id": p.id, "pinned": p.pinned, "because": because}))
+        }
+
+        fn commit(&self, ctx: &mut Ctx, params: &serde_json::Value) -> Result<Outcome, Refusal> {
+            let p = Params::parse(params)?;
+            let because = reason_of(&p)?;
+            let Some(mut open) = ctx.open.take() else {
+                return Err(Refusal::new(
+                    "no map is open, so there are no placements to pin.",
+                ));
+            };
+            let Some(index) = open.map.placements.iter().position(|q| q.id == p.id) else {
+                ctx.open = Some(open);
+                return Err(Refusal::new(format!(
+                    "no placement is called `{}` on this map, so nothing was pinned.",
+                    p.id
+                )));
+            };
+            // **The old pin, for the undo.** Its inverse is the same operation with these values.
+            let old_owned = open.map.placements[index].owned;
+            let old_because = open.map.placements[index].owned_because.clone();
+            open.map.placements[index].owned = p.pinned;
+            open.map.placements[index].owned_because = because.clone();
+            let summary = match &because {
+                Some(reason) => format!("pinned {}: {reason}", p.id),
+                None => format!("unpinned {}", p.id),
+            };
+            // **And the file, so the pin is not only in memory.** The save is the map's own gate;
+            // a refusal to save puts the old pin back, so the editor and the file agree.
+            let Some(project) = ctx.project.as_ref() else {
+                ctx.open = Some(open);
+                return Err(Refusal::new("no project is open."));
+            };
+            let saved = match open.save(project) {
+                Ok(()) => true,
+                Err(e) => {
+                    open.map.placements[index].owned = old_owned;
+                    open.map.placements[index].owned_because = old_because;
+                    ctx.open = Some(open);
+                    return Err(Refusal::new(format!(
+                        "the pin was changed but the file refused it, so nothing was written: {e}"
+                    )));
+                }
+            };
+            let inverse = json!({"id": p.id, "pinned": old_owned, "because": old_because});
+            ctx.open = Some(open);
+            let after = ctx.open.as_ref().map(pins_of);
+            Ok(Outcome {
+                summary,
+                affected: 1,
+                saved,
+                inverse: Some(inverse),
+                after,
+            })
+        }
+    }
+}
+
+/// **Turn one placement to a facing**, which is what the turn keys do and what an agent asks for.
+pub mod placement_set_yaw {
+    use super::*;
+    use serde_json::json;
+
+    #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+    #[serde(deny_unknown_fields)]
+    pub struct Params {
+        /// The placement's id, as the map file and `blueprint/state` name it.
+        pub id: String,
+        /// The facing in degrees. Wrapped into `[0, 360)` before it is stored, so `-15` is `345`.
+        pub yaw: f32,
+    }
+
+    impl Params {
+        /// **The JSON schema**, which is what an agent reads.
+        pub fn schema() -> serde_json::Value {
+            json!({
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["id", "yaw"],
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "description": "The placement's id, as the map file names it."
+                    },
+                    "yaw": {
+                        "type": "number",
+                        "description": "The facing in degrees. Wrapped into 0 to 360, so -15 is 345."
+                    }
+                }
+            })
+        }
+
+        /// **The parameters, parsed.** `deny_unknown_fields`, so a typo is a refusal.
+        pub fn parse(raw: &serde_json::Value) -> Result<Params, Refusal> {
+            let p: Params = serde_json::from_value(raw.clone()).map_err(|e| {
+                Refusal::new(format!(
+                    "these are not a placement's facing: {e}. The fields are `id` and `yaw`, and \
+                     nothing else."
+                ))
+            })?;
+            if !p.yaw.is_finite() {
+                return Err(Refusal::new(
+                    "a facing has to be a finite number of degrees. Nothing was turned.",
+                ));
+            }
+            Ok(p)
+        }
+    }
+
+    /// **The facing a placement is stored with**: wrapped into `[0, 360)`, as the keys wrap it.
+    pub(super) fn wrapped(yaw: f32) -> f32 {
+        yaw.rem_euclid(360.0)
+    }
+
+    /// **The facings a map holds, as id and degrees**, which is the state an undo checks.
+    fn yaws_of(open: &OpenMap) -> serde_json::Value {
+        let yaws: Vec<serde_json::Value> = open
+            .map
+            .placements
+            .iter()
+            .map(|p| json!([p.id, p.yaw]))
+            .collect();
+        json!({"map": open.map.name, "yaws": yaws})
+    }
+
+    /// **Turn one placement to a facing.**
+    pub struct PlacementSetYaw;
+
+    impl Operation for PlacementSetYaw {
+        fn name(&self) -> &'static str {
+            "placement_set_yaw"
+        }
+        fn shows(&self, ctx: &Ctx, params: &serde_json::Value) -> Shown {
+            match params.get("id").and_then(serde_json::Value::as_str) {
+                Some(id) => shown_placement(ctx, id),
+                None => Shown::MapWhole,
+            }
+        }
+        fn writes(&self) -> &'static [&'static str] {
+            &["map"]
+        }
+
+        fn undo(&self) -> Undo {
+            Undo::Inverse
+        }
+
+        fn schema(&self) -> serde_json::Value {
+            Params::schema()
+        }
+
+        fn state(&self, ctx: &Ctx) -> Option<serde_json::Value> {
+            ctx.open.as_ref().map(yaws_of)
+        }
+
+        /// **The turned piece's facing now**, against the one its change recorded. A log line
+        /// without a piece id (written before this was scoped) falls back to the whole map.
+        fn state_of(&self, ctx: &Ctx, after: &serde_json::Value) -> Option<serde_json::Value> {
+            let Some(id) = after.get("id").and_then(serde_json::Value::as_str) else {
+                return self.state(ctx);
+            };
+            let open = ctx.open.as_ref()?;
+            let p = open.map.placements.iter().find(|q| q.id == id)?;
+            Some(json!({"id": p.id, "yaw": p.yaw}))
+        }
+
+        fn plan(
+            &self,
+            ctx: &Ctx,
+            params: &serde_json::Value,
+        ) -> Result<serde_json::Value, Refusal> {
+            let p = Params::parse(params)?;
+            let Some(open) = ctx.open.as_ref() else {
+                return Err(Refusal::new(
+                    "no map is open, so there are no placements to turn.",
+                ));
+            };
+            if !open.map.placements.iter().any(|q| q.id == p.id) {
+                return Err(Refusal::new(format!(
+                    "no placement is called `{}` on this map, so nothing was turned.",
+                    p.id
+                )));
+            }
+            Ok(json!({"id": p.id, "yaw": wrapped(p.yaw)}))
+        }
+
+        fn commit(&self, ctx: &mut Ctx, params: &serde_json::Value) -> Result<Outcome, Refusal> {
+            let p = Params::parse(params)?;
+            let yaw = wrapped(p.yaw);
+            let Some(mut open) = ctx.open.take() else {
+                return Err(Refusal::new(
+                    "no map is open, so there are no placements to turn.",
+                ));
+            };
+            let Some(index) = open.map.placements.iter().position(|q| q.id == p.id) else {
+                ctx.open = Some(open);
+                return Err(Refusal::new(format!(
+                    "no placement is called `{}` on this map, so nothing was turned.",
+                    p.id
+                )));
+            };
+            // **The old facing, for the undo.** Its inverse is the same operation with this value.
+            let old_yaw = open.map.placements[index].yaw;
+            open.map.placements[index].yaw = yaw;
+            let summary = format!("turned {} to {yaw:.0} deg", p.id);
+            // **And the file, so the turn is not only in memory.** A refusal to save puts the old
+            // facing back, so the editor and the file agree.
+            let Some(project) = ctx.project.as_ref() else {
+                ctx.open = Some(open);
+                return Err(Refusal::new("no project is open."));
+            };
+            let saved = match open.save(project) {
+                Ok(()) => true,
+                Err(e) => {
+                    open.map.placements[index].yaw = old_yaw;
+                    ctx.open = Some(open);
+                    return Err(Refusal::new(format!(
+                        "the file refused the turn, so nothing was written and the facing is unchanged: {e}"
+                    )));
+                }
+            };
+            let inverse = json!({"id": p.id, "yaw": old_yaw});
+            let map_name = open.map.name.clone();
+            ctx.open = Some(open);
+            // **Only the turned piece is recorded**: an undo checks that piece, not the whole map,
+            // so an unrelated edit made by hand cannot block it.
+            let after = Some(json!({"map": map_name, "id": p.id, "yaw": yaw}));
+            Ok(Outcome {
+                summary,
+                affected: 1,
+                saved,
+                inverse: Some(inverse),
+                after,
+            })
+        }
+    }
+}
+
+/// **Tip one placement to a quarter-turn pose about X and Z** (E-002, #129 slice 3): what `Y` and
+/// `U` do to the piece under the cursor, and what an agent asks for.
+///
+/// Two refusals are the schema's own rather than taste: a piece something rests on cannot tip (its
+/// guests' heights name a surface that would no longer exist — `stack::host_under` skips tipped
+/// hosts for the same reason), and an unmeasured piece cannot tip (`descriptor::tipped_extents`
+/// cannot seat bounds it does not know, so the mesh would sink through the floor).
+pub mod placement_set_tip {
+    use super::*;
+    use serde_json::json;
+
+    #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+    #[serde(deny_unknown_fields)]
+    pub struct Params {
+        /// The placement's id, as the map file and `blueprint/state` name it.
+        pub id: String,
+        /// Quarter turns about X, then about Z, each 0 to 3. `[0, 0]` is upright.
+        pub tip: [u8; 2],
+    }
+
+    impl Params {
+        /// **The JSON schema**, which is what an agent reads.
+        pub fn schema() -> serde_json::Value {
+            json!({
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["id", "tip"],
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "description": "The placement's id, as the map file names it."
+                    },
+                    "tip": {
+                        "type": "array",
+                        "items": {"type": "integer", "minimum": 0, "maximum": 3},
+                        "minItems": 2,
+                        "maxItems": 2,
+                        "description": "Quarter turns about X, then about Z, each 0 to 3. [0, 0] is upright."
+                    }
+                }
+            })
+        }
+
+        /// **The parameters, parsed.** `deny_unknown_fields`, so a typo is a refusal, and a quarter
+        /// count past 3 is refused rather than wrapped: `[5, 0]` is a mistake, not a pose.
+        pub fn parse(raw: &serde_json::Value) -> Result<Params, Refusal> {
+            let p: Params = serde_json::from_value(raw.clone()).map_err(|e| {
+                Refusal::new(format!(
+                    "these are not a placement's tip: {e}. The fields are `id` and `tip` (two \
+                     quarter-turn counts, about X then Z), and nothing else."
+                ))
+            })?;
+            if p.tip.iter().any(|q| *q > 3) {
+                return Err(Refusal::new(format!(
+                    "a tip is two quarter-turn counts from 0 to 3, and {:?} is not. Nothing was tipped.",
+                    p.tip
+                )));
+            }
+            Ok(p)
+        }
+    }
+
+    /// **Why this placement cannot take this tip**, or `None` when it can. The plan and the commit
+    /// ask the same question, so a dry run refuses what the real one would.
+    pub(super) fn refusal(
+        project: Option<&Project>,
+        open: &OpenMap,
+        id: &str,
+        tip: (u8, u8),
+    ) -> Option<Refusal> {
+        let Some(p) = open.map.placements.iter().find(|q| q.id == id) else {
+            return Some(Refusal::new(format!(
+                "no placement is called `{id}` on this map, so nothing was tipped."
+            )));
+        };
+        if p.tip == tip {
+            return None;
+        }
+        let resting = open
+            .map
+            .placements
+            .iter()
+            .filter(|q| q.on.as_deref() == Some(id))
+            .count();
+        if resting > 0 {
+            return Some(Refusal::new(format!(
+                "`{id}` holds {resting} piece(s) up, and a tipped surface holds nothing: move them \
+                 first. Nothing was tipped."
+            )));
+        }
+        let Some(project) = project else {
+            return Some(Refusal::new("no project is open."));
+        };
+        let measured = blueprint_model::stack::descriptor_of(&project.library, p)
+            .is_some_and(|d| blueprint_model::descriptor::tipped_extents(&d, tip).is_some());
+        if !measured {
+            return Some(Refusal::new(format!(
+                "`{id}` is unmeasured, so a tip cannot be seated: measure it on the tiles tab first. \
+                 Nothing was tipped."
+            )));
+        }
+        None
+    }
+
+    /// **Tip one placement.**
+    pub struct PlacementSetTip;
+
+    impl Operation for PlacementSetTip {
+        fn name(&self) -> &'static str {
+            "placement_set_tip"
+        }
+        fn shows(&self, ctx: &Ctx, params: &serde_json::Value) -> Shown {
+            match params.get("id").and_then(serde_json::Value::as_str) {
+                Some(id) => shown_placement(ctx, id),
+                None => Shown::MapWhole,
+            }
+        }
+        fn writes(&self) -> &'static [&'static str] {
+            &["map"]
+        }
+
+        fn undo(&self) -> Undo {
+            Undo::Inverse
+        }
+
+        fn schema(&self) -> serde_json::Value {
+            Params::schema()
+        }
+
+        fn state(&self, ctx: &Ctx) -> Option<serde_json::Value> {
+            let open = ctx.open.as_ref()?;
+            let tips: Vec<serde_json::Value> = open
+                .map
+                .placements
+                .iter()
+                .map(|p| json!([p.id, [p.tip.0, p.tip.1]]))
+                .collect();
+            Some(json!({"map": open.map.name, "tips": tips}))
+        }
+
+        /// **The tipped piece's pose now**, against the one its change recorded.
+        fn state_of(&self, ctx: &Ctx, after: &serde_json::Value) -> Option<serde_json::Value> {
+            let Some(id) = after.get("id").and_then(serde_json::Value::as_str) else {
+                return self.state(ctx);
+            };
+            let open = ctx.open.as_ref()?;
+            let p = open.map.placements.iter().find(|q| q.id == id)?;
+            Some(json!({"id": p.id, "tip": [p.tip.0, p.tip.1]}))
+        }
+
+        fn plan(
+            &self,
+            ctx: &Ctx,
+            params: &serde_json::Value,
+        ) -> Result<serde_json::Value, Refusal> {
+            let p = Params::parse(params)?;
+            let Some(open) = ctx.open.as_ref() else {
+                return Err(Refusal::new(
+                    "no map is open, so there are no placements to tip.",
+                ));
+            };
+            if let Some(no) = refusal(ctx.project.as_ref(), open, &p.id, (p.tip[0], p.tip[1])) {
+                return Err(no);
+            }
+            Ok(json!({"id": p.id, "tip": p.tip}))
+        }
+
+        fn commit(&self, ctx: &mut Ctx, params: &serde_json::Value) -> Result<Outcome, Refusal> {
+            let p = Params::parse(params)?;
+            let tip = (p.tip[0], p.tip[1]);
+            let Some(mut open) = ctx.open.take() else {
+                return Err(Refusal::new(
+                    "no map is open, so there are no placements to tip.",
+                ));
+            };
+            if let Some(no) = refusal(ctx.project.as_ref(), &open, &p.id, tip) {
+                ctx.open = Some(open);
+                return Err(no);
+            }
+            let Some(index) = open.map.placements.iter().position(|q| q.id == p.id) else {
+                ctx.open = Some(open);
+                return Err(Refusal::new(format!(
+                    "no placement is called `{}` on this map, so nothing was tipped.",
+                    p.id
+                )));
+            };
+            // **The old pose, for the undo.** Its inverse is the same operation with this value.
+            let old = std::mem::replace(&mut open.map.placements[index].tip, tip);
+            let summary = if tip == (0, 0) {
+                format!("{} upright again", p.id)
+            } else {
+                format!("{} tipped {}/4 about X, {}/4 about Z", p.id, tip.0, tip.1)
+            };
+            // **And the file, so the tip is not only in memory.** A refusal to save puts the old
+            // pose back, so the editor and the file agree.
+            let Some(project) = ctx.project.as_ref() else {
+                open.map.placements[index].tip = old;
+                ctx.open = Some(open);
+                return Err(Refusal::new("no project is open."));
+            };
+            if let Err(e) = open.save(project) {
+                open.map.placements[index].tip = old;
+                ctx.open = Some(open);
+                return Err(Refusal::new(format!(
+                    "the file refused the tip, so nothing was written and the pose is unchanged: {e}"
+                )));
+            }
+            let map_name = open.map.name.clone();
+            ctx.open = Some(open);
+            // **Only the tipped piece is recorded**, so an unrelated edit cannot block its undo.
+            Ok(Outcome {
+                summary,
+                affected: 1,
+                saved: true,
+                inverse: Some(json!({"id": p.id, "tip": [old.0, old.1]})),
+                after: Some(json!({"map": map_name, "id": p.id, "tip": [tip.0, tip.1]})),
+            })
+        }
+    }
+}
+
+/// **Set one placement's whole facing, its turn and its tip together** (E-002, #129 slice 5): what
+/// `V` does to the piece under the cursor (`yaw` 0 and `tip` `[0, 0]`, straight again), and what an
+/// agent asks for when it wants both fields in one change.
+///
+/// Two calls (`placement_set_yaw`, then `placement_set_tip`) would be two log lines and two undo
+/// steps for one act, and the first could land while the second is refused. This is one: it asks
+/// both operations' questions before it writes, writes the file once, and its inverse is itself
+/// with the old pair, so one undo puts both back. The refusals are the tip's own (a piece that holds
+/// others up cannot tip, an unmeasured piece cannot be seated), and they apply only when the tip
+/// changes: standing a piece upright is always allowed.
+pub mod placement_set_pose {
+    use super::*;
+    use serde_json::json;
+
+    #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+    #[serde(deny_unknown_fields)]
+    pub struct Params {
+        /// The placement's id, as the map file and `blueprint/state` name it. **Empty when `ids` is
+        /// given**, so one operation has one field that names what it poses.
+        #[serde(default)]
+        pub id: String,
+        /// **Several placements, posed together** (UI-50, #236): an inspector can hold more than one
+        /// piece, and "typing 90 turns both" is one act, so it is **one** log line and **one** undo.
+        /// The single-`id` form is unchanged; a request with both names one thing twice and is
+        /// refused.
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        pub ids: Vec<String>,
+        /// The facing in degrees. Wrapped into `[0, 360)` before it is stored.
+        pub yaw: f32,
+        /// Quarter turns about X, then about Z, each 0 to 3. `[0, 0]` is upright.
+        pub tip: [u8; 2],
+    }
+
+    impl Params {
+        /// **Every placement this request poses**, in the order it named them: `ids`, else the one
+        /// `id`.
+        pub fn targets(&self) -> Vec<&str> {
+            if self.ids.is_empty() {
+                if self.id.is_empty() { Vec::new() } else { vec![self.id.as_str()] }
+            } else {
+                self.ids.iter().map(String::as_str).collect()
+            }
+        }
+
+        /// **The JSON schema**, which is what an agent reads.
+        pub fn schema() -> serde_json::Value {
+            json!({
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["id", "yaw", "tip"],
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "description": "The placement's id, as the map file names it."
+                    },
+                    "yaw": {
+                        "type": "number",
+                        "description": "The facing in degrees. Wrapped into 0 to 360, so -15 is 345."
+                    },
+                    "tip": {
+                        "type": "array",
+                        "items": {"type": "integer", "minimum": 0, "maximum": 3},
+                        "minItems": 2,
+                        "maxItems": 2,
+                        "description": "Quarter turns about X, then about Z, each 0 to 3. [0, 0] is upright."
+                    }
+                }
+            })
+        }
+
+        /// **The parameters, parsed.** `deny_unknown_fields`, so a typo is a refusal; a yaw that is
+        /// not finite and a quarter count past 3 are refused, as `placement_set_yaw` and
+        /// `placement_set_tip` refuse them.
+        pub fn parse(raw: &serde_json::Value) -> Result<Params, Refusal> {
+            let p: Params = serde_json::from_value(raw.clone()).map_err(|e| {
+                Refusal::new(format!(
+                    "these are not a placement's facing: {e}. The fields are `id`, `yaw` and `tip` \
+                     (two quarter-turn counts, about X then Z), and nothing else."
+                ))
+            })?;
+            if !p.yaw.is_finite() {
+                return Err(Refusal::new(
+                    "a facing has to be a finite number of degrees. Nothing was posed.",
+                ));
+            }
+            if p.tip.iter().any(|q| *q > 3) {
+                return Err(Refusal::new(format!(
+                    "a tip is two quarter-turn counts from 0 to 3, and {:?} is not. Nothing was posed.",
+                    p.tip
+                )));
+            }
+            // **One field names what is posed.** `id` and `ids` together is a request that says the
+            // same thing twice, and guessing which wins would be a rule nobody could learn.
+            if !p.id.is_empty() && !p.ids.is_empty() {
+                return Err(Refusal::new(
+                    "name the placements with `id` (one) or `ids` (several), not both. Nothing was posed.",
+                ));
+            }
+            if p.targets().is_empty() {
+                return Err(Refusal::new(
+                    "no placement is named, so nothing was posed: give `id` or `ids`.",
+                ));
+            }
+            Ok(p)
+        }
+    }
+
+    /// **Pose one placement.**
+    pub struct PlacementSetPose;
+
+    impl Operation for PlacementSetPose {
+        fn name(&self) -> &'static str {
+            "placement_set_pose"
+        }
+        fn shows(&self, ctx: &Ctx, params: &serde_json::Value) -> Shown {
+            match Params::parse(params) {
+                Ok(p) => {
+                    let ids: Vec<String> = p.targets().into_iter().map(str::to_owned).collect();
+                    shown_placements(ctx, &ids)
+                }
+                Err(_) => Shown::MapWhole,
+            }
+        }
+        fn writes(&self) -> &'static [&'static str] {
+            &["map"]
+        }
+
+        fn undo(&self) -> Undo {
+            Undo::Inverse
+        }
+
+        fn schema(&self) -> serde_json::Value {
+            Params::schema()
+        }
+
+        fn state(&self, ctx: &Ctx) -> Option<serde_json::Value> {
+            let open = ctx.open.as_ref()?;
+            let poses: Vec<serde_json::Value> = open
+                .map
+                .placements
+                .iter()
+                .map(|p| json!([p.id, p.yaw, [p.tip.0, p.tip.1]]))
+                .collect();
+            Some(json!({"map": open.map.name, "poses": poses}))
+        }
+
+        /// **The posed pieces' facings now**, against the ones the change recorded.
+        ///
+        /// A single `id` projects to that piece alone, exactly as before. A batch projects to
+        /// `poses`, **the same list the change left**, so the undo's guard compares like with like:
+        /// the logged row is cut down to this projection's keys, and a batch whose projected shape
+        /// differed from what it wrote would refuse its own undo as "the map has changed outside the
+        /// operation log" (which it did, in the first version of this slice).
+        fn state_of(&self, ctx: &Ctx, after: &serde_json::Value) -> Option<serde_json::Value> {
+            let open = ctx.open.as_ref()?;
+            if let Some(id) = after.get("id").and_then(serde_json::Value::as_str) {
+                let p = open.map.placements.iter().find(|q| q.id == id)?;
+                return Some(json!({"id": p.id, "yaw": p.yaw, "tip": [p.tip.0, p.tip.1]}));
+            }
+            let Some(poses) = after.get("poses").and_then(serde_json::Value::as_array) else {
+                return self.state(ctx);
+            };
+            let mut now = Vec::with_capacity(poses.len());
+            for row in poses {
+                let id = row.get("id").and_then(serde_json::Value::as_str)?;
+                let p = open.map.placements.iter().find(|q| q.id == id)?;
+                now.push(json!({"id": p.id, "yaw": p.yaw, "tip": [p.tip.0, p.tip.1]}));
+            }
+            Some(json!({"poses": now}))
+        }
+
+        fn plan(
+            &self,
+            ctx: &Ctx,
+            params: &serde_json::Value,
+        ) -> Result<serde_json::Value, Refusal> {
+            let p = Params::parse(params)?;
+            let Some(open) = ctx.open.as_ref() else {
+                return Err(Refusal::new(
+                    "no map is open, so there are no placements to pose.",
+                ));
+            };
+            // **Every target, before anything moves**: a batch that posed three of four and then
+            // refused would be a half-turn nobody asked for.
+            let mut ids = Vec::new();
+            for id in p.targets() {
+                if let Some(no) = super::placement_set_tip::refusal(
+                    ctx.project.as_ref(),
+                    open,
+                    id,
+                    (p.tip[0], p.tip[1]),
+                ) {
+                    return Err(no);
+                }
+                if !open.map.placements.iter().any(|q| q.id == id) {
+                    return Err(Refusal::new(format!(
+                        "no placement is called `{id}` on this map, so nothing was posed."
+                    )));
+                }
+                ids.push(id);
+            }
+            Ok(json!({"ids": ids, "yaw": super::placement_set_yaw::wrapped(p.yaw), "tip": p.tip}))
+        }
+
+        fn commit(&self, ctx: &mut Ctx, params: &serde_json::Value) -> Result<Outcome, Refusal> {
+            let p = Params::parse(params)?;
+            let yaw = super::placement_set_yaw::wrapped(p.yaw);
+            let tip = (p.tip[0], p.tip[1]);
+            let targets: Vec<String> = p.targets().iter().map(|s| (*s).to_owned()).collect();
+            let Some(mut open) = ctx.open.take() else {
+                return Err(Refusal::new(
+                    "no map is open, so there are no placements to pose.",
+                ));
+            };
+            // **Everything checked before anything moves**, and every index found first: a batch
+            // whose third id is unknown must leave all three as they were.
+            for id in &targets {
+                if let Some(no) =
+                    super::placement_set_tip::refusal(ctx.project.as_ref(), &open, id, tip)
+                {
+                    ctx.open = Some(open);
+                    return Err(no);
+                }
+            }
+            let mut found: Vec<usize> = Vec::with_capacity(targets.len());
+            for id in &targets {
+                let Some(index) = open.map.placements.iter().position(|q| q.id == *id) else {
+                    ctx.open = Some(open);
+                    return Err(Refusal::new(format!(
+                        "no placement is called `{id}` on this map, so nothing was posed."
+                    )));
+                };
+                found.push(index);
+            }
+            // **The old facing of each, for the undo.** Its inverse is the same operation with these
+            // pairs.
+            let mut old: Vec<(String, f32, (u8, u8))> = Vec::with_capacity(found.len());
+            for index in &found {
+                let row = &mut open.map.placements[*index];
+                let before = (row.yaw, row.tip);
+                old.push((row.id.clone(), before.0, before.1));
+            }
+            // **Checked before anything moves**, so a refused batch leaves every piece as it was.
+            if old.len() > 1 {
+                let (_, first_yaw, first_tip) = &old[0];
+                if old.iter().any(|(_, y, t)| y != first_yaw || t != first_tip) {
+                    ctx.open = Some(open);
+                    return Err(Refusal::new(
+                        "these pieces were not facing the same way, so one undo could not put them \
+                         all back. Pose them one at a time, or turn them together from the same \
+                         facing.",
+                    ));
+                }
+            }
+            for index in &found {
+                let row = &mut open.map.placements[*index];
+                row.yaw = yaw;
+                row.tip = tip;
+            }
+            let summary = if targets.len() == 1 {
+                let id = &targets[0];
+                if yaw == 0.0 && tip == (0, 0) {
+                    format!("{id} straight again")
+                } else {
+                    format!(
+                        "posed {id} at {yaw:.0} deg, tipped {}/4 about X and {}/4 about Z",
+                        tip.0, tip.1
+                    )
+                }
+            } else {
+                format!(
+                    "posed {} pieces at {yaw:.0} deg, tipped {}/4 about X and {}/4 about Z",
+                    targets.len(),
+                    tip.0,
+                    tip.1
+                )
+            };
+            // **And the file, so the pose is not only in memory.** A refusal to save puts every old
+            // value back, so the editor and the file agree.
+            let Some(project) = ctx.project.as_ref() else {
+                for (index, (_, old_yaw, old_tip)) in found.iter().zip(old.iter()) {
+                    open.map.placements[*index].yaw = *old_yaw;
+                    open.map.placements[*index].tip = *old_tip;
+                }
+                ctx.open = Some(open);
+                return Err(Refusal::new("no project is open."));
+            };
+            if let Err(e) = open.save(project) {
+                for (index, (_, old_yaw, old_tip)) in found.iter().zip(old.iter()) {
+                    open.map.placements[*index].yaw = *old_yaw;
+                    open.map.placements[*index].tip = *old_tip;
+                }
+                ctx.open = Some(open);
+                return Err(Refusal::new(format!(
+                    "the file refused the pose, so nothing was written and the facing is unchanged: {e}"
+                )));
+            }
+            let map_name = open.map.name.clone();
+            ctx.open = Some(open);
+            // **Every posed piece is recorded**, so an unrelated edit cannot block the undo, and one
+            // batch is one inverse: the same operation with each piece's old pair.
+            // **One piece keeps the shape it always had** (`{id, yaw, tip}`), because the undo's
+            // check compares the `after` it recorded against the map: a different shape is a
+            // refusal, and every existing caller's undo would break. A batch is the list form.
+            let (inverse, after) = if old.len() == 1 {
+                let (id, old_yaw, old_tip) = &old[0];
+                (
+                    json!({"id": id, "yaw": old_yaw, "tip": [old_tip.0, old_tip.1]}),
+                    json!({"map": map_name, "id": id, "yaw": yaw, "tip": [tip.0, tip.1]}),
+                )
+            } else {
+                let (_, old_yaw, old_tip) = &old[0];
+                let posed: Vec<serde_json::Value> = targets
+                    .iter()
+                    .map(|id| json!({"id": id, "yaw": yaw, "tip": [tip.0, tip.1]}))
+                    .collect();
+                (
+                    json!({"ids": targets, "yaw": old_yaw, "tip": [old_tip.0, old_tip.1]}),
+                    json!({"map": map_name, "poses": posed}),
+                )
+            };
+            Ok(Outcome {
+                summary,
+                affected: targets.len(),
+                saved: true,
+                inverse: Some(inverse),
+                after: Some(after),
+            })
+        }
+    }
+}
+
+/// **Lift one placement to an authored height above its datum, in metres** (E-002, #129 slice 4):
+/// what `[` and `]` do to the piece under the cursor, a subgrid unit at a time, and what an agent
+/// asks for in one call.
+///
+/// The lift is `Placed::lift`, layered over the height `stack::resolve_y` decides (the floor, the
+/// wall's height, the host's surface), so everything resting on the piece rides with it: a lamp
+/// follows its table. Zero is "on its datum" and is what the file drops, so a lift within a tenth of
+/// a millimetre of zero is stored as exactly zero.
+pub mod placement_set_lift {
+    use super::*;
+    use serde_json::json;
+
+    #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+    #[serde(deny_unknown_fields)]
+    pub struct Params {
+        /// The placement's id, as the map file and `blueprint/state` name it.
+        pub id: String,
+        /// The authored lift in metres above the resolved height. Zero puts the piece back on it.
+        pub lift: f32,
+    }
+
+    impl Params {
+        /// **The JSON schema**, which is what an agent reads.
+        pub fn schema() -> serde_json::Value {
+            json!({
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["id", "lift"],
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "description": "The placement's id, as the map file names it."
+                    },
+                    "lift": {
+                        "type": "number",
+                        "description": "Metres above the height the piece's mount decides; negative lowers it. 0 puts it back on its datum."
+                    }
+                }
+            })
+        }
+
+        /// **The parameters, parsed.** `deny_unknown_fields`, so a typo is a refusal.
+        pub fn parse(raw: &serde_json::Value) -> Result<Params, Refusal> {
+            let p: Params = serde_json::from_value(raw.clone()).map_err(|e| {
+                Refusal::new(format!(
+                    "these are not a placement's lift: {e}. The fields are `id` and `lift` (metres), \
+                     and nothing else."
+                ))
+            })?;
+            if !p.lift.is_finite() {
+                return Err(Refusal::new(
+                    "a lift has to be a finite number of metres. Nothing was lifted.",
+                ));
+            }
+            Ok(p)
+        }
+    }
+
+    /// **The lift a placement is stored with**: float noise around zero is zero, so a piece brought
+    /// home is exactly home and `Placed::lift` skips the field on write.
+    fn stored(lift: f32) -> f32 {
+        if lift.abs() < 1e-4 { 0.0 } else { lift }
+    }
+
+    /// **Lift one placement.**
+    pub struct PlacementSetLift;
+
+    impl Operation for PlacementSetLift {
+        fn name(&self) -> &'static str {
+            "placement_set_lift"
+        }
+        fn shows(&self, ctx: &Ctx, params: &serde_json::Value) -> Shown {
+            match params.get("id").and_then(serde_json::Value::as_str) {
+                Some(id) => shown_placement(ctx, id),
+                None => Shown::MapWhole,
+            }
+        }
+        fn writes(&self) -> &'static [&'static str] {
+            &["map"]
+        }
+
+        fn undo(&self) -> Undo {
+            Undo::Inverse
+        }
+
+        fn schema(&self) -> serde_json::Value {
+            Params::schema()
+        }
+
+        fn state(&self, ctx: &Ctx) -> Option<serde_json::Value> {
+            let open = ctx.open.as_ref()?;
+            let lifts: Vec<serde_json::Value> = open
+                .map
+                .placements
+                .iter()
+                .map(|p| json!([p.id, p.lift]))
+                .collect();
+            Some(json!({"map": open.map.name, "lifts": lifts}))
+        }
+
+        /// **The lifted piece's lift now**, against the one its change recorded.
+        fn state_of(&self, ctx: &Ctx, after: &serde_json::Value) -> Option<serde_json::Value> {
+            let Some(id) = after.get("id").and_then(serde_json::Value::as_str) else {
+                return self.state(ctx);
+            };
+            let open = ctx.open.as_ref()?;
+            let p = open.map.placements.iter().find(|q| q.id == id)?;
+            Some(json!({"id": p.id, "lift": p.lift}))
+        }
+
+        fn plan(
+            &self,
+            ctx: &Ctx,
+            params: &serde_json::Value,
+        ) -> Result<serde_json::Value, Refusal> {
+            let p = Params::parse(params)?;
+            let Some(open) = ctx.open.as_ref() else {
+                return Err(Refusal::new(
+                    "no map is open, so there are no placements to lift.",
+                ));
+            };
+            if !open.map.placements.iter().any(|q| q.id == p.id) {
+                return Err(Refusal::new(format!(
+                    "no placement is called `{}` on this map, so nothing was lifted.",
+                    p.id
+                )));
+            }
+            Ok(json!({"id": p.id, "lift": stored(p.lift)}))
+        }
+
+        fn commit(&self, ctx: &mut Ctx, params: &serde_json::Value) -> Result<Outcome, Refusal> {
+            let p = Params::parse(params)?;
+            let lift = stored(p.lift);
+            let Some(mut open) = ctx.open.take() else {
+                return Err(Refusal::new(
+                    "no map is open, so there are no placements to lift.",
+                ));
+            };
+            let Some(index) = open.map.placements.iter().position(|q| q.id == p.id) else {
+                ctx.open = Some(open);
+                return Err(Refusal::new(format!(
+                    "no placement is called `{}` on this map, so nothing was lifted.",
+                    p.id
+                )));
+            };
+            // **The old lift, for the undo.** Its inverse is the same operation with this value.
+            let old = std::mem::replace(&mut open.map.placements[index].lift, lift);
+            let summary = if lift == 0.0 {
+                format!("{} back on its datum", p.id)
+            } else {
+                format!("{} lifted {lift:+.2} m", p.id)
+            };
+            // **And the file, so the lift is not only in memory.** A refusal to save puts the old
+            // lift back, so the editor and the file agree.
+            let Some(project) = ctx.project.as_ref() else {
+                open.map.placements[index].lift = old;
+                ctx.open = Some(open);
+                return Err(Refusal::new("no project is open."));
+            };
+            if let Err(e) = open.save(project) {
+                open.map.placements[index].lift = old;
+                ctx.open = Some(open);
+                return Err(Refusal::new(format!(
+                    "the file refused the lift, so nothing was written and the piece is where it was: {e}"
+                )));
+            }
+            let map_name = open.map.name.clone();
+            ctx.open = Some(open);
+            // **Only the lifted piece is recorded**, so an unrelated edit cannot block its undo.
+            Ok(Outcome {
+                summary,
+                affected: 1,
+                saved: true,
+                inverse: Some(json!({"id": p.id, "lift": old})),
+                after: Some(json!({"map": map_name, "id": p.id, "lift": lift})),
+            })
+        }
+    }
+}
+
+/// **Set one library piece's label axis to a list of vocabulary tokens** (E-042). An agent calls
+/// this, and so does a person through the chip; the write is the same and the provenance is the
+/// caller's `Source`, so the label says who put the tokens there. Mount and note are not vocabulary
+/// lists, so they are not here.
+pub mod label_set {
+    use super::*;
+    use blueprint_model::descriptor::{Axis, By, Descriptor, LabelOrigin};
+    use blueprint_model::vocab::{Vocabularies, Vocabulary};
+    use serde_json::json;
+
+    /// **The axes an agent can set.** The order is the order the schema lists them in.
+    const AXES: [&str; 4] = ["kind", "effects", "look", "surfaces"];
+
+    /// **What a piece carries on the axes and its label**, which an undo puts back exactly.
+    #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+    #[serde(deny_unknown_fields)]
+    pub struct Record {
+        pub kind: Vec<String>,
+        pub effects: Vec<String>,
+        pub look: Vec<String>,
+        pub surfaces: Vec<String>,
+        pub labels: Option<LabelOrigin>,
+    }
+
+    #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+    #[serde(deny_unknown_fields)]
+    pub struct Params {
+        /// The library piece's id, as `blueprint/pieces` names it.
+        pub id: String,
+        /// Which axis to set. Absent on an undo's put-back.
+        #[serde(default)]
+        pub axis: Option<String>,
+        /// The tokens the axis should hold, which replace it. Absent on an undo's put-back.
+        #[serde(default)]
+        pub tokens: Option<Vec<String>>,
+        /// **Undo only.** The whole record to put back, exactly as it was.
+        #[serde(default)]
+        pub restore: Option<Record>,
+    }
+
+    /// **What a request asks for**: a set of tokens, or an undo's exact put-back. Never both.
+    enum Request {
+        Set {
+            id: String,
+            axis: String,
+            tokens: Vec<String>,
+        },
+        Restore {
+            id: String,
+            record: Record,
+        },
+    }
+
+    /// **The parameters, parsed and shaped.** `deny_unknown_fields`, so a typo is a refusal.
+    fn request(raw: &serde_json::Value) -> Result<Request, Refusal> {
+        let p: Params = serde_json::from_value(raw.clone()).map_err(|e| {
+            Refusal::new(format!(
+                "this is not a label to set: {e}. The fields are `id`, `axis` (kind, effects, look \
+                 or surfaces) and `tokens`."
+            ))
+        })?;
+        match (p.restore, p.axis, p.tokens) {
+            (Some(record), None, None) => Ok(Request::Restore { id: p.id, record }),
+            (Some(_), _, _) => Err(Refusal::new(
+                "a restore names the whole record, so it takes `id` and `restore` and nothing else.",
+            )),
+            (None, Some(axis), Some(tokens)) => {
+                if !AXES.contains(&axis.as_str()) {
+                    return Err(Refusal::new(format!(
+                        "`{axis}` is not a label axis. The axes are kind, effects, look and \
+                         surfaces. Nothing was set."
+                    )));
+                }
+                Ok(Request::Set {
+                    id: p.id,
+                    axis,
+                    tokens,
+                })
+            }
+            (None, _, _) => Err(Refusal::new(
+                "setting a label needs `id`, `axis` and `tokens`. Nothing was set.",
+            )),
+        }
+    }
+
+    /// **The vocabulary one axis draws its tokens from.**
+    fn vocab_for<'a>(v: &'a Vocabularies, axis: &str) -> &'a Vocabulary {
+        match axis {
+            "kind" => &v.kind,
+            "effects" => &v.effects,
+            "look" => &v.look,
+            _ => &v.surfaces,
+        }
+    }
+
+    /// **The token list one axis holds on a piece.**
+    fn list_of<'a>(d: &'a mut Descriptor, axis: &str) -> &'a mut Vec<String> {
+        match axis {
+            "kind" => &mut d.kind,
+            "effects" => &mut d.effects,
+            "look" => &mut d.look,
+            _ => &mut d.offers.surfaces,
+        }
+    }
+
+    /// **The axis, read.** [`list_of`]'s mutable twin, for a caller that needs the value before a
+    /// write through `list_of` — one `&mut` borrow cannot be held across the call that uses it.
+    fn read_list<'a>(d: &'a Descriptor, axis: &str) -> &'a [String] {
+        match axis {
+            "kind" => &d.kind,
+            "effects" => &d.effects,
+            "look" => &d.look,
+            _ => &d.offers.surfaces,
+        }
+    }
+
+    /// **What a label write changed, as a phrase or nothing.** Only the part that moved: a receipt
+    /// repeating a value the author already had is noise, and one that names nothing is what this
+    /// exists to stop.
+    fn changed_from(was: &[String], now: &[String]) -> String {
+        let added: Vec<&str> = now
+            .iter()
+            .filter(|t| !was.contains(t))
+            .map(String::as_str)
+            .collect();
+        let removed: Vec<&str> = was
+            .iter()
+            .filter(|t| !now.contains(t))
+            .map(String::as_str)
+            .collect();
+        let say = |sign: &str, toks: &[&str]| {
+            if toks.is_empty() {
+                String::new()
+            } else {
+                format!(" {sign}{}", toks.join(", "))
+            }
+        };
+        let out = format!("{}{}", say("+", &added), say(" -", &removed));
+        if out.is_empty() {
+            // **Not "unchanged", and the difference is real.** Re-asserting the same tokens still
+            // moves the axis's provenance: `stamp_by` flips it to this writer, and a chip that was
+            // `TEXT` (a person confirmed it) paints `UNCHECKED` afterwards. So the receipt says what
+            // actually happened — the claim was re-stated by this writer — rather than reporting a
+            // no-op the screen contradicts.
+            if was.is_empty() {
+                " — nothing".to_owned()
+            } else {
+                " — same tokens, claim restated".to_owned()
+            }
+        } else {
+            out
+        }
+    }
+
+    fn axis_of(axis: &str) -> Axis {
+        match axis {
+            "kind" => Axis::Kind,
+            "effects" => Axis::Effects,
+            "look" => Axis::Look,
+            _ => Axis::Surfaces,
+        }
+    }
+
+    /// **The tokens, checked against the axis's vocabulary and put in its order.** A token the
+    /// vocabulary does not hold is refused with the nearest one, and a token listed twice is
+    /// refused, because a set that names a thing twice is not a set. The vocabulary order means
+    /// the same set always writes the same line.
+    fn checked(vocab: &Vocabulary, axis: &str, tokens: &[String]) -> Result<Vec<String>, Refusal> {
+        let mut seen: Vec<&str> = Vec::new();
+        for t in tokens {
+            if !vocab.contains(t) {
+                let hint = blueprint_model::vocab::nearest(vocab, t)
+                    .map(|n| format!(" Did you mean `{n}`?"))
+                    .unwrap_or_default();
+                return Err(Refusal::new(format!(
+                    "`{t}` is not a {axis} token.{hint} Nothing was set."
+                )));
+            }
+            if seen.contains(&t.as_str()) {
+                return Err(Refusal::new(format!(
+                    "`{t}` is listed twice on {axis}. Nothing was set."
+                )));
+            }
+            seen.push(t);
+        }
+        Ok(vocab
+            .names()
+            .filter(|n| seen.contains(n))
+            .map(str::to_string)
+            .collect())
+    }
+
+    /// **The record a piece has now**, which an undo checks and a put-back restores.
+    fn record_of(d: &Descriptor) -> Record {
+        Record {
+            kind: d.kind.clone(),
+            effects: d.effects.clone(),
+            look: d.look.clone(),
+            surfaces: d.offers.surfaces.clone(),
+            labels: d.labels.clone(),
+        }
+    }
+
+    /// **The state an agent reads back**: the axes and the label, by piece id.
+    fn state_json(d: &Descriptor) -> serde_json::Value {
+        json!({
+            "id": d.id,
+            "kind": d.kind,
+            "effects": d.effects,
+            "look": d.look,
+            "surfaces": d.offers.surfaces,
+            "labels": d.labels,
+        })
+    }
+
+    /// **Write one axis and stamp it with the caller's provenance.** A kind change settles the
+    /// effects it implies, and a changed effects list is stamped too, so the label never claims
+    /// an effect it did not put there.
+    fn set_axis(d: &mut Descriptor, vocab: &Vocabularies, axis: &str, tokens: Vec<String>, by: By) {
+        let effects_before = d.effects.clone();
+        *list_of(d, axis) = tokens;
+        crate::labels::stamp_by(d, axis_of(axis), by);
+        if axis == "kind" || axis == "effects" {
+            crate::labels::settle_implied_effects(d, vocab);
+            if d.effects != effects_before {
+                crate::labels::stamp_by(d, Axis::Effects, by);
+            }
+        }
+    }
+
+    /// **A derived effect belongs to the kind that implies it, and a write that says otherwise is
+    /// refused.** The next kind write would settle it away, so keeping it on a piece whose kind
+    /// does not imply it is a claim the library cannot keep. Refused, not settled away: the author
+    /// asked for it, and the answer has to say why nothing was written.
+    fn derived_effect_refusal(
+        vocab: &Vocabularies,
+        id: &str,
+        kind: &[String],
+        tokens: &[String],
+    ) -> Option<Refusal> {
+        let implied = vocab.implied_effects(kind);
+        let token = tokens
+            .iter()
+            .find(|t| crate::labels::is_derived(vocab, t) && !implied.contains(t))?;
+        let of = if kind.is_empty() {
+            "has no kind".to_string()
+        } else {
+            format!("is `{}`", kind.join("`, `"))
+        };
+        Some(Refusal::new(format!(
+            "`{token}` is an effect a kind implies, and `{id}` {of}, which does not imply it, so \
+             nothing was set. Set a kind that implies `{token}`, or leave the effect off."
+        )))
+    }
+
+    /// **The edit, computed on a copy of the measured library.** Nothing is written here; the
+    /// commit does that, and a refused write then leaves the piece as it was.
+    struct Edit {
+        measured: blueprint_model::library::Library,
+        before: Record,
+        after: serde_json::Value,
+        summary: String,
+    }
+
+    fn edit(project: &Project, source: Source, req: &Request) -> Result<Edit, Refusal> {
+        let id = match req {
+            Request::Set { id, .. } | Request::Restore { id, .. } => id,
+        };
+        let mut measured = (*project.measured).clone();
+        let index = measured
+            .descriptors
+            .iter()
+            .position(|d| &d.id == id)
+            .ok_or_else(|| {
+                if let Some(ns) = project.other_kit_of(id) {
+                    return Refusal::new(format!(
+                        "`{id}` belongs to kit `{ns}`, not the kit being authored (`{}`), so nothing was set.",
+                        project.namespace
+                    ));
+                }
+                let ids: Vec<&str> = measured.descriptors.iter().map(|d| d.id.as_str()).collect();
+                let hint = match nearest_ids(&ids, id) {
+                    near if near.is_empty() => String::new(),
+                    near => format!(" Close ids: {}.", near.join(", ")),
+                };
+                Refusal::new(format!(
+                    "no library piece is called `{id}`, so nothing was set.{hint} Pick one from the \
+                     Meshes shelf."
+                ))
+            })?;
+        let d = &mut measured.descriptors[index];
+        let before = record_of(d);
+        let (summary, after) = match req {
+            Request::Set { axis, tokens, .. } => {
+                let tokens = checked(vocab_for(&project.vocab, axis), axis, tokens)?;
+                if axis == "effects"
+                    && let Some(refusal) =
+                        derived_effect_refusal(&project.vocab, id, &d.kind, &tokens)
+                {
+                    return Err(refusal);
+                }
+                let by = match source {
+                    Source::Human => By::Human,
+                    Source::Agent => By::Agent,
+                };
+                // **The derived axis, before the write** — E-063. `set_axis` re-settles `effects`
+                // from `kind`, so a `kind` write can change tokens the author did not type.
+                //
+                // **Settled first, and that is what keeps the receipt honest.** The row on disk can
+                // be behind its own `kind`: a library written before an `implies` rule was added
+                // stores effects that the rule now contradicts, and `Project::open` settles only the
+                // in-memory `library` — not `measured`, the copy this write edits. Comparing the raw
+                // stored list would then tell the author the vocabulary had *just* added an effect
+                // the editor has been showing since open (found by review, on this very test's
+                // fixture: `kind` `prop` before and after, and a receipt claiming `+electricity`).
+                // Settling both sides compares what this write moved against what the screen said.
+                let effects_were =
+                    crate::labels::settled_effects(&d.kind, &d.effects, &project.vocab);
+                // **The axis as it was, before the write** — the receipt names a transition, and
+                // "set kind on `barrel`" is a sentence that leaves out the only part a person wants:
+                // what it became. Measured on the running editor, an agent's `label_set` on a piece
+                // was `0.116%` of the window and its receipt said only `set kind on town/shrub`.
+                //
+                // **For the effects axis, "as it was" means as the screen showed it**, which is the
+                // settled list — the same argument the paragraph above makes. Reading the raw row
+                // here made a stale file report the vocabulary's own effect as the author's
+                // addition: `+powered -inert` where `powered` had never left.
+                let was = if axis == "effects" {
+                    effects_were.clone()
+                } else {
+                    read_list(d, axis).to_vec()
+                };
+                // **What the author asked for**, kept because `set_axis` takes the list by value and
+                // the effects clause needs to compare the settled result against the request. Only
+                // that clause reads it, so only that axis pays for the copy (review, P3).
+                let asked = (axis == "effects").then(|| tokens.clone());
+                set_axis(d, &project.vocab, axis, tokens, by);
+                let now = read_list(d, axis).to_vec();
+                // **And said out loud, when the vocabulary moved them.** The write is right; a
+                // receipt that names only the axis the author typed is not. The two are reported
+                // separately because they are two decisions: one a person made, one the vocabulary
+                // made from it — and only the second is the one nobody expected.
+                let derived = if axis == "effects" {
+                    // **The vocabulary can overrule an effects write too** — E-064.
+                    //
+                    // `set_axis` settles `effects` after either axis, because the derived half is
+                    // the kind's to state: a piece whose kind implies `powered` cannot be left
+                    // without it. An author who removes it has it put back — and the receipt used to
+                    // say only `set effects on `bench`  -powered`, naming a removal that did not
+                    // happen. A receipt that reports a change the library refused is worse than none,
+                    // because it is believed.
+                    //
+                    // The net phrase cannot carry this: `-inert` is true whether or not `powered`
+                    // survived, so the fact that the author's request was overruled has to be said.
+                    // The tokens named are the ones *asked for and kept*, which is the part nobody
+                    // expected.
+                    // **Read against what the author ASKED for, not against the settled pair.**
+                    // `was` and `now` are the same list here in the one case that matters — the
+                    // effect never left — so a comparison of them cannot see the override. The
+                    // request is `tokens`, which is the axis's whole new value.
+                    let kept: Vec<&str> = was
+                        .iter()
+                        .filter(|t| !asked.as_ref().is_some_and(|a| a.contains(t)))
+                        .filter(|t| d.effects.iter().any(|e| e == *t))
+                        .map(String::as_str)
+                        .collect();
+                    if kept.is_empty() {
+                        String::new()
+                    } else {
+                        format!(" — kept {} (the kind implies it)", kept.join(", "))
+                    }
+                } else if effects_were == d.effects {
+                    // A `kind` write that left the effects alone has nothing to add. Compared as
+                    // lists, not by parsing the phrase: `changed_from` also speaks for a no-op
+                    // ("same tokens, claim restated"), and a string test here would be a second
+                    // rule that could drift from the first.
+                    String::new()
+                } else {
+                    format!("; effects{}", changed_from(&effects_were, &d.effects))
+                };
+                // **The axis phrase, and the derived one.** When the axis did not move but the
+                // vocabulary did, "same tokens, claim restated" is not the news — the effects are —
+                // so the restated clause is dropped rather than leading the sentence.
+                // **Structural, not a string match.** The axis moved iff the two lists differ;
+                // that is the same fact `changed_from` reads, asked here directly so the two cannot
+                // drift on what "moved" means.
+                let axis_phrase = if !derived.is_empty() && was == now {
+                    String::new()
+                } else {
+                    changed_from(&was, &now)
+                };
+                (
+                    format!("set {axis} on `{id}`{axis_phrase}{derived}"),
+                    state_json(d),
+                )
+            }
+            Request::Restore { record, .. } => {
+                d.kind = record.kind.clone();
+                d.effects = record.effects.clone();
+                d.look = record.look.clone();
+                d.offers.surfaces = record.surfaces.clone();
+                d.labels = record.labels.clone();
+                (format!("restored `{id}`"), state_json(d))
+            }
+        };
+        Ok(Edit {
+            measured,
+            before,
+            after,
+            summary,
+        })
+    }
+
+    /// **Set one piece's label axis.**
+    pub struct LabelSet;
+
+    impl Operation for LabelSet {
+        fn name(&self) -> &'static str {
+            "label_set"
+        }
+        fn shows(&self, _ctx: &Ctx, params: &serde_json::Value) -> Shown {
+            match params.get("id").and_then(serde_json::Value::as_str) {
+                Some(id) => Shown::Piece { id: id.to_owned() },
+                None => Shown::MapWhole,
+            }
+        }
+        fn writes(&self) -> &'static [&'static str] {
+            &["library"]
+        }
+
+        fn undo(&self) -> Undo {
+            Undo::Inverse
+        }
+
+        fn writes_library(&self) -> bool {
+            true
+        }
+
+        fn schema(&self) -> serde_json::Value {
+            json!({
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["id", "axis", "tokens"],
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "description": "The library piece's id, as blueprint/pieces names it."
+                    },
+                    "axis": {
+                        "type": "string",
+                        "enum": AXES,
+                        "description": "Which label axis to set: kind, effects, look or surfaces."
+                    },
+                    "tokens": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "The vocabulary tokens the axis should hold. Replaces the axis; a token the vocabulary does not hold, or one listed twice, is refused."
+                    }
+                }
+            })
+        }
+
+        /// **An undo's put-back is never a request an agent may send.**
+        fn only_as_undo(&self, params: &serde_json::Value) -> bool {
+            matches!(request(params), Ok(Request::Restore { .. }))
+        }
+
+        /// **The piece's state now**, against the one the change recorded. A piece that has gone
+        /// missing answers nothing, so an undo cannot match it.
+        fn state_of(&self, ctx: &Ctx, after: &serde_json::Value) -> Option<serde_json::Value> {
+            let id = after.get("id")?.as_str()?;
+            let project = ctx.project.as_ref()?;
+            let d = project.measured.descriptors.iter().find(|d| d.id == id)?;
+            Some(state_json(d))
+        }
+
+        fn plan(
+            &self,
+            ctx: &Ctx,
+            params: &serde_json::Value,
+        ) -> Result<serde_json::Value, Refusal> {
+            let req = request(params)?;
+            let Some(project) = ctx.project.as_ref() else {
+                return Err(Refusal::new(
+                    "no project is open, so there is no library to set a label in.",
+                ));
+            };
+            Ok(edit(project, ctx.source, &req)?.after)
+        }
+
+        fn commit(&self, ctx: &mut Ctx, params: &serde_json::Value) -> Result<Outcome, Refusal> {
+            let req = request(params)?;
+            let source = ctx.source;
+            let id = match &req {
+                Request::Set { id, .. } | Request::Restore { id, .. } => id.clone(),
+            };
+            let Some(project) = ctx.project.as_mut() else {
+                return Err(Refusal::new(
+                    "no project is open, so there is no library to set a label in.",
+                ));
+            };
+            let e = edit(project, source, &req)?;
+            // **The file first.** `commit_measured` writes and only then adopts the library, so a
+            // refused save leaves the piece and the editor as they were.
+            if let Err(msg) = crate::tiles::commit_measured(project, e.measured) {
+                return Err(Refusal::new(format!(
+                    "the file refused the change, so nothing was written and the piece is unchanged: {msg}"
+                )));
+            }
+            Ok(Outcome {
+                summary: e.summary,
+                affected: 1,
+                saved: true,
+                inverse: Some(json!({"id": id, "restore": e.before})),
+                after: Some(e.after),
+            })
+        }
+    }
+}
+
+/// **Set where a library piece belongs: its mount** (E-002, #129 slice 6).
+///
+/// `M` on the Meshes tab stepped a piece's mount with its own write, so an agent could label a
+/// piece's kind and look but not say where it goes, and the registry's two-front-end rule listed the
+/// key as unmigrated. This is the operation both now dispatch. The mount is the descriptor's own
+/// `Mount`, as JSON (`"OnFloor"`, `{"OnWall": {"height": 1.5}}`), and it must be one the project
+/// offers: the same list the key cycles (`mount_options`, one `OnSurface` per surface class the
+/// vocabulary declares), with any height or opening size free. The write stamps the mount axis as
+/// the writer's (`By::Human` or `By::Agent`), and the inverse puts the mount and the label record
+/// back whole.
+pub mod piece_set_mount {
+    use super::*;
+    use blueprint_model::descriptor::{
+        Axis, By, Descriptor, LabelOrigin, Mount, mount_height, mount_label, mount_options,
+        with_mount_height,
+    };
+    use serde_json::json;
+
+    /// **What an undo puts back**: the mount, and the label record its provenance lives in.
+    #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+    #[serde(deny_unknown_fields)]
+    pub struct Restore {
+        pub mount: Option<Mount>,
+        pub labels: Option<LabelOrigin>,
+    }
+
+    #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+    #[serde(deny_unknown_fields)]
+    pub struct Params {
+        /// The library piece's id, as `blueprint/pieces` names it.
+        pub id: String,
+        /// The mount to give it. Absent on an undo's put-back.
+        #[serde(default)]
+        pub mount: Option<Mount>,
+        /// **Undo only.** The mount and label record to put back, exactly as they were.
+        #[serde(default)]
+        pub restore: Option<Restore>,
+    }
+
+    enum Request {
+        Set { id: String, mount: Mount },
+        Restore { id: String, restore: Restore },
+    }
+
+    fn request(raw: &serde_json::Value) -> Result<Request, Refusal> {
+        let p: Params = serde_json::from_value(raw.clone()).map_err(|e| {
+            Refusal::new(format!(
+                "this is not a mount to set: {e}. The fields are `id` and `mount`, the mount as the \
+                 descriptor spells it (`\"OnFloor\"`, `{{\"OnWall\": {{\"height\": 1.8}}}}`)."
+            ))
+        })?;
+        match (p.mount, p.restore) {
+            (Some(mount), None) => Ok(Request::Set { id: p.id, mount }),
+            (None, Some(restore)) => Ok(Request::Restore { id: p.id, restore }),
+            (Some(_), Some(_)) => Err(Refusal::new(
+                "a restore names the whole record, so it takes `id` and `restore` and nothing else.",
+            )),
+            (None, None) => Err(Refusal::new(
+                "setting a mount needs `id` and `mount`. Nothing was set.",
+            )),
+        }
+    }
+
+    /// **A mount with its free numbers set aside**, so an authored height or opening size is not
+    /// mistaken for a mount the project does not offer.
+    fn canon(m: &Mount) -> Mount {
+        match m {
+            Mount::InOpening { .. } => Mount::InOpening { clear: None },
+            Mount::OnFace { class, .. } => Mount::OnFace {
+                class: class.clone(),
+                height: 1.8,
+            },
+            m => with_mount_height(m, 1.8).unwrap_or_else(|| m.clone()),
+        }
+    }
+
+    /// **The numbers a mount carries must be real lengths**: a NaN or a negative height is a mount
+    /// no placement could be seated at.
+    fn lengths_refusal(m: &Mount) -> Option<String> {
+        let bad = |v: f32| !v.is_finite() || v <= 0.0;
+        // **Zero is a legal height**, as the Meshes height field allows it (a marking at skirting
+        // level); only a negative or a non-number is not a length.
+        let height = match m {
+            Mount::OnFace { height, .. } => Some(*height),
+            m => mount_height(m),
+        };
+        if height.is_some_and(|v| !v.is_finite() || v < 0.0) {
+            return Some("a mount's height is a length in metres, zero or more".to_owned());
+        }
+        if let Mount::InOpening { clear: Some((w, h)) } = m
+            && (bad(*w) || bad(*h))
+        {
+            return Some("an opening's width and height are lengths in metres above zero".to_owned());
+        }
+        None
+    }
+
+    /// **The piece's state as an undo compares it.**
+    fn state_json(d: &Descriptor) -> serde_json::Value {
+        json!({"id": d.id, "mount": d.mount})
+    }
+
+    struct Edit {
+        measured: blueprint_model::library::Library,
+        before: Restore,
+        after: serde_json::Value,
+        summary: String,
+    }
+
+    /// **The edit, computed on a copy of the measured library.** Nothing is written here; the commit
+    /// does that, so a refused write leaves the piece as it was.
+    fn edit(project: &Project, source: Source, req: &Request) -> Result<Edit, Refusal> {
+        let id = match req {
+            Request::Set { id, .. } | Request::Restore { id, .. } => id,
+        };
+        let mut measured = (*project.measured).clone();
+        let index = measured
+            .descriptors
+            .iter()
+            .position(|d| &d.id == id)
+            .ok_or_else(|| {
+                if let Some(ns) = project.other_kit_of(id) {
+                    return Refusal::new(format!(
+                        "`{id}` belongs to kit `{ns}`, not the kit being authored (`{}`), so nothing was set.",
+                        project.namespace
+                    ));
+                }
+                let ids: Vec<&str> = measured.descriptors.iter().map(|d| d.id.as_str()).collect();
+                let hint = match nearest_ids(&ids, id) {
+                    near if near.is_empty() => String::new(),
+                    near => format!(" Close ids: {}.", near.join(", ")),
+                };
+                Refusal::new(format!(
+                    "no library piece is called `{id}`, so nothing was set.{hint} Pick one from the \
+                     Meshes shelf."
+                ))
+            })?;
+        let d = &mut measured.descriptors[index];
+        let before = Restore {
+            mount: d.mount.clone(),
+            labels: d.labels.clone(),
+        };
+        let summary = match req {
+            Request::Set { mount, .. } => {
+                if let Some(why) = lengths_refusal(mount) {
+                    return Err(Refusal::new(format!("{why}, so nothing was set.")));
+                }
+                let surfaces: Vec<String> = project.vocab.surfaces.names().map(str::to_owned).collect();
+                let options = mount_options(&surfaces);
+                if !options.iter().any(|o| canon(o) == canon(mount)) {
+                    let offered: Vec<String> = options
+                        .iter()
+                        .map(|o| {
+                            format!(
+                                "{} = {}",
+                                mount_label(Some(o)),
+                                serde_json::to_string(o).unwrap_or_default()
+                            )
+                        })
+                        .collect();
+                    return Err(Refusal::new(format!(
+                        "{} is not a mount this project offers, so nothing was set. Offered: {}.",
+                        serde_json::to_string(mount).unwrap_or_default(),
+                        offered.join("; ")
+                    )));
+                }
+                d.mount = Some(mount.clone());
+                crate::labels::stamp_by(
+                    d,
+                    Axis::Mount,
+                    match source {
+                        Source::Human => By::Human,
+                        Source::Agent => By::Agent,
+                    },
+                );
+                format!(
+                    "set mount on `{id}`: {} -> {}",
+                    mount_label(before.mount.as_ref()),
+                    mount_label(d.mount.as_ref())
+                )
+            }
+            Request::Restore { restore, .. } => {
+                d.mount = restore.mount.clone();
+                d.labels = restore.labels.clone();
+                format!("restored mount on `{id}`")
+            }
+        };
+        let after = state_json(d);
+        // **The project must take it, asked now**, so a preview refuses what the commit would refuse
+        // (a mount on a surface class no piece offers is one the library cannot hold) and the
+        // person's cycle can skip such a rung without a refusal in the log.
+        crate::tiles::check_measured(project, &measured).map_err(|why| {
+            Refusal::new(format!("the project would not take this, so nothing was set: {why}"))
+        })?;
+        Ok(Edit {
+            measured,
+            before,
+            after,
+            summary,
+        })
+    }
+
+    /// **Give one library piece a mount.**
+    pub struct PieceSetMount;
+
+    impl Operation for PieceSetMount {
+        fn name(&self) -> &'static str {
+            "piece_set_mount"
+        }
+        fn shows(&self, _ctx: &Ctx, params: &serde_json::Value) -> Shown {
+            match params.get("id").and_then(serde_json::Value::as_str) {
+                Some(id) => Shown::Piece { id: id.to_owned() },
+                None => Shown::MapWhole,
+            }
+        }
+        fn writes(&self) -> &'static [&'static str] {
+            &["library"]
+        }
+
+        fn undo(&self) -> Undo {
+            Undo::Inverse
+        }
+
+        fn writes_library(&self) -> bool {
+            true
+        }
+
+        fn schema(&self) -> serde_json::Value {
+            json!({
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["id", "mount"],
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "description": "The library piece's id, as blueprint/pieces names it."
+                    },
+                    "mount": {
+                        "type": ["string", "object"],
+                        "description": "Where the piece goes, as the descriptor spells a mount: \"OnFloor\", \"OnCeiling\", \"Tiled\", {\"OnWall\": {\"height\": 1.8}}, {\"OnSurface\": {\"class\": \"worktop\"}}, {\"OnSurfaceOrFloor\": {\"class\": \"worktop\"}}, {\"OnFace\": {\"class\": \"worktop\", \"height\": 1.8}}, {\"Decal\": {\"on\": \"Floor\"}} or {\"InOpening\": {\"clear\": null}}. It must be one the project offers (a refusal lists them); a wall height or an opening size is free."
+                    }
+                }
+            })
+        }
+
+        /// **An undo's put-back is never a request an agent may send.**
+        fn only_as_undo(&self, params: &serde_json::Value) -> bool {
+            matches!(request(params), Ok(Request::Restore { .. }))
+        }
+
+        /// **The piece's mount now**, against the one the change recorded. A piece that has gone
+        /// missing answers nothing, so an undo cannot match it.
+        fn state_of(&self, ctx: &Ctx, after: &serde_json::Value) -> Option<serde_json::Value> {
+            let id = after.get("id")?.as_str()?;
+            let project = ctx.project.as_ref()?;
+            let d = project.measured.descriptors.iter().find(|d| d.id == id)?;
+            Some(state_json(d))
+        }
+
+        fn plan(
+            &self,
+            ctx: &Ctx,
+            params: &serde_json::Value,
+        ) -> Result<serde_json::Value, Refusal> {
+            let req = request(params)?;
+            let Some(project) = ctx.project.as_ref() else {
+                return Err(Refusal::new(
+                    "no project is open, so there is no library to set a mount in.",
+                ));
+            };
+            Ok(edit(project, ctx.source, &req)?.after)
+        }
+
+        fn commit(&self, ctx: &mut Ctx, params: &serde_json::Value) -> Result<Outcome, Refusal> {
+            let req = request(params)?;
+            let source = ctx.source;
+            let id = match &req {
+                Request::Set { id, .. } | Request::Restore { id, .. } => id.clone(),
+            };
+            let Some(project) = ctx.project.as_mut() else {
+                return Err(Refusal::new(
+                    "no project is open, so there is no library to set a mount in.",
+                ));
+            };
+            let e = edit(project, source, &req)?;
+            // **The file first.** `commit_measured` writes and only then adopts the library, so a
+            // refused save leaves the piece and the editor as they were.
+            if let Err(msg) = crate::tiles::commit_measured(project, e.measured) {
+                return Err(Refusal::new(format!(
+                    "the file refused the change, so nothing was written and the piece is unchanged: {msg}"
+                )));
+            }
+            Ok(Outcome {
+                summary: e.summary,
+                affected: 1,
+                saved: true,
+                inverse: Some(json!({"id": id, "restore": e.before})),
+                after: Some(e.after),
+            })
+        }
+    }
+}
+
+/// **Leave a pack out of the kit, or bring it back** (E-002, #129 slice 7).
+///
+/// `Shift+R` on the Meshes tab wrote the kit's `project.yaml` with a splice of its own, named by no
+/// operation, so an agent could label a piece and not say that a whole folder of art is not what the
+/// kit is built from, no log line named the change, and Cmd+Z could not take it back. This is the same
+/// write, one validated, saved, logged and undoable change for the key and for an agent.
+///
+/// **A pack is a folder under `assets/`**, spelled as the Meshes shelf spells it (`characters/rigs`).
+/// The file is spliced through `policy::rewrite_exclude`, which leaves the file's prose alone and
+/// re-reads what it wrote, and it is written atomically, so a refused write leaves the kit as it was.
+/// An exclusion that is already in force, a restore of a pack nobody excluded and a folder that does
+/// not exist are refused rather than logged as a change that changed nothing.
+///
+/// **Undo** is the same operation with `excluded` flipped, so an agent may exclude and restore a pack
+/// itself and nothing here puts a file's bytes in the log. The one undo-only form is the put-back of a
+/// restore (`put_back`): it re-lists a pack without asking whether its folder is still there, so a
+/// restore is always undoable, and an agent cannot send it as a change.
+pub mod pack_set_excluded {
+    use super::*;
+    use serde_json::json;
+
+    #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+    #[serde(deny_unknown_fields)]
+    pub struct Params {
+        /// The folder under `assets/`, as the Meshes shelf names a pack.
+        pub pack: String,
+        /// `true` leaves the pack out of the kit; `false` brings it back.
+        pub excluded: bool,
+        /// **Undo only.** Re-list an entry a restore removed although its folder has gone since.
+        #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+        pub put_back: bool,
+    }
+
+    fn parse(raw: &serde_json::Value) -> Result<Params, Refusal> {
+        serde_json::from_value(raw.clone()).map_err(|e| {
+            Refusal::new(format!(
+                "this is not a pack to exclude or restore: {e}. The fields are `pack` (a folder \
+                 under assets/) and `excluded` (true or false), and both are required."
+            ))
+        })
+    }
+
+    /// **The pack as the policy file spells it**: no trailing slash, relative, and a folder name a
+    /// quoted RON string can hold. `..` and `.` are refused because neither names a pack.
+    fn clean(pack: &str) -> Result<String, Refusal> {
+        let pack = pack.trim_end_matches('/');
+        let bad = pack.is_empty()
+            || pack.starts_with('/')
+            || pack.chars().any(|c| c == '"' || c == '\\' || c.is_control())
+            || pack.split('/').any(|part| part.is_empty() || part == "." || part == "..");
+        if bad {
+            return Err(Refusal::new(format!(
+                "`{pack}` is not a pack: a pack is a folder under assets/, written relative to it as the \
+                 Meshes shelf writes it (`characters/rigs`). Nothing was changed."
+            )));
+        }
+        Ok(pack.to_owned())
+    }
+
+    fn is_excluded(project: &Project, pack: &str) -> bool {
+        project
+            .policy
+            .exclude
+            .iter()
+            .any(|e| e.trim_end_matches('/') == pack)
+    }
+
+    /// **The listed entry that already leaves this pack out** because it names a folder above it.
+    fn covered_by<'p>(project: &'p Project, pack: &str) -> Option<&'p str> {
+        project.policy.exclude.iter().map(|e| e.trim_end_matches('/')).find(|e| {
+            pack.strip_prefix(e)
+                .is_some_and(|rest| rest.starts_with('/'))
+        })
+    }
+
+    struct Edit {
+        path: PathBuf,
+        text: String,
+        exclude: Vec<String>,
+        pack: String,
+        excluded: bool,
+        summary: String,
+    }
+
+    /// **The write, computed and checked and not made.** The file is read and spliced here, so a
+    /// preview refuses a policy file the commit could not rewrite.
+    fn edit(project: &Project, p: &Params) -> Result<Edit, Refusal> {
+        let pack = clean(&p.pack)?;
+        let had = is_excluded(project, &pack);
+        if had == p.excluded {
+            return Err(Refusal::new(format!(
+                "`{pack}` is already {}, so nothing was changed.",
+                if had { "excluded" } else { "offered" }
+            )));
+        }
+        if p.excluded && !p.put_back {
+            // **Already in force through a folder above it**: logging it would record a change that
+            // changed nothing.
+            if let Some(above) = covered_by(project, &pack) {
+                return Err(Refusal::new(format!(
+                    "`{pack}` is already excluded: `{above}` leaves it out, so nothing was changed."
+                )));
+            }
+            if !project.root.join("assets").join(&pack).is_dir() {
+                return Err(Refusal::new(format!(
+                    "there is no folder `{pack}` under assets/, so nothing was excluded. A pack is named as \
+                     the Meshes shelf names it."
+                )));
+            }
+        }
+        let mut exclude = project.policy.exclude.clone();
+        if had {
+            exclude.retain(|e| e.trim_end_matches('/') != pack);
+        } else {
+            exclude.push(pack.clone());
+            exclude.sort();
+        }
+        let path = project.blueprint_dir.join(blueprint_model::policy::POLICY_FILE);
+        let text = std::fs::read_to_string(&path)
+            .map_err(|e| format!("cannot read {}: {e}", path.display()))
+            .and_then(|text| blueprint_model::policy::rewrite_exclude(&text, &exclude))
+            .map_err(|why| Refusal::new(format!("{why}, so nothing was changed.")))?;
+        let summary = if p.excluded {
+            format!("`{pack}` excluded from this kit \u{2014} it will not be offered or labelled")
+        } else {
+            format!("`{pack}` is back \u{2014} it can be imported and labelled again")
+        };
+        Ok(Edit {
+            path,
+            text,
+            exclude,
+            pack,
+            excluded: p.excluded,
+            summary,
+        })
+    }
+
+    /// **What an undo compares.** The key is `id`, the name every library change is scoped by, so a
+    /// newer change to one pack never blocks the undo of another's. It carries a `pack:` prefix: a
+    /// piece id and a map's name are scopes of the same kind, and a pack may share a word with one.
+    fn state_json(pack: &str, excluded: bool) -> serde_json::Value {
+        json!({"id": format!("pack:{pack}"), "excluded": excluded})
+    }
+
+    /// **Exclude one pack from the kit, or restore it.**
+    pub struct PackSetExcluded;
+
+    impl Operation for PackSetExcluded {
+        fn name(&self) -> &'static str {
+            "pack_set_excluded"
+        }
+        fn shows(&self, _ctx: &Ctx, _params: &serde_json::Value) -> Shown {
+            // **A pack is a row of the kit's own policy**, shown in the Meshes door's pack list.
+            Shown::Settings { section: "packs".to_owned() }
+        }
+        fn writes(&self) -> &'static [&'static str] {
+            &["policy"]
+        }
+
+        fn undo(&self) -> Undo {
+            Undo::Inverse
+        }
+
+        /// **A kit-level write joins the Meshes history**, and a bare `operation_undo` scopes past it
+        /// as it does a library write: it takes back the open map's newest change.
+        fn writes_library(&self) -> bool {
+            true
+        }
+
+        /// **A put-back is never a request an agent may send.**
+        fn only_as_undo(&self, params: &serde_json::Value) -> bool {
+            parse(params).is_ok_and(|p| p.put_back)
+        }
+
+        fn schema(&self) -> serde_json::Value {
+            json!({
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["pack", "excluded"],
+                "properties": {
+                    "pack": {
+                        "type": "string",
+                        "description": "The mesh folder under assets/, written relative to it as the Meshes shelf names a pack, e.g. characters/rigs."
+                    },
+                    "excluded": {
+                        "type": "boolean",
+                        "description": "true leaves the pack out of this kit (it is no longer offered or labelled); false brings it back."
+                    }
+                }
+            })
+        }
+
+        /// **Whether the pack is excluded now**, against what the change recorded.
+        fn state_of(&self, ctx: &Ctx, after: &serde_json::Value) -> Option<serde_json::Value> {
+            let pack = after.get("id")?.as_str()?.strip_prefix("pack:")?;
+            let project = ctx.project.as_ref()?;
+            Some(state_json(pack, is_excluded(project, pack)))
+        }
+
+        fn plan(
+            &self,
+            ctx: &Ctx,
+            params: &serde_json::Value,
+        ) -> Result<serde_json::Value, Refusal> {
+            let p = parse(params)?;
+            let Some(project) = ctx.project.as_ref() else {
+                return Err(Refusal::new(
+                    "no project is open, so there is no kit to exclude a pack from.",
+                ));
+            };
+            let e = edit(project, &p)?;
+            Ok(state_json(&e.pack, e.excluded))
+        }
+
+        fn commit(&self, ctx: &mut Ctx, params: &serde_json::Value) -> Result<Outcome, Refusal> {
+            let p = parse(params)?;
+            let Some(project) = ctx.project.as_mut() else {
+                return Err(Refusal::new(
+                    "no project is open, so there is no kit to exclude a pack from.",
+                ));
+            };
+            let e = edit(project, &p)?;
+            // **The file first**, so a refused write leaves the policy as it was.
+            blueprint_model::save::save_atomic(&e.path, &e.text).map_err(|why| {
+                Refusal::new(format!(
+                    "the policy file refused the change, so nothing was written: {why}"
+                ))
+            })?;
+            project.policy.exclude = e.exclude;
+            Ok(Outcome {
+                summary: e.summary,
+                affected: 1,
+                saved: true,
+                inverse: Some(if e.excluded {
+                    json!({"pack": e.pack, "excluded": false})
+                } else {
+                    json!({"pack": e.pack, "excluded": true, "put_back": true})
+                }),
+                after: Some(state_json(&e.pack, e.excluded)),
+            })
+        }
+    }
+}
+
+/// **Arm a piece, so the next placement puts it down.**
+///
+/// E-037: the palette click did this in the UI, so an agent could place pieces but could not choose
+/// one. Arming changes no map, so it records no undo: its `after` is the piece the editor now holds,
+/// and the editor applies it (`editor::arm_piece`, `editor::apply_armed`).
+pub mod brush_arm {
+    use super::*;
+    use serde_json::json;
+
+    #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+    #[serde(deny_unknown_fields)]
+    pub struct Params {
+        /// The library id of the piece to arm, as the palette names it, e.g. `site/wall`. `null`
+        /// puts the brush down, as Esc does for an armed piece.
+        #[serde(default, deserialize_with = "present")]
+        pub descriptor: Option<Option<String>>,
+    }
+
+    /// **Present, possibly null.** Serde's own `Option` reads an absent key as `None` too, so a
+    /// typo would look like a request to put the brush down. Here the outer `None` is an absent
+    /// key (refused) and the inner `None` is an explicit null (put down).
+    fn present<'de, D>(d: D) -> Result<Option<Option<String>>, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        <Option<String> as serde::Deserialize>::deserialize(d).map(Some)
+    }
+
+    /// How many ids a refusal lists. The closest first, so a typo's intended piece is among them.
+    const LISTED_ON_REFUSAL: usize = 20;
+
+    /// Levenshtein distance, two rows at a time. The ranking needs no more than this, so no crate.
+    fn distance(a: &str, b: &str) -> usize {
+        let (a, b): (Vec<char>, Vec<char>) = (a.chars().collect(), b.chars().collect());
+        let mut prev: Vec<usize> = (0..=b.len()).collect();
+        let mut cur = vec![0usize; b.len() + 1];
+        for (i, ca) in a.iter().enumerate() {
+            cur[0] = i + 1;
+            for (j, cb) in b.iter().enumerate() {
+                let sub = prev[j] + usize::from(ca != cb);
+                cur[j + 1] = sub.min(prev[j + 1] + 1).min(cur[j] + 1);
+            }
+            std::mem::swap(&mut prev, &mut cur);
+        }
+        prev[b.len()]
+    }
+
+    impl Params {
+        /// **The JSON schema**, which is what an agent reads.
+        pub fn schema() -> serde_json::Value {
+            json!({
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["descriptor"],
+                "properties": {
+                    "descriptor": {
+                        "type": ["string", "null"],
+                        "description": "The library id of the piece to arm, as the palette names it, e.g. `site/wall`. null puts the brush down."
+                    }
+                }
+            })
+        }
+
+        /// **The parameters, parsed.** `deny_unknown_fields`, so a typo is a refusal.
+        pub fn parse(raw: &serde_json::Value) -> Result<Params, Refusal> {
+            serde_json::from_value(raw.clone()).map_err(|e| {
+                Refusal::new(format!(
+                    "this is not a piece to arm: {e}. The one field is `descriptor`, and nothing else."
+                ))
+            })
+        }
+    }
+
+    /// **Arm one piece from the library.**
+    pub struct BrushArm;
+
+    impl Operation for BrushArm {
+        fn name(&self) -> &'static str {
+            "brush_arm"
+        }
+        fn shows(&self, _ctx: &Ctx, _params: &serde_json::Value) -> Shown {
+            Shown::Nowhere
+        }
+        fn writes(&self) -> &'static [&'static str] {
+            &[]
+        }
+
+        fn undo(&self) -> Undo {
+            Undo::None
+        }
+
+        fn schema(&self) -> serde_json::Value {
+            Params::schema()
+        }
+
+        /// **A piece the library holds, or a refusal.** Nothing is armed by a refused request.
+        fn plan(
+            &self,
+            ctx: &Ctx,
+            params: &serde_json::Value,
+        ) -> Result<serde_json::Value, Refusal> {
+            let p = Params::parse(params)?;
+            let descriptor = match p.descriptor {
+                None => {
+                    return Err(Refusal::new(
+                        "this is not a piece to arm: `descriptor` is missing. Name a piece, or \
+                         give null to put the brush down.",
+                    ));
+                }
+                Some(None) => return Ok(json!({"armed": null})),
+                Some(Some(id)) => id,
+            };
+            let Some(project) = ctx.project.as_ref() else {
+                return Err(Refusal::new(
+                    "no project is open, so there is no library to arm a piece from.",
+                ));
+            };
+            if !project.library.descriptors.iter().any(|d| d.id == descriptor) {
+                // **The refusal names what exists** (gap 2): an agent cannot retry with an id it cannot
+                // see, and "the palette lists the pieces" sent it to a palette it has no tool to read.
+                let mut ids: Vec<&str> = project
+                    .library
+                    .descriptors
+                    .iter()
+                    .map(|d| d.id.as_str())
+                    .collect();
+                if ids.is_empty() {
+                    return Err(Refusal::new(format!(
+                        "`{}` is not in the library, and the library holds no pieces, so nothing was armed.",
+                        descriptor
+                    )));
+                }
+                ids.sort_by_key(|id| (distance(id, &descriptor), id.to_string()));
+                let shown = ids
+                    .iter()
+                    .take(LISTED_ON_REFUSAL)
+                    .copied()
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                return Err(Refusal::new(format!(
+                    "`{}` is not in the library, so nothing was armed. The library holds {} pieces; \
+                     the closest are: {shown}.",
+                    descriptor,
+                    ids.len()
+                )));
+            }
+            // **A piece from a kit the map's bash leaves out is refused** (gap 5). The palette filters
+            // by the same `palette_namespaces` rule, so an agent armed a piece a person could not
+            // see. Without an open map there is no bash to apply, so nothing is refused.
+            if let Some(open) = ctx.open.as_ref()
+                && let Some(kit) = project.kit_of(&descriptor)
+                && let Some(bash) = open.map.bash.as_deref()
+                && !open.palette_namespaces(project).contains(kit)
+            {
+                return Err(Refusal::new(format!(
+                    "`{descriptor}` is in kit `{kit}`, which this map's bash `{bash}` leaves out, so \
+                     nothing was armed. The palette does not offer it either. Name a piece from a kit \
+                     `{bash}` includes, or change the bash."
+                )));
+            }
+            Ok(json!({"armed": descriptor}))
+        }
+
+        fn commit(&self, ctx: &mut Ctx, params: &serde_json::Value) -> Result<Outcome, Refusal> {
+            let plan = self.plan(ctx, params)?;
+            let summary = match plan["armed"].as_str() {
+                Some(id) => format!("armed {id}"),
+                None => "put the brush down".to_owned(),
+            };
+            Ok(Outcome {
+                summary,
+                affected: 0,
+                saved: false,
+                inverse: None,
+                after: Some(plan),
+            })
+        }
+    }
+}
+
+/// **Arm a composition for the Map, or put it down (E-002).**
+///
+/// The picker's `Enter`, a click on a picker row and the COMPOSE tab's `Enter` all dispatch this,
+/// through `editor::arm_composition`, and an agent calls the same name. Like [`brush_arm`] it changes
+/// no document: the answer names what is armed and each front end applies it with
+/// `editor::apply_composition_armed`.
+pub mod composition_arm {
+    use super::*;
+    use serde_json::json;
+
+    #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+    #[serde(deny_unknown_fields)]
+    pub struct Params {
+        /// The composition's id. `null` puts the armed composition down.
+        #[serde(default, deserialize_with = "present")]
+        pub composition: Option<Option<String>>,
+    }
+
+    /// **Present, possibly null**, for [`brush_arm`]'s reason: an absent key is a refusal, not a
+    /// request to disarm.
+    fn present<'de, D>(d: D) -> Result<Option<Option<String>>, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        <Option<String> as serde::Deserialize>::deserialize(d).map(Some)
+    }
+
+    pub struct CompositionArm;
+
+    impl Operation for CompositionArm {
+        fn name(&self) -> &'static str {
+            "composition_arm"
+        }
+        fn shows(&self, _ctx: &Ctx, _params: &serde_json::Value) -> Shown {
+            Shown::Nowhere
+        }
+        fn writes(&self) -> &'static [&'static str] {
+            &[]
+        }
+
+        fn undo(&self) -> Undo {
+            Undo::None
+        }
+
+        fn schema(&self) -> serde_json::Value {
+            json!({
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["composition"],
+                "properties": {
+                    "composition": {
+                        "type": ["string", "null"],
+                        "description": "The id of the composition to arm, so the next click on the Map stamps it. null puts it down."
+                    }
+                }
+            })
+        }
+
+        /// **A composition the project holds, or a refusal naming the ones it does.**
+        fn plan(
+            &self,
+            ctx: &Ctx,
+            params: &serde_json::Value,
+        ) -> Result<serde_json::Value, Refusal> {
+            let p: Params = serde_json::from_value(params.clone()).map_err(|e| {
+                Refusal::new(format!(
+                    "this is not a composition to arm: {e}. The one field is `composition`."
+                ))
+            })?;
+            let id = match p.composition {
+                None => {
+                    return Err(Refusal::new(
+                        "this is not a composition to arm: `composition` is missing. Name one, or \
+                         give null to put it down.",
+                    ));
+                }
+                Some(None) => return Ok(json!({"armed": null})),
+                Some(Some(id)) => id,
+            };
+            let Some(project) = ctx.project.as_ref() else {
+                return Err(Refusal::new(
+                    "no project is open, so there is no composition to arm.",
+                ));
+            };
+            let comps = &project.compositions.compositions;
+            if !comps.iter().any(|c| c.id == id) {
+                let known: Vec<&str> = comps.iter().map(|c| c.id.as_str()).collect();
+                return Err(Refusal::new(if known.is_empty() {
+                    format!("`{id}` is not a composition, and the project has none, so nothing was armed.")
+                } else {
+                    format!(
+                        "`{id}` is not a composition, so nothing was armed. The project has: {}.",
+                        known.join(", ")
+                    )
+                }));
+            }
+            Ok(json!({"armed": id}))
+        }
+
+        fn commit(&self, ctx: &mut Ctx, params: &serde_json::Value) -> Result<Outcome, Refusal> {
+            let plan = self.plan(ctx, params)?;
+            let summary = match plan["armed"].as_str() {
+                Some(id) => format!("armed the composition {id}"),
+                None => "put the composition down".to_owned(),
+            };
+            Ok(Outcome {
+                summary,
+                affected: 0,
+                saved: false,
+                inverse: None,
+                after: Some(plan),
+            })
+        }
+    }
+}
+
+/// **Open a door, or a panel of one (cycle 8, item 1).**
+///
+/// **The answer is the target; the editor does the switching.** The keys and an agent's request reach
+/// the same operation, so a door is crossed by one path whoever asks. `door` is `kit`, `map` or
+/// `rigs`, and `tab`, when given, is a panel that door shows. Nothing changes on disk: the answer is
+/// read by [`crate::editor::request_door`], and the switching is run by `editor::apply_door_request`.
+///
+/// **The kit is not a parameter.** A project opens with one kit, and no operation switches kits, so a
+/// request that named one would have nothing to switch to.
+pub mod door_open {
+    use super::*;
+    use crate::tiles::Mode;
+    use crate::workspace::Workspace;
+    use serde_json::json;
+
+    #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+    #[serde(deny_unknown_fields)]
+    pub struct Params {
+        /// The workspace's id (`map`, `kit`, `animation`, and the six that are not built yet), or
+        /// `rigs`, the word this field took before the workspaces. **The field keeps its name**:
+        /// `door_open` is a wire contract (recorded BRP runs, the guide and the protected tests send
+        /// `door`), and the issue replaces the type behind it, not the operation. `workspace` is
+        /// read too, so a caller who has learned the new word is not refused.
+        #[serde(alias = "workspace")]
+        pub door: String,
+        /// A panel that workspace shows, by its label (e.g. `meshes`). Absent opens the workspace on
+        /// its first panel.
+        #[serde(default)]
+        pub tab: Option<String>,
+    }
+
+    impl Params {
+        /// **The JSON schema**, which is what an agent reads.
+        pub fn schema() -> serde_json::Value {
+            let mut workspaces: Vec<&str> = Workspace::ALL.iter().map(|w| w.id()).collect();
+            // `rigs` is read as `animation` (`Workspace::from_flag`), so the schema offers it.
+            workspaces.push("rigs");
+            json!({
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["door"],
+                "properties": {
+                    "door": {
+                        "type": "string",
+                        "enum": workspaces,
+                        "description": "The workspace to switch to (`workspace` is read as well). map builds the level; kit makes reusable content; animation is the rig bench, and `rigs` is read as animation. The others are not built yet and say which issue brings them."
+                    },
+                    "tab": {
+                        "type": "string",
+                        "description": "A panel that workspace shows, e.g. meshes. Absent opens the workspace on its first panel."
+                    }
+                }
+            })
+        }
+
+        /// **The parameters, parsed.** `deny_unknown_fields`, so a typo is a refusal.
+        pub fn parse(raw: &serde_json::Value) -> Result<Params, Refusal> {
+            serde_json::from_value(raw.clone()).map_err(|e| {
+                Refusal::new(format!(
+                    "this is not a workspace to open: {e}. The fields are `door` (or `workspace`) and `tab`, and nothing else."
+                ))
+            })
+        }
+    }
+
+    pub struct DoorOpen;
+
+    /// **The answer to a door request, validated.** `plan` and `commit` share it.
+    ///
+    /// `read_map` is the Map door's read. `plan` does it, so a map that will not open is refused
+    /// before the answer says "applied". `commit` does not read it again: `dispatch_as` has just
+    /// planned, and the switching reads the map once more. The same file was parsed three times per
+    /// request before this (cycle 8, gap 12).
+    fn door_answer(
+        ctx: &Ctx,
+        params: &serde_json::Value,
+        read_map: bool,
+    ) -> Result<serde_json::Value, Refusal> {
+        let p = Params::parse(params)?;
+        let Some(workspace) = Workspace::from_flag(&p.door) else {
+            let mut names: Vec<&str> = Workspace::ALL.iter().map(|w| w.id()).collect();
+            names.push("rigs");
+            return Err(Refusal::new(format!(
+                "`{}` is not a workspace. The workspaces are {} (`rigs` is read as animation).",
+                p.door,
+                names.join(", ")
+            )));
+        };
+        // **An unbuilt workspace is refused with the issue that brings it**, which is the same
+        // sentence its chord gives, so a person and an agent read the same reason.
+        if let Some(missing) = workspace.missing() {
+            return Err(Refusal::new(missing.to_owned()));
+        }
+        let tab = match p.tab.as_deref() {
+            None => None,
+            Some(name) => {
+                let Some(mode) = Mode::ALL
+                    .iter()
+                    .copied()
+                    .find(|m| m.label().eq_ignore_ascii_case(name))
+                else {
+                    let all: Vec<String> =
+                        Mode::ALL.iter().map(|m| m.label().to_lowercase()).collect();
+                    return Err(Refusal::new(format!(
+                        "`{name}` is not a panel. The panels are {}.",
+                        all.join(", ")
+                    )));
+                };
+                if !workspace.panels().contains(&mode) {
+                    let shown: Vec<String> =
+                        workspace.panels().iter().map(|m| m.label().to_lowercase()).collect();
+                    return Err(Refusal::new(format!(
+                        "the {} workspace does not show `{name}`. It shows {}.",
+                        workspace.title().to_lowercase(),
+                        shown.join(", ")
+                    )));
+                }
+                Some(mode)
+            }
+        };
+        // **The Map workspace needs a map to show:** with no map open it would have nothing to show,
+        // and the switch would be a silent no-op.
+        let map_open = ctx.open.is_some()
+            || ctx
+                .project
+                .as_ref()
+                .and_then(|project| project.open_map_name.as_ref())
+                .is_some();
+        if workspace == Workspace::Map && !map_open {
+            return Err(Refusal::new(
+                "the Map workspace needs a map, and no map is open. Open a map first, then the Map workspace \
+                 has something to show.",
+            ));
+        }
+        // **The Map workspace shows the map on disk, and a map that will not open cannot be opened
+        // onto.** The switching reads it through this same `OpenMap::open`, so the read happens here, before
+        // the answer says "applied". It writes nothing.
+        if read_map
+            && workspace == Workspace::Map
+            && ctx.open.is_none()
+            && let Some(project) = ctx.project.as_ref()
+            && let Some(name) = project.open_map_name.as_deref()
+        {
+            crate::project::OpenMap::open(project, name).map_err(Refusal::new)?;
+        }
+        // **Leaving a map with unsaved edits is the person's question.** The request is accepted and
+        // the answer names what it waits on: the editor asks the leaving question, and this operation
+        // cannot answer it for them.
+        let waiting = workspace != Workspace::Map && ctx.open.as_ref().is_some_and(|open| open.dirty());
+        let mut answer = json!({
+            "door": workspace.id(),
+            "tab": tab.map(|m| m.label().to_lowercase()),
+        });
+        if waiting {
+            answer["waiting"] = json!("the map has unsaved changes");
+        }
+        Ok(answer)
+    }
+
+    impl Operation for DoorOpen {
+        fn name(&self) -> &'static str {
+            "door_open"
+        }
+        fn shows(&self, _ctx: &Ctx, _params: &serde_json::Value) -> Shown {
+            Shown::Nowhere
+        }
+        fn writes(&self) -> &'static [&'static str] {
+            &[]
+        }
+
+        fn undo(&self) -> Undo {
+            Undo::None
+        }
+
+        fn schema(&self) -> serde_json::Value {
+            Params::schema()
+        }
+
+        fn plan(
+            &self,
+            ctx: &Ctx,
+            params: &serde_json::Value,
+        ) -> Result<serde_json::Value, Refusal> {
+            door_answer(ctx, params, true)
+        }
+
+        fn commit(&self, ctx: &mut Ctx, params: &serde_json::Value) -> Result<Outcome, Refusal> {
+            let plan = door_answer(ctx, params, false)?;
+            let workspace = plan["door"].as_str().unwrap_or("");
+            let target = match plan["tab"].as_str() {
+                Some(tab) => format!("the {workspace} workspace on {tab}"),
+                None => format!("the {workspace} workspace"),
+            };
+            let summary = if plan.get("waiting").is_some() {
+                format!(
+                    "asked for {target}; the map has unsaved changes, so the leaving question comes first"
+                )
+            } else {
+                format!("opened {target}")
+            };
+            Ok(Outcome {
+                summary,
+                affected: 0,
+                saved: false,
+                inverse: None,
+                after: Some(plan),
+            })
+        }
+    }
+}
+
+/// **`piece_select`: point the kit door's Meshes shelf at one library piece.**
+///
+/// The shelf row click and an agent's request are this one operation (E-044). It changes no
+/// document, so `Undo::None`. The plan validates only what the library knows: the id names a piece.
+/// Whether the Meshes shelf is on screen, and whether the filter shows the piece, are editor state,
+/// so `ops_brp::operation_apply` checks them for agents before dispatch.
+pub mod piece_select {
+    use super::*;
+    use serde_json::json;
+
+    #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+    #[serde(deny_unknown_fields)]
+    pub struct Params {
+        /// The id of a library piece, e.g. `site/wall`.
+        pub id: String,
+    }
+
+    impl Params {
+        /// **The JSON schema**, which is what an agent reads.
+        pub fn schema() -> serde_json::Value {
+            json!({
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["id"],
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "description": "The id of a library piece on the Meshes shelf, e.g. site/wall. A piece the shelf filter hides is refused."
+                    }
+                }
+            })
+        }
+
+        /// **The parameters, parsed.** `deny_unknown_fields`, so a typo is a refusal.
+        pub fn parse(raw: &serde_json::Value) -> Result<Params, Refusal> {
+            serde_json::from_value(raw.clone()).map_err(|e| {
+                Refusal::new(format!(
+                    "this is not a piece to select: {e}. The one field is `id`."
+                ))
+            })
+        }
+    }
+
+    pub struct PieceSelect;
+
+    /// **The answer to a selection, validated.** `plan` and `commit` share it.
+    fn selection_answer(ctx: &Ctx, params: &serde_json::Value) -> Result<serde_json::Value, Refusal> {
+        let p = Params::parse(params)?;
+        let Some(project) = ctx.project.as_ref() else {
+            return Err(Refusal::new(
+                "no map or kit is open, so there is no library to select a piece from.",
+            ));
+        };
+        let ids: Vec<&str> = project
+            .library
+            .descriptors
+            .iter()
+            .map(|d| d.id.as_str())
+            .collect();
+        if !ids.contains(&p.id.as_str()) {
+            let hint = match nearest_ids(&ids, &p.id) {
+                near if near.is_empty() => "The library has no pieces.".to_string(),
+                near => format!("Close ids: {}.", near.join(", ")),
+            };
+            return Err(Refusal::new(format!(
+                "`{}` is not a library piece. {hint}",
+                p.id
+            )));
+        }
+        Ok(json!({ "selected": p.id }))
+    }
+
+    impl Operation for PieceSelect {
+        fn name(&self) -> &'static str {
+            "piece_select"
+        }
+        fn shows(&self, _ctx: &Ctx, _params: &serde_json::Value) -> Shown {
+            Shown::Nowhere
+        }
+        fn writes(&self) -> &'static [&'static str] {
+            &[]
+        }
+        fn undo(&self) -> Undo {
+            Undo::None
+        }
+        fn schema(&self) -> serde_json::Value {
+            Params::schema()
+        }
+        fn plan(&self, ctx: &Ctx, params: &serde_json::Value) -> Result<serde_json::Value, Refusal> {
+            selection_answer(ctx, params)
+        }
+        fn commit(&self, ctx: &mut Ctx, params: &serde_json::Value) -> Result<Outcome, Refusal> {
+            let after = selection_answer(ctx, params)?;
+            let id = after["selected"].as_str().unwrap_or_default().to_string();
+            Ok(Outcome {
+                summary: format!("selected `{id}`"),
+                affected: 0,
+                saved: false,
+                inverse: None,
+                after: Some(after),
+            })
+        }
+    }
+}
+
+/// **Remove one placement, or put back what a logged removal took.**
+///
+/// **A removal takes the piece and what stands on it**, because a stack goes whole
+/// (`stack::group_of`): removing a host alone would leave its riders pointing at a placement that
+/// no longer exists, and the map would refuse to load. So the undo is the group, put back at the
+/// rows it held.
+///
+/// **A put-back is accepted only against the log.** The registry has no other way to add a
+/// placement, so a put-back the log did not record would be one.
+pub mod placement_remove {
+    use super::*;
+    use blueprint_model::map::Placed;
+    use serde_json::json;
+
+    /// **One row a removal took**: the index it held and the placement as the file wrote it.
+    #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+    #[serde(deny_unknown_fields)]
+    pub struct Row {
+        pub index: usize,
+        pub placed: serde_json::Value,
+    }
+
+    /// **What an undo puts back**: the piece the removal was asked for, and the rows it took.
+    #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+    #[serde(deny_unknown_fields)]
+    pub struct PutBack {
+        pub head: String,
+        pub rows: Vec<Row>,
+    }
+
+    #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+    #[serde(deny_unknown_fields)]
+    pub struct Params {
+        /// The placement to remove. What stands on it goes too.
+        #[serde(default)]
+        pub id: Option<String>,
+        /// **Only an undo sends this**: puts back the rows a logged removal took.
+        #[serde(default)]
+        pub put_back: Option<PutBack>,
+    }
+
+    impl Params {
+        /// **The JSON schema**, which is what an agent reads.
+        pub fn schema() -> serde_json::Value {
+            json!({
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "description": "The placement to remove. A piece standing on it goes too."
+                    },
+                    "put_back": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": ["head", "rows"],
+                        "description": "Only an undo sends this: it restores the pieces a logged removal took. It is not a way to add a piece.",
+                        "properties": {
+                            "head": {"type": "string"},
+                            "rows": {
+                                "type": "array",
+                                "items": {
+                                    "type": "object",
+                                    "additionalProperties": false,
+                                    "required": ["index", "placed"],
+                                    "properties": {
+                                        "index": {"type": "integer", "minimum": 0},
+                                        "placed": {"type": "object"}
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            })
+        }
+
+        /// **The parameters, parsed.** `deny_unknown_fields`, so a typo is a refusal; and exactly one
+        /// of `id` and `put_back`, so a request cannot say both.
+        pub fn parse(raw: &serde_json::Value) -> Result<Params, Refusal> {
+            let p: Params = serde_json::from_value(raw.clone()).map_err(|e| {
+                Refusal::new(format!(
+                    "these are not a removal: {e}. The fields are `id`, or `put_back` for an undo, and \
+                     nothing else."
+                ))
+            })?;
+            match (&p.id, &p.put_back) {
+                (Some(_), None) | (None, Some(_)) => Ok(p),
+                _ => Err(Refusal::new(
+                    "a removal names one placement by `id`, or puts back what a removal took with \
+                     `put_back`, and not both. Nothing was removed.",
+                )),
+            }
+        }
+    }
+
+    /// **The position of a placement by id**, or `None` when this map does not hold it.
+    fn index_of(open: &OpenMap, id: &str) -> Option<usize> {
+        open.map.placements.iter().position(|q| q.id == id)
+    }
+
+    /// **Whether the log holds a removal that took exactly these rows.** A put-back's parameters are
+    /// the removal's recorded inverse, so equality with that inverse is the proof.
+    fn logged_removal(project: &Project, pb: &PutBack) -> bool {
+        let Ok(want) = serde_json::to_value(pb) else {
+            return false;
+        };
+        let text = std::fs::read_to_string(oplog_path(project)).unwrap_or_default();
+        text.lines()
+            .filter_map(|l| serde_json::from_str::<Entry>(l).ok())
+            .any(|e| {
+                e.op == "placement_remove"
+                    && e.outcome == "applied"
+                    && e.inverse.as_ref().and_then(|i| i.get("put_back")) == Some(&want)
+            })
+    }
+
+    /// **The rows a put-back restores, checked before anything is written.** Each must be a piece
+    /// this map does not hold, the rows must be what a logged removal took, and each must land at an
+    /// index the map can take once the earlier rows are in.
+    fn restorable(
+        project: &Project,
+        open: &OpenMap,
+        pb: &PutBack,
+    ) -> Result<Vec<(usize, Placed)>, Refusal> {
+        if pb.rows.is_empty() {
+            return Err(Refusal::new(
+                "a put-back has no rows, so nothing was put back.",
+            ));
+        }
+        if !logged_removal(project, pb) {
+            return Err(Refusal::new(
+                "no logged removal took these pieces, so they cannot be put back. An undo restores \
+                 only what a removal in the log took. Nothing was changed.",
+            ));
+        }
+        let mut rows: Vec<(usize, Placed)> = Vec::with_capacity(pb.rows.len());
+        for row in &pb.rows {
+            let placed: Placed = serde_json::from_value(row.placed.clone()).map_err(|e| {
+                Refusal::new(format!(
+                    "a restored row is not a placement: {e}. Nothing was put back."
+                ))
+            })?;
+            if index_of(open, &placed.id).is_some() || rows.iter().any(|(_, q)| q.id == placed.id) {
+                return Err(Refusal::new(format!(
+                    "`{}` is already on this map, so putting it back would make two. Nothing was put \
+                     back.",
+                    placed.id
+                )));
+            }
+            rows.push((row.index, placed));
+        }
+        rows.sort_by_key(|(i, _)| *i);
+        for (n, (i, _)) in rows.iter().enumerate() {
+            if *i > open.map.placements.len() + n {
+                return Err(Refusal::new(format!(
+                    "row {i} is past the end of the map, so it cannot go back there. Nothing was put \
+                     back."
+                )));
+            }
+        }
+        Ok(rows)
+    }
+
+    /// **A building someone lives or works in stays** (#104): the refusal names the person.
+    fn refuse_if_lived_in(project: &Project, open: &OpenMap, group: &[usize]) -> Result<(), Refusal> {
+        let ids: Vec<String> = group.iter().map(|&i| open.map.placements[i].id.clone()).collect();
+        match crate::ops_people::tenant_of(project, &open.map.name, &ids) {
+            Some((who, role, id)) => Err(Refusal::new(format!(
+                "{who} has `{id}` as their {role}, so it was not removed. Change {who}'s {role} first (`person_set`), or take them off the map."
+            ))),
+            None => Ok(()),
+        }
+    }
+
+    /// **Take a removal out**, and the group it took with it, then save. A refused save puts every
+    /// row back, so the editor and the file agree.
+    fn remove(project: &Project, open: &mut OpenMap, id: &str) -> Result<Outcome, Refusal> {
+        let Some(index) = index_of(open, id) else {
+            return Err(no_such_placement(id, "removed"));
+        };
+        // **A stack goes whole**, by the same function the editor's delete has always used.
+        let mut group = blueprint_model::stack::group_of(&open.map, index);
+        group.sort_unstable();
+        refuse_if_lived_in(project, open, &group)?;
+        let mut rows: Vec<Row> = Vec::with_capacity(group.len());
+        for &i in &group {
+            let placed = serde_json::to_value(&open.map.placements[i]).map_err(|e| {
+                Refusal::new(format!(
+                    "cannot record `{}` for the undo: {e}. Nothing was removed.",
+                    open.map.placements[i].id
+                ))
+            })?;
+            rows.push(Row { index: i, placed });
+        }
+        let ids: Vec<String> = group
+            .iter()
+            .map(|&i| open.map.placements[i].id.clone())
+            .collect();
+        // **Back to front**: removing an earlier row shifts every later one down.
+        let mut taken: Vec<(usize, Placed)> = Vec::with_capacity(group.len());
+        for &i in group.iter().rev() {
+            taken.push((i, open.map.placements.remove(i)));
+        }
+        if let Err(e) = open.save(project) {
+            // **Ascending again**, the order the rows went back in.
+            for (i, placed) in taken.into_iter().rev() {
+                open.map.placements.insert(i, placed);
+            }
+            return Err(Refusal::new(format!(
+                "the file refused the removal, so nothing was written and the piece is still there: {e}"
+            )));
+        }
+        let summary = match ids.len() {
+            1 => format!("removed {id}"),
+            n => format!("removed {id} and {} on it", n - 1),
+        };
+        let inverse = json!({"put_back": PutBack { head: id.to_owned(), rows }});
+        Ok(Outcome {
+            summary,
+            affected: ids.len(),
+            saved: true,
+            inverse: Some(inverse),
+            // **How many of the pieces are still on the map**: none, after a removal. An undo checks
+            // that count, so a piece put back or taken away by hand blocks it.
+            after: Some(json!({"map": open.map.name, "ids": ids, "on_map": 0})),
+        })
+    }
+
+    /// **Put a logged removal's pieces back**, at the rows they held, then save.
+    fn put_back(project: &Project, open: &mut OpenMap, pb: &PutBack) -> Result<Outcome, Refusal> {
+        let rows = restorable(project, open, pb)?;
+        let ids: Vec<String> = rows.iter().map(|(_, p)| p.id.clone()).collect();
+        // **Ascending**: each row lands at its own index once the earlier rows are back.
+        for (i, placed) in rows {
+            open.map.placements.insert(i, placed);
+        }
+        if let Err(e) = open.save(project) {
+            for id in &ids {
+                if let Some(i) = index_of(open, id) {
+                    open.map.placements.remove(i);
+                }
+            }
+            return Err(Refusal::new(format!(
+                "the file refused the put-back, so nothing was written and the pieces are not back: {e}"
+            )));
+        }
+        let summary = match ids.len() {
+            1 => format!("put back {}", ids[0]),
+            n => format!("put back {} and {} on it", pb.head, n - 1),
+        };
+        Ok(Outcome {
+            summary,
+            affected: ids.len(),
+            saved: true,
+            // **Its inverse removes the piece it was put back for**: the same group, now the map's again.
+            inverse: Some(json!({"id": pb.head})),
+            after: Some(json!({"map": open.map.name, "ids": ids, "on_map": ids.len()})),
+        })
+    }
+
+    /// **Remove one placement, and what stands on it.**
+    pub struct PlacementRemove;
+
+    impl Operation for PlacementRemove {
+        fn name(&self) -> &'static str {
+            "placement_remove"
+        }
+        fn shows(&self, ctx: &Ctx, params: &serde_json::Value) -> Shown {
+            match Params::parse(params) {
+                // **A put-back names the rows it puts back**, so their boxes are answered exactly — and it is
+                // what an undo of a removal sends.
+                Ok(p) if p.put_back.is_some() => {
+                    let rows: Vec<blueprint_model::map::Placed> = p
+                        .put_back
+                        .iter()
+                        .flat_map(|pb| pb.rows.iter())
+                        .filter_map(|r| serde_json::from_value(r.placed.clone()).ok())
+                        .collect();
+                    if rows.is_empty() { Shown::MapWhole } else { shown_rows(ctx, &rows) }
+                }
+                // **A removal names where the piece stands now**, because that is the last moment the map still
+                // holds it — and it is where a person must look to see what went.
+                Ok(p) => match p.id {
+                    Some(id) => shown_placement(ctx, &id),
+                    None => Shown::MapWhole,
+                },
+                Err(_) => Shown::MapWhole,
+            }
+        }
+        fn writes(&self) -> &'static [&'static str] {
+            &["map"]
+        }
+
+        fn undo(&self) -> Undo {
+            Undo::Inverse
+        }
+
+        /// **A put-back is the undo of a logged removal and nothing else** (gap 2), so only [`undo`]
+        /// may send one. `parse` refuses a request that names both `id` and `put_back`.
+        fn only_as_undo(&self, params: &serde_json::Value) -> bool {
+            Params::parse(params).is_ok_and(|p| p.put_back.is_some())
+        }
+
+        fn schema(&self) -> serde_json::Value {
+            Params::schema()
+        }
+
+        /// **The pieces a change names, and how many the map still holds** — the part an undo checks.
+        /// A removal's undo is safe only while none of them is back on the map; a put-back's only while
+        /// all of them are.
+        fn state_of(&self, ctx: &Ctx, after: &serde_json::Value) -> Option<serde_json::Value> {
+            let open = ctx.open.as_ref()?;
+            let ids: Vec<String> = after
+                .get("ids")?
+                .as_array()?
+                .iter()
+                .filter_map(|v| v.as_str().map(str::to_owned))
+                .collect();
+            let on_map = ids.iter().filter(|id| index_of(open, id).is_some()).count();
+            Some(json!({"map": open.map.name, "ids": ids, "on_map": on_map}))
+        }
+
+        fn plan(
+            &self,
+            ctx: &Ctx,
+            params: &serde_json::Value,
+        ) -> Result<serde_json::Value, Refusal> {
+            let p = Params::parse(params)?;
+            let Some(open) = ctx.open.as_ref() else {
+                return Err(Refusal::new(
+                    "no map is open, so there is no placement to remove.",
+                ));
+            };
+            if let Some(pb) = &p.put_back {
+                let Some(project) = ctx.project.as_ref() else {
+                    return Err(Refusal::new("no project is open."));
+                };
+                restorable(project, open, pb)?;
+                return Ok(json!({"put_back": pb.head, "rows": pb.rows.len()}));
+            }
+            let Some(id) = p.id.as_deref() else {
+                return Err(Refusal::new("a removal names one placement by `id`."));
+            };
+            let Some(index) = index_of(open, id) else {
+                return Err(no_such_placement(id, "removed"));
+            };
+            let group = blueprint_model::stack::group_of(&open.map, index);
+            if let Some(project) = ctx.project.as_ref() {
+                refuse_if_lived_in(project, open, &group)?;
+            }
+            Ok(json!({"id": id, "removes": group.len()}))
+        }
+
+        fn commit(&self, ctx: &mut Ctx, params: &serde_json::Value) -> Result<Outcome, Refusal> {
+            let p = Params::parse(params)?;
+            let Some(project) = ctx.project.as_ref() else {
+                return Err(Refusal::new("no project is open."));
+            };
+            let Some(mut open) = ctx.open.take() else {
+                return Err(Refusal::new(
+                    "no map is open, so there is no placement to remove.",
+                ));
+            };
+            let done = match (&p.put_back, p.id.as_deref()) {
+                (Some(pb), _) => put_back(project, &mut open, pb),
+                (None, Some(id)) => remove(project, &mut open, id),
+                (None, None) => Err(Refusal::new("a removal names one placement by `id`.")),
+            };
+            ctx.open = Some(open);
+            done
+        }
+    }
+}
+
+/// **Remove one stamp**: a composition placed on the map, taken off `map.stamps` by its id.
+///
+/// The shape of [`placement_remove`], one row wide: a stamp is one entry in the file, and what it
+/// expands to is not written, so a removal takes exactly the one entry and its undo puts that entry
+/// back at the index it held.
+pub mod stamp_remove {
+    use super::*;
+    use blueprint_model::composition::Stamped;
+    use serde_json::json;
+
+    /// **What an undo puts back**: the stamp the removal took, and the index it held.
+    #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+    #[serde(deny_unknown_fields)]
+    pub struct PutBack {
+        pub index: usize,
+        pub stamp: serde_json::Value,
+    }
+
+    #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+    #[serde(deny_unknown_fields)]
+    pub struct Params {
+        /// The stamp to remove, by its id.
+        #[serde(default)]
+        pub id: Option<String>,
+        /// **Only an undo sends this**: puts back the stamp a logged removal took.
+        #[serde(default)]
+        pub put_back: Option<PutBack>,
+    }
+
+    impl Params {
+        /// **The JSON schema**, which is what an agent reads.
+        pub fn schema() -> serde_json::Value {
+            json!({
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "description": "The stamp to remove, by its id, as the map's stamps list names it."
+                    },
+                    "put_back": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": ["index", "stamp"],
+                        "description": "Only an undo sends this: it restores the stamp a logged removal took. It is not a way to add a stamp.",
+                        "properties": {
+                            "index": {"type": "integer", "minimum": 0},
+                            "stamp": {"type": "object"}
+                        }
+                    }
+                }
+            })
+        }
+
+        /// **The parameters, parsed.** `deny_unknown_fields`, so a typo is a refusal; and exactly one
+        /// of `id` and `put_back`, so a request cannot say both.
+        pub fn parse(raw: &serde_json::Value) -> Result<Params, Refusal> {
+            let p: Params = serde_json::from_value(raw.clone()).map_err(|e| {
+                Refusal::new(format!(
+                    "these are not a stamp removal: {e}. The fields are `id`, or `put_back` for an undo, \
+                     and nothing else."
+                ))
+            })?;
+            match (&p.id, &p.put_back) {
+                (Some(_), None) | (None, Some(_)) => Ok(p),
+                _ => Err(Refusal::new(
+                    "a stamp removal names one stamp by `id`, or puts back what a removal took with \
+                     `put_back`, and not both. Nothing was removed.",
+                )),
+            }
+        }
+    }
+
+    /// **The position of a stamp by id**, or `None` when this map does not hold it.
+    fn index_of(open: &OpenMap, id: &str) -> Option<usize> {
+        open.map.stamps.iter().position(|s| s.id == id)
+    }
+
+    /// **Whether the log holds a removal that took exactly this stamp at this index.** A put-back's
+    /// parameters are the removal's recorded inverse, so equality with that inverse is the proof.
+    fn logged_removal(project: &Project, pb: &PutBack) -> bool {
+        let Ok(want) = serde_json::to_value(pb) else {
+            return false;
+        };
+        let text = std::fs::read_to_string(oplog_path(project)).unwrap_or_default();
+        text.lines()
+            .filter_map(|l| serde_json::from_str::<Entry>(l).ok())
+            .any(|e| {
+                e.op == "stamp_remove"
+                    && e.outcome == "applied"
+                    && e.inverse.as_ref().and_then(|i| i.get("put_back")) == Some(&want)
+            })
+    }
+
+    /// **The stamp a put-back restores, checked before anything is written.** The log must hold the
+    /// removal, the stamp must not already be on the map, and its index must be one the map can take.
+    fn restorable(project: &Project, open: &OpenMap, pb: &PutBack) -> Result<Stamped, Refusal> {
+        if !logged_removal(project, pb) {
+            return Err(Refusal::new(
+                "no logged removal took this stamp, so it cannot be put back. An undo restores only \
+                 what a removal in the log took. Nothing was changed.",
+            ));
+        }
+        let stamp: Stamped = serde_json::from_value(pb.stamp.clone()).map_err(|e| {
+            Refusal::new(format!(
+                "the restored stamp is not a stamp: {e}. Nothing was put back."
+            ))
+        })?;
+        if index_of(open, &stamp.id).is_some() {
+            return Err(Refusal::new(format!(
+                "`{}` is already on this map, so putting it back would make two. Nothing was put back.",
+                stamp.id
+            )));
+        }
+        if pb.index > open.map.stamps.len() {
+            return Err(Refusal::new(format!(
+                "index {} is past the end of the map's stamps, so it cannot go back there. Nothing was \
+                 put back.",
+                pb.index
+            )));
+        }
+        Ok(stamp)
+    }
+
+    /// **Take a stamp out**, then save. A refused save puts it back where it was, so the editor and
+    /// the file agree.
+    fn remove(project: &Project, open: &mut OpenMap, id: &str) -> Result<Outcome, Refusal> {
+        let Some(index) = index_of(open, id) else {
+            return Err(Refusal::new(format!(
+                "no stamp is called `{id}` on this map, so nothing was removed."
+            )));
+        };
+        let taken = open.map.stamps.remove(index);
+        let stamp = match serde_json::to_value(&taken) {
+            Ok(v) => v,
+            Err(e) => {
+                open.map.stamps.insert(index, taken);
+                return Err(Refusal::new(format!(
+                    "cannot record `{id}` for the undo: {e}. Nothing was removed."
+                )));
+            }
+        };
+        if let Err(e) = open.save(project) {
+            open.map.stamps.insert(index, taken);
+            return Err(Refusal::new(format!(
+                "the file refused the removal, so nothing was written and the stamp is still there: {e}"
+            )));
+        }
+        Ok(Outcome {
+            summary: format!("removed stamp {id}"),
+            affected: 1,
+            saved: true,
+            inverse: Some(json!({"put_back": PutBack { index, stamp }})),
+            // **How many of the stamps are still on the map**: none, after a removal.
+            after: Some(json!({"map": open.map.name, "ids": [id], "on_map": 0})),
+        })
+    }
+
+    /// **Put a logged removal's stamp back**, at the index it held, then save.
+    fn put_back(project: &Project, open: &mut OpenMap, pb: &PutBack) -> Result<Outcome, Refusal> {
+        let stamp = restorable(project, open, pb)?;
+        let id = stamp.id.clone();
+        open.map.stamps.insert(pb.index, stamp);
+        if let Err(e) = open.save(project) {
+            open.map.stamps.remove(pb.index);
+            return Err(Refusal::new(format!(
+                "the file refused the put-back, so nothing was written and the stamp is not back: {e}"
+            )));
+        }
+        Ok(Outcome {
+            summary: format!("put back stamp {id}"),
+            affected: 1,
+            saved: true,
+            // **Its inverse removes the stamp it was put back for**, as a fresh logged removal.
+            inverse: Some(json!({"id": id})),
+            after: Some(json!({"map": open.map.name, "ids": [id], "on_map": 1})),
+        })
+    }
+
+    /// **Remove one stamp.**
+    pub struct StampRemove;
+
+    impl Operation for StampRemove {
+        fn name(&self) -> &'static str {
+            "stamp_remove"
+        }
+        fn shows(&self, ctx: &Ctx, params: &serde_json::Value) -> Shown {
+            match Params::parse(params) {
+                Ok(p) => {
+                    let stamp = p
+                        .id
+                        .as_deref()
+                        .and_then(|id| ctx.open.as_ref()?.map.stamps.iter().find(|s| s.id == id).cloned())
+                        .or_else(|| {
+                            serde_json::from_value::<blueprint_model::composition::Stamped>(p.put_back?.stamp).ok()
+                        });
+                    match stamp {
+                        Some(s) => Shown::Map { rect: point_box(s.at), placements: vec![s.id] },
+                        None => Shown::MapWhole,
+                    }
+                }
+                Err(_) => Shown::MapWhole,
+            }
+        }
+        fn writes(&self) -> &'static [&'static str] {
+            &["map"]
+        }
+
+        fn undo(&self) -> Undo {
+            Undo::Inverse
+        }
+
+        /// **A put-back is the undo of a logged removal and nothing else**, so only [`undo`] may send
+        /// one. `parse` refuses a request that names both `id` and `put_back`.
+        fn only_as_undo(&self, params: &serde_json::Value) -> bool {
+            Params::parse(params).is_ok_and(|p| p.put_back.is_some())
+        }
+
+        fn schema(&self) -> serde_json::Value {
+            Params::schema()
+        }
+
+        /// **The stamps a change names, and how many the map still holds**: the part an undo checks.
+        fn state_of(&self, ctx: &Ctx, after: &serde_json::Value) -> Option<serde_json::Value> {
+            let open = ctx.open.as_ref()?;
+            let ids: Vec<String> = after
+                .get("ids")?
+                .as_array()?
+                .iter()
+                .filter_map(|v| v.as_str().map(str::to_owned))
+                .collect();
+            let on_map = ids.iter().filter(|id| index_of(open, id).is_some()).count();
+            Some(json!({"map": open.map.name, "ids": ids, "on_map": on_map}))
+        }
+
+        fn plan(
+            &self,
+            ctx: &Ctx,
+            params: &serde_json::Value,
+        ) -> Result<serde_json::Value, Refusal> {
+            let p = Params::parse(params)?;
+            let Some(open) = ctx.open.as_ref() else {
+                return Err(Refusal::new(
+                    "no map is open, so there is no stamp to remove.",
+                ));
+            };
+            if let Some(pb) = &p.put_back {
+                let Some(project) = ctx.project.as_ref() else {
+                    return Err(Refusal::new("no project is open."));
+                };
+                restorable(project, open, pb)?;
+                return Ok(json!({"put_back": pb.stamp.get("id"), "index": pb.index}));
+            }
+            let Some(id) = p.id.as_deref() else {
+                return Err(Refusal::new("a stamp removal names one stamp by `id`."));
+            };
+            if index_of(open, id).is_none() {
+                return Err(Refusal::new(format!(
+                    "no stamp is called `{id}` on this map, so nothing was removed."
+                )));
+            }
+            Ok(json!({"id": id, "removes": 1}))
+        }
+
+        fn commit(&self, ctx: &mut Ctx, params: &serde_json::Value) -> Result<Outcome, Refusal> {
+            let p = Params::parse(params)?;
+            let Some(project) = ctx.project.as_ref() else {
+                return Err(Refusal::new("no project is open."));
+            };
+            let Some(mut open) = ctx.open.take() else {
+                return Err(Refusal::new(
+                    "no map is open, so there is no stamp to remove.",
+                ));
+            };
+            let done = match (&p.put_back, p.id.as_deref()) {
+                (Some(pb), _) => put_back(project, &mut open, pb),
+                (None, Some(id)) => remove(project, &mut open, id),
+                (None, None) => Err(Refusal::new("a stamp removal names one stamp by `id`.")),
+            };
+            ctx.open = Some(open);
+            done
+        }
+    }
+}
+
+/// **A map's name, changed, and the file moves with it.**
+///
+/// **The name becomes the file**, so the name is forced the way every map name is, and a name
+/// another map in the project has is refused before anything is written. The N key and an agent
+/// both come here, so the rule has one answer.
+/// **A rule's numbers, changed (E-081).**
+///
+/// `blueprint_list_rules` answers what a project's rules say — Sanctuary's `town_block` is a 17×17
+/// block over 2 m cells with `weights: [(prefix: "town/house_", times: 100.0)]` and `attempts: 64` —
+/// and until this operation an agent that could read those numbers could not change one. Every
+/// other tunable in the project is a registered operation (`map_set_settings`, `label_set`,
+/// `map_rename`); this one was a text editor.
+///
+/// # One value per field, and a list is replaced whole
+///
+/// A weight's `prefix` is a piece prefix and its `times` is a number, so the list is a map and this
+/// writes it whole. That is deliberate: a partial weight list would be ambiguous about whether an
+/// absent prefix means "leave it" or "remove it", and an ambiguity in a write is a change nobody can
+/// predict. **`footprints` are not written here at all** — their sizes, yaws and gaps are a different
+/// decision — and asking for one is a refusal rather than a silence.
+///
+/// # The file is edited as text, not re-serialised
+///
+/// A rules file is prose about a layout as much as it is numbers (`// houses should outnumber the
+/// road`), and `to_string_pretty` would delete every comment in it — the failure
+/// [`blueprint_model::yaml_surgery`] exists to prevent, and the reason `rules_renamed` already edits
+/// this file by hand.
+///
+/// # The rewrite is checked before it is written
+///
+/// The new text is parsed and compared with the rules the editor holds with those fields changed, so
+/// a surgery that touched the wrong block — or the wrong weight in a list of several — is a refusal
+/// and not a file the editor cannot open. The numbers are validated library-free first, so a
+/// `cell: 0.0` never reaches the disk.
+pub mod rules_set {
+    use super::*;
+    use serde_json::json;
+
+    /// **The numbers one block states**, as the operation writes them.
+    ///
+    /// `deny_unknown_fields`, so a caller that asks for `size` or `footprints` is refused rather than
+    /// told "applied" for a field nothing wrote.
+    #[derive(Debug, Clone, Deserialize)]
+    #[serde(deny_unknown_fields)]
+    pub struct Params {
+        /// **Which block**, by the map its grammar is learned from.
+        pub example: String,
+        /// A cell's edge in metres. Absent leaves it.
+        #[serde(default)]
+        pub cell: Option<f32>,
+        /// The seed every block's own seed is derived from. Absent leaves it.
+        #[serde(default)]
+        pub seed: Option<u64>,
+        /// Seeds tried per block before it is given up. Absent leaves it.
+        #[serde(default)]
+        pub attempts: Option<u32>,
+        /// Remove the empty prototype from every cell that is not pinned. Absent leaves it.
+        #[serde(default)]
+        pub no_empty: Option<bool>,
+        /// **The whole list**, replaced rather than merged. See the module note.
+        #[serde(default, deserialize_with = "weights_present")]
+        pub weights: Option<Option<Vec<blueprint_model::rules::Weight>>>,
+    }
+
+    /// **`weights: null` is "no weights", not "leave them".** Serde reads an explicit `null` into
+    /// `Option<Vec<_>>` as `None`, which is the same as an absent field — the trap the map's
+    /// `present` helper documents for its note. A rules file with no weights states `[]`, so `null`
+    /// clears the list and an absent field leaves it.
+    fn weights_present<'de, D>(
+        d: D,
+    ) -> Result<Option<Option<Vec<blueprint_model::rules::Weight>>>, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        <Option<Vec<blueprint_model::rules::Weight>> as serde::Deserialize>::deserialize(d)
+            .map(Some)
+    }
+
+    /// **The operation.**
+    pub struct RulesSet;
+
+    impl RulesSet {
+        /// **The JSON schema**, which is what an agent reads.
+        fn schema() -> serde_json::Value {
+            json!({
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["example"],
+                "properties": {
+                    "example": {
+                        "type": "string",
+                        "description": "The map whose grammar the block is learned from, as blueprint_list_rules names it."
+                    },
+                    "cell": {"type": "number", "description": "A cell's edge in metres. Absent leaves it."},
+                    "seed": {"type": "integer", "description": "The seed every block's own seed is derived from. Absent leaves it."},
+                    "attempts": {"type": "integer", "minimum": 1, "description": "Seeds tried per block before it is given up. Absent leaves it."},
+                    "no_empty": {"type": "boolean", "description": "Remove the empty prototype from every cell that is not pinned. Absent leaves it."},
+                    "weights": {
+                        "type": ["array", "null"],
+                        "description": "The whole weight list: objects with `prefix` and `times`. Replaces the list rather than merging it. null clears it. Absent leaves it.",
+                        "items": {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "required": ["prefix", "times"],
+                            "properties": {
+                                "prefix": {"type": "string"},
+                                "times": {"type": "number"}
+                            }
+                        }
+                    }
+                }
+            })
+        }
+
+        /// **The parameters, parsed.** `deny_unknown_fields`, so a field this operation does not own
+        /// is a refusal rather than a silence.
+        fn parse(raw: &serde_json::Value) -> Result<Params, Refusal> {
+            serde_json::from_value(raw.clone()).map_err(|e| {
+                Refusal::new(format!(
+                    "these are not rule numbers: {e}. The fields are `example`, `cell`, `seed`, \
+                     `attempts`, `no_empty` and `weights`, and `example` is required."
+                ))
+            })
+        }
+
+        /// **The block this names, or a sentence naming the ones there are.**
+        fn block_of<'a>(
+            rules: &'a blueprint_model::rules::Rules,
+            example: &str,
+        ) -> Result<&'a blueprint_model::rules::BlockRules, Refusal> {
+            if rules.blocks.is_empty() {
+                return Err(Refusal::new(
+                    "this project states no block rules, so there is no rule to change. \
+                     blueprint_list_rules reads what there is; a rule has to be authored in rules.yaml \
+                     before it can be tuned."
+                        .to_owned(),
+                ));
+            }
+            rules
+                .blocks
+                .iter()
+                .find(|b| b.example == example)
+                .ok_or_else(|| {
+                    let named: Vec<String> = rules
+                        .blocks
+                        .iter()
+                        .map(|b| format!("`{}`", b.example))
+                        .collect();
+                    Refusal::new(format!(
+                        "no rule is learned from `{example}`. The rules name {}.",
+                        named.join(", ")
+                    ))
+                })
+        }
+
+        /// **The rules as they should be afterwards**, built from the editor's own copy.
+        fn wanted(
+            rules: &blueprint_model::rules::Rules,
+            p: &Params,
+        ) -> Result<blueprint_model::rules::Rules, Refusal> {
+            let mut expected = rules.clone();
+            let target = expected
+                .blocks
+                .iter_mut()
+                .find(|b| b.example == p.example)
+                .ok_or_else(|| Refusal::new(format!("`{}` is not a block", p.example)))?;
+            if let Some(v) = p.cell {
+                target.cell = v;
+            }
+            if let Some(v) = p.seed {
+                target.seed = v;
+            }
+            if let Some(v) = p.attempts {
+                target.attempts = v;
+            }
+            if let Some(v) = p.no_empty {
+                target.no_empty = v;
+            }
+            if let Some(Some(v)) = &p.weights {
+                target.weights = v.clone();
+            }
+            Ok(expected)
+        }
+
+        /// **The weight prefixes in this request that tune no piece the library has.**
+        ///
+        /// `weights` is the one id-shaped field this operation owns, and nothing validated it:
+        /// `validate_numbers` is numbers only, and `validate_against` checks `border`, `regions` and
+        /// each footprint's nine parts and never looks at a weight. So `prefix: "town/hous_"` was
+        /// applied, logged as "applied", and the next generation came out identical — the silent
+        /// no-op this module refuses everywhere else (*"a caller that asks for a field nothing wrote
+        /// is refused rather than told applied"*, [`Params`]' own doc).
+        ///
+        /// # Only what this request introduces, and why that is not a loophole
+        ///
+        /// A rules file may already carry a dead prefix, written by hand before this check existed.
+        /// Reporting it on every dispatch — including the *undo* of a weights change, whose
+        /// parameters are the old list verbatim — would tell the author a change they did not make
+        /// tuned nothing, and the same sentence on a `seed` change would blame this request for a
+        /// field it never touched. So the answer is about `p.weights` alone, compared with what the
+        /// block held before: a prefix already there is the file's standing state, not this
+        /// change's doing.
+        ///
+        /// # A prefix is a prefix, and the pieces are named
+        ///
+        /// `starts_with` is the generator's own rule ([`blueprint_model::rules::Alphabet`]), so
+        /// `town/hous` tuning `town/house_a` is ordinary and must not be reported. What is reported
+        /// is a prefix starting **no** descriptor's id — and the answer names up to three ids it
+        /// starts nothing of but is close to, so an author who meant a real piece reads what to type.
+        fn dead_prefixes(
+            project: &crate::project::Project,
+            block: &blueprint_model::rules::BlockRules,
+            p: &Params,
+        ) -> Vec<String> {
+            let Some(Some(wanted)) = &p.weights else {
+                return Vec::new();
+            };
+            wanted
+                .iter()
+                .filter(|w| !block.weights.iter().any(|was| was.prefix == w.prefix))
+                .filter(|w| !Self::tunes_something(project, &w.prefix))
+                .map(|w| {
+                    let near = Self::nearest_pieces(project, &w.prefix);
+                    if near.is_empty() {
+                        format!(
+                            "`{}` tunes nothing: it starts no descriptor's id in this project's \
+                             library, and the library is empty",
+                            w.prefix
+                        )
+                    } else {
+                        format!(
+                            "`{}` tunes nothing: it starts no descriptor's id in this project's \
+                             library. Pieces it does not tune include {}",
+                            w.prefix,
+                            near.join(", ")
+                        )
+                    }
+                })
+                .collect()
+        }
+
+        /// Whether any descriptor in the merged library starts with `prefix` — the exact test the
+        /// collapse makes when it applies the weights (`core::rules::Alphabet`).
+        fn tunes_something(project: &crate::project::Project, prefix: &str) -> bool {
+            project
+                .library
+                .descriptors
+                .iter()
+                .any(|d| d.id.starts_with(prefix))
+        }
+
+        /// **Up to three ids worth suggesting for a prefix that tunes nothing**, formatted with their
+        /// backticks. Chosen by the length of the longest id-prefix the two share, so `town/hous_`
+        /// offers `town/house_a` rather than whichever `town/*` id happens to be first — a wrong hint
+        /// sends the reader to the wrong piece, which is why [`blueprint_model::vocab::nearest`]
+        /// bounds its own by distance.
+        fn nearest_pieces(project: &crate::project::Project, prefix: &str) -> Vec<String> {
+            let mut scored: Vec<(usize, &str)> = project
+                .library
+                .descriptors
+                .iter()
+                .map(|d| {
+                    let shared = d
+                        .id
+                        .chars()
+                        .zip(prefix.chars())
+                        .take_while(|(a, b)| a == b)
+                        .count();
+                    (shared, d.id.as_str())
+                })
+                .filter(|(shared, _)| *shared > 0)
+                .collect();
+            // **Sorted by what the two share, then by id**, so the answer does not depend on the
+            // library's declaration order — two runs over the same project give the same sentence.
+            scored.sort_by(|a, b| b.0.cmp(&a.0).then_with(|| a.1.cmp(b.1)));
+            if !scored.is_empty() {
+                return scored
+                    .into_iter()
+                    .take(3)
+                    .map(|(_, id)| format!("`{id}`"))
+                    .collect();
+            }
+            // **Nothing shares a first character, so fall back to distance** — the case
+            // `town/hous_` against a library of `abbey_a` hits, where a prefix comparison finds no
+            // candidate at all and an author who meant *something* in the library is told only that
+            // their guess was wrong. `nearest_ids` is the crate's own ranking of ids by edit
+            // distance, so the fallback says the same words the rest of this file does.
+            let ids: Vec<&str> = project
+                .library
+                .descriptors
+                .iter()
+                .map(|d| d.id.as_str())
+                .collect();
+            nearest_ids(&ids, prefix)
+        }
+
+        /// **The text, with this block's numbers set to the requested ones.**
+        ///
+        /// `Ok(Some((old, new)))`, or a refusal that writes nothing.
+        fn rewritten(
+            project: &crate::project::Project,
+            p: &Params,
+        ) -> Result<Option<(String, String)>, Refusal> {
+            let block = Self::block_of(&project.rules, &p.example)?;
+            let expected = Self::wanted(&project.rules, p)?;
+            let refuse = |why: String| {
+                Refusal::new(format!(
+                    "the rule was not changed, and nothing was written: {why}"
+                ))
+            };
+            // **Every number must be one the editor would generate from.** The block is validated
+            // library-free, so `cell: 0.0` or an impossible footprint is refused here rather than
+            // written and refused by the next open.
+            expected.validate_numbers().map_err(refuse)?;
+            let file = project.project_dir.join(blueprint_model::rules::FILE);
+            let old = std::fs::read_to_string(&file)
+                .map_err(|e| refuse(format!("{}: {e}", file.display())))?;
+            let new = Self::surgery(&old, block, &expected, &p.example).map_err(refuse)?;
+            let landed = blueprint_model::rules::Rules::parse(&new)
+                .map_err(|e| refuse(format!("the rewrite does not parse: {e}")))?;
+            if landed != expected {
+                return Err(refuse(format!(
+                    "the rewrite of {} does not match the rules the editor holds with those fields \
+                     changed",
+                    file.display()
+                )));
+            }
+            Ok(Some((old, new)))
+        }
+
+        /// **The text surgery itself**: replace this block's numbers, leaving every other byte.
+        ///
+        /// A block is found by its position among the file's `blocks`, which is the position it has in
+        /// the rules the editor holds (the file is read in order), and every field is a path into it, so
+        /// a `weights` row whose `prefix` holds the characters `cell:` cannot be mistaken for the field.
+        fn surgery(
+            text: &str,
+            was: &blueprint_model::rules::BlockRules,
+            expected: &blueprint_model::rules::Rules,
+            example: &str,
+        ) -> Result<String, String> {
+            use blueprint_model::yaml_surgery::{Value, replace_value, set};
+            let found: Vec<usize> = expected.blocks.iter().enumerate().filter(|(_, b)| b.example == example).map(|(i, _)| i).collect();
+            let [index] = found[..] else {
+                return Err(format!("`example: {example}` appears {} times; a block is found by exactly one", found.len()));
+            };
+            let now = &expected.blocks[index];
+            let at = |field: &str| format!("blocks[{index}].{field}");
+            let mut out = text.to_owned();
+            // **One field at a time, and only the ones that moved.**
+            if was.cell != now.cell {
+                out = set(&out, &at("cell"), Value::Float(f64::from(now.cell)), None).map_err(|p| p.line())?;
+            }
+            if was.seed != now.seed {
+                out = set(&out, &at("seed"), Value::Int(now.seed as i64), None).map_err(|p| p.line())?;
+            }
+            if was.attempts != now.attempts {
+                out = set(&out, &at("attempts"), Value::Int(i64::from(now.attempts)), None).map_err(|p| p.line())?;
+            }
+            if was.no_empty != now.no_empty {
+                out = set(&out, &at("no_empty"), Value::Bool(now.no_empty), None).map_err(|p| p.line())?;
+            }
+            if was.weights != now.weights {
+                let weights = blueprint_model::yaml::to_string(&now.weights).map_err(|p| p.line())?;
+                out = replace_value(&out, &at("weights"), &weights).map_err(|p| p.line())?.0;
+            }
+            Ok(out)
+        }
+    }
+
+    impl Operation for RulesSet {
+        fn name(&self) -> &'static str {
+            "rules_set"
+        }
+        fn shows(&self, ctx: &Ctx, _params: &serde_json::Value) -> Shown {
+            shown_named(ctx, "assets/blueprint/rules.yaml")
+        }
+        fn writes(&self) -> &'static [&'static str] {
+            &["rules"]
+        }
+
+        /// **An inverse**, because every field here is one value the block already held.
+        fn undo(&self) -> Undo {
+            Undo::Inverse
+        }
+
+        fn schema(&self) -> serde_json::Value {
+            Self::schema()
+        }
+
+        /// **What would change, and whether it is allowed to.** Pure: it builds the new text and
+        /// throws it away, which is the same check `commit` makes.
+        fn plan(&self, ctx: &Ctx, params: &serde_json::Value) -> Result<serde_json::Value, Refusal> {
+            let p = Self::parse(params)?;
+            let Some(project) = ctx.project.as_ref() else {
+                return Err(Refusal::new(
+                    "no project is open, so there are no rules to change.",
+                ));
+            };
+            let Some((_, new)) = Self::rewritten(project, &p)? else {
+                return Err(Refusal::new("the rule was not changed, and nothing was written"));
+            };
+            let after = blueprint_model::rules::Rules::parse(&new)
+                .map_err(|e| Refusal::new(format!("the rewrite does not parse: {e}")))?;
+            let block = Self::block_of(&after, &p.example)?.clone();
+            // **Against the block as it stood**, not the rewrite: every wanted prefix is in the
+            // rewrite by construction, so comparing there would find the request already satisfied
+            // and report nothing.
+            let was = Self::block_of(&project.rules, &p.example)?.clone();
+            let dead = Self::dead_prefixes(project, &was, &p);
+            let mut answer = json!({
+                "example": block.example,
+                "cell": block.cell,
+                "size": [block.size.0, block.size.1],
+                "seed": block.seed,
+                "attempts": block.attempts,
+                "no_empty": block.no_empty,
+                "weights": block.weights,
+            });
+            // **Absent when every prefix tunes a piece**, the way `checks` is absent from a preview
+            // that breaks nothing: a field that is always there is a field a reader learns to skip.
+            if !dead.is_empty() {
+                answer["tunes_nothing"] = json!(dead);
+            }
+            Ok(answer)
+        }
+
+        fn commit(&self, ctx: &mut Ctx, params: &serde_json::Value) -> Result<Outcome, Refusal> {
+            let p = Self::parse(params)?;
+            let Some(project) = ctx.project.as_mut() else {
+                return Err(Refusal::new(
+                    "no project is open, so there are no rules to change.",
+                ));
+            };
+            let Some((_, new)) = Self::rewritten(project, &p)? else {
+                return Err(Refusal::new("the rule was not changed, and nothing was written"));
+            };
+            let before = Self::block_of(&project.rules, &p.example)?.clone();
+            let file = project.project_dir.join(blueprint_model::rules::FILE);
+            if let Err(e) = blueprint_model::save::save_atomic(&file, &new) {
+                return Err(Refusal::new(format!(
+                    "the rule was not changed, and nothing was written: {e}"
+                )));
+            }
+            // **The in-memory rules follow the file**, or a generate would run on numbers the file no
+            // longer holds.
+            let target = project
+                .rules
+                .blocks
+                .iter_mut()
+                .find(|b| b.example == p.example)
+                .ok_or_else(|| Refusal::new("the block vanished while it was being written"))?;
+            if let Some(v) = p.cell {
+                target.cell = v;
+            }
+            if let Some(v) = p.seed {
+                target.seed = v;
+            }
+            if let Some(v) = p.attempts {
+                target.attempts = v;
+            }
+            if let Some(v) = p.no_empty {
+                target.no_empty = v;
+            }
+            if let Some(Some(v)) = &p.weights {
+                target.weights = v.clone();
+            }
+            // **A tune that reaches no piece says so in the receipt**, because "set the rule for `m`"
+            // is the same sentence whether the weight did something or nothing. Computed against
+            // `before`, which is the block as it stood — see [`Self::dead_prefixes`].
+            let dead = Self::dead_prefixes(project, &before, &p);
+            let summary = if dead.is_empty() {
+                format!("set the rule for `{}`", p.example)
+            } else {
+                format!("set the rule for `{}`, but {}", p.example, dead.join("; "))
+            };
+            // **The inverse is every number this change replaced**, named field by field so one call
+            // puts them all back — including the ones that did not move, which is harmless and keeps
+            // the inverse exact when a caller changed several at once.
+            //
+            // **`after` names the open map, and that is not decoration.** The undo picker finds a
+            // change by the map its recorded state names (`map_of` in `undo`), so a change that
+            // records none belongs to no map and `blueprint/operation_undo` answers "nothing to undo"
+            // — measured on this operation's own test before this line existed. A rule is project
+            // data, but the map it is a rule *for* is the scope it is undone in, which is also the
+            // one the author is looking at when they press Cmd+Z.
+            let map = ctx.open.as_ref().map(|o| o.map.name.clone());
+            Ok(Outcome {
+                summary,
+                affected: 1,
+                saved: true,
+                inverse: Some(json!({
+                    "example": p.example,
+                    "cell": before.cell,
+                    "seed": before.seed,
+                    "attempts": before.attempts,
+                    "no_empty": before.no_empty,
+                    "weights": before.weights,
+                })),
+                after: Some(json!({"map": map})),
+            })
+        }
+    }
+}
+
+pub mod map_rename {
+    use serde_json::json;
+
+    use super::map_set_settings::settings_of;
+    use super::{Ctx, Operation, Outcome, Refusal, Shown, Undo};
+    use blueprint_model::naming::{map_file_name, to_snake_case};
+
+    /// **What the operation takes.** One field, the new name.
+    #[derive(Debug, serde::Deserialize)]
+    #[serde(deny_unknown_fields)]
+    pub struct Params {
+        pub name: String,
+    }
+
+    impl Params {
+        pub fn schema() -> serde_json::Value {
+            json!({
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["name"],
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "description": "The map's new name. It is forced to snake_case, the way every map name is, because the name becomes the file: `Town Two` is written as `town_two.map.yaml`. It must not be empty, and no other map in the project may have it."
+                    }
+                }
+            })
+        }
+
+        pub fn parse(raw: &serde_json::Value) -> Result<Params, Refusal> {
+            serde_json::from_value(raw.clone()).map_err(|e| {
+                Refusal::new(format!(
+                    "this is not a map's new name: {e}. The one field is `name`, and nothing else."
+                ))
+            })
+        }
+    }
+
+    /// **The name, forced the way every map name is.** A name that is empty once forced is a
+    /// refusal, because a map with no name has no file to be.
+    fn checked_name(raw: &str) -> Result<String, Refusal> {
+        let name = to_snake_case(raw.trim());
+        if name.is_empty() {
+            return Err(Refusal::new("a map needs a name; nothing was changed"));
+        }
+        Ok(name)
+    }
+
+    /// **The rules a rename rewrites**: every `example` that names `was` becomes `name`, in the
+    /// file's own text, so its comments survive. `Ok(None)` when no rule names the map.
+    ///
+    /// **The rewrite is checked before anything is written.** The number of `example: "was"`
+    /// strings must equal the rules that name it, and the new text must parse to the in-memory
+    /// rules with that one name changed. A rewrite that misses a rule is the dangling example this
+    /// operation exists to prevent, so a mismatch is a refusal, not a best effort.
+    fn rules_renamed(
+        project: &crate::project::Project,
+        was: &str,
+        name: &str,
+    ) -> Result<Option<(String, String)>, Refusal> {
+        let named = project.rules.blocks.iter().filter(|b| b.example == was).count();
+        if named == 0 {
+            return Ok(None);
+        }
+        let file = project.project_dir.join(blueprint_model::rules::FILE);
+        let refuse = |why: String| {
+            Refusal::new(format!("the map was not renamed, and nothing was written: {why}"))
+        };
+        let old = std::fs::read_to_string(&file)
+            .map_err(|e| refuse(format!("{}: {e}", file.display())))?;
+        // **A YAML example is a plain scalar** (`example: m`), quoted only when YAML needs it, so the needle is
+        // the value as the writer emits it — not the RON spelling this used to look for.
+        let needle = format!("example: {was}");
+        if old.matches(&needle).count() != named {
+            return Err(refuse(format!(
+                "{} names `{was}` in a form this rename cannot rewrite; change its example by hand first",
+                file.display()
+            )));
+        }
+        let new = old.replace(&needle, &format!("example: {name}"));
+        let parsed = blueprint_model::rules::Rules::parse(&new)
+            .map_err(|e| refuse(format!("{}: {e}", file.display())))?;
+        let expected = project
+            .rules
+            .blocks
+            .iter()
+            .map(|b| if b.example == was { name } else { b.example.as_str() });
+        if !parsed.blocks.iter().map(|b| b.example.as_str()).eq(expected) {
+            return Err(refuse(format!(
+                "the rewrite of {} does not match the rules the editor holds",
+                file.display()
+            )));
+        }
+        Ok(Some((old, new)))
+    }
+
+    /// **The in-memory rules follow the rename**, so generate reads the example the file now names.
+    fn set_example(project: &mut crate::project::Project, was: &str, name: &str) {
+        for block in project.rules.blocks.iter_mut().filter(|b| b.example == was) {
+            block.example = name.to_owned();
+        }
+    }
+
+    /// **A map's name, changed.**
+    pub struct MapRename;
+
+    impl Operation for MapRename {
+        fn name(&self) -> &'static str {
+            "map_rename"
+        }
+        fn shows(&self, _ctx: &Ctx, _params: &serde_json::Value) -> Shown {
+            Shown::MapWhole
+        }
+        fn writes(&self) -> &'static [&'static str] {
+            &["map", "rules"]
+        }
+
+        fn undo(&self) -> Undo {
+            Undo::Inverse
+        }
+
+        fn schema(&self) -> serde_json::Value {
+            Params::schema()
+        }
+
+        fn state(&self, ctx: &Ctx) -> Option<serde_json::Value> {
+            ctx.open.as_ref().map(settings_of)
+        }
+
+        fn plan(
+            &self,
+            ctx: &Ctx,
+            params: &serde_json::Value,
+        ) -> Result<serde_json::Value, Refusal> {
+            let p = Params::parse(params)?;
+            let Some(open) = ctx.open.as_ref() else {
+                return Err(Refusal::new(
+                    "no map is open, so there is no name to change.",
+                ));
+            };
+            let name = checked_name(&p.name)?;
+            if name == open.map.name {
+                return Err(Refusal::new(format!(
+                    "the map is already `{name}`, so nothing changes."
+                )));
+            }
+            let Some(project) = ctx.project.as_ref() else {
+                return Err(Refusal::new("no project is open."));
+            };
+            // **A taken name is refused here**, before a byte is written. `OpenMap::save` would
+            // refuse it too, but the refusal belongs where the author asked, with nothing moved.
+            let target = project.maps_dir.join(map_file_name(&name));
+            if target.exists() {
+                return Err(Refusal::new(format!(
+                    "`{name}` is already a map in this project, so this map cannot take that name. \
+                     Rename this map to something else."
+                )));
+            }
+            Ok(json!({"name": name, "was": open.map.name}))
+        }
+
+        fn commit(&self, ctx: &mut Ctx, params: &serde_json::Value) -> Result<Outcome, Refusal> {
+            let name = checked_name(&Params::parse(params)?.name)?;
+            let Some(mut open) = ctx.open.take() else {
+                return Err(Refusal::new(
+                    "no map is open, so there is no name to change.",
+                ));
+            };
+            let was = open.map.name.clone();
+            let Some(project) = ctx.project.as_mut() else {
+                // **The map goes back before the refusal**, as the settings commit does: a
+                // refusal that dropped it would leave the editor holding nothing.
+                ctx.open = Some(open);
+                return Err(Refusal::new("no project is open."));
+            };
+            // **The rules are part of the rename.** A rule names the map its grammar is learned
+            // from, so a rename that moved the file and left that name behind would leave the block
+            // unreadable. The rules file is written first; a refusal here changes nothing.
+            let rules = match rules_renamed(project, &was, &name) {
+                Ok(rules) => rules,
+                Err(refusal) => {
+                    ctx.open = Some(open);
+                    return Err(refusal);
+                }
+            };
+            let file = project.project_dir.join(blueprint_model::rules::FILE);
+            if let Some((_, new)) = &rules
+                && let Err(e) = blueprint_model::save::save_atomic(&file, new)
+            {
+                ctx.open = Some(open);
+                return Err(Refusal::new(format!(
+                    "the map was not renamed, and nothing was written: {e}"
+                )));
+            }
+            // **The save is the map's own gate.** It moves the file and removes the old one, and
+            // it refuses a taken name rather than replacing it.
+            open.map.name = name.clone();
+            if let Err(e) = open.save(project) {
+                // **The write landed; only the old file's removal failed.** Save has moved the map's
+                // path to the new file, so the name stays with it, and the refusal tells the author
+                // which file to delete. Putting the old name back here would leave a name no file holds.
+                if open.map_path == project.maps_dir.join(map_file_name(&name)) {
+                    set_example(project, &was, &name);
+                    ctx.open = Some(open);
+                    return Err(Refusal::new(e));
+                }
+                // **The map did not move, so the rules go back too.** If that restore itself fails,
+                // the refusal says so: the rules file then names the new map, and the author must fix it.
+                let mut message = format!("the map was not renamed, and nothing was written: {e}");
+                if let Some((old, _)) = &rules
+                    && let Err(restore) = blueprint_model::save::save_atomic(&file, old)
+                {
+                    message.push_str(&format!(
+                        "; {} could not be put back ({restore}), and it now names `{name}`, so change its example by hand",
+                        file.display()
+                    ));
+                }
+                open.map.name = was;
+                ctx.open = Some(open);
+                return Err(Refusal::new(message));
+            }
+            set_example(project, &was, &name);
+            let summary = if rules.is_some() {
+                format!("renamed `{was}` to `{name}`, and the file moved with it; the rules' example follows")
+            } else {
+                format!("renamed `{was}` to `{name}`, and the file moved with it")
+            };
+            // **The inverse is the name it replaced**, and undo takes the same path: a rename back,
+            // refused if that name is taken by now. The rules follow it back the same way.
+            let inverse = json!({"name": was});
+            ctx.open = Some(open);
+            let after = ctx.open.as_ref().map(settings_of);
+            Ok(Outcome {
+                summary,
+                affected: 1,
+                saved: true,
+                inverse: Some(inverse),
+                after,
+            })
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use blueprint_model::composition::Stamped;
+    use blueprint_model::map::{Map, Placed};
+
+    /// A map with three rows, so an index in the middle and an index at the end both exist.
+    fn three() -> Map {
+        let mut map = Map {
+            name: "t".to_owned(),
+            ..Map::default()
+        };
+        for (i, x) in [0.0, 3.0, 6.0].into_iter().enumerate() {
+            map.placements.push(Placed {
+                id: format!("wall@{i}"),
+                descriptor: "wall".to_owned(),
+                at: (x, 0.0),
+                ..Placed::default()
+            });
+        }
+        map
+    }
+
+    fn stamp(id: &str, x: f32) -> Stamped {
+        Stamped {
+            id: id.to_owned(),
+            of: "tile_floor".to_owned(),
+            at: (x, 0.0),
+            yaw: 0.0,
+            ..Stamped::default()
+        }
+    }
+
+    /// **Applying a delta and then its inverse restores the exact map**, order included.
+    ///
+    /// The order is the half that is easy to get wrong: a restoration that appended would move a row
+    /// from the middle of the file to its end on every undo/redo round trip, so `assert_eq` on the
+    /// whole `Map` is the assertion — comparing only the ids would pass while the file churned.
+    #[test]
+    fn a_placement_delta_undoes_itself_exactly() {
+        let mut map = three();
+        let before = map.clone();
+
+        // Remove the middle row, and add a new one at the end.
+        let delta = RowDelta {
+            remove_placements: vec!["wall@1".to_owned()],
+            add_placements: vec![Indexed {
+                index: 2,
+                row: Placed {
+                    id: "gen@1".to_owned(),
+                    descriptor: "wall".to_owned(),
+                    at: (9.0, 0.0),
+                    ..Placed::default()
+                },
+            }],
+            ..RowDelta::default()
+        };
+        let inverse = delta.apply(&mut map).expect("the delta applies");
+        assert_eq!(
+            map.placements.iter().map(|p| p.id.as_str()).collect::<Vec<_>>(),
+            vec!["wall@0", "wall@2", "gen@1"],
+            "the removal and the addition did not land where they were asked to"
+        );
+
+        inverse.apply(&mut map).expect("the inverse applies");
+        assert_eq!(
+            map, before,
+            "applying a delta and then its inverse did not restore the map exactly — the rows are \
+             equal but their order is not, which moves a piece in the file on every round trip"
+        );
+    }
+
+    /// The same for stamps, which are a separate list and a separate bug surface.
+    #[test]
+    fn a_stamp_delta_undoes_itself_exactly() {
+        let mut map = Map {
+            name: "t".to_owned(),
+            stamps: vec![stamp("s@0", 0.0), stamp("s@1", 3.0), stamp("s@2", 6.0)],
+            ..Map::default()
+        };
+        let before = map.clone();
+
+        let delta = RowDelta {
+            remove_stamps: vec!["s@0".to_owned(), "s@2".to_owned()],
+            add_stamps: vec![Indexed {
+                index: 0,
+                row: stamp("s@9", 9.0),
+            }],
+            ..RowDelta::default()
+        };
+        let inverse = delta.apply(&mut map).expect("the delta applies");
+        assert_eq!(
+            map.stamps.iter().map(|s| s.id.as_str()).collect::<Vec<_>>(),
+            vec!["s@9", "s@1"],
+            "two removals and one addition did not land as asked"
+        );
+
+        inverse.apply(&mut map).expect("the inverse applies");
+        assert_eq!(map, before, "the stamp round trip did not restore the map exactly");
+    }
+
+    /// **A row that is no longer there is refused, and nothing is changed.**
+    ///
+    /// The refusal is the whole point: a delta recorded against a map that has since lost a row
+    /// cannot be honoured, and half-applying it would leave the map in a state neither the undo stack
+    /// nor the author describes.
+    #[test]
+    fn a_missing_row_is_refused_and_the_map_is_untouched() {
+        let mut map = three();
+        let before = map.clone();
+        let delta = RowDelta {
+            remove_placements: vec!["wall@0".to_owned(), "wall@99".to_owned()],
+            ..RowDelta::default()
+        };
+        let refused = delta.apply(&mut map).expect_err("a missing row must be refused");
+        assert!(
+            refused.0.contains("wall@99"),
+            "the refusal does not name the row it could not find: {refused}"
+        );
+        assert_eq!(
+            map, before,
+            "the delta was applied in part before it was refused, so a refused undo changed the map"
+        );
+    }
+
+    /// An id that is already on the map is refused rather than duplicated.
+    #[test]
+    fn an_id_already_on_the_map_is_refused() {
+        let mut map = three();
+        let delta = RowDelta {
+            add_placements: vec![Indexed {
+                index: 0,
+                row: Placed {
+                    id: "wall@1".to_owned(),
+                    ..Placed::default()
+                },
+            }],
+            ..RowDelta::default()
+        };
+        let refused = delta.apply(&mut map).expect_err("a duplicate id must be refused");
+        assert!(
+            refused.0.contains("wall@1"),
+            "the refusal does not name the duplicate: {refused}"
+        );
+        assert_eq!(map.placements.len(), 3, "the duplicate was added anyway");
+    }
+
+    /// **A refusal's sentence has no hole in it** (`feedback-1794147495932`, oracle `other:message-text`). The refusal for
+    /// parameters that are not a map's was one sentence with a run of blanks in the middle, left where a line continuation
+    /// had been collapsed, so a toast broke it into two ragged lines. A run of blanks is never wanted in a sentence.
+    #[test]
+    fn the_refusal_for_a_maps_parameters_is_one_unbroken_sentence() {
+        let refused = map_create::Params::parse(&serde_json::Value::Null)
+            .expect_err("null is not the parameters of a map");
+        assert!(!refused.0.contains("  "), "the sentence has a run of blanks in it: {:?}", refused.0);
+        assert!(
+            refused.0.contains("The fields are `name`, `bounds`, `origin` and `note`, and `name` is required."),
+            "the refusal no longer names the fields: {:?}",
+            refused.0
+        );
+    }
+}

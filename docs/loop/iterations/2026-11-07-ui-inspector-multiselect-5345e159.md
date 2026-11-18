@@ -24,7 +24,7 @@ The same number as bevy_emerge_loop's pass 4 (both write to `docs/loop/log.md`).
 
 ## Not done, said plainly
 
-- **The Invoke Agent clip is still owed** (`invoke-agent` in CHANGELOG): three takes on big were unusable (the Agent tab's self test fails there because the harness binary is not named `bevy_cauldron_mcp` beside the editor, and the Invoke button is not a `Text` node `click_label` can find).
+- **The Invoke Agent clip is still owed** (`invoke-agent` in CHANGELOG): three takes on big were unusable (the Agent tab's self test fails there because the harness binary is not named `dark_factory_mcp` beside the editor, and the Invoke button is not a `Text` node `click_label` can find).
 - #210 UI-02 stays blocked on two protected tests (needs the owner's word); #336 UR06 waits on gooey #69, #70 and #71.
 - UI-91's panel "?" links, and the remaining ready UI items (#237, #239, #240, #241, #242, #258, #259): the panels are not on gooey's `Dock` yet (`chrome.rs` says moving the two side docks onto it is the rest of UI-30), so each is a larger step than one pass can verify.
 

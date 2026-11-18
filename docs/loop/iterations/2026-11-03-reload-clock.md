@@ -22,7 +22,7 @@ Gate: green before (`9ff6ed8`). `accept.py`: not run (no solver path touched). D
 
 `ps` shows **two** agent sessions in `bevy_emerge_loop`: this one (`omp -p /build-loop`, pid 3064119,
 driver pass 372, started 13:34:44) and `omp --resume` (pid 2095292, started 10:41, hand-driven pass 371).
-Both were editing `crates/bevy_cauldron/src/chrome.rs` within seconds of each other; my writes and its
+Both were editing `crates/bevy_dark_factory/src/chrome.rs` within seconds of each other; my writes and its
 writes interleaved, and my `GroundRole`/`repaint_grounds` pair was a duplicate of its better-integrated
 `PanelGround` marker plus `dim_the_ground` reading the skin.
 
@@ -30,7 +30,7 @@ What I did about it, in order: **removed my duplicate twice** (the second time b
 restored my symbols from a stale buffer), left its design standing, and **committed only my own files**.
 Then, when I staged `all.rs` with my one `mod` line, its `git commit` swept my staged files into
 `488fdd8` — a shared index, not a mistake I could avoid. My content is intact there (`git show
-488fdd8:crates/bevy_cauldron/tests/a_reload_is_measured_on_the_clock_the_editor_exposes.rs`), and
+488fdd8:crates/bevy_dark_factory/tests/a_reload_is_measured_on_the_clock_the_editor_exposes.rs`), and
 `22ef281` carries the changelog line.
 
 **This is a configuration bug, not an item failure, and it is worth fixing before the next pass:**
@@ -54,7 +54,7 @@ intervals the watch is configured with (0.1 s poll, 0.1 s settle) meaningful, ra
 the app's start.
 
 Regression check:
-`crates/bevy_cauldron/tests/a_reload_is_measured_on_the_clock_the_editor_exposes.rs::stepping_the_clock_past_the_poll_and_the_settle_reloads_the_file`
+`crates/bevy_dark_factory/tests/a_reload_is_measured_on_the_clock_the_editor_exposes.rs::stepping_the_clock_past_the_poll_and_the_settle_reloads_the_file`
 — **failed at `9ff6ed8`** with `left: ...hour: 6.0... right: ...hour: 18.5...`, passes after.
 
 ## The proof I first got wrong, and the measurement that corrected it
@@ -76,7 +76,7 @@ edit cannot land.
 
 ## Not shipped, and why
 
-The protected test `crates/bevy_cauldron/tests/family_settings_reload.rs` is **untouched**: its two
+The protected test `crates/bevy_dark_factory/tests/family_settings_reload.rs` is **untouched**: its two
 `sleep(50ms)` lines and its 3 s bound stand. Deleting them is the owner's call (the issue's
 recommendation 1), and this commit is what makes recommendation 2 possible in the same edit — the clock
 is injectable now, so those sleeps can become stepped time rather than deleted assertions.
@@ -105,7 +105,7 @@ Reviewer could not be spawned this pass (rate limit); these are my own five answ
 
 ## Release
 
-None. `bevy_cauldron` is `publish = false`, and no packaged crate's files changed.
+None. `bevy_dark_factory` is `publish = false`, and no packaged crate's files changed.
 
 ## Next focus
 

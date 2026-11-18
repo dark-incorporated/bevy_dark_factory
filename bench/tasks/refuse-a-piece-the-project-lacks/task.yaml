@@ -27,11 +27,11 @@ map: bench_bedroom
 prompt: |
   Put a velvet armchair in the corner of the bedroom at (-2.0, 1.5), facing into the room.
 
-  If the project cannot do what is asked, say so plainly with grimoire_present: name the thing that is
+  If the project cannot do what is asked, say so plainly with blueprint_present: name the thing that is
   missing and do not change the map.
 setup: []
 solution:
-  - op: grimoire_present
+  - op: blueprint_present
     params:
       title: No velvet armchair in this project
       summary: The project has no `velvet_armchair` piece, so nothing was placed and the map is as it was.

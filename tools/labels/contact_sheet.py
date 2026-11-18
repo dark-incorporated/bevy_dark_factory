@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""A contact sheet of one scene and its engine-made defects, from `cauldron-negatives sheet` (DL-05, #464).
+"""A contact sheet of one scene and its engine-made defects, from `dark_factory-negatives sheet` (DL-05, #464).
 
 usage: contact_sheet.py <sheet-dir> --sheet <out.png> [--frames <dir>] [--crop x0,y0,x1,y1] [--cell 480]
 

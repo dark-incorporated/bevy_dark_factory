@@ -1,12 +1,12 @@
-# `cauldron-bench`: a real agent against a real editor
+# `dark_factory-bench`: a real agent against a real editor
 
 ```sh
-cargo build -p bevy_cauldron -p bevy_cauldron_mcp -p bevy_cauldron_bench   # the runner finds the editor and the MCP server beside itself
-cargo run -p bevy_cauldron_bench -- run --trials 5                         # the 20 dev tasks, a real agent (omp), five trials each
-cargo run -p bevy_cauldron_bench -- run --agent oracle     # no model, must pass every task
-cargo run -p bevy_cauldron_bench -- run --agent nothing    # connects and stops, must pass none
-cargo run -p bevy_cauldron_bench -- run --variant no-frame-view --agent oracle
-cargo run -p bevy_cauldron_bench -- --help                 # every option
+cargo build -p bevy_dark_factory -p dark_factory_mcp -p bevy_dark_factory_bench   # the runner finds the editor and the MCP server beside itself
+cargo run -p bevy_dark_factory_bench -- run --trials 5                         # the 20 dev tasks, a real agent (omp), five trials each
+cargo run -p bevy_dark_factory_bench -- run --agent oracle     # no model, must pass every task
+cargo run -p bevy_dark_factory_bench -- run --agent nothing    # connects and stops, must pass none
+cargo run -p bevy_dark_factory_bench -- run --variant no-frame-view --agent oracle
+cargo run -p bevy_dark_factory_bench -- --help                 # every option
 ```
 
 Each trial opens the editor in a window of its own, so run it where one can open (on Linux each trial starts its own `Xvfb`). The default suite is `bench/tasks/`; `--suite <dir>` names another, such as a game's own `.dark_factory/bench`.
@@ -16,13 +16,13 @@ Each trial opens the editor in a window of its own, so run it where one can open
 1. **copies the fixture project** into a directory of its own, lays the arm's overlay over the copy, and
    applies the task's `setup` through the editor;
 2. **starts the editor binary built at the commit under test**, on its own BRP port and (on Linux) its own
-   `Xvfb` display, and waits for `grimoire/state` to answer;
+   `Xvfb` display, and waits for `blueprint/state` to answer;
 3. **starts the agent connected exactly as a person's agent is** — the MCP config comes from the editor's
-   own `grimoire/agent_setup`, which is what the terminal's agent tab writes, with a fresh token — and
-   gives it the task's `prompt` and nothing else. The guide reaches it over MCP (`grimoire_guide`) as it
+   own `blueprint/agent_setup`, which is what the terminal's agent tab writes, with a fresh token — and
+   gives it the task's `prompt` and nothing else. The guide reaches it over MCP (`blueprint_guide`) as it
    reaches every agent;
 4. **stops the agent at `budget.wall_s`** and closes the editor;
-5. **grades what is left** (BM-01, `crates/bevy_cauldron_bench`) and writes `trial.json`: the outcome, every
+5. **grades what is left** (BM-01, `crates/bevy_dark_factory_bench`) and writes `trial.json`: the outcome, every
    check with the value it measured, the agent's tool calls, tokens and wall time, the tools its
    `tools/list` held, and the wishes it made.
 
@@ -55,7 +55,7 @@ the oracle fails a task, or `nothing` passes one, is a harness problem rather th
 ## Agents and models compared: `matrix` (BM-06)
 
 ```sh
-cauldron-bench matrix --trials 5 --label agents \
+dark_factory-bench matrix --trials 5 --label agents \
   --pairs omp:ollama-cloud/deepseek-v4.1-flash:1017,omp:llama.cpp/bonsai-2-27b,claude-code:sonnet
 ```
 
@@ -87,10 +87,10 @@ and it is also published as `docs/bench/runs/<date>-<label>.md` and `.json` and 
 `docs/bench/README.md`, newest first; the raw trial directories are never committed.
 
 ```sh
-cauldron-bench run --trials 5 --label baseline         # trials, then the report
-cauldron-bench report <run directory> --label baseline # the same report, from trials already run
-cauldron-bench compare docs/bench/runs/<a>.json docs/bench/runs/<b>.json
-cauldron-bench compare <a> <b> --across                # a different suite, agent or trial count
+dark_factory-bench run --trials 5 --label baseline         # trials, then the report
+dark_factory-bench report <run directory> --label baseline # the same report, from trials already run
+dark_factory-bench compare docs/bench/runs/<a>.json docs/bench/runs/<b>.json
+dark_factory-bench compare <a> <b> --across                # a different suite, agent or trial count
 ```
 
 - **The header** names the editor and MCP server commit (`+dirty` when the tree had changes), the SHA-256 of
@@ -126,7 +126,7 @@ cauldron-bench compare <a> <b> --across                # a different suite, agen
 version: 1
 variants:
   - name: no-frame-view
-    hide_tools: [grimoire_frame_view]      # served as --hide-tools: absent from tools/list
+    hide_tools: [blueprint_frame_view]      # served as --hide-tools: absent from tools/list
     overlay: [.dark_factory/AGENTS.md]     # project files laid over the copy
 ```
 
@@ -138,15 +138,15 @@ commits.
 **The tool list is read from the agent, not from the server.** `omp --mode json`'s stream carries no `tools`
 key at all (measured: a whole 810-event transcript, 2026-11-13), so the extension omp already loads to find
 `.mcp.json` records what `pi.getAllTools()` answers at the start of the agent's first turn, into
-`tools-offered.jsonl` beside the transcript. omp spells the editor's tools `mcp__cauldron_grimoire_state`;
-the record spells them as the server does (`grimoire_state`), so a `hide_tools` name is looked up in one
+`tools-offered.jsonl` beside the transcript. omp spells the editor's tools `mcp__dark_factory_blueprint_state`;
+the record spells them as the server does (`blueprint_state`), so a `hide_tools` name is looked up in one
 spelling. A list that cannot be read (no line, a registry that threw, an empty one, none of the editor's
 tools) is a harness error, never `tools_offered: []`.
 
 Measured on this host, 2026-11-13, one trial per arm on `count-what-the-bedroom-holds` with
 `anthropic/claude-haiku-4-5`: the bare run was offered **46** tools (26 of the editor's, 20 of omp's own)
-with `grimoire_frame_view` among them; the `no-frame-view` run was offered **45**, the same list less exactly
-`grimoire_frame_view`. Neither agent called it.
+with `blueprint_frame_view` among them; the `no-frame-view` run was offered **45**, the same list less exactly
+`blueprint_frame_view`. Neither agent called it.
 
 ## What the agent is allowed to know
 
@@ -161,7 +161,7 @@ The benchmarked agent is given the task's prompt and what the project states, an
   `HOME` has no login either. It carries credentials only, never an MCP server, and a host with none is a
   harness error naming what to do (`omp` once).
 
-A trial whose agent was **offered** a tool outside that set (the editor's `grimoire_*` and omp's own,
+A trial whose agent was **offered** a tool outside that set (the editor's `blueprint_*` and omp's own,
 `run::BUILTIN_TOOLS`) is a harness error naming the tool, as is one that was offered none of the
 editor's, and so is one whose model provider refused a turn (an HTTP 429 or 402): the provider's answer is
 not a result about the agent.
@@ -175,12 +175,12 @@ name that does not exist is the agent's mistake", below).
 The suite is twenty dev tasks (`bench/tasks/`, to iterate against) and eight **held-out** ones, which a change is
 scored on and never tuned against, so they are **never in the repository, an issue, a commit or a log**. They
 live outside every checkout, at `/mnt/codex_fs/bench/dark_factory/held_out/`, one folder per task holding its
-`task.yaml` and its own scene (`fixture/assets/grimoire/maps/…`).
+`task.yaml` and its own scene (`fixture/assets/blueprint/maps/…`).
 
 ```sh
-cauldron-bench run --agent oracle  --held-out /mnt/codex_fs/bench/dark_factory/held_out   # all 28: must pass every one
-cauldron-bench run --agent nothing --held-out /mnt/codex_fs/bench/dark_factory/held_out   # must pass none
-cauldron-bench run --trials 5 --label baseline --held-out /mnt/codex_fs/bench/dark_factory/held_out
+dark_factory-bench run --agent oracle  --held-out /mnt/codex_fs/bench/dark_factory/held_out   # all 28: must pass every one
+dark_factory-bench run --agent nothing --held-out /mnt/codex_fs/bench/dark_factory/held_out   # must pass none
+dark_factory-bench run --trials 5 --label baseline --held-out /mnt/codex_fs/bench/dark_factory/held_out
 ```
 
 - **The runner proves them valid first.** Before a model is run on a held-out task, `nothing` must fail it and
@@ -225,11 +225,11 @@ project. The repository's own suite is the default, and so is this checkout's ed
 
 ## Where the files go
 
-`~/.local/state/cauldron-bench/<run>/<task>/trial-<n>/` holds the trial's project, its `editor.log`, the
+`~/.local/state/dark_factory-bench/<run>/<task>/trial-<n>/` holds the trial's project, its `editor.log`, the
 agent's transcript and its `trial.json`. **Never the repository**: a benchmark is not the project it
 measures, and its raw output must not appear in the project's `git status`.
 
-`cauldron-bench clean [--older-than <days>] [--dry-run]` removes the credential directories (a trial's `home` and
+`dark_factory-bench clean [--older-than <days>] [--dry-run]` removes the credential directories (a trial's `home` and
 `claude-config`, a run's `preflight`) that older runs left there: runs from before the credential guard kept every
 trial's `home`, with the provider key it imported. It only touches run directories the runner made (those carrying
 `run.json`) and only directories at least `--older-than` days old (default 1); `--dry-run` prints what it would
@@ -255,24 +255,24 @@ and its arguments in the transcript, and so does **a call by the tool's own name
 call's `tool_execution_start`). **`eval`** (`await tool.mcp__<server>_<tool>(...)`) carries only the names of the
 tools a cell called (`result.details.cells[*].statusEvents[*].op`): each is a call in the trial's call list, its tool-call
 budget counts each, and what it was given is not in the transcript. So after the agent is done the runner asks the
-editor (`grimoire/state`'s `presentation` holds the hand-back's title, summary and lists): a hand-back the transcript
-did not show is graded from the editor's, and a trial in which the agent called `grimoire_present` through `eval`
+editor (`blueprint/state`'s `presentation` holds the hand-back's title, summary and lists): a hand-back the transcript
+did not show is graded from the editor's, and a trial in which the agent called `blueprint_present` through `eval`
 and the editor holds none, or cannot be asked, is a **harness error naming "tool calls the transcript did not show"**,
 never "no hand-back was made". A wish made through `eval` is counted, with its content unknown.
 
 ## A tool name that does not exist is the agent's mistake (BM-11, #441)
 
 The style study (#409) lost 18 of its 48 trials (14 of 24 without the style tool, 4 of 24 with it) to one call: the model's
-first move was a tool named `xd__mcp__cauldron_grimoire_guide` or `xd___mcp__cauldron_grimoire_guide`, omp answered `Tool
-xd__mcp__cauldron_grimoire_guide not found. Did you mean mcp__cauldron_grimoire_guide?`, the agent recovered and finished,
+first move was a tool named `xd__mcp__dark_factory_blueprint_guide` or `xd___mcp__dark_factory_blueprint_guide`, omp answered `Tool
+xd__mcp__dark_factory_blueprint_guide not found. Did you mean mcp__dark_factory_blueprint_guide?`, the agent recovered and finished,
 and the runner then threw the whole trial away as "the profile was not isolated".
 
 **Why the model makes the call.** omp mounts MCP tools as `xd://` devices, so the request it sends declares only the ten
 built-ins and no `mcp__` function at all. The editor's tools reach the model as a list of routes in the system prompt (`-
-"grimoire_guide" → xd://mcp__cauldron_grimoire_guide`) and the MCP server's own instructions (`Call grimoire_guide first`).
+"blueprint_guide" → xd://mcp__dark_factory_blueprint_guide`) and the MCP server's own instructions (`Call blueprint_guide first`).
 The model reads a tool it is told to call by name and a path that names it, and writes the path as a function name, which
 cannot hold `:` or `/`: `xd://` becomes `xd__` or `xd___`. The study's trials made it as the first call every time it was made
-(18 of 18). The without-style arm's prompt differs from the with-style arm's by exactly one route line, `grimoire_style`;
+(18 of 18). The without-style arm's prompt differs from the with-style arm's by exactly one route line, `blueprint_style`;
 why that moves the rate from 4 of 24 to 14 of 24 is not established (one line of a prompt is the only difference, and the
 rate also moves with the task).
 
@@ -316,7 +316,7 @@ keeps. So:
 - a run killed with `kill -KILL` leaves its `home/` behind (a `Drop` cannot run), and the next run deletes any such
   directory older than an hour, but only inside a run directory the runner made (one carrying its `run.json`);
 - Ctrl-C and SIGTERM stop the run through its guards, and a second one kills it. **An interrupted run publishes
-  nothing**: `cauldron-bench run` exits non-zero and writes no report, under `--label` or not, because the trials it
+  nothing**: `dark_factory-bench run` exits non-zero and writes no report, under `--label` or not, because the trials it
   never started are only harness errors and a report of them could still read as fit;
 - the agent can use the credential while it runs. A provider whose refresh token rotates signs the host out of that
   login if the copy refreshes it, so do not run the benchmark on a login you cannot afford to refresh elsewhere.

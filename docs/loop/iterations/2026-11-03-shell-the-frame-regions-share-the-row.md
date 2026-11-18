@@ -10,11 +10,11 @@ test; it was a stale coordinate in the test, not the shell.
 
 ## Baseline
 Gate: green at e00d1f1. `accept.py`: not run (no display on this host). Load 3.95, tree clean.
-`cargo test -p bevy_cauldron --test editor`: 1157 passed after the change.
+`cargo test -p bevy_dark_factory --test editor`: 1157 passed after the change.
 
 ## Enhancement: the frame's regions share the row
 Goal: a docked frame whose centre is what the docks leave, not a width of its own.
-Files: `crates/bevy_cauldron/src/chrome.rs` (+82), one new test file, one line in `tests/all.rs`.
+Files: `crates/bevy_dark_factory/src/chrome.rs` (+82), one new test file, one line in `tests/all.rs`.
 Proof: `the_frames_regions_fit_the_window` — failed at HEAD ("the viewport is 504 px of a 1280 px
 body: under half the window is left for the world"), passes now.
 
@@ -36,7 +36,7 @@ so the query re-adopts rather than caching entity ids; and the layout test asser
 three regions against the body, so a dock that widens past the window fails it.
 
 ## Release
-`bevy_cauldron` is `publish = false`; no crate shipped.
+`bevy_dark_factory` is `publish = false`; no crate shipped.
 
 ## Next focus
 UI-30's remaining acceptance items: the divider drag, and the shell's panels in their docks.

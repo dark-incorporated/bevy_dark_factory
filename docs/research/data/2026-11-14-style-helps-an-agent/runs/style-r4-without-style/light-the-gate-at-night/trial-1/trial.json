@@ -6,15 +6,15 @@
   "edits_behind": [],
   "model": "anthropic/claude-sonnet-5-5",
   "outcome": "harness_error",
-  "prompt": "The gate is lit for the day, and night is coming. Set the gate's light up for the night, in the game's data for it (the registered file `lighting/gate`).\n\nWhen it is set, hand the result back with grimoire_present, and say what each setting is now.\n",
-  "reason": "the transcript shows a tool `xd__mcp__cauldron_grimoire_guide` that is neither the editor's nor the harness's own set, so the profile was not isolated",
+  "prompt": "The gate is lit for the day, and night is coming. Set the gate's light up for the night, in the game's data for it (the registered file `lighting/gate`).\n\nWhen it is set, hand the result back with blueprint_present, and say what each setting is now.\n",
+  "reason": "the transcript shows a tool `xd__mcp__dark_factory_blueprint_guide` that is neither the editor's nor the harness's own set, so the profile was not isolated",
   "refusals": 0,
   "refusals_by_tool": {},
   "score": {
     "passed": 0,
     "total": 0
   },
-  "sentence": "the transcript shows a tool `xd__mcp__cauldron_grimoire_guide` that is neither the editor's nor the harness's own set, so the profile was not isolated",
+  "sentence": "the transcript shows a tool `xd__mcp__dark_factory_blueprint_guide` that is neither the editor's nor the harness's own set, so the profile was not isolated",
   "split": "dev",
   "tags": [
     "style",

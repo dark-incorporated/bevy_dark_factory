@@ -7,7 +7,7 @@ library's own migration (`migrate::written_as_yaml`), and never by text substitu
 disagree about `Some(...)`, `None`, a tuple and an enum variant's spelling, so a substitution produces
 something that looks like YAML and holds a different value.
 
-    python3 tools/migrate/re-pin-fixtures.py crates/bevy_grimoire_core/src/kits.rs [more files...]
+    python3 tools/migrate/re-pin-fixtures.py crates/blueprint_model/src/kits.rs [more files...]
 
 **Which kind a literal is** comes from the type that reads it: a literal inside `Kits::parse(…)` is a
 `kits`, one inside `yaml::from_str::<Map>(…)` is a `map`, and one assigned to a name and read later
@@ -206,7 +206,7 @@ def main(argv):
         print("nothing to convert", file=sys.stderr)
         return 0
     done = subprocess.run(
-        ["cargo", "run", "-q", "-p", "bevy_grimoire_migrate", "--example", "fixtures_to_yaml"],
+        ["cargo", "run", "-q", "-p", "bevy_blueprint_migrate", "--example", "fixtures_to_yaml"],
         input=json.dumps(jobs),
         capture_output=True,
         text=True,

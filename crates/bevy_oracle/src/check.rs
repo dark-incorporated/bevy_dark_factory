@@ -35,8 +35,8 @@ pub struct Check {
 
 /// The format version of `checks.yaml` (#202). A file with no `version` is the first.
 ///
-/// This crate has no `bevy_grimoire_core` dependency (it is engine-free and no game links it), so the two
-/// small functions below say what `bevy_grimoire_core::format_version` says for the formats core owns.
+/// This crate has no `blueprint_model` dependency (it is engine-free and no game links it), so the two
+/// small functions below say what `blueprint_model::format_version` says for the formats core owns.
 pub const CHECKS_VERSION: u32 = 1;
 
 /// The version of a file from before the version existed: the first.
@@ -116,11 +116,11 @@ impl Checks {
         Self::from_yaml(BUILTIN_CHECKS_YAML).expect("fixtures/checks.yaml parses (a test reads it)")
     }
 
-    /// The editor's checks with the project's own `assets/grimoire/checks.yaml` over them, read fresh so an
+    /// The editor's checks with the project's own `assets/blueprint/checks.yaml` over them, read fresh so an
     /// edit takes effect at once. No file is the editor's checks alone; an unreadable or invalid one is an error
     /// naming the path.
     pub fn for_project(project: &std::path::Path) -> Result<Self, String> {
-        let path = project.join("assets").join("grimoire").join(PROJECT_CHECKS_FILE);
+        let path = project.join("assets").join("blueprint").join(PROJECT_CHECKS_FILE);
         match std::fs::read_to_string(&path) {
             Ok(text) => Ok(Self::builtin().merged(Self::from_yaml(&text).map_err(|e| format!("{}: {e}", path.display()))?)),
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(Self::builtin()),
@@ -251,7 +251,10 @@ impl Check {
     /// The record this check earned for `model`, if any. A model nobody named has none.
     pub fn calibration_for(&self, model: Option<&str>) -> Option<&Calibration> {
         let model = model?;
-        self.calibrations.iter().find(|c| c.model == model)
+        // **A record named for the slug reads for its dated snapshot** (#455): OpenRouter answers
+        // `perplexity/pplx-decider-v1.3:free` with `perplexity/pplx-decider-v1.3-20261112`, and a finding that
+        // fell back to the author's default there would be an uncalibrated reading of a calibrated model.
+        self.calibrations.iter().find(|c| crate::transport::names_the_same_model(&c.model, model))
     }
 
     /// Whether this check may block the loop's gate when asked of `model`: it earned a calibration for

@@ -36,7 +36,7 @@ Root cause, three parts, each measured on a running editor:
 3. **The first tap after a filter write is lost** — #278 proper, worked around in the storyboard by
    tapping twice.
 
-Regression check: the take itself, which is the demo's own proof — `grimoire/state` after it reads
+Regression check: the take itself, which is the demo's own proof — `blueprint/state` after it reads
 `armed_piece: sofa`, `placements: 11`, and `tools/demo/check.py` passes (longest static run 1.10 s,
 every change moment over 5%).
 

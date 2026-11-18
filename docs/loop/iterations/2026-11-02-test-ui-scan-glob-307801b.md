@@ -40,7 +40,7 @@ verbs.
 `editor.rs` read restored with a comment. No assertion added, removed or re-pinned.
 
 ## Release
-None — `bevy_cauldron` is `publish = false`.
+None — `bevy_dark_factory` is `publish = false`.
 
 ## Next focus
 `FoldPack` — read the handler, then classify.

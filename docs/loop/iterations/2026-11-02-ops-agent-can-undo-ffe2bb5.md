@@ -5,7 +5,7 @@ Focus: #129 E-002 · Commits: 7ed5c35..ffe2bb5 · Machine: big · Outcome: fixes
 ## Summary
 Pass 263 told the record that *"an agent can place, remove, turn, pin and save a map over MCP — and it
 cannot undo."* Reading `ops_brp.rs` to build the recommended `Ctx::deferred` found that false:
-`grimoire/operation_undo` and `grimoire/run_command` already give an agent every one of the thirteen
+`blueprint/operation_undo` and `blueprint/run_command` already give an agent every one of the thirteen
 `Change::World` verbs. The kind's own doc is corrected and a test now holds it false.
 
 ## Baseline
@@ -28,7 +28,7 @@ asserts both doors are **registered** (`DebugCommandInfo::new` with its handler)
 that string appears in six places — two doc comments, `command_palette.rs`, `command_run.rs`, `keys.rs` and
 four sites in `ops_brp.rs` — so renaming the one that registers it changed nothing it could see, and it
 passed with the registration broken. Rewritten to check the registration and the resolver; a probe that
-renames the registration now fails with *"`grimoire/run_command` is not registered with its handler"*.
+renames the registration now fails with *"`blueprint/run_command` is not registered with its handler"*.
 
 ## Review
 Reviewer not spawned. Mine: (1) *Fails before?* Measured — the old test passed under a broken registration.
@@ -41,7 +41,7 @@ neither urgent.
 One new test in `operations_have_two_front_ends.rs`. Nothing removed or loosened.
 
 ## Release
-None — `bevy_cauldron` is `publish = false`.
+None — `bevy_dark_factory` is `publish = false`.
 
 ## Next focus
 One of the 15 `Project` verbs with a handler that already fits `Ctx`.

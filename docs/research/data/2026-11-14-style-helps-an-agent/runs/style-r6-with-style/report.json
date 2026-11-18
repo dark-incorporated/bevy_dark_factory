@@ -230,27 +230,27 @@
     }
   ],
   "tool_counts": {
-    "grimoire_apply_operation": 37,
-    "grimoire_capture_still": 1,
-    "grimoire_guide": 3,
-    "grimoire_list_operations": 5,
-    "grimoire_list_pieces": 1,
-    "grimoire_present": 3,
-    "grimoire_preview_operation": 1,
-    "grimoire_schema": 1,
-    "grimoire_state": 3,
-    "grimoire_style": 5,
-    "grimoire_undo_operation": 2,
-    "grimoire_wish": 1
+    "blueprint_apply_operation": 37,
+    "blueprint_capture_still": 1,
+    "blueprint_guide": 3,
+    "blueprint_list_operations": 5,
+    "blueprint_list_pieces": 1,
+    "blueprint_present": 3,
+    "blueprint_preview_operation": 1,
+    "blueprint_schema": 1,
+    "blueprint_state": 3,
+    "blueprint_style": 5,
+    "blueprint_undo_operation": 2,
+    "blueprint_wish": 1
   },
   "refusals_by_tool": {
-    "grimoire_apply_operation": 1,
-    "grimoire_preview_operation": 1,
-    "grimoire_schema": 1,
-    "grimoire_style": 2
+    "blueprint_apply_operation": 1,
+    "blueprint_preview_operation": 1,
+    "blueprint_schema": 1,
+    "blueprint_style": 2
   },
   "wishes_by_tool": {
-    "grimoire_preview_operation reporting, for placement_add, which existing placements the new piece would replace, before anything is applied.": 1
+    "blueprint_preview_operation reporting, for placement_add, which existing placements the new piece would replace, before anything is applied.": 1
   },
   "harness_error_reasons": [],
   "preflight": {

@@ -55,13 +55,13 @@ touch screenshot.request
 
 Opens a window with a spinning cube and writes `screenshot.png` once the sentinel file appears. It is the only example here, and it needs a GPU and a display.
 
-The Cauldron editor uses this plugin for its whole-frame capture; see [`bevy_cauldron`](https://github.com/dark-incorporated/bevy_dark_factory/blob/main/crates/bevy_cauldron/README.md).
+The DarkFactory editor uses this plugin for its whole-frame capture; see [`bevy_dark_factory`](https://github.com/dark-incorporated/bevy_dark_factory/blob/main/crates/bevy_dark_factory/README.md).
 
 ## Learn more
 
 - The source is one file: [`src/lib.rs`](https://github.com/dark-incorporated/bevy_dark_factory/blob/main/crates/bevy_devshot/src/lib.rs).
 - [Changelog](https://github.com/dark-incorporated/bevy_dark_factory/blob/main/CHANGELOG.md) of the repository this crate lives in.
-- Part of Dark Inc.: the [family table](https://github.com/dark-incorporated) lists the other crates, and [the book page for this repository](https://dark-incorporated.github.io/crates/bevy_grimoire.html) says how they fit together.
+- Part of Dark Inc.: the [family table](https://github.com/dark-incorporated) lists the other crates, and [the book page for this repository](https://dark-incorporated.github.io/crates/bevy_blueprint.html) says how they fit together.
 
 ## Who and licence
 

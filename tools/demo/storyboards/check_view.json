@@ -11,7 +11,7 @@
  ],
  "setup": [
   {
-   "mcp": "grimoire_frame_view",
+   "mcp": "blueprint_frame_view",
    "args": {
     "target": {
      "rect": [
@@ -24,7 +24,7 @@
    }
   },
   {
-   "mcp": "grimoire_run_command",
+   "mcp": "blueprint_run_command",
    "args": {
     "id": "view.show_errors"
    }

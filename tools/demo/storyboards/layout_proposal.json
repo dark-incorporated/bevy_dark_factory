@@ -17,7 +17,7 @@
       ]
     },
     {
-      "mcp": "grimoire_apply_operation",
+      "mcp": "blueprint_apply_operation",
       "args": {
         "operation": "map_set_settings",
         "parameters": {
@@ -46,7 +46,7 @@
     },
     {
       "at": 0.3,
-      "mcp": "grimoire_apply_operation",
+      "mcp": "blueprint_apply_operation",
       "args": {
         "operation": "placement_add",
         "parameters": {
@@ -60,7 +60,7 @@
     },
     {
       "at": 1.5,
-      "mcp": "grimoire_apply_operation",
+      "mcp": "blueprint_apply_operation",
       "args": {
         "operation": "placement_add",
         "parameters": {
@@ -74,7 +74,7 @@
     },
     {
       "at": 2.7,
-      "mcp": "grimoire_apply_operation",
+      "mcp": "blueprint_apply_operation",
       "args": {
         "operation": "placement_add",
         "parameters": {
@@ -92,7 +92,7 @@
     },
     {
       "at": 3.9,
-      "mcp": "grimoire_apply_operation",
+      "mcp": "blueprint_apply_operation",
       "args": {
         "operation": "placement_add",
         "parameters": {
@@ -106,7 +106,7 @@
     },
     {
       "at": 5.1,
-      "mcp": "grimoire_apply_operation",
+      "mcp": "blueprint_apply_operation",
       "args": {
         "operation": "placement_add",
         "parameters": {
@@ -120,7 +120,7 @@
     },
     {
       "at": 6.3,
-      "mcp": "grimoire_apply_operation",
+      "mcp": "blueprint_apply_operation",
       "args": {
         "operation": "placement_add",
         "parameters": {

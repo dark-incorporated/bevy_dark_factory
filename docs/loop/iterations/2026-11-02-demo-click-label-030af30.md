@@ -51,7 +51,7 @@ files; the clip remains honestly owed.
 re-recorded and both pass.
 
 ## Release
-None: `bevy_cauldron` is `publish = false` and this pass touched only `tools/` and `docs/`.
+None: `bevy_dark_factory` is `publish = false` and this pass touched only `tools/` and `docs/`.
 
 ## Next focus
 #231's clip on a subject whose fill shows, aimed with `click_label`.

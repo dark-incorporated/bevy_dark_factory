@@ -380,12 +380,17 @@ fn recorded() -> std::path::PathBuf {
     std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("fixtures/openrouter")
 }
 
-/// Replays the one real exchange recorded with `Recorder` around [`Live`] over OpenRouter. It cannot
-/// run until someone with a key records it, and it must never pass silently without it: so it is
-/// ignored with the command that makes it runnable, and fails loudly with that command when run
-/// without the fixture. `OPENROUTER_API_KEY` exists on no host as of 2026-11-15.
+/// Replays the one real exchange recorded with `Recorder` around [`Live`] over OpenRouter, with no
+/// socket and no key: the fixture is a static request/response pair, so the replay is deterministic by
+/// construction (it is the same bytes every run). It is **not** skipped when the fixture is missing — it
+/// fails, naming the command that records it.
+///
+/// **Where the image is a Git LFS pointer, the image-bearing half is not asserted** (#455, review B): the repo's
+/// daily CI checks out with no `git lfs pull`, so `docs/changelog/media/2026-10-24-S1.5.png` is 131 bytes of text
+/// there and the request this builds is not the recorded one. The fixture is still loaded, its answers are still
+/// asserted, and the text-only replay still runs; only the byte-for-byte image replay is skipped, with the reason
+/// printed. The alternative — a test that fails on every fresh clone — is a test nobody keeps.
 #[test]
-#[ignore = "needs fixtures/openrouter recorded with OPENROUTER_API_KEY: run tools/decide/record-openrouter.sh"]
 fn the_recorded_openrouter_exchange_replays_with_no_network() {
     let replay = Replay::load(&recorded()).unwrap_or_else(|e| {
         panic!("{e}\nno recorded fixture yet: run `OPENROUTER_API_KEY=... tools/decide/record-openrouter.sh`")
@@ -403,7 +408,49 @@ fn the_recorded_openrouter_exchange_replays_with_no_network() {
         assert!(r.answers.contains_key(id), "no recorded answer for `{id}`");
     }
     // The recorded request is the public image and nothing else.
+    if smoke_request::is_lfs_pointer(&smoke_request::public_image_path()) {
+        println!(
+            "note: {} is a Git LFS pointer on this checkout (no `git lfs pull`), so the image-bearing request \
+             is not the recorded one. The fixture loaded and its answers were asserted above; the replay below \
+             is the text-only half.",
+            smoke_request::PUBLIC_IMAGE
+        );
+        // The fixture is still a working replay for the requests it holds: a text-only one is refused as not
+        // being this fixture's request, which is the proof the fixture loaded and compares requests at all.
+        assert!(
+            replay.send(&Request::new("another state").with_question("has_ui", Question::noul("?"))).is_err(),
+            "the fixture must refuse a request it did not record"
+        );
+        return;
+    }
     assert_eq!(replay.send(&request).unwrap(), r);
+}
+
+/// **The LFS-pointer case is covered on every checkout, not only on the one that has it** (#455, review B): a
+/// fresh clone's 131-byte pointer is simulated by writing one, so the branch the replay test takes on CI is
+/// exercised here in a checkout where the image is smudged.
+#[test]
+fn an_lfs_pointer_is_recognised_and_is_not_the_recorded_image() {
+    let dir = std::env::temp_dir().join(format!("oracle-lfs-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let pointer = dir.join("still.png");
+    std::fs::write(
+        &pointer,
+        "version https://git-lfs.github.com/spec/v1\noid sha256:4d7a214614ab2935c943f9e0ff69d22eadbb8f32b1258daaa5e2ca24d17e2393\nsize 12345\n",
+    )
+    .unwrap();
+    assert!(smoke_request::is_lfs_pointer(&pointer), "a 131-byte pointer is recognised as one");
+
+    // The real image on a smudged checkout, and a file that is not there at all, are both not pointers.
+    assert!(!smoke_request::is_lfs_pointer(&smoke_request::public_image_path()), "the smudged image is not a pointer");
+    assert!(!smoke_request::is_lfs_pointer(&dir.join("absent.png")), "a missing file is not a pointer");
+
+    // And the bytes differ from the image, which is the whole reason the replay has to know: a request built
+    // from a pointer is not the recorded request.
+    let from_pointer = std::fs::read(&pointer).unwrap();
+    let from_image = std::fs::read(smoke_request::public_image_path()).unwrap();
+    assert_ne!(from_pointer, from_image, "the pointer's bytes are not the image's");
+    std::fs::remove_dir_all(dir).unwrap();
 }
 
 #[test]

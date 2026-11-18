@@ -1,7 +1,7 @@
 # **Take back a change that was a mistake** (BM-04, #414).
 #
 # The setup is the mistake: a crate put in the middle of the bedroom, through the dispatcher, so it is the
-# newest line of the operation log and `grimoire_undo_operation` can take it back. How the agent takes it back
+# newest line of the operation log and `blueprint_undo_operation` can take it back. How the agent takes it back
 # is its own choice (the undo tool, or removing the crate); what is measured is the room it leaves: the crate
 # gone and every other piece still there.
 id: take-back-the-last-change
@@ -13,7 +13,7 @@ prompt: |
   The last change made to this project was a mistake: a crate was put in the middle of the bedroom. Take it
   back, and leave everything else as it is.
 
-  When it is done, hand the result back with grimoire_present.
+  When it is done, hand the result back with blueprint_present.
 setup:
   - op: placement_add
     params:
@@ -22,7 +22,7 @@ setup:
 solution:
   - op: placement_remove
     params: {id: crate@1}
-  - op: grimoire_present
+  - op: blueprint_present
     params:
       title: The crate is taken back
       summary: The crate that was put in the middle of the bedroom is removed. The bed, the bedside table and the desk are untouched.

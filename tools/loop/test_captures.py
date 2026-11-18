@@ -303,14 +303,14 @@ class TheShow(Scratch):
                 "window": {"physical": [2560, 1406], "logical": [1280.0, 703.0], "scale_factor": 2.0,
                            "ui_scale": 2.4},
                 "subject": {"kind": "element", "rect_px": [605.0, 228.0, 1046.0, 577.0],
-                            "path": [{"name": None, "role": "Button", "control": None, "text": "bevy_grimoire"}]},
+                            "path": [{"name": None, "role": "Button", "control": None, "text": "bevy_blueprint"}]},
                 "note": "When I press this button, there is a garbled flash, before the UI paints correctly.",
             },
         )
         code, out = self.show("feedback-1793901499397")
         self.assertEqual(code, 0)
         self.assertIn("garbled flash", out)
-        self.assertIn('"bevy_grimoire"', out)
+        self.assertIn('"bevy_blueprint"', out)
         self.assertIn("record version 1", out)
 
     def test_a_version_two_record_is_read_through_picks_and_its_pointer_is_in_logical_px(self):
@@ -410,6 +410,32 @@ class TheSync(Scratch):
         first = (self.root / LEDGER).read_text(encoding="utf-8")
         self.assertEqual(self.run_verb("sync", "--from", str(folder)), 0)
         self.assertEqual((self.root / LEDGER).read_text(encoding="utf-8"), first)
+
+    def test_a_capture_the_editor_filed_is_adopted_once(self):
+        """**`#495`: the editor files a capture and `sync` still adopts it.**
+
+        The editor copies the four files in, commits them and opens the issue; the ledger has no row,
+        because the editor does not write one. `sync` finds the record already here, copies nothing,
+        and adds exactly one row — so the ledger and the issue never disagree about which stems exist,
+        and running it a second time adds nothing.
+        """
+        stem = "feedback-1794921159460"
+        folder = self.source(stem)
+        # What the editor's own filing did: the files are in place, the ledger has no row.
+        dest = self.root / captures.CAPTURES / stem
+        dest.mkdir(parents=True)
+        for name in (f"{stem}.json", f"{stem}.png", f"{stem}.log"):
+            (dest / name).write_bytes((folder / name).read_bytes())
+        self.assertFalse((self.root / LEDGER).is_file())
+
+        self.assertEqual(self.run_verb("sync", "--from", str(folder)), 0)
+        items = json.loads((self.root / LEDGER).read_text(encoding="utf-8"))["items"]
+        self.assertEqual([row["stem"] for row in items], [stem], "one row, for the stem that is here")
+        self.assertEqual(items[0]["status"], "unread")
+
+        self.assertEqual(self.run_verb("sync", "--from", str(folder)), 0)
+        again = json.loads((self.root / LEDGER).read_text(encoding="utf-8"))["items"]
+        self.assertEqual(len(again), 1, "a second sync adds no second row")
 
     def test_a_record_that_will_not_parse_is_a_blocked_row_rather_than_a_skip(self):
         folder = self.source("feedback-1793905912313")

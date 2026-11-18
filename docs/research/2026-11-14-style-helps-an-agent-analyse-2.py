@@ -5,9 +5,9 @@ It is NOT the registered script and does not replace it: the registered script (
 reported verbatim.  This script was written AFTER the first run's data was seen (that run lost 58% of the without-style arm to a harness error the runner has since fixed,
 BM-11 #441), and it differs from the registered one in exactly these ways, nothing else:
 
-  1. tool use is read from the trial record's `tool_log` (every editor call the runner saw: through `xd://` and by the tool's own direct name `mcp__cauldron_grimoire_*`),
+  1. tool use is read from the trial record's `tool_log` (every editor call the runner saw: through `xd://` and by the tool's own direct name `mcp__dark_factory_blueprint_*`),
      not only from the `xd://` transcript events; a design page opened by a generic tool (`read`, `bash`, ...) is still read from the transcript with the registered reader;
-  2. a `followed` citation is read from the agent's own `grimoire_present` call in the transcript, through either route;
+  2. a `followed` citation is read from the agent's own `blueprint_present` call in the transcript, through either route;
   3. it reports the agent errors per arm (`agent_errors` in `trial.json`: a call to a tool omp refused, which the agent recovered from) and a Fisher exact test of the arms.
 
 The statistic is the registered one, imported from the registered script and not re-implemented: lines satisfied per run, D = with - without summed over the tasks, a 95% percentile bootstrap
@@ -24,7 +24,7 @@ spec = importlib.util.spec_from_file_location("registered", HERE / "2026-11-14-s
 reg = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(reg)
 
-DIRECT = "mcp__cauldron_"          # the editor tool called by its own name (the registered reader sees only the xd:// route)
+DIRECT = "mcp__dark_factory_"          # the editor tool called by its own name (the registered reader sees only the xd:// route)
 
 
 def calls_of(trial_dir, record):
@@ -48,22 +48,22 @@ def calls_of(trial_dir, record):
 
 
 def route_of(log, events):
-    tool = "grimoire_style" in log
+    tool = "blueprint_style" in log
     file = any(kind == "generic" and reg.re.search(r"design[/\\]", json.dumps(args)) for kind, _, args in events)
     return {(True, False): "tool", (False, True): "file", (True, True): "both", (False, False): "neither"}[(tool, file)]
 
 
 def cell(path, record, guards):
     log, events, direct = calls_of(path.parent, record)
-    present_args = [a for k, n, a in events if k == "mcp" and n == "grimoire_present"] + [a for n, a in direct if n == "grimoire_present"]
-    first = next((n for n in log if n in ("grimoire_style", "grimoire_apply_operation")), None)
+    present_args = [a for k, n, a in events if k == "mcp" and n == "blueprint_present"] + [a for n, a in direct if n == "blueprint_present"]
+    first = next((n for n in log if n in ("blueprint_style", "blueprint_apply_operation")), None)
     return {
         "lines": sum(c["passed"] for i, c in enumerate(record["checks"]) if i not in guards),
         "route": route_of(log, events),
         "followed": any(isinstance(a, dict) and a.get("followed") for a in present_args),
-        "style_before_edit": first == "grimoire_style",
+        "style_before_edit": first == "blueprint_style",
         "wishes": record["wishes"], "offered": record["tools_offered"],
-        "hidden_writes": sum(1 for k, n, a in events if k == "device" and n == "write" and reg.re.search(r"grimoire_style(?!_)", str(a.get("path", "")))),
+        "hidden_writes": sum(1 for k, n, a in events if k == "device" and n == "write" and reg.re.search(r"blueprint_style(?!_)", str(a.get("path", "")))),
         "hidden_reads": 0,
         "direct_calls": len(direct),
         "agent_errors": record.get("agent_errors", 0),
@@ -125,12 +125,12 @@ def selftest():
         t = Path(d) / "trial-1"
         t.mkdir()
         rows = [
-            {"type": "message_update", "assistantMessageEvent": {"type": "toolcall_end", "toolCall": {"name": "mcp__cauldron_grimoire_present", "arguments": {"followed": [{"path": "design/style.md", "line": 3}]}}}},
+            {"type": "message_update", "assistantMessageEvent": {"type": "toolcall_end", "toolCall": {"name": "mcp__dark_factory_blueprint_present", "arguments": {"followed": [{"path": "design/style.md", "line": 3}]}}}},
             {"type": "message_update", "assistantMessageEvent": {"type": "toolcall_end", "toolCall": {"name": "read", "arguments": {"path": "design/style.md"}}}},
         ]
         (t / "transcript.jsonl").write_text("\n".join(json.dumps(r) for r in rows))
-        record = {"checks": [{"passed": True}] * 7, "wishes": [], "tools_offered": [], "tool_log": [{"tool": "grimoire_style", "args": "{}", "refused": False}, {"tool": "grimoire_apply_operation", "args": "{}", "refused": False}],
-                  "agent_errors": 1, "agent_error_calls": [{"tool": "xd__mcp__cauldron_grimoire_guide", "said": "unknown"}]}
+        record = {"checks": [{"passed": True}] * 7, "wishes": [], "tools_offered": [], "tool_log": [{"tool": "blueprint_style", "args": "{}", "refused": False}, {"tool": "blueprint_apply_operation", "args": "{}", "refused": False}],
+                  "agent_errors": 1, "agent_error_calls": [{"tool": "xd__mcp__dark_factory_blueprint_guide", "said": "unknown"}]}
         c = cell(t / "trial.json", record, {0})
         assert c["route"] == "both" and c["followed"] and c["style_before_edit"] and c["lines"] == 6 and c["agent_errors"] == 1 and c["direct_calls"] == 1, c
         record["tool_log"] = []

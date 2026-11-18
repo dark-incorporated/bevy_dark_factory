@@ -94,7 +94,7 @@ def change_moments(rec):
             # same way the press is.
             elif "KeyK" in keys:
                 moments.append(("reveal", e["t"]))
-        elif e["type"] == "agent" and e.get("tool") == "grimoire_frame_view":
+        elif e["type"] == "agent" and e.get("tool") == "blueprint_frame_view":
             moments.append(("view", e["t"]))
         elif e["type"] == "settle":
             # **A change the storyboard said would arrive, and has.** A fade is not a step: the picture

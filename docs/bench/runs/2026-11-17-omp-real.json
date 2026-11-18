@@ -1,0 +1,295 @@
+{
+  "header": {
+    "version": 1,
+    "label": "omp-real",
+    "commit": "6b5162eab2502a9d1d71b121c156e65bb3bc02b3",
+    "guide_sha256": "e7b841c5298bcdb44faca2526a7463c69e522bead4e7ebe50249f4b768087dbe",
+    "agent": "omp",
+    "agent_version": "omp/18.21.0",
+    "model": "anthropic/claude-sonnet-5-5",
+    "variant": null,
+    "suite": "bench/tasks",
+    "trials": 1,
+    "host": "big",
+    "date": "2026-11-17",
+    "price": {
+      "input": 2.0,
+      "output": 10.0,
+      "cache_read": 0.1,
+      "cache_write": 2.5
+    }
+  },
+  "unfit": null,
+  "trials_total": 3,
+  "harness_errors": 0,
+  "dev": {
+    "name": "dev",
+    "tasks": 3,
+    "trials": 3,
+    "successes": 2,
+    "harness_errors": 0,
+    "mean_success": 0.6666666666666666,
+    "interval": {
+      "lo": 0.0,
+      "hi": 1.0
+    },
+    "mean_pass_hat": [
+      0.6666666666666666
+    ],
+    "cost_usd": 0.4340667,
+    "cost_per_success_usd": 0.21703335,
+    "wall_mean_s": 27.23528827366667,
+    "tool_calls_mean": 5.333333333333333,
+    "edits_behind": 0
+  },
+  "held_out": null,
+  "tags": [
+    {
+      "name": "handback",
+      "tasks": 2,
+      "trials": 2,
+      "successes": 1,
+      "harness_errors": 0,
+      "mean_success": 0.5,
+      "interval": {
+        "lo": 0.0,
+        "hi": 1.0
+      },
+      "mean_pass_hat": [
+        0.5
+      ],
+      "cost_usd": 0.2361168,
+      "cost_per_success_usd": 0.2361168,
+      "wall_mean_s": 21.448747072,
+      "tool_calls_mean": 4.0,
+      "edits_behind": 0
+    },
+    {
+      "name": "place",
+      "tasks": 1,
+      "trials": 1,
+      "successes": 1,
+      "harness_errors": 0,
+      "mean_success": 1.0,
+      "interval": {
+        "lo": 1.0,
+        "hi": 1.0
+      },
+      "mean_pass_hat": [
+        1.0
+      ],
+      "cost_usd": 0.19794989999999998,
+      "cost_per_success_usd": 0.19794989999999998,
+      "wall_mean_s": 38.808370677,
+      "tool_calls_mean": 8.0,
+      "edits_behind": 0
+    },
+    {
+      "name": "read",
+      "tasks": 1,
+      "trials": 1,
+      "successes": 0,
+      "harness_errors": 0,
+      "mean_success": 0.0,
+      "interval": {
+        "lo": 0.0,
+        "hi": 0.0
+      },
+      "mean_pass_hat": [
+        0.0
+      ],
+      "cost_usd": 0.079063,
+      "cost_per_success_usd": null,
+      "wall_mean_s": 18.769087088,
+      "tool_calls_mean": 3.0,
+      "edits_behind": 0
+    },
+    {
+      "name": "refusal",
+      "tasks": 1,
+      "trials": 1,
+      "successes": 1,
+      "harness_errors": 0,
+      "mean_success": 1.0,
+      "interval": {
+        "lo": 1.0,
+        "hi": 1.0
+      },
+      "mean_pass_hat": [
+        1.0
+      ],
+      "cost_usd": 0.1570538,
+      "cost_per_success_usd": 0.1570538,
+      "wall_mean_s": 24.128407056,
+      "tool_calls_mean": 5.0,
+      "edits_behind": 0
+    },
+    {
+      "name": "relations",
+      "tasks": 1,
+      "trials": 1,
+      "successes": 1,
+      "harness_errors": 0,
+      "mean_success": 1.0,
+      "interval": {
+        "lo": 1.0,
+        "hi": 1.0
+      },
+      "mean_pass_hat": [
+        1.0
+      ],
+      "cost_usd": 0.19794989999999998,
+      "cost_per_success_usd": 0.19794989999999998,
+      "wall_mean_s": 38.808370677,
+      "tool_calls_mean": 8.0,
+      "edits_behind": 0
+    }
+  ],
+  "tasks": [
+    {
+      "task": "bed-against-the-north-wall",
+      "title": "The bed against the north wall",
+      "tags": [
+        "place",
+        "relations"
+      ],
+      "trials": 1,
+      "successes": 1,
+      "harness_errors": 0,
+      "outcomes": [
+        "pass"
+      ],
+      "success_rate": 1.0,
+      "pass_hat": [
+        1.0
+      ],
+      "wall_median_s": 38.808370677,
+      "wall_p90_s": 38.808370677,
+      "tool_calls_mean": 8.0,
+      "refusals": 1,
+      "undos": 0,
+      "edits_behind": 0,
+      "trials_with_edits_behind": 0,
+      "tokens_in": 22,
+      "tokens_out": 3520,
+      "tokens_cache_read": 347134,
+      "tokens_cache_write": 51197,
+      "cost_usd": 0.19794989999999998,
+      "wishes": 0,
+      "failures": [],
+      "budget_exhausted": 0,
+      "budget_exhausted_trials": [],
+      "agent_errors": 0,
+      "agent_error_trials": []
+    },
+    {
+      "task": "count-what-the-bedroom-holds",
+      "title": "Count what the bedroom holds",
+      "tags": [
+        "read",
+        "handback"
+      ],
+      "trials": 1,
+      "successes": 0,
+      "harness_errors": 0,
+      "outcomes": [
+        "fail"
+      ],
+      "success_rate": 0.0,
+      "pass_hat": [
+        0.0
+      ],
+      "wall_median_s": 18.769087088,
+      "wall_p90_s": 18.769087088,
+      "tool_calls_mean": 3.0,
+      "refusals": 0,
+      "undos": 0,
+      "edits_behind": 0,
+      "trials_with_edits_behind": 0,
+      "tokens_in": 14,
+      "tokens_out": 1489,
+      "tokens_cache_read": 131625,
+      "tokens_cache_write": 20393,
+      "cost_usd": 0.079063,
+      "wishes": 0,
+      "failures": [
+        {
+          "trial": 1,
+          "check": "handback_contains",
+          "wanted": "a hand-back stating three, dresser",
+          "measured": "the hand-back `Bedroom count: 3 pieces; dresser nearest the north wall` does not state `three`",
+          "last_calls": [
+            "blueprint_guide {}",
+            "blueprint_state {}",
+            "blueprint_present {\"check\":[{\"placements\":[\"dresser\"],\"what\":\"The dresser sits closest to the north wall (z=-2.0 versus z=-2.5 for the wall)\"}],\"inferred\":[\"Distance is measured …"
+          ]
+        }
+      ],
+      "budget_exhausted": 0,
+      "budget_exhausted_trials": [],
+      "agent_errors": 0,
+      "agent_error_trials": []
+    },
+    {
+      "task": "refuse-a-piece-the-project-lacks",
+      "title": "Refuse a piece the project does not have",
+      "tags": [
+        "refusal",
+        "handback"
+      ],
+      "trials": 1,
+      "successes": 1,
+      "harness_errors": 0,
+      "outcomes": [
+        "pass"
+      ],
+      "success_rate": 1.0,
+      "pass_hat": [
+        1.0
+      ],
+      "wall_median_s": 24.128407056,
+      "wall_p90_s": 24.128407056,
+      "tool_calls_mean": 5.0,
+      "refusals": 0,
+      "undos": 0,
+      "edits_behind": 0,
+      "trials_with_edits_behind": 0,
+      "tokens_in": 16,
+      "tokens_out": 1763,
+      "tokens_cache_read": 251468,
+      "tokens_cache_write": 45698,
+      "cost_usd": 0.1570538,
+      "wishes": 0,
+      "failures": [],
+      "budget_exhausted": 0,
+      "budget_exhausted_trials": [],
+      "agent_errors": 0,
+      "agent_error_trials": []
+    }
+  ],
+  "tool_counts": {
+    "blueprint_apply_operation": 1,
+    "blueprint_decide": 1,
+    "blueprint_guide": 3,
+    "blueprint_list_operations": 1,
+    "blueprint_list_pieces": 3,
+    "blueprint_present": 3,
+    "blueprint_preview_operation": 1,
+    "blueprint_state": 3
+  },
+  "refusals_by_tool": {
+    "blueprint_decide": 1
+  },
+  "wishes_by_tool": {},
+  "harness_error_reasons": [],
+  "preflight": {
+    "tokens_in": 4,
+    "tokens_out": 4,
+    "tokens_cache_read": 0,
+    "tokens_cache_write": 10686,
+    "cost_usd": 0.026763
+  },
+  "cost_total_usd": 0.4608297,
+  "agent_errors": 0,
+  "agent_errors_by_tool": {}
+}

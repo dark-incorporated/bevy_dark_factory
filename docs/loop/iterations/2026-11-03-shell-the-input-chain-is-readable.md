@@ -4,12 +4,12 @@ Focus: #224 UI-30 · Commits: 4489e68..960f2af · Machine: big · Outcome: shipp
 
 ## Summary
 Three passes could not diagnose a live drag that does nothing because the editor's input state was
-invisible. `grimoire/pointer` now reports each step of the chain. It immediately showed that **pass 281's
+invisible. `blueprint/pointer` now reports each step of the chain. It immediately showed that **pass 281's
 conclusion was wrong** — the pointer chain is intact — and located the real fault: the press never
 reaches `MouseButtonInput` in the live editor.
 
 ## The method (960f2af)
-`grimoire/pointer`, a read-only BRP method in the shape of `grimoire/project_root`:
+`blueprint/pointer`, a read-only BRP method in the shape of `blueprint/project_root`:
 
 | Field | The question it answers |
 |---|---|
@@ -54,7 +54,7 @@ Reviewer not spawned; self-review, mine:
 One new test file and its `mod` line. No existing assertion changed.
 
 ## Release
-None: `bevy_cauldron` is `publish = false`.
+None: `bevy_dark_factory` is `publish = false`.
 
 ## Next focus
 Why `bevy_fairy/input`'s press does not become `MouseButtonInput` live — read `bevy_fairy`'s

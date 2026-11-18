@@ -40,6 +40,6 @@
 
 ## Where the agent stumbles (dev tasks)
 
-- tools called most: `grimoire_apply_operation` ×20, `grimoire_present` ×3
+- tools called most: `blueprint_apply_operation` ×20, `blueprint_present` ×3
 - refusals by tool: none
 - wishes, by the tool wished for: none

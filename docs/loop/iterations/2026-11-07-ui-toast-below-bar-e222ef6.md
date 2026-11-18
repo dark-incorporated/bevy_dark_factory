@@ -40,7 +40,7 @@ this needs (bevy-coven/bevy_gooey#43, closed as completed). No other gooey API t
 ## Proven
 - `a_toast_never_stands_over_the_menu_bar` — 2 tests (the tour's offer, a refusal).
 - The toast, menu and tour suites beside them: 62 tests, 62 passed.
-- `cargo clippy -p bevy_cauldron --all-targets -- -D warnings`: clean.
+- `cargo clippy -p bevy_dark_factory --all-targets -- -D warnings`: clean.
 - The full gate: the first push (see the log line for its result).
 
 ## Clip
@@ -51,7 +51,7 @@ appearing would say less than the two rects above. Recorded in `CHANGELOG.md` wi
 None to an existing test. One new file, its one `mod` line in `all.rs`.
 
 ## Release
-`bevy_cauldron` is `publish = false`, so nothing packaged changed and nothing is published. The
+`bevy_dark_factory` is `publish = false`, so nothing packaged changed and nothing is published. The
 `release:` bump follows `tools/loop/version.py next` when a publishable crate changes.
 
 ## Next focus

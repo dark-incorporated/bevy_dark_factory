@@ -36,7 +36,7 @@ size, which cost three attempts.
 - **#129's undo entries.** `Undo`/`Redo` (and the three per-tab pairs) are **correctly not operations**: the
   ratchet's own rule is *"an action is migrated when it names the operation it dispatches"*, and undo names
   none because it is the **mechanism** — every operation declares its own `undo()` as `Inverse`, `Snapshot`
-  or `None`. `grimoire_undo_operation` already exposes it to agents by `operation_id`, and `turn: true`
+  or `None`. `blueprint_undo_operation` already exposes it to agents by `operation_id`, and `turn: true`
   walks the log the way Cmd+Z walks the stack. Adding an "undo operation" would be a worse design.
 - **#240's problems panel.** Real and small, but a new gooey dock panel with a list and a Go-to action is a
   pass of its own; starting it here would have left it half-built.

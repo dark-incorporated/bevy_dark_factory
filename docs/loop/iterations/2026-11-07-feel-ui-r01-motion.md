@@ -9,7 +9,7 @@ UI-R01 (#331) moves the editor's bevy_gooey pin c6b714c → e264418 (v0.40.1, wi
 Gate: not run by hand (the push is the gate). Editor tests at the new pin before the work: 1860 of 1863 passed (palette tests ×2 and one click test). `accept.py` not run: no operation, map or library code changed.
 
 ## Enhancement: UI-R01
-- **Pin:** `crates/bevy_cauldron/Cargo.toml` (dependency and dev-dependency) and `Cargo.lock`.
+- **Pin:** `crates/bevy_dark_factory/Cargo.toml` (dependency and dev-dependency) and `Cargo.lock`.
 - **Dialogs leave.** The command palette, settings and keymap close with `Leave` (fade, then despawn) where they despawned.
   - Chosen palette commands still run during the fade. The marker outlives the close by the exit's length, and `not_typing` and `sense_context` read it as "typing". `editor::palette_is_open` now counts only a palette that is open or coming back.
   - The chord pressed again mid-exit inserts `Stay`: the palette comes back, never a second one.
@@ -52,7 +52,7 @@ The fixes were not re-reviewed.
 New `tests/the_editor_moves_on_springs.rs` and its `mod` line in `tests/all.rs`. No existing test changed.
 
 ## Release
-bevy_cauldron **0.4.2** (`version.py next`), its own commit `release: 0.4.2` (6a649451) and tag `bevy_cauldron-v0.4.2`, pushed; the tag starts the macOS build on mac_air (`release-macos.yml`). The crate is `publish = false`, so there is no crates.io URL. Assumed decision: the steer to publish after each issue is read as the editor's own release when the editor changed; bevy_gooey was not changed this pass, so it was not released.
+bevy_dark_factory **0.4.2** (`version.py next`), its own commit `release: 0.4.2` (6a649451) and tag `bevy_dark_factory-v0.4.2`, pushed; the tag starts the macOS build on mac_air (`release-macos.yml`). The crate is `publish = false`, so there is no crates.io URL. Assumed decision: the steer to publish after each issue is read as the editor's own release when the editor changed; bevy_gooey was not changed this pass, so it was not released.
 
 ## Next focus
 UI-R02 #332: the editor's skin from three seeds, on the Desk preset. Needs G-47..G-49 and G-52, which are built and in v0.40.1.

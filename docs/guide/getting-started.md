@@ -8,16 +8,16 @@ You need a Rust toolchain and a clone of this repo. Run every command from the r
 
 ## Start the editor
 
-With no argument, `cargo run -p bevy_cauldron` opens the **launcher** before any project: your recent projects as cards (a missing folder is listed as missing, not dropped) with a **Filter projects** box, **New project** (a name, a place and a template; a name that is already a folder is refused beside the field and Create stays off until it is free), **Open folder…** (the system's own folder chooser) and, when the changelog has grown since you last opened a project, what it added. On a first run, with nothing opened yet, the launcher is a welcome with an **Open the example** button (the Learn page has the same button). Choosing a project opens its **project page**, as step 1 below does by hand. **Copy command line** on a recent project puts the line that opens it on your clipboard. One press (or Enter) on a card opens it.
+With no argument, `cargo run -p bevy_dark_factory` opens the **launcher** before any project: your recent projects as cards (a missing folder is listed as missing, not dropped) with a **Filter projects** box, **New project** (a name, a place and a template; a name that is already a folder is refused beside the field and Create stays off until it is free), **Open folder…** (the system's own folder chooser) and, when the changelog has grown since you last opened a project, what it added. On a first run, with nothing opened yet, the launcher is a welcome with an **Open the example** button (the Learn page has the same button). Choosing a project opens its **project page**, as step 1 below does by hand. **Copy command line** on a recent project puts the line that opens it on your clipboard. One press (or Enter) on a card opens it.
 
-A project named on the command line with a map or a workspace (`cargo run -p bevy_cauldron -- . bedroom`) skips the project page and opens on a **loading screen**: nothing for the first second, then the stage it is in with a spinner, and from ten seconds a bar that says `N of M` and the stage. **Cancel** goes back to the launcher and writes nothing. When it has loaded, any file of the project that does not read is listed on a card, one row each with the file, the field and why; **Open anyway** goes on into the editor and **Back** returns to the launcher. `GRIMOIRE_LOAD_STAGE_DELAY_MS=3000` pauses after each stage if you want to see the screen on a project that opens too fast to.
+A project named on the command line with a map or a workspace (`cargo run -p bevy_dark_factory -- . bedroom`) skips the project page and opens on a **loading screen**: nothing for the first second, then the stage it is in with a spinner, and from ten seconds a bar that says `N of M` and the stage. **Cancel** goes back to the launcher and writes nothing. When it has loaded, any file of the project that does not read is listed on a card, one row each with the file, the field and why; **Open anyway** goes on into the editor and **Back** returns to the launcher. `BLUEPRINT_LOAD_STAGE_DELAY_MS=3000` pauses after each stage if you want to see the screen on a project that opens too fast to.
 
-A project written before the YAML cutover holds `.ron` files and is refused at open, naming `bevy_cauldron migrate <project folder>`, which converts it ([your game](your-game.md#moving-a-project-to-yaml)).
+A project written before the YAML cutover holds `.ron` files and is refused at open, naming `bevy_dark_factory migrate <project folder>`, which converts it ([your game](your-game.md#moving-a-project-to-yaml)).
 
 1. Run the editor on this project:
 
    ```
-   cargo run -p bevy_cauldron -- .
+   cargo run -p bevy_dark_factory -- .
    ```
 
 2. Wait for the window. It opens on the project page.
@@ -80,7 +80,7 @@ Press Home to frame the view. With a locked placement, Home frames that placemen
 
 1. Press Cmd+S.
 
-**What you see:** a line in the status band reads `saved`, followed by the file path. The file is `maps/first_map.map.yaml` inside the project, which is `assets/grimoire/maps/first_map.map.yaml`.
+**What you see:** a line in the status band reads `saved`, followed by the file path. The file is `maps/first_map.map.yaml` inside the project, which is `assets/blueprint/maps/first_map.map.yaml`.
 
 **If it goes wrong:** if the map cannot be saved, the status band shows `NOT SAVED:` followed by the reason. The map stays open and nothing on disk changes. Fix the reason, then press Cmd+S again.
 

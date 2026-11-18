@@ -2,7 +2,7 @@
 #
 # A person leaves a note on a piece and presses Send; any connected agent may claim it, work inside its
 # fence and resolve it with a summary. The setup is the person's half (`note_add`, `note_send`); the agent's
-# half is the loop in the guide: read the note from `grimoire_state`, claim it, make the change, resolve it.
+# half is the loop in the guide: read the note from `blueprint_state`, claim it, make the change, resolve it.
 #
 # The note asks for the desk to be turned. The desk's front is its west face, so facing west is a yaw of 0 (it
 # stands at 90, facing south, until it is worked). The checks measure the change, and that the note was
@@ -16,7 +16,7 @@ prompt: |
   There is an open note on the study map. Work it: read what it asks, make the change, and resolve the note
   with a one-line summary.
 
-  When the note is resolved, hand the result back with grimoire_present.
+  When the note is resolved, hand the result back with blueprint_present.
 setup:
   - op: note_add
     params:
@@ -35,7 +35,7 @@ solution:
       agent: bench
       summary: Turned the desk to face west.
       captures: [before.png, after.png]
-  - op: grimoire_present
+  - op: blueprint_present
     params:
       title: The desk faces west
       summary: The note on the desk is worked. The desk is turned a quarter turn so its front faces west, and it has not moved.

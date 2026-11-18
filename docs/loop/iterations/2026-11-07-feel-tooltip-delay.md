@@ -6,7 +6,7 @@ Focus: epic #330 (owner's steer) · Commits: bevy_gooey 760405b, release 460b081
 G-57 (bevy-coven/bevy_gooey#64) was blocked on the protected `tests/tooltip.rs`. The loop applied the #76 decision, which was its own recommendation, as an assumed exception. A tooltip now opens only after the pointer has rested half a second. UI-R03 #333 still needs G-58 and G-66; UI-R04 #334 now needs G-53 and G-58.
 
 ## Baseline
-bevy_grimoire was not touched, so its gate and `accept.py` did not run.
+bevy_blueprint was not touched, so its gate and `accept.py` did not run.
 
 ## Enhancement: G-57
 - **Change:** `TooltipSettings { delay_seconds: 0.5 }` and `TooltipDwell` on each box, counted on `Time<Real>`, in `src/tooltip.rs`.
@@ -32,7 +32,7 @@ None. The reference is Rune's README, "Help tooltips".
 Not measured.
 
 ## Acceptance
-`accept.py` not run: no bevy_grimoire code changed.
+`accept.py` not run: no bevy_blueprint code changed.
 
 ## Review
 An independent `reviewer` ran: 1 P2 and 3 P3, all fixed.

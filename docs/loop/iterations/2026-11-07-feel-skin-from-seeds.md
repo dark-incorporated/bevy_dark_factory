@@ -3,10 +3,10 @@
 Focus: epic #330 (owner's steer) · Commits: bevy_gooey 39730eb · Machine: big · Outcome: shipped (in bevy_gooey)
 
 ## Summary
-No bevy_grimoire item of the epic is ready (UI-R01 to UI-R06, #331 to #336, wait on bevy_gooey). This pass built G-47, a skin from three seeds (bevy-coven/bevy_gooey#54), which is one of UI-R02 (#332)'s four needs. The work was done in `~/family_src/bevy_emerge_loop/bevy_gooey`, and the issue was claimed first.
+No bevy_blueprint item of the epic is ready (UI-R01 to UI-R06, #331 to #336, wait on bevy_gooey). This pass built G-47, a skin from three seeds (bevy-coven/bevy_gooey#54), which is one of UI-R02 (#332)'s four needs. The work was done in `~/family_src/bevy_emerge_loop/bevy_gooey`, and the issue was claimed first.
 
 ## Baseline
-bevy_grimoire gate and `accept.py` were not run, because no bevy_grimoire code changed. Load at start: 19. Free disk: 60 GB (99% used).
+bevy_blueprint gate and `accept.py` were not run, because no bevy_blueprint code changed. Load at start: 19. Free disk: 60 GB (99% used).
 
 ## Enhancement: G-47 (bevy-coven/bevy_gooey#54)
 - **Goal:** `GooeySkin::from_seed(PaletteSeed { background, text, accent })` derives a whole skin that passes `problems()`, or refuses the seed.
@@ -29,7 +29,7 @@ None (the reference is Rune).
 Not measured: this is a constructor, and nothing runs per frame.
 
 ## Acceptance
-`accept.py` was not run, because no bevy_grimoire code changed.
+`accept.py` was not run, because no bevy_blueprint code changed.
 
 ## Review
 The reviewer subagent ran. It ported the derivation to Python to check it, and its numbers matched the patch. All seven findings are fixed:
@@ -44,7 +44,7 @@ The reviewer subagent ran. It ported the derivation to Python to check it, and i
 bevy_gooey: one new file, `tests/seed.rs`, and its `mod seed;` line in `tests/all.rs`. No existing test changed.
 
 ## Release
-None here: nothing in bevy_grimoire's packages changed. bevy_gooey's release is its own loop's.
+None here: nothing in bevy_blueprint's packages changed. bevy_gooey's release is its own loop's.
 
 ## Next focus
 G-48 (elevation as data) or G-52 (text on the device-pixel grid) for UI-R02. After those, G-49 (the Desk preset, which needs G-47 and G-48).
