@@ -2715,88 +2715,50 @@ pub fn row_value(row: &mut ChildSpawnerCommands, text: impl Into<String>, colour
     ));
 }
 
-/// **A label that gives way to the box it is drawn in** (#494): the words, with the floor and the break that let a
-/// control narrower than its text still hold them inside itself.
-///
-/// A `Text` with no least width is not enough on its own, and neither is a break: a flex item's automatic minimum is its
-/// content, so a label that may not narrow keeps its whole width and the box around it grows past the pane. Both are
-/// needed, on the label — the floor so it can be narrower than its longest word, and the break so the word goes on two
-/// lines rather than over the border. `WordOrCharacter` rather than `WordBoundary` because many of these labels are one
-/// word (`surveillance_console.glb`, `NOT IMPORTED`), the rule [`fill_text`] states.
-///
-/// **The words are the control's, not the panel's**: a 20-character label in a 158 px pane is three lines rather than a
-/// control that runs over the border, which is what #494's Wanted asks for.
-pub fn narrowing_label() -> impl Bundle {
-    (
-        bevy_gooey::Role::Sized,
-        bevy_gooey::TextFlow { grow: None, shrink: None, min_width: Some(bevy_gooey::Extent::Px(0.0)), align: None },
-        TextLayout::new(Justify::Left, LineBreak::WordOrCharacter),
-    )
-}
-
-/// **A [`narrowing_label`] whose words never break**: the same floor, so the box around it may be narrower than the label,
-/// and one line whatever that box is — for a control whose *height* is fixed by the layout rather than by its words.
-///
-/// The two halves of a narrowing label answer different questions and only the first is universal. The floor says *this
-/// box may be narrower than its words*; the break says *and here is what happens to the words that do not fit*. A control
-/// in a column that grows with its content wants both. A chip in a fixed-height strip wants only the floor: there the
-/// break moves every neighbour in the strip, which is a worse fault than a word cut at the chip's own edge.
-pub fn narrowing_label_one_line() -> impl Bundle {
-    (
-        bevy_gooey::Role::Sized,
-        bevy_gooey::TextFlow { grow: None, shrink: None, min_width: Some(bevy_gooey::Extent::Px(0.0)), align: None },
-        TextLayout::new(Justify::Left, LineBreak::NoWrap),
-    )
-}
-
-/// **A switch's label takes the room its row leaves, and breaks inside it** (#481, the AGENT panel's capture
+/// **A switch's label breaks inside the row that bounds it** (#481, the AGENT panel's capture
 /// `feedback-1794783669349`: *"The widgets are breaking out of the div here."*).
 ///
 /// gooey's [`bevy_gooey::toggle`] lays its row out as `SpaceBetween` — the label on the left, the switch on the right —
 /// and every control's label is `NoWrap` (`widgets::ONE_LINE`), because gooey sizes a control's row by its widest child.
-/// That is right in a dialog and wrong in a dock whose pane is narrower than the two: the label keeps its whole width,
-/// the switch keeps its own, and the pair overflows. Measured on the frame: the panel's viewport content ends at
-/// `x≈673`, and `Pause agent writes`'s track is drawn from `x=631` to `x=728` — the switch sits **55 px past** the
-/// viewport's edge, in the scrollbar's gutter and over the panel's border.
+/// That is right in a dialog and wrong in a dock whose pane is narrower than the two: the label's min-content width is
+/// its whole unwrapped phrase, the switch keeps its own, and the pair overflows. Measured on the frame: the panel's
+/// viewport content ends at `x≈673`, and `Pause agent writes`'s track is drawn from `x=631` to `x=728` — the switch
+/// sits **55 px past** the viewport's edge, in the scrollbar's gutter and over the panel's border.
 ///
-/// So a toggle's row and its label each get the floor every other narrowing cell in the editor has
-/// ([`narrowing_label`], [`fill_text`]): a zero least width, so the row narrows to the panel and hands the label what the
-/// track does not need. The label breaks inside a word too, since the row is what bounds it.
+/// **The break is the whole fix, and it is the only write here on purpose.** `WordOrCharacter` makes the label's
+/// min-content width its longest *word* rather than its whole phrase, which is what lets flex shrink the label into the
+/// room the track leaves, where a `NoWrap` label could not give at all.
+///
+/// **The floor is the trap, and it is measured.** gooey's toggle label has no `TextFlow` of its own, so its
+/// automatic minimum is its content; writing a zero `min_width` on the row and on the label — the obvious companion to
+/// the break, and what `fill_text` carries — drops the row's automatic minimum to nothing. The AGENT block is a
+/// `column` in a scrolling pane, so a block that no longer reserves its own line makes every row below it shorter, and
+/// the panel's hint line came up under the block: measured, `Control(Hint)` covering **24x14 px and 24x7 px** of ink
+/// in a 1280x720 window, caught by `headless::no_badge_cluster_draws_through_another`. With the break alone, that test
+/// passes, the two `the_decision_model_is_a_setting` rows pass, and #481's own two tests pass.
 ///
 /// # Why a system, and why every frame
 ///
-/// The label is gooey's — `toggle` spawns it, so the editor can only reach it after the fact — and gooey re-asserts its
-/// control-label layout on every style pass. Retagging it would trade the skin's `ControlText` ink for a break, so this
-/// keeps gooey's role and ink and rewrites only the layout, [after](bevy_gooey::GooeySystems::Style) gooey has written
-/// the skin's node — a write before it would be overwritten the same frame. Every write is compared first, so a settled
-/// panel costs a few reads a frame.
+/// The label is gooey's — `toggle` spawns it, so the editor can only reach it after the fact — and gooey
+/// re-asserts its control-label layout on every style pass. Retagging it would trade the skin's `ControlText` ink for
+/// a break, so this keeps gooey's role and ink and rewrites only the layout,
+/// [after](bevy_gooey::GooeySystems::Style) gooey has written the skin's node — a write before it would be
+/// overwritten the same frame. Every write is compared first, so a settled panel costs a few reads a frame.
 pub fn let_a_toggle_label_break(
-    // **The two queries are disjoint by `Text`, not by `Role`** (B0001): a toggle's own row is never a text, and every
-    // word this reaches is one. A `Without<Role>` on the words query would be a *second* filter with a cost and a wrong
-    // one: the skin puts `ControlText` on exactly the labels this exists to narrow.
-    mut toggles: Query<(&bevy_gooey::Role, &Children, &mut Node), Without<Text>>,
-    mut words: Query<(&mut TextLayout, &mut Node), With<Text>>,
+    // **The two queries are disjoint by `Text`, not by `Role`** (B0001): a toggle's own row is never a text, and
+    // every word this reaches is one. A `Without<Role>` on the words query would be a *second* filter with a cost and a
+    // wrong one: the skin puts `ControlText` on exactly the labels this exists to break.
+    toggles: Query<(&bevy_gooey::Role, &Children), Without<Text>>,
+    mut words: Query<&mut TextLayout, With<Text>>,
 ) {
-    for (role, kids, mut row) in &mut toggles {
+    for (role, kids) in &toggles {
         if *role != bevy_gooey::Role::Toggle {
             continue;
         }
-        // **The row has a zero floor too.** Its layout is `SpaceBetween`, whose automatic minimum is the label's width
-        // plus the track's, so a row with no floor is as wide as both whatever the panel says — the 55 px. With the
-        // floor the row takes the panel's width and hands the label what the track does not need.
-        if row.min_width != Val::ZERO {
-            row.min_width = Val::ZERO;
-        }
         for kid in kids.iter() {
-            let Ok((mut layout, mut node)) = words.get_mut(kid) else { continue };
+            let Ok(mut layout) = words.get_mut(kid) else { continue };
             if layout.linebreak != LineBreak::WordOrCharacter {
                 layout.linebreak = LineBreak::WordOrCharacter;
-            }
-            // The same floor on the label: without it the label's automatic minimum is its longest word, and the row
-            // overflows by that much instead. Only the children that carry words are touched, so the track (a node
-            // holding a knob) is left as the skin sized it.
-            if node.min_width != Val::ZERO {
-                node.min_width = Val::ZERO;
             }
         }
     }
