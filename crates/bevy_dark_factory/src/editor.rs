@@ -3843,7 +3843,16 @@ fn spawn_panel(mut commands: Commands, frame: Res<crate::chrome::Frame>) {
                             );
                             row.spawn(bevy_gooey::fill_column(0.0))
                             .with_children(|col| {
-                                crate::chrome::row_value(col, "", crate::chrome::ink().text, Field::Last);
+                                // **The receipt is the one readout that is a sentence, so it wraps** (#494).
+                                // `row_value` holds a value to one line — right for `nothing`, for a count, for a
+                                // name — and the receipt is not one: its row reserves `RECEIPT_LINES` and grows past
+                                // them for a longer note (`a_long_receipt_is_drawn_whole`), and it must not move MAP
+                                // SIZE when it is two lines (`a_receipt_does_not_move_the_panel`). Measured on this
+                                // row with `row_value` here: the receipt was **16 px** against a 17 px line, and
+                                // `none — this project stamps nothing` ended **200.6 px past** the INSPECTOR's
+                                // content edge at 158 px and interface scale 1. `row_value_wrapping` gives it the
+                                // column's width and a break inside a word, which is both faults at once.
+                                crate::chrome::row_value_wrapping(col, "", crate::chrome::ink().text, Field::Last);
                             });
                         } else {
                             // `READOUT_LABEL_W` holds the longest single word here (`RELATIONS`), and

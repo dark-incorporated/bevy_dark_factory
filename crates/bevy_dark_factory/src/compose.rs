@@ -380,7 +380,13 @@ fn rebuild_picker(
             // **A project with no compositions says so, and says it in the panel.** A project with
             // none stamps nothing, which is not a broken one — the same words the COMPOSE tab uses,
             // so the author learns one sentence and meets it twice.
-            crate::chrome::row_value(
+            //
+            // **A sentence, so it wraps** (#494). `row_value` is a readout held to one line, and this block is
+            // nothing but the sentence: measured at the INSPECTOR's 158 px drag minimum, this line of words
+            // ended **200.6 px past** the panel's content edge at interface scale 1, because a one-line value in a
+            // box that does not clip paints its glyphs at their own width. The block is as tall as what it says,
+            // so the wrapping builder — the one the crate keeps for sentences — is what it wants.
+            crate::chrome::row_value_wrapping(
                 p,
                 "none — this project stamps nothing",
                 ink.quiet,
