@@ -2,6 +2,10 @@
 
 What each change added, newest first. A visible change has a clip: click the still to play it. `python3 tools/changelog/changelog.py page --open` plays them all in one page.
 
+## 2026-11-18
+
+- **488-panel-authoring-format** `4ed4e330` A panel's authoring format is researched with per-panel measurements: a typed struct drawn by gooey's inspector, with YAML as its text form, and Markdown stays prose *No clip: A design document: no code changed, so nothing in the editor's suite can fail on it -- see docs/design/panel-authoring-format.md*
+
 ## 2026-11-17
 
 - **472-section-cut** blueprint_capture_still and blueprint_decide take cut_m: a section plane that removes what stands between the camera and a carved room, so the floor can be seen; hide alone draws the interior's near surface, the vault and the far walls, and never the floor *For you: A captured picture can now look at the floor of an underground room instead of the ceiling above it.* *No clip: a parameter and a view; proved by crates/dark_factory_mcp/tests/decide_hides_the_terrain.rs*
