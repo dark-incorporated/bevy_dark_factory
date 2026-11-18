@@ -35,8 +35,8 @@
 
 use bevy::prelude::*;
 
-use bevy_cauldron::harness::{self, Device};
-use bevy_cauldron::view::SectionCut;
+use bevy_dark_factory::harness::{self, Device};
+use bevy_dark_factory::view::SectionCut;
 
 use crate::fixtures;
 
@@ -54,14 +54,14 @@ const CUT_M: f32 = 31.0;
 /// at 6 m whose ceiling is at 18.4, and four columns standing in it.
 fn an_air_room(tag: &str) -> std::path::PathBuf {
     let root = fixtures::Fixture::new(tag).side(40.0).build("lair");
-    let grimoire = root.join("assets/grimoire");
-    std::fs::create_dir_all(grimoire.join("terrain")).expect("a terrain folder");
-    std::fs::create_dir_all(grimoire.join("volume")).expect("a volume folder");
+    let blueprint = root.join("assets/blueprint");
+    std::fs::create_dir_all(blueprint.join("terrain")).expect("a terrain folder");
+    std::fs::create_dir_all(blueprint.join("volume")).expect("a volume folder");
     // A flat 2 m of soil: the rock above it is the volume, because a heightfield is a *surface* and a surface has
     // no inside to carve.
     let cells = 40;
     std::fs::write(
-        grimoire.join("terrain/lair.yaml"),
+        blueprint.join("terrain/lair.yaml"),
         format!(
             "origin: [-40.0, -40.0]\ncell_m: 2.0\nwidth: {cells}\ndepth: {cells}\nheights: [{}]\n",
             vec!["2.0"; cells * cells].join(", ")
@@ -69,7 +69,7 @@ fn an_air_room(tag: &str) -> std::path::PathBuf {
     )
     .expect("the ground is written");
     std::fs::write(
-        grimoire.join("volume/lair.yaml"),
+        blueprint.join("volume/lair.yaml"),
         format!(
             "version: 1\nedits:\n\
              - shape: {{Box: {{center: [0.0, 2.0, 0.0], half_m: [40.0, {rock_half}, 40.0]}}}}\n  mode: Add\n  smooth_m: 0.0\n\
@@ -93,7 +93,7 @@ fn rendering_editor(tag: &str) -> Option<App> {
         return None;
     }
     let root = an_air_room(tag);
-    let mut app = harness::build_stepped_at(&root, "lair", None, bevy_cauldron::tiles::Mode::default(), Device::Real)
+    let mut app = harness::build_stepped_at(&root, "lair", None, bevy_dark_factory::tiles::Mode::default(), Device::Real)
         .unwrap_or_else(|e| panic!("{e}"));
     // The volumes are meshed by the `isomesh` feature; without it a carved map draws nothing to sample.
     if !cfg!(feature = "isomesh") {
@@ -107,7 +107,7 @@ fn rendering_editor(tag: &str) -> Option<App> {
 
 /// **The picture's pixels, as the surface image holds them.**
 fn pixels(app: &mut App) -> Option<(u32, u32, Vec<u8>)> {
-    let surface = app.world().resource::<bevy_cauldron::surface::Surface>().image.clone();
+    let surface = app.world().resource::<bevy_dark_factory::surface::Surface>().image.clone();
     let images = app.world().resource::<Assets<Image>>();
     let image = images.get(&surface)?;
     let size = image.texture_descriptor.size;
@@ -245,7 +245,7 @@ fn the_plane_is_put_back_on_the_camera() {
 /// The Map camera's orthographic `near`, as the renderer will read it.
 fn near_of(app: &mut App) -> Option<f32> {
     let world = app.world_mut();
-    let mut q = world.query::<(&Projection, &bevy_cauldron::view::MainCamera)>();
+    let mut q = world.query::<(&Projection, &bevy_dark_factory::view::MainCamera)>();
     q.iter(world).next().and_then(|(p, _)| match p {
         Projection::Orthographic(o) => Some(o.near),
         _ => None,

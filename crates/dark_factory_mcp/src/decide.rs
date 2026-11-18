@@ -49,11 +49,11 @@ pub struct DecideParams {
     #[serde(default)]
     pub view: bool,
     /// **The map's own surfaces to hide for the picture this call takes** (#472): any of `terrain`,
-    /// `volume`, `water`, in `grimoire_capture_still`'s own words.
+    /// `volume`, `water`, in `blueprint_capture_still`'s own words.
     ///
     /// **The same parameter, the same names, the same default**, because it is the same view: the server
     /// hides these before the still and puts the previous view back after it, through the one
-    /// `grab`/`set_hidden` pair `grimoire_capture_still` uses. `["terrain"]` cuts a carved map's solid, so
+    /// `grab`/`set_hidden` pair `blueprint_capture_still` uses. `["terrain"]` cuts a carved map's solid, so
     /// the picture `floating` and `clipping` are asked about is a room rather than the hill it is buried in
     /// — which is the whole of this parameter's reason for existing: those checks were blind underground.
     ///
@@ -158,12 +158,12 @@ pub async fn fetch_game(project: &Path, game: &GameParams) -> Result<GameEvidenc
 
 /// **Take one picture of the editor through a view `hide` names, and put the view back after it** (#472).
 ///
-/// **The one path `grimoire_capture_still` and `grimoire_decide` both take**, so a still and the picture a
+/// **The one path `blueprint_capture_still` and `blueprint_decide` both take**, so a still and the picture a
 /// check is asked about are the same picture taken the same way. A second implementation of hiding would be
 /// a second answer to what "the terrain hidden" looks like, and the two would drift the first time one
 /// changed.
 ///
-/// `hide` is `grimoire_capture_still`'s own parameter — `["terrain"]`, `["volume"]`, `["water"]`, or a
+/// `hide` is `blueprint_capture_still`'s own parameter — `["terrain"]`, `["volume"]`, `["water"]`, or a
 /// combination — and `None` asks the editor nothing at all, so a call that names none costs no round trip and
 /// cannot move the view. **A name the editor does not draw is refused by the editor**, in its own words and
 /// naming the list that would have worked, so both tools refuse a typo identically.
@@ -184,7 +184,7 @@ pub async fn grab_through(
     let cut_was = match cut_m {
         None => None,
         Some(metres) => {
-            let answer = brp.call("grimoire/section_cut", json!({"cut_m": metres})).await?;
+            let answer = brp.call("blueprint/section_cut", json!({"cut_m": metres})).await?;
             Some(answer.get("was").and_then(Value::as_f64).map(|w| w as f32))
         }
     };
@@ -193,7 +193,7 @@ pub async fn grab_through(
     // surfaces as they were — the one state neither the caller nor the person asked for.
     let was = match hide {
         None => None,
-        Some(names) => match brp.call("grimoire/surface_hide", json!({"hide": names})).await {
+        Some(names) => match brp.call("blueprint/surface_hide", json!({"hide": names})).await {
             Ok(answer) => Some(
                 answer
                     .get("was")
@@ -203,7 +203,7 @@ pub async fn grab_through(
             ),
             Err(e) => {
                 if restore && cut_m.is_some() {
-                    let _ = brp.call("grimoire/section_cut", json!({"cut_m": cut_was.flatten()})).await;
+                    let _ = brp.call("blueprint/section_cut", json!({"cut_m": cut_was.flatten()})).await;
                 }
                 return Err(e);
             }
@@ -216,12 +216,12 @@ pub async fn grab_through(
         let mut lost = Vec::new();
         if was.is_some()
             && let Some(back) = &was
-            && let Err(e) = brp.call("grimoire/surface_hide", json!({"hide": back})).await
+            && let Err(e) = brp.call("blueprint/surface_hide", json!({"hide": back})).await
         {
             lost.push(format!("the surfaces: {e}"));
         }
         if cut_m.is_some()
-            && let Err(e) = brp.call("grimoire/section_cut", json!({"cut_m": cut_was.flatten()})).await
+            && let Err(e) = brp.call("blueprint/section_cut", json!({"cut_m": cut_was.flatten()})).await
         {
             lost.push(format!("the section plane: {e}"));
         }

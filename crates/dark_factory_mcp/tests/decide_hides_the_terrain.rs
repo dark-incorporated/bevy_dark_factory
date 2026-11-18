@@ -1,6 +1,6 @@
-//! **`grimoire_decide` honours `hide` for the turn it is asked in** (#472, acceptance 4).
+//! **`blueprint_decide` honours `hide` for the turn it is asked in** (#472, acceptance 4).
 //!
-//! `grimoire_decide`'s `floating` and `clipping` checks take `view` themselves, so on an underground map they
+//! `blueprint_decide`'s `floating` and `clipping` checks take `view` themselves, so on an underground map they
 //! were asking about the rock's *outside* — a question about a surface the room is behind. This proves what
 //! fixes that, through the one function both tools call (`decide::grab_through`) against a stand-in editor
 //! that records every method asked of it and remembers what it has hidden:
@@ -19,8 +19,8 @@ use std::net::TcpListener;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
-use bevy_cauldron_mcp::brp::Brp;
-use bevy_cauldron_mcp::decide::grab_through;
+use dark_factory_mcp::brp::Brp;
+use dark_factory_mcp::decide::grab_through;
 use serde_json::{Value, json};
 
 /// **One BRP call a stand-in editor was asked**: the method, its parameters, and when it arrived.
@@ -41,7 +41,7 @@ struct FakeEditor {
 /// The surfaces the editor draws, in its own words — `outliner::HIDABLE`'s three.
 const HIDABLE: [&str; 3] = ["terrain", "volume", "water"];
 
-/// **A stand-in editor over BRP**, answering fairy's two capture methods and `grimoire/surface_hide`, and
+/// **A stand-in editor over BRP**, answering fairy's two capture methods and `blueprint/surface_hide`, and
 /// **remembering what it has hidden** so a test can read the view at the moment of the capture.
 fn editor() -> FakeEditor {
     let listener = TcpListener::bind("127.0.0.1:0").expect("an ephemeral port");
@@ -84,7 +84,7 @@ fn editor() -> FakeEditor {
                 // **What the view was while this picture was taken**, so a test can tell a still taken under
                 // the cut from one taken without it, without reading a pixel.
                 "bevy_fairy/capture" => json!({"status": "done", "png_base64": png, "hidden_at_capture": hidden}),
-                "grimoire/surface_hide" => {
+                "blueprint/surface_hide" => {
                     let before = hidden.clone();
                     let named: Vec<String> = params["hide"]
                         .as_array()
@@ -103,7 +103,7 @@ fn editor() -> FakeEditor {
                     hidden = named;
                     json!({"hidden": hidden, "was": before, "drawn_now": []})
                 }
-                "grimoire/section_cut" => {
+                "blueprint/section_cut" => {
                     let before = cut;
                     let asked_for = params.get("cut_m").and_then(Value::as_f64).map(|m| m as f32);
                     if let Some(m) = asked_for
@@ -141,7 +141,7 @@ impl FakeEditor {
     }
 }
 
-/// **The one call `grimoire_decide` makes for its `view`**, with `hide` naming the terrain.
+/// **The one call `blueprint_decide` makes for its `view`**, with `hide` naming the terrain.
 #[tokio::test(flavor = "multi_thread")]
 async fn the_picture_decide_asks_about_is_taken_with_the_terrain_hidden() {
     let editor = editor();
@@ -152,7 +152,7 @@ async fn the_picture_decide_asks_about_is_taken_with_the_terrain_hidden() {
     assert_eq!(was, Some(vec![]), "nothing was hidden before the call: {was:?}");
 
     let asked = editor.asked();
-    let hides: Vec<&Asked> = asked.iter().filter(|a| a.method == "grimoire/surface_hide").collect();
+    let hides: Vec<&Asked> = asked.iter().filter(|a| a.method == "blueprint/surface_hide").collect();
     let capture = asked.iter().find(|a| a.method == "bevy_fairy/screenshot").expect("a capture was asked for");
     assert_eq!(hides.len(), 2, "one hide and one restore, and nothing else: {asked:#?}");
     assert_eq!(hides[0].params["hide"], json!(["terrain"]), "the first call hides the terrain");
@@ -168,12 +168,12 @@ async fn what_was_hidden_before_the_question_is_what_is_hidden_after_it() {
     let editor = editor();
     let brp = editor.brp();
     // The person already has the water hidden, for a reason of their own.
-    brp.call("grimoire/surface_hide", json!({"hide": ["water"]})).await.expect("the water is hidden");
+    brp.call("blueprint/surface_hide", json!({"hide": ["water"]})).await.expect("the water is hidden");
     let (_png, was) = grab_through(&brp, "offscreen", Some(&["terrain".to_owned()]), None, true)
         .await
         .expect("the picture is taken");
     assert_eq!(was, Some(vec!["water".to_owned()]), "the call says what stood before it: {was:?}");
-    let after = brp.call("grimoire/surface_hide", json!({"hide": ["water"]})).await.expect("asked again");
+    let after = brp.call("blueprint/surface_hide", json!({"hide": ["water"]})).await.expect("asked again");
     assert_eq!(after["was"], json!(["water"]), "**the person's water is still hidden afterwards**: {after}");
 }
 
@@ -186,14 +186,14 @@ async fn with_no_hide_the_view_is_never_touched() {
     assert_eq!(was, None, "the call names no view, so it reports none");
     let asked = editor.asked();
     assert!(
-        asked.iter().all(|a| a.method != "grimoire/surface_hide"),
+        asked.iter().all(|a| a.method != "blueprint/surface_hide"),
         "**the editor is never asked to hide anything**: {asked:#?}"
     );
     assert_eq!(asked.iter().filter(|a| a.method == "bevy_fairy/screenshot").count(), 1, "and one picture was taken");
 }
 
 /// **A name the editor does not draw is refused in the editor's own words**, never silently ignored, and the
-/// refusal is the still's — because it is the same `grimoire/surface_hide` verb under both tools.
+/// refusal is the still's — because it is the same `blueprint/surface_hide` verb under both tools.
 #[tokio::test(flavor = "multi_thread")]
 async fn a_surface_the_editor_does_not_draw_is_refused_naming_the_list() {
     let editor = editor();
@@ -212,19 +212,19 @@ async fn a_surface_the_editor_does_not_draw_is_refused_naming_the_list() {
 }
 
 /// **`DecideParams` carries `hide` in the still's own words**, and its default is no hiding at all: the
-/// parameter is the one `grimoire_capture_still` has, not a second vocabulary a caller has to learn.
+/// parameter is the one `blueprint_capture_still` has, not a second vocabulary a caller has to learn.
 #[test]
 fn the_parameters_hide_is_the_stills_own_and_defaults_to_none() {
-    let plain: bevy_cauldron_mcp::decide::DecideParams = serde_json::from_value(json!({"view": true})).expect("a call with no hide");
+    let plain: dark_factory_mcp::decide::DecideParams = serde_json::from_value(json!({"view": true})).expect("a call with no hide");
     assert_eq!(plain.hide, None, "a call that names no hide hides nothing");
 
-    let named: bevy_cauldron_mcp::decide::DecideParams =
+    let named: dark_factory_mcp::decide::DecideParams =
         serde_json::from_value(json!({"view": true, "hide": ["terrain"]})).expect("a call naming the terrain");
     assert_eq!(named.hide, Some(vec!["terrain".to_owned()]), "and the names are the still's");
 
     // **`deny_unknown_fields` still holds**, so a misspelled parameter is a refusal rather than a silent no-op.
     assert!(
-        serde_json::from_value::<bevy_cauldron_mcp::decide::DecideParams>(json!({"view": true, "hidden": ["terrain"]})).is_err(),
+        serde_json::from_value::<dark_factory_mcp::decide::DecideParams>(json!({"view": true, "hidden": ["terrain"]})).is_err(),
         "a misspelled parameter is refused, so a hide that never happened cannot read as one that did"
     );
 }
@@ -249,7 +249,7 @@ async fn cut_m_reaches_the_camera_and_is_put_back_after_the_picture() {
     let editor = editor();
     let brp = editor.brp();
     // **The camera's own near is whatever it was**, and the call must not be the thing that decides it.
-    let before = brp.call("grimoire/section_cut", json!({"cut_m": null})).await.expect("the camera answers");
+    let before = brp.call("blueprint/section_cut", json!({"cut_m": null})).await.expect("the camera answers");
     assert_eq!(before["cut_m"], Value::Null, "no plane stands to begin with: {before}");
 
     let (_png, was) = grab_through(&brp, "offscreen", Some(&["terrain".to_owned()]), Some(31.0), true)
@@ -257,7 +257,7 @@ async fn cut_m_reaches_the_camera_and_is_put_back_after_the_picture() {
         .expect("the picture is taken");
     assert_eq!(was, Some(vec![]), "the call reports what was hidden before it");
 
-    let cuts: Vec<_> = editor.asked().into_iter().filter(|a| a.method == "grimoire/section_cut").collect();
+    let cuts: Vec<_> = editor.asked().into_iter().filter(|a| a.method == "blueprint/section_cut").collect();
     // The first is this test's own look at what stood before it; the capture's are the two after it.
     assert_eq!(cuts.len(), 3, "this test's own call, then the plane placed and put back: {cuts:#?}");
     assert_eq!(cuts[1].params["cut_m"], json!(31.0), "**the plane is the caller's own number**, not a constant");
@@ -276,7 +276,7 @@ async fn a_refused_capture_still_puts_the_plane_back() {
         .await
         .expect_err("a typo is refused");
     assert!(said.contains("terain"), "{said}");
-    let cuts: Vec<_> = editor.asked().into_iter().filter(|a| a.method == "grimoire/section_cut").collect();
+    let cuts: Vec<_> = editor.asked().into_iter().filter(|a| a.method == "blueprint/section_cut").collect();
     assert_eq!(cuts.len(), 2, "the plane was placed, and put back despite the refusal: {cuts:#?}");
     assert_eq!(cuts[0].params["cut_m"], json!(31.0), "placed first, which is what makes the interior visible");
     assert_eq!(cuts[1].params["cut_m"], Value::Null, "the camera's own near is restored");
@@ -286,7 +286,7 @@ async fn a_refused_capture_still_puts_the_plane_back() {
 /// tools share, because a plane with nothing hidden removes the air in front of a room that is still buried.
 #[test]
 fn a_plane_without_a_hide_is_refused_by_the_one_rule_both_tools_call() {
-    use bevy_cauldron_mcp::decide::check_cut;
+    use dark_factory_mcp::decide::check_cut;
     let said = check_cut(None, Some(31.0)).expect_err("a plane with no hide is refused");
     assert!(said.contains("cut_m: 31") && said.contains("needs `hide`"), "it names both and the rule: {said}");
     let said = check_cut(Some(&[]), Some(31.0)).expect_err("an empty hide is no hide");
@@ -312,9 +312,9 @@ async fn no_hide_and_no_cut_m_asks_the_editor_for_nothing_but_a_picture() {
     assert_eq!(was, None, "the call names no view");
     let asked = editor.asked();
     assert!(
-        asked.iter().all(|a| a.method != "grimoire/section_cut"),
+        asked.iter().all(|a| a.method != "blueprint/section_cut"),
         "**no plane is placed**: {asked:#?}"
     );
-    assert!(asked.iter().all(|a| a.method != "grimoire/surface_hide"), "and nothing is hidden");
+    assert!(asked.iter().all(|a| a.method != "blueprint/surface_hide"), "and nothing is hidden");
     assert_eq!(asked.iter().filter(|a| a.method == "bevy_fairy/screenshot").count(), 1, "one picture");
 }

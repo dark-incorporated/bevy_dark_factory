@@ -3250,7 +3250,7 @@ fn one_true() -> bool {
     true
 }
 
-/// **The parameters of `grimoire/section_cut`** (#472). `deny_unknown_fields`, so a typo is a refusal: a
+/// **The parameters of `blueprint/section_cut`** (#472). `deny_unknown_fields`, so a typo is a refusal: a
 /// `cut_m` misnamed would leave the camera's near plane alone and read as a working call.
 #[derive(Debug, Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -3261,7 +3261,7 @@ pub struct SectionCutParams {
     pub cut_m: Option<f32>,
 }
 
-/// **`grimoire/section_cut` — a plane that removes what stands between the camera and an interior** (#472).
+/// **`blueprint/section_cut` — a plane that removes what stands between the camera and an interior** (#472).
 ///
 /// **Why a plane, when `surface_hide` already cuts.** `hide: ["terrain"]` culls the solid's front faces, and
 /// with the mesher's outward winding that keeps the interior's **near** surface — the vault and the far walls
@@ -3301,7 +3301,7 @@ fn section_cut(In(p): In<SectionCutParams>, mut cut: Option<ResMut<crate::view::
     }
 }
 
-/// **`grimoire/surface_hide` — hide the map's own surfaces, so a carved interior can be seen** (#472).
+/// **`blueprint/surface_hide` — hide the map's own surfaces, so a carved interior can be seen** (#472).
 /// **`blueprint/surface_hide` — hide the map's own surfaces, so a carved interior can be seen** (#472).
 ///
 /// **A view, not map data.** The surfaces stay in their files, `blueprint_state.map.dirty` is untouched and
@@ -3917,7 +3917,7 @@ impl Plugin for OpsBridgePlugin {
 
         app.add_debug_command(
             DebugCommandInfo::new(
-                "grimoire/section_cut",
+                "blueprint/section_cut",
                 "Place a section plane that removes everything nearer the camera than cut_m metres, so a \
                  room's floor can be seen from outside. hide: [\"terrain\"] alone draws the interior's \
                  NEAR surface -- the vault and the far walls -- because front-face culling keeps the faces \
@@ -3935,7 +3935,6 @@ impl Plugin for OpsBridgePlugin {
 
         app.add_debug_command(
             DebugCommandInfo::new(
-                "grimoire/volume_report",
                 "blueprint/volume_report",
                 "What a map's carve list actually made -- the question a carve raises and nothing else \
                  answers: does this Add still exist after the carves that follow it, is this room sealed, \

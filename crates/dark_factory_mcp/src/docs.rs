@@ -376,7 +376,7 @@ pub const TOOLS: &[ToolDoc] = &[
                       images (stills from blueprint_capture_still, at most four, each at most 8 MiB) and facts (JSON). A check that needs a picture or \
                       facts it was not given is refused and names what is missing; it never answers from \
                       less. hide: the map's own surfaces to take out of the picture this call takes for \
-                      view, in grimoire_capture_still's own words: [\"terrain\"] cuts a carved ground's \
+                      view, in blueprint_capture_still's own words: [\"terrain\"] cuts a carved ground's \
                       outer skin away, so floating and clipping are asked about the interior's NEAR \
                       surface -- the vault and the far walls, lit from the side the camera is on -- \
                       instead of the hill it is buried in. That is the shape of the void, not the room: \
@@ -1009,14 +1009,14 @@ pub fn schemas() -> Value {
                 }
             }),
         );
-        // **`grimoire_decide`'s `hide`** (#472), for the same reason: one more property inside the literal
+        // **`blueprint_decide`'s `hide`** (#472), for the same reason: one more property inside the literal
         // above pushes the whole table past the crate's recursion limit.
         if let Some(decide) = map
-            .get_mut("grimoire_decide")
+            .get_mut("blueprint_decide")
             .and_then(|d| d.get_mut("properties"))
             .and_then(serde_json::Value::as_object_mut)
         {
-            decide.insert("hide".to_owned(), serde_json::json!({"type": "array", "items": {"type": "string", "enum": ["terrain", "volume", "water"]}, "default": [], "description": "The map's own surfaces to take out of the picture this call takes for view, in grimoire_capture_still's own words. [\"terrain\"] cuts the ground's outer skin away, so floating and clipping are asked about a carved room rather than the rock it is cut into, lit from the side the camera is on rather than left as shadows; the camera is not moved, no file is written, the map is not marked dirty and no operation log line is made. Put back before the model is asked. Default empty: nothing is hidden, and ignored when no picture is taken."}));
+            decide.insert("hide".to_owned(), serde_json::json!({"type": "array", "items": {"type": "string", "enum": ["terrain", "volume", "water"]}, "default": [], "description": "The map's own surfaces to take out of the picture this call takes for view, in blueprint_capture_still's own words. [\"terrain\"] cuts the ground's outer skin away, so floating and clipping are asked about a carved room rather than the rock it is cut into, lit from the side the camera is on rather than left as shadows; the camera is not moved, no file is written, the map is not marked dirty and no operation log line is made. Put back before the model is asked. Default empty: nothing is hidden, and ignored when no picture is taken."}));
             decide.insert("cut_m".to_owned(), serde_json::json!({"type": ["number", "null"], "default": null, "description": "A section plane for the picture this call takes: everything nearer the camera than this many metres is removed, so a room's floor is what the picture shows. hide alone draws the interior's near surface - the vault and the far walls - and never the floor, which is behind the vault along every ray from above. Place the plane where the room's near wall stands. Needs hide, and is put back before the model is asked."}));
         }
     }

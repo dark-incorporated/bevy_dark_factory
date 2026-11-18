@@ -47,21 +47,21 @@ Pre-flight turn (one real model turn before any trial, in no trial's cost): 10 f
 
 - first failing check: `placement_near_wall` — wanted a \`bed_double\` against the north wall within 0.050 m, centred within 0.200 m; measured \`bed_double@1\` is -0.110 m from the north wall \(through it\), and the task wants within 0.050 m and 0.000 m off the middle of it
 - its last 5 call(s), oldest first:
-  - `grimoire_undo_operation {"operation_id":"0000-3602"}`
-  - `grimoire_apply_operation {"operation":"placement_add","parameters":{"at":[0,-1.5],"piece":"bed_double"}}`
-  - `grimoire_capture_still {"label":"bed_final"}`
-  - `grimoire_decide {"questions":{"bed_kind":{"criteria":{"no":"not a bed","yes":"clearly a bed with mattress and pillows"},"instructions":"The furniture placed is a bed.","type":"…`
-  - `grimoire_present {"inferred":["The room is 6 m wide (x) and 5 m deep (z), with north at z = -2.5. The bed_double piece was used. Placement at (0.0, -1.5) centres the bed horizon…`
+  - `blueprint_undo_operation {"operation_id":"0000-3602"}`
+  - `blueprint_apply_operation {"operation":"placement_add","parameters":{"at":[0,-1.5],"piece":"bed_double"}}`
+  - `blueprint_capture_still {"label":"bed_final"}`
+  - `blueprint_decide {"questions":{"bed_kind":{"criteria":{"no":"not a bed","yes":"clearly a bed with mattress and pillows"},"instructions":"The furniture placed is a bed.","type":"…`
+  - `blueprint_present {"inferred":["The room is 6 m wide (x) and 5 m deep (z), with north at z = -2.5. The bed_double piece was used. Placement at (0.0, -1.5) centres the bed horizon…`
 
 ### `count-what-the-bedroom-holds`, trial 1
 
 - first failing check: `handback_contains` — wanted a hand-back stating three, dresser; measured the hand-back \`Bedroom inventory count\` does not state \`three\`
 - its last 2 call(s), oldest first:
-  - `grimoire_state {}`
-  - `grimoire_present {"specified":["Count pieces and identify the one nearest the north wall"],"summary":"The bedroom holds 3 pieces. The dresser (dresser_tall) is nearest the north…`
+  - `blueprint_state {}`
+  - `blueprint_present {"specified":["Count pieces and identify the one nearest the north wall"],"summary":"The bedroom holds 3 pieces. The dresser (dresser_tall) is nearest the north…`
 
 ## Where the agent stumbles (dev tasks)
 
-- tools called most: `grimoire_list_pieces` ×3, `grimoire_present` ×3, `grimoire_preview_operation` ×3, `grimoire_state` ×3, `grimoire_apply_operation` ×2, `grimoire_capture_still` ×2, `grimoire_decide` ×2, `grimoire_guide` ×2
-- refusals by tool: `grimoire_preview_operation` ×2
+- tools called most: `blueprint_list_pieces` ×3, `blueprint_present` ×3, `blueprint_preview_operation` ×3, `blueprint_state` ×3, `blueprint_apply_operation` ×2, `blueprint_capture_still` ×2, `blueprint_decide` ×2, `blueprint_guide` ×2
+- refusals by tool: `blueprint_preview_operation` ×2
 - wishes, by the tool wished for: none

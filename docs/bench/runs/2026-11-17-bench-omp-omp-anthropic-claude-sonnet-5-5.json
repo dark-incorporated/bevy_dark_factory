@@ -256,14 +256,14 @@
     }
   ],
   "tool_counts": {
-    "grimoire_apply_operation": 1,
-    "grimoire_decide": 1,
-    "grimoire_guide": 3,
-    "grimoire_list_operations": 1,
-    "grimoire_list_pieces": 3,
-    "grimoire_present": 3,
-    "grimoire_preview_operation": 1,
-    "grimoire_state": 3
+    "blueprint_apply_operation": 1,
+    "blueprint_decide": 1,
+    "blueprint_guide": 3,
+    "blueprint_list_operations": 1,
+    "blueprint_list_pieces": 3,
+    "blueprint_present": 3,
+    "blueprint_preview_operation": 1,
+    "blueprint_state": 3
   },
   "refusals_by_tool": {},
   "wishes_by_tool": {},

@@ -43,6 +43,6 @@ Pre-flight turn (one real model turn before any trial, in no trial's cost): 4 fr
 
 ## Where the agent stumbles (dev tasks)
 
-- tools called most: `grimoire_guide` ×3, `grimoire_list_pieces` ×3, `grimoire_present` ×3, `grimoire_state` ×3, `grimoire_apply_operation` ×1, `grimoire_decide` ×1, `grimoire_list_operations` ×1, `grimoire_preview_operation` ×1
+- tools called most: `blueprint_guide` ×3, `blueprint_list_pieces` ×3, `blueprint_present` ×3, `blueprint_state` ×3, `blueprint_apply_operation` ×1, `blueprint_decide` ×1, `blueprint_list_operations` ×1, `blueprint_preview_operation` ×1
 - refusals by tool: none
 - wishes, by the tool wished for: none

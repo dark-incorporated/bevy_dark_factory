@@ -237,7 +237,7 @@ pub struct ViewPlugin;
 impl Plugin for ViewPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<Rig>()
-            // **The section plane a still may place** (#472): off until `grimoire/section_cut` names a depth.
+            // **The section plane a still may place** (#472): off until `blueprint/section_cut` names a depth.
             .init_resource::<SectionCut>()
             .init_resource::<Pointer>()
             // **One answer per frame for "is a panel under the pointer"** — `OverUi`'s own doc says why a
@@ -275,7 +275,7 @@ impl Plugin for ViewPlugin {
     }
 }
 
-/// **Where a section plane stands, or that there is none** (#472): the one state `grimoire/section_cut` writes.
+/// **Where a section plane stands, or that there is none** (#472): the one state `blueprint/section_cut` writes.
 ///
 /// **A depth, not a height.** It is metres from the camera along its view, which is what an orthographic
 /// camera's `near` *is*, so applying it is one field on one component and no shader. A world height would
@@ -653,7 +653,8 @@ pub(crate) fn drive(
 
     let (mut tf, mut proj) = camera.into_inner();
     *tf = Transform::from_translation(rig.focus + iso).looking_at(rig.focus, Vec3::Y);
-    *proj = map_projection(rig.height, &tf, open.as_deref());
+    // The rig frames the map itself, so there is no drawn extent to hold in depth yet.
+    *proj = map_projection(rig.height, &tf, open.as_deref(), None);
     // **The section plane, over the projection the rig asked for** (#472): an orthographic camera's `near`
     // *is* a plane perpendicular to its view, so a cut is that one field. The far plane is left alone, so
     // nothing the rig computed to hold the whole map in depth is lost.

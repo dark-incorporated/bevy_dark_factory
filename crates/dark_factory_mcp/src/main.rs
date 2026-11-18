@@ -752,11 +752,11 @@ impl Blueprint {
 
     /// **Grab a picture through a view `hide` names, and put the view back after it** (#472).
     ///
-    /// **A delegate to the library's** [`bevy_cauldron_mcp::decide::grab_through`], so `grimoire_capture_still`
-    /// and `grimoire_decide` take one path rather than two: the hiding, the refusal and the restore are the
+    /// **A delegate to the library's** [`dark_factory_mcp::decide::grab_through`], so `blueprint_capture_still`
+    /// and `blueprint_decide` take one path rather than two: the hiding, the refusal and the restore are the
     /// library's, and this holds nothing of its own.
     async fn grab_through(&self, source: &str, hide: Option<&[String]>, cut_m: Option<f32>, restore: bool) -> Result<(String, Option<Vec<String>>), String> {
-        bevy_cauldron_mcp::decide::grab_through(&self.editor, source, hide, cut_m, restore).await
+        dark_factory_mcp::decide::grab_through(&self.editor, source, hide, cut_m, restore).await
     /// **Hide the surfaces a capture asks for**, and answer what was hidden before it, so the caller can put
     /// the view back. `None` when the call names none: the editor is not asked, so a still with no `hide`
     /// costs no BRP round trip and cannot change the view.
@@ -1570,7 +1570,7 @@ impl Blueprint {
             Err(e) => return Ok(refusal(&e)),
         };
         // **`cut_m` needs `hide`**, refused here with the label, before the editor is asked anything.
-        if let Err(e) = bevy_cauldron_mcp::decide::check_cut(p.hide.as_deref(), p.cut_m) {
+        if let Err(e) = dark_factory_mcp::decide::check_cut(p.hide.as_deref(), p.cut_m) {
             return Ok(refusal(&e));
         }
         // **The state first**, so the picture and the state are the same moment as near as the
@@ -1582,7 +1582,7 @@ impl Blueprint {
             .unwrap_or(Value::Null);
         // **The view the picture is taken through** (#472): `hide` is applied before the grab, so an
         // underground map's rooms are what the picture shows rather than the rock they are cut into.
-        // [`McpServer::grab_through`] is the one path, which `grimoire_decide`'s `view` also takes.
+        // [`McpServer::grab_through`] is the one path, which `blueprint_decide`'s `view` also takes.
         let png = match self.grab_through(fairy_source, p.hide.as_deref(), p.cut_m, p.restore).await {
             Ok((png, _was)) => png,
             Err(e) => return Ok(refusal(&e)),
@@ -1723,7 +1723,7 @@ impl Blueprint {
                        images (stills from blueprint_capture_still, at most four, each at most 8 MiB) and facts (JSON). A check that needs a picture or \
                        facts it was not given is refused and names what is missing; it never answers from \
                        less. hide: the map's own surfaces to take out of the picture this call takes for \
-                       view, in grimoire_capture_still's own words: [\"terrain\"] cuts a carved ground's \
+                       view, in blueprint_capture_still's own words: [\"terrain\"] cuts a carved ground's \
                        outer skin away, so floating and clipping are asked about the interior's NEAR \
                        surface -- the vault and the far walls, lit from the side the camera is on -- \
                        instead of the hill it is buried in. That is the shape of the void, not the room: \
@@ -1759,16 +1759,16 @@ impl Blueprint {
             return Ok(refusal("blueprint_decide needs --project: its checks live in the project"));
         };
         // **`cut_m` needs `hide`**, the same rule the still follows, before any check is loaded.
-        if let Err(e) = bevy_cauldron_mcp::decide::check_cut(p.hide.as_deref(), p.cut_m) {
+        if let Err(e) = dark_factory_mcp::decide::check_cut(p.hide.as_deref(), p.cut_m) {
             return Ok(refusal(&e));
         }
-        let checks = match bevy_cauldron_mcp::decide::load_checks(&project) {
+        let checks = match dark_factory_mcp::decide::load_checks(&project) {
             Ok(c) => c,
             Err(e) => return Ok(refusal(&e)),
         };
-        let view = if bevy_cauldron_mcp::decide::needs_view(&p, &checks) {
+        let view = if dark_factory_mcp::decide::needs_view(&p, &checks) {
             // **The same `hide` a still takes, through the same path** (#472): the picture a check is
-            // asked about is the picture `grimoire_capture_still` would have taken, and the view is put
+            // asked about is the picture `blueprint_capture_still` would have taken, and the view is put
             // back before the model is asked, so a decision never leaves the person's screen changed.
             match self.grab_through("offscreen", p.hide.as_deref(), p.cut_m, true).await {
                 Ok((png, _was)) => Some(png),

@@ -421,8 +421,8 @@ pub fn real_device_available() -> bool {
     // the renderer produced a `RenderDevice`. That is the same code path a pixel test then uses, so a host that
     // answers "yes" here is one where the picture really is rendered — and a host with no driver answers "no"
     // rather than panicking inside `RenderPlugin`.
-    let root = std::env::temp_dir().join(format!("grimoire_device_probe_{}", std::process::id()));
-    if std::fs::create_dir_all(root.join("assets/grimoire")).is_err() {
+    let root = std::env::temp_dir().join(format!("blueprint_device_probe_{}", std::process::id()));
+    if std::fs::create_dir_all(root.join("assets/blueprint")).is_err() {
         return false;
     }
     let mut app = App::new();
