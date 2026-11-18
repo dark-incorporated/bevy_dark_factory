@@ -9024,7 +9024,10 @@ fn draw_pack_band(
     // pointer as a list's row does. The heading the cursor stands on is lit as gooey lights a primary button, by `PrimaryButton`
     // (see `arm_list_rows`). The words in it are gooey's too: their ink follows the band's state, so a lit band keeps them legible.
     p.spawn((bevy_gooey::band(), PackHeader(pack.to_owned()))).with_children(|row| {
-        row.spawn((Text::new(if folded { ">" } else { "v" }), bevy_gooey::Role::ButtonText));
+        // **A chevron, not the letters `v` and `>`** (#493, `docs/ui/vision.md` §9a): the shipped face has U+25BC and
+        // U+25BA, read from its `cmap`. The band is a `Button`, so a press on the mark itself already toggles the pack —
+        // the half of #493 that is this workspace's, and the half gooey's code editor lacks (G-82).
+        row.spawn((Text::new(if folded { "\u{25ba}" } else { "\u{25bc}" }), bevy_gooey::Role::ButtonText));
         // **The pack's name, and — when it is excluded — the way back.**
         //
         // An excluded pack keeps its words because it names a state the chevron does NOT show,
@@ -9047,7 +9050,7 @@ fn draw_pack_band(
 /// now that the arrows reach it (M8).
 fn draw_excluded_band(p: &mut ChildSpawnerCommands, packs: usize, meshes: usize, open: bool) {
     p.spawn((bevy_gooey::band(), ExcludedHeader)).with_children(|row| {
-        row.spawn((Text::new(if open { "v" } else { ">" }), bevy_gooey::Role::ButtonText));
+        row.spawn((Text::new(if open { "\u{25bc}" } else { "\u{25ba}" }), bevy_gooey::Role::ButtonText));
         // **The name column wraps within itself; the tally does not.** The state and the way
         // out of it both stay on the band (`docs/ui.md` §1.4) — what changed is that they now
         // share the *growing* column, so the count can hold a column of its own rather than
@@ -10565,7 +10568,7 @@ fn rebuild_detail(detail: DetailInputs<'_, '_>) {
                                             layer: y,
                                             span: Span::Column(x),
                                         },
-                                        "v",
+                                        "\u{25bc}",
                                     );
                                 }
                             });
@@ -10579,7 +10582,7 @@ fn rebuild_detail(detail: DetailInputs<'_, '_>) {
                                             layer: y,
                                             span: Span::Row(z),
                                         },
-                                        ">",
+                                        "\u{25ba}",
                                     );
                                     for x in 0..dx {
                                         let at = (x, y, z);

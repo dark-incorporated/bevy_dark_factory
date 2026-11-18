@@ -240,6 +240,46 @@ A text is **prose** when it is a sentence or more that a person reads as languag
 - **The face is an asset of its own**, not the one installed over Bevy's default id, so a project's own `assets/fonts/FiraMono-Regular.ttf` replaces the monospace face and leaves the prose face alone. It adds 457 KB to the binary (FiraMono is 175 KB).
 - **Proved by** `tests/the_whats_new_page_reads_in_a_proportional_face.rs`: every sentence resolves to the prose face and is drawn, at 75 characters a line or fewer; every other text, in the launcher and in the editor, resolves to FiraMono; every character of every changelog "For you" sentence is in the prose face's `cmap`.
 
+## 9a. Marks: a glyph vocabulary, not a bigger atlas
+
+**The recommendation #493 asks for, written down before the atlas grows again.** The question was how the editor draws
+the small marks a widget needs — a fold's disclosure, an up/down pair, a close cross, a drag handle — because today it has
+exactly one answer: `crates/bevy_dark_factory/src/icons.rs`, an embedded 8-column PNG atlas of 16 px glyphs,
+`assets/ui/icons.png`, drawn by `tools/ui/make_icons.py`, one glyph per toolbar and panel command.
+
+**Measured, so the choice is not a preference.** The shipped face, `assets/fonts/FiraMono-Regular.ttf`, has U+25BC `▼`,
+U+25BA `►`, U+25B2 `▲`, U+25C4 `◄`, U+00D7 `×`, U+203A `›`, U+25C6 `◆`, U+25CF `●`, U+25CB `○`, U+2192 `→`, U+2191 `↑`,
+U+2193 `↓`, U+2190 `←`, U+2026 `…`, U+2261 `≡`, U+00B7 `·` and U+2014 `—`, read from its own `cmap`. What it does **not**
+have are the half-quadrant chevrons `▾` (U+25BE) and `▸` (U+25B8) that most editors use, nor `⌄`/`⌃`, `▷`, `▽`, or the
+`⏵` family.
+
+| option | licence | coverage cost | what it costs here |
+|---|---|---|---|
+| **1. Unicode text glyphs in the shipped face** | none beyond FiraMono's OFL, already vendored | **a real one**: the face has `▼ ►` but not `▾ ▸`, so the shape is the "small solid triangle", not the small half-quadrant | sizes with the text, inherits the skin's ink and the person's text size for free; no asset, no atlas pass. Needs the coverage test below or a face without the mark draws a box |
+| **2. An embedded icon font** (a subset of the marks) | a font licence to choose and vendor (OFL or MIT subsets exist) | one file, any size, any colour, no atlas regeneration | a second face in the binary and a second place a glyph can be missing; every mark must still be listed and checked, so the coverage cost does not go away, it moves |
+| **3. Grow the PNG atlas** | none (the repo draws it) | none new | **worst fit for a text-flow mark**: 16 px raster cannot be one line of a text run, cannot take a role's ink, and every new mark is a repaint of the sheet plus a test that reads the PNG back |
+
+**Chosen: option 1**, with the constraint that the mark must be one the shipped face actually has. `▼` and `►` are, so
+the fold control uses them; `▾` and `▸` are not, and a design that wants those needs option 2. The atlas stays what it
+is for — a toolbar command's 16 px raster icon, where a fixed square is the right shape — and gains nothing.
+
+**The rule, so this does not get re-argued.** A mark that stands *in a text run or beside text* (a disclosure, an arrow,
+a close cross) is a character from the shipped face. A mark that stands *in a fixed square on its own* (a toolbar icon, a
+panel's tab) is an atlas cell. Both are listed where the code draws them, and both get a coverage check:
+
+- **The atlas** already has one: `tests/every_toolbar_command_has_an_icon.rs` reads the PNG back and fails on a name with
+  no art, art with no name, or two glyphs drawn alike.
+- **A character mark needs the same**: every source the editor draws as a character must resolve in the face it is drawn
+  with (`Font`'s `cmap`, through `ttf-parser`, which this workspace already has as a test dependency for exactly this
+  question in `tests/the_terminal_draws_in_a_nerd_font.rs`), so a face without the mark fails a check instead of drawing
+  a box. That is #493's second acceptance item and it is **not yet written**; a fold chevron's own two marks are the
+  first two rows it should hold.
+
+**Where the editor's own marks are today.** `chrome.rs`'s palette category headers and `tiles.rs`'s pack bands draw
+`v` and `>` as the fold's disclosure. Both are already `Button`s that toggle on a press anywhere on the row, so the mark
+is not the only hit target — but neither is the mark a chevron, and both are the same fault as gooey's (G-82,
+`dark-incorporated/bevy_gooey#107`). They move to `▼`/`►` with the coverage test above.
+
 ## 10. Research gaps
 
 The HomeStill corpus (2026-11-01) has no indexed papers on docking, inspectors, settings UIs or design systems. Those rules rest on the cited industry guidelines (Bevy editor design, Blender, VS Code, Nielsen Norman Group, W3C), not on studies. The studies that were found support P4, P5, P6, P9 and P12, and are cited where used.

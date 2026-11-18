@@ -4213,7 +4213,10 @@ fn rebuild_palette(
                     row.spawn((
                         crate::chrome::text_keeps_its_width(),
                         bevy_gooey::Sizing { width: Some(bevy_gooey::Extent::Px(crate::chrome::COL_TIGHT)), ..default() },
-                        Text::new(if folded { ">" } else { "v" }),
+                        // **A chevron, not the letters `v` and `>`** (#493): a mark in a text run is a character from
+                        // the shipped face (`docs/ui/vision.md` §9a), and FiraMono has U+25BC and U+25BA — its `cmap`
+                        // was read to choose them. `docs/ui/vision.md` §9a is the vocabulary rule this follows.
+                        Text::new(if folded { "\u{25ba}" } else { "\u{25bc}" }),
                         TextColor(crate::chrome::ink().label),
                         crate::chrome::typed(crate::chrome::text::LABEL),
                     ));
