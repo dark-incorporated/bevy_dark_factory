@@ -28,7 +28,7 @@ use bevy::text::TextLayoutInfo;
 use bevy::ui::{ComputedNode, UiGlobalTransform};
 
 use bevy_dark_factory::chrome::{PanelWidth, Side};
-use bevy_dark_factory::editor::{PaletteArmedMark, PaletteArmedWords, PaletteCost, PaletteList, PaletteName, PaletteRow};
+use bevy_dark_factory::editor::{PaletteArmedWords, PaletteCost, PaletteList, PaletteName, PaletteRow};
 use bevy_dark_factory::harness;
 
 use crate::fixtures;
@@ -135,7 +135,7 @@ struct Row {
 /// The palette rows, in drawn order, with the rects and first baselines of the three cells a row carries.
 ///
 /// **By marker, not by the order a walk happens to visit them.** A cell is what the palette's own components say it is
-/// ([`PaletteArmedMark`], [`PaletteName`], [`PaletteCost`]), so a row that drew its cells in another order — or drew a fourth thing
+/// ([`PaletteArmedWords`], [`PaletteName`], [`PaletteCost`]), so a row that drew its cells in another order — or drew a fourth thing
 /// beside them — is measured as what it is rather than silently re-labelled by where the walk reached it first.
 fn rows(app: &mut App) -> Vec<Row> {
     let world = app.world_mut();
