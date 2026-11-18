@@ -4,6 +4,7 @@ What each change added, newest first. A visible change has a clip: click the sti
 
 ## 2026-11-18
 
+- **494-chip-bounded** `339df8dc2f` a chip and a button are held to the panel's width, so no panel draws a control past its border *No clip: layout fix; proved by no_panel_draws_a_control_past_its_content_box and a_chip_is_a_row_the_editor_paints_by_state*
 - **494-receipt-wraps** `03038d218b` a receipt wraps to its lines again, and the compose picker's empty state stays inside its panel *No clip: layout regression; proved by a_long_receipt_is_drawn_whole, the_size_receipt_does_not_push_map_size_down, no_panel_draws_a_control_past_its_content_box*
 
 ## 2026-11-17
