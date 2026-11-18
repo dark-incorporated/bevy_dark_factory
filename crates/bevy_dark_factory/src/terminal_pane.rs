@@ -1260,11 +1260,14 @@ fn apply_the_maximise(
             node.bottom = bottom;
             node.top = above;
         }
-        // **Given back, `fit_the_pane_to_the_window` states the height** (#492): the position the pane returns to may be the quarter,
-        // whose height is a share of the body, and that system is the one that knows the body. So this only states `Auto` while
-        // maximised and writes nothing on the way back.
         if maximised && node.height != Val::Auto {
             node.height = Val::Auto;
+        } else if !maximised && node.height == Val::Auto {
+            // **Given back, the pane takes back a pixel height** (#492). It must, and writing nothing left it at `Auto` — a column
+            // child at `Auto` grows to its content, which measured as the full body: the pane came back from the maximise
+            // *maximised*. `Terminal::height()` is the person's drag when they made one, and `fit_the_pane_to_the_window` states the
+            // quarter for a pane they never sized, so this one line serves both positions.
+            node.height = Val::Px(terminal.height());
         }
         match (maximised, layer) {
             (true, Some(GlobalZIndex(z))) if *z == chrome::TERMINAL_MAXIMISED_Z => {}
