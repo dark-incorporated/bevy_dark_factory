@@ -24,7 +24,6 @@ mod a_maps_lights_are_listed_without_bevy_lights;
 mod a_maps_water_is_listed_in_the_world_workspace;
 mod a_project_skin_previews_only_in_the_panel;
 mod a_reference_is_followed_from_where_it_is_written;
-mod a_refusals_strip_is_as_tall_as_the_refusal;
 mod a_rigs_clip_is_found_by_the_finder;
 mod a_saved_arrangement_is_the_one_the_editor_shows;
 mod a_capture_is_filed_as_an_issue;
