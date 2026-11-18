@@ -5,7 +5,7 @@ What each change added, newest first. A visible change has a clip: click the sti
 ## 2026-11-18
 
 - **488-panel-authoring-format** `4ed4e330` A panel's authoring format is researched with per-panel measurements: a typed struct drawn by gooey's inspector, with YAML as its text form, and Markdown stays prose *No clip: A design document: no code changed, so nothing in the editor's suite can fail on it -- see docs/design/panel-authoring-format.md*
-- **492-cmd-j-cycle** `1fcc5902` Cmd+J cycles the terminal through maximised, collapsed and a quarter *For you: Cmd+J now cycles the terminal round three positions — filling the window, tucked away, and a quarter across the bottom — instead of just showing and hiding it.* *No clip: the 4 fps two-cycle capture is recorded by the manager*
+- **492-cmd-j-cycle** `ba4292db` Cmd+J cycles the terminal through maximised, collapsed and a quarter *For you: Cmd+J now cycles the terminal round three positions — filling the window, tucked away, and a quarter across the bottom — instead of just showing and hiding it.* *No clip: the 4 fps two-cycle capture is recorded by the manager*
 
 ## 2026-11-17
 
