@@ -4,7 +4,7 @@ What each change added, newest first. A visible change has a clip: click the sti
 
 ## 2026-11-18
 
-- **481-switch-fits** `1c13b2f7` A switch in the Agent panel reflows inside its column instead of drawing over the scrollbar *For you: The Pause and Answer hand-backs switches in the Agent panel now wrap their labels when the panel is narrow, so the switch stays inside the panel instead of spilling over the scrollbar.* *No clip: layout fix; proved by no_control_in_the_agent_panel_is_drawn_past_its_column and the_agent_panels_switch_is_inside_its_column*
+- **481-switch-fits** `7b909c6a` A switch in the Agent panel reflows inside its column instead of drawing over the scrollbar *For you: The Pause and Answer hand-backs switches in the Agent panel now wrap their labels when the panel is narrow, so the switch stays inside the panel instead of spilling over the scrollbar.* *No clip: layout fix; proved by no_control_in_the_agent_panel_is_drawn_past_its_column and the_agent_panels_switch_is_inside_its_column*
 
 ## 2026-11-17
 
