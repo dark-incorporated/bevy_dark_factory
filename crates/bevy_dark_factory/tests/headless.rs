@@ -24,6 +24,7 @@ use bevy::prelude::*;
 use bevy_dark_factory::harness;
 
 use crate::fixtures;
+use bevy_dark_factory::marks;
 use fixtures::Fixture;
 
 /// **Type a tile's name into the prompt and commit it.**
@@ -1153,7 +1154,13 @@ mod stepped {
                  folded: {folded:?}"
             );
         }
-        let chevrons = texts.iter().filter(|t| t.as_str() == ">").count();
+        // **The fold draws `marks::FOLD_OPEN`/`FOLD_CLOSED`, not the letter `>`** (#493): the editor has a mark
+        // vocabulary now, and this test names the mark rather than the character a person used to see, so a
+        // change of glyph is one edit in `marks.rs` and this follows it.
+        let chevrons = texts
+            .iter()
+            .filter(|t| t.as_str() == marks::FOLD_OPEN.to_string() || t.as_str() == marks::FOLD_CLOSED.to_string())
+            .count();
         assert!(
             chevrons >= folded.len().min(dirs.len()),
             "{} folded pack(s) but only {chevrons} `>` chevron(s) rendered",
