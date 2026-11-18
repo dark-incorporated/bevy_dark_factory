@@ -370,6 +370,11 @@ pub struct EditorSettings {
     /// **Only the person's own file decides it.** A project file that sets it is a problem and is ignored
     /// ([`bevy_oracle::project_may_not_choose`]): a project cannot send its agents' pictures off the LAN.
     pub decision_model: DecisionModel,
+    /// **Whether a capture is filed as a GitHub issue** (#495). Off by default; the Settings screen's
+    /// row turns it on, and `capture_issue_repo` says where the capture's files go.
+    pub capture_issue: bool,
+    /// **The checkout that receives captures** (#495), or empty for "captures stay local".
+    pub capture_issue_repo: String,
 }
 
 impl Default for EditorSettings {
@@ -398,6 +403,8 @@ impl Default for EditorSettings {
             terminal_shell_args: Vec::new(),
             workspace_layout: BTreeMap::new(),
             decision_model: DecisionModel::default(),
+            capture_issue: false,
+            capture_issue_repo: String::new(),
         }
     }
 }
@@ -440,6 +447,14 @@ pub struct SettingsLayer {
     /// **Turn labels from use** (DL-01, #460). `None` leaves the layer below to decide, so a file written before this key existed reads as on.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub collect_labels: Option<bool>,
+    /// **Whether a capture is filed as a GitHub issue** (#495). Off by default, so a person opts in
+    /// once; `capture_issue_repo` names the checkout that receives the capture's files.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub capture_issue: Option<bool>,
+    /// **The checkout that receives captures** (#495), when a person has opted in. Empty means
+    /// captures stay local, as they do today.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub capture_issue_repo: Option<String>,
     /// **Rebound commands**: a command's id (`file.save`, `commands::Command::id`) and the chord that
     /// now runs it. A command the file leaves out keeps its default chord (UI-72, #250).
     #[serde(skip_serializing_if = "BTreeMap::is_empty")]
@@ -508,6 +523,8 @@ impl Default for SettingsLayer {
             workspace_layout: BTreeMap::new(),
             shell_layout: None,
             decision_model: None,
+            capture_issue: None,
+            capture_issue_repo: None,
         }
     }
 }
@@ -646,6 +663,14 @@ impl EditorSettings {
         // (`agent_verdict` refuses the file, naming the field) and is ignored here.
         if let Some(user) = user {
             out.decision_model = user.decision_model.unwrap_or(out.decision_model);
+        }
+        // **Only the person's own file files an issue** (#495): a project that could turn it on would
+        // push its captures to GitHub for everyone who opens it. The checkout is the person's too.
+        if let Some(user) = user {
+            out.capture_issue = user.capture_issue.unwrap_or(out.capture_issue);
+            if let Some(repo) = user.capture_issue_repo.as_deref() {
+                out.capture_issue_repo = repo.to_owned();
+            }
         }
         out
     }

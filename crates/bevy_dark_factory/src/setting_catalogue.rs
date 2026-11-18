@@ -60,6 +60,33 @@ pub const SIZE_SLIDER: (f32, f32) = (0.75, 2.0);
 /// **How far one step of a scale slider moves it**: a twentieth, 5%.
 pub const SCALE_STEP: f32 = 0.05;
 
+/// **The ladder `Cmd+=` and `Cmd+-` step the interface size along**, as multiples of the design.
+///
+/// A list, not a multiply: `1.1^4` is 146.41%, and a scale that drifts to 137% when a person asked
+/// for "one step up" three times is a control nobody can predict. Every rung is a number a settings
+/// file reads back exactly, and the last is the slider's own ceiling ([`SIZE_SLIDER`]).
+pub const INTERFACE_STEPS: [f32; 6] = [1.0, 1.10, 1.25, 1.50, 1.75, 2.00];
+
+/// **The next rung up from `now`**, or `now` at the top. A size between two rungs (a file may set any
+/// value in [`crate::settings::SCALE_RANGE`]) steps to the first rung above it.
+pub fn interface_step_up(now: f32) -> f32 {
+    INTERFACE_STEPS
+        .iter()
+        .copied()
+        .find(|step| *step > now + f32::EPSILON)
+        .unwrap_or(INTERFACE_STEPS[INTERFACE_STEPS.len() - 1])
+}
+
+/// **The next rung down from `now`**, or `now` at the bottom.
+pub fn interface_step_down(now: f32) -> f32 {
+    INTERFACE_STEPS
+        .iter()
+        .rev()
+        .copied()
+        .find(|step| *step < now - f32::EPSILON)
+        .unwrap_or(INTERFACE_STEPS[0])
+}
+
 /// The categories, in the order the screen's tabs show them.
 pub const CATEGORIES: &[&str] = &["Appearance", "Accessibility", "Map", "Terminal", "Decisions"];
 
@@ -129,6 +156,16 @@ pub const CATALOGUE: &[Setting] = &[
         label: "Learn from my use",
         category: "Decisions",
         description: "Keep a record of each agent turn, for training the editor's decision model: the pictures before and after, what was asked, what was done and what you did about it. It is kept on this computer, in the Blueprint folder of your data directory, never in a project, and nothing is sent anywhere. Collection stops by itself at 2 GB. Off, no picture is taken and nothing is written.",
+        kind: Kind::Switch,
+    },
+    // **A capture filed as an issue** (#495): one switch, off by default so a person opts in once, and
+    // one row naming the checkout that receives it. An empty checkout means captures stay local, which
+    // is what the row's description says.
+    Setting {
+        key: "capture_issue",
+        label: "File captures as issues",
+        category: "Decisions",
+        description: "When you press Cmd+D, copy the capture into the checkout below, commit it on a branch of its own, push it, and open a GitHub issue in the editor's repository with the pictures embedded. Off, a capture is only saved to this computer.",
         kind: Kind::Switch,
     },
     Setting {
@@ -328,6 +365,7 @@ impl EditorSettings {
             "terminal_scrollback" => Value::Option(scrollback_index(self.terminal_scrollback)),
             "terminal_agent" => Value::Option(agent_index(self.terminal_agent)),
             "decision_model" => Value::Option(decision_index(self.decision_model)),
+            "capture_issue" => Value::On(self.capture_issue),
             _ => return None,
         })
     }
@@ -368,6 +406,10 @@ impl SettingsLayer {
             "terminal_scrollback" => self.terminal_scrollback.map(|lines| Value::Option(scrollback_index(lines))),
             "terminal_agent" => self.terminal_agent.map(|a| Value::Option(agent_index(a))),
             "decision_model" => self.decision_model.map(|m| Value::Option(decision_index(m))),
+            "capture_issue" => self.capture_issue.map(Value::On),
+            // **The checkout is not a catalogue row** (#495): it is drawn in the switch's own row as a
+            // text field, the way the Custom agent's command is, so the screen owns its write.
+            "capture_issue_repo" => None,
             _ => None,
         }
     }
@@ -391,6 +433,7 @@ impl SettingsLayer {
             ("terminal_scrollback", Value::Option(i)) => self.terminal_scrollback = Some(scrollback_at(i)),
             ("terminal_agent", Value::Option(i)) => self.terminal_agent = Some(agent_at(i)),
             ("decision_model", Value::Option(i)) => self.decision_model = Some(decision_at(i)),
+            ("capture_issue", Value::On(on)) => self.capture_issue = Some(on),
             _ => return false,
         }
         true
@@ -415,6 +458,8 @@ impl SettingsLayer {
             "terminal_scrollback" => self.terminal_scrollback = None,
             "terminal_agent" => self.terminal_agent = None,
             "decision_model" => self.decision_model = None,
+            "capture_issue" => self.capture_issue = None,
+            "capture_issue_repo" => self.capture_issue_repo = None,
             _ => {}
         }
     }

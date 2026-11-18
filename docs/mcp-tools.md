@@ -320,6 +320,16 @@ The reports the person filed about DarkFactory itself, newest first: each one's 
 | `destructiveHint` | false |
 | `idempotentHint` | true |
 
+### `blueprint_feedback_file_issue`
+
+Turn one report a person filed about the editor into the GitHub issue the loop reads: the seven sections in the order docs/loop/captures/ISSUE-FORMAT.md states them — the provenance read from the record, both pictures embedded on the repository's raw URLs, the note verbatim in a blockquote, the measured facts of every pick, then Current behaviour, Wanted and Acceptance — and the title. Give the report's stem (its folder name). Writes nothing and opens no issue: it answers the title and the body, so an agent can read it before anything is filed. A stem the folder does not hold is refused, naming it.
+
+| annotation | value |
+|---|---|
+| `readOnlyHint` | true |
+| `destructiveHint` | false |
+| `idempotentHint` | true |
+
 ### `blueprint_project_feedback_list`
 
 The reports the person filed about this project, newest first: each one's name, when it was taken, which screen and which project were up, the window's shape, each thing that was pointed at (a node of the interface with its chain of roles and text, a dragged area, the whole screen, or a point in the map with its cell and the piece there), the relation between every two of them worked out from their rectangles (contains, overlaps, touches or apart, the overlap in square pixels, and which is drawn in front), the note the person typed, and the editor's log tail. The files are in the project's target/feedback. Each entry names its whole picture and the same picture with every pick outlined and every overlap washed, and the newest picture comes back as an image. It reads files the editor wrote, so it needs no editor running and changes nothing. Returns how many reports there are, how many are shown, and each .json file in the folder that is not a report or has no picture, with the reason.

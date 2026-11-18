@@ -419,6 +419,20 @@ pub const TOOLS: &[ToolDoc] = &[
         idempotent: true,
     },
     ToolDoc {
+        name: "blueprint_feedback_file_issue",
+        description: "Turn one report a person filed about the editor into the GitHub issue the loop \
+                      reads: the seven sections in the order docs/loop/captures/ISSUE-FORMAT.md states \
+                      them — the provenance read from the record, both pictures embedded on the \
+                      repository's raw URLs, the note verbatim in a blockquote, the measured facts of \
+                      every pick, then Current behaviour, Wanted and Acceptance — and the title. Give \
+                      the report's stem (its folder name). Writes nothing and opens no issue: it \
+                      answers the title and the body, so an agent can read it before anything is filed. \
+                      A stem the folder does not hold is refused, naming it.",
+        read_only: true,
+        destructive: false,
+        idempotent: true,
+    },
+    ToolDoc {
         name: "blueprint_project_feedback_list",
         description: "The reports the person filed about this project, newest first: each one's \
                       name, when it was taken, which screen and which project were up, the \
@@ -952,6 +966,19 @@ pub fn schemas() -> Value {
         map.insert("blueprint_style_propose".to_owned(), style_propose_schema());
         // **`blueprint_volume_report`** (#473), the same reason: the literal above is at the recursion
         // limit, and one more entry pushes it over.
+        // **`blueprint_feedback_file_issue`** (#495), the same reason: one more entry in the literal
+        // above pushes it over the recursion limit.
+        map.insert(
+            "blueprint_feedback_file_issue".to_owned(),
+            serde_json::json!({
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["stem"],
+                "properties": {
+                    "stem": {"type": "string", "description": "The report's stem, its folder name: `feedback-1794921159460`."}
+                }
+            }),
+        );
         map.insert(
             "blueprint_volume_report".to_owned(),
             serde_json::json!({

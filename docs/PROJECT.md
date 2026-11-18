@@ -38,7 +38,7 @@ About 405,000 lines of Rust (`find crates -name '*.rs' | xargs cat | wc -l` per 
 | `bevy_dark_factory` | 294,204 | no | The editor. Opens a project directory, writes `<root>/assets/blueprint`. |
 | `blueprint_model` | 67,339 | [yes](https://crates.io/crates/blueprint_model) | The engine-free core: the project's file types and its one YAML reader and writer, the design tree, the grammar learner, WFC (wave function collapse), validators. No Bevy. |
 | `bevy_dark_factory_bench` | 16,330 | no | The benchmark runner and grader, `dark_factory-bench`. |
-| `dark_factory_mcp` | 8,337 | no | The MCP server: 29 tools over stdio, talking to the running editor over BRP (the Bevy Remote Protocol). |
+| `dark_factory_mcp` | 8,337 | no | The MCP server: 30 tools over stdio, talking to the running editor over BRP (the Bevy Remote Protocol). |
 | `bevy_blueprint` | 8,200 | [yes](https://crates.io/crates/bevy_blueprint) | The runtime: loads a project into a game (`GamePlugin`, `BlueprintPlugin`, `BlueprintLivePlugin`). |
 | `bevy_blueprint_migrate` | 3,155 | no | Moves a project's files from RON to YAML. |
 | `bevy_oracle` | 2,218 | no | Typed questions to a decision model, authoring time only. |
@@ -70,7 +70,7 @@ An operation is a trait object (`ops::Operation`) that declares four things: its
 
 ### What an agent sees
 
-- **29 tools**, `blueprint_`-prefixed and domain-worded (`blueprint_apply_operation`, not "run tool 7"), listed in [the MCP reference](mcp-tools.md), which is generated from the server and checked by a test (`docs_are_current`). `blueprint_guide` returns the shipped guide first; the server's instructions say to call it.
+- **30 tools**, `blueprint_`-prefixed and domain-worded (`blueprint_apply_operation`, not "run tool 7"), listed in [the MCP reference](mcp-tools.md), which is generated from the server and checked by a test (`docs_are_current`). `blueprint_guide` returns the shipped guide first; the server's instructions say to call it.
 - **Every mutating answer carries an operation id** the agent cites and a person reverts by, and a change comes back with what it broke.
 - **`dry_run` previews** anything; the preview is the operation's own pure `plan`, so it cannot half-apply.
 - **`placement_add` refuses to land on a piece** unless told `replace: true`, and the answer to a replacing add names what it replaced.
@@ -125,7 +125,7 @@ This is the section to read if you are reading someone else's project.
 |---|---|
 | Workspaces | 10 |
 | Operations | 138 in the registry, 131 in a default build |
-| MCP tools | 29 |
+| MCP tools | 30 |
 | Test files | 844 under `crates/*/tests/` |
 | Published | `bevy_blueprint`, `_core`, `_solver`, `_rng`, `_anim`, `_rhai` and `_snip` on crates.io; what `blueprint_model` 0.12 removed (the `references` module and `trust::GuideGrant`) is under "Upgrading from 0.11" in [its README](https://github.com/dark-incorporated/bevy_dark_factory/blob/main/crates/blueprint_model/README.md) |
 | Editor release | the macOS app, on the [releases](https://github.com/dark-incorporated/bevy_dark_factory/releases) page |

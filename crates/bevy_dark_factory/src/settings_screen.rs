@@ -103,6 +103,8 @@ pub(crate) enum Layer {
     /// The file's keys. **Boxed**: a layer holds every key a settings file may set, and the model id this screen cannot edit
     /// (#477) put the whole enum over clippy's size budget beside a two-word reason, which is a stack copy per snapshot for
     /// no gain.
+    /// **Boxed**: a `SettingsLayer` holds every key, so it is the large variant of a value this
+    /// screen copies per look, and `large_enum_variant` is right that the two small ones pay for it.
     Read(Box<SettingsLayer>),
     Unreadable(String),
 }
@@ -980,6 +982,7 @@ fn setting_row(
 ) -> impl Bundle {
     let shown = own.unwrap_or(below);
     let key = setting.key;
+    let has_own = own.is_some();
     (
         bevy_gooey::column(0.0),
         bevy_gooey::Spacing { margin: crate::chrome::margin_bottom(crate::chrome::STEP_GROUP), ..default() },
@@ -1052,8 +1055,8 @@ fn setting_row(
             }
             row.spawn((
                 bevy_gooey::row_with(crate::chrome::GAP_GROUP_STEPS, bevy_gooey::RowLayout { align: Some(AlignItems::Center), wrap: Some(FlexWrap::Wrap), ..default() }),
-                SettingLine { key, own: own.is_some(), overridden, default: default_value },
-                line_children(setting, own.is_some(), overridden, default_value),
+                SettingLine { key, own: has_own, overridden, default: default_value },
+                line_children(setting, has_own, overridden, default_value),
             ));
         })),
     )

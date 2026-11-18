@@ -411,6 +411,32 @@ class TheSync(Scratch):
         self.assertEqual(self.run_verb("sync", "--from", str(folder)), 0)
         self.assertEqual((self.root / LEDGER).read_text(encoding="utf-8"), first)
 
+    def test_a_capture_the_editor_filed_is_adopted_once(self):
+        """**`#495`: the editor files a capture and `sync` still adopts it.**
+
+        The editor copies the four files in, commits them and opens the issue; the ledger has no row,
+        because the editor does not write one. `sync` finds the record already here, copies nothing,
+        and adds exactly one row — so the ledger and the issue never disagree about which stems exist,
+        and running it a second time adds nothing.
+        """
+        stem = "feedback-1794921159460"
+        folder = self.source(stem)
+        # What the editor's own filing did: the files are in place, the ledger has no row.
+        dest = self.root / captures.CAPTURES / stem
+        dest.mkdir(parents=True)
+        for name in (f"{stem}.json", f"{stem}.png", f"{stem}.log"):
+            (dest / name).write_bytes((folder / name).read_bytes())
+        self.assertFalse((self.root / LEDGER).is_file())
+
+        self.assertEqual(self.run_verb("sync", "--from", str(folder)), 0)
+        items = json.loads((self.root / LEDGER).read_text(encoding="utf-8"))["items"]
+        self.assertEqual([row["stem"] for row in items], [stem], "one row, for the stem that is here")
+        self.assertEqual(items[0]["status"], "unread")
+
+        self.assertEqual(self.run_verb("sync", "--from", str(folder)), 0)
+        again = json.loads((self.root / LEDGER).read_text(encoding="utf-8"))["items"]
+        self.assertEqual(len(again), 1, "a second sync adds no second row")
+
     def test_a_record_that_will_not_parse_is_a_blocked_row_rather_than_a_skip(self):
         folder = self.source("feedback-1793905912313")
         (folder / "feedback-1793905912313.json").write_text("{not json", encoding="utf-8")
