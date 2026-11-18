@@ -4205,12 +4205,16 @@ fn rebuild_palette(
                     BackgroundColor(crate::chrome::ink().header_bg),
                 ))
                 .with_children(|row| {
-                    // A caret, so folded and unfolded differ by shape and not only by what is below
-                    // them — an encoding that survives being glanced at.
+                    // **A chevron, not the letters `v` and `>`** (#493, `docs/design/icon-vocabulary.md`): a mark in
+                    // a text run is a character from the shipped face, and the two the face maps are U+25BC `\u{25bc}`
+                    // and U+25BA `\u{25ba}` — its `cmap` was read to choose them, and the half-quadrants `\u{25be}`/
+                    // `\u{25b8}` an editor usually uses are absent. The mark is `Pickable::IGNORE` so the press falls to
+                    // this header, the `Button` that folds: the visible affordance is the hit target, which is the half
+                    // of #493 that gooey's code editor lacks (G-82).
                     row.spawn((
                         crate::chrome::text_keeps_its_width(),
                         bevy_gooey::Sizing { width: Some(bevy_gooey::Extent::Px(crate::chrome::COL_TIGHT)), ..default() },
-                        Text::new(if folded { ">" } else { "v" }),
+                        crate::marks::fold_mark(folded),
                         TextColor(crate::chrome::ink().label),
                         crate::chrome::typed(crate::chrome::text::LABEL),
                     ));
