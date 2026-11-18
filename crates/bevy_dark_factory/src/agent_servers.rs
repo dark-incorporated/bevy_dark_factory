@@ -8,37 +8,50 @@
 //! omp *also* does is read its own machine-level `~/.omp/agent/mcp.json` and every other agent tool's config,
 //! so a session meant to have one server came up with the whole machine's list.
 //!
-//! # What this file is, and what it is not
+//! # What this file is
 //!
-//! It is the **set** the editor's session is meant to have, as data: the editor's server plus whatever the open
-//! project declares ([`crate::terminal_agent::project_mcp_servers`]), with a name for each in [`SessionServers`],
-//! which the self-test card prints so a person can read what their session has.
+//! The **set** the editor's session is meant to have, as data: the editor's server plus whatever the open project
+//! declares, with a name for each in [`SessionServers`], which the self-test card prints so a person can read what their
+//! session has. The project's half is read from **the files omp itself reads** ([`PROJECT_SERVERS_FILES`]), in omp's own
+//! precedence, so the card cannot name a different set from the one the session starts. That was a real gap: the editor
+//! used to read `<root>/.mcp.json` alone, and a project declaring its servers in `.omp/mcp.json` had them started anyway
+//! and never named.
 //!
-//! It is **not** a way to stop omp discovering the rest, because omp at v18.16.0 has none. Measured on
-//! 2026-11-17 (each number from a run whose servers write a file when spawned):
+//! # What it is not: stopping omp's machine-level discovery
+//!
+//! omp has no way to scope a session to a named set of servers, measured on **v18.22.0** (2026-11-18, each server a
+//! `/bin/sh` that appends its tag to a file, so a line in the file proves the server was spawned). The earlier table was
+//! taken on v18.16.0; every row was re-measured:
 //!
 //! | Attempt | Result |
 //! |---|---|
-//! | `enabledServers` in the user `mcp.json` (the `/mcp` toggle list) | not an allow-list: both servers started |
+//! | `enabledServers` in the user `mcp.json` (the `/mcp` toggle list) | not an allow-list: the machine's servers still start |
 //! | `--no-extensions -e <dir>` | the folder's server started, **and every user-level server still started** |
-//! | `--config` overlay with `disabledExtensions: ["mcp:*"]` | a glob is not matched; the servers started |
-//! | `--config` overlay with `["mcp:<name>", …]`, one per server | **works**, but needs every name omp would discover |
+//! | `--config` overlay with `disabledExtensions: ["mcp:*"]` | a glob is not matched; both servers started |
+//! | `--config` overlay with `disabledExtensions: ["mcp:<name>"]` | **works**, one name at a time |
+//! | `--config` overlay with `disabledProviders: [native, mcp-json, …]` | **works**, and drops project *and* user files |
+//! | `--config` overlay with `mcp.enableProjectConfig: false` | drops the four project files, **keeps the user's** |
 //! | `--profile <name>` | the profile's own `mcp.json` **and** the user-level one |
 //! | `PI_CODING_AGENT_DIR=<dir>` | **scopes discovery** to `<dir>/mcp.json` — and takes the credential store with it, so a dir without credentials fails `No API key found` |
+//! | `--only-mcp`, `--mcp-config`, `--mcp-servers`, `--mcp` | `unknown flag`: none of the flags the upstream request asks for exists |
 //!
-//! So scoping a session to a named set is an omp feature that does not exist, and the editor does not re-implement
-//! omp's discovery (eight config sources over per-platform paths) to name every server it would otherwise load:
-//! that is the wrapper this issue refuses. The request is filed on omp's own repository
-//! (**can1357/oh-my-pi#19573**, with the table above) and this work is blocked on it.
+//! The two levers that work both need every name omp would otherwise discover, which means re-implementing omp's twelve
+//! discovery providers (native, `mcp-json`, claude, cursor, vscode, gemini, opencode, codex, windsurf, plugins…) inside the
+//! editor: that is the wrapper this issue refuses. The request is filed on omp's own repository
+//! (**can1357/oh-my-pi#19573**), and the editor's own half is done and tested here regardless.
 //!
 //! # What the editor promises until then
 //!
 //! Whatever omp discovers, the editor's session **is** these servers: the card names them (so a person reads the
-//! set rather than guessing), and a project's own `.mcp.json` servers are written into the extension folder's
+//! set rather than guessing), and the project's servers are written into the extension folder's
 //! `.mcp.json` beside the editor's, so the project's declaration is what the session has rather than something
 //! omp has to be trusted to find.
+//!
+//! A machine-level entry can still shadow the editor's own server: omp keeps the first definition of a name it finds, and a
+//! `dark_factory` in `~/.omp/agent/mcp.json` beats the one in the `-e` folder (measured). Nothing the editor can write
+//! prevents that, which is what the upstream request is for.
 
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 use bevy::prelude::*;
 use serde_json::{Map, Value, json};
@@ -50,7 +63,8 @@ use crate::terminal_agent;
 /// project that has ever needed one.
 pub const PROJECT_SERVERS_MAX: usize = 16;
 
-/// The project file a project declares its own MCP servers in, at the project's root.
+/// **A project's declared servers file, at the project's root**: the fourth of the four omp reads ([`PROJECT_SERVERS_FILES`]),
+/// and the one this crate has read since #484's first pass.
 pub const PROJECT_SERVERS_FILE: &str = ".mcp.json";
 
 /// **The servers a session has**, in the order the card lists them: the editor's own first, then the project's, by
@@ -81,9 +95,9 @@ impl SessionServers {
 
     /// **The row's sentence**: the names written into this session's config, or why there is only one.
     ///
-    /// **"written for this session", not "has"**: omp at v18.16.0 also loads the machine's own servers, so a row claiming the session
-    /// *has* only these would be false. What the editor can promise is what it wrote, and the difference is requested upstream
-    /// (`can1357/oh-my-pi#19573`).
+    /// **"written for this session", not "has"**: omp also loads the machine's own servers (measured on v18.22.0: every row of
+    /// the table in this module's header), so a row claiming the session *has* only these would be false. What the editor can
+    /// promise is what it wrote, and the difference is requested upstream (`can1357/oh-my-pi#19573`).
     pub fn words(&self) -> String {
         let names = self.names();
         if names.is_empty() {
@@ -97,86 +111,108 @@ impl SessionServers {
     }
 }
 
-/// **The names a project declares in its own `.mcp.json`**, sorted and de-duplicated, or nothing when it declares none
-/// or the file does not read.
+/// **The files a project declares its own MCP servers in**, in the order omp takes a name from them: measured on omp
+/// 18.22.0 by declaring the same server name in two files at once and reading which one spawned.
+///
+/// All four are read, and a name declared in more than one belongs to the earliest file here. A project that uses any of
+/// them is a project whose servers the session starts, so every one is read here too: reading [`PROJECT_SERVERS_FILE`]
+/// alone left a project's `.omp/mcp.json` servers started and never named on the card.
+pub const PROJECT_SERVERS_FILES: [&str; 4] = [".omp/mcp.json", ".omp/.mcp.json", "mcp.json", PROJECT_SERVERS_FILE];
+
+/// **The names a project declares**, sorted and de-duplicated, or nothing when it declares none or no file reads.
 ///
 /// A file that does not read is **not** a refusal of the launch: a project's server list is a convenience, and a
-/// malformed one must not stop a person's agent from starting. It is said on the card ([`SessionServers::project`]
-/// is empty and [`project_file_problem`] names it), so a typo is visible rather than silent. Past
-/// [`PROJECT_SERVERS_MAX`] the extra names are dropped for the same reason — the launch goes on, the card says how
-/// many were read.
+/// malformed one must not stop a person's agent from starting. It is said on the card ([`project_file_problem`] names it),
+/// so a typo is visible rather than silent. Past [`PROJECT_SERVERS_MAX`] the extra names are dropped for the same reason:
+/// the launch goes on, the card says how many were read.
 pub fn project_server_names(root: &Path) -> Vec<String> {
-    let path = root.join(PROJECT_SERVERS_FILE);
-    let Ok(text) = std::fs::read_to_string(&path) else {
-        return Vec::new();
-    };
-    let Ok(config) = serde_json::from_str::<Value>(&text) else {
-        return Vec::new();
-    };
-    server_names_in(&config)
-}
-
-/// **Why a project's `.mcp.json` gave no servers**, when it exists but could not be read: what the card says instead of
-/// pretending the project declared nothing.
-pub fn project_file_problem(root: &Path) -> Option<String> {
-    let path = root.join(PROJECT_SERVERS_FILE);
-    let text = match std::fs::read_to_string(&path) {
-        Ok(text) => text,
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return None,
-        Err(e) => return Some(format!("{}: {e}", path.display())),
-    };
-    match serde_json::from_str::<Value>(&text) {
-        Ok(config) => {
-            let declared = server_count(&config);
-            (declared > PROJECT_SERVERS_MAX).then(|| {
-                format!("{} declares {declared} servers; a session takes the first {PROJECT_SERVERS_MAX}", path.display())
-            })
-        }
-        Err(e) => Some(format!("{}: {e}", path.display())),
-    }
-}
-
-/// How many servers a config declares, under `mcpServers`.
-fn server_count(config: &Value) -> usize {
-    config.get("mcpServers").and_then(Value::as_object).map_or(0, Map::len)
-}
-
-/// **The server names a config declares**, sorted, capped at [`PROJECT_SERVERS_MAX`].
-///
-/// **A project that declares the editor's own name does not list it twice**: [`session_config`] refuses to let a project replace the
-/// editor's server ([`terminal_agent::MCP_SERVER_NAME`]), so the set the card prints names it once, in the editor's place, exactly as the
-/// config the session is handed does. Two readers of one fact, one answer.
-fn server_names_in(config: &Value) -> Vec<String> {
-    let Some(servers) = config.get("mcpServers").and_then(Value::as_object) else {
-        return Vec::new();
-    };
-    let mut names: Vec<String> = servers
-        .keys()
-        .filter(|name| name.as_str() != terminal_agent::MCP_SERVER_NAME)
-        .take(PROJECT_SERVERS_MAX)
-        .cloned()
-        .collect();
+    let mut names = declared_names(root);
+    names.truncate(PROJECT_SERVERS_MAX);
     names.sort();
     names
 }
 
+/// **Every server the project declares**, by omp's precedence: a name's first declaration wins, and the editor's own name is
+/// never one of them (the editor's server is not a project's to define, and [`session_config`] refuses to replace it).
+fn declared_names(root: &Path) -> Vec<String> {
+    let mut names: Vec<String> = Vec::new();
+    for file in PROJECT_SERVERS_FILES {
+        let Some(servers) = declared_in(root, file) else {
+            continue;
+        };
+        for name in servers.keys() {
+            if name.as_str() != terminal_agent::MCP_SERVER_NAME && !names.iter().any(|seen| seen == name) {
+                names.push(name.clone());
+            }
+        }
+    }
+    names
+}
+
+/// The `mcpServers` a project file declares, or `None` when the file does not exist or does not read.
+fn declared_in(root: &Path, file: &str) -> Option<Map<String, Value>> {
+    let text = std::fs::read_to_string(root.join(file)).ok()?;
+    let config: Value = serde_json::from_str(&text).ok()?;
+    config.get("mcpServers").and_then(Value::as_object).cloned()
+}
+
+/// **Why the project's files gave no servers**, when one exists but could not be read: what the card says instead of
+/// pretending the project declared nothing. Every file that is a problem is named, because a person fixing a typo needs to
+/// know which file has it.
+pub fn project_file_problem(root: &Path) -> Option<String> {
+    let mut problems: Vec<String> = Vec::new();
+    for file in PROJECT_SERVERS_FILES {
+        let path = root.join(file);
+        let text = match std::fs::read_to_string(&path) {
+            Ok(text) => text,
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => continue,
+            Err(e) => {
+                problems.push(format!("{}: {e}", path.display()));
+                continue;
+            }
+        };
+        match serde_json::from_str::<Value>(&text) {
+            Ok(config) => {
+                let declared = config.get("mcpServers").and_then(Value::as_object).map_or(0, Map::len);
+                if declared > PROJECT_SERVERS_MAX {
+                    problems.push(format!(
+                        "{} declares {declared} servers; a session takes the first {PROJECT_SERVERS_MAX}",
+                        path.display()
+                    ));
+                }
+            }
+            Err(e) => problems.push(format!("{}: {e}", path.display())),
+        }
+    }
+    (!problems.is_empty()).then(|| problems.join(" · "))
+}
+
 /// **The config an omp session is handed**: the editor's server, then each server the project declares, under its own
-/// name.
+/// name, from the file omp would take it from.
 ///
 /// **Written on every launch**, because the editor's server carries a token minted per launch ([`terminal_agent::plan`]):
 /// a config file kept from an earlier launch would hand the agent a token no tab holds.
 pub fn session_config(editor: &Value, project: Option<&Path>) -> Value {
     let mut servers = editor.get("mcpServers").and_then(Value::as_object).cloned().unwrap_or_default();
-    if let Some(root) = project
-        && let Ok(text) = std::fs::read_to_string(root.join(PROJECT_SERVERS_FILE))
-        && let Ok(declared) = serde_json::from_str::<Value>(&text)
-        && let Some(servers_in) = declared.get("mcpServers").and_then(Value::as_object)
-    {
-        for (name, config) in servers_in.iter().take(PROJECT_SERVERS_MAX) {
-            // **The editor's own name is the editor's**: a project that declares a `dark_factory` server would otherwise
-            // replace the one server the session cannot do without.
-            if name != terminal_agent::MCP_SERVER_NAME {
-                servers.insert(name.clone(), config.clone());
+    if let Some(root) = project {
+        let mut written = 0;
+        for file in PROJECT_SERVERS_FILES {
+            if written >= PROJECT_SERVERS_MAX {
+                break;
+            }
+            let Some(servers_in) = declared_in(root, file) else {
+                continue;
+            };
+            for (name, config) in &servers_in {
+                if written >= PROJECT_SERVERS_MAX {
+                    break;
+                }
+                // **The editor's own name is the editor's**: a project that declares a `dark_factory` server would otherwise
+                // replace the one server the session cannot do without. An earlier file's name still stands over a later one.
+                if name != terminal_agent::MCP_SERVER_NAME && !servers.contains_key(name) {
+                    servers.insert(name.clone(), config.clone());
+                    written += 1;
+                }
             }
         }
     }
@@ -191,16 +227,11 @@ pub fn project_servers_for(root: Option<&Path>) -> (SessionServers, Option<Strin
     (SessionServers::of(Some(root)), project_file_problem(root))
 }
 
-/// The file under a project's root that declares its servers.
-pub fn project_servers_path(root: &Path) -> PathBuf {
-    root.join(PROJECT_SERVERS_FILE)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    fn root(tag: &str) -> PathBuf {
+    fn root(tag: &str) -> std::path::PathBuf {
         let root = std::env::temp_dir().join(format!("session_servers_{tag}_{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&root);
         std::fs::create_dir_all(&root).unwrap_or_else(|e| panic!("{}: {e}", root.display()));
@@ -284,6 +315,31 @@ mod tests {
         assert_eq!(project_server_names(&dir).len(), PROJECT_SERVERS_MAX);
         let said = project_file_problem(&dir).expect("the cap is said");
         assert!(said.contains(&format!("first {PROJECT_SERVERS_MAX}")), "{said}");
+    }
+
+    /// **The files read are omp's four, in omp's precedence**: measured on omp 18.22.0 by declaring one name in two files and
+    /// reading which one spawned, so a change to omp's list is a change to this constant and to this test rather than a silent
+    /// under-report on the card.
+    #[test]
+    fn the_files_read_are_omps_four_in_omps_precedence() {
+        assert_eq!(PROJECT_SERVERS_FILES, [".omp/mcp.json", ".omp/.mcp.json", "mcp.json", ".mcp.json"]);
+        let dir = root("precedence");
+        for (file, command) in [
+            (".mcp.json", "/bin/from_dot_mcp"),
+            (".omp/mcp.json", "/bin/from_omp_mcp"),
+        ] {
+            let path = dir.join(file);
+            std::fs::create_dir_all(path.parent().expect("a parent")).unwrap_or_else(|e| panic!("{e}"));
+            std::fs::write(&path, json!({"mcpServers": {"shared": {"type": "stdio", "command": command}}}).to_string())
+                .unwrap_or_else(|e| panic!("{e}"));
+        }
+        let editor = json!({"mcpServers": {"dark_factory": {"type": "stdio", "command": "/bin/dark_factory"}}});
+        let config = session_config(&editor, Some(&dir));
+        assert_eq!(
+            config["mcpServers"]["shared"]["command"], "/bin/from_omp_mcp",
+            "`.omp/mcp.json` is the file omp takes the name from: {config}"
+        );
+        assert_eq!(project_server_names(&dir), ["shared"], "one server of that name, named once");
     }
 
     /// **A project that declares nothing is not a problem**, and one that is not there says nothing at all.
