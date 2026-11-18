@@ -2192,7 +2192,14 @@ pub fn problem_toast(mut commands: Commands, frame: Res<Frame>) {
         .spawn((
             Name::new("ToastStack"),
             // The stack is gooey's: a window-sized box (`sized`) with the toast stack's role put over its own.
-            bevy_gooey::sized(bevy_gooey::Sizing { width: Some(bevy_gooey::Extent::Percent(100.0)), height: Some(bevy_gooey::Extent::Percent(100.0)), ..default() }),
+            //
+            // **The height is `Vh`, not `Percent`** (#479). A percentage resolves against the *parent*, and this stack's parent is the
+            // `placed` layer below: a row asked for 100 % of the width and no height at all. Measured on 2026-11-18 in a headless
+            // editor at the capture's shapes, that handed the stack **0 px** of room around a **154 px** refusal, and gooey's
+            // `Role::Toast` writes `Overflow::clip()` — so a seven-line `play.yaml` refusal was drawn cut, which is exactly the strip
+            // the owner photographed. `Vh` is a share of the *viewport*, so the stack is the window's height whatever its host's own
+            // height resolves to.
+            bevy_gooey::sized(bevy_gooey::Sizing { width: Some(bevy_gooey::Extent::Percent(100.0)), height: Some(bevy_gooey::Extent::Vh(100.0)), ..default() }),
             bevy_gooey::ToastStack,
             bevy::picking::Pickable::IGNORE,
             GlobalZIndex(TOAST_Z),

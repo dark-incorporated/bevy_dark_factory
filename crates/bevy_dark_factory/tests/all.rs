@@ -166,6 +166,7 @@ mod a_person_types_a_terrain_preset;
 mod a_persons_turn_is_one_undo_step;
 mod a_piece_lands_where_the_pointer_is;
 mod a_placement_in_a_doorway_says_so;
+mod a_play_refusal_is_one_node_and_its_strip_is_tall_enough;
 mod a_placement_in_reserved_space_says_so;
 mod a_preview_draws_at_the_level_the_piece_lands_at;
 mod a_project_file_created_while_open_is_read;
