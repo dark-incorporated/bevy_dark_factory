@@ -46,6 +46,7 @@ mod shift_primary_j_maximises_the_terminal;
 mod the_agent_workspace_takes_a_change_back_from_its_row;
 mod the_documents_state_the_codes_own_counts;
 mod the_finder_goes_to_cues_scripts_and_files;
+mod the_leds_word_and_its_stilled_pulse;
 mod the_leds_word_is_the_size_of_the_text_beside_it;
 mod the_self_test_cards_rows_each_carry_an_led;
 mod the_terminal_agent_row_follows_its_state_in_place;
