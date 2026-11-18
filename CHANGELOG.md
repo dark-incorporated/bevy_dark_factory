@@ -2,6 +2,10 @@
 
 What each change added, newest first. A visible change has a clip: click the still to play it. `python3 tools/changelog/changelog.py page --open` plays them all in one page.
 
+## 2026-11-18
+
+- **494-receipt-wraps** `03038d218b` a receipt wraps to its lines again, and the compose picker's empty state stays inside its panel *No clip: layout regression; proved by a_long_receipt_is_drawn_whole, the_size_receipt_does_not_push_map_size_down, no_panel_draws_a_control_past_its_content_box*
+
 ## 2026-11-17
 
 - **493-fold-chevrons** `470fa9e2` A fold draws a chevron, and every mark is one the face has *For you: Folds in the Meshes and Place panels show a triangle instead of the letter v, and a mark the font lacks now fails a check instead of drawing an empty box.* *No clip: visible, not yet recorded: fleet worker*
