@@ -4,6 +4,7 @@ What each change added, newest first. A visible change has a clip: click the sti
 
 ## 2026-11-18
 
+- **play-refusal-whole** `f75573e8` A refusal is drawn whole: the strip a toast stands in is the window's height, so the play.yaml answer reaches its last line *For you: When the editor tells you what a project file is missing, you can now read the whole answer instead of a cut-off fragment.* *No clip: visible, not yet recorded: fleet worker*
 - **place-rule-and-columns** `3960329c` The PLACE panel says what arms a row, marks the armed one with a shape, and its rows line up in columns *For you: The pieces list now tells you that clicking a row is what readies it for placing, wears a dot on the ready row, and its names and sizes line up so you can scan it.* *No clip: visible, not yet recorded: fleet worker*
 
 ## 2026-11-17
