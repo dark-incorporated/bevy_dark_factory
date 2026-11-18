@@ -2,6 +2,10 @@
 
 What each change added, newest first. A visible change has a clip: click the still to play it. `python3 tools/changelog/changelog.py page --open` plays them all in one page.
 
+## 2026-11-18
+
+- **place-rule-and-columns** `3960329c` The PLACE panel says what arms a row, marks the armed one with a shape, and its rows line up in columns *For you: The pieces list now tells you that clicking a row is what readies it for placing, wears a dot on the ready row, and its names and sizes line up so you can scan it.* *No clip: visible, not yet recorded: fleet worker*
+
 ## 2026-11-17
 
 - **483-bar-says-why** `b17702ed` A tab of the activity bar says who has the keys when its chord cannot fire, instead of showing a key that does nothing; with the editor holding the keys each tooltip is its workspace's name alone, as before *For you: When the terminal or a text field has the keyboard, the icons down the left no longer show a shortcut that will not work: they say so, and that clicking still takes you there.* *No clip: visible, not yet recorded: fleet worker*
