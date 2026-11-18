@@ -658,12 +658,12 @@ pub(crate) fn drive(
     // **The section plane, over the projection the rig asked for** (#472): an orthographic camera's `near`
     // *is* a plane perpendicular to its view, so a cut is that one field. The far plane is left alone, so
     // nothing the rig computed to hold the whole map in depth is lost.
+    *proj = map_projection(rig.height, &tf, open.as_deref(), drawn.as_deref().copied());
     if let Some(metres) = cut.as_deref().and_then(SectionCut::metres)
         && let Projection::Orthographic(o) = &mut *proj
     {
         o.near = metres;
     }
-    *proj = map_projection(rig.height, &tf, open.as_deref(), drawn.as_deref().copied());
 }
 
 /// **Dispatch a camera operation for a key** (E-002, #129 slice 31), and answer the camera as the operation left it, or `None`
