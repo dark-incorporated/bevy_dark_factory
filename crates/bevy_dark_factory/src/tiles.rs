@@ -1559,8 +1559,11 @@ fn layer_label(y: u32, dy: u32) -> String {
     }
 }
 
-/// One header button. `*` fills the layer, `v` a column, `>` a row — ASCII only, per `docs/ui.md` §5.
-fn header_button(row: &mut ChildSpawnerCommands, header: FillHeader, glyph: &str) {
+/// One header button. `*` fills the layer, [`crate::marks::FILL_COLUMN`] a column, [`crate::marks::FILL_ROW`] a row.
+///
+/// The marks are characters from the shipped face rather than the ASCII letters `v` and `>` they used to be (#493,
+/// `docs/design/icon-vocabulary.md`): `↓` and `→` say what pressing the header does, where a letter read as text.
+fn header_button(row: &mut ChildSpawnerCommands, header: FillHeader, glyph: char) {
     // **Gooey's `glyph_button`** (UI-59, #245): a button for a mark too small to press, whose hit area is the skin's target on each
     // side whatever the glyph, with a button's fill, frame, focus ring and states. Its name is what a screen reader says and its tooltip.
     let name = match header.span {
@@ -1568,7 +1571,7 @@ fn header_button(row: &mut ChildSpawnerCommands, header: FillHeader, glyph: &str
         Span::Column(x) => format!("Fill column {x}"),
         Span::Row(z) => format!("Fill row {z}"),
     };
-    row.spawn((bevy_gooey::glyph_button(glyph.to_owned(), name), header));
+    row.spawn((bevy_gooey::glyph_button(glyph.to_string(), name), header));
 }
 
 /// **Put markers on the words a gooey widget spawned for itself.**
@@ -9024,7 +9027,10 @@ fn draw_pack_band(
     // pointer as a list's row does. The heading the cursor stands on is lit as gooey lights a primary button, by `PrimaryButton`
     // (see `arm_list_rows`). The words in it are gooey's too: their ink follows the band's state, so a lit band keeps them legible.
     p.spawn((bevy_gooey::band(), PackHeader(pack.to_owned()))).with_children(|row| {
-        row.spawn((Text::new(if folded { ">" } else { "v" }), bevy_gooey::Role::ButtonText));
+        // **A chevron, not the letters `v` and `>`** (#493, `docs/design/icon-vocabulary.md`): the shipped face maps
+        // U+25BC and U+25BA and not the half-quadrants, and the mark carries no `Pickable` so a press on it propagates
+        // to this band, which is the `Button` that folds. The visible affordance is the hit target.
+        row.spawn((crate::marks::fold_mark(folded), bevy_gooey::Role::ButtonText));
         // **The pack's name, and — when it is excluded — the way back.**
         //
         // An excluded pack keeps its words because it names a state the chevron does NOT show,
@@ -9047,7 +9053,7 @@ fn draw_pack_band(
 /// now that the arrows reach it (M8).
 fn draw_excluded_band(p: &mut ChildSpawnerCommands, packs: usize, meshes: usize, open: bool) {
     p.spawn((bevy_gooey::band(), ExcludedHeader)).with_children(|row| {
-        row.spawn((Text::new(if open { "v" } else { ">" }), bevy_gooey::Role::ButtonText));
+        row.spawn((crate::marks::fold_mark(!open), bevy_gooey::Role::ButtonText));
         // **The name column wraps within itself; the tally does not.** The state and the way
         // out of it both stay on the band (`docs/ui.md` §1.4) — what changed is that they now
         // share the *growing* column, so the count can hold a column of its own rather than
@@ -10556,7 +10562,7 @@ fn rebuild_detail(detail: DetailInputs<'_, '_>) {
                                         layer: y,
                                         span: Span::Layer,
                                     },
-                                    "*",
+                                    '*',
                                 );
                                 for x in 0..dx {
                                     header_button(
@@ -10565,7 +10571,7 @@ fn rebuild_detail(detail: DetailInputs<'_, '_>) {
                                             layer: y,
                                             span: Span::Column(x),
                                         },
-                                        "v",
+                                        crate::marks::FILL_COLUMN,
                                     );
                                 }
                             });
@@ -10579,7 +10585,7 @@ fn rebuild_detail(detail: DetailInputs<'_, '_>) {
                                             layer: y,
                                             span: Span::Row(z),
                                         },
-                                        ">",
+                                        crate::marks::FILL_ROW,
                                     );
                                     for x in 0..dx {
                                         let at = (x, y, z);

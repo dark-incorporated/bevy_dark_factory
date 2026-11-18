@@ -240,6 +240,29 @@ A text is **prose** when it is a sentence or more that a person reads as languag
 - **The face is an asset of its own**, not the one installed over Bevy's default id, so a project's own `assets/fonts/FiraMono-Regular.ttf` replaces the monospace face and leaves the prose face alone. It adds 457 KB to the binary (FiraMono is 175 KB).
 - **Proved by** `tests/the_whats_new_page_reads_in_a_proportional_face.rs`: every sentence resolves to the prose face and is drawn, at 75 characters a line or fewer; every other text, in the launcher and in the editor, resolves to FiraMono; every character of every changelog "For you" sentence is in the prose face's `cmap`.
 
+## 9a. Marks: a glyph vocabulary, not a bigger atlas
+
+**The recommendation #493 asks for**, written down before the atlas grows again: `docs/design/icon-vocabulary.md`. The
+short form, so this document carries the rule where a person writing UI copy will meet it.
+
+- **A mark in a text run or beside text** (a fold's disclosure, a direction, a fill arrow, a close cross) **is a character
+  from the shipped face**. It sizes with the text and takes the role's ink for free. Its whole risk is a face without the
+  glyph, so the character must be one the face's `cmap` maps:
+  `tests/every_character_a_mark_draws_is_in_its_face.rs` reads every text every built workspace draws and resolves each
+  character in the face that text names.
+- **A mark in a fixed square on its own** (a toolbar command, a panel's tab) **is a cell of the 16 px atlas**
+  (`crates/bevy_dark_factory/src/icons.rs`), where a fixed square is the right shape. It keeps its own check,
+  `tests/every_toolbar_command_has_an_icon.rs`, which reads the PNG back.
+- **Measured**: the shipped FiraMono maps `▼` (U+25BC) and `►` (U+25BA) and **not** the half-quadrant chevrons `▾`
+  (U+25BE) and `▸` (U+25B8), so the fold's disclosure is the small solid triangle. The atlas is 128 × 48 px, 24 cells of
+  16 px, 976 bytes, and full.
+- **Chosen: Unicode characters in the shipped face** (option 1 of #493), with that constraint. An embedded icon font
+  (option 2) is the answer for a mark the face cannot draw and is not needed for any mark the editor draws today; growing
+  the raster atlas (option 3) is the worst fit for a text-flow mark. The three options, their licence and coverage cost,
+  and the measurements are in `docs/design/icon-vocabulary.md`.
+- **Proved by** `tests/a_fold_chevron_is_the_control_that_folds.rs` (the chevron is a chevron, and a press at its own rect
+  folds the group) and `tests/every_character_a_mark_draws_is_in_its_face.rs` (the coverage check).
+
 ## 10. Research gaps
 
 The HomeStill corpus (2026-11-01) has no indexed papers on docking, inspectors, settings UIs or design systems. Those rules rest on the cited industry guidelines (Bevy editor design, Blender, VS Code, Nielsen Norman Group, W3C), not on studies. The studies that were found support P4, P5, P6, P9 and P12, and are cited where used.
