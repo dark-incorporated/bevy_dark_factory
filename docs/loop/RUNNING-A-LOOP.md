@@ -80,6 +80,17 @@ answer — a compile sent to a host with no free RAM fails after the linker, hou
 | `four`, `one`, `two`, `three` | 4 | <10 | ~3.7 | cheap, roomy, but small |
 | `mac_air` | 10 | 32.9 | 6.7 | no editor tests — see below; disk too small for a Bevy `target/` |
 
+**A stale `.rlib` in the shared target fails a gate with a phantom compile error** (measured 2026-11-18,
+three gates lost). The symptom: `error[E0433]: cannot find \`issue\` in \`feedback\`` for a module that is
+plainly present in the source at top level with no `cfg` gate, plus `E0277: the size for values of type
+\`str\`` cascading from it, which reads like a real type error and is not. The cause is an artifact **newer
+than its source**: cargo trusts mtime, so it never rebuilds, and that rlib came from a tree that lacked the
+module. Compare `ls -la --time-style=+%m-%d_%H:%M <source>` with
+`ls -t $CARGO_TARGET_DIR/debug/deps/lib<Crate>*.rlib`. Fix it by making cargo rebuild **that crate**:
+`cargo check -p <Core>` in the push worktree — never by touching the whole tree (`touch` on every source is
+what made a full rebuild per gate). **Never conclude a source defect from a compile error before comparing
+those two timestamps.**
+
 **The shared lock on `big` serialises every compile, so spend it on whole suites only** (measured
 2026-11-18). `/tmp/fleet/big-heavy.lock` is exclusive by design: a gate takes it for 25-50 minutes and nothing
 else on that host compiles meanwhile. Three workers sat at **0% CPU for 5-15 minutes** queued behind one
