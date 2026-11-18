@@ -454,6 +454,7 @@ mod the_audit_keys_answer_while_the_window_holds_the_focus;
 mod the_carved_ground_is_not_white;
 mod the_carved_ground_pipeline_is_warm;
 mod the_chrome_bars_readouts_are_not_a_second_menu;
+mod the_chrome_bars_readouts_are_not_a_second_menu_row;
 mod the_chrome_helpers_keep_their_raw_nodes_counted;
 mod the_decision_model_is_a_setting;
 mod the_design_tree_is_in_the_editors_state;

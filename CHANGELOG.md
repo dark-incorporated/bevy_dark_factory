@@ -10,6 +10,8 @@ What each change added, newest first. A visible change has a clip: click the sti
 - **panel-heading-centre** `9f4ca82780` A panel heading's ? sits on the title's centre line, inside its pill *For you: The help ? beside a panel's name now lines up with the name instead of sitting high and off its button.* *No clip: visible, not yet recorded: fleet worker; proved by a_panel_headings_glyph_sits_on_the_titles_line*
 - **left-pane-reflows** `956eb623b6` The left pane's rows reflow when the divider is dragged left *For you: Narrowing the left panel no longer pushes its buttons over the map's divider.* *No clip: visible, not yet recorded: fleet worker; proved by the_left_pane_reflows_when_the_divider_moves (2 tests)*
 - **split-divider-seam** `752fefdd74` The split divider's thickness is named in one constant, and the knob to make it a 12 px seam is filed *No clip: the visible change is owed by bevy_gooey#108, so nothing a person sees changed yet; proved by the_split_divider_is_a_seam_not_a_bar (2 tests)*
+- **480-chrome-readouts** `49ed5c7f02` The chrome bar's readouts are drawn a step smaller than the menu's words so the band of state reads as a strip, not a second menu row *For you: The strip under the menu now looks like readouts rather than a second menu.* *No clip: visible, not yet recorded: fleet worker*
+- **488-panel-authoring** `92b51ec881` A panel's authoring format is researched and recommended: the typed schema is the source of truth, YAML is its text form, and Markdown stays prose *No clip: a design document and its measured evidence; no code changed, so nothing in the editor's suite can fail on it -- see docs/design/2026-11-17-a-panels-authoring-format.md*
 
 ## 2026-11-16
 

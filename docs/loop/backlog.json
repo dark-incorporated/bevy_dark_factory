@@ -244,6 +244,16 @@
           "issue": "https://github.com/bevy-coven/bevy_blueprint/issues/204"
         }
       ]
+    },
+    {
+      "id": "UI-102",
+      "kind": "enhancement",
+      "area": "ui",
+      "title": "Cmd+J cycles the terminal through maximised, collapsed and a quarter at the bottom",
+      "status": "blocked",
+      "evidence": "#492 (feedback-1794921267685). Blocked 2026-11-17: the issue's first acceptance item \u2014 Cmd+J four times from each starting state visits Maximised, Collapsed and Quarter \u2014 contradicts two protected assertions in crates/bevy_dark_factory/tests/the_terminal_is_on_every_screen.rs::primary_j_collapses_the_terminal_on_every_screen_and_brings_it_back_with_the_keys, lines 276 and 288, which pin that Primary+J from a raised pane lowers it to Collapsed, and again from a raised pane lowers it again. A three-state cycle makes the press after Collapsed raise the pane to Quarter, so both assertions become false. The second conflict is crates/bevy_dark_factory/tests/shift_primary_j_maximises_the_terminal.rs lines 121-127, which pin that Cmd+J while maximised lowers the pane and the next raise is the normal height, not full; the cycle's next state after Collapsed is Quarter. Needs an evaluator pass: re-pin those four assertions to the cycle, or an owner decision that the cycle is the behaviour and the tests follow. Not a weakening a pass may make.",
+      "last_failure": "",
+      "first_seen": "2026-11-17"
     }
   ]
 }

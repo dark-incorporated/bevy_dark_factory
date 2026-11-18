@@ -159,6 +159,14 @@ pub const COST_PAD_X: f32 = 8.0;
 /// So it is the widest string the format can produce: `with_thousands(usize::MAX)` is twenty digits
 /// and six separators, and ` tris drawn` is eleven more. `Node::box_sizing` defaults to
 /// `BoxSizing::BorderBox`, so [`COST_PAD_X`] is inside the width and has to be added here.
+///
+/// **The advance is [`crate::chrome::text::BODY`]'s, and the readout is drawn smaller** (#480): the readout is a
+/// [`crate::chrome::BAR_READOUT`], so this column reserves about 10% more than the string needs. That is the safe
+/// direction and deliberately not corrected — the column is a **floor** (`>=`), the digits flush right inside it, and
+/// a reservation that is wide is a name that does not move. Narrowing it to the readout's own advance would leave the
+/// floor below what `headless::the_triangle_count_does_not_shove_the_maps_name` pins, which is the fact that test exists
+/// to hold: the column is never shorter than the widest string the format produces at the size the bar's text is
+/// measured in.
 const COST_CHARS: f32 = 26.0 + 11.0;
 pub const COST_COL: f32 = COST_CHARS * crate::chrome::BODY_CHAR_W + 2.0 * COST_PAD_X;
 
@@ -3139,7 +3147,7 @@ fn spawn_cost_readout(mut commands: Commands, frame: Res<crate::chrome::Frame>) 
             p.spawn((
                 Text::new(""),
                 TextColor(crate::chrome::ink().dim),
-                crate::chrome::typed(crate::chrome::text::BODY),
+                crate::chrome::typed(crate::chrome::BAR_READOUT),
                 TriangleTotal,
             ));
         });
