@@ -56,6 +56,46 @@ pub const TERMINAL_DEFAULT_H: f32 = 320.0;
 /// the five a terminal is refused below (`measured_cells`).
 pub const TERMINAL_WINDOW_SHARE: f32 = 1.0 / 3.0;
 
+/// **The three positions `Cmd+J` cycles through** (#492, the owner: *"I'd like Cmd+J to toggle three position, terminal
+/// maximized, minimized, and 1/4 at the bottom."*). A state, not a pair of booleans: the order is the owner's and it is
+/// [`Self::next`], so the chord, the status label and their tests all read one machine.
+///
+/// `Quarter` is a *stated* fraction of the editor's body ([`TERMINAL_QUARTER_SHARE`]), not "what the split last held", so the
+/// position is reproducible. A drag after the cycle is the person taking the height back ([`Terminal::set_height`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Reflect)]
+pub enum TerminalPlacement {
+    /// Covering the window below the menu bar (Shift+`Cmd+J`'s full state, #426).
+    Maximised,
+    /// Out of the layout, the status band's label saying how to bring it back (#424).
+    Collapsed,
+    /// Docked across the bottom at a quarter of the body.
+    Quarter,
+}
+
+impl TerminalPlacement {
+    /// **The position `Cmd+J` reaches next**, the owner's order: `Maximised → Collapsed → Quarter → Maximised`.
+    pub fn next(self) -> Self {
+        match self {
+            Self::Maximised => Self::Collapsed,
+            Self::Collapsed => Self::Quarter,
+            Self::Quarter => Self::Maximised,
+        }
+    }
+
+    /// What the status bar's tooltip says the next press will do, because a cycle has no state to see (#492).
+    pub fn next_press_words(self) -> &'static str {
+        match self.next() {
+            Self::Maximised => "the next press makes the terminal cover the window",
+            Self::Collapsed => "the next press hides the terminal",
+            Self::Quarter => "the next press lowers the terminal to a quarter at the bottom",
+        }
+    }
+}
+
+/// **How much of the editor's body the terminal takes in `Quarter`** (#492): a quarter, the owner's fraction. Measured in the
+/// editor's own tests against the window below the menu bar, the same room the maximise fills, so the two positions are one measure.
+pub const TERMINAL_QUARTER_SHARE: f32 = 0.25;
+
 /// The window's height in the UI's own pixels — what a `Val::Px` is measured in — for
 /// [`Terminal::opening_height`].
 fn window_ui_height(windows: &Query<&Window, With<bevy::window::PrimaryWindow>>, ui_scale: &UiScale) -> Option<f32> {
@@ -261,8 +301,21 @@ pub fn chord_words(chord: &bevy_gooey::Shortcut) -> String {
     chord.label_with(bevy_gooey::Platform::current(), bevy_gooey::ChordGlyphs::Words)
 }
 
-/// What the label's tooltip says.
-const TIP_STATUS_LABEL: &str = "Show or hide the terminal: the same as the chord it names";
+/// **What the label's tooltip says** (#492): a cycle has no state to see, so the tooltip names what the next press will do.
+pub fn status_tooltip_words(placement: TerminalPlacement) -> String {
+    format!("{} — {}", placement.next_press_words(), chord_words(&COLLAPSE_CHORD))
+}
+
+/// **The label's tooltip follows the pane's position** (#492): the chord cycles, so the one place a person can read what the next
+/// press means has to be rewritten as the pane moves. It writes only a change.
+fn the_label_says_what_the_next_press_does(terminal: Res<Terminal>, mut labels: Query<&mut bevy_gooey::Tooltip, With<TerminalStatusLabel>>) {
+    let want = status_tooltip_words(terminal.placement());
+    for mut tip in &mut labels {
+        if tip.text != want {
+            tip.text.clone_from(&want);
+        }
+    }
+}
 
 /// **The `Agent` chip**: another agent tab, in the open project. Shown while the settings choose an
 /// agent (`terminal_agent`) and the pane is not the one inviting the first (see [`offers_another_agent`]).
@@ -438,6 +491,7 @@ impl Plugin for TerminalPanePlugin {
             // and never observe.
             .register_type::<TerminalFocus>()
             .register_type::<TerminalPane>()
+            .register_type::<TerminalPlacement>()
             .register_type::<TerminalPaneRoot>()
             .register_type::<TerminalRow>()
             .register_type::<TerminalBar>()
@@ -518,6 +572,8 @@ impl Plugin for TerminalPanePlugin {
                 spawn_the_status_label.after(chrome::FrameSystems).after(chrome::spawn_status_band),
             )
             .add_systems(Update, keep_the_pane_choice)
+            // **The status label's tooltip names what the next press does** (#492), because a cycle has no state to see.
+            .add_systems(Update, the_label_says_what_the_next_press_does.after(crate::terminal_view::TerminalChordSet))
             .add_observer(the_label_flips_the_pane)
             .add_observer(a_click_takes_the_keyboard)
             .add_observer(a_click_elsewhere_gives_it_back)
@@ -1207,6 +1263,10 @@ fn apply_the_maximise(
         if maximised && node.height != Val::Auto {
             node.height = Val::Auto;
         } else if !maximised && node.height == Val::Auto {
+            // **Given back, the pane takes back a pixel height** (#492). It must, and writing nothing left it at `Auto` — a column
+            // child at `Auto` grows to its content, which measured as the full body: the pane came back from the maximise
+            // *maximised*. `Terminal::height()` is the person's drag when they made one, and `fit_the_pane_to_the_window` states the
+            // quarter for a pane they never sized, so this one line serves both positions.
             node.height = Val::Px(terminal.height());
         }
         match (maximised, layer) {
@@ -1249,21 +1309,23 @@ fn collapse_on_the_chord(
     if !COLLAPSE_CHORD.just_pressed(&keys) {
         return;
     }
-    flip_the_pane(&mut panes, &mut focus, &mut terminal);
+    cycle_the_pane(&mut panes, &mut focus, &mut terminal);
 }
 
-/// **Collapse the pane when it is raised, raise it when it is collapsed**, and put the keys where a person means them: back to the
-/// screen when it collapses, in the shell when it comes back. The one thing the chord and the status bar's label both do.
-fn flip_the_pane(panes: &mut Query<&mut Node, With<TerminalPaneRoot>>, focus: &mut TerminalFocus, terminal: &mut Terminal) {
-    let Some(mut node) = panes.iter_mut().next() else {
+/// **`Cmd+J`'s press: the pane moves one position round** (#492): `Maximised → Collapsed → Quarter → Maximised`. The one thing
+/// the chord and the status bar's label both do, and the reason they are one function: a cycle whose two doors disagreed would
+/// leave a person unable to predict the next press.
+///
+/// The keys go where a person means them: back to the screen when the pane goes away, in the shell when it comes back or changes
+/// size, because a person who presses the chord means to work in the terminal.
+fn cycle_the_pane(panes: &mut Query<&mut Node, With<TerminalPaneRoot>>, focus: &mut TerminalFocus, terminal: &mut Terminal) {
+    if panes.iter_mut().next().is_none() {
         return;
-    };
-    let collapse = node.display != Display::None;
-    show(&mut node, terminal, collapse);
-    if collapse {
-        focus.release();
-    } else {
-        focus.take();
+    }
+    let placement = terminal.cycle_placement();
+    match placement {
+        TerminalPlacement::Collapsed => focus.release(),
+        TerminalPlacement::Quarter | TerminalPlacement::Maximised => focus.take(),
     }
 }
 
@@ -1282,7 +1344,7 @@ fn spawn_the_status_label(mut commands: Commands, frame: Option<Res<chrome::Fram
             chrome::ink().bar_bg,
             chrome::ink().panel_edge,
         )
-        .insert(bevy_gooey::Tooltip::new(TIP_STATUS_LABEL));
+        .insert(bevy_gooey::Tooltip::new(status_tooltip_words(TerminalPlacement::Collapsed)));
     });
 }
 
@@ -1299,7 +1361,7 @@ fn the_label_flips_the_pane(
         return;
     }
     click.propagate(false);
-    flip_the_pane(&mut panes, &mut focus, &mut terminal);
+    cycle_the_pane(&mut panes, &mut focus, &mut terminal);
 }
 
 /// **A raise or a lower a person made is kept** (#424), in the user's settings file as `terminal_collapsed`, so the next launch opens
@@ -2287,12 +2349,20 @@ fn the_wheel_scrolls_the_scrollback(
 /// frame its screen has a size.
 fn fit_the_pane_to_the_window(
     terminal: Res<Terminal>,
+    menus: Query<&ComputedNode, With<crate::menu_bar::EditorMenuBar>>,
     mut panes: Query<(&mut Node, &ChildOf), With<TerminalPaneRoot>>,
     screens: Query<&ComputedNode>,
 ) {
-    if terminal.chosen_height().is_some() || terminal.is_maximised() {
+    if terminal.is_maximised() {
         return;
     }
+    // **A drag is the person taking the height** (#492): once they have chosen one, neither the opening share nor the quarter
+    // moves it, and the cycle's next turn starts from where they left it.
+    if terminal.chosen_height().is_some() {
+        return;
+    }
+    let quarter = terminal.placement() == TerminalPlacement::Quarter;
+    let menu_h = menus.iter().next().map_or(0.0, |menu| menu.size().y * menu.inverse_scale_factor());
     for (mut node, parent) in &mut panes {
         let Ok(screen) = screens.get(parent.parent()) else {
             continue;
@@ -2301,7 +2371,14 @@ fn fit_the_pane_to_the_window(
         if screen_h <= 0.0 {
             continue;
         }
-        let want = Val::Px(terminal.opening_height(Some(screen_h)));
+        let room = (screen_h - menu_h).max(0.0);
+        // The quarter is the editor's body, the same room the maximise fills; the opening share is the screen, as it has been
+        // since #314, and the dock's own floor keeps a small window's quarter a terminal rather than a sliver.
+        let want = if quarter {
+            Val::Px((room * TERMINAL_QUARTER_SHARE).max(TERMINAL_MIN_H))
+        } else {
+            Val::Px(terminal.opening_height(Some(screen_h)))
+        };
         if node.height != want {
             node.height = want;
         }
