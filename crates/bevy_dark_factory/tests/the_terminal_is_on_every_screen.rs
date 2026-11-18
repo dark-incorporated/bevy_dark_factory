@@ -307,6 +307,15 @@ fn primary_j_never_reaches_the_shell() {
     type_text(&mut app, "echo A");
     // Collapse and restore in the middle of the line. Had Ctrl+J reached the shell it would be a newline,
     // and `echo A` would run on its own before the `B` arrived.
+    //
+    // **Owner exception (2026-11-18): `the_terminal_is_on_every_screen.rs::primary_j_never_reaches_the_shell`.**
+    // This test used to press the chord twice — collapse, restore — because `Cmd+J` was a two-state toggle.
+    // #492 makes it a three-position cycle (`Maximised -> Collapsed -> Quarter -> Maximised`, the owner's
+    // order), so the second press lands on `Quarter` and the third raises the pane over the body. The
+    // **intent is unchanged**: what this test exists to prove is that the chord never reaches the shell as a
+    // newline, which is why the line is typed across the collapse and `echo A` must not run. Only the number
+    // of presses that restores the keyboard changed, and the assertion after them is the same one.
+    primary(&mut app, KeyCode::KeyJ);
     primary(&mut app, KeyCode::KeyJ);
     primary(&mut app, KeyCode::KeyJ);
     assert!(holds(&app), "restored with the keys");
