@@ -2617,6 +2617,43 @@ pub fn list_heading_in(parent: &mut ChildSpawnerCommands, text: &str, ink: ListH
     ));
 }
 
+/// **The mark a row wears when it is the one a click would act on** (#486): a filled dot, in the shipped face, in the row's reserved
+/// mark column. A shape rather than a fill, because the accent rail and the row's own tint say "this one" in colour alone — which a
+/// person who cannot separate the two hues does not read, and which a screen's photograph cannot show.
+///
+/// It is the same character the fold carets are not: the palette's bands use `>`/`v` for folded state, and a row's armed state is a
+/// second fact about a second thing.
+pub const ARMED_MARK: &str = "●";
+
+/// **What arms a row, and what an armed row does** — the PLACE panel's own sentence (#486). One line a person can act on: the mark,
+/// the press that sets it, and the press that spends it. It says "ready" in the words the panel can keep true: every row in the list is
+/// offered, and the armed one is the piece the next click on the map places.
+pub const PLACE_RULE: &str = "A click on a row arms that piece (●), and the next click on the map places it.";
+
+/// **A panel's rule of readiness, drawn above the list it is about** (#486).
+///
+/// It is its own node with a line to itself: a rule sharing a row with a control reads as that control's caption. It wraps in its own
+/// box rather than running past the panel's border, and it ends where the rows end — the scroll list keeps [`SCROLL_GUTTER`] clear for
+/// its rail, so this takes the same lane, or the sentence would stand under the bar.
+#[derive(Component, Clone)]
+pub struct PaletteRule(pub String);
+
+/// See [`PaletteRule`].
+pub fn palette_rule(parent: &mut ChildSpawnerCommands, words: &str) {
+    parent.spawn((
+        Text::new(words.to_owned()),
+        TextColor(ink().label),
+        typed(text::HINT),
+        // The layout role a bare text needs for `Spacing` to apply to it; it draws nothing and leaves the ink and the face alone.
+        bevy_gooey::Role::Sized,
+        bevy_gooey::Sizing { width: Some(bevy_gooey::Extent::Percent(100.0)), ..default() },
+        // The rail's lane, so the sentence and the rows end at one edge.
+        bevy_gooey::Spacing { padding: bevy_gooey::Sides { right: Some(bevy_gooey::Space::Px(SCROLL_GUTTER)), ..default() }, ..default() },
+        TextLayout::new(Justify::Left, LineBreak::WordBoundary),
+        PaletteRule(words.to_owned()),
+    ));
+}
+
 /// **The label column of a `LABEL  value` row** — the shape the audit found hand-rolled eight times,
 /// differing only in this width. 10 px `Ink::label`, never wrapping, never shrinking.
 ///
