@@ -3834,7 +3834,12 @@ fn spawn_panel(mut commands: Commands, frame: Res<crate::chrome::Frame>) {
                                 field.label(),
                                 ReceiptLabel,
                             );
-                            row.spawn(bevy_gooey::fill_column(0.0))
+                            // **The receipt's column cuts what does not fit** ([`crate::chrome::clipped_fill_column`],
+                            // #494): a receipt longer than the pane — `none — this project stamps nothing` — is held to
+                            // its two reserved lines and the words that would cross the third are cut at the column,
+                            // rather than the value being one line that paints over the panel's border (measured 76 px
+                            // past the content edge at interface scale 2.4).
+                            row.spawn(crate::chrome::clipped_fill_column(0.0))
                             .with_children(|col| {
                                 crate::chrome::row_value(col, "", crate::chrome::ink().text, Field::Last);
                             });
@@ -3847,7 +3852,13 @@ fn spawn_panel(mut commands: Commands, frame: Res<crate::chrome::Frame>) {
                             } else {
                                 crate::chrome::row_label(row, READOUT_LABEL_W, field.label());
                             }
-                            crate::chrome::row_value(row, "", crate::chrome::ink().text, field);
+                            // **A readout value the pane is too narrow for is cut at the row** (#494): `nothing`, the
+                            // receipt of a removal that found nothing left to remove, was measured 18 px past the
+                            // INSPECTOR's content edge at interface scale 2.4. The value stays one line — the row's
+                            // `RECEIPT_LINES` arithmetic is the other test's — and the row's own box bounds it.
+                            row.spawn(crate::chrome::clipped_fill_column(0.0)).with_children(|col| {
+                                crate::chrome::row_value(col, "", crate::chrome::ink().text, field);
+                            });
                         }
                     });
                 }

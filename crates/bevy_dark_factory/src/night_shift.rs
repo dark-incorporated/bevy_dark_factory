@@ -246,14 +246,14 @@ pub fn spawn_the_block(commands: &mut Commands, pause: bool, here: bool) -> Enti
                 crate::chrome::rigid_row(block, 0.0, AlignItems::FlexStart).with_children(|row| {
                     crate::chrome::row_label(row, crate::editor::READOUT_LABEL_W, name);
                     row.spawn(bevy_gooey::fill_column(0.0)).with_children(|col| {
-                        crate::chrome::row_value(col, "", crate::chrome::ink().text, line);
+                        crate::chrome::row_value_wrapping(col, "", crate::chrome::ink().text, line);
                     });
                 });
             }
             crate::chrome::rigid_row(block, 0.0, AlignItems::FlexStart).with_children(|row| {
                 crate::chrome::row_label(row, crate::editor::READOUT_LABEL_W, "PLAN");
                 row.spawn(bevy_gooey::fill_column(0.0)).with_children(|col| {
-                    crate::chrome::row_value(col, "", crate::chrome::ink().text, NightShiftPlanLine);
+                    crate::chrome::row_value_wrapping(col, "", crate::chrome::ink().text, NightShiftPlanLine);
                 });
             });
             block.spawn((toggle("Pause agent writes", pause), NightShiftSwitch, observe(toggle_the_pause)));

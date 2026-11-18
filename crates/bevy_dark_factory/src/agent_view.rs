@@ -278,13 +278,13 @@ fn draw_the_history(
     watch.drawn = true;
     commands.entity(container).with_children(|c| {
         if rows.is_empty() {
-            chrome::row_value(c, "The agent has made no changes yet", chrome::ink().dim, AgentChangeRow);
+            chrome::row_value_wrapping(c, "The agent has made no changes yet", chrome::ink().dim, AgentChangeRow);
         }
         for row in &rows {
             chrome::gapped_row(c, chrome::GAP_TIGHT_STEPS, crate::chrome::NO_MARGIN, AlignItems::FlexStart)
                 .with_children(|r| {
                     r.spawn(bevy_gooey::fill_column(0.0)).with_children(|col| {
-                        chrome::row_value(col, row.text.clone(), chrome::ink().text, AgentChangeRow);
+                        chrome::row_value_wrapping(col, row.text.clone(), chrome::ink().text, AgentChangeRow);
                     });
                     chrome::button(
                         r,
@@ -301,7 +301,7 @@ fn draw_the_history(
             chrome::gapped_row(c, chrome::GAP_TIGHT_STEPS, crate::chrome::NO_MARGIN, AlignItems::FlexStart)
                 .with_children(|r| {
                     r.spawn(bevy_gooey::fill_column(0.0)).with_children(|col| {
-                        chrome::row_value(col, format!("kept: {}", hand.title), chrome::ink().text, AgentHandBackRow);
+                        chrome::row_value_wrapping(col, format!("kept: {}", hand.title), chrome::ink().text, AgentHandBackRow);
                     });
                     let label = if hand.draft.is_some() { "Open the benchmark task" } else { "Make a benchmark task" };
                     let mut button = chrome::button(r, AgentMakeTask(hand.id.clone()), label, Severity::Plain);

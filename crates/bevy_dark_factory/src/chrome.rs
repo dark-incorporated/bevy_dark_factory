@@ -1732,12 +1732,21 @@ pub struct BottomDock;
 /// panel's name never changes. What separates a title from the rows under it is that it is the
 /// largest thing on the panel ([`text::TITLE`]) and has a group gap below it — size and space, which
 /// is what a heading is supposed to be made of.
+///
+/// **It also gives way, because the "?" stands beside it** (#494). The heading is a flex item of the title row
+/// `help::mark_the_panel_headings` builds, and a flex item's automatic least width is its content: a panel squeezed past
+/// its title's own width kept the words at full width and pushed the "?" — and the row — out past the panel's border.
+/// Measured at the capture's own panel width and type size: the "?" ended **28 px past** the INSPECTOR's content edge at
+/// interface scale 2.4. With the floor the words take the room the "?" does not need, at the same title size and ink.
 pub fn title(parent: &mut ChildSpawnerCommands, text: &str) {
     parent.spawn((
+        narrowing_label(),
         Text::new(text.to_owned()),
         TextColor(ink().text),
         typed(text::TITLE),
-        spaced(margin_bottom(STEP_ROW)),
+        // **`Spacing`, not `spaced(..)`.** Both carry gooey's `Role::Sized` — the role [`narrowing_label`] already has — and a
+        // bundle holding one component twice panics at spawn, naming the component and not the call site.
+        bevy_gooey::Spacing { margin: margin_bottom(STEP_ROW), padding: default() },
     ));
 }
 
@@ -2611,6 +2620,9 @@ impl ListHeadingInk {
 /// **A list heading in a given ink.** The builder every panel uses; see [`ListHeadingInk`].
 pub fn list_heading_in(parent: &mut ChildSpawnerCommands, text: &str, ink: ListHeadingInk) {
     parent.spawn((
+        // The same floor a [`title`] carries, and for the same reason: a right dock's heading is a flex item of the title
+        // row the "?" is added to, so without it the heading keeps its words' width and pushes the "?" past the border.
+        narrowing_label(),
         Text::new(text.to_owned()),
         TextColor(ink.0),
         typed(text::HEADING),
@@ -2684,6 +2696,12 @@ pub fn row_label_with(
 
 /// **The value beside a [`row_label`]** — 11 px, one step louder than its label, which is the
 /// role map's one value size (the audit found 10/11 and 10/10 coexisting; 10/11 won).
+///
+/// **It is held to one line.** A readout's value is a column of one line each, and `a_receipt_does_not_move_the_panel` holds
+/// the INSPECTOR to that: every value that may wrap grew the receipt row past the `RECEIPT_LINES` it reserves and pushed MAP
+/// SIZE down by **80 px** under the pointer that had just typed into it — measured. So a value too long for its column is
+/// the row's to bound, and a *sentence* — an agent's account of its change, a hand-back's title — belongs in
+/// [`row_value_wrapping`], in a block that grows with what it has to say.
 pub fn row_value(row: &mut ChildSpawnerCommands, text: impl Into<String>, colour: Color, marker: impl Bundle) {
     row.spawn((
         Text::new(text.into()),
@@ -2691,6 +2709,78 @@ pub fn row_value(row: &mut ChildSpawnerCommands, text: impl Into<String>, colour
         typed(text::BODY),
         marker,
     ));
+}
+
+/// **A [`row_value`] that is a sentence rather than a number** (#494): it takes the room its column leaves and breaks
+/// inside it, because the block it stands in is as tall as what it says — the agent's account of its newest change, a
+/// hand-back's title, the plan the NightShift declared.
+///
+/// Measured on the real layout at the AGENT panel's drag minimum (`no_panel_draws_a_control_past_its_content_box`):
+/// `not heard this session` ended **14 px past** the panel's content edge at interface scale 2.4, and *"The agent has made
+/// no changes yet"* 8 px past at scale 1.
+pub fn row_value_wrapping(row: &mut ChildSpawnerCommands, text: impl Into<String>, colour: Color, marker: impl Bundle) {
+    row.spawn((
+        bevy_gooey::Role::Sized,
+        bevy_gooey::TextFlow { grow: None, shrink: None, min_width: Some(bevy_gooey::Extent::Px(0.0)), align: None },
+        Text::new(text.into()),
+        TextLayout::new(Justify::Left, LineBreak::WordOrCharacter),
+        TextColor(colour),
+        typed(text::BODY),
+        marker,
+    ));
+}
+
+/// **A switch's label takes the room its row leaves, and breaks inside it** (#494, the Agent panel's capture
+/// `feedback-1794783669349`: *"The widgets are breaking out of the div here."*).
+///
+/// gooey's [`bevy_gooey::toggle`] lays its row out as `SpaceBetween` — the label on the left, the switch on the right —
+/// and every control's label is `NoWrap` (`widgets::ONE_LINE`), because gooey sizes a control's row by its widest child.
+/// That is right in a dialog and wrong in a dock whose pane is narrower than the two: the label keeps its whole width,
+/// the switch keeps its own, and the pair overflows. Measured on a real layout at the capture's own panel width and type
+/// size (`no_panel_draws_a_control_past_its_content_box`): `Pause agent writes` ends **57 px past** the AGENT panel's
+/// content edge at interface scale 1, and its track 110 px past.
+///
+/// So a toggle's row and its label each get the floor every other narrowing cell in the editor has
+/// ([`narrowing_label`], [`fill_text`]): a zero least width, so the row narrows to the panel and hands the label what the
+/// track does not need. The label breaks inside a word too, since the row is what bounds it.
+///
+/// # Why a system, and why every frame
+///
+/// The label is gooey's — `toggle` spawns it, so the editor can only reach it after the fact — and gooey re-asserts its
+/// control-label layout on every style pass. Retagging it would trade the skin's `ControlText` ink for a break, so this
+/// keeps gooey's role and ink and rewrites only the layout, [after](bevy_gooey::GooeySystems::Style) gooey has written
+/// the skin's node — a write before it would be overwritten the same frame. Every write is compared first, so a settled
+/// panel costs a few reads a frame.
+pub fn let_a_toggle_label_break(
+    // **The two queries are disjoint by `Text`, not by `Role`** (B0001): a toggle's own row is never a text, and every
+    // word this reaches is one. A `Without<Role>` on the words query would be a *second* filter with a cost and a wrong
+    // one: the skin puts `ControlText` on exactly the labels this exists to narrow.
+    mut toggles: Query<(&bevy_gooey::Role, &Children, &mut Node), Without<Text>>,
+    mut words: Query<(&mut TextLayout, &mut Node), With<Text>>,
+) {
+    for (role, kids, mut row) in &mut toggles {
+        if *role != bevy_gooey::Role::Toggle {
+            continue;
+        }
+        // **The row has a zero floor too.** Its layout is `SpaceBetween`, whose automatic minimum is the label's width
+        // plus the track's, so a row with no floor is as wide as both whatever the panel says — the 110 px. With the
+        // floor the row takes the panel's width and hands the label what the track does not need.
+        if row.min_width != Val::ZERO {
+            row.min_width = Val::ZERO;
+        }
+        for kid in kids.iter() {
+            let Ok((mut layout, mut node)) = words.get_mut(kid) else { continue };
+            if layout.linebreak != LineBreak::WordOrCharacter {
+                layout.linebreak = LineBreak::WordOrCharacter;
+            }
+            // The same floor on the label: without it the label's automatic minimum is its longest word, and the row
+            // overflows by that much instead. Only the children that carry words are touched, so the track (a node
+            // holding a knob) is left as the skin sized it.
+            if node.min_width != Val::ZERO {
+                node.min_width = Val::ZERO;
+            }
+        }
+    }
 }
 
 /// **The editor skin's spacing steps, named** (#260): `editor_skin.yaml`'s `spacing` scale is `[3, 5, 12, 16, 20, 24]` px, so the editor's own gaps are
@@ -2857,6 +2947,20 @@ pub fn rigid_row<'a>(parent: &'a mut ChildSpawnerCommands, gap: f32, align: Alig
     parent.spawn(bevy_gooey::row_with(gap, bevy_gooey::RowLayout { align: Some(align), shrink: Some(0.0), ..default() }))
 }
 
+/// **A column that takes the room its row leaves and never widens it** (#494): [`bevy_gooey::fill_column`] with a zero
+/// least width.
+///
+/// gooey's `fill_column` is `flex_grow: 1`, `flex_shrink: 1`, `min_width: 0` in the *skin*, and the skin only restyles
+/// nodes that carry a `Role` — which it does. What it does not do is clip: a column with a value wider than itself hands
+/// the overflow to the panel. This is the same column with `clip`, for a value held to one line, so a word too long for
+/// the column is cut at the column's edge rather than painted over the panel's border.
+pub fn clipped_fill_column(gap: f32) -> impl Bundle {
+    (
+        bevy_gooey::fill_column(gap),
+        bevy_gooey::Sizing { clip: Some(true), ..default() },
+    )
+}
+
 /// **A [`gapped_row`] whose cells gather at the right edge** (#260): a dialog's answers.
 pub fn end_row<'a>(parent: &'a mut ChildSpawnerCommands, gap: f32) -> EntityCommands<'a> {
     parent.spawn(bevy_gooey::row_with(gap, bevy_gooey::RowLayout { justify: Some(JustifyContent::FlexEnd), ..default() }))
@@ -2925,16 +3029,29 @@ pub fn chip<'a>(
         // `style_list_rows` already keys on it and has never needed to know what it is painting.
         RowRest(fill),
         marker,
-        held_box(CHIP_SPACING, bevy_gooey::Sides::all(EDGE_W), Some(0.0), bevy_gooey::Sizing::default()),
+        // **A chip gives way and cuts its own word** (#494). The capture that filed this is a chip: `NOT IMPORTED (0)` at
+        // the PIECES panel's drag minimum drew its fill **17 px past the panel's own right border** and out into the
+        // window's gutter. So the box may be narrower than its label (`min_width` 0, `shrink` 1) and it clips what does
+        // not fit — `clip`, because a chip is a fixed-height tile in a strip: one that *broke* its word would be two lines
+        // tall and would push the strip over the list below it, which
+        // `the_pieces_panels_text_stays_in_its_rows_and_inside_the_panel` measures as 12 px of glyph over glyph.
+        held_box(
+            CHIP_SPACING,
+            bevy_gooey::Sides::all(EDGE_W),
+            Some(1.0),
+            bevy_gooey::Sizing { min_width: Some(bevy_gooey::Extent::Px(0.0)), clip: Some(true), ..default() },
+        ),
         BorderColor::all(border),
         BackgroundColor(fill),
     ));
     c.with_children(|chip| {
         chip.spawn((
+            // **One line, with the floor** ([`narrowing_label_one_line`]): the chip's box is what bounds the word, and the
+            // box clips it. Breaking here is the one thing a chip may not do — see the box above.
+            narrowing_label_one_line(),
             Text::new(label.to_owned()),
             TextColor(ink),
             typed(role),
-            TextLayout::new(Justify::Left, LineBreak::NoWrap),
         ));
     });
     c
@@ -3155,20 +3272,66 @@ pub fn button<'a>(
         Hovered::default(),
         RowRest(ink().row_bg),
         marker,
-        held_box(BUTTON_SPACING, bevy_gooey::Sides::all(EDGE_W), Some(0.0), bevy_gooey::Sizing::default()),
+        // **The box may be narrower than its words, and cuts what does not fit** (#494). A flex item's automatic least
+        // width is its content, so a button in a pane narrower than its label kept the label's width and drew out past
+        // the pane's edge (measured: `Send all drafts` ended 40 px past the INSPECTOR's content edge at interface scale
+        // 2.4). The floor lets the box narrow and `clip` bounds the word at the box's own edge, because the label keeps
+        // **one line** — a command split across two lines is hard to read, the rule #482's own note states — and a row
+        // that wraps (#482's fix) only helps where there is a second button to wrap onto.
+        held_box(
+            BUTTON_SPACING,
+            bevy_gooey::Sides::all(EDGE_W),
+            Some(1.0),
+            bevy_gooey::Sizing { min_width: Some(bevy_gooey::Extent::Px(0.0)), clip: Some(true), ..default() },
+        ),
         BorderColor::all(ink().panel_edge),
         BackgroundColor(ink().row_bg),
     ));
     b.with_children(|b| {
         b.spawn((
+            narrowing_label_one_line(),
             Text::new(label.to_owned()),
             TextColor(severity.ink()),
             typed(text::CONTROL),
-            TextLayout::new(Justify::Left, LineBreak::NoWrap),
         ));
     });
     b
 }
+
+/// **A label that gives way to the box it is drawn in** (#494): the words, with the floor and the break that let a
+/// control narrower than its text still hold them inside itself.
+///
+/// A `Text` with no least width is not enough on its own, and neither is a break: a flex item's automatic minimum is its
+/// content, so a label that may not narrow keeps its whole width and the box around it grows past the pane. Both are
+/// needed, on the label — the floor so it can be narrower than its longest word, and the break so the word goes on two
+/// lines rather than over the border. `WordOrCharacter` rather than `WordBoundary` because many of these labels are one
+/// word (`surveillance_console.glb`, `NOT IMPORTED`), the rule [`fill_text`] states.
+///
+/// **The words are the control's, not the panel's**: a 20-character label in a 158 px pane is three lines rather than a
+/// control that runs over the border, which is what #494's Wanted asks for.
+pub fn narrowing_label() -> impl Bundle {
+    (
+        bevy_gooey::Role::Sized,
+        bevy_gooey::TextFlow { grow: None, shrink: None, min_width: Some(bevy_gooey::Extent::Px(0.0)), align: None },
+        TextLayout::new(Justify::Left, LineBreak::WordOrCharacter),
+    )
+}
+
+/// **A [`narrowing_label`] whose words never break**: the same floor, so the box around it may be narrower than the label,
+/// and one line whatever that box is — for a control whose *height* is fixed by the layout rather than by its words.
+///
+/// The two halves of a narrowing label answer different questions and only the first is universal. The floor says *this
+/// box may be narrower than its words*; the break says *and here is what happens to the words that do not fit*. A control
+/// in a column that grows with its content wants both. A chip in a fixed-height strip wants only the floor: there the
+/// break moves every neighbour in the strip, which is a worse fault than a word cut at the chip's own edge.
+pub fn narrowing_label_one_line() -> impl Bundle {
+    (
+        bevy_gooey::Role::Sized,
+        bevy_gooey::TextFlow { grow: None, shrink: None, min_width: Some(bevy_gooey::Extent::Px(0.0)), align: None },
+        TextLayout::new(Justify::Left, LineBreak::NoWrap),
+    )
+}
+
 
 // ── the overlay stack, in one place ──────────────────────────────────────────────────────────────
 //
@@ -3724,6 +3887,9 @@ impl Plugin for ChromePlugin {
                     // Ungated for the same reason: both screens have panels, and which one holds
                     // the keyboard is a question the menu asks louder than the editor does.
                     light_the_focused_panel,
+                    // **gooey's control labels break where a dock bounds them** (#494): a switch's label is
+                    // `NoWrap` because a dialog sizes itself by its widest control, and a dock does not.
+                    let_a_toggle_label_break.after(bevy_gooey::GooeySystems::Style),
                 ),
             )
             // **After `Phase::Text`, not in it.** The field consumes the keystroke there; painting
