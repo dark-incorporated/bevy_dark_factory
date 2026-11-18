@@ -4,6 +4,7 @@ What each change added, newest first. A visible change has a clip: click the sti
 
 ## 2026-11-18
 
+- **484-project-servers** `2a034466` A project's MCP servers are the four files omp reads, and the self-test card names each: .omp/mcp.json, .omp/.mcp.json, mcp.json and .mcp.json, in that precedence, so a project that declares its server anywhere in that list has it in the session and on the card instead of started and unnamed *No clip: proved by crates/bevy_dark_factory/tests/a_projects_servers_are_the_ones_omp_reads.rs and agent_servers::tests::the_files_read_are_omps_four_in_omps_precedence*
 - **488-panel-authoring-format** `4ed4e330` A panel's authoring format is researched with per-panel measurements: a typed struct drawn by gooey's inspector, with YAML as its text form, and Markdown stays prose *No clip: A design document: no code changed, so nothing in the editor's suite can fail on it -- see docs/design/panel-authoring-format.md*
 
 ## 2026-11-17
