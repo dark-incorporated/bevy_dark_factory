@@ -51,6 +51,7 @@ mod fixtures;
 mod new_topics_start_from_templates_in_the_design_workspace;
 mod opening_a_project_never_holds_a_frame_past_the_budget;
 mod shift_primary_j_maximises_the_terminal;
+mod the_agent_and_the_decision_model_share_one_place;
 mod the_agent_workspace_takes_a_change_back_from_its_row;
 mod the_documents_state_the_codes_own_counts;
 mod the_finder_goes_to_cues_scripts_and_files;
@@ -59,6 +60,7 @@ mod the_world_sections_text_is_at_the_type_scales_sizes;
 mod the_self_test_cards_rows_each_carry_an_led;
 mod the_terminal_agent_row_follows_its_state_in_place;
 mod the_terminal_bar_keeps_every_chip_whole;
+mod the_rig_list_waits_for_its_chord;
 mod the_terminal_bar_says_what_each_item_is;
 mod the_terminal_starts_collapsed_with_a_label_in_the_status_bar;
 

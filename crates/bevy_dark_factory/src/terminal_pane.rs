@@ -542,7 +542,6 @@ impl Plugin for TerminalPanePlugin {
             // frame draws — so a card built a moment ago and a card built before a theme edit both land
             // on the skin's colours, and a rebuild never shows the editor's own darks for a frame.
             .add_systems(PostUpdate, dress_the_agent_tab.run_if(the_pane_is_up))
-            // **The LEDs' words read at the size of the text they stand with** (#422), after bevy_gooey has sized them.
             .add_systems(Update, size_the_leds.after(bevy_gooey::GooeySystems::Style).run_if(the_pane_is_up))
             .add_systems(Update, quiet_the_row_leds.run_if(the_pane_is_up))
             // The two chords that are the pane's own. Read from `ButtonInput` here rather than
@@ -1838,6 +1837,7 @@ fn dress_the_agent_tab(
 /// LED's word stood out. After gooey has styled them, each word is set to the size of its [`PaneLed`]'s role, and the dot to its
 /// word's size times [`LED_DOT_SIZES`], so the dot keeps its relation to the word. Each write is compared first, and gooey only
 /// restyles on a change, so a settled pane writes nothing.
+///
 fn size_the_leds(
     leds: Query<(&Children, &PaneLed)>,
     roles: Query<&bevy_gooey::Role>,

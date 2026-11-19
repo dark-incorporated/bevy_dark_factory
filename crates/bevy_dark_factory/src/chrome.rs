@@ -4493,11 +4493,11 @@ pub fn spawn_chrome_bar(
                 bevy::picking::Pickable::IGNORE,
             ));
         }
-        // **Which decision model is asked, and whether it answers** (DM-03, #454): one LED with the model's name, from
-        // `decision_model` and the round trips that happened, at the bar's far end. Not in the status band, which is crowded enough
-        // that anything added there pushes the hint's key badge onto its neighbours, and not before the title or after the way out,
-        // whose key badges stand on the words beside them.
-        bar.spawn(crate::decision_model::chip());
+        // **Which decision model is asked does not stand here any more** (#514). It was one LED with the model's name at this bar's far
+        // end (DM-03, #454), and the agent's light was in the terminal bar while the reason for a failure was a card over the terminal:
+        // the owner's note asks for *"a unified place to put the agent and decision model status"*, so the pair stands together in the
+        // status band's [`spawn_agent_band`] and this bar carries no model. The reasoning that put it here — "the status band is crowded
+        // enough" — is answered by the band's own rule that nothing is added beside the hint, which is behind a spacer at the far end.
     });
 }
 
@@ -4555,6 +4555,12 @@ pub fn repaint_where_you_are(
 pub fn spawn_status_band(mut commands: Commands, frame: Res<Frame>, project: Option<Res<crate::project::Project>>) {
     let back = back_name(project.as_deref());
     commands.entity(frame.status).with_children(|band| {
+        // **The agent and the decision model, at the band's left end** (#514). Where it stands is a layout decision with a
+        // measurement behind it: the hint sits behind the band's spacer at the far end, and `badges` settles the hint's key badge
+        // just to its left — which is exactly the ground this region occupied when it was placed between the spacer and the hint. Gate
+        // 124 measured the result: `Control(Hint)` badge `Rect{614,837 .. 638,862}` covering 24x17 px of this region's own ink. The
+        // left end is ground nothing else claims, so the pair reads first and covers nothing.
+        spawn_agent_band(band);
         // **The problem is not here any more.** It used to be a flow child of this band — a padded,
         // wrapping block inside twenty-six pixels of chrome, so it stood proud of the band it was
         // supposed to be in. Reported from the keyboard: *"it appears over the status bar at the
@@ -4597,6 +4603,77 @@ pub fn spawn_status_band(mut commands: Commands, frame: Res<Frame>, project: Opt
         shortcut_hint(band, &back);
     });
 }
+
+/// **The one place that says what the agent is doing and which decision model answers** (#514).
+///
+/// The owner's note on the capture: *"It seems like we need a unified place to put the agent and decision model status."* Before this the
+/// two facts sat in three places, and none of them held the pair: the agent's light and state word were in the **terminal bar** (`Agent
+/// off`, `Agent busy`, …), the reason for a failure was a **card floating over the terminal** that came and went, and the decision model
+/// was a light at the far end of the **chrome bar** (`○ d3-flash`). A person asking *"what is the agent doing, and what is answering it?"*
+/// had to read a band at the bottom, a bar at the top and a card in between — and the two lights, one shape in two colours, meant two
+/// different things.
+///
+/// So both stand in **one region of the status band**, the agent first and the decision model second, at the band's foot where a person's
+/// eye already goes for the state of things. The region is [`AgentBand`]; each half keeps its own marker ([`AgentBandLed`] and
+/// [`crate::decision_model::DecisionLed`]), so the test that pins the model's name and hover follows the light here from the chrome bar
+/// without a second vocabulary.
+///
+/// **It says what it is doing, and the reason it is not**, in one sentence in its hover, built by [`crate::terminal_agent::band_words`]
+/// from the drawn tab's `AgentPost`: the whole card, in the place a person looks. That is the other half of "one place" — the reason a
+/// failure gives used to be reachable only by finding a chip in a bar that scrolls off when the pane narrows.
+pub fn spawn_agent_band(band: &mut ChildSpawnerCommands) {
+    band.spawn((
+        AgentBand,
+        // A row: the agent's half, then the decision model's. `GAP_TIGHT_STEPS` so the pair reads as one region and each half reads as
+        // one fact.
+        bevy_gooey::row_with(GAP_TIGHT_STEPS, bevy_gooey::RowLayout { align: Some(AlignItems::Center), ..default() }),
+        AccessibleLabel::new("Agent and decision model"),
+        Name::new("agent band"),
+        bevy::picking::Pickable::IGNORE,
+    ))
+    .with_children(|region| {
+        // **The agent's half**: dark until an agent tab is drawn, and painted from the tab's `AgentPost` by
+        // [`crate::terminal_agent::paint_the_band`], so this is the same light the terminal bar draws in the one place it does not go away.
+        //
+        // **`Pickable` and `Hovered` on the half, not the region**, so hovering the model's light does not open the agent's card and the
+        // band's other rows keep `Pickable::IGNORE` for the reason [`panel_root`] states — a control the "is the pointer on the interface"
+        // gate cannot see would pass a click through to the map behind it.
+        region
+            .spawn((
+                AgentBandHalf,
+                bevy_gooey::row_with(GAP_TIGHT_STEPS, bevy_gooey::RowLayout { align: Some(AlignItems::Center), ..default() }),
+                bevy::picking::Pickable::default(),
+                Hovered::default(),
+                bevy_gooey::Tooltip::new(String::new()),
+            ))
+            .with_children(|half| {
+                half.spawn((
+                    bevy_gooey::led(AGENT_LABEL, bevy_gooey::LedState::Off),
+                    AgentBandLed,
+                ));
+            });
+        // **The decision model's light**: the same bundle the chrome bar's chip was, so the model's name, its state and its hover are
+        // written by one system and read by one test.
+        region.spawn(crate::decision_model::chip());
+    });
+}
+
+/// **The status band's one agent-and-decision-model region** (#514). See [`spawn_agent_band`].
+#[derive(Component)]
+pub struct AgentBand;
+
+/// **The agent's half of the band**, which carries the hover that says in a sentence what the light is doing.
+#[derive(Component)]
+pub struct AgentBandHalf;
+
+/// **The agent's light in the status band** (#514), beside the decision model's. Its dot and state word follow the drawn agent tab's
+/// `AgentPost`, exactly as the terminal bar's light does; this is the one that never leaves the screen.
+#[derive(Component)]
+pub struct AgentBandLed;
+
+/// What the agent's light is called before its state word (`Agent off`, `Agent live`). It is also the light's accessible name, so a
+/// reader hears what it is and not only its state.
+pub const AGENT_LABEL: &str = "Agent";
 
 /// **The status band's labeler readout.** The node is here because the band is; what it says is
 /// `labels::Labeler`'s, so this module does not learn what a model is.

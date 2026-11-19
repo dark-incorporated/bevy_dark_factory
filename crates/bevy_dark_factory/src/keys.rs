@@ -900,6 +900,18 @@ enumerated! {
     ToggleGhost,
     /// The stage camera's framing: figure / feet / side / ground.
     CycleCamPreset,
+    /// **Show the rig bench's list, or put it away** (#522, `feedback-1795094222660`: *"I'd rather this not show by default, but a
+    /// keyboard shortcut (Cmd+some key) to show here so it may be opened quickly"*).
+    ///
+    /// The list — the filter box and the scrolling bench — is `Display::None` when the workspace opens, so the Animation workspace
+    /// arrives with the rig being inspected and no 264 px column the owner did not ask for. `Cmd`/`Ctrl`+`R` opens it and closes it, and
+    /// the right dock's heading states the chord beside itself while the list is away, since a control that can vanish has to say how it
+    /// comes back.
+    ///
+    /// **A view change, not a project one**, so it owes no operation: nothing about `rigs.yaml` changes, which is the same line
+    /// [`Action::FrameView`] and the journal's key sit on. It is `Context::Anim` because it is the bench's own panel, and the chord is free
+    /// on every tab, so nothing else fires with it.
+    ToggleRigs,
     }
     /// Every action, so a ratchet can enumerate them.
     ALL;
@@ -1112,7 +1124,10 @@ impl Action {
             | Action::CloseTile
             | Action::PageEnter
             | Action::PageLeave
-            | Action::TileOpen => Change::View,
+            | Action::TileOpen
+            // **The rig bench's list shown or put away** (#522): a `Display` on the workspace's own column. Nothing in `rigs.yaml`
+            // changes, so it is view state and owes no operation, the same line the journal's key and the outliner's row sit on.
+            | Action::ToggleRigs => Change::View,
 
             // **Held, not pressed.** The effect is the hold: things fade, a pick is live, the overlay is
             // up. An operation whose effect reverses when a key is released is not a value an agent can
@@ -1178,6 +1193,9 @@ impl Action {
             Action::PlayPause => Some("stage_play"),
             Action::ScrubBack | Action::ScrubFwd => Some("stage_scrub"),
             Action::CycleCamPreset => Some("stage_camera"),
+            // **The rig bench's list shown or put away** (#522) is view state, and like the journal's key it dispatches the
+            // operation an agent calls, so the chord and an MCP call decide "toggle" in one place.
+            Action::ToggleRigs => Some("view_toggle_rigs"),
             // **The lattice grid's cursor is view state** (E-002, #129 slice 27): `F`, `H`, `T` and `G` step the selected cell
             // and `[` and `]` the layer, through the operation an agent calls.
             Action::CellLeft
@@ -3365,6 +3383,26 @@ pub const BINDINGS: &[Binding] = &[
         "view: figure / feet / side / ground",
     )
     .at(Home::Legend),
+    // **The rig bench's list on a chord** (#522): `Cmd`/`Ctrl`+`R` shows it and puts it away, and the workspace opens without it.
+    //
+    // **Why a chord and not a bare key.** Every letter the bench could reach from its list is spoken for, and a bare `R` is the Map's
+    // turn and the Tiles tab's turn — the cross-context shares this table already allows, but none of them is free *on this tab* while
+    // the list has the arrows. `Cmd+R` is bound in no context (`the_key_space_has_no_collisions` says so over the whole table), it is
+    // not one of the chords `keymap_screen::reserved` gives the terminal, the palette, the settings or the interface scale, and
+    // `R` already means "act on the list you are looking at" here (`rig_check_all`), so the modifier carries the same word.
+    //
+    // **The badge goes on the heading, not the list.** The list is `Display::None` until the chord is pressed, and `badges::anchor`
+    // resolves an id to the unique node with a non-zero box — so a badge homed on a hidden list would be a chord that named itself on
+    // nothing. The heading is drawn in both states, which is also where the chord's own words are printed.
+    b(
+        Action::ToggleRigs,
+        KeyCode::KeyR,
+        true,
+        Context::Anim,
+        "R",
+        "show or hide the rig list",
+    )
+    .at(Home::Control(ControlId::Rigs)),
 ];
 
 /// **Every field stated.** The three constructors below are all this one with defaults filled in, so a
@@ -4257,6 +4295,7 @@ mod tests {
             Action::CheckAllRigs,
             Action::ToggleGhost,
             Action::CycleCamPreset,
+            Action::ToggleRigs,
             Action::TurnPieceLeft,
             Action::TurnPieceRight,
             Action::TipX,
@@ -5011,7 +5050,10 @@ mod tests {
             // turn/remove/empty row and `N`, and three badges is well inside the eight
             // `no_home_carries_more_than_it_can_show` allows.
             (Context::Tiles, 31),
-            (Context::Anim, 11),
+            // **11 -> 12: `ToggleRigs`, on `Cmd`/`Ctrl`+`R` (#522).** The owner's capture asks that the rig bench's list not show by
+            // default and be reachable by a chord, so one key is bought: the chord that brings the list back. It costs one binding and
+            // no row of its own beyond it — the panel's heading states the chord, which is where a person reads it.
+            (Context::Anim, 12),
             // 7 -> 8: `RenameComposition`, on `I`. The COMPOSE tab could *read* a group in rich
             // detail and *write* a new one, and it could not change a group's **name** — which is the
             // one edit every author needs, and the one the file's own format makes trivial (one

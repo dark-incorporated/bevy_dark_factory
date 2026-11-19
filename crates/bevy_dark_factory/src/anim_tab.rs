@@ -220,6 +220,11 @@ fn keep_rig_selection_on_screen(
         return;
     };
     for (list, list_tf, mut scroll) in &mut lists {
+        // **A list that is put away is not scrolled** (#522): the walk still moves the selection (it is the bench's own cursor), and the
+        // correction is made when the list is next drawn, because a `Display::None` node has no box to reveal a row inside of.
+        if list.size().x <= 0.0 || list.size().y <= 0.0 {
+            continue;
+        }
         // Physical in, logical out — `ComputedNode` and `UiGlobalTransform` are physical pixels,
         // `ScrollPosition` is logical.
         let (at, max) = crate::chrome::scroll_bounds(list);
@@ -278,6 +283,9 @@ impl Plugin for AnimTabPlugin {
                     adopt_measured.in_set(crate::keys::Phase::Act),
                     bench_history_keys.in_set(crate::keys::Phase::Act),
                     keep_selection_visible,
+                    // **`Cmd`/`Ctrl`+`R` shows the list or puts it away** (#522). A key of the workspace, like the list's arrows, so it
+                    // runs with the rest of the bench's input and refuses while a field owns the keyboard (the census does that).
+                    toggle_the_rig_list.in_set(crate::keys::Phase::Act),
                     // The one measurement path: selection, the watcher and check-all feed the
                     // queue; the queue steps one rig per frame; the pane reads the reports.
                     crate::anim_watch::poll_mtimes,
@@ -387,6 +395,16 @@ fn spawn_panels(
             // margins the audit counted above a heading, one per file (F8).
             BenchLine,
         ));
+        // **Where the rig bench's chord is stated** (#522): the bench is put away by default, and its own heading goes with it, so the
+        // sentence a person needs — that the bench exists and what opens it — stands here in the left panel, which is drawn whenever the
+        // bench is. A control that can vanish has to say how it comes back, and this is the place it can say it from in both states.
+        p.spawn((
+            RigToggleHere,
+            Text::new(rigs_toggle_words()),
+            TextColor(crate::chrome::ink().dim),
+            crate::chrome::typed(crate::chrome::text::LABEL),
+            bevy::picking::Pickable::IGNORE,
+        ));
         // FOLLOW-OK: a table, not a list. The slots are read and copied, not walked — there is no
         // highlight for the arrows to move, so the scroll exists for HEIGHT alone.
         // The slot table scrolls: a rig has up to ten slots and each is two lines with its measured
@@ -403,22 +421,120 @@ fn spawn_panels(
         );
     });
 
+    // **The rig bench is put away until it is asked for** (#522, the owner: *"I'd rather this not show by default, but a keyboard
+    // shortcut (Cmd+some key) to show here so it may be opened quickly"*). The column below the panel's heading is `Display::None` at boot
+    // — the 264 logical px the capture measures — and `Cmd`/`Ctrl`+`R` draws it.
+    //
+    // **The heading lives inside the column**, so the whole bench (its words, its filter and its list) is what is away; a heading that
+    // stayed drawn would be a column on screen, which is the thing the issue asks to remove.
+    //
+    // **The chord is stated in the left panel**, which is drawn in both states — a control that can vanish has to say how it comes back,
+    // and this one is a panel, so its own heading cannot be where the words are.
     crate::chrome::panel_root(
         &mut commands,
         &frame,
         crate::chrome::Side::Right,
         crate::chrome::LIST_W,
         true,
-        true,
+        false,
         // What a screen reader calls this panel (UI-30, #224).
         "RIGS",
     )
     .insert(AnimRoot)
     .with_children(|p| {
-        crate::chrome::list_heading_in(p, "RIGS", heading);
-        crate::filter::spawn(p, crate::filter::Pane::Rigs, None);
-        crate::chrome::scroll_list(p, (RigList, crate::chrome::Control(crate::keys::ControlId::Rigs)));
+        p.spawn((
+            RigBench,
+            // **A real layout node**: a column that grows into what the panel leaves, so the list is bounded by the panel's height
+            // (`chrome::scroll_list` needs a definite height to clip against). `ShownFollow` writes its `display`.
+            bevy_gooey::column(crate::chrome::GAP_ROW),
+            bevy_gooey::TextFlow { grow: Some(1.0), ..default() },
+            bevy_gooey::ShownFollow::closed(),
+            bevy_gooey::Tooltip::new(format!("{}: show or hide this list", crate::keys::chord(crate::keys::Action::ToggleRigs))),
+        ))
+        .with_children(|list| {
+            // The heading and the chord, then the filter and the list.
+            list.spawn((
+                bevy_gooey::row_with(crate::chrome::GAP_TIGHT_STEPS, bevy_gooey::RowLayout { align: Some(AlignItems::Center), ..default() }),
+                RigHeading,
+            ))
+            .with_children(|row| {
+                crate::chrome::list_heading_in(row, "RIGS", heading);
+                row.spawn((
+                    RigToggleChord,
+                    Text::new(rigs_toggle_words()),
+                    TextColor(heading.0),
+                    crate::chrome::typed(crate::chrome::text::LABEL),
+                    bevy::picking::Pickable::IGNORE,
+                ));
+            });
+            crate::filter::spawn(list, crate::filter::Pane::Rigs, None);
+            crate::chrome::scroll_list(list, (RigList, crate::chrome::Control(crate::keys::ControlId::Rigs)));
+        });
     });
+}
+
+/// **The rig list's whole column**, so `toggle_the_rig_list` names one node. It carries `ShownFollow`.
+#[derive(Component)]
+pub struct RigBench;
+
+/// **The `Cmd+R` the RIGS heading prints** (#522), rewritten when the person rebinds the verb.
+#[derive(Component)]
+pub struct RigToggleChord;
+
+/// **The sentence in the left panel that says what shows the bench** (#522), drawn in both states.
+#[derive(Component)]
+pub struct RigToggleHere;
+
+/// The heading row, so a test can find the pair (the words and the chord) as one line.
+#[derive(Component)]
+pub struct RigHeading;
+
+/// **What the RIGS heading says about the chord**: `Cmd+R on a mac, Ctrl+R elsewhere`, as the census spells it — so the heading and the
+/// key badge name one chord and a rebind moves both.
+pub fn rigs_toggle_words() -> String {
+    format!("{} shows the rig bench", crate::keys::chord(crate::keys::Action::ToggleRigs))
+}
+
+/// **`Cmd`/`Ctrl`+`R` shows the rig list, or puts it away** (#522), and each press says which it did in the heading's tooltip.
+///
+/// The list's `display` is the state; this writes it. It runs whether or not the panel is drawn, because a chord is a key of the window and
+/// the owner asked for "a keyboard shortcut … so it may be opened quickly", not for a click on a visible control.
+fn toggle_the_rig_list(
+    keyboard: Res<ButtonInput<KeyCode>>,
+    live: Res<crate::keys::Live>,
+    mut benches: Query<&mut Node, With<RigBench>>,
+    mut chords: Query<&mut Text, With<RigToggleHere>>,
+) {
+    if !crate::keys::just_pressed(&keyboard, *live, crate::keys::Action::ToggleRigs) {
+        return;
+    }
+    // **The key dispatches the operation an agent calls** (E-002, #129), the shape `notice::toggle_journal` set: up or down is
+    // the operation's answer, read from the list's own `display` and written back after it, so the chord and an MCP call change the
+    // same thing and `view_toggle_rigs` is the one place that decides what a toggle means.
+    let open = benches.iter().any(|node| node.display != Display::None);
+    let mut ctx = crate::ops::Ctx {
+        source: crate::ops::Source::Human,
+        session: crate::ops::session_id(),
+        view: Some(crate::ops_view::View { rigs_open: open, ..Default::default() }),
+        ..crate::ops::Ctx::default()
+    };
+    let outcome = crate::ops::dispatch(&mut ctx, "view_toggle_rigs", &serde_json::json!({}));
+    let open = ctx.view.map(|view| view.rigs_open).unwrap_or(open);
+    let _ = outcome;
+    let want = if open { Display::Flex } else { Display::None };
+    for mut node in &mut benches {
+        if node.display != want {
+            node.display = want;
+        }
+    }
+    // **The sentence stays true in both states**: the workspace's own words, and the operation's summary in the hover so a person
+    // can read what the last press did.
+    let words = rigs_toggle_words();
+    for mut text in &mut chords {
+        if text.0 != words {
+            text.0.clone_from(&words);
+        }
+    }
 }
 
 /// Read the manifest the first time the tab is opened.
