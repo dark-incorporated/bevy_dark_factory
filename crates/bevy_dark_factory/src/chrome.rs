@@ -3057,7 +3057,17 @@ pub fn chip<'a>(
         // `style_list_rows` already keys on it and has never needed to know what it is painting.
         RowRest(fill),
         marker,
-        held_box(CHIP_SPACING, bevy_gooey::Sides::all(EDGE_W), Some(0.0), bevy_gooey::Sizing::default()),
+        // **A chip is never wider than the line it stands on, and it still never gives way to a
+        // neighbour** (#494). `shrink` stays `Some(0.0)`: a chip in a toolbar is a fixed target, and
+        // the three `the_terminal_bar_keeps_every_chip_whole` sweeps hold that its word is never cut
+        // by a sibling. What bounds it is `max_width` instead, which a rigid box cannot argue with
+        // and which leaves every chip that fits exactly the width it had.
+        held_box(
+            CHIP_SPACING,
+            bevy_gooey::Sides::all(EDGE_W),
+            Some(0.0),
+            bevy_gooey::Sizing { max_width: Some(bevy_gooey::Extent::Percent(100.0)), ..default() },
+        ),
         BorderColor::all(border),
         BackgroundColor(fill),
     ));
@@ -3066,7 +3076,13 @@ pub fn chip<'a>(
             Text::new(label.to_owned()),
             TextColor(ink),
             typed(role),
-            TextLayout::new(Justify::Left, LineBreak::NoWrap),
+            // **The label's least width is its longest word** (#494) — the mechanism #481 used for a
+            // switch's label. A `NoWrap` label's min-content width is its whole counted phrase, so
+            // `NOT IMPORTED (4)` held its chip 379 px wide in a 319 px row: the `FlexWrap` above had
+            // nothing to wrap, because its one child was already wider than a line. Breaking at a
+            // word drops that floor to `IMPORTED`, so the box narrows to the line it is given and the
+            // count drops to a second line rather than painting over the panel's border.
+            TextLayout::new(Justify::Left, LineBreak::WordOrCharacter),
         ));
     });
     c

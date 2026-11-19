@@ -30,20 +30,31 @@
 //! defect — and held to the pane's **content box**: its border box less its content inset. Layout rounds to
 //! whole pixels, so an edge may stand 1 px past.
 //!
-//! # State on `main` when this file landed
+//! # The fix that closed it (#494)
 //!
-//! **The AGENT pane passes** — `row_value` breaks its value at a character, so a value wider than the
-//! column it is left with wraps inside the panel instead of over the border.
+//! **The chip, not the call site.** `chrome::chip` now carries two things a chip did not have, and
+//! together they are what closes the PIECES panel at both scales (measured here: 46.0 px past at
+//! scale 1.0 and 71.4 px at 1.6, both to 0):
 //!
-//! **The PIECES panel does not.** Two nodes spill at both scales, and they are its shelf strip: the
-//! `NOT IMPORTED (n)` chip (46.0 px past at scale 1.0, 71.4 px at 1.6) and the wrapper the strip's row
-//! gives it (`a Sized`, 61.0 px and 95.0 px). The chip is `chrome::chip`, whose `held_box` carries
-//! `shrink: Some(0.0)` — a chip in a toolbar is a fixed target on purpose, so the label's break alone
-//! cannot narrow it, and the strip's own `FlexWrap` has nothing to wrap because the chip refuses to
-//! give. Making the chip give by hand (a `TextFlow { shrink: 1.0 }` inserted at the strip's call site)
-//! was measured and did **not** close it: 71.4 px remained at 1.6, because the wrapper is what keeps
-//! the chip's content width. The next worker's fix belongs in `held_box`/`chip` or in a chip variant
-//! that may shrink, proved by this file going green.
+//! - its box carries `max_width: 100%`, so a chip is never laid out wider than the line it stands on,
+//!   while `shrink` stays `Some(0.0)` — a chip in a toolbar is still a fixed target, and a sibling
+//!   still cannot cut its word (the three `the_terminal_bar_keeps_every_chip_whole` sweeps hold that);
+//! - its label breaks `WordOrCharacter` rather than `NoWrap`, so the chip's min-content width is its
+//!   longest **word** (`IMPORTED`) instead of its whole counted phrase (`NOT IMPORTED (4)`).
+//!   `LineBreak::WordOrCharacter` is the mechanism #481 used for the AGENT panel's rows.
+//!
+//! **The two are one fix and neither half works alone.** `NoWrap` was holding the chip's floor at
+//! 379 px in a 319 px row, so the strip's `FlexWrap` had nothing to wrap — its one child was already
+//! too wide for a line — and `max_width` alone would have squeezed that 379 px label into a narrower
+//! box with its words cut. Measured on this change, before the break: the wrapper came down to the
+//! line but the label still overhung it.
+//!
+//! **Two attempts are recorded on the issue as reverted, and this is not either of them.**
+//! `min_width: Some(Px(0.0))` on `row_value` and on the chip label dropped the row's automatic
+//! minimum and reproduced #481's regression (`no_badge_cluster_draws_through_another`,
+//! `the_g87_nodes_are_gooey` and all three `the_terminal_bar_keeps_every_chip_whole` sweeps went red);
+//! a `TextFlow { shrink: 1.0 }` at the shelf strip's call site left PIECES at 71.4 px at scale 1.6,
+//! because the wrapper keeps the chip's content width.
 //!
 //! **Clipping is deliberately not applied.** A pane that hides what does not fit has still laid it out as
 //! though the pane were wider, and the control beside it in that column inherits the mistake; the capture shows
@@ -338,17 +349,11 @@ fn left_pane(app: &mut App) -> Entity {
 /// **At the capture's window, at interface scale 1.0 and 1.6, no pane draws a control past its own content
 /// box** — the Place panel (#494), the Pieces panel (#468), the Agent panel (#481) and the left pane (#482),
 /// held in one test so the four cannot regress separately.
-// **Left red on purpose: PIECES still overflows, and the numbers that would close it are here** (#494). The
-// AGENT pane is closed by this branch's `chrome::row_value` fix (3.1 px → 0 at scale 1.0, 5.1 → 0 at 1.6).
-// PIECES is not: `NOT IMPORTED (4)` reaches 46.0 px past the content edge at scale 1.0 and 71.4 at 1.6, and
-// the strip's wrapper 61.0 and 95.0. The cause is measured — `chrome::chip`/`held_box` carry
-// `shrink: Some(0.0)`, so a `FlexWrap` row cannot wrap a box wider than the line — and the fix belongs in
-// those builders, not at a call site: give a chip a minimum of its longest *word* while keeping `shrink: 0.0`
-// where a toolbar needs a fixed target. Two attempts are recorded on #494 as reverted with their numbers
-// (`min_width: 0` reproduced #481's regression across three chip sweeps; `TextFlow { shrink: 1.0 }` at the
-// call site left PIECES at 71.4). Running this test with `--ignored` is the acceptance for that fix.
+///
+/// **PIECES was the last pane red** (`NOT IMPORTED (4)` 46.0 px past at scale 1.0 and 71.4 at 1.6, its
+/// wrapper 61.0 and 95.0), and `chrome::chip`'s own `max_width` and longest-word label closed it — see
+/// the module doc. The test was `#[ignore]`d for exactly as long as that fix was missing.
 #[test]
-#[ignore = "PIECES still overflows 46.0 px at scale 1.0 and 71.4 at 1.6: the chip builders need a longest-word minimum. Run with --ignored once that lands."]
 fn no_panel_draws_a_control_past_its_own_content_box() {
     let mut refused = Vec::new();
     for interface_scale in INTERFACE_SCALES {
