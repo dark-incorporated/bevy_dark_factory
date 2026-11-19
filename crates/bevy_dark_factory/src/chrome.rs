@@ -2552,9 +2552,75 @@ pub fn scroll_list<'a>(
 
 /// **A rail gooey spawned is a scroll track** to the editor's tests and to [`forward_a_wheel_over_a_scrollbar`]: the same marker the hand-built track carried, put on the rail the frame it
 /// appears. The rail shows only while the content does not fit (gooey's own rule, which replaced `hide_idle_scrollbars`).
+///
+/// **And no rail is drawn while the shell's split is sliding** (#517) — see [`hide_rails_while_the_shell_slides`].
 pub fn tag_the_scroll_rails(rails: Query<Entity, Added<bevy_gooey::ScrollRailOf>>, mut commands: Commands) {
     for rail in &rails {
         commands.entity(rail).insert(ScrollTrack);
+    }
+}
+
+/// **A pane that is sliding says nothing about what fits in it, so it draws no scrollbar** (#517).
+///
+/// The owner's note, on `feedback-1795094031429`: *"The scroll bar here stays visible during the
+/// animation that kicks off when I hit 'Cmd+B'"*. The pick is the PROJECT page's scroll viewport —
+/// `Sized > FillRegion > Split > SplitPane > Sized > Sized` — whose rail is drawn over the pane as it
+/// slides shut.
+///
+/// # Measured, and why gooey's own rule cannot see it
+///
+/// `update_lists` shows a rail exactly while `content > size` (`bevy_gooey/src/list.rs:99`), read off
+/// the **last frame's** layout. That is right for a list whose rows came and went, and blind to a pane
+/// changing size on a spring: measured on this build at the capture's window (2560x1406, `ui_scale`
+/// 2.4, Map door), the left pane's rail was `Display::Flex` with `content` 877 px against a `size` of
+/// 553 on **all 29 frames** of a shut and on all 10 sampled frames of a restore, clearing only 2
+/// frames after the glide landed. The numbers never move because a full-height pane changes *width*
+/// as it slides while the rail's rule is a *height* comparison — so the engine's rule keeps answering
+/// about the pane that was there before the chord. A pane at a third of its width is not a pane whose
+/// contents fit; it is a pane mid-air, and a bar over it claims a reading about to be untrue.
+///
+/// # One direction, and gooey puts it back
+///
+/// This only ever **takes a bar away**, and only while the shell's split carries a
+/// [`bevy_gooey::SplitGlide`]. Nothing here puts one back: `update_lists` already writes `Flex` the
+/// frame the glide is gone if the content still does not fit, and leaves the `None` it wrote if the
+/// content fits — so a settled pane's bar is **gooey's rule**, not a copy of it, and a pane that fits
+/// after the slide shows nothing. That is what stops this being "never draw a scrollbar".
+///
+/// **Every rail, not every viewport.** gooey spawns rails three ways and only one of them
+/// (`scroll_viewport`) carries [`bevy_gooey::ScrollRail`]; `list()` and `scroll_region()` spawn a rail
+/// of their own that a host cannot switch off, and the editor's panels use all three — measured, the
+/// Map door's inspector list is the first kind and its rail survived a marker-based fix. Every one is
+/// a `Role::ListRail` pointing at its viewport through [`bevy::ui_widgets::Scrollbar::target`], which
+/// is the one thing all three have in common.
+///
+/// **After gooey styles**, or `update_lists` writes over it in the same frame. **Only the shell's
+/// split**, so a section's opening glide (`SectionGlide`) or a dialog's own motion is not this. A
+/// settled shell writes nothing at all.
+pub fn hide_rails_while_the_shell_slides(
+    splits: Query<&Children, (With<ShellSplit>, With<bevy_gooey::SplitGlide>)>,
+    roles: Query<&bevy_gooey::Role>,
+    parents: Query<&ChildOf>,
+    mut rails: Query<(&bevy_gooey::Role, &bevy::ui_widgets::Scrollbar, &mut Node)>,
+) {
+    let panes: Vec<Entity> = splits
+        .iter()
+        .flat_map(|kids| kids.iter())
+        .filter(|kid| matches!(roles.get(*kid), Ok(bevy_gooey::Role::SplitPane)))
+        .collect();
+    // **A settled shell costs this query and no write.**
+    if panes.is_empty() {
+        return;
+    }
+    let under_a_pane =
+        |view: Entity| panes.contains(&view) || parents.iter_ancestors(view).any(|up| panes.contains(&up));
+    for (role, bar, mut node) in &mut rails {
+        if *role != bevy_gooey::Role::ListRail || !under_a_pane(bar.target) {
+            continue;
+        }
+        if node.display != Display::None {
+            node.display = Display::None;
+        }
     }
 }
 
@@ -3868,6 +3934,11 @@ impl Plugin for ChromePlugin {
                 (
                     style_list_rows,
                     tag_the_scroll_rails,
+                    // **No bar over a pane that is mid-air** (#517): gooey's `update_lists` compares the
+                    // last frame's layout, and a pane on a spring is a width that has not caught up with
+                    // its contents. After gooey styles so `update_lists` cannot write over it; the frame
+                    // the glide is gone this stops, and gooey's rule has the bar back or not.
+                    hide_rails_while_the_shell_slides.after(bevy_gooey::GooeySystems::Style),
                     repaint_where_you_are,
                     // Ungated for the same reason: both screens have panels, and which one holds
                     // the keyboard is a question the menu asks louder than the editor does.

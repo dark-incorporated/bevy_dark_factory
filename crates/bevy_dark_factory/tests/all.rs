@@ -501,6 +501,7 @@ mod the_launcher_and_the_command_line_agree;
 mod the_launcher_lists_what_the_changelog_added_since_you_last_opened;
 mod the_launcher_opens_a_project_by_its_name;
 mod the_left_pane_reflows_when_the_divider_moves;
+mod the_scrollbar_is_not_drawn_while_the_pane_slides;
 mod the_picker_says_when_there_is_no_chooser;
 mod the_shortcut_overlay_answers_to_k;
 mod the_shell_can_be_staged_on_every_panel;
