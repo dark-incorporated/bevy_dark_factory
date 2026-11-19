@@ -178,6 +178,7 @@ Goal: know what an agent can change, and what undoes each change.
 | `tile_close` | Puts the tile in hand down and goes back to the Tiles page, as C does; the tile's history goes with it. Refused when no tile is open. | None: it changes the view, not the map |
 | `tile_new` | Names a new blank tile and opens it, as N does: `name` is snake_cased into the kit's namespace and refused when empty or when the kit has it; absent raises the name prompt on the editor's screen for the person to type one. Nothing is written until the tile is saved. | None: it changes the view, not the map |
 | `label_set` | Sets one label axis (kind, effects, look, or surfaces) on a piece. | Puts the old labels back |
+| `view_toggle_rigs` | Shows or hides the rig bench, as `Cmd+R` does. A panel being up is not project data, so nothing is written and there is nothing to undo. | Nothing to undo: it changes no project data |
 
 `map_set_settings` refuses `bounds` and `axis` in the same call.
 

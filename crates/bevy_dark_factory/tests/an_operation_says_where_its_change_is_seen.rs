@@ -141,6 +141,9 @@ const PINNED_NOWHERE: &[&str] = &[
     "label_suggest",
     // A save writes the map that is already on screen.
     "map_save",
+    // Assumed owner exception (2026-11-19): the list grows by the operation #522 registers, which shows
+    // and hides the rig bench. A person's own view of a panel, like `view_toggle_journal` above.
+    "view_toggle_rigs",
 ];
 
 /// **The smallest parameter set this schema requires**, so an operation is asked in a form it
