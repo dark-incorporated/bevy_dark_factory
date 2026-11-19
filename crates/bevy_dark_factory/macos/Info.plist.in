@@ -9,7 +9,7 @@
 	<key>CFBundleIdentifier</key>
 	<string>org.bevy-coven.cauldron</string>
 	<key>CFBundleExecutable</key>
-	<string>bevy_cauldron</string>
+	<string>bevy_dark_factory</string>
 	<key>CFBundleIconFile</key>
 	<string>Cauldron</string>
 	<key>CFBundlePackageType</key>
