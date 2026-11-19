@@ -2715,6 +2715,55 @@ pub fn row_value(row: &mut ChildSpawnerCommands, text: impl Into<String>, colour
     ));
 }
 
+/// **A switch's label breaks inside the row that bounds it** (#481, the AGENT panel's capture
+/// `feedback-1794783669349`: *"The widgets are breaking out of the div here."*).
+///
+/// gooey's [`bevy_gooey::toggle`] lays its row out as `SpaceBetween` — the label on the left, the switch on the right —
+/// and every control's label is `NoWrap` (`widgets::ONE_LINE`), because gooey sizes a control's row by its widest child.
+/// That is right in a dialog and wrong in a dock whose pane is narrower than the two: the label's min-content width is
+/// its whole unwrapped phrase, the switch keeps its own, and the pair overflows. Measured on the frame: the panel's
+/// viewport content ends at `x≈673`, and `Pause agent writes`'s track is drawn from `x=631` to `x=728` — the switch
+/// sits **55 px past** the viewport's edge, in the scrollbar's gutter and over the panel's border.
+///
+/// **The break is the whole fix, and it is the only write here on purpose.** `WordOrCharacter` makes the label's
+/// min-content width its longest *word* rather than its whole phrase, which is what lets flex shrink the label into the
+/// room the track leaves, where a `NoWrap` label could not give at all.
+///
+/// **The floor is the trap, and it is measured.** gooey's toggle label has no `TextFlow` of its own, so its
+/// automatic minimum is its content; writing a zero `min_width` on the row and on the label — the obvious companion to
+/// the break, and what `fill_text` carries — drops the row's automatic minimum to nothing. The AGENT block is a
+/// `column` in a scrolling pane, so a block that no longer reserves its own line makes every row below it shorter, and
+/// the panel's hint line came up under the block: measured, `Control(Hint)` covering **24x14 px and 24x7 px** of ink
+/// in a 1280x720 window, caught by `headless::no_badge_cluster_draws_through_another`. With the break alone, that test
+/// passes, the two `the_decision_model_is_a_setting` rows pass, and #481's own two tests pass.
+///
+/// # Why a system, and why every frame
+///
+/// The label is gooey's — `toggle` spawns it, so the editor can only reach it after the fact — and gooey
+/// re-asserts its control-label layout on every style pass. Retagging it would trade the skin's `ControlText` ink for
+/// a break, so this keeps gooey's role and ink and rewrites only the layout,
+/// [after](bevy_gooey::GooeySystems::Style) gooey has written the skin's node — a write before it would be
+/// overwritten the same frame. Every write is compared first, so a settled panel costs a few reads a frame.
+pub fn let_a_toggle_label_break(
+    // **The two queries are disjoint by `Text`, not by `Role`** (B0001): a toggle's own row is never a text, and
+    // every word this reaches is one. A `Without<Role>` on the words query would be a *second* filter with a cost and a
+    // wrong one: the skin puts `ControlText` on exactly the labels this exists to break.
+    toggles: Query<(&bevy_gooey::Role, &Children), Without<Text>>,
+    mut words: Query<&mut TextLayout, With<Text>>,
+) {
+    for (role, kids) in &toggles {
+        if *role != bevy_gooey::Role::Toggle {
+            continue;
+        }
+        for kid in kids.iter() {
+            let Ok(mut layout) = words.get_mut(kid) else { continue };
+            if layout.linebreak != LineBreak::WordOrCharacter {
+                layout.linebreak = LineBreak::WordOrCharacter;
+            }
+        }
+    }
+}
+
 /// **The editor skin's spacing steps, named** (#260): `editor_skin.yaml`'s `spacing` scale is `[3, 5, 12, 16, 20, 24]` px, so the editor's own gaps are
 /// steps of it. [`bevy_gooey::Spacing`] takes a step, and `the_editor_spacing_steps_are_its_gap_constants` holds each to the px constant it replaces.
 pub const STEP_TIGHT: bevy_gooey::Space = bevy_gooey::Space::Step(0);
@@ -3746,6 +3795,9 @@ impl Plugin for ChromePlugin {
                     // Ungated for the same reason: both screens have panels, and which one holds
                     // the keyboard is a question the menu asks louder than the editor does.
                     light_the_focused_panel,
+                    // **gooey's control labels break where a dock bounds them** (#481): a switch's label is
+                    // `NoWrap` because a dialog sizes itself by its widest control, and a dock does not.
+                    let_a_toggle_label_break.after(bevy_gooey::GooeySystems::Style),
                 ),
             )
             // **After `Phase::Text`, not in it.** The field consumes the keystroke there; painting
