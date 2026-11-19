@@ -93,7 +93,7 @@ const FNV_PRIME: u64 = 0x0000_0100_0000_01b3;
 
 /// How many spaces the Tab key puts in a YAML or Markdown file (the writer's own step) and in anything else, and
 /// how many columns a tab character is drawn.
-const YAML_INDENT_SPACES: u8 = 2;
+pub const YAML_INDENT_SPACES: u8 = 2;
 const CODE_INDENT_SPACES: u8 = 4;
 const TAB_COLUMNS: u8 = 4;
 
