@@ -392,5 +392,6 @@ pub fn identity(action: Action) -> (&'static str, &'static str) {
         Action::CheckAllRigs => ("rigs.check_all", "Check all rigs"),
         Action::ToggleGhost => ("rigs.toggle_ghost", "Show the measured gait as a ghost"),
         Action::CycleCamPreset => ("rigs.cycle_camera", "Cycle the stage camera"),
+        Action::ToggleRigs => ("rigs.toggle_list", "Show or hide the rig list"),
     }
 }

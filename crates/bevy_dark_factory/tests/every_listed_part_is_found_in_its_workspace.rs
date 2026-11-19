@@ -51,6 +51,32 @@ fn settle(app: &mut App) {
     }
 }
 
+/// **Press a census chord** the way a person does: a `KeyboardInput` for each key down and up, which is what fills the `ButtonInput` the
+/// census reads. Used where the row's route is a chord rather than a click, so the test takes the route the editor offers.
+fn press_the_chords_key(app: &mut App, action: bevy_dark_factory::keys::Action) {
+    let binding = bevy_dark_factory::keys::binding(action);
+    let tap = |app: &mut App, code: KeyCode, state: bevy::input::ButtonState| {
+        app.world_mut().write_message(bevy::input::keyboard::KeyboardInput {
+            key_code: code,
+            logical_key: bevy::input::keyboard::Key::Unidentified(bevy::input::keyboard::NativeKey::Unidentified),
+            state,
+            text: None,
+            repeat: false,
+            window: Entity::PLACEHOLDER,
+        });
+        app.update();
+    };
+    for key in bevy_dark_factory::keys::MOD_KEYS {
+        tap(app, key, bevy::input::ButtonState::Pressed);
+    }
+    tap(app, binding.key, bevy::input::ButtonState::Pressed);
+    tap(app, binding.key, bevy::input::ButtonState::Released);
+    for key in bevy_dark_factory::keys::MOD_KEYS {
+        tap(app, key, bevy::input::ButtonState::Released);
+    }
+    settle(app);
+}
+
 /// **Switch the way the palette does**: the workspace's command id, its chord queued and pressed.
 fn switch_to(app: &mut App, workspace: Workspace) {
     let id = format!("workspace.{}", workspace.id());
@@ -137,7 +163,13 @@ fn the_library_is_not_reachable_from_the_map() {
 fn the_rig_bench_and_the_file_tree_are_found_by_label_in_their_workspaces() {
     let mut app = editor("bench_and_files");
     switch_to(&mut app, Workspace::Animation);
-    assert!(shows(&mut app, "RIGS"), "the Animation workspace does not show the rig bench's RIGS list");
+    // **Owner exception (2026-11-19): `every_listed_part_is_found_in_its_workspace::the_rig_bench_and_the_file_tree_are_found_by_label_in_their_workspaces`.**
+    // This asserted the RIGS bench is drawn when the Animation workspace opens. The owner's capture #522 asks that the bench not show by
+    // default and be reachable by a chord; the owner approved re-pinning here (2026-11-19) rather than keeping a panel nobody asked for.
+    // It now asserts the bench is NOT drawn at boot, that its chord draws it, and that the workspace still reaches it by its label.
+    assert!(!shows(&mut app, "RIGS"), "the Animation workspace draws the rig bench's list before it is asked for, which #522 removes");
+    press_the_chords_key(&mut app, bevy_dark_factory::keys::Action::ToggleRigs);
+    assert!(shows(&mut app, "RIGS"), "Cmd/Ctrl+R did not draw the rig bench's RIGS list in the Animation workspace");
     switch_to(&mut app, Workspace::Files);
     assert!(shows(&mut app, "FILES"), "the Files workspace does not show the FILES tree");
 }

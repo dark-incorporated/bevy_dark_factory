@@ -484,7 +484,13 @@ fn a_rig() -> Destination {
     let mut d = Driver::cold_start("rig");
     d.chord(&[primary(), KeyCode::Digit5], "press Cmd/Ctrl+5 (the Animation workspace)");
     assert_eq!(d.panel_name(), Mode::Anim.label(), "the Animation workspace opens the rig bench");
-    assert!(d.showing("RIGS"), "the bench did not draw: {:#?}", d.words());
+    // **Owner exception (2026-11-19): `navigation::a_rig`.** This asserted the RIGS bench is drawn when the Animation workspace opens.
+    // The owner's capture #522 asks that the bench not show by default and be reachable by a chord; the owner approved re-pinning here
+    // (2026-11-19) rather than keeping a panel nobody asked for. It now asserts the bench is NOT drawn at boot, that the chord (Cmd/Ctrl+R,
+    // which `the_rig_list_waits_for_its_chord.rs` pins) draws it, and that the chord is stated in the workspace beside the heading.
+    assert!(!d.showing("RIGS"), "the bench drew its list when the Animation workspace opened, which #522 removes: {:#?}", d.words());
+    d.chord(&[primary(), KeyCode::KeyR], "press Cmd/Ctrl+R (show the rig bench)");
+    assert!(d.showing("RIGS"), "the chord did not draw the bench's list: {:#?}", d.words());
     Destination { what: "A rig (the Rigs bench)", steps: d.steps, cost: d.cost, reach: Reach::Arrived }
 }
 
@@ -492,7 +498,12 @@ fn a_rig() -> Destination {
 fn a_rigs_clip() -> Destination {
     let mut d = Driver::cold_start("rigs_clip");
     d.chord(&[primary(), KeyCode::Digit5], "press Cmd/Ctrl+5 (the Animation workspace)");
-    assert!(d.showing("RIGS"), "the bench is not even drawn: {:#?}", d.words());
+    // **Owner exception (2026-11-19): `navigation::a_rigs_clip`.** This asserted the bench is drawn on arrival; #522 puts the list away
+    // until its chord, so this now proves the chord brings it back — the row's route is the same one step longer, and the clip is still
+    // chosen from the list the chord draws.
+    assert!(!d.showing("RIGS"), "the bench drew its list on arrival, which #522 removes: {:#?}", d.words());
+    d.chord(&[primary(), KeyCode::KeyR], "press Cmd/Ctrl+R (show the rig bench)");
+    assert!(d.showing("RIGS"), "the chord did not draw the bench's list: {:#?}", d.words());
     // The list a clip is chosen from, and whether this project has one to choose.
     let rows = d.words().into_iter().filter(|w| w.starts_with("no rigs") || w.contains("rig(s)")).collect::<Vec<_>>();
     let mut steps = d.steps;
@@ -917,6 +928,14 @@ fn target_of(what: &str) -> Target {
 /// **The issues filed for a missed target**, by destination (NV-11, #388): a missed target is its own issue, naming the destination and
 /// the route. A miss with no entry here fails the test, so a target cannot be missed quietly.
 const FILED: &[(&str, &str)] = &[
+    // **A rig (the Rigs bench), filed by #522.** The bench's list no longer shows by default — the owner's capture asks that it not —
+    // so the row arrives in two presses (`Cmd+5`, then `Cmd+R`) against the baseline's one. It still arrives, and this is the issue that
+    // owns the extra press. `FILED` is the one place a miss is allowed to be recorded, so the row is named here rather than the target
+    // being widened.
+    (
+        "A rig (the Rigs bench)",
+        "#522: the bench's list is put away until Cmd+R, so the row costs Cmd+5 and Cmd+R (two presses) against the one-press target",
+    ),
 ];
 
 // ───────────────────────────── driving the finder ─────────────────────────────

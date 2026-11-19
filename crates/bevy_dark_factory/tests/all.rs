@@ -58,6 +58,7 @@ mod the_leds_word_is_the_size_of_the_text_beside_it;
 mod the_self_test_cards_rows_each_carry_an_led;
 mod the_terminal_agent_row_follows_its_state_in_place;
 mod the_terminal_bar_keeps_every_chip_whole;
+mod the_rig_list_waits_for_its_chord;
 mod the_terminal_bar_says_what_each_item_is;
 mod the_terminal_starts_collapsed_with_a_label_in_the_status_bar;
 
