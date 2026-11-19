@@ -281,7 +281,8 @@ fn an_operation_that_needs_a_view_says_so() {
             "tool_arm",
             "view_cycle_grid",
             "view_toggle_ghost",
-            "view_toggle_journal"
+            "view_toggle_journal",
+            "view_toggle_rigs"
         ]
     );
 }
