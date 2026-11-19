@@ -97,6 +97,31 @@ fn editor(root: &std::path::Path) -> App {
     app
 }
 
+/// **Press a census chord** the way a person does: a `KeyboardInput` for each key down and up, which is what fills the `ButtonInput`
+/// the census reads. Used where the row's route is a chord, so the test takes the route the editor offers.
+fn press_the_chords_key(app: &mut App, action: bevy_dark_factory::keys::Action) {
+    let binding = bevy_dark_factory::keys::binding(action);
+    let tap = |app: &mut App, code: KeyCode, state: bevy::input::ButtonState| {
+        app.world_mut().write_message(bevy::input::keyboard::KeyboardInput {
+            key_code: code,
+            logical_key: bevy::input::keyboard::Key::Unidentified(bevy::input::keyboard::NativeKey::Unidentified),
+            state,
+            text: None,
+            repeat: false,
+            window: Entity::PLACEHOLDER,
+        });
+        app.update();
+    };
+    for key in bevy_dark_factory::keys::MOD_KEYS {
+        tap(app, key, bevy::input::ButtonState::Pressed);
+    }
+    tap(app, binding.key, bevy::input::ButtonState::Pressed);
+    tap(app, binding.key, bevy::input::ButtonState::Released);
+    for key in bevy_dark_factory::keys::MOD_KEYS {
+        tap(app, key, bevy::input::ButtonState::Released);
+    }
+}
+
 fn call(app: &mut App, method: &str, params: serde_json::Value) -> serde_json::Value {
     let Some(RemoteMethodSystemId::Instant(id)) = app.world().resource::<RemoteMethods>().get(method).cloned()
     else {
@@ -190,7 +215,17 @@ fn selected_row_drawing(app: &mut App, prefix: &str) -> Entity {
     }
 }
 
-/// **M2: the rig the bench selected is a row inside the bench's list.**
+/// **M2: the rig the bench selected is a row inside the bench's list — once the bench's list is up.**
+///
+/// **Owner exception (2026-11-19): `the_reveal_selects_a_row_a_person_can_see::the_rigs_row_the_reveal_selected_is_inside_the_bench`.**
+/// This asserted the rig's row is inside the bench's visible area, which was the whole row while the bench drew its list on arrival. The
+/// owner's capture #522 asks that the list not show by default and be reachable by `Cmd`/`Ctrl`+`R`, and the owner approved re-pinning
+/// here (2026-11-19). The subject — *the reveal selects a row a person can see* — now has the two halves the feature has:
+///
+/// - **with the bench's list put away**, the reveal still moves the selection (the bench's cursor is the operation's, not the layout's)
+///   and does **not** claim a visible row, because there is no list to be inside of;
+/// - **with the list drawn by its chord**, the row the reveal selected is inside the list's visible area, which is the assertion this
+///   test made before.
 #[test]
 fn the_rigs_row_the_reveal_selected_is_inside_the_bench() {
     let root = project("review_rigs_row");
@@ -200,11 +235,26 @@ fn the_rigs_row_the_reveal_selected_is_inside_the_bench() {
     settle(&mut app);
     assert_eq!((*app.world().resource::<Workspace>(), app.world().resource::<Mode>().label()), (Workspace::Animation, "ANIM"));
 
-    // The row is the one the bench says is selected, and it is inside the list that scrolls it.
+    // **Half one: the list is away, and the reveal does not pretend otherwise.** The bench's cursor still moved to the rig the reveal
+    // named — the selection is `BenchState`'s, and hiding a column does not lose it — but the row is not claimed to be on screen.
+    assert!(
+        app.world().resource::<bevy_dark_factory::anim_tab::BenchState>().names().get(
+            app.world().resource::<bevy_dark_factory::anim_tab::BenchState>().selected
+        ) == Some(&"valkyrie"),
+        "the reveal did not select the rig it named"
+    );
+    let row = selected_row_drawing(&mut app, "valkyrie");
+    let list = scrollable_ancestor(&mut app, row);
+    let laid_out = app.world().get::<ComputedNode>(list).is_some_and(|node| node.size().y > 0.0);
+    assert!(!laid_out, "the bench's list is drawn before its chord, which #522 removes");
+
+    // **Half two: the chord draws it, and then the row is inside the list as it always was.**
+    press_the_chords_key(&mut app, bevy_dark_factory::keys::Action::ToggleRigs);
+    settle(&mut app);
     let row = selected_row_drawing(&mut app, "valkyrie");
     let list = scrollable_ancestor(&mut app, row);
     if let Err(why) = inside(&app, row, list) {
-        panic!("the rig's row is not inside the bench's visible area: {why}");
+        panic!("the rig's row is not inside the bench's visible area once its chord drew the list: {why}");
     }
 }
 

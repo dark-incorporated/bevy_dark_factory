@@ -4,6 +4,8 @@ What each change added, newest first. A visible change has a clip: click the sti
 
 ## 2026-11-19
 
+- **#522** The reveal test proves both halves: away it selects without claiming a visible row, drawn it is inside the list *No clip: gate 124: premise removed by the hide*
+- **#514** The band light sizes itself, so the terminal bar is not shared with other branches *No clip: gate 124 merge: terminal LED came out unsized*
 - **#522** The rig list's chord dispatches view_toggle_rigs, so an agent can open the bench too *No clip: gate 124: every verb names an operation*
 - **#522** The rig bench waits for Cmd+R: its list is hidden at boot and the workspace states the chord (the_rig_list_waits_for_its_chord) *No clip: measured by the_rig_list_waits_for_its_chord; no display on bmb*
 - **#514** One place for the agent and the decision model: both stand in one region of the status band (the_agent_and_the_decision_model_share_one_place) *No clip: measured by the_agent_and_the_decision_model_share_one_place; no display on bmb*

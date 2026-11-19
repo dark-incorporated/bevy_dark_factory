@@ -4525,9 +4525,6 @@ pub fn spawn_agent_band(band: &mut ChildSpawnerCommands) {
                 half.spawn((
                     bevy_gooey::led(AGENT_LABEL, bevy_gooey::LedState::Off),
                     AgentBandLed,
-                    // **The band's own type size** (#514), so the light reads with the words either side of it: [`crate::terminal_pane::size_the_leds`]
-                    // is the one rule for every light this editor draws, and it needs the role.
-                    crate::terminal_pane::PaneLed(text::LABEL),
                 ));
             });
         // **The decision model's light**: the same bundle the chrome bar's chip was, so the model's name, its state and its hover are

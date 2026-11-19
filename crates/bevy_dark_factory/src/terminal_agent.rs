@@ -974,11 +974,14 @@ impl Plugin for TerminalAgentPlugin {
                     .after(tick_the_agents)
                     .run_if(in_state(crate::screen::Screen::Editor)),
             )
-            // **And the band light's words read at the band's own type size** (#514), by the one rule every other light here follows
-            // ([`crate::terminal_pane::size_the_leds`]), after `bevy_gooey` has sized it from the skin.
+            // **And the band light reads at the band's own type size** (#514), by the rule the terminal bar's light follows in
+            // `terminal_pane::size_the_leds` — restated here for this one light rather than by widening that function's marker to
+            // `pub(crate)`. The pane's LED sizing is gated on the pane being up and is read by a file three clusters touch this wave;
+            // a band that reached into it was a merge collision waiting to happen (gate 124: the terminal bar's LED came out unsized
+            // in the merge). This system owns nothing but the band's own light.
             .add_systems(
                 Update,
-                crate::terminal_pane::size_the_leds
+                size_the_band_led
                     .after(bevy_gooey::GooeySystems::Style)
                     .run_if(in_state(crate::screen::Screen::Editor)),
             );
@@ -1093,6 +1096,47 @@ pub fn paint_the_band(
         }
     }
 }
+
+/// **The band's light is drawn at the band's own type size** (#514).
+///
+/// `bevy_gooey::led` sizes its words from the skin's `text_size * text_scale`, while the band's words are a type role times the person's
+/// text size, so at anything but the shipped scale the light stood out from the sentence beside it — the defect `#422` fixed for the
+/// terminal bar, by [`crate::terminal_pane::size_the_leds`]. This is that rule for the one light this module owns: the words take
+/// [`AGENT_BAND_ROLE`]'s size and the dot keeps its relation to them.
+///
+/// **Deliberately not a call into the pane's function**: that one is private to `terminal_pane`, gated on the pane being up, and read by a
+/// file several branches touch this wave. A band that reached into it was a merge collision — and gate 124 measured the cost, with the
+/// terminal bar's own LED coming out unsized once the branches were merged. This system touches only [`crate::chrome::AgentBandLed`].
+fn size_the_band_led(
+    leds: Query<(&Children, &crate::chrome::AgentBandLed)>,
+    roles: Query<&bevy_gooey::Role>,
+    mut fonts: Query<&mut TextFont, With<Text>>,
+    mut dots: Query<&mut Node>,
+) {
+    // The dot's side as a share of its word's size, which is `bevy_gooey`'s own ratio: the dot keeps its relation to the word when the
+    // word takes the band's size.
+    const DOT_DOT_SIZES: f32 = 1.1;
+    let size = crate::chrome::font(AGENT_BAND_ROLE).font_size;
+    let side = Val::Px(AGENT_BAND_ROLE.px() * crate::chrome::text_scale() * DOT_DOT_SIZES);
+    for (children, _) in &leds {
+        for child in children.iter() {
+            if let Ok(mut font) = fonts.get_mut(child) {
+                if font.font_size != size {
+                    font.font_size = size;
+                }
+            } else if roles.get(child) == Ok(&bevy_gooey::Role::LedDot)
+                && let Ok(mut dot) = dots.get_mut(child)
+                && (dot.width != side || dot.height != side)
+            {
+                dot.width = side;
+                dot.height = side;
+            }
+        }
+    }
+}
+
+/// **The type role the band's light is drawn at**: the band's own label size, so the light reads with the words either side of it.
+pub const AGENT_BAND_ROLE: crate::chrome::text::Role = crate::chrome::text::LABEL;
 
 /// **What the band's agent half says when no agent tab is open**: that nothing is running, and the chord that opens the pane where an agent
 /// is started. A light that said only `off` would be a dead end in the state a person meets first (the terminal starts collapsed, #424).
