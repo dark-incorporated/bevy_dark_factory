@@ -62,6 +62,38 @@ fn point(app: &mut App, at: Vec2, action: PointerAction) {
     app.update();
 }
 
+/// **Start the agent with `Enter`**, the invitation's own second door: the pane holds the keys and invites an agent, and Enter opens
+/// the agent tab (`enter_invokes_the_agent`). Used where a click on the Invoke button cannot reach it — measured at text scale 3.0
+/// the button is drawn 33 px outside the window (see the owner exception on the test).
+fn invoke_with_enter(app: &mut App) {
+    until(app, "the Start agent button was never drawn", |app| {
+        let world = app.world_mut();
+        world.query_filtered::<&UiGlobalTransform, With<TerminalInvokeButton>>().iter(world).next().is_some()
+    });
+    let world = app.world_mut();
+    let window = world.query_filtered::<Entity, With<bevy::window::PrimaryWindow>>().iter(world).next().unwrap_or(Entity::PLACEHOLDER);
+    // **The shell holds the keys**, which is what `enter_invokes_the_agent` asks for: a person at the prompt presses Enter and the
+    // pane's invitation opens the agent.
+    world.resource_mut::<bevy_dark_factory::terminal_pane::TerminalFocus>().take();
+    world.write_message(bevy::input::keyboard::KeyboardInput {
+        key_code: bevy::input::keyboard::KeyCode::Enter,
+        logical_key: bevy::input::keyboard::Key::Enter,
+        state: bevy::input::ButtonState::Pressed,
+        text: None,
+        repeat: false,
+        window,
+    });
+    // The release, so the next frame's `just_pressed` is clean.
+    world.write_message(bevy::input::keyboard::KeyboardInput {
+        key_code: bevy::input::keyboard::KeyCode::Enter,
+        logical_key: bevy::input::keyboard::Key::Enter,
+        state: bevy::input::ButtonState::Released,
+        text: None,
+        repeat: false,
+        window,
+    });
+}
+
 fn start_the_agent(app: &mut App) {
     let button = |app: &mut App| {
         let world = app.world_mut();
@@ -113,10 +145,18 @@ fn row_size(app: &mut App) -> Option<FontSize> {
 /// so on the card, against its rows, and at the ends of the range a file may ask for.
 #[test]
 fn the_leds_word_is_the_size_of_a_chip_in_the_bar_and_of_a_row_on_the_card_at_every_text_size() {
+    // **Owner exception (2026-11-18): `the_leds_word_is_the_size_of_the_text_beside_it.rs::the_leds_word_is_the_size_of_a_chip_in_the_bar_and_of_a_row_on_the_card_at_every_text_size`:**
+    // the wait named the agent starting, which at text scale 3.0 cannot happen because the Invoke button is drawn 33 px outside the
+    // window (pane 1569 px over a 1536 px window, pre-existing on main: this branch writes no width at all). The sizes are what the
+    // test measures and they are asserted below unchanged.
+    //
+    // So the agent is started by **Enter in the shell** rather than by a click on the Invoke button: the key is the pane's own
+    // second door onto the same invitation (`enter_invokes_the_agent`), it is where the pointer cannot reach at any scale, and it
+    // leaves the whole test measuring one thing — the LED's word against the text beside it.
     for scale in [1.0_f32, 1.45, 0.5, 3.0] {
         let mut app = editor(&format!("led_size_{}", (scale * 100.0) as u32), scale);
-        start_the_agent(&mut app);
-        until(&mut app, "the agent's tab, its card and the chips at the chosen text size", |app| {
+        invoke_with_enter(&mut app);
+        until(&mut app, "the agent's card and the chips at the chosen text size", |app| {
             let chip = chip_size(app);
             app.world().resource::<Terminal>().len() == 1
                 && led_sizes::<TerminalBar>(app).is_some()
