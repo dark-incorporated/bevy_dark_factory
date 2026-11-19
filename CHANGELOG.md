@@ -10,6 +10,7 @@ What each change added, newest first. A visible change has a clip: click the sti
 - **488-panel-authoring-format** `4ed4e330` A panel's authoring format is researched with per-panel measurements: a typed struct drawn by gooey's inspector, with YAML as its text form, and Markdown stays prose *No clip: A design document: no code changed, so nothing in the editor's suite can fail on it -- see docs/design/panel-authoring-format.md*
 - **491** `0` A modifier pressed in the report's note box no longer lands in the note and no chord saves it, so a note keeps exactly what was typed *No clip: a keyboard fix in a dialog with no new screen of its own; proved by tests/a_modifier_is_not_note_text.rs*
 - **481-switch-fits** `7b909c6a` A switch in the Agent panel reflows inside its column instead of drawing over the scrollbar *For you: The Pause and Answer hand-backs switches in the Agent panel now wrap their labels when the panel is narrow, so the switch stays inside the panel instead of spilling over the scrollbar.* *No clip: layout fix; proved by no_control_in_the_agent_panel_is_drawn_past_its_column and the_agent_panels_switch_is_inside_its_column*
+- **492-cmd-j-cycle** `ba4292db` Cmd+J cycles the terminal through maximised, collapsed and a quarter *For you: Cmd+J now cycles the terminal round three positions — filling the window, tucked away, and a quarter across the bottom — instead of just showing and hiding it.* *No clip: the 4 fps two-cycle capture is recorded by the manager*
 
 ## 2026-11-17
 

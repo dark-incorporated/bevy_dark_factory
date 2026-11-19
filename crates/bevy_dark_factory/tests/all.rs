@@ -440,6 +440,7 @@ mod placement_set_tip_is_an_operation;
 mod placement_set_yaw;
 mod placement_undo_without_id;
 mod project_clone_shares;
+mod primary_j_cycles_the_terminal_through_three_positions;
 mod references;
 mod recent_projects;
 mod relations_add_is_an_operation;
