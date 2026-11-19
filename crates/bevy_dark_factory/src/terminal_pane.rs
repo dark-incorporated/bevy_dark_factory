@@ -2382,11 +2382,14 @@ fn fit_the_pane_to_the_window(
         if node.height != want {
             node.height = want;
         }
-        // **The pane is as wide as its parent, never as wide as its content** (#497). Nothing here stated a
-        // width, so a Bevy UI node in a column takes its children's width: at text scale 3.0 the quarter's
-        // taller box let the content lay out past the window — measured 1569 px in a 1536 px window, where
-        // `origin/main` before the cycle drew 1280. Percent resolves against the parent, so the pane cannot
-        // exceed the window at any text size.
+        // **The pane is as wide as its parent, never as wide as its content** (#497). A `Percent` width is
+        // the parent's, so a pane whose content is a long unwrapped row cannot be laid out as wide as that
+        // row. **It is not the whole fix and the measurement says so**: at text scale 3.0 this width was
+        // already `Percent(100.0)` on the pane's first frame and the pane still measured 1569 px in a
+        // 1280 px window, because a flex item's *automatic least width* is its content's and that least
+        // width reaches the frame root through the pane. The root's `Sizing` stating `min_width: Px(0)` is
+        // what stops that (`chrome::spawn_frame`), and
+        // `tests/the_pane_is_the_windows_width_at_every_text_size.rs` measures all three scales.
         if node.width != Val::Percent(100.0) {
             node.width = Val::Percent(100.0);
         }

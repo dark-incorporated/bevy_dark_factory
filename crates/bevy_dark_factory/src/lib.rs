@@ -262,6 +262,10 @@ pub mod tiles;
 pub mod toolbar;
 pub mod token_prompt;
 pub mod update;
+// **The GitHub connection** (#498): the account and repository the editor acts as, the token it holds or
+// the stated reason it holds none, and a check that tells a missing token from a refused one from a
+// repository it cannot reach. `github` is the value and the four answers; nothing here draws.
+pub mod github;
 pub mod view;
 pub mod workspace;
 pub mod watch;
