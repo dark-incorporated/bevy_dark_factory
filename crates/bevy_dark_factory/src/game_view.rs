@@ -600,6 +600,37 @@ fn spawn_game_panel(mut commands: Commands, frame: Res<crate::chrome::Frame>) {
 #[derive(Component)]
 pub struct GameRootPane;
 
+/// **The Game panel's frame-and-memory line**, one reading a line (#519).
+///
+/// This was `Frame time 16.7 ms · memory 812 MB`: the two readings of the game on one line with a
+/// middle dot between them, which is the shape the owner called jank. A frame time and a memory
+/// figure are two values about the running process, not one sentence, so each keeps a line of its
+/// own and the row grows a line rather than joining them.
+///
+/// `running` is whether a pid exists: a game that is not running has no readings yet, and saying so
+/// twice (`appears while the game runs`, `appears while the game runs`) would be one fact on two
+/// lines. So the not-yet case is stated once, by the frame time's own sentence.
+pub fn frame_and_memory(snapshot: &Snapshot, running: bool) -> String {
+    let frame_part = match (snapshot.frame_ms, &snapshot.frame_error) {
+        (Some(ms), _) => format!("Frame time {ms:.1} ms"),
+        (None, Some(why)) => format!("Frame time unavailable: {why}"),
+        (None, None) if running && !snapshot.answered => {
+            format!("Frame time unavailable: the game is not answering over BRP ({})", snapshot.error.as_deref().unwrap_or("no answer yet"))
+        }
+        (None, None) => "Frame time appears while the game runs".to_owned(),
+    };
+    let memory_part = match (snapshot.rss_mb, &snapshot.memory_error) {
+        (Some(mb), _) => Some(format!("memory {mb:.0} MB")),
+        (None, Some(why)) => Some(format!("memory unavailable: {why}")),
+        (None, None) if running => Some("memory appears while the game runs".to_owned()),
+        (None, None) => None,
+    };
+    match memory_part {
+        Some(memory) => format!("{frame_part}\n{memory}"),
+        None => frame_part,
+    }
+}
+
 /// What [`draw_the_game`] writes into, bundled for the system-parameter limit.
 #[derive(SystemParam)]
 #[allow(clippy::type_complexity)]
@@ -645,21 +676,7 @@ fn draw_the_game(
     }
     put(&mut targets.status, status);
     put(&mut targets.log, view.log_text());
-    let answering = view.snapshot.answered;
-    let frame_part = match (view.snapshot.frame_ms, &view.snapshot.frame_error) {
-        (Some(ms), _) => format!("Frame time {ms:.1} ms"),
-        (None, Some(why)) => format!("Frame time unavailable: {why}"),
-        (None, None) if view.pid.is_some() && !answering => {
-            format!("Frame time unavailable: the game is not answering over BRP ({})", view.snapshot.error.as_deref().unwrap_or("no answer yet"))
-        }
-        (None, None) => "Frame time appears while the game runs".to_owned(),
-    };
-    let memory_part = match (view.snapshot.rss_mb, &view.snapshot.memory_error) {
-        (Some(mb), _) => format!("memory {mb:.0} MB"),
-        (None, Some(why)) => format!("memory unavailable: {why}"),
-        (None, None) => "memory appears while the game runs".to_owned(),
-    };
-    put(&mut targets.frame, format!("{frame_part} · {memory_part}"));
+    put(&mut targets.frame, frame_and_memory(&view.snapshot, view.pid.is_some()));
     let fields = match &view.snapshot.fields {
         Some((id, lines)) if view.selected == Some(*id) => {
             let name = view.snapshot.entities.iter().find(|e| e.id == *id).map_or("entity", |e| e.name.as_str());

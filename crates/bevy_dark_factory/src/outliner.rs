@@ -485,7 +485,7 @@ fn build_nodes(
         .notes
         .iter()
         .filter(|(id, text)| kept(&format!("{id} {text}"), NOTES))
-        .map(|(id, text)| (thing_key(NOTES, id), if text.is_empty() { id.clone() } else { format!("{id} \u{b7} {text}") }))
+        .map(|(id, text)| (thing_key(NOTES, id), if text.is_empty() { id.clone() } else { format!("{id}: {text}") }))
         .collect();
     let others: [(String, Vec<(u64, String)>); 4] = [
         (
@@ -494,7 +494,7 @@ fn build_nodes(
                 .compositions
                 .iter()
                 .filter(|(id, of)| kept(&format!("{id} {of}"), COMPOSITIONS))
-                .map(|(id, of)| (thing_key(COMPOSITIONS, id), format!("{id} \u{b7} {of}")))
+                .map(|(id, of)| (thing_key(COMPOSITIONS, id), format!("{id}: {of}")))
                 .collect(),
         ),
         (
@@ -561,7 +561,11 @@ fn build_nodes(
 /// **The label of a piece's row**: its id and descriptor, and a mark for each thing the eye or the locks say about it.
 /// One function for a whole build and for a row relabelled alone, so the two can never read a piece differently.
 fn piece_label(placed: &Placed, layer: &str, marks: (&Eyes, &Locks)) -> String {
-    let mut label = format!("{} \u{b7} {}", placed.id, placed.descriptor);
+    // **The id is a label and its descriptor the value** (#519): this read `wall@3 · on_wall`, two
+    // values on one line with a middle dot between them, which the owner read as *"separate text
+    // values in one row. It looks jank."* A colon is the label-and-value idiom this editor already
+    // draws rows with, and it keeps the row one line tall.
+    let mut label = format!("{}: {}", placed.id, placed.descriptor);
     if marks.0.is_hidden(&placed.id) || marks.0.layer_hidden(layer) {
         label.push_str(HIDDEN_MARK);
     }

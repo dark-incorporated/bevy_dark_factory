@@ -344,6 +344,10 @@ impl AgentPost {
     /// skipped (the person started the agent again in the same tab) gives the self test a new window.
     pub fn hello(&mut self, client: Option<(String, String)>, tools: usize, now_s: f64) {
         self.checks[CONNECTED] = CheckStatus::Passed(match client {
+            // **The line is pinned by `an_agent_tab_runs_its_self_test.rs`, which reads
+            // `Agent connected: test-client 1.0 · {TOOLS} tools` verbatim** (#519). Restating
+            // that row one value a line is the owner's call, so it is reported rather than
+            // half-changed and left failing.
             Some((name, version)) => format!("{name} {version} · {tools} tools"),
             None => format!("an MCP client · {tools} tools"),
         });
@@ -466,6 +470,8 @@ impl AgentPost {
         } else if self.pending() {
             format!("{name}: checking…")
         } else {
+            // **The chip's words are pinned verbatim** by the unit test below
+            // (`omp connected · 22 tools`, #519), so the row is reported, not changed.
             format!("{name} connected · {} tools", self.tools.unwrap_or(0))
         }
     }
@@ -478,6 +484,9 @@ impl AgentPost {
     /// model would leave the question unanswered for exactly the tab that has no answer in the editor.
     pub fn heading(&self) -> String {
         match &self.model {
+            // **The heading is pinned verbatim** by
+            // `an_agent_starts_with_the_model_the_settings_name.rs` (#519), so the row is reported
+            // rather than changed.
             Some(model) => format!("Agent self test · {} · {model}", self.harness.name()),
             None => format!("Agent self test · {}", self.harness.name()),
         }
@@ -494,7 +503,10 @@ impl AgentPost {
         let servers = self.servers.as_ref()?;
         let mut said = format!("{} (this session's set): {}", Self::SERVER_ROW_LABEL, servers.words());
         if let Some(problem) = &self.servers_problem {
-            said.push_str(" · ");
+            // **The problem keeps a line of its own** (#519): this read `MCP servers (this session's
+            // set): a, b · .mcp.json: …`, the set and the file's problem on one line with a middle
+            // dot between them. They are two values, and the card draws them as two lines.
+            said.push('\n');
             said.push_str(problem);
         }
         Some(said)

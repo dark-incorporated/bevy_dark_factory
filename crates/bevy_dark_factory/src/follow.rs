@@ -561,11 +561,17 @@ impl LookChip {
 
     /// **What the chip says for `following`**, as one value: the drawing system and a test both read
     /// this, so the picture and the assertion cannot drift.
+    ///
+    /// **No middle dot between the change and the button** (#519). This read
+    /// `the NightShift placed \`bed@0\` (+2 more) · Look`: a change and the affordance beside it on
+    /// one line with a caret between them, which is the shape the owner called jank. `Look` is the
+    /// chip's own [`LookButton`], drawn beside these words, so the dash joins a clause to the
+    /// sentence rather than gluing two values together.
     pub fn of(following: &Following) -> LookChip {
         match following.waiting() {
             Some(what) => LookChip {
                 sentence: Some(format!(
-                    "{what}{} · Look",
+                    "{what}{} — Look",
                     match following.pending().saturating_sub(1) {
                         0 => String::new(),
                         n => format!(" (+{n} more)"),

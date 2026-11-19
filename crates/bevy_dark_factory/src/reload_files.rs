@@ -281,6 +281,12 @@ pub fn panel_lines(files: &[FileReload], game: Option<&Verdict>, watching: bool,
         let (text, tone) = match (game_says, editor_says) {
             (Some(game), Some(_)) if matches!(f.state, GameState::Refused | GameState::NeedsRestart) => game,
             (Some((game, tone)), Some((editor, editor_tone))) => {
+                // **A middle dot joins the two answers, because the line's own prefix does too**
+                // (#519). Every line of this panel begins `<file> · <text>`, and
+                // `tests/a_file_says_what_the_game_made_of_its_edit.rs` pins that shape verbatim
+                // along with the refusal's trailing `·` before the time. Changing one join and
+                // not the others would leave the panel half-separated, so this whole panel is
+                // reported as pinned rather than half-changed (#519).
                 (format!("{game} · {editor}"), if editor_tone == Tone::Danger { editor_tone } else { tone })
             }
             (Some(game), None) => game,
