@@ -4,6 +4,7 @@ What each change added, newest first. A visible change has a clip: click the sti
 
 ## 2026-11-19
 
+- **494-chip-in-its-line** `aa8acc56` A chip is never wider than the line it stands on, and its label breaks at a word: the PIECES panel's NOT IMPORTED chip and the strip's wrapper stop spilling past the panel's content edge *No clip: a layout measurement with no visible clip recorded; proved by tests/no_panel_draws_a_control_past_its_own_content_box.rs, now unignored and green at interface scales 1.0 and 1.6*
 - **486-place-arms** `ec875c44` The PLACE list says what arms a row, and its cells line up *No clip: A headless layout change; proven by the_place_list_says_what_arms_a_row_and_lines_its_cells_up (baselines and columns measured at four text sizes), and every_character_a_mark_draws_is_in_its_face plus every_selected_row_reads_at_aa_contrast_in_every_skin cover the new mark*
 - **494-panel-content-box** `50e280a2` A panel's value column gives way inside its own content box, and one test holds all four panes to it *No clip: a layout measurement with no clip recorded; proved by tests/no_panel_draws_a_control_past_its_own_content_box.rs, which still fails on the PIECES panel's shelf chip and is the evidence #494 hands to the next worker*
 
