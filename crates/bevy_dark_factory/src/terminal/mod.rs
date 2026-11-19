@@ -488,6 +488,60 @@ impl Terminal {
         self.maximised && self.raised
     }
 
+    /// **Which of the cycle's three positions the pane stands in** (#492), as a person would name it: maximised, collapsed, or
+    /// a quarter at the bottom. A state and not a pair of booleans, because `Cmd+J` cycles through exactly these three and a
+    /// fourth combination (`raised` but neither maximised nor at the quarter) would be a position the chord could not reach.
+    pub fn placement(&self) -> crate::terminal_pane::TerminalPlacement {
+        use crate::terminal_pane::TerminalPlacement;
+        if !self.raised {
+            TerminalPlacement::Collapsed
+        } else if self.maximised {
+            TerminalPlacement::Maximised
+        } else {
+            TerminalPlacement::Quarter
+        }
+    }
+
+    /// **The position `Cmd+J` reaches from this one** (#492): `Maximised → Collapsed → Quarter → Maximised`, the owner's order.
+    /// Read by the status bar's tooltip, because a cycle has no state to see, so the press's meaning has to be said.
+    pub fn next_placement(&self) -> crate::terminal_pane::TerminalPlacement {
+        self.placement().next()
+    }
+
+    /// **Put the pane in `placement`** (#492): the one write the chord, Shift+`Cmd+J`, View ▸ Maximise terminal and the status
+    /// label all go through, so the three positions are one machine rather than a set of toggles that can disagree.
+    ///
+    /// Reaching `Quarter` clears the person's dragged height (`self.height`), so the quarter is a *stated* fraction of the body
+    /// rather than "what the split last held": that is what makes the position reproducible. A drag after the cycle is the person
+    /// taking the height back, which [`Self::set_height`] records and [`crate::terminal_pane::fit_the_pane_to_the_window`] then
+    /// leaves alone.
+    pub fn set_placement(&mut self, placement: crate::terminal_pane::TerminalPlacement) {
+        use crate::terminal_pane::TerminalPlacement;
+        match placement {
+            TerminalPlacement::Collapsed => {
+                self.raised = false;
+                self.maximised = false;
+            }
+            TerminalPlacement::Quarter => {
+                self.raised = true;
+                self.maximised = false;
+                // **A height the person dragged is theirs** (#492): the quarter is a stated fraction only until a drag takes it, and
+                // the cycle's next turn starts from where they left it rather than snapping back.
+            }
+            TerminalPlacement::Maximised => {
+                self.raised = true;
+                self.maximised = true;
+            }
+        }
+    }
+
+    /// **`Cmd+J`'s press: from this position to the next** (#492). Returns the position it moved to.
+    pub fn cycle_placement(&mut self) -> crate::terminal_pane::TerminalPlacement {
+        let next = self.next_placement();
+        self.set_placement(next);
+        next
+    }
+
     /// **Toggle the pane between its normal height and the whole window below the menu bar** (#426). A collapsed pane is raised straight to
     /// full; a full one goes back to the height it had. Returns the new state.
     pub fn toggle_maximised(&mut self) -> bool {

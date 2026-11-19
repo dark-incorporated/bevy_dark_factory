@@ -116,6 +116,22 @@ fn wheel_is_the_maps(pointer: Option<Vec2>, viewport: Option<Rect>) -> bool {
     }
 }
 
+/// **The wheel belongs to the terminal pane where the pane stands, even where the pane overlaps the hole** (#492).
+///
+/// The pane is docked across the bottom, and the hole the map is drawn through reaches down past the pane's top edge: measured in
+/// the editor's own window, the viewport is `(394, 153)-(1038, 517)` and the pane, at the quarter, is `(0, 430.8)-(1066.7, 574.2)`.
+/// So a notch over the pane's `(533, 502)` is *inside the viewport rect* — and asking only [`wheel_is_the_maps`] zoomed the map from
+/// under a person scrolling their shell, which is the very complaint the pane's own test was written for
+/// (`capture_feedback_1794147411369`). The pane's rect is asked **beside** the viewport's, not instead of it, because the pane is
+/// the thing drawn over that strip of the hole.
+fn the_pane_has_the_wheel(pointer: Option<Vec2>, panes: impl IntoIterator<Item = Rect>) -> bool {
+    let Some(at) = pointer else {
+        // No pointer is no answer, and every other wheel question answers `true` for the map in that case.
+        return false;
+    };
+    panes.into_iter().any(|pane| pane.contains(at))
+}
+
 /// **Viewport heights a second a held pan key crosses**, not metres a second.
 ///
 /// It was an absolute 16.0 m/s matched to the game's `src/camera.rs`, on the argument that the same
@@ -583,6 +599,9 @@ pub(crate) fn drive(
     drawn: Option<Res<DrawnExtent>>,
     // The project's root, so a press has a log to be written to.
     project: Option<Res<crate::project::Project>>,
+    // **The terminal pane's rect, because it is drawn over part of the hole** (#492): `over_ui` cannot answer for it (the pane does
+    // not carry `Hovered`), and the viewport rect alone answers "the map" for the strip of hole the pane covers.
+    panes: Query<(&bevy::ui::ComputedNode, &bevy::ui::UiGlobalTransform), With<crate::terminal_pane::TerminalPaneRoot>>,
 ) {
     let Some(camera) = camera else { return };
     let over_ui = over_ui.0;
@@ -596,7 +615,13 @@ pub(crate) fn drive(
     };
     let lines = wheel_lines(&scroll, *per_line);
     let viewport = viewport.and_then(|camera| camera.logical_viewport_rect());
-    if lines != 0.0 && !over_ui && wheel_is_the_maps(pointer.0, viewport) {
+    // **The pane over the hole keeps the wheel** (#492): its rect is asked beside the viewport's, because at the quarter the plane
+    // the map is drawn on reaches under the pane and a notch there would otherwise zoom the map from under a shell being scrolled.
+    let over_the_pane = the_pane_has_the_wheel(
+        pointer.0,
+        panes.iter().map(|(node, at)| Rect::from_center_size(at.translation * node.inverse_scale_factor(), node.size() * node.inverse_scale_factor())),
+    );
+    if lines != 0.0 && !over_ui && !over_the_pane && wheel_is_the_maps(pointer.0, viewport) {
         // **A ratio, so a detent is the same gesture at every scale.** Subtracting metres put one
         // wheel stop between the floor and 2 m.
         rig.height = (rig.height * ZOOM_STEP.powf(-lines))
