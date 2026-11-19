@@ -5,8 +5,6 @@
 //! (`chrome::TypeRole`) times the person's text size, so with `text_scale` 1.45 the two diverged: `Agent live` was visibly larger than
 //! every chip beside it. The LED in the bar now matches the bar's chips, and the LED on the self-test card matches the card's rows.
 
-use bevy::camera::{ImageRenderTarget, NormalizedRenderTarget};
-use bevy::picking::pointer::{Location, PointerAction, PointerButton, PointerId, PointerInput};
 use bevy::prelude::*;
 
 use bevy_dark_factory::terminal::Terminal;
@@ -55,13 +53,6 @@ fn until(app: &mut App, why: &str, test: impl Fn(&mut App) -> bool) {
     panic!("{why}");
 }
 
-fn point(app: &mut App, at: Vec2, action: PointerAction) {
-    let handle = app.world().get_resource::<bevy_dark_factory::surface::Surface>().map(|s| s.image.clone()).unwrap_or_default();
-    let location = Location { target: NormalizedRenderTarget::Image(ImageRenderTarget { handle, scale_factor: 1.0 }), position: at };
-    app.world_mut().write_message(PointerInput::new(PointerId::Mouse, location, action));
-    app.update();
-}
-
 /// **Start the agent with `Enter`**, the invitation's own second door: the pane holds the keys and invites an agent, and Enter opens
 /// the agent tab (`enter_invokes_the_agent`). Used where a click on the Invoke button cannot reach it — measured at text scale 3.0
 /// the button is drawn 33 px outside the window (see the owner exception on the test).
@@ -92,18 +83,6 @@ fn invoke_with_enter(app: &mut App) {
         repeat: false,
         window,
     });
-}
-
-fn start_the_agent(app: &mut App) {
-    let button = |app: &mut App| {
-        let world = app.world_mut();
-        world.query_filtered::<&UiGlobalTransform, With<TerminalInvokeButton>>().iter(world).next().map(|at| at.translation)
-    };
-    until(app, "the Start agent button was never drawn", |app| button(app).is_some());
-    let at = button(app).expect("the button stands");
-    for action in [PointerAction::Move { delta: Vec2::ZERO }, PointerAction::Press(PointerButton::Primary), PointerAction::Release(PointerButton::Primary)] {
-        point(app, at, action);
-    }
 }
 
 fn is_under<M: Component>(world: &World, entity: Entity) -> bool {
