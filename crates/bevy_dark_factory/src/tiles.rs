@@ -10009,7 +10009,18 @@ fn rebuild_detail(detail: DetailInputs<'_, '_>) {
                 (None, Some(f)) => (format!("{} face", f.label()), crate::chrome::ink().text),
                 (None, None) => ("none".to_owned(), crate::chrome::ink().label),
             };
-            crate::chrome::spaced_row(p, crate::chrome::margin_top(crate::chrome::STEP_GROUP), AlignItems::Center)
+            // **The row wraps, because two label/value pairs are not one line at a narrow panel**
+            // (#520, `feedback-1795094167584`: *"This is squished to the point we can't see it."*).
+            // At the capture's window (2176 x 1406, `ui_scale` 2.4) the INSPECTOR panel is 494
+            // physical px wide and its content edge stands at 553, while the row's cells ask for
+            // more than that: two `row_label`s that cannot shrink (125 each, `shrink: Some(0.0)`),
+            // the mount chip (149), the group gap (38) and the front's value (36). A plain row laid
+            // all of it out from `x=120`, so `E face` was broken over **3 lines** and drawn to
+            // **578.3 — 25.3 px past the content edge**, over the border and into the gutter.
+            // Wrapping gives the second pair a line of its own: measured on the same window after
+            // this, the row is two lines tall and every word is one line inside the panel. That is
+            // the fix `tiles::shelf_strip` and the page's kit row (#516) state for the same class.
+            crate::chrome::wrapping_row(p, 0.0, crate::chrome::margin_top(crate::chrome::STEP_GROUP), AlignItems::Center)
                 // The row `M` cycles.
                 .insert(crate::chrome::Control(crate::keys::ControlId::Mount))
             .with_children(|row| {
