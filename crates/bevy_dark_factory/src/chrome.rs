@@ -2790,6 +2790,35 @@ pub fn row_value(row: &mut ChildSpawnerCommands, text: impl Into<String>, colour
     ));
 }
 
+/// **A line of body text drawn by this crate rather than by a gooey widget** — a list row, the note
+/// under a heading — at [`text::BODY`], in the ink the caller names, wrapping inside its own box.
+///
+/// # Why this exists beside [`bevy_gooey::label`]
+///
+/// A `bevy_gooey::label` is styled by `apply_skin` with `skin.text_size * skin.text_scale`, **then
+/// snapped to a whole device pixel** (`bevy_gooey::snap_text_size`). At this editor's `UiScale` of
+/// 1.2 that makes the skin's declared 11 px draw at `ceil(11 * 1.2) / 1.2 = 11.666… px`. Measured on
+/// the World workspace (#518), **550 of 602 texts on screen were drawn at 11.666 px** — a size the
+/// type scale (`chrome::text`, `{9, 10, 11, 13, 15}`) does not name, and 6 % larger than the
+/// [`text::BODY`] that `chrome::font` gives every label this crate draws itself. So one window held
+/// two body sizes, and the more common one was the one outside the scale.
+///
+/// This draws the line through [`typed`], so it is `text::BODY` like every other label here, and it
+/// follows the person's text size for free ([`resize_the_labels`]) — a `bevy_gooey::label` does not,
+/// because gooey recomputes it from `skin.text_scale` on its own pass.
+///
+/// **[`LineBreak::WordOrCharacter`] rather than `NoWrap`, and no zero `min_width`**: the same pair
+/// [`row_value`] records — the break lets a long line give way inside its column, and the absent
+/// floor keeps the box reserving its own line so the block below it does not come up under it.
+pub fn body(parent: &mut ChildSpawnerCommands, words: impl Into<String>, colour: Color) {
+    parent.spawn((
+        Text::new(words.into()),
+        TextColor(colour),
+        typed(text::BODY),
+        TextLayout::new(Justify::Left, LineBreak::WordOrCharacter),
+    ));
+}
+
 /// **A switch's label breaks inside the row that bounds it** (#481, the AGENT panel's capture
 /// `feedback-1794783669349`: *"The widgets are breaking out of the div here."*).
 ///
