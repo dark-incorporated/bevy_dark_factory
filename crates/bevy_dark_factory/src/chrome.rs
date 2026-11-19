@@ -876,6 +876,20 @@ pub fn font_scaled(role: text::Role, scale: f32) -> TextFont {
 /// the size changes. If the face ever goes proportional, layouts drift; they do not break.
 pub const BODY_CHAR_W: f32 = 6.6;
 
+/// **One nesting step of the editor's own trees, in logical pixels: two advances of the body face.**
+/// This is #489's rule — *"the editor's own indents should be the 2-space step the file editor already
+/// uses"* — stated as the width it is drawn at rather than as a count of spaces.
+///
+/// **It is the file editor's own step** ([`crate::files::YAML_INDENT_SPACES`] x [`BODY_CHAR_W`]), so a
+/// tree row one level in stands exactly where a YAML line one level in stands in the editor beside it.
+/// Before #523 there was no such constant: gooey's `tree_indent` sized a level at `1.5 x the text size`
+/// (24 px here, measured — 3.64 advances), so a folder's children stepped four-odd spaces while the
+/// file the folder held indented by two. Two steps in one tree, which is what the owner saw.
+///
+/// Written onto every `TreeTwisty` by [`the_tree_steps_two_advances`], after gooey has laid the skin
+/// out, and read by the tests that measure a row's inset.
+pub const TREE_STEP: f32 = crate::files::YAML_INDENT_SPACES as f32 * BODY_CHAR_W;
+
 /// **One line of [`text::BODY`], logical pixels**: Bevy 0.20's default `LineHeight`, which is
 /// `RelativeToFont(1.2)` (`bevy_text` `text.rs`, `impl Default for LineHeight`). For reserving room
 /// for text that comes and goes, so its arrival does not move what sits below it. A metric, beside
@@ -2891,6 +2905,83 @@ pub fn let_a_toggle_label_break(
     }
 }
 
+/// **A tree row steps [`TREE_STEP`], not whatever the skin's `tree_indent` says** (#523).
+///
+/// `bevy_gooey` sizes one level of a tree at `tree_indent(text_px)` = `1.5 x the text size` (24 px at
+/// the editor's 11 px body, measured: 3.64 advances), and it writes that width onto every
+/// `TreeTwisty` in `apply_skin`. The editor's own step is two advances, the same step its file editor
+/// indents YAML and Markdown by (`files::YAML_INDENT_SPACES`), so a folder's children and the files
+/// inside it stood 24 px and 2-space apart in the same tree — the two steps the owner photographed.
+///
+/// # Why a system, and why every frame
+///
+/// The twisty is gooey's: the widget spawns it, and gooey re-asserts its width on every style pass
+/// and on every row it rebinds to a new node (`bind_lead`). So this runs
+/// [after](bevy_gooey::GooeySystems::Style), the frame gooey has written its width, and rewrites only
+/// the `width` — the box's height, its `flex_shrink` and its margin are the widget's. Every write is
+/// compared first, so a settled tree costs a read a frame and no change.
+///
+/// **The depth a row was placed at, read once from gooey's own indent** (#523).
+///
+/// `bevy_gooey` stands a row `depth x tree_indent` in from the table's edge and rewrites that margin
+/// whenever it rebinds a pooled row to a new node. So the depth is read **when the widget writes it**
+/// and kept here: reading it back from the margin every frame would read the editor's own step after
+/// the first frame (`13.2 / 24` rounds to 1) and collapse every row below the first onto one indent —
+/// measured, one level deeper came out `0.00` further in before this component existed.
+#[derive(Component, Clone, Copy, Debug, PartialEq, Eq)]
+pub struct TreeDepth(pub u32);
+
+/// **Both numbers the step is made of are the widget's, and both must move.** `spawn_lead` stands the
+/// twisty `depth x indent` in from the row's edge and makes it one `indent` wide, so the chevron and
+/// the label after it sit at `(depth + 1) x indent`. Writing only the width would leave every row at
+/// the depth gooey placed it and just narrow the chevron's own box. So this keeps the depth gooey
+/// placed the row at ([`TreeDepth`]) and writes both at [`TREE_STEP`].
+///
+/// **The depth is re-read whenever the margin is exactly the widget's own width times a whole
+/// number**, which is the state `spawn_lead`/`bind_lead` leave a rebound row in. A margin this
+/// system wrote is `depth x TREE_STEP`, which is not that number unless the two happen to agree, so
+/// the two reads never fight.
+pub fn the_tree_steps_two_advances(
+    mut twists: Query<(Entity, &bevy_gooey::Role, &mut Node, Option<&TreeDepth>)>,
+    mut commands: Commands,
+    skin: Option<Res<bevy_gooey::GooeySkin>>,
+) {
+    let Some(skin) = skin else { return };
+    let theirs = bevy_gooey::tree_indent((skin.text_size * skin.text_scale).max(1.0));
+    if theirs <= 0.0 {
+        return;
+    }
+    let step = Val::Px(TREE_STEP);
+    for (entity, role, mut node, known) in twists.iter_mut() {
+        if *role != bevy_gooey::Role::TreeTwisty {
+            continue;
+        }
+        // The widget's own placement: a whole number of its widths.
+        let placed = match node.margin.left {
+            Val::Px(left) if (left / theirs - (left / theirs).round()).abs() < 0.01 => Some((left / theirs).round().max(0.0) as u32),
+            _ => None,
+        };
+        let depth = match (placed, known) {
+            (Some(depth), _) => {
+                if known != Some(&TreeDepth(depth)) {
+                    commands.entity(entity).insert(TreeDepth(depth));
+                }
+                depth
+            }
+            // The widget has not written this row since this system last did: keep the depth read.
+            (None, Some(known)) => known.0,
+            (None, None) => 0,
+        };
+        let in_by = Val::Px(depth as f32 * TREE_STEP);
+        if node.margin.left != in_by {
+            node.margin.left = in_by;
+        }
+        if node.width != step {
+            node.width = step;
+        }
+    }
+}
+
 /// **The editor skin's spacing steps, named** (#260): `editor_skin.yaml`'s `spacing` scale is `[3, 5, 12, 16, 20, 24]` px, so the editor's own gaps are
 /// steps of it. [`bevy_gooey::Spacing`] takes a step, and `the_editor_spacing_steps_are_its_gap_constants` holds each to the px constant it replaces.
 pub const STEP_TIGHT: bevy_gooey::Space = bevy_gooey::Space::Step(0);
@@ -3946,6 +4037,11 @@ impl Plugin for ChromePlugin {
                     // **gooey's control labels break where a dock bounds them** (#481): a switch's label is
                     // `NoWrap` because a dialog sizes itself by its widest control, and a dock does not.
                     let_a_toggle_label_break.after(bevy_gooey::GooeySystems::Style),
+                    // **A tree row steps two advances, the file editor's own step** (#523): gooey
+                    // sizes a level at a text size and a half, and every `TreeTwisty` is the widget's.
+                    the_tree_steps_two_advances.after(bevy_gooey::GooeySystems::Style),
+                    // **A tree row steps two advances, the file editor's own step** (#523): gooey
+                    // sizes a level at a text size and a half, and every `TreeTwisty` is the widget's.
                 ),
             )
             // **After `Phase::Text`, not in it.** The field consumes the keystroke there; painting
