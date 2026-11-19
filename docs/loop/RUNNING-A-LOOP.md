@@ -88,6 +88,14 @@ and the script never wipes it, and `git checkout` was measured to leave 210 of 2
 so a "warm" gate is barely faster than a cold one. Budget **57–100 minutes per gate** and batch work
 accordingly: the way to spend fewer minutes is to run fewer gates, not to make one faster.
 
+**A fleet target outlives its worktree, and that is what fills a host** (measured twice on `bmb`,
+2026-11-19: 302 MB free, then 570 MB again). Each round leaves a `~/.cargo-target-fleet/<name>` of 14-18 GB;
+nothing removes it when the worktree goes, so four merged branches' caches took 60 GB and `cargo nextest`
+could not link — which reads as a broken test, not a full disk. Before starting a round and after merging
+one, run `git worktree list` against `du -sh ~/.cargo-target-fleet/*` and delete the targets whose worktree
+is gone **and** whose branch is merged. A worker that hits `No space left on device` must check `df -h ~`
+first and ask before deleting a cache it did not create.
+
 **The shared lock on `big` serialises every compile, so spend it on whole suites only** (measured
 2026-11-18). `/tmp/fleet/big-heavy.lock` is exclusive by design: a gate takes it for 25-50 minutes and nothing
 else on that host compiles meanwhile. Three workers sat at **0% CPU for 5-15 minutes** queued behind one
