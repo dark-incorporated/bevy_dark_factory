@@ -58,3 +58,19 @@ pub const FILL_COLUMN: char = '\u{2193}';
 
 /// **A row's fill mark**: U+2192 `→`, because the armed verb runs across the row.
 pub const FILL_ROW: char = '\u{2192}';
+
+/// **The mark a list row wears when it is the one a click would act on**: U+25CF `●` (#486).
+///
+/// A shape and not a hue, because the row already says "this one" with an accent rail and a selected fill — an encoding a
+/// person who cannot separate the two colours does not read, and a photograph of the screen shows only as a slightly
+/// lighter box. The palette's armed piece is the case: a row is armed by a click on it and spent by the next click on the
+/// map, and nothing said so in a shape until this mark.
+pub const ARMED_MARK: char = '\u{25cf}';
+
+/// **The words a row's mark column holds**: [`ARMED_MARK`] when the row is the armed one, and nothing when it is not.
+///
+/// The blank is the same alphabet as the mark: a row that is not armed says so by drawing nothing, in a column that is
+/// laid out either way (see `editor::PaletteArmedMark`) so no name moves when the armed row changes.
+pub fn armed_mark(armed: bool) -> String {
+    if armed { ARMED_MARK.to_string() } else { String::new() }
+}

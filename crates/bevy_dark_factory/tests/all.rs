@@ -534,6 +534,7 @@ mod the_navigation_baseline_stays_frozen;
 mod the_next_undo_is_named;
 mod the_note_box_is_on_screen_while_typed;
 mod the_pieces_panels_text_sits_inside_its_rows_and_the_panel;
+mod the_place_list_says_what_arms_a_row_and_lines_its_cells_up;
 mod the_plan_panel_lists_the_agents_steps;
 mod the_pointer_is_read_before_anything_acts_on_it;
 mod the_prompts_ask_for_a_wish;

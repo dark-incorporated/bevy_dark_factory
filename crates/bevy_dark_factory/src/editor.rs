@@ -1799,6 +1799,24 @@ struct CategoryHeader(String);
 #[reflect(Component)]
 pub struct PaletteRow(pub usize);
 
+/// **The armed mark's column of a palette row** (#486): a lane of its own, laid out whether or not the row is the armed
+/// one, so the marks read down the list and a row that is not armed says so in the same alphabet as one that is.
+///
+/// **The marker is on the column rather than on the words inside it**: an unarmed row's `Text` is empty, and an empty
+/// `Text` has no width, so a column measured on the words would be zero wide on every row but the armed one — the
+/// misalignment this column exists to prevent.
+#[derive(Component, Clone, Copy)]
+pub struct PaletteArmedMark;
+
+/// The words inside a palette row's [`PaletteArmedMark`] column: [`crate::marks::ARMED_MARK`], or nothing.
+#[derive(Component, Clone, Copy)]
+pub struct PaletteArmedWords;
+
+/// **The piece's name's cell of a palette row** (#486): the one cell that grows, so the count beside it ends in one column
+/// down the list rather than following its own row's name.
+#[derive(Component, Clone, Copy)]
+pub struct PaletteName;
+
 /// The Map palette's scrollable list, read for its geometry and written for its scroll position.
 type PaletteListQuery<'w, 's> = Query<
     'w,
@@ -2957,7 +2975,7 @@ impl Plugin for EditorPlugin {
                     // action, so it goes in `Act` with the rest of them.
                     (
                         // The armed row's cost is inked after the row is armed, in the frame it is.
-                        (arm_palette_rows, ink_the_cost_on_the_armed_row).chain(),
+                        (arm_palette_rows, ink_the_cost_on_the_armed_row, paint_the_armed_mark).chain(),
                         redraw_edited,
                         // **In `Act`, and not in the default set.** The watcher's `adopt_changes`
                         // raises the flag in `Phase::Sense`, and a system in no set has **no
@@ -4090,6 +4108,10 @@ fn spawn_palette_panel(
     .insert(crate::tiles::MapRoot)
     .with_children(|p| {
         crate::chrome::list_heading_in(p, "PLACE", heading);
+        // **What arms a row, before the list it is about** (#486). The panel marked the armed row with an accent rail and
+        // a tint and said nowhere what either meant; in a project whose library is empty every row is in the same state,
+        // so "is this row chosen or is it the only one" had no answer on screen.
+        crate::chrome::palette_rule(p, &crate::chrome::place_rule());
         crate::filter::spawn(p, crate::filter::Pane::Palette, None);
         crate::chrome::scroll_list(p, (PaletteList, crate::chrome::Control(crate::keys::ControlId::Palette)));
     });
@@ -4249,9 +4271,14 @@ fn rebuild_palette(
                     // `align_items` is the one thing this row wants that a list row does not
                     // assume: a fixed-height thumbnail beside auto-height text has to be centred,
                     // and it is a `RowLayout` laid over the row's own.
+                    //
+                    // **`FlexStart`, not `Center`** (#486): `Center` centres a *box*, so a one-line
+                    // triangle count beside a name that wrapped to three lines landed on the
+                    // **middle** line — measured, 14.0 px below the name's first. `FlexStart` puts
+                    // the three cells' first lines on one line, which is what a reader scans.
                     let mut palette_row =
                         crate::chrome::list_row(p, state.brush == Some(ix), PaletteRow(ix));
-                    palette_row.insert(bevy_gooey::RowLayout { direction: Some(FlexDirection::Row), align: Some(AlignItems::Center), ..default() });
+                    palette_row.insert(bevy_gooey::RowLayout { direction: Some(FlexDirection::Row), align: Some(AlignItems::FlexStart), ..default() });
                     // **The id and the count's unit, where a person can find them** (#289): the row
                     // reads as words, and two kits may each have a `wall` that both read "Wall".
                     let tris = project.triangles.get(ix).copied().unwrap_or(0);
@@ -4283,12 +4310,50 @@ fn rebuild_palette(
                             {
                                 slot.insert(ImageNode::new(image));
                             }
+                            // **The armed mark, in a column of its own** (#486). The accent rail and the tint said
+                            // "this is the row" in colour alone — an encoding a person who cannot separate the two
+                            // hues does not read, and one a photograph of the screen shows only as a slightly lighter
+                            // box. A mark says it in a shape, a blank column says "not this one" in the same alphabet,
+                            // and [`paint_the_armed_mark`] keeps the two true without respawning a hundred and eighty
+                            // rows per press.
+                            //
+                            // **It is a box, not a text, and that is the whole reason the box exists**: a palette
+                            // row's own direct children carry the name and the count and nothing else —
+                            // `palette_rows_never_overlap` (#289) reads them as that pair — so a third text beside them
+                            // has to stand one level down. The box holds the column's width whether or not it draws a
+                            // mark, so the name starts at one x on every row.
+                            let mut column = row.spawn((
+                                // **A glyph column, sized in body text sizes** (`chrome::text_cell`'s
+                                // shape), so the lane grows with the person's reading size instead of
+                                // clipping the mark at 200% — a fixed px lane would cut it back over
+                                // the name it stands beside.
+                                bevy_gooey::cell(crate::chrome::COL_TIGHT / crate::chrome::text::BODY.px()),
+                                // **The marker is on the column, not on the words.** An unarmed row draws
+                                // nothing, and a `Text` holding nothing has no width — so a mark measured on the
+                                // text would be zero wide on every row but the armed one, which is exactly the
+                                // misalignment the column exists to prevent.
+                                PaletteArmedMark,
+                            ));
+                            column.with_child((
+                                Text::new(crate::marks::armed_mark(state.brush == Some(ix))),
+                                // **The mark reads on the row it marks, in the ink the cost beside it already takes**
+                                // ([`cost_ink`]): the mark stands *only* on the selected fill, and `Ink::accent` on
+                                // `Ink::row_selected` is 4.34:1 in Parchment — measured, and under AA. `Ink::text` is
+                                // the ink a quiet tone takes on that fill for the same reason.
+                                TextColor(crate::chrome::ink().text),
+                                PaletteArmedWords,
+                                // **The mark is the name's type size** (#486): with the row on `FlexStart` the cells
+                                // start at the same line, and what is left is the half-leading of a smaller type.
+                                crate::chrome::typed(crate::chrome::text::BODY),
+                                TextLayout::new(Justify::Left, LineBreak::NoWrap),
+                            ));
                             row.spawn((
                                 // The name wraps inside its own column rather than pushing the cost out of the row (`tiles::count_cell`) and is clipped to it.
                                 crate::chrome::text_narrows(),
                                 bevy_gooey::Sizing { clip: Some(true), ..default() },
                                 Text::new(blueprint_model::naming::display_name(&d.id)),
                                 TextColor(crate::chrome::ink().text),
+                                PaletteName,
                                 crate::chrome::typed(crate::chrome::text::BODY),
                                 // **A word longer than the column breaks inside itself** (#289): with
                                 // the default word-boundary break, `toilet_roll_holder` was one word
@@ -9633,7 +9698,7 @@ fn cost_ink(triangles: usize, armed: bool) -> Color {
 
 /// **The triangle-cost text of a palette row**, with the count it was spawned with, so [`ink_the_cost_on_the_armed_row`] can tell which ink it wants.
 #[derive(Component)]
-struct PaletteCost(usize);
+pub struct PaletteCost(usize);
 
 /// **A palette row's cost follows whether the row is armed** ([`cost_ink`]). Compares before writing: this runs every frame over every row's cost.
 fn ink_the_cost_on_the_armed_row(mut costs: Query<(&PaletteCost, &ChildOf, &mut TextColor)>, rows: Query<&crate::chrome::RowSelected, With<PaletteRow>>) {
@@ -9642,6 +9707,27 @@ fn ink_the_cost_on_the_armed_row(mut costs: Query<(&PaletteCost, &ChildOf, &mut 
         let want = cost_ink(cost.0, armed.0);
         if ink.0 != want {
             ink.0 = want;
+        }
+    }
+}
+
+/// **The armed mark follows the brush** (#486), without rebuilding the list: [`rebuild_palette`] respawns a hundred and
+/// eighty rows, and a press that only moves the mark must not cost that. It writes the one mark that changed, and compares
+/// before writing because this runs every frame over every row.
+fn paint_the_armed_mark(
+    state: Res<EditorState>,
+    mut marks: Query<(&ChildOf, &mut Text), With<PaletteArmedWords>>,
+    columns: Query<&ChildOf, With<PaletteArmedMark>>,
+    rows: Query<&PaletteRow>,
+) {
+    for (parent, mut text) in &mut marks {
+        // The words stand in the column, and the column in the row: two hops, because the column is what keeps its width
+        // when the words are empty.
+        let Ok(column) = columns.get(parent.parent()) else { continue };
+        let Ok(row) = rows.get(column.parent()) else { continue };
+        let want = crate::marks::armed_mark(state.brush == Some(row.0));
+        if text.0 != want {
+            text.0 = want;
         }
     }
 }

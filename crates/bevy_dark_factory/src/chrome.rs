@@ -2639,6 +2639,52 @@ pub fn list_heading_in(parent: &mut ChildSpawnerCommands, text: &str, ink: ListH
     ));
 }
 
+/// **What arms a list row, and what an armed row does** — the PLACE panel's own sentence (#486).
+///
+/// One line a person can act on: the mark a row wears, the press that sets it, and the press that spends it. It says
+/// "ready" in the words the panel can keep true — every row in the list is offered, and the armed one is the piece the
+/// next click on the map places. The character is [`crate::marks::ARMED_MARK`] and is written here from that constant, so
+/// the sentence and the mark the rows draw cannot drift.
+pub fn place_rule() -> String {
+    format!(
+        "A click on a row arms that piece ({}), and the next click on the map places it.",
+        crate::marks::ARMED_MARK
+    )
+}
+
+/// **A panel's rule of readiness, drawn above the list it is about** (#486), carrying the words it drew so a test reads
+/// the one sentence rather than the constants behind it.
+///
+/// The note that filed this: *"What makes these ready to use?"*, on a panel where an armed row was marked by a rail and a
+/// fill and nothing anywhere said what either meant — and where, in a project whose library is empty, every row was in
+/// the same state and the state had no name.
+#[derive(Component, Clone)]
+pub struct PaletteRule(pub String);
+
+/// **A rule of readiness above a list** (#486): one short sentence, its own line, wrapping inside its own box rather than
+/// running past the panel's border.
+///
+/// It takes [`SCROLL_GUTTER`] off its right, the lane the scroll list keeps clear for its rail: without it the sentence
+/// ends where the *bar* stands rather than where the rows end, and the two edges of one column would not line up.
+pub fn palette_rule(parent: &mut ChildSpawnerCommands, words: &str) {
+    parent.spawn((
+        Text::new(words.to_owned()),
+        TextColor(ink().label),
+        typed(text::HINT),
+        // The layout role a bare text needs for `Spacing` to apply to it; it draws nothing and leaves the ink and the
+        // face alone (the rule [`spaced`] states).
+        bevy_gooey::Role::Sized,
+        bevy_gooey::Sizing { width: Some(bevy_gooey::Extent::Percent(100.0)), ..default() },
+        // The rail's lane, so the sentence and the rows end at one edge.
+        bevy_gooey::Spacing {
+            padding: bevy_gooey::Sides { right: Some(bevy_gooey::Space::Px(SCROLL_GUTTER)), ..default() },
+            ..default()
+        },
+        TextLayout::new(Justify::Left, LineBreak::WordBoundary),
+        PaletteRule(words.to_owned()),
+    ));
+}
+
 /// **The label column of a `LABEL  value` row** — the shape the audit found hand-rolled eight times,
 /// differing only in this width. 10 px `Ink::label`, never wrapping, never shrinking.
 ///
