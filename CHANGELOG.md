@@ -4,6 +4,7 @@ What each change added, newest first. A visible change has a clip: click the sti
 
 ## 2026-11-19
 
+- **#514** One place for the agent and the decision model: both stand in one region of the status band (the_agent_and_the_decision_model_share_one_place) *No clip: measured by the_agent_and_the_decision_model_share_one_place; no display on bmb*
 - **516-kit-row-wraps** `819b7217` A kit row's `Default for new pieces` badge wraps inside the panel instead of 255.0 px past its content edge *No clip: a layout measurement with no visible clip recorded; measured before 255.0 px past at the capture's window and ui_scale 2.4, after 0*
 - **494-chip-in-its-line** `aa8acc56` A chip is never wider than the line it stands on, and its label breaks at a word: the PIECES panel's NOT IMPORTED chip and the strip's wrapper stop spilling past the panel's content edge *No clip: a layout measurement with no visible clip recorded; proved by tests/no_panel_draws_a_control_past_its_own_content_box.rs, now unignored and green at interface scales 1.0 and 1.6*
 - **486-place-arms** `ec875c44` The PLACE list says what arms a row, and its cells line up *No clip: A headless layout change; proven by the_place_list_says_what_arms_a_row_and_lines_its_cells_up (baselines and columns measured at four text sizes), and every_character_a_mark_draws_is_in_its_face plus every_selected_row_reads_at_aa_contrast_in_every_skin cover the new mark*

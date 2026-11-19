@@ -964,7 +964,24 @@ impl Plugin for TerminalAgentPlugin {
     fn build(&self, app: &mut App) {
         // The refusal is read before the timeouts, so a tab whose model omp refused fails with omp's own words rather than the
         // minute-long "did not reach the editor" a silent session would earn.
-        app.add_systems(Update, (read_the_refusal_each_frame, tick_the_agents, keep_the_resume_record).chain());
+        app.add_systems(Update, (read_the_refusal_each_frame, tick_the_agents, keep_the_resume_record).chain())
+            // **The status band's agent light** (#514), in the band's column rather than the terminal's: it is up whether or not the pane
+            // is, which is the whole point of the region. It runs after the timeouts and the refusal so a check that failed this frame is
+            // what the light says, and only on the editor, which is the only screen whose frame holds a band.
+            .add_systems(
+                Update,
+                paint_the_band
+                    .after(tick_the_agents)
+                    .run_if(in_state(crate::screen::Screen::Editor)),
+            )
+            // **And the band light's words read at the band's own type size** (#514), by the one rule every other light here follows
+            // ([`crate::terminal_pane::size_the_leds`]), after `bevy_gooey` has sized it from the skin.
+            .add_systems(
+                Update,
+                crate::terminal_pane::size_the_leds
+                    .after(bevy_gooey::GooeySystems::Style)
+                    .run_if(in_state(crate::screen::Screen::Editor)),
+            );
     }
 }
 
@@ -1034,6 +1051,56 @@ fn keep_the_resume_record(mut terminal: ResMut<Terminal>, setup: Option<Res<Agen
     for why in refused {
         terminal.refuse(why);
     }
+}
+
+/// **The status band's agent light follows the drawn agent tab** (#514).
+///
+/// The band carries one region saying what the agent is doing and which decision model answers it (`chrome::spawn_agent_band`), and this
+/// is the agent's half: the same `AgentPost` the terminal bar's light reads, so the two never disagree, painted in one place with the
+/// state word beside the dot and the whole `led_tooltip` sentence in the half's hover.
+///
+/// **Compare before writing**, the rule `tests/no_system_writes_every_frame.rs` states: `Led`, `Text` and `Tooltip` are change-detected and
+/// this runs every frame. With no tab the light is dark and says `off`, and the hover names what to press — the band is where a person who
+/// has never raised the terminal meets the agent, so `Agent off` alone would leave them looking for a control.
+pub fn paint_the_band(
+    terminal: Option<Res<crate::terminal::Terminal>>,
+    mut halves: Query<&mut bevy_gooey::Tooltip, With<crate::chrome::AgentBandHalf>>,
+    mut leds: Query<(&mut bevy_gooey::Led, &Children), With<crate::chrome::AgentBandLed>>,
+    mut words: Query<&mut Text>,
+) {
+    let post = terminal.as_deref().and_then(|terminal| terminal.tab()).and_then(|tab| tab.agent());
+    let (state, said) = match post {
+        Some(post) => (post.led(), post.led_tooltip()),
+        None => (bevy_gooey::LedState::Off, band_off_words()),
+    };
+    for mut tip in &mut halves {
+        if tip.text != said {
+            tip.text.clone_from(&said);
+        }
+    }
+    for (mut led, children) in &mut leds {
+        if led.0 != state {
+            led.0 = state;
+        }
+        // The state word, `off` … `failed`: `bevy_gooey` draws it beside the dot, and a `Led` whose state moved repaints it — this writes
+        // only when the laid-out word is not already the state's, which is the same compare-before-write rule as the light.
+        for child in children.iter() {
+            if let Ok(mut text) = words.get_mut(child)
+                && text.0 != state.word()
+            {
+                text.0 = state.word().to_owned();
+            }
+        }
+    }
+}
+
+/// **What the band's agent half says when no agent tab is open**: that nothing is running, and the chord that opens the pane where an agent
+/// is started. A light that said only `off` would be a dead end in the state a person meets first (the terminal starts collapsed, #424).
+pub fn band_off_words() -> String {
+    format!(
+        "No agent is running. {} raises the terminal, where Start agent opens one.",
+        crate::terminal_pane::chord_words(&crate::terminal_pane::COLLAPSE_CHORD)
+    )
 }
 
 #[cfg(test)]

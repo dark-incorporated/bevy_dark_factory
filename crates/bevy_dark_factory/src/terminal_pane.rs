@@ -376,7 +376,7 @@ pub struct TerminalAgentCardLed;
 /// card's at a row's ([`chrome::text::LABEL`]). `bevy_gooey::led` sizes its words from the skin's own text size, which is not the
 /// editor's type scale, so [`size_the_leds`] sets them from the role, at the person's text size.
 #[derive(Component, Clone, Copy)]
-struct PaneLed(chrome::text::Role);
+pub(crate) struct PaneLed(pub(crate) chrome::text::Role);
 
 /// The LED dot's side as a share of its word's size, which is `bevy_gooey`'s own (`LED_TEXT_SIZES`): the dot keeps its relation to the
 /// word when the word takes the editor's size.
@@ -542,8 +542,10 @@ impl Plugin for TerminalPanePlugin {
             // frame draws — so a card built a moment ago and a card built before a theme edit both land
             // on the skin's colours, and a rebuild never shows the editor's own darks for a frame.
             .add_systems(PostUpdate, dress_the_agent_tab.run_if(the_pane_is_up))
-            // **The LEDs' words read at the size of the text they stand with** (#422), after bevy_gooey has sized them.
-            .add_systems(Update, size_the_leds.after(bevy_gooey::GooeySystems::Style).run_if(the_pane_is_up))
+            // **The LEDs' words read at the size of the text they stand with** (#422), after bevy_gooey has sized them. **Not gated on the
+            // pane being up** (#514): the status band's light carries the same marker and is drawn whether or not the pane is, so a gate
+            // here would leave the one light that never leaves the screen at the skin's size while every other light follows the type scale.
+            .add_systems(Update, size_the_leds.after(bevy_gooey::GooeySystems::Style))
             .add_systems(Update, quiet_the_row_leds.run_if(the_pane_is_up))
             // The two chords that are the pane's own. Read from `ButtonInput` here rather than
             // through `keys::BINDINGS`: the census is the table of what a *tab* does, and a chord
@@ -1838,7 +1840,11 @@ fn dress_the_agent_tab(
 /// LED's word stood out. After gooey has styled them, each word is set to the size of its [`PaneLed`]'s role, and the dot to its
 /// word's size times [`LED_DOT_SIZES`], so the dot keeps its relation to the word. Each write is compared first, and gooey only
 /// restyles on a change, so a settled pane writes nothing.
-fn size_the_leds(
+///
+/// **The status band's light is one of these** (#514): [`chrome::AgentBandLed`] carries a [`PaneLed`] for the same reason the bar's does,
+/// so a light in the band reads at the size of the band's own words and not the skin's — one sizing rule for every light this pane owns,
+/// whichever band it stands in.
+pub(crate) fn size_the_leds(
     leds: Query<(&Children, &PaneLed)>,
     roles: Query<&bevy_gooey::Role>,
     mut fonts: Query<&mut TextFont, With<Text>>,
