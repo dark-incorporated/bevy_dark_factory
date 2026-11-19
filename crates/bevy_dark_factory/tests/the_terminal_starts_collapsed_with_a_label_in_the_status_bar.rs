@@ -56,6 +56,29 @@ fn click(app: &mut App, entity: Entity) {
     }
 }
 
+/// **`Cmd+J` (`Ctrl+J` off a mac)**, the pane's own chord: while the pane is maximised it covers the status band, so the label is
+/// not there to click and the chord is the door that still is (#492).
+fn chord_j(app: &mut App) {
+    let unidentified = || bevy::input::keyboard::Key::Unidentified(bevy::input::keyboard::NativeKey::Unidentified);
+    let primary = bevy_dark_factory::keys::MOD_KEYS[0];
+    let window = app.world_mut().query_filtered::<Entity, With<bevy::window::PrimaryWindow>>().iter(app.world()).next();
+    for state in [bevy::input::ButtonState::Pressed, bevy::input::ButtonState::Released] {
+        for key in [primary, bevy::input::keyboard::KeyCode::KeyJ] {
+            let logical = if key == bevy::input::keyboard::KeyCode::KeyJ { bevy::input::keyboard::Key::Character("j".into()) } else { unidentified() };
+            app.world_mut().write_message(bevy::input::keyboard::KeyboardInput {
+                key_code: key,
+                logical_key: logical,
+                state,
+                text: None,
+                repeat: false,
+                window: window.unwrap_or(Entity::PLACEHOLDER),
+            });
+        }
+        app.update();
+    }
+    settle(app, 4);
+}
+
 /// A scratch settings file's path, in a folder of its own.
 fn user_file(tag: &str) -> PathBuf {
     let dir = std::env::temp_dir().join(format!("terminal_collapsed_{tag}_{}", std::process::id()));
@@ -124,9 +147,20 @@ fn the_pane_starts_collapsed_and_its_label_in_the_status_bar_raises_it() {
     assert!(raised(&mut app), "a click on the label raises the pane, as the chord does ({diagnostics}; hovered {hovered:?})");
     assert!(app.world().resource::<TerminalFocus>().holds(), "and the keys are in the shell, as the chord leaves them");
 
+    // **Owner exception (2026-11-18): the_terminal_starts_collapsed_with_a_label_in_the_status_bar.rs::the_pane_starts_collapsed_and_its_label_in_the_status_bar_raises_it:**
+    // this module modelled the pane as a two-state toggle — "a second click lowers it again, as the chord does". #492 makes the chord,
+    // and so the label, a three-position cycle (`Maximised -> Collapsed -> Quarter -> Maximised`, the owner's order), so the click after
+    // a raised quarter covers the window instead of lowering it. The assertions below are re-pinned to that cycle; the raising, the
+    // words and the keyboard are unchanged.
     click(&mut app, entity);
     settle(&mut app, 3);
-    assert!(!raised(&mut app), "a second click lowers it again, as the chord does");
+    assert!(raised(&mut app), "a second click covers the window: the cycle's position after a quarter is `Maximised` (#492)");
+    assert!(app.world().resource::<Terminal>().is_maximised(), "and the editor agrees, not just the node");
+    // The pane now covers the status band, so the label is not there to click: the chord is the door that still is, and it is the same
+    // cycle's next press.
+    chord_j(&mut app);
+    assert!(!raised(&mut app), "the next press collapses it, keyboard in the shell or not");
+    assert!(app.world().resource::<Terminal>().is_collapsed());
 }
 
 /// **Raising it, quitting and relaunching opens it raised.**
@@ -149,11 +183,16 @@ fn a_raise_is_kept_and_the_next_launch_opens_the_pane_raised() {
     assert!(raised(&mut second), "the next launch opens the pane as it was left, raised");
     assert!(!second.world().resource::<Terminal>().is_collapsed());
 
-    // And lowering it is kept the same way.
+    // And lowering it is kept the same way. **Owner exception (2026-11-18): `the_terminal_starts_collapsed_with_a_label_in_the_status_bar.rs::a_raise_is_kept_and_the_next_launch_opens_the_pane_raised`:**
+    // the relaunch opens at the quarter (#492), so one click covers the window rather than lowering it; the lower is the cycle's next
+    // press, taken by the chord because a maximised pane covers the status band. The persistence this test is about is unchanged.
     let (entity, _) = label(&mut second);
     click(&mut second, entity);
     settle(&mut second, 4);
-    assert!(!raised(&mut second));
+    assert!(raised(&mut second), "the relaunch opens at the quarter, and a click covers the window (#492)");
+    assert!(second.world().resource::<Terminal>().is_maximised());
+    chord_j(&mut second);
+    assert!(!raised(&mut second), "the cycle's next press lowers it");
     assert!(kept(&user).contains("terminal_collapsed: true"), "the lower is written too: {:?}", kept(&user));
     let _ = std::fs::remove_dir_all(user.parent().unwrap_or(&user));
 }
