@@ -210,6 +210,42 @@ fn heading_level(line: &str) -> Option<usize> {
     (1..=6).contains(&hashes).then_some(()).and_then(|()| (line[hashes..].starts_with(' ')).then_some(hashes))
 }
 
+/// **An emphasis span at the start of `rest`**: its whole length in bytes and the role it takes, or
+/// `None` when the run does not open one.
+///
+/// `**strong**` (two marks) takes [`SyntaxRole::Type`] and `*em*` (one) takes
+/// [`SyntaxRole::Function`] — two hues the markdown editor did not use for anything else, and both
+/// distinct from the `String` a code span takes and the `Reference` a link does, so no two kinds of
+/// markdown text are drawn alike. `__strong__` and `_em_` are the underscore spellings, matched the
+/// same way. A run with no close in it is plain text, and a mark inside a word (`a*b`) is not an
+/// opener, which is CommonMark's rule for the underscore forms and a fair one for the star here.
+///
+/// The emphasis is a *token*, not a parse: like every other colour in this module it names what a mark
+/// looks like, and a reader who wants what a page means reads `blueprint_model::design` instead.
+fn emphasis_at(rest: &str) -> Option<(usize, SyntaxRole)> {
+    let (mark, role) = match rest.as_bytes().first()? {
+        b'*' => ('*', SyntaxRole::Function),
+        b'_' => ('_', SyntaxRole::Function),
+        _ => return None,
+    };
+    // Two of the same mark is strong, and it takes the other hue.
+    let double = rest.as_bytes().get(1) == Some(&(mark as u8));
+    let (open, role) = if double { (2, SyntaxRole::Type) } else { (1, role) };
+    // A mark at the start of a word: the closer has to be a mark too, so the run between them is not
+    // empty and the opener is not the last thing on the line.
+    let body = &rest[open..];
+    let close = if double {
+        body.find(&mark.to_string().repeat(2))?
+    } else {
+        body.find(mark)?
+    };
+    // An empty run (`**` alone, `__`) is not an emphasis.
+    if close == 0 {
+        return None;
+    }
+    Some((open + close + open, role))
+}
+
 fn markdown_highlights(text: &str) -> Vec<(Range<usize>, SyntaxRole)> {
     let lines = Lines::new(text);
     let mut spans = Vec::new();
@@ -247,8 +283,12 @@ fn markdown_highlights(text: &str) -> Vec<(Range<usize>, SyntaxRole)> {
         if marker > 0 {
             spans.push((range.start + indent..range.start + indent + marker, SyntaxRole::Operator));
         }
-        // Inline: `code` is a string, `[text](target)` a link.
-        let mut at = 0;
+        // Inline: `code` is a string, `[text](target)` a link, `**strong**` and `*em*` /
+        // `__strong__` and `_em_` are the two emphases. A link or a code span is taken whole first,
+        // so a `*` inside one is that span's text and not an emphasis mark.
+        // Past the indent and the list marker: a `*` bullet is a mark, not an emphasis, and nothing
+        // in the indentation is drawn.
+        let mut at = indent + marker;
         while at < line.len() {
             let rest = &line[at..];
             if let Some(inner) = rest.strip_prefix('`') {
@@ -268,6 +308,9 @@ fn markdown_highlights(text: &str) -> Vec<(Range<usize>, SyntaxRole)> {
                     }
                     None => at += 1,
                 }
+            } else if let Some((len, role)) = emphasis_at(rest) {
+                spans.push((range.start + at..range.start + at + len, role));
+                at += len;
             } else {
                 at += rest.chars().next().map_or(1, char::len_utf8);
             }

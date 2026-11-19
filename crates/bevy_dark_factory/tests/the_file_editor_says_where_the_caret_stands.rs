@@ -1,0 +1,114 @@
+//! **The file editor says where the caret stands** (#525, `feedback-1795094391027`: *"This markdown editor is not great.
+//! Please look at well polished editors like VSCode, PyCharm, Obsidian..."*).
+//!
+//! # What the editor did before
+//!
+//! VS Code, PyCharm and Obsidian all draw `Ln 7, Col 12` in a bar beside the file. This editor's header drew the file's
+//! path and its dirty dot and nothing else — measured by moving the caret to `(2, 19)` and to `(9, 6)` and reading the
+//! header both times: it said `design/style.md` and only `design/style.md`. The caret was the only mark of position, so a
+//! person reading a long page had no number to work with.
+//!
+//! # What this measures
+//!
+//! The header's own row now carries a second text, `Ln <line>, Col <column>`, and it **follows the caret** — moved to a
+//! line and a column, the readout says that line and that column. `Ln` is one-based (a person counts from 1) and `Col`
+//! is the display column the caret is drawn at, so the number and the mark cannot disagree.
+
+use bevy::input_focus::{FocusCause, InputFocus};
+use bevy::prelude::*;
+use bevy::window::PrimaryWindow;
+use bevy_dark_factory::command_run::Chords;
+use bevy_dark_factory::commands;
+use bevy_dark_factory::files::{self, FilePosition};
+use bevy_dark_factory::harness;
+use bevy_dark_factory::keys::Live;
+use bevy_gooey::{CodeEditor, CodePos};
+
+use crate::fixtures;
+
+const SETTLE: usize = 14;
+
+/// A page with a line long enough that a column past nine exists, and a tab so the display column can differ from the byte.
+const PAGE: &str = "# A heading\n\n*Emphasised words.*\n\n\ttabbed start then words\n";
+
+fn settle(app: &mut App) {
+    for _ in 0..SETTLE {
+        app.update();
+    }
+}
+
+fn page(tag: &str) -> (App, Entity) {
+    let root = fixtures::Fixture::new(&format!("md_position_{tag}_{}", std::process::id()))
+        .descriptor("site/wall", "alpha")
+        .place("site/wall", (1.5, 1.5))
+        .build("m");
+    let rel = "design/style.md";
+    let full = root.join(rel);
+    std::fs::create_dir_all(full.parent().unwrap_or(&root)).unwrap_or_else(|e| panic!("{e}"));
+    std::fs::write(&full, PAGE).unwrap_or_else(|e| panic!("{e}"));
+    let mut app = harness::build_headless(&root, "m", None).unwrap_or_else(|e| panic!("{e}"));
+    app.world_mut().spawn((Window::default(), PrimaryWindow));
+    harness::resize_surface(&mut app, 1400, 900).unwrap_or_else(|e| panic!("{e}"));
+    settle(&mut app);
+    let command = commands::by_id("workspace.files").unwrap_or_else(|| panic!("`workspace.files` is not a command"));
+    let live = *app.world().resource::<Live>();
+    app.world_mut().resource_mut::<Chords>().queue(&command, live);
+    settle(&mut app);
+    files::open_file(app.world_mut(), rel).unwrap_or_else(|e| panic!("{e}"));
+    settle(&mut app);
+    let editor = app.world_mut().query_filtered::<Entity, With<CodeEditor>>().single(app.world_mut()).unwrap_or_else(|e| panic!("{e}"));
+    app.world_mut().resource_mut::<InputFocus>().set(editor, FocusCause::Navigated);
+    settle(&mut app);
+    (app, editor)
+}
+
+/// **What the position readout says** — the one text carrying the [`FilePosition`] marker.
+fn readout(app: &mut App) -> String {
+    let world = app.world_mut();
+    let mut q = world.query_filtered::<&Text, With<FilePosition>>();
+    q.iter(world).map(|t| t.0.clone()).collect::<Vec<_>>().join(" | ")
+}
+
+fn stand(app: &mut App, editor: Entity, line: usize, col: usize) {
+    let Some(mut widget) = app.world_mut().get_mut::<CodeEditor>(editor) else { panic!("the editor is open") };
+    widget.select(CodePos::new(line, col), CodePos::new(line, col));
+    settle(app);
+}
+
+/// **The readout exists and says where the caret stands**, moved to a line and column.
+#[test]
+fn the_header_reads_the_line_and_column_the_caret_stands_on() {
+    let (mut app, editor) = page("stand");
+    stand(&mut app, editor, 2, 10);
+    assert_eq!(readout(&mut app).as_str(), "Ln 3, Col 11", "the caret at line 2 col 10 reads one-based as Ln 3, Col 11");
+}
+
+/// **It follows the caret**: move to another line and column and the one text says the new place — not a second readout
+/// added beside the first.
+#[test]
+fn the_readout_follows_the_caret() {
+    let (mut app, editor) = page("follow");
+    stand(&mut app, editor, 0, 0);
+    let first = readout(&mut app);
+    stand(&mut app, editor, 2, 19);
+    let second = readout(&mut app);
+    assert_ne!(first, second, "the readout moved with the caret: {first:?} then {second:?}");
+    assert_eq!(second.as_str(), "Ln 3, Col 20");
+    // Exactly one readout, ever: a second added beside the first would be the drift this replaces.
+    let world = app.world_mut();
+    let count = world.query_filtered::<Entity, With<FilePosition>>().iter(world).count();
+    assert_eq!(count, 1, "the header carries one position readout, not a stack");
+}
+
+/// **`Col` is the display column**, the column the caret is drawn at, so a tab takes its width and not one. The caret
+/// just past a leading tab on line 4 stands at `Col 5`, not `Col 2` — the number and the drawn mark are one thing.
+#[test]
+fn the_column_is_the_display_column_so_a_tab_counts_its_width() {
+    let (mut app, editor) = page("tab");
+    stand(&mut app, editor, 4, 1);
+    assert_eq!(
+        readout(&mut app).as_str(),
+        "Ln 5, Col 5",
+        "one byte past a leading four-column tab is the caret's fifth display column"
+    );
+}

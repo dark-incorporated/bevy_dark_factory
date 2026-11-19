@@ -579,6 +579,14 @@ pub struct FilesHost;
 #[derive(Component)]
 pub struct FileHeader;
 
+/// **Where the caret stands in the open file** (#525): `Ln 7, Col 4`, right-aligned on the header's own
+/// row. A polished editor always says it; this one drew nothing, so the caret was the only mark of
+/// position and a person reading a long page had no number to work with. `Ln` is one-based and `Col`
+/// is the display column (a tab is its width, not one), the same column the editor's own caret is drawn
+/// at — read through `bevy_gooey::display_col`, so the number and the mark cannot disagree.
+#[derive(Component)]
+pub struct FilePosition;
+
 /// The question a file that changed under unsaved edits asks, with its two buttons.
 #[derive(Component)]
 pub struct ConflictBar(pub String);
@@ -652,6 +660,7 @@ impl Plugin for FilesPlugin {
                     follow_on_f12,
                     follow_on_primary_click,
                     keep_the_header,
+                    keep_the_position,
                     keep_the_conflict_bar,
                     keep_the_tree,
                     reveal_the_active_row,
@@ -714,13 +723,28 @@ fn spawn_the_files_workspace(mut commands: Commands, frame: Res<Frame>) {
             AccessibleLabel::new("File editor"),
         ))
         .with_children(|host| {
-            host.spawn((
-                FileHeader,
-                Text::new(String::new()),
-                TextColor(ink.text),
-                chrome::font(chrome::text::LABEL),
-                TextLayout::new(Justify::Left, LineBreak::NoWrap),
-            ));
+            // **The line over the editor, as a row** (#525): the file's path on the left and where the
+            // caret stands on the right. A polished editor always says `Ln 7, Col 4`; this one said
+            // nothing, and the caret was the only thing that moved, so a person reading a long page had
+            // no number to work with. The path is [`FileHeader`] and the position is [`FilePosition`],
+            // one text each, because they change on different causes.
+            host.spawn(bevy_gooey::row(1.0)).with_children(|line| {
+                line.spawn((
+                    FileHeader,
+                    Text::new(String::new()),
+                    TextColor(ink.text),
+                    chrome::typed(chrome::text::LABEL),
+                    TextLayout::new(Justify::Left, LineBreak::NoWrap),
+                    bevy_gooey::TextFlow { grow: Some(1.0), ..default() },
+                ));
+                line.spawn((
+                    FilePosition,
+                    Text::new(String::new()),
+                    TextColor(ink.dim),
+                    chrome::typed(chrome::text::LABEL),
+                    TextLayout::new(Justify::Right, LineBreak::NoWrap),
+                ));
+            });
             host.spawn((bevy_gooey::text_input("Set a field: path value", ""), FieldLine, observe(on_field_line)));
         })
         .id();
@@ -1272,6 +1296,34 @@ fn keep_the_header(files: Res<Files>, session: Res<Session>, mut headers: Query<
         header.0 = want;
     }
 }
+
+/// **Where the caret stands in the open file** (#525): `Ln 7, Col 4`, right-aligned on the header's own row.
+///
+/// A polished editor always says it; this one drew nothing, so the caret was the only mark of position and a person
+/// reading a long page had no number to work with. `Ln` is one-based and `Col` is the display column the caret is drawn
+/// at — read through `bevy_gooey::display_col`, so the number and the mark cannot disagree — which means a tab counts its
+/// width and not one. No file in the editor says nothing, rather than `Ln 1, Col 1` over an empty page.
+///
+/// **Its own system, beside [`keep_the_header`]** rather than a second query inside it: the two change on different
+/// causes (the path on a tab switch or a save, the position on every key) and joining them made one system whose query
+/// carried two filters, a shape `-D warnings` reads as too complex.
+fn keep_the_position(editors: Query<&CodeEditor>, mut positions: Query<(&mut Text, &mut Visibility), With<FilePosition>>) {
+    let Ok((mut text, mut shown)) = positions.single_mut() else { return };
+    let standing = editors.single().ok().map(|editor| {
+        let caret = editor.buffer().caret();
+        let col = bevy_gooey::display_col(editor.buffer().line(caret.line), caret.col, editor.buffer().tab_width());
+        format!("Ln {}, Col {}", caret.line + 1, col + 1)
+    });
+    let want = standing.clone().unwrap_or_default();
+    if text.0 != want {
+        text.0 = want;
+    }
+    let visibility = if standing.is_some() { Visibility::Inherited } else { Visibility::Hidden };
+    if *shown != visibility {
+        *shown = visibility;
+    }
+}
+
 fn keep_the_conflict_bar(
     mut commands: Commands,
     files: Res<Files>,

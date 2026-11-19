@@ -115,14 +115,14 @@ impl Plugin for WorldListsPlugin {
 /// **The WATER section**: a heading, how to place some, and what the map's plan holds.
 pub fn spawn_water_section(p: &mut ChildSpawnerCommands) {
     chrome::section(p, "WATER");
-    p.spawn(bevy_gooey::label(WATER_HINT));
+    chrome::body(p, WATER_HINT, chrome::ink().dim);
     p.spawn((WaterList, list_node()));
 }
 
 /// **The FOREST section**: a heading, how to plant one, and what the map's forest holds.
 pub fn spawn_forest_section(p: &mut ChildSpawnerCommands) {
     chrome::section(p, "FOREST");
-    p.spawn(bevy_gooey::label(FOREST_HINT));
+    chrome::body(p, FOREST_HINT, chrome::ink().dim);
     p.spawn((ForestList, list_node()));
 }
 
@@ -183,7 +183,7 @@ pub fn forest_rows(forest: &Forest) -> Vec<String> {
 /// **The fixtures list of the LIGHTS section**: the heading is the caller's (the family crate's section draws its own, with the pool
 /// button), the rows are drawn in every build.
 pub fn spawn_lights_list(p: &mut ChildSpawnerCommands) {
-    p.spawn(bevy_gooey::label(LIGHTS_HINT));
+    chrome::body(p, LIGHTS_HINT, chrome::ink().dim);
     p.spawn((LightsList, list_node()));
 }
 
@@ -213,7 +213,7 @@ fn one_line(text: &str) -> String {
 
 /// **The cues list of the AUDIO section**, drawn in every build under the heading the caller draws.
 pub fn spawn_cue_list(p: &mut ChildSpawnerCommands) {
-    p.spawn(bevy_gooey::label(CUES_HINT));
+    chrome::body(p, CUES_HINT, chrome::ink().dim);
     p.spawn((CueList, list_node()));
     p.spawn((CueUses, list_node()));
 }
@@ -306,7 +306,7 @@ fn keep<L: Component>(
         commands.entity(list).despawn_related::<Children>();
         commands.entity(list).with_children(|p| {
             for row in &rows {
-                p.spawn(bevy_gooey::label(row.clone()));
+                chrome::body(p, row.clone(), chrome::ink().text);
             }
         });
     }
