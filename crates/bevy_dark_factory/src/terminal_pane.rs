@@ -2382,6 +2382,14 @@ fn fit_the_pane_to_the_window(
         if node.height != want {
             node.height = want;
         }
+        // **The pane is as wide as its parent, never as wide as its content** (#497). Nothing here stated a
+        // width, so a Bevy UI node in a column takes its children's width: at text scale 3.0 the quarter's
+        // taller box let the content lay out past the window — measured 1569 px in a 1536 px window, where
+        // `origin/main` before the cycle drew 1280. Percent resolves against the parent, so the pane cannot
+        // exceed the window at any text size.
+        if node.width != Val::Percent(100.0) {
+            node.width = Val::Percent(100.0);
+        }
     }
 }
 
