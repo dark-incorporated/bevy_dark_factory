@@ -76,6 +76,11 @@ fn shell_to_run(choice: Option<&ShellChoice>) -> Result<Shell, String> {
 /// that outlived its pane would leave `cargo build` running with no window anywhere drawing it.
 pub struct TerminalSession {
     pty: tty::Pty,
+    /// **The shell, listed with the exit watchdog while this session lives** (#427), so a quit that has to end the process ends the
+    /// shell's process group too. Measured 2026-11-18: a shell that ignores `SIGHUP` otherwise outlives the editor as an orphan.
+    /// Taken off the list at the start of the hang-up below, before the child is reaped, so a forced quit racing a closed pane
+    /// never signals a pid that has been collected and may have been given to a stranger.
+    _listed: Option<crate::exit_watchdog::ShellListed>,
     /// The size last written to the child, so a resize to the size it already has is not a syscall.
     size: (u16, u16),
     /// The directory the shell was started in, for the bar's chip and for the `cd` offer.
@@ -154,7 +159,10 @@ impl TerminalSession {
                  `/dev/ptmx` or a machine at its process limit cannot open one"
             )
         })?;
-        Ok(TerminalSession { pty, size: (cols, rows), cwd })
+        // **The shell is listed with the exit watchdog from here until the session is dropped** (#427): a quit that has to end the
+        // process then ends the shell's process group too, instead of leaving a shell that ignores `SIGHUP` running with no window.
+        let listed = crate::exit_watchdog::list_the_shell(pty.child().id());
+        Ok(TerminalSession { pty, size: (cols, rows), cwd, _listed: listed })
     }
 
     /// Any non-Unix target: the PTY layer does not exist there in this build.
@@ -312,6 +320,9 @@ const HANGUP_WAIT_BOUND_MS: u64 = HANGUP_GRACE_MS + 500;
 #[cfg(unix)]
 impl Drop for TerminalSession {
     fn drop(&mut self) {
+        // **Off the list first**: from here the child is hung up and reaped, and a forced quit that signalled its pid after the reap
+        // could hit a stranger's process group. Nothing is lost: `hang_up_then_kill` below ends this shell itself.
+        self._listed = None;
         let Some(pid) = i32::try_from(self.pty.child().id()).ok().and_then(rustix::process::Pid::from_raw) else {
             return;
         };

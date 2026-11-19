@@ -246,6 +246,50 @@ static WAITS: Mutex<Vec<Wait>> = Mutex::new(Vec::new());
 static NEXT_WAIT: AtomicU64 = AtomicU64::new(1);
 static LAST_CUT: Mutex<Option<CutShort>> = Mutex::new(None);
 
+/// **The terminal shells this process still holds**, so a quit that ends the process can end them too (#427).
+///
+/// Measured on 2026-11-18 (macOS 26.6, bmb): a shell that ignores `SIGHUP`, in a PTY as a session leader — which is what
+/// `TerminalSession` runs, `alacritty_terminal` calls `setsid` — **survives a `SIGKILL` of the editor as an orphan**, its
+/// parent reparented to 1. The old note in [`end_this_process`] said such children "get their hangup from the PTY closing
+/// with it": they do not, because the hangup is a signal the shell is ignoring, and the master fd closes only after the
+/// editor is gone. So the shells are listed here as their sessions live, and a kill takes the whole group of each.
+///
+/// A shell's pid is its process group's id (`setsid` made it a session leader), so one `kill(-pid, KILL)` reaches the shell
+/// and everything it started: `top`, `vim`, an agent's own children. A pid is removed when its session is dropped, which is
+/// what hangs the child up in the ordinary course.
+static LIVE_SHELLS: Mutex<Vec<rustix::process::Pid>> = Mutex::new(Vec::new());
+
+fn live_shells() -> MutexGuard<'static, Vec<rustix::process::Pid>> {
+    LIVE_SHELLS.lock().unwrap_or_else(PoisonError::into_inner)
+}
+
+/// **Lists a terminal's shell while its session lives**, so a forced quit ends it rather than leaving it behind. Dropping the
+/// result takes it off the list again.
+#[must_use = "the shell is listed only while this is held"]
+pub struct ShellListed(rustix::process::Pid);
+
+impl Drop for ShellListed {
+    fn drop(&mut self) {
+        live_shells().retain(|pid| *pid != self.0);
+    }
+}
+
+/// **Lists `pid`'s process group for a forced quit**, and takes it off when the session is dropped. The terminal holds this for
+/// as long as its shell lives ([`crate::terminal::TerminalSession`]).
+pub fn list_the_shell(pid: u32) -> Option<ShellListed> {
+    let pid = i32::try_from(pid).ok().and_then(rustix::process::Pid::from_raw)?;
+    live_shells().push(pid);
+    Some(ShellListed(pid))
+}
+
+/// **Ends every listed shell's process group**, each in its own group so a `cargo build`'s children go with it. Called from the
+/// watchdog's thread just before this process is killed, because nothing else gets a chance to run again.
+pub fn end_the_listed_shells() {
+    for pid in live_shells().drain(..) {
+        let _ = rustix::process::kill_process_group(pid, rustix::process::Signal::KILL);
+    }
+}
+
 fn waits() -> MutexGuard<'static, Vec<Wait>> {
     WAITS.lock().unwrap_or_else(PoisonError::into_inner)
 }
@@ -532,13 +576,17 @@ pub fn end_process_with(why: Option<Cut>, sample: fn(), kill: fn()) {
 /// **Ends this process now**, after recording where it is stuck (unless a second press asked for it).
 ///
 /// `SIGKILL` and not `exit`: `exit` runs the process's exit hooks, and the hooks of a process that is stuck
-/// in a destructor may be the thing it is stuck in. Its child shells get their hangup from the PTY closing
-/// with it.
+/// in a destructor may be the thing it is stuck in.
+///
+/// **Its terminal shells are ended first** ([`end_the_listed_shells`]): measured 2026-11-18, a shell that ignores
+/// `SIGHUP` outlives a `SIGKILL` of the editor as an orphan, so a process that is killed here must take its shells'
+/// process groups with it or leave `cargo build`, `vim` and an agent's children running with no window anywhere drawing them.
 pub fn end_this_process() {
     end_process_with(last_cut().map(|cut| cut.why), sample_this_process, kill_this_process);
 }
 
 fn kill_this_process() {
+    end_the_listed_shells();
     let _ = rustix::process::kill_process(rustix::process::getpid(), rustix::process::Signal::KILL);
     // Unreachable once the signal is delivered; here so that a refused signal still ends the process.
     std::process::exit(1);
