@@ -776,7 +776,14 @@ fn kit_row(rows: &mut ChildSpawner, kit: &Kit, is_default: bool, menu: Entity) {
         // CHROME-OK: a kit row is none of chrome's three clickables, it is a gooey button's box with a count and a badge: the button's skin pads it and puts its half gap between its
         // parts, as it did the raw node (the gap and padding the node asked for were overwritten).
         bevy_gooey::button_box(),
-        bevy_gooey::RowLayout { align: Some(AlignItems::Center), ..default() },
+        // **A kit row wraps, because three counted things do not fit the panel** (#516). A plain
+        // row's children run past its own right edge *and* past the panel's: measured at the
+        // capture's window (2176 x 1406, `ui_scale` 2.4, this page's panel 381 px wide against the
+        // capture's 380), the `Default for new pieces` badge ran `502..694` while its own button
+        // ended at `424` and the panel's content edge stood at `439` — **255 px past the content
+        // edge and 78 px past the button it stands in**. A wrapping row gives the badge a second
+        // line to drop to, the same fix `tiles::shelf_strip` states for the same class.
+        bevy_gooey::RowLayout { align: Some(AlignItems::Center), wrap: Some(FlexWrap::Wrap), ..default() },
         ContextMenu(menu),
         KitRow(label_text.clone()),
         observe(move |_: On<Activate>, mut out: MessageWriter<PageAction>| { out.write(PageAction::OpenKit(open.clone())); }),
@@ -785,7 +792,19 @@ fn kit_row(rows: &mut ChildSpawner, kit: &Kit, is_default: bool, menu: Entity) {
         row.spawn((Text::new(label_text), Role::ButtonText, Pickable::IGNORE));
         row.spawn((launcher::quiet(format!("{} {}", kit.pieces, plural(kit.pieces, "piece"))), Pickable::IGNORE));
         if is_default {
-            row.spawn((Text::new("Default for new pieces"), Role::Label, Pickable::IGNORE));
+            // **The badge's box is never wider than the line it stands on, and it breaks at a word**
+            // — `chrome::chip`'s pairing (#494), whose two halves only work together: without the
+            // `max_width` the `FlexWrap` above has nothing to wrap, and without the break a narrowed
+            // box cuts its own words. `Sizing` carries the cap and the layout carries the break.
+            row.spawn((
+                Text::new("Default for new pieces"),
+                TextColor(crate::chrome::ink().label),
+                Role::Label,
+                Pickable::IGNORE,
+                crate::chrome::typed(crate::chrome::text::LABEL),
+                bevy_gooey::Sizing { max_width: Some(bevy_gooey::Extent::Percent(100.0)), ..default() },
+                TextLayout::new(Justify::Left, LineBreak::WordOrCharacter),
+            ));
         }
     });
 }
