@@ -1,0 +1,108 @@
+{
+  "version": 2,
+  "stem": "feedback-1795094070279",
+  "taken_at_ms": 1795094070279,
+  "audience": "developers",
+  "app_version": "0.7.1",
+  "screen": "editor",
+  "project": "/Users/ladvien/actions-runner-bevy_grimoire/_work/bevy_dark_factory/bevy_dark_factory",
+  "map": "bedroom",
+  "tool": "Place",
+  "window": {
+    "physical": [
+      2176,
+      1406
+    ],
+    "logical": [
+      1088.0,
+      703.0
+    ],
+    "scale_factor": 2.0,
+    "ui_scale": 2.4
+  },
+  "picks": [
+    {
+      "subject": {
+        "kind": "element",
+        "entity": 249108099743,
+        "rect_px": [
+          120.0,
+          740.0,
+          917.0,
+          895.0
+        ],
+        "path": [
+          {
+            "name": null,
+            "role": "Sized",
+            "control": null,
+            "text": null
+          },
+          {
+            "name": null,
+            "role": "FillRegion",
+            "control": null,
+            "text": null
+          },
+          {
+            "name": null,
+            "role": "Split",
+            "control": null,
+            "text": null
+          },
+          {
+            "name": null,
+            "role": "SplitPane",
+            "control": null,
+            "text": null
+          },
+          {
+            "name": null,
+            "role": "Sized",
+            "control": null,
+            "text": null
+          },
+          {
+            "name": null,
+            "role": "Sized",
+            "control": null,
+            "text": null
+          },
+          {
+            "name": null,
+            "role": "ScrollViewport",
+            "control": null,
+            "text": null
+          },
+          {
+            "name": null,
+            "role": "Column",
+            "control": null,
+            "text": "set on the TERRAIN line: water ..."
+          }
+        ]
+      },
+      "at": [
+        485.45312,
+        855.7031
+      ]
+    }
+  ],
+  "relations": [],
+  "note": "We ned rules, data models, mental models, and a damn fine font for all of the text information in this system.  We could probably use color better too.",
+  "picture": {
+    "file": "feedback-1795094070279.png",
+    "size": [
+      2176,
+      1406
+    ]
+  },
+  "picks_picture": {
+    "file": "feedback-1795094070279_picks.png",
+    "size": [
+      2176,
+      1406
+    ]
+  },
+  "log": "feedback-1795094070279.log"
+}

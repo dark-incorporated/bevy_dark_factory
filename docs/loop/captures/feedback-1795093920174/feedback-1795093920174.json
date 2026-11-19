@@ -1,0 +1,78 @@
+{
+  "version": 2,
+  "stem": "feedback-1795093920174",
+  "taken_at_ms": 1795093920174,
+  "audience": "developers",
+  "app_version": "0.7.1",
+  "screen": "editor",
+  "project": "/Users/ladvien/actions-runner-bevy_grimoire/_work/bevy_dark_factory/bevy_dark_factory",
+  "map": "bedroom",
+  "tool": "Place",
+  "window": {
+    "physical": [
+      2176,
+      1406
+    ],
+    "logical": [
+      1088.0,
+      703.0
+    ],
+    "scale_factor": 2.0,
+    "ui_scale": 2.4
+  },
+  "picks": [
+    {
+      "subject": {
+        "kind": "element",
+        "entity": 4294965685,
+        "rect_px": [
+          0.0,
+          887.0,
+          2176.0,
+          944.0
+        ],
+        "path": [
+          {
+            "name": null,
+            "role": "Sized",
+            "control": null,
+            "text": null
+          },
+          {
+            "name": "terminal",
+            "role": "Sized",
+            "control": null,
+            "text": null
+          },
+          {
+            "name": "terminal bar",
+            "role": "Row",
+            "control": null,
+            "text": null
+          }
+        ]
+      },
+      "at": [
+        1966.7188,
+        911.1719
+      ]
+    }
+  ],
+  "relations": [],
+  "note": "It seems like we need a unified place to put the agent and decision model status.  Research and determine the best UX for this.",
+  "picture": {
+    "file": "feedback-1795093920174.png",
+    "size": [
+      2176,
+      1406
+    ]
+  },
+  "picks_picture": {
+    "file": "feedback-1795093920174_picks.png",
+    "size": [
+      2176,
+      1406
+    ]
+  },
+  "log": "feedback-1795093920174.log"
+}

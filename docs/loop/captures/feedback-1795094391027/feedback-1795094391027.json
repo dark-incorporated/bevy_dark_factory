@@ -1,0 +1,77 @@
+{
+  "version": 2,
+  "stem": "feedback-1795094391027",
+  "taken_at_ms": 1795094391027,
+  "audience": "developers",
+  "app_version": "0.7.1",
+  "screen": "editor",
+  "project": "/Users/ladvien/actions-runner-bevy_grimoire/_work/bevy_dark_factory/bevy_dark_factory",
+  "map": "bedroom",
+  "tool": "Place",
+  "window": {
+    "physical": [
+      2176,
+      1406
+    ],
+    "logical": [
+      1088.0,
+      703.0
+    ],
+    "scale_factor": 2.0,
+    "ui_scale": 2.4
+  },
+  "picks": [
+    {
+      "subject": {
+        "kind": "scene",
+        "world": [
+          -6.3252983,
+          0.0,
+          -1.646616
+        ],
+        "map": [
+          -6.3252983,
+          -1.646616
+        ],
+        "cell": [
+          -7,
+          -2
+        ],
+        "placement": null,
+        "camera": {
+          "translation": [
+            11.999999,
+            13.499999,
+            11.999999
+          ],
+          "forward": [
+            -0.57735026,
+            -0.57735026,
+            -0.5773503
+          ]
+        }
+      },
+      "at": [
+        678.625,
+        568.3125
+      ]
+    }
+  ],
+  "relations": [],
+  "note": "This markdown editor is not great.  Please look at well polished editors like VSCode, PyCharm, Obsidian, look at how they do markdown rendering and text editing, as well as syntax highlgiht (we should have a setting to pick a syntaxx highlighting them) and we probably need an LSP at some point",
+  "picture": {
+    "file": "feedback-1795094391027.png",
+    "size": [
+      2176,
+      1406
+    ]
+  },
+  "picks_picture": {
+    "file": "feedback-1795094391027_picks.png",
+    "size": [
+      2176,
+      1406
+    ]
+  },
+  "log": "feedback-1795094391027.log"
+}

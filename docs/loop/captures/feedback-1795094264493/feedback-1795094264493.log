@@ -1,0 +1,58 @@
+--- DarkFactory 0.7.1 on macos aarch64 starting: exe "/Applications/DarkFactory.app/Contents/MacOS/bevy_dark_factory", argv [], unix time 1795093889
+2026-11-19T13:11:29.242843Z  INFO bevy_diagnostic::system_information_diagnostics_plugin::internal: SystemInfo { os: "macOS 26.6.2 Tahoe", kernel: "25.6.0", cpu: "Apple M5", core_count: "10", memory: "32.0 GiB" }
+2026-11-19T13:11:29.296759Z  INFO bevy_render::renderer: AdapterInfo { name: "Apple M5", vendor: 0, device: 0, device_type: IntegratedGpu, device_pci_bus_id: "", driver: "", driver_info: "", backend: Metal, subgroup_min_size: 4, subgroup_max_size: 64, transient_saves_memory: Some(true), limit_bucket: None }
+2026-11-19T13:11:29.466209Z  INFO dark_factory::startup: plugins added; first screen Launcher
+2026-11-19T13:11:29.466658Z  INFO bevy_pbr::cluster: GPU clustering is supported on this device.
+2026-11-19T13:11:29.466694Z  INFO bevy_render::batching::gpu_preprocessing: GPU preprocessing is fully supported on this device.
+2026-11-19T13:11:29.498223Z  INFO bevy_winit::system: Creating new window DarkFactory (71v0)
+2026-11-19T13:11:29.628147Z  INFO dark_factory::startup: window surface 2560x1406 physical, scale 2, mode Windowed
+2026-11-19T13:11:30.469309Z  WARN bevy_dark_factory::update: update check failed: https://api.github.com/repos/bevy-coven/bevy_blueprint/releases?per_page=30: http status: 404
+2026-11-19T13:11:34.911836Z  INFO dark_factory::startup: camera 595v0: order 0, active true, target Window, layers [1]
+2026-11-19T13:11:34.911889Z  INFO dark_factory::startup: camera 593v0: order -3, active true, target Image, layers []
+2026-11-19T13:11:34.911899Z  INFO dark_factory::startup: camera 594v0: order -1, active true, target Image, layers []
+2026-11-19T13:11:36.514648Z  INFO dark_factory::startup: window self-check: 110 colours, brightest channel 254
+2026-11-19T13:11:38.545296Z  WARN bevy_dark_factory::update: update check failed: https://api.github.com/repos/bevy-coven/bevy_blueprint/releases?per_page=30: http status: 404
+2026-11-19T13:11:42.436633Z  INFO bevy_dark_factory::project: 1 library row(s) had derived effects out of step with their kind
+2026-11-19T13:11:42.436728Z  INFO bevy_dark_factory::project: project: /Users/ladvien/actions-runner-bevy_grimoire/_work/bevy_dark_factory/bevy_dark_factory — 90 descriptor(s), 1 composition(s), 2 bound kit(s)
+2026-11-19T13:11:42.452835Z  INFO bevy_dark_factory::project: map: /Users/ladvien/actions-runner-bevy_grimoire/_work/bevy_dark_factory/bevy_dark_factory/assets/blueprint/maps/bedroom.map.yaml — 12 placement(s), 0 stamp(s) standing for 0 row(s)
+2026-11-19T13:11:45.987321Z  INFO dark_factory::startup: 510 frames in the last 10 s, surface 2176x1406, focused true
+2026-11-19T13:11:53.664991Z  WARN bevy_gltf::loader: Unknown vertex attribute COLOR_1
+2026-11-19T13:11:56.364334Z  INFO dark_factory::startup: 562 frames in the last 10 s, surface 2176x1406, focused true
+2026-11-19T13:12:03.064232Z  INFO bevy_dark_factory::thumbs: baked 90 palette thumbnail(s); booth torn down
+2026-11-19T13:12:06.379717Z  INFO dark_factory::startup: 590 frames in the last 10 s, surface 2176x1406, focused true
+2026-11-19T13:12:16.379787Z  INFO dark_factory::startup: 600 frames in the last 10 s, surface 2176x1406, focused true
+2026-11-19T13:12:26.396342Z  INFO dark_factory::startup: 601 frames in the last 10 s, surface 2176x1406, focused true
+2026-11-19T13:12:36.412801Z  INFO dark_factory::startup: 601 frames in the last 10 s, surface 2176x1406, focused true
+2026-11-19T13:12:46.413123Z  INFO dark_factory::startup: 600 frames in the last 10 s, surface 2176x1406, focused true
+2026-11-19T13:12:56.429361Z  INFO dark_factory::startup: 601 frames in the last 10 s, surface 2176x1406, focused true
+2026-11-19T13:13:06.445220Z  INFO dark_factory::startup: 600 frames in the last 10 s, surface 2176x1406, focused true
+2026-11-19T13:13:16.445341Z  INFO dark_factory::startup: 600 frames in the last 10 s, surface 2176x1406, focused true
+2026-11-19T13:13:26.461677Z  INFO dark_factory::startup: 601 frames in the last 10 s, surface 2176x1406, focused true
+2026-11-19T13:13:36.478465Z  INFO dark_factory::startup: 601 frames in the last 10 s, surface 2176x1406, focused true
+2026-11-19T13:13:46.478390Z  INFO dark_factory::startup: 600 frames in the last 10 s, surface 2176x1406, focused true
+2026-11-19T13:13:56.494563Z  INFO dark_factory::startup: 601 frames in the last 10 s, surface 2176x1406, focused true
+2026-11-19T13:14:06.494726Z  INFO dark_factory::startup: 600 frames in the last 10 s, surface 2176x1406, focused true
+2026-11-19T13:14:16.511271Z  INFO dark_factory::startup: 601 frames in the last 10 s, surface 2176x1406, focused true
+2026-11-19T13:14:26.511438Z  INFO dark_factory::startup: 599 frames in the last 10 s, surface 2176x1406, focused true
+2026-11-19T13:14:36.527801Z  INFO dark_factory::startup: 601 frames in the last 10 s, surface 2176x1406, focused true
+2026-11-19T13:14:46.544594Z  INFO dark_factory::startup: 601 frames in the last 10 s, surface 2176x1406, focused true
+2026-11-19T13:14:56.560932Z  INFO dark_factory::startup: 601 frames in the last 10 s, surface 2176x1406, focused true
+2026-11-19T13:15:06.577747Z  INFO dark_factory::startup: 601 frames in the last 10 s, surface 2176x1406, focused true
+2026-11-19T13:15:16.578043Z  INFO dark_factory::startup: 599 frames in the last 10 s, surface 2176x1406, focused true
+2026-11-19T13:15:26.578367Z  INFO dark_factory::startup: 600 frames in the last 10 s, surface 2176x1406, focused true
+2026-11-19T13:15:36.594630Z  INFO dark_factory::startup: 601 frames in the last 10 s, surface 2176x1406, focused true
+2026-11-19T13:15:46.622714Z  INFO dark_factory::startup: 601 frames in the last 10 s, surface 2176x1406, focused true
+2026-11-19T13:15:56.640734Z  INFO dark_factory::startup: 600 frames in the last 10 s, surface 2176x1406, focused true
+2026-11-19T13:16:06.665614Z  INFO dark_factory::startup: 601 frames in the last 10 s, surface 2176x1406, focused true
+2026-11-19T13:16:16.677809Z  INFO dark_factory::startup: 599 frames in the last 10 s, surface 2176x1406, focused true
+2026-11-19T13:16:26.689912Z  INFO dark_factory::startup: 601 frames in the last 10 s, surface 2176x1406, focused true
+2026-11-19T13:16:36.691437Z  INFO dark_factory::startup: 600 frames in the last 10 s, surface 2176x1406, focused true
+2026-11-19T13:16:46.708287Z  INFO dark_factory::startup: 601 frames in the last 10 s, surface 2176x1406, focused true
+2026-11-19T13:16:56.808611Z  INFO dark_factory::startup: 587 frames in the last 10 s, surface 2176x1406, focused true
+2026-11-19T13:17:06.809475Z  INFO dark_factory::startup: 592 frames in the last 10 s, surface 2176x1406, focused true
+2026-11-19T13:17:16.809883Z  INFO dark_factory::startup: 600 frames in the last 10 s, surface 2176x1406, focused true
+2026-11-19T13:17:26.825453Z  INFO dark_factory::startup: 601 frames in the last 10 s, surface 2176x1406, focused true
+2026-11-19T13:17:36.842127Z  INFO dark_factory::startup: 593 frames in the last 10 s, surface 2176x1406, focused true
+2026-11-19T13:17:46.842060Z  INFO dark_factory::startup: 600 frames in the last 10 s, surface 2176x1406, focused true
+2026-11-19T13:17:56.843249Z  INFO dark_factory::startup: 600 frames in the last 10 s, surface 2176x1406, focused true
+2026-11-19T13:18:06.859491Z  INFO dark_factory::startup: 601 frames in the last 10 s, surface 2176x1406, focused true

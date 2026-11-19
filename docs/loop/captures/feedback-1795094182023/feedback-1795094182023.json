@@ -1,0 +1,102 @@
+{
+  "version": 2,
+  "stem": "feedback-1795094182023",
+  "taken_at_ms": 1795094182023,
+  "audience": "developers",
+  "app_version": "0.7.1",
+  "screen": "editor",
+  "project": "/Users/ladvien/actions-runner-bevy_grimoire/_work/bevy_dark_factory/bevy_dark_factory",
+  "map": "bedroom",
+  "tool": "Place",
+  "window": {
+    "physical": [
+      2176,
+      1406
+    ],
+    "logical": [
+      1088.0,
+      703.0
+    ],
+    "scale_factor": 2.0,
+    "ui_scale": 2.4
+  },
+  "picks": [
+    {
+      "subject": {
+        "kind": "element",
+        "entity": 12884897717,
+        "rect_px": [
+          120.0,
+          533.0,
+          553.0,
+          1214.0
+        ],
+        "path": [
+          {
+            "name": null,
+            "role": "Sized",
+            "control": null,
+            "text": null
+          },
+          {
+            "name": null,
+            "role": "FillRegion",
+            "control": null,
+            "text": null
+          },
+          {
+            "name": null,
+            "role": "Split",
+            "control": null,
+            "text": null
+          },
+          {
+            "name": null,
+            "role": "SplitPane",
+            "control": null,
+            "text": null
+          },
+          {
+            "name": null,
+            "role": "Sized",
+            "control": null,
+            "text": null
+          },
+          {
+            "name": null,
+            "role": "Sized",
+            "control": null,
+            "text": null
+          },
+          {
+            "name": null,
+            "role": "ScrollViewport",
+            "control": "Detail",
+            "text": null
+          }
+        ]
+      },
+      "at": [
+        357.17188,
+        1096.1719
+      ]
+    }
+  ],
+  "relations": [],
+  "note": "This layout is a hotmess. We need a mental and data models for layouts like this.  Ultimately, we need a damn good UX.",
+  "picture": {
+    "file": "feedback-1795094182023.png",
+    "size": [
+      2176,
+      1406
+    ]
+  },
+  "picks_picture": {
+    "file": "feedback-1795094182023_picks.png",
+    "size": [
+      2176,
+      1406
+    ]
+  },
+  "log": "feedback-1795094182023.log"
+}

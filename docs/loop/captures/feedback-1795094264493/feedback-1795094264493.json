@@ -1,0 +1,138 @@
+{
+  "version": 2,
+  "stem": "feedback-1795094264493",
+  "taken_at_ms": 1795094264493,
+  "audience": "developers",
+  "app_version": "0.7.1",
+  "screen": "editor",
+  "project": "/Users/ladvien/actions-runner-bevy_grimoire/_work/bevy_dark_factory/bevy_dark_factory",
+  "map": "bedroom",
+  "tool": "Place",
+  "window": {
+    "physical": [
+      2176,
+      1406
+    ],
+    "logical": [
+      1088.0,
+      703.0
+    ],
+    "scale_factor": 2.0,
+    "ui_scale": 2.4
+  },
+  "picks": [
+    {
+      "subject": {
+        "kind": "element",
+        "entity": 38654702545,
+        "rect_px": [
+          122.0,
+          621.0,
+          523.0,
+          675.0
+        ],
+        "path": [
+          {
+            "name": null,
+            "role": "Sized",
+            "control": null,
+            "text": null
+          },
+          {
+            "name": null,
+            "role": "FillRegion",
+            "control": null,
+            "text": null
+          },
+          {
+            "name": null,
+            "role": "Split",
+            "control": null,
+            "text": null
+          },
+          {
+            "name": null,
+            "role": "SplitPane",
+            "control": null,
+            "text": null
+          },
+          {
+            "name": null,
+            "role": "Sized",
+            "control": null,
+            "text": null
+          },
+          {
+            "name": null,
+            "role": "Sized",
+            "control": null,
+            "text": null
+          },
+          {
+            "name": null,
+            "role": "FillRegion",
+            "control": null,
+            "text": null
+          },
+          {
+            "name": null,
+            "role": "Table",
+            "control": null,
+            "text": null
+          },
+          {
+            "name": null,
+            "role": "List",
+            "control": null,
+            "text": null
+          },
+          {
+            "name": null,
+            "role": "TableView",
+            "control": null,
+            "text": null
+          },
+          {
+            "name": null,
+            "role": "TableRows",
+            "control": null,
+            "text": null
+          },
+          {
+            "name": null,
+            "role": "TableRow",
+            "control": null,
+            "text": null
+          },
+          {
+            "name": null,
+            "role": "TableCell",
+            "control": null,
+            "text": null
+          }
+        ]
+      },
+      "at": [
+        359.7422,
+        669.6719
+      ]
+    }
+  ],
+  "relations": [],
+  "note": "The collapasable items seem to be 2 space indented, but the files seem to be 4 space.  Please be consistent.",
+  "picture": {
+    "file": "feedback-1795094264493.png",
+    "size": [
+      2176,
+      1406
+    ]
+  },
+  "picks_picture": {
+    "file": "feedback-1795094264493_picks.png",
+    "size": [
+      2176,
+      1406
+    ]
+  },
+  "log": "feedback-1795094264493.log"
+}
