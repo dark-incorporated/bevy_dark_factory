@@ -392,6 +392,7 @@ mod navigation;
 mod no_colour_lives_in_chrome;
 mod no_internal_words_on_screen;
 mod no_observer_hides_a_resource_in_a_bundle;
+mod no_panel_draws_a_control_past_its_own_content_box;
 mod no_system_writes_every_frame;
 mod note_auto;
 mod note_claims;

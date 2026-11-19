@@ -2706,11 +2706,26 @@ pub fn row_label_with(
 
 /// **The value beside a [`row_label`]** — 11 px, one step louder than its label, which is the
 /// role map's one value size (the audit found 10/11 and 10/10 coexisting; 10/11 won).
+///
+/// **It gives way to the column it is drawn in** (#494): the value is the last thing in a row whose
+/// label column is a fixed width, so a value wider than the room left is drawn over the panel's
+/// border — measured in the owner's capture `feedback-1794921716691`, `none yet` ended **7 px past**
+/// the AGENT panel's content edge at a 380 px panel with the person's text at 150%.
+///
+/// **The break is the whole fix, and the floor is deliberately absent** — the lesson
+/// `let_a_toggle_label_break` records (#481). `WordOrCharacter` makes the box's minimum its longest
+/// *word* rather than its whole phrase, which is what lets flex shrink it inside its column. A zero
+/// `min_width` (what [`text_narrows`] carries, and the obvious companion) drops the automatic minimum
+/// to nothing: the AGENT block is a `column` in a scrolling pane, so the block stopped reserving its
+/// own line and `Control(Hint)` came up under it, and every chip in the terminal bar lost its word —
+/// measured on this change, `the_g87_nodes_are_gooeys`, `no_badge_cluster_draws_through_another` and
+/// the three `the_terminal_bar_keeps_every_chip_whole` cases all failed with the floor in place.
 pub fn row_value(row: &mut ChildSpawnerCommands, text: impl Into<String>, colour: Color, marker: impl Bundle) {
     row.spawn((
         Text::new(text.into()),
         TextColor(colour),
         typed(text::BODY),
+        TextLayout::new(Justify::Left, LineBreak::WordOrCharacter),
         marker,
     ));
 }
