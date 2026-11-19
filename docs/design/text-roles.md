@@ -89,7 +89,7 @@ Coverage is not the question.
 **A second face already exists, and it is the right kind of second face.** FiraSans Regular, **456,996 bytes**, SIL OFL
 1.1, drawn on every `Text` carrying `[Prose]` (`prose.rs`): a sentence meant to be read, not terminal output. That is
 already 457 KB of a second face in the binary, spent to make the What's new page read as prose instead of a terminal —
-and it is the model for what "a damn fine font" means here: **a face where the text is a sentence, FiraMono where the
+and it is the model for what the note's "damn fine font" means here: **a face where the text is a sentence, FiraMono where the
 text is data.**
 
 **A third face is not warranted, and the cost is measurable.** Every face is:
@@ -108,28 +108,31 @@ prose, once a body label is drawn at the size the type scale names instead of at
 
 The note says *"we could probably use color better too"*. The colours are one system already: `Ink` (chrome.rs) names
 every ink a hand-drawn label takes, and `ui.rs::editor_inks` holds the nine of them to a contrast bar on every ground. The
-one place colour is not used as well as it could be is the **markdown editor's prose**, and that is #525's subject, not
-this one. This document records the finding and leaves the colour work to the editor's tokens.
+one place colour was not used as well as it could be is the **markdown editor's prose** — an emphasis and a strong
+emphasis drew in the body ink like a paragraph — and that is #525's, done there: `**strong**` takes the `Type` hue and
+`*em*` the `Function` hue, both distinct from the `String` of a code span and the `Reference` of a link. So the note's
+second sentence is answered beside its first: the sizes on the scale (§5), the emphases in their own colours (#525).
 
 ## 5. The one change this document justifies
 
-**A body label drawn as `bevy_gooey::label` is drawn at `text::BODY`, not at gooey's snapped 11.666 px.**
+**A list row or a hint is drawn through `chrome::body`, at `text::BODY`, and not through `bevy_gooey::label`.**
 
-The reason it is this and not a redesign: §1 measured that the editor's most common text size (11.666, 550 of 602 texts)
-is **not one the type scale names**. Every `bevy_gooey::label` in the crate — the body of every list, every hint under a
-heading — is that text. Making the running skin's `text_size` the same number the type scale's `BODY` is (`11`, which the
-skin already declares at `editor_skin.yaml:57`) closes the gap without a role, a face or a setting, and 550 texts land on
-the scale the audit has been keeping short all along.
+The reason it is this and not a redesign is §1's number: the editor's most common text size (11.666, 550 of 602 texts on
+the World workspace) is **not one the type scale names**, and every one of those texts is a `bevy_gooey::label` — the body
+of every list, every hint under a heading. `chrome::body(parent, words, ink)` spawns the line with `chrome::typed`, so it is
+`text::BODY` (11 px) at 100 % text like every label `chrome::font` already gives, and — unlike a gooey label — it follows
+the person's text size through [`resize_the_labels`], instead of being recomputed from `skin.text_scale` on gooey's own
+pass. **No role, no face, no setting, and no new dependency:** one helper, and the two sizes the window held become one.
 
-**The cost:** gooey snaps the skin's `text_size` to whole device pixels, so at `UiScale` 1.2 an 11 px skin size still
-draws at `ceil(11 * 1.2)/1.2 = 11.666`. The fix is to declare the skin's `text_size` at the value whose whole-device-pixel
-snap *is* the type scale's role — i.e. accept that gooey's `text_size` is a physical-pixel seed and set the crate's
-hand-drawn `BODY` and gooey's label to the same *logical* size, which they already are when both are read at
-`text_scale = 1`.
+**What was measured after the change**, on the same surface, the same way §1 was: the `WATER` section's hint, its heading
+and its rows draw at `11`, `10` and `11` — all three on the scale. `tests/the_world_sections_text_is_at_the_type_scales_sizes.rs`
+holds the three: the hint is `text::BODY` exactly; every World-section text is a size the scale names; the hint stays in
+`Ink::dim`, so this is a size and not a repaint.
 
-**[MEASURED]** — the two sizes are 11.0 (`chrome::font(text::BODY)`) and 11.6667 (`bevy_gooey::label`, `Role::Label`). The
-document states the fact and the change is in `crates/bevy_dark_factory/src/chrome.rs`'s `text::BODY` doc and this file;
-a follow-on that changes gooey's snap is upstream (`bevy_gooey`), not this crate.
+**Why not change gooey's snap.** The 11.666 px is `snap_text_size(11, 1.2)` — gooey rounding a text size up to a whole
+device pixel, which is the right thing for sharp glyphs and is gooey's to decide. Overriding it from this crate would be a
+second text-size authority, which is the arrangement §1 is complaining about. A `bevy_gooey::label` stays available and
+stays at the skin's size; a body line the *editor* draws goes through `chrome::body`, and the two are one number again.
 
 ## 6. Where the current set is inconsistent
 
@@ -147,4 +150,4 @@ a follow-on that changes gooey's snap is upstream (`bevy_gooey`), not this crate
 
 The editor draws seven type roles over five sizes and two faces. The face is fine (FiraMono for data, FiraSans for prose,
 both SIL OFL 1.1, both covered by the `cmap` test). The **sizes** are the one thing inconsistent — the most common text on
-screen is drawn at a size the type scale does not name — and that is what this document fixes.
+screen is drawn at a size the type scale does not name — and `chrome::body` is what puts it back on the scale.
