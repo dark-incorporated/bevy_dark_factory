@@ -4,6 +4,7 @@ What each change added, newest first. A visible change has a clip: click the sti
 
 ## 2026-11-19
 
+- **#522** The rig list's chord dispatches view_toggle_rigs, so an agent can open the bench too *No clip: gate 124: every verb names an operation*
 - **#522** The rig bench waits for Cmd+R: its list is hidden at boot and the workspace states the chord (the_rig_list_waits_for_its_chord) *No clip: measured by the_rig_list_waits_for_its_chord; no display on bmb*
 - **#514** One place for the agent and the decision model: both stand in one region of the status band (the_agent_and_the_decision_model_share_one_place) *No clip: measured by the_agent_and_the_decision_model_share_one_place; no display on bmb*
 - **516-kit-row-wraps** `819b7217` A kit row's `Default for new pieces` badge wraps inside the panel instead of 255.0 px past its content edge *No clip: a layout measurement with no visible clip recorded; measured before 255.0 px past at the capture's window and ui_scale 2.4, after 0*

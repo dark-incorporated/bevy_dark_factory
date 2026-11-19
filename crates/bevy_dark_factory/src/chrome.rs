@@ -4430,6 +4430,12 @@ pub fn repaint_where_you_are(
 pub fn spawn_status_band(mut commands: Commands, frame: Res<Frame>, project: Option<Res<crate::project::Project>>) {
     let back = back_name(project.as_deref());
     commands.entity(frame.status).with_children(|band| {
+        // **The agent and the decision model, at the band's left end** (#514). Where it stands is a layout decision with a
+        // measurement behind it: the hint sits behind the band's spacer at the far end, and `badges` settles the hint's key badge
+        // just to its left — which is exactly the ground this region occupied when it was placed between the spacer and the hint. Gate
+        // 124 measured the result: `Control(Hint)` badge `Rect{614,837 .. 638,862}` covering 24x17 px of this region's own ink. The
+        // left end is ground nothing else claims, so the pair reads first and covers nothing.
+        spawn_agent_band(band);
         // **The problem is not here any more.** It used to be a flow child of this band — a padded,
         // wrapping block inside twenty-six pixels of chrome, so it stood proud of the band it was
         // supposed to be in. Reported from the keyboard: *"it appears over the status bar at the
@@ -4469,7 +4475,6 @@ pub fn spawn_status_band(mut commands: Commands, frame: Res<Frame>, project: Opt
             bevy::picking::Pickable::IGNORE,
         ));
         band.spawn(bevy_gooey::spacer());
-        spawn_agent_band(band);
         shortcut_hint(band, &back);
     });
 }

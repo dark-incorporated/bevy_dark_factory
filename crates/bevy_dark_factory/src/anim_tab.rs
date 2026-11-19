@@ -503,17 +503,32 @@ fn toggle_the_rig_list(
     keyboard: Res<ButtonInput<KeyCode>>,
     live: Res<crate::keys::Live>,
     mut benches: Query<&mut Node, With<RigBench>>,
-    mut chords: Query<&mut Text, With<RigToggleChord>>,
+    mut chords: Query<&mut Text, With<RigToggleHere>>,
 ) {
     if !crate::keys::just_pressed(&keyboard, *live, crate::keys::Action::ToggleRigs) {
         return;
     }
-    let Some(mut node) = benches.iter_mut().next() else {
-        return;
+    // **The key dispatches the operation an agent calls** (E-002, #129), the shape `notice::toggle_journal` set: up or down is
+    // the operation's answer, read from the list's own `display` and written back after it, so the chord and an MCP call change the
+    // same thing and `view_toggle_rigs` is the one place that decides what a toggle means.
+    let open = benches.iter().any(|node| node.display != Display::None);
+    let mut ctx = crate::ops::Ctx {
+        source: crate::ops::Source::Human,
+        session: crate::ops::session_id(),
+        view: Some(crate::ops_view::View { rigs_open: open, ..Default::default() }),
+        ..crate::ops::Ctx::default()
     };
-    let open = node.display == Display::None;
-    node.display = if open { Display::Flex } else { Display::None };
-    // **The heading says what the next press does**, so the one control that can vanish reads correctly in both states.
+    let outcome = crate::ops::dispatch(&mut ctx, "view_toggle_rigs", &serde_json::json!({}));
+    let open = ctx.view.map(|view| view.rigs_open).unwrap_or(open);
+    let _ = outcome;
+    let want = if open { Display::Flex } else { Display::None };
+    for mut node in &mut benches {
+        if node.display != want {
+            node.display = want;
+        }
+    }
+    // **The sentence stays true in both states**: the workspace's own words, and the operation's summary in the hover so a person
+    // can read what the last press did.
     let words = rigs_toggle_words();
     for mut text in &mut chords {
         if text.0 != words {

@@ -2460,6 +2460,76 @@ pub mod view_toggle_journal {
     }
 }
 
+/// **The rig bench's list, up or down** (#522): whether the Animation workspace's right column is drawn.
+///
+/// View state, like the journal's and the ghost's, and the operation for the same reasons: the chord and an agent's call
+/// dispatch this one thing, so "toggle" means one thing; it writes no project data and takes no undo step, because `Cmd+Z`
+/// must take back the last change to the blueprint rather than reopen a panel a person closed on purpose.
+///
+/// **The front end applies what comes back** ([`crate::anim_tab::toggle_the_rig_list`]), so the chord, an MCP call and any
+/// later button all read `after.rigs` and write the same `display`.
+pub mod view_toggle_rigs {
+    use super::*;
+    use serde_json::json;
+
+    #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+    #[serde(deny_unknown_fields)]
+    pub struct Params {}
+
+    pub struct ViewToggleRigs;
+
+    impl Operation for ViewToggleRigs {
+        fn name(&self) -> &'static str {
+            "view_toggle_rigs"
+        }
+        fn changes_view(&self) -> bool {
+            true
+        }
+        fn shows(&self, _ctx: &Ctx, _params: &serde_json::Value) -> Shown {
+            Shown::Nowhere
+        }
+        fn writes(&self) -> &'static [&'static str] {
+            // A panel being up is not project data: no map, no file, no undo step.
+            &[]
+        }
+
+        fn undo(&self) -> Undo {
+            // **Not an edit.** `Cmd+Z` after `Cmd+R` must take back the last change to the blueprint, not hide a list the
+            // person opened on purpose.
+            Undo::None
+        }
+
+        fn schema(&self) -> serde_json::Value {
+            json!({"type": "object", "additionalProperties": false, "properties": {}})
+        }
+
+        fn plan(&self, ctx: &Ctx, _params: &serde_json::Value) -> Result<serde_json::Value, Refusal> {
+            let Some(view) = ctx.view.as_ref() else {
+                return Err(Refusal::new(
+                    "no view is in hand, so there is no rig list to toggle. An editor front end carries one \
+                     in `Ctx::view`.",
+                ));
+            };
+            Ok(json!({ "now": if view.rigs_open { "down" } else { "up" } }))
+        }
+
+        fn commit(&self, ctx: &mut Ctx, params: &serde_json::Value) -> Result<Outcome, Refusal> {
+            self.plan(ctx, params)?;
+            let Some(view) = ctx.view.as_mut() else {
+                return Err(Refusal::new("no view is in hand, so there is no rig list to toggle."));
+            };
+            let open = view.toggle_rigs();
+            Ok(Outcome {
+                summary: if open { "rig list up".to_owned() } else { "rig list away".to_owned() },
+                affected: 0,
+                saved: false,
+                inverse: None,
+                after: Some(json!({ "rigs": if open { "up" } else { "away" } })),
+            })
+        }
+    }
+}
+
 /// **The rig bench's ghost, up or down** (E-002, #129): the translucent second figure that plays the
 /// *measured* gait over the declared one, which `G` and the ghost chip toggle.
 ///
@@ -7867,6 +7937,7 @@ pub fn registry() -> Vec<Box<dyn Operation>> {
     vec![
         Box::new(view_cycle_grid::ViewCycleGrid),
         Box::new(view_toggle_journal::ViewToggleJournal),
+        Box::new(view_toggle_rigs::ViewToggleRigs),
         Box::new(view_toggle_ghost::ViewToggleGhost),
         Box::new(sight::placement_set_hidden::PlacementSetHidden),
         Box::new(sight::layer_set_visible::LayerSetVisible),
@@ -8167,6 +8238,9 @@ pub const UI_ENTRY_POINTS: &[(&str, &str)] = &[
     // **The journal key**, `Cmd+E`, which dispatches `view_toggle_journal` (E-002, #129). The panel's
     // `Display` is what changes; the operation decides up or down and the front end applies it.
     ("view_toggle_journal", "\"view_toggle_journal\", &serde_json"),
+    // **The rig list's key**, `Cmd`/`Ctrl`+`R`, which dispatches `view_toggle_rigs` (#522). The bench's column is what changes; the
+    // operation decides up or away and the front end applies it.
+    ("view_toggle_rigs", "\"view_toggle_rigs\", &serde_json"),
     // **The ghost key and chip**, `G`, which dispatch `view_toggle_ghost` (E-002, #129). The bench's overlay is what
     // changes; the operation decides on or off and the front end applies it.
     ("view_toggle_ghost", "\"view_toggle_ghost\""),

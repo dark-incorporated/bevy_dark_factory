@@ -1193,6 +1193,9 @@ impl Action {
             Action::PlayPause => Some("stage_play"),
             Action::ScrubBack | Action::ScrubFwd => Some("stage_scrub"),
             Action::CycleCamPreset => Some("stage_camera"),
+            // **The rig bench's list shown or put away** (#522) is view state, and like the journal's key it dispatches the
+            // operation an agent calls, so the chord and an MCP call decide "toggle" in one place.
+            Action::ToggleRigs => Some("view_toggle_rigs"),
             // **The lattice grid's cursor is view state** (E-002, #129 slice 27): `F`, `H`, `T` and `G` step the selected cell
             // and `[` and `]` the layer, through the operation an agent calls.
             Action::CellLeft

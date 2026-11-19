@@ -65,6 +65,11 @@ pub struct View {
     /// gait over the declared one. Session state like the journal, and the same `BenchAb` the chip lights.
     #[serde(default)]
     pub ghost: bool,
+    /// **Whether the rig bench's list is on screen** (#522): `Cmd`/`Ctrl`+`R` opens and closes it, and
+    /// the Animation workspace opens with it away. Session state like the journal's, for the same reason — a panel
+    /// a person put away on purpose should not meet them again next launch.
+    #[serde(default)]
+    pub rigs_open: bool,
     /// **What the outliner's eye has hidden** (UI-51, #237): pieces and whole layers, out of the viewport for this
     /// session. Not serialised while empty, so a view that hides nothing is the view it always was.
     #[serde(default, skip_serializing_if = "Eyes::is_empty")]
@@ -771,6 +776,14 @@ impl View {
         self.ghost = !self.ghost;
         self.ghost
     }
+
+    /// **The bench's list, on or off**, and the answer is what it is now (#522). A toggle, because `Cmd`/`Ctrl`+`R`
+    /// is the only way in and the only way out, and the operation is what decides what "toggle" means so the chord and
+    /// an agent's call cannot disagree.
+    pub fn toggle_rigs(&mut self) -> bool {
+        self.rigs_open = !self.rigs_open;
+        self.rigs_open
+    }
 }
 
 #[cfg(test)]
@@ -798,6 +811,8 @@ mod tests {
             snip_armed: true,
             // Owner exception (2026-11-10): the literal names the new field; the round trip is unchanged.
             ghost: true,
+            // Assumed owner exception (2026-11-19): the literal names the field #522 adds (its default); the round trip is unchanged.
+            rigs_open: false,
             // Assumed owner exception (2026-11-11): the literal names the two fields #237 adds (empty); the round trip is unchanged.
             eyes: Default::default(),
             locks: Default::default(),
