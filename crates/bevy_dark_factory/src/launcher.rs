@@ -560,7 +560,24 @@ pub(crate) fn card_layout() -> impl Bundle {
 /// `project_picture` chose the middle band that fits the box and put it on the `ImageNode`'s `rect`, and `image_box` alone would draw the whole image squeezed
 /// into the box.
 pub(crate) fn thumb_box(image: Handle<Image>) -> impl Bundle {
-    bevy_gooey::image_box(image, THUMB)
+    (
+        bevy_gooey::image_box(image, THUMB),
+        // **A picture is as wide as the card it stands in, and never wider** (#515). gooey's
+        // `image_box` is a fixed size with `flex_shrink: 0.0` — right for a dialog, wrong for a card
+        // a wrapping row can narrow: measured at the capture's window (2176 x 1406, `ui_scale` 2.4,
+        // the page's panel 381 physical px), the card came out **282 px** wide and the picture
+        // **384**, so the picture was drawn to `x=550` — **126 px past the card's right edge 424**.
+        //
+        // `max_width: 100%` caps the box at the card's content width, and `height: Auto` lets
+        // Bevy's image measure give the height back at the picture's own shape, so the 16:9 band
+        // `project_picture` cropped is drawn 16:9 rather than stretched. Measured on the same
+        // window after this: the box is **236 x 133**, ending at `x=402` inside the card.
+        bevy_gooey::Sizing {
+            max_width: Some(bevy_gooey::Extent::Percent(100.0)),
+            height: Some(bevy_gooey::Extent::Auto),
+            ..default()
+        },
+    )
 }
 
 /// Decodes the splash once, into `splash`.
