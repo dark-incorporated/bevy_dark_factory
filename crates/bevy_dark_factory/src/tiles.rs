@@ -9667,14 +9667,19 @@ fn rebuild_detail(detail: DetailInputs<'_, '_>) {
                     format!("id  {}_", blueprint_model::naming::to_snake_case(&raw.raw)),
                     crate::chrome::ink().accent,
                 ),
-                // **What places it, on the id's own line** (NV-07, #384): the maps that hold this piece, from the project's
-                // one reader of `maps/` (`Project::maps_that_place`), so this sentence and the check that refuses a removal
-                // cannot disagree. It is a suffix rather than a section of its own because the detail's controls are placed
-                // by a packer with no give-up arm: a row added here is a row the badges can be packed through
-                // (`headless::no_badge_cluster_draws_through_another`), and `used_by_line` is built to be read in the middle
-                // of a sentence's line rather than as a heading's text.
+                // **One value per line, never two joined by a middle dot** (#519). This read
+                // `id  chair   ·   placed in bedroom`: the piece's id and the maps that place it,
+                // two values on one line with a caret between them, which the owner read as
+                // *"separate text values in one row. It looks jank."* The maps are still stated —
+                // they are why this line exists (NV-07, #384), and the check that refuses a removal
+                // reads the same sentence — but on their own line, one field under the other.
+                //
+                // **Both facts stay in one text node** because the detail's controls are placed by a
+                // packer with no give-up arm: a row added here is a row the badges can be packed
+                // through (`headless::no_badge_cluster_draws_through_another`). A second line inside
+                // the node is a height, not a second child to pack around.
                 None => (
-                    format!("id  {}   ·   {}", d.id, crate::crosslinks::used_by_line(&project, &d.id).unwrap_or_else(|why| why)),
+                    format!("id  {}\n{}", d.id, crate::crosslinks::used_by_line(&project, &d.id).unwrap_or_else(|why| why)),
                     crate::chrome::ink().text,
                 ),
             };
