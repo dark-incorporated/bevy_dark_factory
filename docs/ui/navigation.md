@@ -35,7 +35,7 @@ the test fails for a miss with none.
 |---|---|---|---|---|---|---|
 | The open map | the editor starts on it | 0 | 0 | yes | 0, 0, yes | met — 0 press(es) |
 | A named map | Cmd+O (close project), click `m` | 1 | 1 | yes | 1, 1, yes | met — driven: Cmd+P, the name, Enter, 8 presses |
-| A named piece on the open map | click `View`, click `Show outliner`, click `alpha/floor@0 · alpha/floor` | 0 | 3 | yes | 0, 3, yes | met — driven: Cmd+P, the name, Enter, 7 presses |
+| A named piece on the open map | click `View`, click `Show outliner`, click `alpha/floor@0: alpha/floor` | 0 | 3 | yes | 0, 3, yes | met — driven: Cmd+P, the name, Enter, 7 presses |
 | A piece's library entry | press Cmd/Ctrl+4 (the Kit workspace), click `MESHES (2)`, click `alpha/floor` | 1 | 2 | yes | 1, 2, yes | met — driven: Cmd+P, the name, Enter, 7 presses |
 | A tile | press Cmd/Ctrl+4 (the Kit workspace), click `TILES`, click `TILES (2)`, click `crate`, press Enter (open it) | 2 | 3 | yes | 3, 2, yes | met — driven: Cmd+P, the name, Enter, 8 presses |
 | A composition | press Cmd/Ctrl+4 (the Kit workspace), click `COMPOSE`, click `barrel  —  1 member(s), bounded 1.0x1.0x1.0` | 1 | 2 | yes | 2, 1, yes | met — driven: Cmd+P, the name, Enter, 7 presses |

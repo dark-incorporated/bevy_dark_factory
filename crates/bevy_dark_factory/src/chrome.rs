@@ -4477,6 +4477,28 @@ pub fn subject(
     }
 }
 
+/// **The chrome bar's words for the door and the subject**: `MAP: bedroom`, or the door's name alone
+/// when nothing is open (#519).
+///
+/// **The door's name is the label and the subject its value.** This read `MAP · bedroom`, two
+/// values on one line with a middle dot between them, which the owner read as *"separate text values
+/// in one row. It looks jank."* A colon is the label-and-value idiom the editor's rows already draw
+/// (`chrome::row_label`), and the bar is one line tall, so the two facts stay on the one line the
+/// band has for them.
+///
+/// Public because [`spawn_chrome_bar`] and [`repaint_where_you_are`] both ask it, and because a test
+/// reads the words from here rather than from a node that is only on screen in a window.
+pub fn where_you_are(
+    door: &crate::workspace::Workspace,
+    open_map: Option<&crate::project::OpenMap>,
+    project: Option<&crate::project::Project>,
+) -> String {
+    match subject(open_map, project) {
+        Some(name) => format!("{}: {name}", door.label()),
+        None => door.label().to_owned(),
+    }
+}
+
 /// **The way back to the chooser, and the one piece of the window that belongs to no door.**
 ///
 /// # It failed twice as a row in a panel
@@ -4508,12 +4530,9 @@ pub fn spawn_chrome_bar(
     open_map: Option<Res<crate::project::OpenMap>>,
     project: Option<Res<crate::project::Project>>,
 ) {
-    let here = door.as_deref().map(|d| {
-        match subject(open_map.as_deref(), project.as_deref()) {
-            Some(name) => format!("{} · {name}", d.label()),
-            None => d.label().to_owned(),
-        }
-    });
+    // **The bar's words come from [`where_you_are`]**, so the spawn and the repaint cannot disagree
+    // about them any more than they can about the name (`subject`).
+    let here = door.as_deref().map(|d| where_you_are(d, open_map.as_deref(), project.as_deref()));
 
     // **The way out names where it goes**: the project's own name, which is the page it returns to (`project_page.rs`).
     let back = back_name(project.as_deref());
@@ -4594,10 +4613,8 @@ pub fn repaint_where_you_are(
     mut bar: Query<&mut Text, With<WhereYouAre>>,
 ) {
     let Some(door) = door else { return };
-    let want = match subject(open_map.as_deref(), project.as_deref()) {
-        Some(name) => format!("{} \u{00b7} {name}", door.label()),
-        None => door.label().to_owned(),
-    };
+    // **The same words the bar was spawned with**, from the one function that composes them.
+    let want = where_you_are(&door, open_map.as_deref(), project.as_deref());
     for mut text in &mut bar {
         if text.0 != want {
             text.0 = want.clone();

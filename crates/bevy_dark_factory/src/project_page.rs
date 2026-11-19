@@ -573,6 +573,48 @@ pub const GUIDE_ROWS: usize = 12;
 /// widget they are typing in.
 pub const GUIDE_COLUMNS: usize = 26;
 
+/// **The Agent guide section's status words** (#519), and the section's one place that composes them.
+///
+/// **One value a line, never two joined by a middle dot.** Each of these read
+/// `allowed · docs/agent-guide.md`: the state and where the file is, two values on one line with a
+/// caret between them, which the owner read as *"separate text values in one row. It looks jank."*
+/// The state keeps the first line, so a person scanning the section still lands on the word before
+/// the path, and every other fact gets a line of its own.
+///
+/// Public so a test can read the line the section draws without a window, the same way
+/// [`crate::follow::LookChip::of`] is read.
+pub fn guide_status(view: &GuideView, conflict: bool) -> String {
+    // **A file nobody can serve says its problem where the state would be**, because "waiting for you" over
+    // a file that is too large or not text would be an offer to allow something unusable.
+    if let Some(problem) = &view.problem {
+        return problem.clone();
+    }
+    if let Some(trouble) = &view.trouble {
+        return format!("{}\n{trouble}", view.state.word());
+    }
+    let total = view.text.chars().count();
+    let rows = blueprint_model::agent_guide::visual_rows(&view.text, GUIDE_COLUMNS);
+    if !fully_shown(&view.text) {
+        // **Said in the box's own terms**: rows against rows, and the character count as the supporting
+        // fact. "The first 312 characters" was true of a file whose *thirteenth line* was the invisible one.
+        return format!(
+            "{}\n{}\nshowing the first {GUIDE_ROWS} of {rows} lines ({FULLY_SHOWN_CHARS} characters of \
+             {total})\nedit the file at {} — nothing here can be saved or allowed until the whole guide \
+             fits the box",
+            view.state.word(),
+            crate::agent_guide::PROJECT_PATH_SHOWN,
+            crate::agent_guide::PROJECT_PATH_SHOWN
+        );
+    }
+    if conflict {
+        return format!(
+            "changed on disk\n{} was changed somewhere else, and your unsaved edits were kept",
+            crate::agent_guide::PROJECT_PATH_SHOWN
+        );
+    }
+    format!("{}\n{}", view.state.word(), crate::agent_guide::PROJECT_PATH_SHOWN)
+}
+
 /// **Draw the Agent guide section**: its status line, then the editor, then the state's own buttons.
 ///
 /// **The section is drawn from [`GuidePage`]**, not from the file again: an unsaved edit lives there, and a
@@ -584,31 +626,8 @@ fn draw_agent_guide(parent: &mut bevy::ecs::relationship::RelatedSpawnerCommands
     // count can still hide a payload below the fold. Past either bound the section says how much it is
     // showing and offers no Save, no Allow, no Revert and no Trust: writing over a file from a view of part
     // of it is how a guide gets truncated.
-    let total = view.text.chars().count();
-    let rows = blueprint_model::agent_guide::visual_rows(&view.text, GUIDE_COLUMNS);
     let truncated = !fully_shown(&view.text);
-    // **A file nobody can serve says its problem where the state would be**, because "waiting for you" over
-    // a file that is too large or not text would be an offer to allow something unusable.
-    let status = if let Some(problem) = &view.problem {
-        problem.clone()
-    } else if let Some(trouble) = &view.trouble {
-        format!("{} · {trouble}", view.state.word())
-    } else if truncated {
-        // **Said in the box's own terms**: rows against rows, and the character count as the supporting
-        // fact. "The first 312 characters" was true of a file whose *thirteenth line* was the invisible one.
-        format!(
-            "{} · {} · showing the first {GUIDE_ROWS} of {rows} lines ({FULLY_SHOWN_CHARS} characters of \
-             {total}); edit the file in your editor, at {}. Nothing here can be saved or allowed until the \
-             whole guide fits the box.",
-            view.state.word(),
-            crate::agent_guide::PROJECT_PATH_SHOWN,
-            crate::agent_guide::PROJECT_PATH_SHOWN
-        )
-    } else if held.conflict {
-        format!("changed on disk · {} was changed somewhere else, and your unsaved edits were kept", crate::agent_guide::PROJECT_PATH_SHOWN)
-    } else {
-        format!("{} · {}", view.state.word(), crate::agent_guide::PROJECT_PATH_SHOWN)
-    };
+    let status = guide_status(view, held.conflict);
     // **What is shown when it does not all fit**: the whole lines that do, never a character cut through
     // the middle of a line — a prefix ending mid-word reads as a damaged file rather than a partial one.
     let text: String = if truncated {

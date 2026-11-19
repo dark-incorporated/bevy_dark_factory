@@ -737,6 +737,7 @@ mod the_assessor_grades_each_turns_questions;
 mod the_person_audits_the_questions;
 mod the_tree_steps_two_advances;
 mod the_pieces_detail_says_one_value_a_line;
+mod no_row_joins_two_values_with_a_middle_dot;
 mod the_tiers_resolve_into_a_valen_set;
 mod the_label_report_says_what_the_set_is_worth;
 mod an_agents_answer_is_never_a_gold_label;

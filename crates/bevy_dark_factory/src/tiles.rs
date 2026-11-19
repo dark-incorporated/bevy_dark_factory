@@ -9863,15 +9863,19 @@ fn rebuild_detail(detail: DetailInputs<'_, '_>) {
                     // baked, and which way a turn left the piece. Suffixes rather than rows —
                     // stating them costs a clause; giving each a row of its own is the block this
                     // change deleted.
+                    // **A resize and a turn are clauses of the size's own sentence** (#519): they
+                    // read `... fills 1 x 2 cells · mesh scaled 2.000x · turned 0,90,0 deg`, two
+                    // more values glued on with a caret. Each is a parenthetical about the size the
+                    // em dash already introduces, joined with the sentence's own punctuation.
                     let scaled = d
                         .align
                         .scale
-                        .map(|s| format!(" \u{b7} mesh scaled {s:.3}x"))
+                        .map(|s| format!(" (mesh scaled {s:.3}x)"))
                         .unwrap_or_default();
                     let turned = d
                         .align
                         .rotate
-                        .map(|(x, y, z)| format!(" \u{b7} turned {x},{y},{z} deg"))
+                        .map(|(x, y, z)| format!(" (turned {x},{y},{z} deg)"))
                         .unwrap_or_default();
                     format!(
                         "  x {dep:.2}{tall} m \u{2014} fills {cells_x} x {cells_z} cells{scaled}{turned}"

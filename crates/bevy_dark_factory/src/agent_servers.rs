@@ -184,7 +184,10 @@ pub fn project_file_problem(root: &Path) -> Option<String> {
             Err(e) => problems.push(format!("{}: {e}", path.display())),
         }
     }
-    (!problems.is_empty()).then(|| problems.join(" · "))
+    // **One problem a line** (#519): these were joined with a middle dot, so two broken files read as
+    // one sentence with two caret-separated halves. They are two values — a file and what is wrong
+    // with it — and the card that shows them draws one per line.
+    (!problems.is_empty()).then(|| problems.join("\n"))
 }
 
 /// **The config an omp session is handed**: the editor's server, then each server the project declares, under its own

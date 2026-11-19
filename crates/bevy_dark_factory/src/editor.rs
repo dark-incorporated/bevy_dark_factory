@@ -8305,7 +8305,11 @@ fn history_line(state: &EditorState, position: usize, depth: usize) -> Option<St
         (row.label, if row.agent { "the NightShift" } else { "you" })
     };
     let now = if position == depth { "now: " } else { "" };
-    let who = if who.is_empty() { String::new() } else { format!("  \u{b7} {who}") };
+    // **The author is joined by the row's one separator**, and that separator is the middle dot
+    // `tests/a_change_to_the_map_reaches_the_lists_row_by_row.rs` pins verbatim: it asserts the whole
+    // line is `now: <label>  · <who>`. Restructuring it is the owner's call, so the row is unchanged
+    // here and reported instead of half-changed and left failing (#519).
+    let who = if who.is_empty() { String::new() } else { format!("  · {who}") };
     Some(format!("{now}{what}{who}"))
 }
 
@@ -9650,11 +9654,18 @@ fn brief_count(n: usize) -> String {
 
 /// **What a palette row's tooltip says**: the piece's id, as operations and files name it, and its
 /// triangle count with its unit, which the row's own column draws bare (#289).
-fn palette_tooltip(id: &str, triangles: usize) -> String {
+///
+/// **One value a line** (#519): this read `wall · 1,234 triangles`, the id and the count on one line
+/// with a middle dot between them. The id is the value a person copies into an operation and the
+/// count is a second fact about it, so the count keeps a line of its own.
+///
+/// `pub` so the test that holds the editor's rows to one value a line (`#519`) can read the tooltip
+/// without opening the panel, the same reason [`with_thousands`] is `pub`.
+pub fn palette_tooltip(id: &str, triangles: usize) -> String {
     if triangles == 0 {
         return id.to_owned();
     }
-    format!("{id} · {} triangles", with_thousands(triangles))
+    format!("{id}\n{} triangles", with_thousands(triangles))
 }
 
 /// Group a number for reading. The total is meant to be compared against itself over time, so the
