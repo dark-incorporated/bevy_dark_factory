@@ -23,7 +23,7 @@ use bevy_gooey::{button, observe};
 use sha2::{Digest, Sha256};
 
 /// The releases this app looks for a newer version among, newest first.
-pub const FEED: &str = "https://api.github.com/repos/bevy-coven/bevy_blueprint/releases?per_page=30";
+pub const FEED: &str = "https://api.github.com/repos/dark-incorporated/bevy_dark_factory/releases?per_page=30";
 
 /// The tag of a DarkFactory release, before its version: tags of the workspace's other crates share the feed.
 pub const TAG_PREFIX: &str = "bevy_dark_factory-v";
