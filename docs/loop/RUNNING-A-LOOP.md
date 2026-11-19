@@ -80,6 +80,14 @@ answer — a compile sent to a host with no free RAM fails after the linker, hou
 | `four`, `one`, `two`, `three` | 4 | <10 | ~3.7 | cheap, roomy, but small |
 | `mac_air` | 10 | 32.9 | 6.7 | no editor tests — see below; disk too small for a Bevy `target/` |
 
+**A gate is ~28 minutes of clippy before a single test runs, and that is the crate, not a cold cache**
+(measured 2026-11-19). `crates/bevy_dark_factory` holds **211 source files and 693 test files**, so
+`cargo clippy --workspace --all-targets -- -D warnings` has that much code to build before nextest starts;
+the suite is then another ~31 minutes. The gate's target dir (`~/.cargo-target-gate`, 232 GB) is persistent
+and the script never wipes it, and `git checkout` was measured to leave 210 of 211 source mtimes alone —
+so a "warm" gate is barely faster than a cold one. Budget **57–100 minutes per gate** and batch work
+accordingly: the way to spend fewer minutes is to run fewer gates, not to make one faster.
+
 **The shared lock on `big` serialises every compile, so spend it on whole suites only** (measured
 2026-11-18). `/tmp/fleet/big-heavy.lock` is exclusive by design: a gate takes it for 25-50 minutes and nothing
 else on that host compiles meanwhile. Three workers sat at **0% CPU for 5-15 minutes** queued behind one
