@@ -2,6 +2,10 @@
 
 What each change added, newest first. A visible change has a clip: click the still to play it. `python3 tools/changelog/changelog.py page --open` plays them all in one page.
 
+## 2026-11-19
+
+- **486-place-arms** `ec875c44` The PLACE list says what arms a row, and its cells line up *No clip: A headless layout change; proven by the_place_list_says_what_arms_a_row_and_lines_its_cells_up (baselines and columns measured at four text sizes), and every_character_a_mark_draws_is_in_its_face plus every_selected_row_reads_at_aa_contrast_in_every_skin cover the new mark*
+
 ## 2026-11-18
 
 - **493-fold-chevrons** A fold draws a chevron and the chevron is the control, and a character mark the face lacks now fails a check: the palette headers, the pack bands and the fill headers move from the letters v and > to the chevrons the shipped face maps, and every character the editor draws is resolved in the face it is drawn with *For you: The little v that folds a list is now a proper chevron, and clicking the chevron itself folds the list instead of only the space beside it.* *No clip: visible, not yet recorded: fleet worker; the recommendation is the deliverable and it is docs/design/icon-vocabulary.md, proved by a_fold_chevron_is_the_control_that_folds and every_character_a_mark_draws_is_in_its_face*
