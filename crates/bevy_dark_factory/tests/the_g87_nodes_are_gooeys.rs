@@ -78,7 +78,15 @@ fn a_chip_is_a_row_the_editor_paints_by_state() {
     assert_eq!(app.world().get::<BackgroundColor>(chip).map(|b| b.0), Some(rest), "at rest it is its fill");
     assert_eq!(app.world().get::<BorderColor>(chip).map(|b| b.top), Some(edge), "and its edge is the colour it was given, not the skin's outline");
     let n = app.world().get::<Node>(chip).expect("a Node");
-    assert_eq!((px(n.padding.left), px(n.padding.top), px(n.border.left), n.flex_shrink), (6.0, 3.0, 1.0, 0.0), "6 x 3 px in, a 1 px edge, never shrinking");
+    // **It narrows, and it never cuts its word** (#526): the owner's rule is that a chip shrinks before
+    // the row wraps it to a new line, and the label's `LineBreak::WordOrCharacter` is what keeps the word
+    // whole while it does. This line used to hold `0.0` under #494's fixed-target rule, which #526
+    // supersedes; `the_terminal_bar_keeps_every_chip_whole` proves the word survives.
+    assert_eq!(
+        (px(n.padding.left), px(n.padding.top), px(n.border.left), n.flex_shrink),
+        (6.0, 3.0, 1.0, 1.0),
+        "6 x 3 px in, a 1 px edge, narrowing rather than wrapping (#526)"
+    );
     // Hover and press are `style_list_rows`' (it reads `Hovered`, which the picking backend owns, so a test cannot set it): a chip whose rest fill is the selected colour stays that colour.
     let mut selected = Entity::PLACEHOLDER;
     app.world_mut().commands().entity(holder).with_children(|p| {
