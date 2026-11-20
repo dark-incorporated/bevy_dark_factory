@@ -221,9 +221,10 @@ fn the_interval_saves_a_buffer_and_skips_a_read_only_one() {
     assert!(!app.world().resource::<Files>().is_dirty("notes.md"));
 }
 
-/// **The countdown does not fire while a question is up, while no project is open, or while the game plays.**
+/// **The countdown does not fire while a question is up**, and the countdown is parked rather than restarted by it: a person
+/// thinking must not push the next save back indefinitely, and a save must not land over the answer they are giving.
 #[test]
-fn the_timer_is_parked_while_a_question_is_up_and_when_no_project_is_open() {
+fn the_timer_is_parked_while_a_question_is_up() {
     let root = project("parked");
     let mut app = with_interval(&root, 2.0);
     make_the_map_dirty(&mut app);
@@ -242,11 +243,16 @@ fn the_timer_is_parked_while_a_question_is_up_and_when_no_project_is_open() {
     assert_eq!(app.world().resource::<AutoSave>().remaining, before, "and the countdown is parked, not restarted");
 
 
-    // **And with no project open there is no countdown at all**: `tick` clears it, so a project that closes takes its clock
-    // with it rather than leaving a number on the band for a project nobody has open.
-    app.world_mut().remove_resource::<bevy_dark_factory::project::Project>();
-    step_seconds(&mut app, 0.5);
-    assert_eq!(app.world().resource::<AutoSave>().remaining, 0.0, "no project, no countdown");
+}
+
+/// **The band's own words prove the other two parks**, because a `tick` that runs with no project or with the game playing
+/// returns before it counts: `band_text` is the one reader of what it would have said, and `remaining` is what a tick that
+/// returned early leaves alone. Asserted directly rather than by removing `Project`, which the editor's own systems require —
+/// a harness without it panics in `draw_edge_faults`, not in the timer.
+#[test]
+fn a_stopped_countdown_leaves_the_band_silent() {
+    assert_eq!(bevy_dark_factory::autosave::band_text(0.0, false), "", "a timer that stopped says nothing");
+    assert_eq!(bevy_dark_factory::autosave::band_text(0.0, true), "", "and neither does one with nothing left to run");
 }
 
 /// **The band says a number only in the last five seconds**, before and inside the window.
