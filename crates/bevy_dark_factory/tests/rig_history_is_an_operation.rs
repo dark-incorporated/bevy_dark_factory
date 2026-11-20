@@ -118,8 +118,10 @@ fn held(app: &App) -> String {
 
 /// Let the watcher see a write of the tab's own and decide it is nothing new, so no step is recorded behind the test's back.
 fn settle(app: &mut App) {
-    for _ in 0..40 {
+    for frame in 0..40 {
         app.update();
+        let h = app.world().resource::<BenchState>().history();
+        eprintln!("SETTLE frame {frame}: undo={} redo={}", h.undo.len(), h.redo.len());
         std::thread::sleep(Duration::from_millis(10));
     }
 }
