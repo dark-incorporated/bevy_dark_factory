@@ -62,6 +62,8 @@ Arming a piece means choosing the piece that your next click will place. A **pla
 
 **If it goes wrong:** if the ghost does not appear, press Down again. Walking the PLACE list is what arms a piece. Pressing Enter does not arm a single piece. Enter arms a composition, which is a group of pieces. It works only while the composition picker is open, which you open with `P`.
 
+**The tour points at the control it names.** Help, then **Take the tour** runs the same first-map guide an agent can post, and each step that is about a control outlines it and stands an arrow beside it, pointing up at the control from below or down from above when there is no room below. The outline and arrow are click-through: the click the step asks for reaches the control under them. A step naming a control that is not on screen says so on the status line rather than pointing at nothing.
+
 Press Home to frame the view. With a locked placement, Home frames that placement. Otherwise it frames the whole map. Framing does not change the map.
 
 **Resize the panels.** The thin bar between the INSPECTOR on the left and the map is a divider. Drag it left or right and the inspector narrows or widens with it, its rows reflowing to the new width, while the map keeps the rest of the window. The wheel over the inspector scrolls it to the sections below the fold, such as ENVIRONMENT. `Cmd+B` (`Ctrl+B` elsewhere) slides the left panel shut and open, and a closed one peeks out over the map while the pointer rests on its edge.

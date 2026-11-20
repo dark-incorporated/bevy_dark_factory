@@ -496,11 +496,72 @@ fn spawn_layer(
     commands.entity(frame.root).add_child(layer);
 }
 
-/// **The rect a control occupies, or `None` if it is not laid out at all.**
+/// The controls query, as one `SystemState` so [`control_rect`] can ask it of a bare world.
+type ControlState = bevy::ecs::system::SystemState<
+    Query<
+        'static,
+        'static,
+        (
+            Entity,
+            &'static chrome::Control,
+            &'static ComputedNode,
+            &'static UiGlobalTransform,
+        ),
+    >,
+>;
+
+/// **How many laid-out nodes claim this id** — the census's question behind [`sole_control`], as a number.
+///
+/// [`sole_control`] answers *one or none*, because that is what decides whether a box is drawn. A corpus test needs the
+/// number between: two is a duplicate the pointer cannot aim at, and zero is a control no tab draws. Asked here rather
+/// than restated in a test, so a reader of the failure and a reader of the badge agree on what "laid out" means.
+pub fn controls_shown(world: &mut World, id: keys::ControlId) -> usize {
+    let mut state: ControlState = bevy::ecs::system::SystemState::new(world);
+    let Ok(controls) = state.get(world) else {
+        return 0;
+    };
+    controls
+        .iter()
+        .filter(|(_, c, node, _)| c.0 == id && node.size() != Vec2::ZERO)
+        .count()
+}
+
+/// **Where the control with this id stands, from a query a system already holds** — [`sole_control`]'s answer.
+///
+/// The tournament's pointer (#510) runs as a system and must not build a second [`SystemState`] per frame, so the join is
+/// here once and both callers reach it: this for a system, [`control_rect`] for a bare world.
+pub fn rect_of(
+    id: keys::ControlId,
+    controls: &Query<(Entity, &chrome::Control, &ComputedNode, &UiGlobalTransform)>,
+) -> Option<Rect> {
+    sole_control(id, controls).map(|(_, rect)| rect)
+}
+
+/// **Where the control with this id stands, or `None`** — [`sole_control`]'s answer, against a world.
+///
+/// The tour (#510) has to point at the control a step is about, and the answer to *"where is that
+/// control"* already exists here: it is [`sole_control`] over [`laid_out_rect`], the same join the
+/// census makes. A second locator beside this one would be the duplication `keys.rs` and this module
+/// exist to refuse, so the tour asks this and gets exactly what a badge gets — including the
+/// exactly-one rule, which is why a control drawn twice answers `None` here too.
+///
+/// **Surface pixels**, the unit `bevy_picking` speaks, so a caller may hand the centre straight to
+/// the pointer and a test may assert a click lands on it.
+pub fn control_rect(world: &mut World, id: keys::ControlId) -> Option<Rect> {
+    let mut state: ControlState = bevy::ecs::system::SystemState::new(world);
+    // Same rule as [`ink_now`]: a world that cannot satisfy the query has no interface to measure.
+    let Ok(controls) = state.get(world) else {
+        return None;
+    };
+    rect_of(id, &controls)
+}
+
+/// The rect a control occupies, or `None` if it is not laid out at all.
 ///
 /// `chrome::panel_root`'s hidden form is `Display::None`, which measures zero — that is a whole
 /// panel belonging to a tab nobody is on, and a badge aimed at it would point at nothing. That is
 /// the only way to be absent, and [`resolve`] sends those verbs to the legend.
+
 ///
 /// # A row scrolled past the fold used to count as absent, and that was the wrong answer
 ///

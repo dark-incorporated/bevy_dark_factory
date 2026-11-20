@@ -625,6 +625,7 @@ mod the_mount_and_front_row_says_both_values_inside_the_panel;
 mod the_menus_offer_the_app_verbs;
 mod a_new_project_form_opens_ready_to_type_in;
 mod the_first_map_tour;
+mod the_tour_points_at_its_control;
 mod the_terminal_paints_grounds_and_the_selection;
 mod the_terminal_rows_fit_the_pane_at_the_editors_scale;
 mod capture_feedback_1793968919654;

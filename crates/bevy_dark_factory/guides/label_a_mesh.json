@@ -81,5 +81,11 @@
       "checkpoint": null,
       "recovery": "Shift+Y abandons a walk outright; Cmd+Z undoes one piece. If you wanted a chance to refuse before it was written, that is the finding — say so"
     }
-  ]
+  ],
+  "controls": {
+    "look at the tag block before touching it": "Tags",
+    "find the filter without being told where it is": "Tags",
+    "narrow it to one token": "Tags",
+    "take it with Enter": "Tags"
+  }
 }

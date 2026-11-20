@@ -492,6 +492,16 @@ enumerated! {
 }
 
 impl ControlId {
+    /// **The id a guide names**, from its own `Debug` spelling — `"Palette"`, `"Title"`.
+    ///
+    /// A guide's `controls` block is written by a person, so it names a control the way a person would: the variant's own name.
+    /// Resolving through [`Self::ALL`] rather than a hand-written table is the same rule the enum itself follows — one list, so a
+    /// control added later is nameable with nothing else to edit. `None` is a guide naming a control this editor does not have,
+    /// which `every_control_a_shipped_guide_names_resolves_to_exactly_one_rect` refuses and the running tour reports.
+    pub fn named(name: &str) -> Option<Self> {
+        Self::ALL.into_iter().find(|id| format!("{id:?}") == name)
+    }
+
     // A static `in_a_pane` table lived here once, with a headless validator holding it to the real
     // tree. It classified where a paned control's badge could go — and then the rails rework made
     // that a runtime question (`badges::fold_of` walks the actual `ScrollArea` ancestry), so the

@@ -90,5 +90,11 @@
       "checkpoint": null,
       "recovery": "there is nothing to recover here: an answer of no is the finding"
     }
-  ]
+  ],
+  "controls": {
+    "open the Tiles tab": "WorkspaceStrip",
+    "bring a floor in": "Pieces",
+    "bring a wall in as well": "Pieces",
+    "save it": "Title"
+  }
 }
