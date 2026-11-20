@@ -22,7 +22,7 @@ use bevy::prelude::*;
 use bevy::time::TimeUpdateStrategy;
 use bevy_dark_factory::files::{self, ConflictAnswer, Files};
 use bevy_dark_factory::harness;
-use bevy_dark_factory::project::{OpenMap, Project};
+use bevy_dark_factory::project::OpenMap;
 use bevy_dark_factory::setting_catalogue::{self, Value};
 use bevy_dark_factory::settings::{EditorSettings, ExternalEdits, SettingsLayer};
 
