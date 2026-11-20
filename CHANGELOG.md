@@ -2,6 +2,10 @@
 
 What each change added, newest first. A visible change has a clip: click the still to play it. `python3 tools/changelog/changelog.py page --open` plays them all in one page.
 
+## 2026-11-20
+
+- **filetreefill** `6135378` The file tree fills its panel: bevy_gooey's table root grows to the height it is given *No clip: the visible result is the file explorer filling its div; proved by the_files_tree_fills_the_region_that_holds_it*
+
 ## 2026-11-19
 
 - **wave7** `3181cbad` Six capture issues land, and the front-ends contracts catch four things branch runs could not *No clip: a docs report and issue fixes; proved by the 4,953-test push gate and the six closed issues*
