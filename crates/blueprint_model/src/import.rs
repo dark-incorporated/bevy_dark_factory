@@ -306,9 +306,14 @@ fn inspect(
     let (w, d) = m.footprint;
 
     if m.suspect_centimetres {
+        // **`Warn` here, refused at the door.** This crate says what the measurement is; whether a mesh
+        // is admitted is `piece_import`'s question, and that is where a centimetre-authored file is
+        // turned away (`ops::piece_import`'s plan) — a finding that blocked would also block a caller
+        // that only wanted to *look* at a file, which is not the same decision.
         out.push(Finding::warn(
             format!(
-                "this measures {w:.1} x {d:.1} x {:.1} — that is centimetre data read as metres",
+                "this measures {w:.1} x {d:.1} x {:.1} — centimetre data read as metres, so no size \
+                 here is true",
                 m.height
             ),
             "set scale to 0.01, or re-export with the unit baked in",
