@@ -95,7 +95,14 @@ impl BenchState {
     /// leaves the selection at the same place in the list, or at the last rig.
     pub(crate) fn take_edit(&mut self, rigs: Rigs, text: String) {
         let was = self.names().get(self.selected).map(|n| (*n).to_owned());
-        if let Some(before) = self.text.take() {
+        // **Only a manifest that actually changed is one undo step** (#527). The watcher delivers the
+        // file it sees every time it looks, including the first look at a manifest the tab already
+        // holds, so recording unconditionally put the *same* text on the undo stack and left the next
+        // real edit with nothing behind it -- `rig_history_step` then refused with `NOTHING_TO_UNDO`,
+        // which is what the push gate saw twice while the same tests passed alone.
+        if let Some(before) = self.text.take()
+            && before != text
+        {
             self.record(before);
         }
         self.rigs = Some(rigs);
