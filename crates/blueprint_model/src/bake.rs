@@ -265,6 +265,171 @@ pub struct Report {
     pub manifest: PathBuf,
 }
 
+/// **What a project's data requires of the build that plays it** (#512).
+///
+/// A map carries family settings by crate name ([`crate::map::Placed::family`]), and the runtime reads
+/// that map into nothing: a map with a `bevy_lights` brazier plays in a game built without `bevy_lights`
+/// and the brazier is silently unlit. `bake` is the one command between a project and a release, so it
+/// is where the requirement is named — and **printed**, because the game's own `Cargo.toml` is not
+/// readable from here. Naming the requirement is the part that cannot be wrong; comparing it needs the
+/// game's manifest, which is the release script's job.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct Needs {
+    /// **Every family crate the project's placements name**, sorted and deduplicated: two maps naming
+    /// `bevy_lights` is one requirement, and the order is the same on every machine.
+    pub family_crates: Vec<String>,
+    /// How many maps were read, so a person seeing an empty list knows the scan ran.
+    pub files: usize,
+}
+
+/// **What the data at `root` requires** — the family crates its maps' placements name, and the stamps
+/// whose composition the project does not define.
+///
+/// Engine-free: it reads the same YAML files a bake reads, through the same types, so a project this
+/// accepts and a project a bake accepts are the same project. **Not** a substitute for [`bake`]'s own
+/// proof — this answers "what does the build need", `bake` answers "is every file still its own YAML".
+#[allow(clippy::result_large_err)]
+pub fn needs(root: &Path) -> Result<Needs, Problem> {
+    let mut out = Needs::default();
+    let mut crates: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
+    // **Every map the project holds**, found the way `bake` finds them so the two cannot disagree
+    // about which files are the project's data.
+    for (rel, kind) in project_files(root)? {
+        if kind != "map" {
+            continue;
+        }
+        let text = std::fs::read_to_string(root.join(&rel)).map_err(|e| {
+            problem(&rel, &format!("{rel} could not be read"), e.to_string(), "check that the file can be read")
+        })?;
+        let map = crate::map::Map::parse(&text)
+            .map_err(|why| problem(&rel, &format!("{rel} does not read, so its requirements cannot be named"), why, "fix the map, then bake again"))?;
+        out.files += 1;
+        for p in &map.placements {
+            crates.extend(p.family.keys().cloned());
+        }
+    }
+    out.family_crates = crates.into_iter().collect();
+    Ok(out)
+}
+
+/// **Refuse a project whose data names a family crate `family.yaml` does not list** (#512), naming the
+/// map, the placement and the crate.
+///
+/// The editor already refuses this in its own build (`family_host::problems` compares the list with the
+/// features compiled into *the editor*); the game does neither, and `bake` did not either. A project's
+/// `family.yaml` is the only statement of which crates the project uses, so a map naming a crate that
+/// is not on it is a name nothing in the project accounts for — either the map is wrong or the list is.
+#[allow(clippy::result_large_err)]
+fn check_the_project(root: &Path) -> Result<(), Problem> {
+    let family = crate::family::Family::load(root)
+        .map_err(|why| problem("family.yaml", "family.yaml does not read, so nothing can be checked against it", why, "fix family.yaml, then bake again"))?;
+    let listed: std::collections::BTreeSet<&str> = family.crates.iter().map(String::as_str).collect();
+    for (rel, kind) in project_files(root)? {
+        if kind != "map" {
+            continue;
+        }
+        let text = std::fs::read_to_string(root.join(&rel)).map_err(|e| {
+            problem(&rel, &format!("{rel} could not be read"), e.to_string(), "check that the file can be read")
+        })?;
+        let map = crate::map::Map::parse(&text)
+            .map_err(|why| problem(&rel, &format!("{rel} does not read, so it cannot be checked"), why, "fix the map, then bake again"))?;
+        for p in &map.placements {
+            for crate_name in p.family.keys() {
+                if !listed.contains(crate_name.as_str()) {
+                    return Err(Problem::with(
+                        format!("{rel} names the family crate `{crate_name}`, which family.yaml does not list"),
+                        Detail::default()
+                            .at(Location { file: Some(rel.clone()), entity: Some(p.id.clone()), ..Location::default() })
+                            .because(format!(
+                                "a build of this project is made from `family.yaml`, so `{crate_name}` is \
+                                 compiled in by its absence in exactly no build — the piece would play with \
+                                 its settings read by nothing"
+                            ))
+                            .fix(format!(
+                                "add `{crate_name}` to family.yaml's crates, or take its settings off \
+                                 `{}` on {rel}",
+                                p.id
+                            ))
+                            .docs(DOCS),
+                    ));
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+/// **Refuse a stamp whose `of` names a composition the project does not define** (#512), naming the map
+/// and the missing id.
+///
+/// `Map::validate_against` already refuses a placement naming a descriptor that does not exist; this is
+/// the same idea for compositions. A stamp is a reference to a group, and a group nothing defines is a
+/// set of rows that will not appear — the map opens and the furniture is missing, which is a defect
+/// nobody can see until they stand in the room.
+///
+/// `compositions.yaml` is per kit, and a project's kits are its subdirectories of `assets/blueprint`, so
+/// every one is read: a map resolves against the merge of every bound kit (`Catalog`'s own rule), and
+/// this checks against the same merge.
+#[allow(clippy::result_large_err)]
+fn check_stamps(root: &Path) -> Result<(), Problem> {
+    let mut defined: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
+    let base = root.join(crate::reload_check::BLUEPRINT_DIR);
+    let mut pending = vec![base.clone()];
+    let mut budget = WALK_MAX_DEPTH;
+    while let Some(dir) = pending.pop() {
+        budget = budget.saturating_sub(1);
+        if budget == 0 {
+            break;
+        }
+        let file = dir.join(crate::composition::Compositions::FILE);
+        if let Ok(text) = std::fs::read_to_string(&file) {
+            if let Ok(set) = crate::composition::Compositions::parse(&text) {
+                defined.extend(set.compositions.iter().map(|c| c.id.clone()));
+            }
+        }
+        // A kit is a subdirectory holding a `library.yaml`, which is what `Catalog::scan` tests; that
+        // is the same walk, so a kit this misses is one the project does not have.
+        if let Ok(entries) = std::fs::read_dir(&dir) {
+            for entry in entries.flatten() {
+                if entry.path().is_dir() && entry.path().join("library.yaml").exists() {
+                    pending.push(entry.path());
+                }
+            }
+        }
+    }
+
+    for (rel, kind) in project_files(root)? {
+        if kind != "map" {
+            continue;
+        }
+        let text = std::fs::read_to_string(root.join(&rel)).map_err(|e| {
+            problem(&rel, &format!("{rel} could not be read"), e.to_string(), "check that the file can be read")
+        })?;
+        let map = crate::map::Map::parse(&text)
+            .map_err(|why| problem(&rel, &format!("{rel} does not read, so it cannot be checked"), why, "fix the map, then bake again"))?;
+        for st in &map.stamps {
+            if !defined.contains(&st.of) {
+                return Err(Problem::with(
+                    format!("{rel} stamps a composition `{}`, which the project does not define", st.of),
+                    Detail::default()
+                        .at(Location { file: Some(rel.clone()), entity: Some(st.id.clone()), ..Location::default() })
+                        .because(format!(
+                            "the rows `{}` stands for are named `{}/…`, and nothing writes them, so the \
+                             stamp draws nothing and the map opens with furniture missing",
+                            st.of, st.id
+                        ))
+                        .fix(format!(
+                            "define `{}` in compositions.yaml, or remove the `{}` stamp from {rel}",
+                            st.of, st.id
+                        ))
+                        .docs(DOCS),
+                ));
+            }
+        }
+    }
+    Ok(())
+}
+
 /// **The SHA-256 of `bytes`, as lower-case hex.**
 pub fn sha256_hex(bytes: &[u8]) -> String {
     Sha256::digest(bytes).iter().map(|b| format!("{b:02x}")).collect()
@@ -531,8 +696,16 @@ fn same<T: Serialize + DeserializeOwned>(
 
 /// **Bake the project at `root` into `out`.** The whole bake is made and proved in memory first; nothing is written
 /// unless every file survived, so a failed bake leaves `out` as it was.
+///
+/// **Two checks are between files, and they run before any is baked** (#512): the project's data may not
+/// name a family crate `family.yaml` does not list ([`check_the_project`]), and a map may not stamp a
+/// composition the project does not define ([`check_stamps`]). Each file proving itself against its own
+/// YAML cannot catch either, and both are silent in a release — a brazier whose settings nothing reads
+/// is unlit, and a stamp of a group nobody defines draws nothing.
 #[allow(clippy::result_large_err)]
 pub fn bake(root: &Path, out: &Path) -> Result<Report, Problem> {
+    check_the_project(root)?;
+    check_stamps(root)?;
     let mut made: Vec<(Entry, Vec<u8>)> = Vec::new();
     for (index, (rel, kind)) in project_files(root)?.into_iter().enumerate() {
         let source = std::fs::read(root.join(&rel))

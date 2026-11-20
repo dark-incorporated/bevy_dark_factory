@@ -304,21 +304,46 @@ fn name_the_window(
 /// against its YAML, and say what was written (GD-08, #370). A file that does not read, or does not survive the bake, fails
 /// the command naming it and writes nothing.
 fn bake_and_exit(argv: &[String], program: &str) -> AppExit {
-    let command = format!("{program} bake <project folder> --out <folder>");
+    let command = format!("{program} bake <project folder> --out <folder> [--needs]");
     let rest = &argv[1..];
     let out_at = rest.iter().position(|a| a == "--out");
     let out = out_at.and_then(|at| rest.get(at + 1));
+    // **`--needs` takes no `--out`**: it names what a build must carry, and writes nothing. A run that
+    // asked for both would be a bake pretending to be a report.
+    let needs_only = rest.iter().any(|a| a == "--needs");
     let root = rest.iter().enumerate().find(|(at, a)| !a.starts_with('-') && out_at.is_none_or(|o| *at != o + 1)).map(|(_, a)| a);
-    let (Some(root), Some(out)) = (root, out) else {
+    let (Some(root), out) = (root, if needs_only { None } else { out }) else {
         eprintln!("usage: {command}");
         return AppExit::error();
     };
     // **An unknown flag is refused, never dropped**, as `migrate` refuses one: a run that silently ignored `--check` would write a
     // bake the flag was written to preview.
-    if let Some(flag) = rest.iter().find(|a| a.starts_with('-') && a.as_str() != "--out") {
+    if let Some(flag) = rest.iter().find(|a| a.starts_with('-') && !matches!(a.as_str(), "--out" | "--needs")) {
         eprintln!("{program} bake: `{flag}` is not a flag this command takes. usage: {command}");
         return AppExit::error();
     }
+    if needs_only {
+        let root = std::path::Path::new(root);
+        return match blueprint_model::bake::needs(root) {
+            Ok(needs) => {
+                // **One crate per line**, so a release script compares with `comm` or a `for` loop and
+                // a person reads a list. The count goes to stderr, where a script's own output is not.
+                for crate_name in &needs.family_crates {
+                    println!("{crate_name}");
+                }
+                eprintln!("{} map(s) read; {} family crate(s) required", needs.files, needs.family_crates.len());
+                AppExit::Success
+            }
+            Err(problem) => {
+                eprintln!("{}", problem.line());
+                AppExit::error()
+            }
+        };
+    }
+    let Some(out) = out else {
+        eprintln!("usage: {command}");
+        return AppExit::error();
+    };
     match blueprint_model::bake::bake(std::path::Path::new(root), std::path::Path::new(out)) {
         Ok(report) => {
             println!("baked {} file(s), {} bytes, into {} (manifest: {})", report.files, report.bytes, out, report.manifest.display());
