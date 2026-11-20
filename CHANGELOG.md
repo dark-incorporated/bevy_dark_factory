@@ -2,6 +2,12 @@
 
 What each change added, newest first. A visible change has a clip: click the still to play it. `python3 tools/changelog/changelog.py page --open` plays them all in one page.
 
+## 2026-11-20
+
+- **508** An unsaved buffer keeps a draft outside the project, and the map and buffers save on an interval through the manual path *No clip: A draft file and a timer; proved by crates/bevy_dark_factory/tests/a_never_saved_buffer_has_a_draft.rs, which drafts an unsaved buffer outside the project, offers it on a fresh editor, declines it away, saves the map once through map_save on the interval, and asserts the band speaks only inside five seconds*
+- **502** A file edited under unsaved work obeys one policy: Prompt, Keep mine or Take the file *No clip: A settings row and one value both the map and the Files workspace read; proved by crates/bevy_dark_factory/tests/a_file_that_changes_under_edits_obeys_a_policy.rs, which keeps the map under KeepEditorChanges, takes the file under ReloadFromDisk, changes nothing under Prompt, and asserts both paths read one value*
+- **507** The Files workspace makes, renames, duplicates and deletes a file, as operations an agent can call *No clip: A right-click menu and four operations; proved by crates/bevy_dark_factory/tests/the_files_workspace_makes_renames_duplicates_and_deletes.rs, which creates notes/new.yaml and asserts the oplog line, one undo removing it, and the row in the tree before its 1.5 s poll, and refuses a rename or delete of a file another file names*
+
 ## 2026-11-19
 
 - **wave7** `3181cbad` Six capture issues land, and the front-ends contracts catch four things branch runs could not *No clip: a docs report and issue fixes; proved by the 4,953-test push gate and the six closed issues*

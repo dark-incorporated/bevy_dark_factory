@@ -2046,6 +2046,10 @@ enum Field {
     /// `blueprint_model::relations::check`: how many are unmet and missing and the first broken one
     /// in words. The same answer `blueprint_state.relations` gives an agent, so a person reads it too.
     Relations,
+    /// **`Auto save in Ns` in the last five seconds before the periodic save** (#508). Silent otherwise, because a countdown
+    /// drawn all the time is a row a person stops seeing; the words come from [`crate::autosave::band_text`], so the row and
+    /// its test read one function.
+    AutoSave,
 }
 
 impl Field {
@@ -2074,6 +2078,7 @@ impl Field {
             Field::Last => "LAST",
             Field::Repeats => "REPEATS",
             Field::Relations => "RELATIONS",
+            Field::AutoSave => "AUTO SAVE",
         }
     }
 }
@@ -2683,6 +2688,9 @@ impl Plugin for EditorPlugin {
         app.add_plugins(crate::agent_view::AgentViewPlugin);
         // **The Files workspace** (GD-11, #373): the file tree and the code editor.
         app.add_plugins(crate::files::FilesPlugin);
+        app.add_plugins(crate::files_menu::FilesMenuPlugin);
+        app.add_plugins(crate::draft::DraftPlugin);
+        app.add_plugins(crate::autosave::AutoSavePlugin);
         app.add_plugins(crate::files_panel::FilesPanelPlugin);
         // **The open page's outline** (SG-04, #403): View ▸ Show outline, and `blueprint_state.file_outline`.
         app.add_plugins(crate::file_outline::FileOutlinePlugin);
@@ -3825,6 +3833,8 @@ fn spawn_panel(mut commands: Commands, frame: Res<crate::chrome::Frame>) {
                     // **Under EDGES**: both are standing readouts of the map as a whole.
                     Field::Repeats,
                     Field::Relations,
+                    // **Under RELATIONS**: what the timer is about to do, when it is about to do it.
+                    Field::AutoSave,
                 ] {
                     // **The history list sits under REDO and above EDGES (E-018).** Its rows are
                     // fixed in number, so the block keeps one height whatever the history holds.
@@ -8697,6 +8707,7 @@ fn refresh_status(
     open: Res<OpenMap>,
     state: Res<EditorState>,
     under: Res<UnderCursor>,
+    timer: Option<Res<crate::autosave::AutoSave>>,
     // **When the relations file was last read**, on the wall clock: a file on disk changes on it, and
     // virtual time clamps a long frame to 250 ms and can be paused.
     mut relations_read_at: Local<Option<std::time::Instant>>,
@@ -8884,6 +8895,13 @@ fn refresh_status(
             // **How many are broken, then the first broken one in words.** Dim when every relation
             // holds or there is no file, the EDGES rule; a file that does not read is named.
             Field::Relations => relations_readout(&open),
+            // **The countdown, and nothing outside the last five seconds** (#508): `band_text` decides, so the row and its
+            // test cannot disagree about when a number shows.
+            Field::AutoSave => {
+                let (remaining, armed) = timer.as_deref().map_or((0.0, false), |t| (t.remaining, t.remaining > 0.0));
+                let text = crate::autosave::band_text(remaining, armed);
+                (text, quiet)
+            }
         };
         if text.0 != want {
             text.0 = want;
@@ -18343,6 +18361,12 @@ fn accept_layout(
 /// The save itself is `OpenMap::save`, unchanged — it validates and expands the stamps the way the
 /// game does, so a map the game could not load is refused here rather than written. What changed is
 /// that the act has a name an agent can call, and that the two front ends cannot drift.
+/// **The same call a `Cmd+S` makes**, for a caller outside this file: the periodic save (#508) dispatches `map_save` through
+/// this, so a timer's save is a person's save in the log and an undo sees one line.
+pub fn save_map_public(project: &Project, open: &mut OpenMap, state: &mut EditorState) {
+    save_map(project, open, state);
+}
+
 fn save_map(project: &Project, open: &mut OpenMap, state: &mut EditorState) {
     let mut ctx = crate::ops::Ctx {
         project: Some(project.clone()),

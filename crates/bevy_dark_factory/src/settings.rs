@@ -265,6 +265,40 @@ impl MachineAgent {
     }
 }
 
+/// **What to do when a file the editor holds is edited underneath it while the person has unsaved edits** (#502).
+///
+/// **There is no correct default, which is why it is a setting.** Both sides are deliberate: someone meant to save that
+/// file, and someone meant to type in it. What separates them is that the version on disk survives being ignored and the
+/// version in memory does not, so the shipped default protects the one that cannot be recovered — the person's text.
+///
+/// **The map's own question and the Files workspace's are this one value**, so one setting cannot mean two things: a map
+/// re-read ([`crate::watch::adopt_map`]) and a buffer's save ([`crate::files::save_file`]) both read it.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ExternalEdits {
+    /// **Ask, every time**: nothing changes until the person says which version they want. The default.
+    #[default]
+    Prompt,
+    /// **Take the file's**: the editor's own text is dropped and the file is read. The one answer that can lose work, so
+    /// it is never a reflex — see [`crate::confirm::Asked::TakeTheFile`].
+    ReloadFromDisk,
+    /// **Keep the editor's**: the person's text stays, and a save then overwrites the file. The conflict is reported once.
+    KeepEditorChanges,
+}
+
+impl ExternalEdits {
+    /// The names the Settings row offers, in declaration order.
+    pub const NAMES: &'static [&'static str] = &["Ask me", "Take the file", "Keep mine"];
+
+    /// What the row says this answer does, in one clause, so the three cannot be mistaken for each other.
+    pub fn meaning(self) -> &'static str {
+        match self {
+            ExternalEdits::Prompt => "ask you, and change nothing until you answer",
+            ExternalEdits::ReloadFromDisk => "take the file's version and drop your edits",
+            ExternalEdits::KeepEditorChanges => "keep your text, and a save overwrites the file",
+        }
+    }
+}
+
 /// **What the running editor uses**: the defaults with the user's file and then the project's laid over
 /// them, key by key.
 #[derive(Resource, Clone, Debug, PartialEq)]
@@ -373,6 +407,13 @@ pub struct EditorSettings {
     /// **Whether a capture is filed as a GitHub issue** (#495). Off by default; the Settings screen's
     /// row turns it on, and `capture_issue_repo` says where the capture's files go.
     pub capture_issue: bool,
+    /// **What to do when a file the editor holds changes on disk under unsaved edits** (#502): the one value the map's
+    /// watcher and the Files workspace's save both read, so they cannot disagree.
+    pub external_edits: ExternalEdits,
+    /// **How often the map and the open buffers are saved, in seconds** (#508). `0.0` is off, which is the shipped default:
+    /// the draft ([`crate::draft`]) is the part worth having unconditionally, and a timer that writes a project is a
+    /// behaviour a person should ask for. The screen offers [`crate::setting_catalogue::AUTO_SAVE_CHOICES`].
+    pub auto_save_interval_s: f64,
     /// **The checkout that receives captures** (#495), or empty for "captures stay local".
     pub capture_issue_repo: String,
 }
@@ -405,6 +446,8 @@ impl Default for EditorSettings {
             decision_model: DecisionModel::default(),
             capture_issue: false,
             capture_issue_repo: String::new(),
+            external_edits: ExternalEdits::default(),
+            auto_save_interval_s: 0.0,
         }
     }
 }
@@ -493,6 +536,13 @@ pub struct SettingsLayer {
     /// **Which decision model is asked** (DM-03, #454). Only the person's file counts: see [`EditorSettings::decision_model`].
     #[serde(skip_serializing_if = "Option::is_none")]
     pub decision_model: Option<DecisionModel>,
+    /// **What to do when a file changes under unsaved edits** (#502). Absent leaves the layer below to decide, so a file
+    /// written before this key existed reads as [`ExternalEdits::Prompt`] — the shipped default.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub external_edits: Option<ExternalEdits>,
+    /// **How often the editor saves the map and the open buffers, in seconds** (#508). Absent is off.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub auto_save_interval_s: Option<f64>,
 }
 
 impl Default for SettingsLayer {
@@ -525,6 +575,8 @@ impl Default for SettingsLayer {
             decision_model: None,
             capture_issue: None,
             capture_issue_repo: None,
+            external_edits: None,
+            auto_save_interval_s: None,
         }
     }
 }
@@ -630,6 +682,8 @@ impl EditorSettings {
             out.show_statistics = layer.show_statistics.unwrap_or(out.show_statistics);
             out.show_activity_bar = layer.show_activity_bar.unwrap_or(out.show_activity_bar);
             out.collect_labels = layer.collect_labels.unwrap_or(out.collect_labels);
+            out.external_edits = layer.external_edits.unwrap_or(out.external_edits);
+            out.auto_save_interval_s = layer.auto_save_interval_s.unwrap_or(out.auto_save_interval_s);
             // Per command: a later layer's binding replaces the earlier one's for that command alone.
             out.keymap.extend(layer.keymap.iter().map(|(id, chord)| (id.clone(), *chord)));
             out.terminal_text_scale = layer.terminal_text_scale.unwrap_or(out.terminal_text_scale);
@@ -918,6 +972,9 @@ pub fn sync_settings(
         sources.machine_agent(),
     );
     if *settings != resolved {
+        // **The conflict policy is published where a caller with no world can read it** (#502): a save runs from a key
+        // handler, an interval and the Files tree's menu, and none of them can ask this resource.
+        crate::files::publish_conflict_policy(resolved.external_edits);
         *settings = resolved;
     }
 }

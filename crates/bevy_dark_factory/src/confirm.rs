@@ -104,6 +104,11 @@ pub enum Asked {
     /// **A link in a page of the game's style names a web address** (SG-05, #404): the page is the project's text, so the system browser is
     /// started only when the person says so. Nothing is thrown away by yes.
     OpenAddress,
+    /// **A file the editor holds was changed on disk under unsaved edits, and the policy is `Prompt`** (#502): the two
+    /// answers name their act — *Keep mine* keeps the person's text and lets a save overwrite the file, *Take the file*
+    /// drops the person's text and reads the file. The middle answer, so the question is asked with
+    /// [`Confirm::ask_three`]; **the affirmative is the safe one**, and `Enter` answers neither.
+    TakeTheFile,
 }
 
 impl Asked {
@@ -141,6 +146,9 @@ impl Asked {
             // **And switching saves the map on the way out too** — the same rule, the same reason:
             // nothing is thrown away, so the affirmative is not destructive and must not look it.
             Asked::QuitApp | Asked::LeaveMap | Asked::SwitchDoor | Asked::TrustCommand | Asked::TrustGuide | Asked::OpenAddress => false,
+            // **The affirmative keeps the person's text** (`Keep mine`), so nothing is thrown away by yes; the answer that
+            // drops their work is the middle one, and it is the un-focused, un-defaulted press (#502).
+            Asked::TakeTheFile => false,
         }
     }
 }

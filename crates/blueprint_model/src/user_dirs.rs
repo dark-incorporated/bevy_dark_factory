@@ -29,6 +29,9 @@ const FEEDBACK_DIR: &str = "feedback";
 /// The folder under [`data_dir`] the turn ledger is kept in (`crate::turn_ledger`, DL-01, #460).
 const LABELS_DIR: &str = "labels";
 
+/// The folder under [`data_dir`] a never-saved buffer's draft is kept in (#508).
+const DRAFTS_DIR: &str = "drafts";
+
 /// `<data_dir>/Blueprint`, or `None` on a platform with no data directory.
 pub fn data_dir() -> Option<PathBuf> {
     dirs::data_dir().map(|d| d.join(APP_DIR))
@@ -69,4 +72,12 @@ pub fn feedback_dir() -> Option<PathBuf> {
 /// use of the editor, not about a game, and a project is a folder that is shared.
 pub fn labels_dir() -> Option<PathBuf> {
     data_dir().map(|d| d.join(LABELS_DIR))
+}
+
+/// `<data_dir>/Blueprint/drafts`: the drafts of unsaved buffers, one file per project (#508).
+///
+/// **Never inside a project** (the argument [`labels_dir`] makes): a half-typed YAML file in a project is a file an agent,
+/// a running game or a person's own tooling could read, and a draft is a thing nobody meant to keep.
+pub fn drafts_dir() -> Option<PathBuf> {
+    data_dir().map(|d| d.join(DRAFTS_DIR))
 }
