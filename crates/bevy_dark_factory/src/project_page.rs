@@ -300,6 +300,9 @@ impl Plugin for ProjectPagePlugin {
         if !app.is_plugin_added::<PageSystemsPlugin>() {
             app.add_plugins(PageSystemsPlugin);
         }
+        // **One picture cache for the page's life** (#506): the handles and the remembered misses live
+        // across frames, so a card with no picture costs one `stat` and not one per frame.
+        app.init_resource::<crate::map_thumbs::MapPictures>();
         app.add_systems(OnEnter(Screen::Project), (build_page, fill_page).chain()).add_systems(
             Update,
             (back_on_escape.before(bevy_gooey::GooeySystems::Navigate), launcher::hide_the_divider).chain().before(act).run_if(in_state(Screen::Project)),
@@ -382,6 +385,7 @@ fn spawn_the_workspace_page(
     mut images: ResMut<Assets<Image>>,
     splash: Option<ResMut<SplashArt>>,
     pictures: Option<ResMut<ProjectPictures>>,
+    mut map_pictures: Option<ResMut<crate::map_thumbs::MapPictures>>,
     state: Option<Res<crate::editor::EditorState>>,
     store_root: Option<Res<crate::trusted::StoreRoot>>,
 ) {
@@ -405,20 +409,22 @@ fn spawn_the_workspace_page(
     let mut own_pictures = ProjectPictures::default();
     let mut pictures = pictures;
     let pictures = pictures.as_deref_mut().unwrap_or(&mut own_pictures);
-    spawn_the_page(&mut commands, scroll, &page, &mut images, splash.as_deref().and_then(|s| s.0.clone()), pictures);
+    let mut own_map_pictures = crate::map_thumbs::MapPictures::default();
+    let map_pictures = map_pictures.as_deref_mut().unwrap_or(&mut own_map_pictures);
+    spawn_the_page(&mut commands, scroll, &page, &mut images, splash.as_deref().and_then(|s| s.0.clone()), pictures, map_pictures);
     commands.insert_resource(page);
 }
 
 /// **The page's two context menus and its body, under `parent`, drawn**: the one path the home (`fill_page`) and the Project workspace
 /// (`spawn_the_workspace_page`) both take, so they cannot come to differ.
-fn spawn_the_page(commands: &mut Commands, parent: Entity, page: &ProjectPage, images: &mut Assets<Image>, splash: Option<(Handle<Image>, Vec2)>, pictures: &mut ProjectPictures) {
+fn spawn_the_page(commands: &mut Commands, parent: Entity, page: &ProjectPage, images: &mut Assets<Image>, splash: Option<(Handle<Image>, Vec2)>, pictures: &mut ProjectPictures, map_pictures: &mut crate::map_thumbs::MapPictures) {
     let map_menu = commands.spawn((context_menu(()), MapMenu, ChildOf(parent))).id();
     let kit_menu = commands.spawn((context_menu(()), KitMenu, ChildOf(parent))).id();
     spawn_menus(commands, map_menu, kit_menu, &page.catalog);
     let body = commands
         .spawn((bevy_gooey::fill_region_with(crate::chrome::GAP_GROUP_STEPS), PageBody, ChildOf(parent)))
         .id();
-    draw_body(commands, body, page, map_menu, kit_menu, images, splash, pictures);
+    draw_body(commands, body, page, map_menu, kit_menu, images, splash, pictures, map_pictures);
 }
 
 /// **A page left behind by the Project workspace goes when another workspace is entered**, so nothing reads a stale catalog.
@@ -468,7 +474,7 @@ fn fill_page(
 
 /// The page's body: the breadcrumb, then the Maps section and the Kits section.
 #[allow(clippy::too_many_arguments)]
-fn draw_body(commands: &mut Commands, body: Entity, page: &ProjectPage, map_menu: Entity, kit_menu: Entity, images: &mut Assets<Image>, splash: Option<(Handle<Image>, Vec2)>, pictures: &mut ProjectPictures) {
+fn draw_body(commands: &mut Commands, body: Entity, page: &ProjectPage, map_menu: Entity, kit_menu: Entity, images: &mut Assets<Image>, splash: Option<(Handle<Image>, Vec2)>, pictures: &mut ProjectPictures, map_pictures: &mut crate::map_thumbs::MapPictures) {
     commands.entity(body).with_children(|body| {
         if page.in_workspace {
             // **No breadcrumb inside the workbench**: the project is open, and leaving it is Close project, which asks about unsaved work.
@@ -480,8 +486,26 @@ fn draw_body(commands: &mut Commands, body: Entity, page: &ProjectPage, map_menu
                 crumbs.spawn(heading(page.name()));
             });
         }
-        let picture = launcher::project_picture(&page.root, images, splash, pictures);
-        let maps = page.catalog.maps.iter().map(|m| (m.clone(), picture.clone())).collect::<Vec<_>>();
+        // **Each map's own picture** (#506). It used to be `launcher::project_picture` — the newest
+        // portrait in `target/blueprint_thumbs`, which is a *piece* — handed to every card, so a 32 m
+        // street was drawn beside whichever chair was baked last. A map's picture is taken at save time
+        // (`map_thumbs`), and a map never saved since falls back to the project's picture, which is the
+        // one thing that is honestly about the project rather than about one of its maps.
+        let fallback = launcher::project_picture(&page.root, images, splash, pictures);
+        let maps = page
+            .catalog
+            .maps
+            .iter()
+            .map(|m| {
+                // **No crop**: a map's picture is written at the card's own 16:9 by the capture, so
+                // the whole image is the band — the crop `project_picture` applies exists because a
+                // piece's portrait is square.
+                let picture = map_pictures
+                    .for_map(images, &page.root, &m.path)
+                    .map(|image| ImageNode::new(image));
+                (m.clone(), picture.or_else(|| fallback.clone()))
+            })
+            .collect::<Vec<_>>();
         body.spawn(section(
             "Maps",
             true,
@@ -1493,6 +1517,7 @@ fn redraw(
     splash: Option<Res<SplashArt>>,
     mut images: ResMut<Assets<Image>>,
     pictures: Option<ResMut<ProjectPictures>>,
+    mut map_pictures: Option<ResMut<crate::map_thumbs::MapPictures>>,
 ) {
     if !page.dirty {
         return;
@@ -1511,7 +1536,9 @@ fn redraw(
     let mut own_pictures = ProjectPictures::default();
     let mut pictures = pictures;
     let pictures = pictures.as_deref_mut().unwrap_or(&mut own_pictures);
-    draw_body(&mut commands, body, &page, map_menu, kit_menu, &mut images, splash.as_deref().and_then(|s| s.0.clone()), pictures);
+    let mut own_map_pictures = crate::map_thumbs::MapPictures::default();
+    let map_pictures = map_pictures.as_deref_mut().unwrap_or(&mut own_map_pictures);
+    draw_body(&mut commands, body, &page, map_menu, kit_menu, &mut images, splash.as_deref().and_then(|s| s.0.clone()), pictures, map_pictures);
 }
 
 // ── the dialogs ──────────────────────────────────────────────────────────────────────────────────

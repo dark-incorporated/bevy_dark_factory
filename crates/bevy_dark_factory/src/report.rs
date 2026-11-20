@@ -1867,6 +1867,11 @@ pub struct ReportPlugin;
 impl Plugin for ReportPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<ReportEdit>()
+            // **A saved map's picture, taken from the frame that is about to be drawn** (#506). The
+            // system lives beside the report's because it is the same call — `Screenshot::image` on the
+            // surface — and it is here rather than in the editor's keys because the keys are full.
+            .init_resource::<crate::map_thumbs::PaintAfterSave>()
+            .add_systems(Update, crate::map_thumbs::capture_the_saved_map.after(crate::keys::Phase::Act))
             .add_systems(Update, report_key.in_set(crate::keys::Phase::Act))
             .add_systems(
                 Update,
