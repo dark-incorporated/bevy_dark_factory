@@ -496,6 +496,7 @@ mod the_game_workspace_runs_the_game;
 mod the_games_per_file_verdicts_reach_blueprint_state;
 mod the_games_verdict_reaches_blueprint_state;
 mod the_github_connection_is_named_tested_and_read_through;
+mod the_issue_composer_panel_files_what_it_previews;
 mod the_ghost_is_the_contract;
 mod the_log_cannot_fill_a_disk;
 mod the_ground_clears_the_bounds_floor;
