@@ -3267,15 +3267,17 @@ pub fn chip<'a>(
         // `style_list_rows` already keys on it and has never needed to know what it is painting.
         RowRest(fill),
         marker,
-        // **A chip is never wider than the line it stands on, and it still never gives way to a
-        // neighbour** (#494). `shrink` stays `Some(0.0)`: a chip in a toolbar is a fixed target, and
-        // the three `the_terminal_bar_keeps_every_chip_whole` sweeps hold that its word is never cut
-        // by a sibling. What bounds it is `max_width` instead, which a rigid box cannot argue with
-        // and which leaves every chip that fits exactly the width it had.
+        // **A chip narrows before the row wraps it to a second line** (#526). It used to be
+        // `shrink: Some(0.0)` so that a chip in a toolbar stayed a fixed target (#494); the owner's
+        // rule is the better one: *"shrink the buttons, then, when they can't shrink more due to the
+        // text, then make it a new row."* Its label already breaks at a word
+        // (`LineBreak::WordOrCharacter` below), so a narrowed chip reflows inside itself rather than
+        // cutting its word -- which is what the `the_terminal_bar_keeps_every_chip_whole` sweeps
+        // actually protect. `max_width` stays as the ceiling.
         held_box(
             CHIP_SPACING,
             bevy_gooey::Sides::all(EDGE_W),
-            Some(0.0),
+            Some(1.0),
             bevy_gooey::Sizing { max_width: Some(bevy_gooey::Extent::Percent(100.0)), ..default() },
         ),
         BorderColor::all(border),

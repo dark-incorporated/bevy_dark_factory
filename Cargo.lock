@@ -859,7 +859,7 @@ dependencies = [
  "bevy_elements",
  "bevy_fairy",
  "bevy_flora",
- "bevy_gooey 0.52.1 (git+https://github.com/bevy-coven/bevy_gooey?rev=6135378)",
+ "bevy_gooey",
  "bevy_light_grid",
  "bevy_lights",
  "bevy_oracle",
@@ -890,7 +890,7 @@ dependencies = [
  "bevy",
  "bevy_dark_factory",
  "bevy_fairy",
- "bevy_gooey 0.52.1 (git+https://github.com/bevy-coven/bevy_gooey?rev=f1904be)",
+ "bevy_gooey",
  "blueprint_model",
  "libc",
  "serde",
@@ -1275,16 +1275,6 @@ dependencies = [
  "accesskit",
  "bevy",
  "pulldown-cmark",
- "serde",
-]
-
-[[package]]
-name = "bevy_gooey"
-version = "0.52.1"
-source = "git+https://github.com/bevy-coven/bevy_gooey?rev=f1904be#f1904be488ea8392361ec3a1ec60ff921b1ed81c"
-dependencies = [
- "accesskit",
- "bevy",
  "serde",
 ]
 
