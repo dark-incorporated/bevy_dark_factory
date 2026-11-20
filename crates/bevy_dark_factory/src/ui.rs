@@ -271,10 +271,6 @@ impl Plugin for EditorUiPlugin {
             Update,
             follow_the_text_size.after(crate::settings::sync_settings).before(bevy_gooey::GooeySystems::Style),
         );
-        // **And the scale goes back when this app does** (#497): `chrome::TEXT_SCALE` is a process
-        // `static`, so an app built at `text_scale: 1.5` used to leave 1.5 behind for the next app in
-        // the same test binary. The guard's `Drop` restores 1.0 when this world drops.
-        app.insert_resource(TextScaleGuard);
         // **And a label that was already drawn follows it** (UI-73, #251): `follow_the_text_size`
         // moves the atomic `chrome::font` reads, which is every label spawned *after* the change. A
         // label spawned before it keeps the size it was built at, so this rewrites every `TypeRole`
@@ -566,25 +562,6 @@ fn follow_the_text_size(
     }
     *applied = Some(settings.text_scale);
     crate::chrome::set_text_scale(settings.text_scale);
-}
-
-/// **An app that ends puts the process-global text scale back to 1.0** (#497).
-///
-/// [`follow_the_text_size`] copies a person's setting into `chrome::TEXT_SCALE`, which is a `static` and
-/// therefore outlives every `App` in the process. A test binary runs many apps in one process, so before
-/// this an app built at `text_scale: 1.5` left 1.5 behind and the next test measured a layout it had not
-/// staged — a failure whose shape was "which tests share a process", not "which code is wrong". It is
-/// what made `c1 + c6` fail while either branch alone passed.
-///
-/// The guard is a resource, so its `Drop` runs when the `World` is dropped — which is the moment the app
-/// this scale belonged to stops existing, and the only moment at which putting it back is unambiguous.
-#[derive(Resource)]
-pub struct TextScaleGuard;
-
-impl Drop for TextScaleGuard {
-    fn drop(&mut self) {
-        crate::chrome::set_text_scale(1.0);
-    }
 }
 
 /// **Reduced motion is the player's setting, and gooey's `MotionSettings::reduced` is how it is kept**: with it on,

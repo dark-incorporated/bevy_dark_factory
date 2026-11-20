@@ -575,11 +575,6 @@ pub const OWNERSHIP: &[(&str, Ownership)] = &[
     // app runs. The harness inserts it so a stepped editor records an address instead of launching
     // one (#354), and a test may insert its own.
     ("bevy_dark_factory::app_verbs::LinksOff", Ownership::Session),
-    // **`Session`, and it must not be reset by a door change** (#497): the guard's whole job is to
-    // outlive the app and put the process-global text scale back to 1.0 when the `World` drops.
-    // Re-inserting it on a switch would `Drop` the old one mid-session and restore 1.0 while the
-    // editor is still drawing at the person's size.
-    ("bevy_dark_factory::ui::TextScaleGuard", Ownership::Session),
     // **`Session`, for the queue's own reason**: which rows the person has unfolded, and what GitHub
     // said about the wishes in them, are facts about this sitting's wishes — the queue outlives a door
     // change, so the rows that read it must too or a wish would be folded again on every switching.
