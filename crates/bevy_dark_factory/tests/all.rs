@@ -536,7 +536,6 @@ mod the_benchs_labels_and_the_journal_take_the_skins_ink;
 mod the_wheel_scrolls_a_panel;
 mod the_window_fits_the_screen_and_is_remembered;
 mod the_status_line_draws_in_the_skins_ink;
-mod the_pane_is_the_windows_width_at_every_text_size;
 mod the_panel_headers_link_their_guide_page;
 mod the_panes_inks_come_from_the_skin;
 mod the_navigation_baseline_stays_frozen;
