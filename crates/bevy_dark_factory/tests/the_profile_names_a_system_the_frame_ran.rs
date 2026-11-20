@@ -115,7 +115,7 @@ fn the_heaviest_span_is_one_the_frame_ran_and_the_two_measurements_agree() {
         profiler.last().cloned().expect("a frame finished")
     };
     assert!(!recorded.spans.is_empty(), "recording on, so the frame has spans: {recorded:?}");
-    let heaviest = recorded.heaviest().expect("a frame with spans names the heaviest").clone();
+    let heaviest = *recorded.heaviest().expect("a frame with spans names the heaviest");
     // **The systems `ui_budget` times**, by the names it now tags them with.
     let instrumented = [
         "editor::refresh_history",

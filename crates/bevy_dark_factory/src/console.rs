@@ -574,6 +574,8 @@ fn select_the_piece(
 /// `Local` holds what was drawn — the ring's `pushed`, the level filters and the open line — because the ring moves
 /// outside the ECS and `is_changed` on the resource would be true whenever *anything* touched it. A settled frame
 /// therefore costs three comparisons and one relaxed read.
+#[allow(clippy::type_complexity)] // a bevy system: four queries and the `Local` of what was drawn are its parameters
+#[allow(clippy::too_many_arguments)] // a bevy system, as `editor::refresh_reload_list` is: one parameter per thing it reads
 fn draw_the_console(
     mut commands: Commands,
     console: Res<Console>,
