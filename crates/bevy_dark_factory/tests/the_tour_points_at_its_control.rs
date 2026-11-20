@@ -119,41 +119,65 @@ fn every_control_a_shipped_guide_names_resolves_to_exactly_one_rect() {
     // Zero somewhere is right (a control belongs to one tab and the others have it hidden), so the assertion is "at
     // least one tab draws it, exactly once". Two on one tab is `sole_control`'s `None` — the pointer would aim at
     // nothing and the runtime problem would be the only report, so the corpus refuses it here as well.
+    //
+    // **One app per tab, built once**, and every id counted against each — twelve tabs times nine ids is 108
+    // builds otherwise, and a headless editor is seconds apiece.
+    let ids: Vec<(String, String, bevy_dark_factory::keys::ControlId)> = named
+        .iter()
+        .map(|(file, label, control)| {
+            (
+                file.clone(),
+                label.clone(),
+                tour::control_of(control).unwrap_or_else(|| {
+                    panic!("{file}: step `{label}` names `{control}`, not a control")
+                }),
+            )
+        })
+        .collect();
+    // The Map is the tour's own tab, so its four are read from an editor on the Map.
     let mut app = editor("resolve", 1600, 1200);
-    let mut on_map = 0usize;
-    for (file, label, control) in &named {
-        let id = tour::control_of(control).unwrap_or_else(|| panic!("{control} is not a control"));
-        let mut draws: Vec<(String, usize)> = Vec::new();
-        for mode in bevy_dark_factory::tiles::Mode::ALL {
-            let mut other = harness::build_headless_at(&root("tabs"), "m", None, mode)
-                .unwrap_or_else(|e| panic!("{e}"));
-            for _ in 0..6 {
-                other.update();
-            }
-            let n = bevy_dark_factory::badges::controls_shown(other.world_mut(), id);
+    let on_map: Vec<&(String, String, bevy_dark_factory::keys::ControlId)> = ids
+        .iter()
+        .filter(|(_, _, id)| bevy_dark_factory::badges::control_rect(app.world_mut(), *id).is_some())
+        .collect();
+    assert!(
+        !on_map.is_empty(),
+        "not one shipped guide names a control that is on the Map, so the tour's own steps are unchecked: {named:?}"
+    );
+    // Every tab, once each: which ids it draws, and how many times.
+    // `ControlId` is not `Hash` (a symbolic id needs no map), so the counts are a flat list keyed by id.
+    let mut counts: Vec<(bevy_dark_factory::keys::ControlId, String, usize)> = Vec::new();
+    for mode in bevy_dark_factory::tiles::Mode::ALL {
+        let mut other = harness::build_headless_at(&root("tabs"), "m", None, mode)
+            .unwrap_or_else(|e| panic!("{e}"));
+        for _ in 0..6 {
+            other.update();
+        }
+        for (_, _, id) in &ids {
+            let n = bevy_dark_factory::badges::controls_shown(other.world_mut(), *id);
             if n > 0 {
-                draws.push((mode.label().to_owned(), n));
+                counts.push((*id, mode.label().to_owned(), n));
             }
         }
+    }
+    for (file, label, id) in &ids {
+        let draws: Vec<(String, usize)> = counts
+            .iter()
+            .filter(|(c, ..)| c == id)
+            .map(|(_, mode, n)| (mode.clone(), *n))
+            .collect();
         let twice: Vec<&(String, usize)> = draws.iter().filter(|(_, n)| *n > 1).collect();
         assert!(
             twice.is_empty(),
-            "{file}: step `{label}` names {control}, laid out twice on the same tab: {twice:?}. \
+            "{file}: step `{label}` names {id:?}, laid out twice on the same tab: {twice:?}. \
              `badges::sole_control` answers `None` to a duplicate, so the pointer would aim at nothing"
         );
         assert!(
             !draws.is_empty(),
-            "{file}: step `{label}` names {control}, which no tab lays out. A guide that points at a control the \
+            "{file}: step `{label}` names {id:?}, which no tab lays out. A guide that points at a control the \
              editor does not draw is the `renzora_tutorial` bug this exists to prevent"
         );
-        if bevy_dark_factory::badges::control_rect(app.world_mut(), id).is_some() {
-            on_map += 1;
-        }
     }
-    assert!(
-        on_map > 0,
-        "not one shipped guide names a control that is on the Map, so the tour's own steps are unchecked: {named:?}"
-    );
 }
 
 /// **A step naming a control that is not on screen says so on the status line**, rather than pointing at nothing.

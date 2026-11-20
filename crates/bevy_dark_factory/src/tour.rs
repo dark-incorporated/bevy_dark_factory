@@ -389,11 +389,6 @@ fn spawn_the_pointer(mut commands: Commands, frame: Res<crate::chrome::Frame>) {
             TourArrow,
             bevy_gooey::placed(UiRect::all(Val::Auto)),
             bevy_gooey::HostGeometry,
-            bevy_gooey::sized(bevy_gooey::Sizing {
-                width: Some(bevy_gooey::Extent::Px(ARROW_SIZE)),
-                height: Some(bevy_gooey::Extent::Px(ARROW_SIZE)),
-                ..default()
-            }),
             Visibility::Hidden,
             Text::new(ArrowSide::Below.glyph().to_string()),
             TextColor(ink.accent),
