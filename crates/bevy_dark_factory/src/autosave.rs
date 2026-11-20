@@ -65,9 +65,12 @@ pub fn tick(
     mut timer: ResMut<AutoSave>,
 ) {
     let interval = settings.as_deref().map(|s| s.auto_save_interval_s).unwrap_or(0.0);
-    // **Off is off**: no countdown, nothing saved, and the drafts (`crate::draft`) are the whole of the answer.
+    // **Off is off**: no countdown, nothing saved, and the drafts (`crate::draft`) are the whole of the answer. **The clock is
+    // cleared with it**, so turning the interval back on starts a whole interval rather than resuming a countdown the person
+    // stopped half an hour ago.
     if interval <= 0.0 {
         timer.remaining = 0.0;
+        timer.root = None;
         return;
     }
     let Some(project) = project else {
