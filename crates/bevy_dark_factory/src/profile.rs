@@ -119,8 +119,9 @@ pub struct Profiler {
 }
 
 impl Profiler {
-    /// The frames held, oldest first.
-    pub fn frames(&self) -> impl Iterator<Item = &Frame> {
+    /// The frames held, oldest first. **Double-ended**, because the useful questions count back from the newest — the
+    /// test that holds the panel's total against `UiFrame`'s is the second-newest against the budget's newest.
+    pub fn frames(&self) -> impl DoubleEndedIterator<Item = &Frame> {
         self.frames.iter()
     }
 

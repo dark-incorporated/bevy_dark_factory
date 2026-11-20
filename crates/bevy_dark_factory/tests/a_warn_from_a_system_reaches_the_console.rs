@@ -167,7 +167,13 @@ fn a_warn_from_a_system_reaches_the_ring() {
         .find(|line| line.message.contains("a fill was refused"))
         .unwrap_or_else(|| panic!("the warn is in the ring: {:?}", ring.lines().map(|l| l.message.clone()).collect::<Vec<_>>()));
     assert_eq!(found.level, Level::Warn);
-    assert!(found.target.contains("bevy_dark_factory"), "its target is the module that said it: {}", found.target);
+    // **The target is the module the system is in**, and this test's system is in this file's module — which is what a
+    // person reads in the panel to know where a line came from.
+    assert!(
+        found.target.ends_with("a_warn_from_a_system_reaches_the_console"),
+        "its target is the module that said it: {}",
+        found.target
+    );
 }
 
 /// **The chord draws the panel, and the same chord puts it away.**
@@ -212,10 +218,10 @@ fn the_pills_carry_real_counts_and_one_off_hides_one_level() {
     app.world_mut().trigger(Activate { entity: pill });
     settle(&mut app, 2);
     let drawn = rows(&mut app);
-    assert!(drawn.iter().any(|row| row.contains(" i:")), "the info line still draws: {drawn:?}");
-    assert!(drawn.iter().any(|row| row.contains(" e:")), "the error line still draws: {drawn:?}");
-    assert!(drawn.iter().any(|row| row.contains(" d:")), "the debug line still draws: {drawn:?}");
-    assert!(!drawn.iter().any(|row| row.contains(" w:")), "and the warn line does not: {drawn:?}");
+    assert!(drawn.iter().any(|row| row.contains(": i")), "the info line still draws: {drawn:?}");
+    assert!(drawn.iter().any(|row| row.contains(": e")), "the error line still draws: {drawn:?}");
+    assert!(drawn.iter().any(|row| row.contains(": d")), "the debug line still draws: {drawn:?}");
+    assert!(!drawn.iter().any(|row| row.contains(": w")), "and the warn line does not: {drawn:?}");
     // The count is what there *are*, not what is shown: a pill whose number fell with the filter would be lying.
     assert_eq!(pill_count(&mut app, Level::Warn), "1", "the pill still says how many warn lines the ring holds");
 }
@@ -280,6 +286,7 @@ fn the_console_is_readable_with_no_project_open() {
     let mut app = App::new();
     app.add_plugins(MinimalPlugins)
         .add_plugins(bevy::input::InputPlugin)
+        .add_plugins(bevy::state::app::StatesPlugin)
         .init_resource::<bevy::diagnostic::FrameCount>()
         .add_plugins(bevy_dark_factory::console::ConsolePlugin)
         .insert_state(Screen::Launcher);

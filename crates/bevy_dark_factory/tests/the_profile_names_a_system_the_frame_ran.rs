@@ -63,31 +63,40 @@ fn with_recording_off_the_settled_budget_is_unchanged() {
 /// an order of magnitude.
 #[test]
 fn a_span_with_recording_off_costs_one_atomic_load() {
+    /// The best of several rounds of `calls` appends: a shared machine runs somebody else's build beside this test, and
+    /// the best round is the round that saw the least of it. The same shape `the_uis_budget_is_two_milliseconds_a_frame`
+    /// uses for the same reason.
+    fn best_round_ns(calls: usize, rounds: usize, mut one: impl FnMut()) -> f64 {
+        let mut best = f64::INFINITY;
+        for _ in 0..rounds {
+            let began = std::time::Instant::now();
+            for _ in 0..calls {
+                one();
+            }
+            best = best.min(began.elapsed().as_secs_f64() / calls as f64 * 1e9);
+        }
+        best
+    }
+
     let mut profiler = Profiler::default();
     profiler.set_recording(false);
-    let calls = 100_000;
-    let off = {
-        let began = std::time::Instant::now();
-        for _ in 0..calls {
-            profile::record_span("outliner::rebuild_the_tree", 0.25);
-        }
-        began.elapsed().as_secs_f64()
-    };
+    let calls = 20_000;
+    let off = best_round_ns(calls, 5, || profile::record_span("outliner::rebuild_the_tree", 0.25));
     profiler.set_recording(true);
-    let on = {
-        let began = std::time::Instant::now();
-        for _ in 0..calls {
-            profile::record_span("outliner::rebuild_the_tree", 0.25);
-        }
-        began.elapsed().as_secs_f64()
-    };
-    // The recording path takes a lock and grows a `Vec`, which is a real cost — the point is that the *off* path is not
-    // paying it. A nanosecond a call is the order an uncontended relaxed load is; a lock is tens.
-    let per_call_ns = off / calls as f64 * 1e9;
+    let on = best_round_ns(calls, 5, || profile::record_span("outliner::rebuild_the_tree", 0.25));
+    // **The claim is a ratio, not a nanosecond**, so the assertion survives the machine it runs on: recording off is a
+    // relaxed load and recording on takes a lock and grows a `Vec`, so off must be materially cheaper. A build of
+    // somebody else's checkout moves both numbers together, which is the property the ratio keeps and an absolute
+    // threshold does not.
     assert!(
-        per_call_ns < 5.0,
-        "recording a span with recording off is {per_call_ns:.2} ns/call — an atomic load is a fraction of a ns, so \
-         something on the off path is doing work: {off:.6} s off against {on:.6} s on for {calls} calls"
+        off < on,
+        "recording a span with recording off ({off:.3} ns/call) costs less than with it on ({on:.3} ns/call): the off \
+         path is one relaxed atomic load and returns"
+    );
+    assert!(
+        on / off > 2.0,
+        "and the difference is real, not noise: {off:.3} ns/call off against {on:.3} ns/call on is only {:.1}x",
+        on / off
     );
 }
 
@@ -119,11 +128,26 @@ fn the_heaviest_span_is_one_the_frame_ran_and_the_two_measurements_agree() {
         "the heaviest span is a system this frame ran, and these are the instrumented ones: {heaviest:?} against {instrumented:?}"
     );
     // **And the profile's total is the budget's total for the same frame**: one measurement of one thing, not two.
+    //
+    // **The two close a frame at different points, so the same frame is one step apart.** The profiler closes in `Last`
+    // (after every system that could record a span) and `UiFrame` rolls in `First` of the next frame — so what the
+    // budget calls `last_ms` right now is the frame *before* the one the profiler just closed. The comparison is the
+    // profiler's second-newest against the budget's newest, which is one frame measured twice.
     let budget = *app.world().resource::<UiFrame>();
+    let same_frame = app
+        .world()
+        .resource::<Profiler>()
+        .frames()
+        .rev()
+        .nth(1)
+        .cloned()
+        .expect("two frames have closed, so the one the budget last rolled is in the ring");
     assert!(
-        (recorded.measured_ms() - budget.last_ms).abs() < 0.01,
-        "the profile's spans ({:.4} ms) and the budget's total ({:.4} ms) are the same number",
-        recorded.measured_ms(),
+        (same_frame.measured_ms() - budget.last_ms).abs() < 0.01,
+        "the profile's spans for frame {} ({:.4} ms) and the budget's total for frame {} ({:.4} ms) are the same number",
+        same_frame.number,
+        same_frame.measured_ms(),
+        recorded.number,
         budget.last_ms
     );
 }

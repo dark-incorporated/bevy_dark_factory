@@ -542,13 +542,28 @@ fn open_a_line(
     console.open = if console.open == Some(row.0) { None } else { Some(row.0) };
 }
 
-/// **The chip selects the piece the open line names**, through the one call a click on the outliner uses.
+/// **The chip selects the piece the open line names**, through the same two calls a click in the outliner makes.
+///
+/// **The lock moves too, and it must**: `Selection::follow` re-anchors the set on `TargetLock` every frame, so a chip
+/// that only wrote the selection would be undone on the next one — the set would empty and the inspector would show the
+/// piece the person was already on. A click on an outliner row holds the lock and sets the selection for exactly this
+/// reason, and a chip is that click.
 fn select_the_piece(
     activate: On<bevy_gooey::Activate>,
     chips: Query<&ConsolePieceChip>,
+    open: Option<Res<crate::project::OpenMap>>,
+    lock: Option<ResMut<crate::editor::TargetLock>>,
     mut selection: Option<ResMut<crate::selection::Selection>>,
 ) {
     let Ok(chip) = chips.get(activate.entity) else { return };
+    // The piece's own position, which is what the lock keeps for the marker the map draws.
+    let at = open
+        .as_deref()
+        .and_then(|open| open.map.placements.iter().find(|p| p.id == chip.0).map(|p| p.at))
+        .unwrap_or_default();
+    if let Some(mut lock) = lock {
+        lock.hold(&chip.0, at);
+    }
     if let Some(selection) = selection.as_deref_mut() {
         selection.only(&chip.0);
     }
