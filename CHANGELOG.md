@@ -4,6 +4,8 @@ What each change added, newest first. A visible change has a clip: click the sti
 
 ## 2026-11-20
 
+- **505** `0bfb16e1` Shift-drag on the map selects every piece the box covers, in one act, with no operation and no undo step *No clip: a marquee seen only with a window and a mouse; proved by a_marquee_selects_what_it_covers*
+- **500** `9931978e` A drag is one placement_move: the move tool writes the map, logs one line, and can be undone with one Cmd+Z *No clip: an editor interaction that needs a window and a mouse to see; proved by a_drag_is_one_placement_move*
 - **chips-shrink** `HEAD` A chip narrows before the row wraps it to a new line *No clip: a layout behaviour; proved by the_g87_nodes_are_gooeys and the three chip-whole sweeps*
 - **textscaleleak** `07416eba` An app's text scale no longer outlives the app: the process-global resets when its world drops *No clip: an ordering fix nothing draws; proved by an_app_leaves_no_text_scale_behind*
 - **filetreefill** `6135378` The file tree fills its panel: bevy_gooey's table root grows to the height it is given *No clip: the visible result is the file explorer filling its div; proved by the_files_tree_fills_the_region_that_holds_it*

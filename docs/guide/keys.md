@@ -87,6 +87,7 @@ These keys work in the Map workspace.
 | `J` | Any time | Change the grid rung: tile, fine, then finer. |
 | `[` / `]` | Any time | Lower / lift this piece. |
 | `X` | Any time | Enter removal mode. |
+| `Shift` and drag | Any time | Select every piece the box covers, primary first, in one act — no operation and no undo step, because a selection is where you are looking. `Shift` and a click adds one piece beside the primary, as before. |
 | `Home` | Any time | Frame the view: the locked placement when there is one, otherwise the whole map. |
 | `B` | Any time | Move. |
 | `Shift+B` | Any time | Clone. |
