@@ -4,6 +4,7 @@ What each change added, newest first. A visible change has a clip: click the sti
 
 ## 2026-11-20
 
+- **512** `89c1d55d` Bake checks the project against itself and prints what a build must carry *No clip: A map naming an unlisted family crate or a stamp of an undefined composition is refused with a where and a fix, and bake --needs prints the crates required; proved by blueprint_model/tests/a_bake_checks_the_project_against_itself.rs*
 - **503** `203dba8a` A multi-part .glb arrives as parts, and one can be chosen *No clip: Each named node is measurable on its own and one part imports as its own file; proved by blueprint_model/tests/a_glb_arrives_in_parts.rs and bevy_dark_factory/tests/an_agent_can_choose_a_part_of_a_glb.rs*
 - **chips-shrink** `HEAD` A chip narrows before the row wraps it to a new line *No clip: a layout behaviour; proved by the_g87_nodes_are_gooeys and the three chip-whole sweeps*
 - **textscaleleak** `07416eba` An app's text scale no longer outlives the app: the process-global resets when its world drops *No clip: an ordering fix nothing draws; proved by an_app_leaves_no_text_scale_behind*
