@@ -67,6 +67,14 @@ const FILE: &str = "github.yaml";
 const USER_URL: &str = "https://api.github.com/user";
 const REPOS_URL: &str = "https://api.github.com/repos";
 
+/// **The GitHub API version a create states**, so a change to GitHub's defaults cannot change what a
+/// body means underneath this editor.
+const API_VERSION: &str = "2022-11-28";
+
+/// **The status a create answers with when it made an issue**: `201 Created`, and the only status that
+/// means an issue exists.
+const CREATED_STATUS: u16 = 201;
+
 /// **Where the connection lives for this user**, or `None` on a platform with no config directory.
 pub fn connection_file() -> Option<PathBuf> {
     blueprint_model::user_dirs::config_dir().map(|d| d.join(FILE))
@@ -182,6 +190,14 @@ impl Connection {
     /// **What a person reads**: the account and the repository, in words, never as a URL that fails
     /// silently (the issue's own acceptance). Every part says what is missing rather than leaving a gap.
     pub fn describe(&self) -> String {
+        self.describe_into(self.repository_or_own())
+    }
+
+    /// **The same sentence, about a repository this value does not name itself** — which is what the
+    /// composer needs (#499): an issue can be composed for a repository the connection is not set to,
+    /// and the person is shown the account and *the repository that will receive it*. One sentence, so
+    /// the settings panel and the composer cannot say two different things about one connection.
+    pub fn describe_into(&self, repository: &str) -> String {
         let account = match (self.account.trim(), self.source) {
             ("", TokenSource::GhOnPath) => "whoever `gh` on this machine is signed in as",
             ("", TokenSource::Stored) => "the account this token names",
@@ -192,7 +208,7 @@ impl Connection {
             TokenSource::Stored if self.token().is_some() => "with a token this editor holds",
             TokenSource::Stored => "with no token yet: paste one, or use `gh` on this machine",
         };
-        format!("Acting as {account}, filing into {}, {token}.", self.repository_or_own())
+        format!("Acting as {account}, filing into {repository}, {token}.")
     }
 
     /// **What a log line says about this connection**, which is [`Self::describe`] and never the token:
@@ -288,16 +304,80 @@ pub trait GitHubHttp {
 /// **GitHub over the network**, as `crate::wish_view` and `crate::update` already reach it.
 pub struct UreqHttp;
 
+/// **A GitHub request with the connection's headers**, which is the one place the agent is built: a
+/// read and a create must not disagree about the timeout, the `User-Agent`, or the token's spelling.
+fn agent() -> ureq::Agent {
+    ureq::Agent::config_builder()
+        .timeout_global(Some(Duration::from_secs(TIMEOUT_S)))
+        // **A refusal is an answer**, not a transport error: 401 and 404 are two of the four
+        // verdicts, and an `Err` for them would lose the distinction the issue asks for.
+        .http_status_as_error(false)
+        .build()
+        .into()
+}
+
+/// **What one create is given**: the repository, the title, the body and the labels.
+///
+/// A value rather than four arguments, so a fake records exactly what was asked for and a test asserts
+/// the body it recorded is byte-identical to the preview the person approved.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Create {
+    /// `owner/name`.
+    pub repository: String,
+    pub title: String,
+    /// **The Markdown, verbatim** — the composer's preview, never a recomposition.
+    pub body: String,
+    pub labels: Vec<String>,
+}
+
+/// **What a create answered**: the issue's number and the page a person opens.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Created {
+    pub number: u64,
+    pub url: String,
+}
+
+/// **The write half of the connection**: one create, with a token.
+///
+/// [`GitHubHttp`] is the read half and [`read_issues`] uses it; this is its sibling, the same seam shape,
+/// so a test files an issue with no network and the harness cannot reach GitHub by accident. #499 is the
+/// first caller: a composed issue is one create and nothing else.
+pub trait GitHubCreate {
+    /// `POST /repos/{owner}/{name}/issues`, answering the issue it made.
+    fn create(&self, issue: &Create, token: Option<&str>) -> Result<Created, String>;
+}
+
+/// **GitHub over the network**, for a create.
+pub struct UreqCreate;
+
+impl GitHubCreate for UreqCreate {
+    fn create(&self, issue: &Create, token: Option<&str>) -> Result<Created, String> {
+        let url = format!("{REPOS_URL}/{}/issues", issue.repository.trim());
+        let mut request = agent()
+            .post(&url)
+            .header("User-Agent", &format!("DarkFactory/{}", env!("CARGO_PKG_VERSION")))
+            .header("Accept", "application/vnd.github+json")
+            .header("X-GitHub-Api-Version", API_VERSION);
+        if let Some(token) = token {
+            request = request.header("Authorization", &format!("Bearer {token}"));
+        }
+        let payload = serde_json::json!({ "title": issue.title, "body": issue.body, "labels": issue.labels });
+        let mut response = request.send_json(&payload).map_err(|e| match e {
+            ureq::Error::Timeout(_) => format!("GitHub did not answer within {TIMEOUT_S} s"),
+            other => format!("GitHub could not be reached: {other}"),
+        })?;
+        let status = response.status().as_u16();
+        let body = response.body_mut().read_to_string().map_err(|e| format!("reading GitHub's answer failed: {e}"))?;
+        if status != CREATED_STATUS {
+            return Err(format!("GitHub answered {status}: {}", message_of(&body)));
+        }
+        created_of(&body)
+    }
+}
+
 impl GitHubHttp for UreqHttp {
     fn get(&self, url: &str, token: Option<&str>) -> Result<Answer, String> {
-        let agent: ureq::Agent = ureq::Agent::config_builder()
-            .timeout_global(Some(Duration::from_secs(TIMEOUT_S)))
-            // **A refusal is an answer**, not a transport error: 401 and 404 are two of the four
-            // verdicts, and an `Err` for them would lose the distinction the issue asks for.
-            .http_status_as_error(false)
-            .build()
-            .into();
-        let mut request = agent.get(url).header("User-Agent", &format!("DarkFactory/{}", env!("CARGO_PKG_VERSION"))).header("Accept", "application/vnd.github+json");
+        let mut request = agent().get(url).header("User-Agent", &format!("DarkFactory/{}", env!("CARGO_PKG_VERSION"))).header("Accept", "application/vnd.github+json");
         if let Some(token) = token {
             request = request.header("Authorization", &format!("Bearer {token}"));
         }
@@ -321,12 +401,38 @@ pub struct AnswersOff {
     pub answers: Vec<Answer>,
     /// How many requests have been answered, so the next one takes the next answer.
     pub asked: std::sync::atomic::AtomicUsize,
+    /// **What a create answers**, in the order they are attempted, and the creates themselves as they
+    /// were asked for — which is how a test asserts one attempt, with one body, and no retry.
+    creates: std::sync::Mutex<Creates>,
+}
+
+/// The two lists a fake create keeps: what it is asked, and what it answers.
+#[derive(Default)]
+struct Creates {
+    asked: Vec<Create>,
+    answers: Vec<Result<Created, String>>,
 }
 
 impl AnswersOff {
     /// A run answering these, in this order.
     pub fn answering(answers: Vec<Answer>) -> Self {
-        AnswersOff { answers, asked: std::sync::atomic::AtomicUsize::new(0) }
+        AnswersOff { answers, asked: std::sync::atomic::AtomicUsize::new(0), creates: std::sync::Mutex::new(Creates::default()) }
+    }
+
+    /// **This run's creates**, in the order they are attempted: the first takes the first answer, and a
+    /// run with none answers every create with "this run files nothing", so a test that expected no
+    /// create cannot pass by accident.
+    pub fn creating(self, answers: Vec<Result<Created, String>>) -> Self {
+        if let Ok(mut creates) = self.creates.lock() {
+            creates.answers = answers;
+        }
+        self
+    }
+
+    /// **Every create this run was asked for**, which is what a test reads to assert the body and the
+    /// count.
+    pub fn created(&self) -> Vec<Create> {
+        self.creates.lock().map(|c| c.asked.clone()).unwrap_or_default()
     }
 }
 
@@ -335,6 +441,20 @@ impl GitHubHttp for AnswersOff {
         let n = self.asked.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
         let answer = self.answers.get(n).or_else(|| self.answers.last());
         answer.cloned().ok_or_else(|| "this run asks GitHub nothing".to_owned())
+    }
+}
+
+impl GitHubCreate for AnswersOff {
+    fn create(&self, issue: &Create, _token: Option<&str>) -> Result<Created, String> {
+        let mut creates = self.creates.lock().map_err(|_| "this run's creates were poisoned".to_owned())?;
+        creates.asked.push(issue.clone());
+        let n = creates.asked.len() - 1;
+        match creates.answers.get(n) {
+            Some(answer) => answer.clone(),
+            // **Every create is recorded before it is answered**, so a test that expected no create
+            // reads the attempt and a run with no answers files nothing.
+            None => Err("this run files nothing".to_owned()),
+        }
     }
 }
 
@@ -468,6 +588,33 @@ fn login_of(body: &str) -> Option<String> {
 fn may_push(body: &str) -> Option<bool> {
     let value: serde_json::Value = serde_json::from_str(body).ok()?;
     value.get("permissions")?.get("push")?.as_bool()
+}
+
+/// **The issue a create made**, read from the object GitHub answers with: its number and the page a
+/// person opens. A 201 whose body says neither is not an issue, and saying so is better than handing a
+/// person a blank URL to click.
+fn created_of(body: &str) -> Result<Created, String> {
+    let value: serde_json::Value = serde_json::from_str(body).map_err(|e| format!("GitHub's answer is not JSON: {e}"))?;
+    let number = value.get("number").and_then(serde_json::Value::as_u64);
+    let url = value.get("html_url").and_then(serde_json::Value::as_str);
+    match (number, url) {
+        (Some(number), Some(url)) => Ok(Created { number, url: url.to_owned() }),
+        _ => Err("GitHub answered 201 without the issue's number and page".to_owned()),
+    }
+}
+
+/// **What GitHub said went wrong**, from a create's refusal body, which puts it in `message`. A body that
+/// is not JSON says nothing more than its own first line, so a person still reads a sentence.
+fn message_of(body: &str) -> String {
+    if let Ok(value) = serde_json::from_str::<serde_json::Value>(body) {
+        if let Some(message) = value.get("message").and_then(serde_json::Value::as_str) {
+            return message.to_owned();
+        }
+    }
+    match body.lines().next().map(str::trim).filter(|line| !line.is_empty()) {
+        Some(line) => line.to_owned(),
+        None => "and said nothing".to_owned(),
+    }
 }
 
 /// The issues a list answer carries, taken from the fields a reader acts on.
