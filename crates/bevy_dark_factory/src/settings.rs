@@ -274,6 +274,9 @@ impl MachineAgent {
 /// **The map's own question and the Files workspace's are this one value**, so one setting cannot mean two things: a map
 /// re-read ([`crate::watch::adopt_map`]) and a buffer's save ([`crate::files::save_file`]) both read it.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+// **snake_case on disk**, so a settings file reads `external_edits: keep_editor_changes`: a key of this file is typed by a
+// person, and the row's own names are words rather than the enum's Rust spelling.
+#[serde(rename_all = "snake_case")]
 pub enum ExternalEdits {
     /// **Ask, every time**: nothing changes until the person says which version they want. The default.
     #[default]
@@ -541,7 +544,10 @@ pub struct SettingsLayer {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub external_edits: Option<ExternalEdits>,
     /// **How often the editor saves the map and the open buffers, in seconds** (#508). Absent is off.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    ///
+    /// **`auto_save_interval` on disk**, the catalogue's own key: a person writes this file by hand and greps for the word
+    /// the Settings screen shows, so the field's `_s` suffix is a Rust reading of the unit and not a second name for the key.
+    #[serde(default, rename = "auto_save_interval", skip_serializing_if = "Option::is_none")]
     pub auto_save_interval_s: Option<f64>,
 }
 

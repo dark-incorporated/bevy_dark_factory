@@ -43,6 +43,19 @@ fn editor(root: &Path) -> App {
     app
 }
 
+/// **Turn the interval on through the project's settings layer**, not by inserting `EditorSettings`: `sync_settings`
+/// re-resolves the resource from the layer files every frame, so an inserted value is replaced by the default in the next one.
+fn with_interval(root: &Path, seconds: f64) -> App {
+    let path = root.join("assets/blueprint/editor.yaml");
+    std::fs::write(&path, format!("version: 1\nauto_save_interval: {seconds}\n")).unwrap_or_else(|e| panic!("{e}"));
+    let mut app = editor(root);
+    for _ in 0..4 {
+        app.update();
+    }
+    assert_eq!(app.world().resource::<EditorSettings>().auto_save_interval_s, seconds, "the project layer armed the interval");
+    app
+}
+
 /// **A draft is written for a buffer nobody saved**, and it is not inside the project.
 #[test]
 fn an_unsaved_buffer_reaches_a_draft_outside_the_project() {
@@ -173,8 +186,7 @@ use bevy_dark_factory::autosave::{AutoSave, WARN_S};
 #[test]
 fn the_interval_saves_the_map_through_map_save_and_the_log_says_so() {
     let root = project("interval");
-    let mut app = editor(&root);
-    app.insert_resource(EditorSettings { auto_save_interval_s: 2.0, ..EditorSettings::default() });
+    let mut app = with_interval(&root, 2.0);
     make_the_map_dirty(&mut app);
     step_seconds(&mut app, 2.5);
     let open = app.world().resource::<OpenMap>();
@@ -192,8 +204,7 @@ fn the_interval_saves_the_map_through_map_save_and_the_log_says_so() {
 fn the_interval_saves_a_buffer_and_skips_a_read_only_one() {
     let root = project("interval_buffer");
     std::fs::write(root.join("notes.md"), "# on disk\n").unwrap_or_else(|e| panic!("{e}"));
-    let mut app = editor(&root);
-    app.insert_resource(EditorSettings { auto_save_interval_s: 2.0, ..EditorSettings::default() });
+    let mut app = with_interval(&root, 2.0);
     files::open_file(app.world_mut(), "notes.md").unwrap_or_else(|e| panic!("{e}"));
     {
         let mut files = app.world_mut().resource_mut::<Files>();
@@ -214,8 +225,7 @@ fn the_interval_saves_a_buffer_and_skips_a_read_only_one() {
 #[test]
 fn the_timer_is_parked_while_a_question_is_up_and_when_no_project_is_open() {
     let root = project("parked");
-    let mut app = editor(&root);
-    app.insert_resource(EditorSettings { auto_save_interval_s: 2.0, ..EditorSettings::default() });
+    let mut app = with_interval(&root, 2.0);
     make_the_map_dirty(&mut app);
     // **A question is up**, so the countdown stands still and nothing is written.
     app.world_mut().resource_mut::<bevy_dark_factory::confirm::Confirm>().ask(

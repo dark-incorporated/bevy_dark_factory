@@ -37,13 +37,24 @@ fn project(tag: &str) -> PathBuf {
         .build("m")
 }
 
+/// **The project's own settings layer is where a policy is set for a test.** Inserting `EditorSettings` would not hold:
+/// `settings::sync_settings` re-resolves the resource from the layer files every frame, so the next frame puts the default
+/// back — which is the editor working as designed, and a test that fought it would be testing the wrong thing.
 fn editor(root: &Path, policy: ExternalEdits) -> App {
+    let name = match policy {
+        ExternalEdits::Prompt => "prompt",
+        ExternalEdits::ReloadFromDisk => "reload_from_disk",
+        ExternalEdits::KeepEditorChanges => "keep_editor_changes",
+    };
+    let layer = format!("version: 1\nexternal_edits: {name}\n");
+    let path = root.join("assets/blueprint/editor.yaml");
+    std::fs::write(&path, layer).unwrap_or_else(|e| panic!("{e}"));
     let mut app = harness::build_headless(root, "m", None).unwrap_or_else(|e| panic!("{e}"));
     app.insert_resource(TimeUpdateStrategy::ManualDuration(std::time::Duration::from_secs_f32(FRAME)));
-    app.insert_resource(EditorSettings { external_edits: policy, ..EditorSettings::default() });
-    for _ in 0..6 {
+    for _ in 0..8 {
         app.update();
     }
+    assert_eq!(app.world().resource::<EditorSettings>().external_edits, policy, "the project layer set the policy");
     app
 }
 
