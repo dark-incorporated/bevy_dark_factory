@@ -55,7 +55,9 @@ pub fn band_text(remaining: f64, armed: bool) -> String {
 /// `Cmd+S` does) and the buffers' is [`Files::save_all`] — the two calls a person's own `Cmd+S` and their leaving the
 /// editor make, so a timer cannot write something a key would not.
 pub fn tick(
-    time: Res<Time<Real>>,
+    // **The editor's own clock** (`Time`, which is `Time<Virtual>`), not the wall clock: a countdown that ran on real seconds
+    // would fire while the app is paused, and the frame's own step is what "an interval" means here.
+    time: Res<Time>,
     settings: Option<Res<crate::settings::EditorSettings>>,
     project: Option<Res<Project>>,
     mut open: Option<ResMut<OpenMap>>,

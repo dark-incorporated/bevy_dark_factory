@@ -175,7 +175,9 @@ pub struct DraftClock {
 /// still theirs and the editor still runs. [`DraftClock::written`] is not updated on a failure, so the next interval tries
 /// again rather than believing a write that did not land.
 pub fn keep_the_drafts(
-    time: Res<bevy::time::Time<bevy::time::Real>>,
+    // **The editor's own clock**, as the periodic save reads it: a draft is for a crash, and the editor's frame steps are what
+    // "a second after the typing stopped" means to the loop that writes it.
+    time: Res<bevy::time::Time>,
     files: Option<Res<crate::files::Files>>,
     mut clock: ResMut<DraftClock>,
     mut state: Option<ResMut<crate::editor::EditorState>>,

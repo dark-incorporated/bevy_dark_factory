@@ -149,7 +149,7 @@ fn on_name_typed(change: On<ValueChange<String>>, mut pending: Query<&mut Pendin
 
 /// **Run a naming row**: New file, New folder or Rename, through its operation.
 fn run_the_naming(activate: On<Activate>, mut names: Query<&mut PendingName>, parents: Query<&ChildOf>, targets: Query<&ContextTarget>, rows: Query<&bevy_gooey::TableRow>, trees: Query<&TreeNames>, mut commands: Commands) {
-    let Ok(mut pending) = names.get_mut(activate.entity) else { return };
+    let Ok(pending) = names.get_mut(activate.entity) else { return };
     let typed = pending.text.trim().to_owned();
     if typed.is_empty() {
         return;
