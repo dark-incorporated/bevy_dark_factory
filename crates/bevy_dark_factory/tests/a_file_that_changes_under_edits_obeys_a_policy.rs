@@ -120,7 +120,11 @@ fn take_the_file_drops_the_persons_map_edits_and_reads_the_file() {
     watch_the_file_change(&mut app);
     let open = app.world().resource::<OpenMap>();
     assert_eq!(open.map.note.as_deref(), Some("written by somebody else"), "the file's note was read, so the file's map is the editor's");
-    assert_eq!(open.map.note, None, "the person's unsaved note is gone, which is what taking the file means");
+    assert_eq!(
+        open.map.note.as_deref(),
+        Some("written by somebody else"),
+        "the person's unsaved note is gone and the file's note is the editor's, which is what taking the file means"
+    );
     assert!(!open.dirty(), "the editor holds what the file says");
 }
 
