@@ -62,16 +62,34 @@ fn press(app: &mut App) {
         });
         app.update();
     };
-    for key in bevy_dark_factory::keys::MOD_KEYS {
-        tap(app, key, bevy::input::ButtonState::Pressed);
+    // **Every modifier the chord holds**, not just the platform primary: `Shortcut::just_pressed` compares the held
+    // modifiers for equality, so a Shift left out is a chord that never fires.
+    let held = held_modifiers(&toggle_chord());
+    for key in &held {
+        tap(app, *key, bevy::input::ButtonState::Pressed);
     }
     let chord = toggle_chord();
     tap(app, chord.key, bevy::input::ButtonState::Pressed);
     tap(app, chord.key, bevy::input::ButtonState::Released);
-    for key in bevy_dark_factory::keys::MOD_KEYS {
-        tap(app, key, bevy::input::ButtonState::Released);
+    for key in &held {
+        tap(app, *key, bevy::input::ButtonState::Released);
     }
     settle(app, 2);
+}
+
+/// **The keys a chord holds**, the platform's primary modifier and Shift when it asks for it.
+fn held_modifiers(chord: &bevy_gooey::Shortcut) -> Vec<KeyCode> {
+    let mut held: Vec<KeyCode> = Vec::new();
+    if chord.modifiers.ctrl || chord.modifiers.meta {
+        held.push(bevy_dark_factory::keys::MOD_KEYS[0]);
+    }
+    if chord.modifiers.shift {
+        held.push(KeyCode::ShiftLeft);
+    }
+    if chord.modifiers.alt {
+        held.push(KeyCode::AltLeft);
+    }
+    held
 }
 
 /// **The console is up**, read off the drawn node rather than a flag beside it.
