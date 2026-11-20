@@ -926,6 +926,13 @@ impl BenchState {
             names: self.names().into_iter().map(str::to_owned).collect(),
             selected: self.selected,
             all: self.view == View::All,
+            // **The bench's own history goes with the cursor** (#527). It was left to
+            // `..Default::default()`, so `rig_history_step` always read an empty stack and refused
+            // with `NOTHING_TO_UNDO` -- while `BenchState::history()`, which the test reads, had the
+            // step. Two readers of one fact, one of them wrong. The gate saw it only under the full
+            // suite because that is where the two are read at different times; alone, the printout
+            // and the operation happened to agree.
+            history: self.history(),
             ..Default::default()
         }
     }
