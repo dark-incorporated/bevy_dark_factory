@@ -466,10 +466,11 @@ fn fill_page(
     content: Query<Entity, With<HomeContent>>,
     mut images: ResMut<Assets<Image>>,
     mut pictures: ResMut<ProjectPictures>,
+    mut map_pictures: ResMut<crate::map_thumbs::MapPictures>,
 ) {
     let (Some(page), Ok(sidebar), Ok(content)) = (page, sidebar.single(), content.single()) else { return };
     launcher::fill_sidebar(&mut commands, sidebar, &launcher, &splash, updater.as_deref());
-    spawn_the_page(&mut commands, content, &page, &mut images, splash.0.clone(), &mut pictures);
+    spawn_the_page(&mut commands, content, &page, &mut images, splash.0.clone(), &mut pictures, &mut map_pictures);
 }
 
 /// The page's body: the breadcrumb, then the Maps section and the Kits section.
