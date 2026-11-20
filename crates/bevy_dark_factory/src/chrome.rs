@@ -1079,14 +1079,13 @@ pub fn panel_root<'a>(
             // the editor's (`InkFollow`: `Ground`, `PanelEdge` lit by focus and the theme move them). `display` is the tabs' to write (`ShownFollow`), and a hidden panel starts closed.
             bevy_gooey::sized(bevy_gooey::Sizing {
                 width: Some(bevy_gooey::Extent::Px(width)),
-                // **A panel is never wider than the box it stands in** (#494). `width` above is a
-                // preference, and the two systems that narrow it — `fit_docks_to_the_window`'s squeeze
-                // and `the_left_panel_follows_its_pane`'s follow of a dragged split — both write
-                // `Sizing::width`. When neither reaches it (the follow skips while the split is
-                // collapsed, the squeeze skips when a person owns the split) the panel kept `LIST_W`
-                // 264 while its pane was squeezed to 230.8, and a child ended 83 px past the content
-                // edge. A ceiling says what was always true: the panel cannot exceed the pane.
-                max_width: Some(bevy_gooey::Extent::Percent(100.0)),
+                // **No `max_width` here** (#494): a `Percent(100)` ceiling was tried and reverted. It
+                // narrowed every panel to its pane, which made a panel's own content wrap to an extra
+                // line and pushed the MAP SIZE row down 16 px — `a_hint_does_not_push_map_size_down`
+                // and `a_receipt_does_not_move_the_panel` both refused it, correctly: a hint that comes
+                // and goes with the cursor must not move the panel under the pointer. The overflow this
+                // was meant to fix is a *child* inset 29 px inside its parent, not the panel's width,
+                // and that is measured on the issue.
                 min_height: full_height.then_some(bevy_gooey::Extent::Px(0.0)),
                 ..default()
             }),
