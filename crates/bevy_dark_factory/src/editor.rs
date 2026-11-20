@@ -610,9 +610,7 @@ impl EditorState {
     pub(crate) fn row_recorded_above(&self, line: &str) -> bool {
         fn by_row(op: &Undo) -> bool {
             match op {
-                Undo::RemovedMany { .. }
-                | Undo::Moved { .. }
-                | Undo::RemoveAt { .. } => true,
+                Undo::RemovedMany { .. } | Undo::RemoveAt { .. } => true,
                 Undo::Group { ops } => ops.iter().any(by_row),
                 Undo::Added { .. }
                 | Undo::Stamped { .. }
@@ -1094,11 +1092,6 @@ enum Undo {
     /// the later ones into place. One entry for the whole rectangle, on the same argument the fill
     /// makes: a box the author drew once is one act to undo once.
     RemovedMany { items: Vec<(usize, Box<Placed>)> },
-    /// Put a moved group back where it came from. **One entry for the whole group** — the piece and
-    /// everything that was riding on it — on the same argument `RemovedMany` makes: one act the
-    /// author performed is one act to take back. `blueprint_model::stack::Moved` records what changed and
-    /// `restore_moved` is its inverse, so the undo cannot drift from the move.
-    Moved { moved: blueprint_model::stack::Moved },
     /// Remove exactly these rows again — the inverse of [`Undo::RemovedMany`].
     ///
     /// **Not `Added { count }`.** That one removes the *last* `count`, which is right for a place or a
@@ -1207,7 +1200,6 @@ impl Undo {
             Undo::RemovedMany { items } => format!("remove {}", items.len()),
             Undo::RemoveAt { indices } if redo => format!("remove {}{again}", indices.len()),
             Undo::RemoveAt { indices } => format!("place {}", indices.len()),
-            Undo::Moved { moved } => format!("move {}{again}", moved.was.len()),
             Undo::Group { ops } => format!("{} changes{again}", ops.len()),
             Undo::Stamped { count } if redo => format!("remove {count} stamps{again}"),
             Undo::Stamped { count } => format!("stamp {count}"),
@@ -1272,10 +1264,6 @@ impl Undo {
             Undo::RemovedMany { items } => {
                 let names: Vec<&str> = items.iter().map(|(_, p)| p.descriptor.as_str()).collect();
                 format!("restore {}", piece_count(&names))
-            }
-            Undo::Moved { moved } => {
-                let names: Vec<&str> = moved.was.iter().map(|(i, _, _)| name_at(*i)).collect();
-                format!("move {}{back}", piece_count(&names))
             }
             Undo::RemoveAt { indices } => {
                 // Apply skips an index past the end, so the phrase names only what it will take out.
@@ -13681,75 +13669,6 @@ fn apply(
                 .note(format!("undid {} placement(s)", gone.len()));
             Undo::RemovedMany { items: taken }
         }
-        Undo::Moved { moved } => {
-            // **The inverse is where they are NOW**, read before the restore puts them back. `moved`
-            // records where they came *from*; redoing needs where they went *to*.
-            let now = blueprint_model::stack::Moved {
-                was: moved
-                    .was
-                    .iter()
-                    .filter_map(|(i, _, _)| {
-                        open
-                            .map
-                            .placements
-                            .get(*i)
-                            .map(|p| (*i, p.at, p.on.clone()))
-                    })
-                    .collect(),
-            };
-            // `restore_moved` is the recorded inverse, so the undo cannot drift from the move: it
-            // replays exactly the `(at, on)` pairs the move displaced, rather than recomputing where
-            // things "should" go and hoping the two agree.
-            blueprint_model::stack::restore_moved(&mut open.map, &moved);
-            persist(open, project, state);
-            let ids: Vec<String> = moved
-                .was
-                .iter()
-                .filter_map(|(i, _, _)| open.map.placements.get(*i).map(|p| p.id.clone()))
-                .collect();
-            for (entity, marker) in placed {
-                if ids.contains(&marker.0) {
-                    commands.entity(entity).despawn();
-                }
-            }
-            // Restored first, drawn second — how high a piece sits is a question about the finished
-            // map, the same reason `RemovedMany` below waits.
-            match heights(project, &*open) {
-                Ok(ys) => {
-                    for (i, _, _) in &moved.was {
-                        let Some(p) = open.map.placements.get(*i) else {
-                            continue;
-                        };
-                        let (id, at, yaw, tip) = (p.id.clone(), p.at, p.yaw, p.tip);
-                        let (Some(d), Some(&y)) =
-                            (descriptor_of(&project.library, p), ys.get(*i))
-                        else {
-                            continue;
-                        };
-                        if let Some(e) =
-                            spawn_piece(commands, assets, Pose { d: &d, yaw, tip }, at, open.map.origin, y)
-                        {
-                            commands.entity(e).insert(Placement(id));
-                        }
-                    }
-                }
-                Err(e) => {
-                    state
-                        .status
-                        .problem(format!("put back, but cannot draw it: {e}"));
-                    error!("{e}");
-                    // `restore_moved` above ALREADY moved the rows, so the map has changed whatever
-                    // happened to the drawing.
-                    // Nothing goes on the other stack: the map moved but could not be drawn, and
-                    // offering to redo a state the author cannot see would compound it.
-                    return Reversal::Stranded;
-                }
-            }
-            state
-                .status
-                .note(format!("put back {} placement(s)", moved.was.len()));
-            Undo::Moved { moved: now }
-        }
         Undo::RemovedMany { items } => {
             let n = items.len();
             // Rows back first, all of them, and only THEN drawn: how high a piece sits is a question
@@ -16462,68 +16381,87 @@ fn drop_piece(
         state.status.note(format!("`{id}` put back where it was"));
         return;
     }
-    let moved = match blueprint_model::stack::move_placement(&mut open.map, &project.library, index, at)
-    {
-        Ok(moved) => moved,
-        // **Refused, and still in hand.** Dropping it anyway is the behaviour this exists to
-        // avoid: the piece would land somewhere its mount does not hold and read as an
-        // authoring mistake. Keeping hold of it means the next click is another try.
-        Err(e) => {
-            state.status.note(e);
-            return;
-        }
+    let id = row.id.clone();
+    // **The drop is `placement_move`** (#500): the registry validates it, writes the file and appends
+    // the log line, so a drag is an operation an agent can make too. The refusal keeps the piece in
+    // hand — the next click is another try — because a drop somewhere its mount does not hold reads
+    // as an authoring mistake.
+    let Some((line, phrase)) = move_through(project, open, state, &id, at) else {
+        return;
     };
     drag.held = None;
+    state.record_logged(line, phrase, false);
 
     // Everything that moved is redrawn from the finished map — never by nudging a transform.
     // `turn_under_cursor` states the rule; this obeys it for a whole group, because a lamp
     // whose table moved has a new `y` in the data and an entity still standing over the old
-    // spot.
-    let ids: Vec<String> = moved
-        .was
-        .iter()
-        .filter_map(|(i, _, _)| open.map.placements.get(*i).map(|p| p.id.clone()))
-        .collect();
-    for (entity, marker) in placed {
-        if ids.iter().any(|id| id == &marker.0) {
-            commands.entity(entity).despawn();
-        }
-    }
-    match heights(project, open) {
-        Ok(ys) => {
-            for (i, _, _) in &moved.was {
-                let Some(p) = open.map.placements.get(*i) else {
-                    continue;
-                };
-                let (id, at, yaw, tip) = (p.id.clone(), p.at, p.yaw, p.tip);
-                let (Some(d), Some(&y)) = (descriptor_of(&project.library, p), ys.get(*i))
-                else {
-                    continue;
-                };
-                if let Some(e) = spawn_piece(commands, assets, Pose { d: &d, yaw, tip }, at, open.map.origin, y) {
-                    commands.entity(e).insert(Placement(id));
-                }
-            }
-        }
+    // spot. **Which rows moved is the carrier's own answer**, read off `stack::group_of` for the
+    // anchor, so the redraw and the move cannot name different sets.
+    let indices: Vec<usize> = blueprint_model::stack::group_of(&open.map, index);
+    let carried = indices.len();
+    match redraw_placements(commands, assets, project, &*open, placed, &indices) {
+        Ok(()) => {}
         Err(e) => {
             state
                 .status
                 .problem(format!("moved, but cannot draw it: {e}"));
             error!("{e}");
-            state.record(Undo::Moved { moved });
             return;
         }
     }
 
-    let carried = moved.was.len();
-    state.record(Undo::Moved { moved });
-    let head = ids.first().cloned().unwrap_or_default();
     let how = if free { " free" } else { "" };
     state.status.note(if carried > 1 {
-        format!("moved {head} and {} riding on it{how}", carried - 1)
+        format!("moved {id} and {} riding on it{how}", carried - 1)
     } else {
-        format!("moved {head}{how}")
+        format!("moved {id}{how}")
     });
+}
+
+/// **Move a placement through the operation registry** (#500), so a drag, a nudge and an agent's call
+/// are one validated, saved and logged change. Returns the log line and its receipt; `None` when the
+/// registry refused, and the refusal is a note where the author looks.
+fn move_through(
+    project: &Project,
+    open: &mut OpenMap,
+    state: &mut EditorState,
+    id: &str,
+    at: (f32, f32),
+) -> Option<(String, String)> {
+    let params = serde_json::json!({"id": id, "at": [at.0, at.1]});
+    let mut ctx = crate::ops::Ctx {
+        view: None, trust_file: None, decisions: None,
+        project: Some(project.clone()),
+        open: Some(std::mem::replace(
+            &mut *open,
+            OpenMap::new(
+                blueprint_model::map::Map::default(),
+                std::path::PathBuf::new(),
+            ),
+        )),
+        source: crate::ops::Source::Human,
+        root: None,
+        session: crate::ops::session_id(),
+        proposal: None,
+    };
+    let outcome = crate::ops::dispatch(&mut ctx, "placement_move", &params);
+    if let Some(fresh) = ctx.open.take() {
+        *open = fresh;
+    }
+    match outcome {
+        Ok(crate::ops::Applied::Done {
+            outcome,
+            operation_id,
+            ..
+        }) => {
+            state.status.note(outcome.summary.clone());
+            Some((operation_id, outcome.summary))
+        }
+        Ok(crate::ops::Applied::Refused(e)) | Err(e) => {
+            state.status.note(e.0);
+            None
+        }
+    }
 }
 
 /// **The thing you are pointing at**, given a probe in map space.

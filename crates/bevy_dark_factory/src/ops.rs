@@ -8003,6 +8003,7 @@ pub fn registry() -> Vec<Box<dyn Operation>> {
         Box::new(placement_set_tip::PlacementSetTip),
         Box::new(placement_set_pose::PlacementSetPose),
         Box::new(placement_set_lift::PlacementSetLift),
+        Box::new(placement_move::PlacementMove),
         Box::new(placement_remove::PlacementRemove),
         Box::new(stamp_remove::StampRemove),
         Box::new(crate::ops_stamp::StampAdd),
@@ -8328,6 +8329,9 @@ pub const UI_ENTRY_POINTS: &[(&str, &str)] = &[
     // **The map's name field**, which the N key opens. Enter dispatches `map_rename` through
     // `rename_map`, so the name rule and the file's move are the operation's.
     ("map_rename", "rename_map("),
+    // **The move tool's drop** (#500), which puts the piece in hand down through `drop_piece`, which
+    // dispatches `placement_move` — so a drag is validated, written and logged as an agent's move is.
+    ("placement_move", "drop_piece("),
     // **The removal click**, which deletes one placement, and what stands on it, through
     // `remove_placement`, which dispatches `placement_remove`.
     ("placement_remove", "remove_placement("),
@@ -10740,6 +10744,505 @@ pub mod placement_set_lift {
                 saved: true,
                 inverse: Some(json!({"id": p.id, "lift": old})),
                 after: Some(json!({"map": map_name, "id": p.id, "lift": lift})),
+            })
+        }
+    }
+}
+
+/// **Move a placement to a place, taking everything resting on it along** (#500).
+///
+/// The move tool was the biggest verb that was not an operation: `drop_piece` called
+/// `blueprint_model::stack::move_placement` directly and recorded an in-memory `Undo::Moved`, so a drag
+/// **wrote no file**, left **no line in the operation log**, and was the one thing a level editor is
+/// used most for that an agent had no tool for. This is that verb, and the drag now dispatches it.
+///
+/// # The geometry is not duplicated
+///
+/// The body is `stack::move_placement`, which is a pure function over the map and the library: it
+/// finds the riders transitively, re-seats the anchor through the same `placement_at` a click uses, and
+/// works on a copy so a refused mount leaves the map untouched. This module owns the file write, the
+/// log line and the recorded inverse — nothing else.
+///
+/// # `at` or `by`, never both
+///
+/// A drop knows where the piece goes (`at`); a nudge knows how far (`by`). Two fields, one rule: the
+/// request must name its displacement exactly once, so a caller cannot send both and get whichever
+/// one the code happened to read first.
+pub mod placement_move {
+    use super::*;
+    use serde_json::json;
+
+    /// **One row the move displaced**: the place it held, and what it rested on, so the undo puts
+    /// the group back exactly as the move found it.
+    #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+    #[serde(deny_unknown_fields)]
+    pub struct RestoreRow {
+        pub index: usize,
+        pub at: [f32; 2],
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        pub on: Option<String>,
+    }
+
+    #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+    #[serde(deny_unknown_fields)]
+    pub struct Params {
+        /// The placement to move, by the id its row has in the map file.
+        #[serde(default)]
+        pub id: Option<String>,
+        /// **Where it should stand**, in map metres.
+        #[serde(default)]
+        pub at: Option<[f32; 2]>,
+        /// **How far it should travel**, in map metres. The other way of saying `at`.
+        #[serde(default)]
+        pub by: Option<[f32; 2]>,
+        /// **Only an undo sends this**: the rows the move displaced, and where each one stood.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        pub restore: Option<Vec<RestoreRow>>,
+    }
+
+    impl Params {
+        /// **The JSON schema**, which is what an agent reads.
+        pub fn schema() -> serde_json::Value {
+            json!({
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "description": "The placement's id, as the map file names it. Anything resting on it moves with it."
+                    },
+                    "at": {
+                        "type": "array",
+                        "items": {"type": "number"},
+                        "minItems": 2,
+                        "maxItems": 2,
+                        "description": "Where the piece should stand, in map metres [x, z]. Give this or `by`, not both."
+                    },
+                    "by": {
+                        "type": "array",
+                        "items": {"type": "number"},
+                        "minItems": 2,
+                        "maxItems": 2,
+                        "description": "How far the piece should travel, in map metres [dx, dz]. Give this or `at`, not both."
+                    },
+                    "restore": {
+                        "type": "array",
+                        "description": "Only an undo sends this: it puts the rows a logged move displaced back where they stood. It is not a way to move a piece.",
+                        "items": {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "required": ["index", "at"],
+                            "properties": {
+                                "index": {"type": "integer", "minimum": 0},
+                                "at": {"type": "array", "items": {"type": "number"}, "minItems": 2, "maxItems": 2},
+                                "on": {"type": "string"}
+                            }
+                        }
+                    }
+                }
+            })
+        }
+
+        /// **The parameters, parsed.** `deny_unknown_fields`, so a typo is a refusal; `at` and `by`
+        /// are one displacement, so naming both is refused rather than resolved by precedence.
+        pub fn parse(raw: &serde_json::Value) -> Result<Params, Refusal> {
+            let p: Params = serde_json::from_value(raw.clone()).map_err(|e| {
+                Refusal::new(format!(
+                    "these are not a move: {e}. The fields are `id` with `at` or `by`, or `restore` for \
+                     an undo, and nothing else."
+                ))
+            })?;
+            if let Some(rows) = &p.restore {
+                if p.id.is_some() || p.at.is_some() || p.by.is_some() {
+                    return Err(Refusal::new(
+                        "a move either names a piece and a place, or puts back the rows a logged move \
+                         displaced, and not both. Nothing was moved.",
+                    ));
+                }
+                if rows.is_empty() {
+                    return Err(Refusal::new(
+                        "a put-back has no rows, so nothing was put back.",
+                    ));
+                }
+                for row in rows {
+                    if !(row.at[0].is_finite() && row.at[1].is_finite()) {
+                        return Err(Refusal::new(
+                            "a put-back names a place that is not a finite pair of metres. Nothing was moved.",
+                        ));
+                    }
+                }
+                return Ok(p);
+            }
+            if p.id.as_deref().is_none_or(str::is_empty) {
+                return Err(Refusal::new(
+                    "no placement is named, so nothing was moved: give `id`.",
+                ));
+            }
+            let displacement = match (&p.at, &p.by) {
+                (Some(_), Some(_)) => {
+                    return Err(Refusal::new(
+                        "a move says where the piece goes with `at`, or how far it goes with `by`, and \
+                         not both. Nothing was moved.",
+                    ));
+                }
+                (Some(at), None) => at,
+                (None, Some(by)) => by,
+                (None, None) => {
+                    return Err(Refusal::new(
+                        "a move names no place: give `at` (where it should stand) or `by` (how far it \
+                         should travel). Nothing was moved.",
+                    ));
+                }
+            };
+            if !(displacement[0].is_finite() && displacement[1].is_finite()) {
+                return Err(Refusal::new(
+                    "a move has to be a finite pair of metres. Nothing was moved.",
+                ));
+            }
+            Ok(p)
+        }
+    }
+
+    /// **Where the move lands**, given the piece as it stands now.
+    fn target(from: (f32, f32), p: &Params) -> (f32, f32) {
+        match (&p.at, &p.by) {
+            (Some(at), _) => (at[0], at[1]),
+            (None, Some(by)) => (from.0 + by[0], from.1 + by[1]),
+            // `parse` has refused this; the value is the piece's own place so nothing moves.
+            (None, None) => from,
+        }
+    }
+
+    /// **The rows the undo puts back**, read off the move's own record.
+    fn rows_of(moved: &blueprint_model::stack::Moved) -> Vec<RestoreRow> {
+        moved
+            .was
+            .iter()
+            .map(|(index, at, on)| RestoreRow {
+                index: *index,
+                at: [at.0, at.1],
+                on: on.clone(),
+            })
+            .collect()
+    }
+
+    /// **The ids a move displaced**, in the order the map holds them, so the answer, the redraw and
+    /// the undo's projection all name one list.
+    fn ids_moved(moved: &blueprint_model::stack::Moved, map: &blueprint_model::map::Map) -> Vec<String> {
+        let mut rows: Vec<(usize, String)> = moved
+            .was
+            .iter()
+            .filter_map(|(i, _, _)| map.placements.get(*i).map(|p| (*i, p.id.clone())))
+            .collect();
+        rows.sort_unstable();
+        rows.into_iter().map(|(_, id)| id).collect()
+    }
+
+    /// **Where those pieces stand now**, as the undo's guard reads them.
+    ///
+    /// **One shape on both sides.** The guard cuts the logged `after` down to the keys
+    /// [`PlacementMove::state_of`] reports and compares like with like, so the change records its
+    /// projection under the same name the projection uses — a `places` the change left and a `places`
+    /// the map has are the same four numbers, and a move whose logged row said `ids` instead was the
+    /// shape that refused its own undo.
+    fn places_of(ids: &[String], map: &blueprint_model::map::Map) -> serde_json::Value {
+        let places: Vec<serde_json::Value> = ids
+            .iter()
+            .filter_map(|id| map.placements.iter().find(|q| &q.id == id))
+            .map(|p| json!([p.id, p.at.0, p.at.1]))
+            .collect();
+        json!({"places": places})
+    }
+
+    /// **Put back exactly what a move displaced**, and save. A refused save puts the new places
+    /// back, so the editor and the file agree.
+    fn put_back(
+        project: &Project,
+        open: &mut OpenMap,
+        rows: &[RestoreRow],
+    ) -> Result<Outcome, Refusal> {
+        let mut was = Vec::with_capacity(rows.len());
+        for row in rows {
+            if open.map.placements.get(row.index).is_none() {
+                return Err(Refusal::new(format!(
+                    "row {} is past the end of the map, so the move cannot be put back. Nothing was \
+                     moved.",
+                    row.index
+                )));
+            }
+            was.push((row.index, (row.at[0], row.at[1]), row.on.clone()));
+        }
+        // **The places they hold now**, so a refused save can be taken back.
+        let now: Vec<(usize, (f32, f32), Option<String>)> = was
+            .iter()
+            .map(|(i, _, _)| {
+                let p = &open.map.placements[*i];
+                (*i, p.at, p.on.clone())
+            })
+            .collect();
+        let moved = blueprint_model::stack::Moved { was: was.clone() };
+        blueprint_model::stack::restore_moved(&mut open.map, &moved);
+        if let Err(e) = open.save(project) {
+            blueprint_model::stack::restore_moved(
+                &mut open.map,
+                &blueprint_model::stack::Moved { was: now },
+            );
+            return Err(Refusal::new(format!(
+                "the file refused the put-back, so nothing was written and the pieces are where the \
+                 move left them: {e}"
+            )));
+        }
+        let ids: Vec<String> = was
+            .iter()
+            .filter_map(|(i, _, _)| open.map.placements.get(*i).map(|p| p.id.clone()))
+            .collect();
+        let summary = match ids.len() {
+            0 => "moved nothing back".to_owned(),
+            1 => format!("moved {} back", ids[0]),
+            n => format!("moved {n} pieces back"),
+        };
+        Ok(Outcome {
+            summary,
+            affected: ids.len(),
+            saved: true,
+            // **Its inverse is the move that left them** — the places they held before the put-back.
+            inverse: Some(json!({
+                "restore": now.iter().map(|(index, at, on)| RestoreRow {
+                    index: *index,
+                    at: [at.0, at.1],
+                    on: on.clone(),
+                }).collect::<Vec<_>>()
+            })),
+            after: Some({
+                let mut projected = places_of(&ids, &open.map);
+                if let Some(row) = projected.as_object_mut() {
+                    row.insert("map".to_owned(), json!(open.map.name));
+                    row.insert("ids".to_owned(), json!(ids));
+                }
+                projected
+            }),
+        })
+    }
+
+    /// **Move one placement, and everything resting on it.**
+    pub struct PlacementMove;
+
+    impl Operation for PlacementMove {
+        fn name(&self) -> &'static str {
+            "placement_move"
+        }
+
+        /// **A move names the box it left and the box it landed in.** A person watching the NightShift
+        /// must be able to connect the two frames, and a put-back names the same pair the other way
+        /// round, so an undo shows the place the piece stands again.
+        fn shows(&self, ctx: &Ctx, params: &serde_json::Value) -> Shown {
+            let Ok(p) = Params::parse(params) else {
+                return Shown::MapWhole;
+            };
+            let Some(open) = ctx.open.as_ref() else {
+                return Shown::MapWhole;
+            };
+            let row_box_of = |p: &blueprint_model::map::Placed| match ctx.project.as_ref() {
+                Some(project) => row_box(&project.library, p),
+                None => point_box(p.at),
+            };
+            if let Some(rows) = &p.restore {
+                let mut boxes = Vec::with_capacity(rows.len() * 2);
+                let mut ids = Vec::with_capacity(rows.len());
+                for row in rows {
+                    boxes.push(point_box((row.at[0], row.at[1])));
+                    if let Some(placed) = open.map.placements.get(row.index) {
+                        boxes.push(row_box_of(placed));
+                        ids.push(placed.id.clone());
+                    }
+                }
+                return match enclose(boxes) {
+                    Some(rect) => Shown::Map { rect, placements: ids },
+                    None => Shown::MapWhole,
+                };
+            }
+            let Some(id) = p.id.as_deref() else {
+                return Shown::MapWhole;
+            };
+            let Some(placed) = open.map.placements.iter().find(|q| q.id == id) else {
+                return Shown::MapWhole;
+            };
+            let to = target(placed.at, &p);
+            match enclose([row_box_of(placed), point_box(to)]) {
+                Some(rect) => Shown::Map { rect, placements: vec![id.to_owned()] },
+                None => Shown::MapWhole,
+            }
+        }
+
+        fn writes(&self) -> &'static [&'static str] {
+            &["map"]
+        }
+
+        fn undo(&self) -> Undo {
+            Undo::Inverse
+        }
+
+        /// **A put-back is an undo's parameters, not a way to move a piece.** Sending `restore` by hand
+        /// would be a second door to "put these rows at these places", which is what the move's own
+        /// inverse is for.
+        fn only_as_undo(&self, params: &serde_json::Value) -> bool {
+            params.get("restore").is_some()
+        }
+
+        fn schema(&self) -> serde_json::Value {
+            Params::schema()
+        }
+
+        fn state(&self, ctx: &Ctx) -> Option<serde_json::Value> {
+            let open = ctx.open.as_ref()?;
+            let places: Vec<serde_json::Value> = open
+                .map
+                .placements
+                .iter()
+                .map(|p| json!([p.id, p.at.0, p.at.1]))
+                .collect();
+            Some(json!({"map": open.map.name, "places": places}))
+        }
+
+        /// **Where the pieces this change displaced stand now**, against the places the change left —
+        /// so an unrelated edit elsewhere on the map does not block the undo.
+        fn state_of(&self, ctx: &Ctx, after: &serde_json::Value) -> Option<serde_json::Value> {
+            let open = ctx.open.as_ref()?;
+            let Some(ids) = after.get("ids").and_then(serde_json::Value::as_array) else {
+                return self.state(ctx);
+            };
+            let mut places = Vec::with_capacity(ids.len());
+            for id in ids {
+                let id = id.as_str()?;
+                let p = open.map.placements.iter().find(|q| q.id == id)?;
+                places.push(json!([p.id, p.at.0, p.at.1]));
+            }
+            Some(json!({"places": places}))
+        }
+
+        fn plan(&self, ctx: &Ctx, params: &serde_json::Value) -> Result<serde_json::Value, Refusal> {
+            let p = Params::parse(params)?;
+            let Some(open) = ctx.open.as_ref() else {
+                return Err(Refusal::new(
+                    "no map is open, so there is no placement to move.",
+                ));
+            };
+            if let Some(rows) = &p.restore {
+                for row in rows {
+                    if open.map.placements.get(row.index).is_none() {
+                        return Err(Refusal::new(format!(
+                            "row {} is past the end of the map, so the move cannot be put back.",
+                            row.index
+                        )));
+                    }
+                }
+                return Ok(json!({"restore": rows}));
+            }
+            let Some(id) = p.id.as_deref() else {
+                return Err(Refusal::new("no placement is named, so nothing was moved."));
+            };
+            let Some(placed) = open.map.placements.iter().find(|q| q.id == id) else {
+                return Err(no_such_placement(id, "moved"));
+            };
+            let to = target(placed.at, &p);
+            if to == placed.at {
+                return Err(Refusal::new(format!(
+                    "{id} already stands at ({:.1}, {:.1}), so nothing was moved.",
+                    to.0, to.1
+                )));
+            }
+            // **The rules a move obeys are `move_placement`'s**, so the preview asks it on a copy of
+            // the map: a mounting that would be refused on the drop is refused on the preview, and a
+            // piece that lands on a mount it cannot hold is never half-moved.
+            let Some(project) = ctx.project.as_ref() else {
+                return Err(Refusal::new("no project is open."));
+            };
+            let mut trial = open.map.clone();
+            let index = trial.placements.iter().position(|q| q.id == id).unwrap_or(0);
+            let moved = blueprint_model::stack::move_placement(&mut trial, &project.library, index, to)
+                .map_err(Refusal::new)?;
+            Ok(json!({
+                "id": id,
+                "at": [to.0, to.1],
+                "ids": ids_moved(&moved, &trial),
+            }))
+        }
+
+        fn commit(&self, ctx: &mut Ctx, params: &serde_json::Value) -> Result<Outcome, Refusal> {
+            let p = Params::parse(params)?;
+            let Some(mut open) = ctx.open.take() else {
+                return Err(Refusal::new(
+                    "no map is open, so there is no placement to move.",
+                ));
+            };
+            let Some(project) = ctx.project.as_ref().cloned() else {
+                ctx.open = Some(open);
+                return Err(Refusal::new("no project is open."));
+            };
+            if let Some(rows) = p.restore.clone() {
+                let done = put_back(&project, &mut open, &rows);
+                ctx.open = Some(open);
+                return done;
+            }
+            let Some(id) = p.id.clone() else {
+                ctx.open = Some(open);
+                return Err(Refusal::new("no placement is named, so nothing was moved."));
+            };
+            let Some(index) = open.map.placements.iter().position(|q| q.id == id) else {
+                ctx.open = Some(open);
+                return Err(no_such_placement(&id, "moved"));
+            };
+            let from = open.map.placements[index].at;
+            let to = target(from, &p);
+            if to == from {
+                ctx.open = Some(open);
+                return Err(Refusal::new(format!(
+                    "{id} already stands at ({:.1}, {:.1}), so nothing was moved.",
+                    to.0, to.1
+                )));
+            }
+            // **`move_placement` is the whole body**: it carries the riders, obeys the mount rules,
+            // and works on a copy so a refused seating leaves the map untouched.
+            let moved = match blueprint_model::stack::move_placement(
+                &mut open.map,
+                &project.library,
+                index,
+                to,
+            ) {
+                Ok(moved) => moved,
+                Err(e) => {
+                    ctx.open = Some(open);
+                    return Err(Refusal::new(e));
+                }
+            };
+            // **And the file, so a drag is not only in memory** — the defect this operation closes.
+            if let Err(e) = open.save(&project) {
+                blueprint_model::stack::restore_moved(&mut open.map, &moved);
+                ctx.open = Some(open);
+                return Err(Refusal::new(format!(
+                    "the file refused the move, so nothing was written and the piece is where it was: {e}"
+                )));
+            }
+            let ids = ids_moved(&moved, &open.map);
+            let carried = ids.len();
+            let summary = match carried {
+                0 => format!("moved {id}"),
+                1 => format!("moved {id} to ({:.1}, {:.1})", to.0, to.1),
+                n => format!("moved {id} and {} riding on it", n - 1),
+            };
+            let mut projected = places_of(&ids, &open.map);
+            let map_name = open.map.name.clone();
+            ctx.open = Some(open);
+            if let Some(row) = projected.as_object_mut() {
+                row.insert("map".to_owned(), json!(map_name));
+                row.insert("ids".to_owned(), json!(ids));
+            }
+            Ok(Outcome {
+                summary,
+                affected: carried.max(1),
+                saved: true,
+                inverse: Some(json!({"restore": rows_of(&moved)})),
+                after: Some(projected),
             })
         }
     }
