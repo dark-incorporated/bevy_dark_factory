@@ -1626,6 +1626,22 @@ pub fn spawn_frame(
             bevy_gooey::sized(bevy_gooey::Sizing {
                 width: Some(bevy_gooey::Extent::Percent(100.0)),
                 height: Some(bevy_gooey::Extent::Vh(100.0)),
+                // **The window's width is a ceiling, not a suggestion** (#497). A `Percent(100.0)`
+                // width says how wide the frame is; it does not stop a *descendant* from claiming
+                // more, because a flex item's automatic least width is its content's and that least
+                // width propagates up the chain. The terminal's body holds one unwrapped row per line
+                // of output (`TextLayout::no_wrap`, so a shell's 200-column `cargo` line is one
+                // `Text`), and at text scale 3.0 that row measured 1541 px in a 1280-px window: the
+                // root then laid out 1569 px wide and the whole window scrolled sideways.
+                //
+                // Measured across ten frames at 1280 x 720: at 1.0 and 1.6 the root, the pane and the
+                // body were all 1280, and at 3.0 all three were 1569. Hiding the terminal pane left
+                // the root at 1569, so no pane was what stretched it. Stating the least width as
+                // nothing is the whole fix: afterwards the root, the pane and the body measured 1280
+                // at 3.0, with 1.0 and 1.6 unchanged. What clips the long row is the body's own
+                // `clip`, and the pane re-wraps its scrollback to the columns the narrowed body gives
+                // it, which is what `terminal_view::measure_the_cell` exists for.
+                min_width: Some(bevy_gooey::Extent::Px(0.0)),
                 ..default()
             }),
             // See the type doc: no `Hovered`, and nothing here eats a click meant for the map.
