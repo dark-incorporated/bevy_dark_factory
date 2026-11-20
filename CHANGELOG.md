@@ -4,6 +4,7 @@ What each change added, newest first. A visible change has a clip: click the sti
 
 ## 2026-11-20
 
+- **textscaleleak** `07416eba` An app's text scale no longer outlives the app: the process-global resets when its world drops *No clip: an ordering fix nothing draws; proved by an_app_leaves_no_text_scale_behind*
 - **filetreefill** `6135378` The file tree fills its panel: bevy_gooey's table root grows to the height it is given *No clip: the visible result is the file explorer filling its div; proved by the_files_tree_fills_the_region_that_holds_it*
 
 ## 2026-11-19
