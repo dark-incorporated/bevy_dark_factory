@@ -35,9 +35,16 @@ fn editor(tag: &str) -> (App, std::path::PathBuf) {
     app.add_plugins(bevy_debugger_bevy::DebuggerPlugin::default());
     app.add_plugins(bevy_dark_factory::ops_brp::OpsBridgePlugin);
     app.world_mut().spawn((Window::default(), PrimaryWindow));
-    for _ in 0..8 {
-        app.update();
-    }
+    // **Wait until the tab has read the manifest** (#527). It is the tab's own read that fills
+    // `BenchState::text`, and `take_edit` records an undo step only when that text is present. Eight
+    // frames was enough on an idle machine and not always enough under the full suite, where the
+    // watcher could deliver the on-disk edit first and the step was then silently dropped.
+    //
+    // Waiting on the thing the tests need -- text in hand -- rather than a frame count, with the same
+    // 30 s budget the rest of this file uses.
+    until(&mut app, 30.0, "the bench to hold the manifest it read", |a| {
+        a.world().resource::<BenchState>().text.is_some()
+    });
     (app, path)
 }
 
