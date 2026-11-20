@@ -58,12 +58,15 @@ fn editor(root: &Path, policy: ExternalEdits) -> App {
     app
 }
 
-/// **The map's file, rewritten underneath with a different bounds** — the change an agent's or a script's save makes.
+/// **The map's file, rewritten underneath with a different note** — the change an agent's or a script's save makes.
+///
+/// **A field the fixture's own file carries**, found by reading it rather than assumed: `note: null` is there, so the rewrite
+/// lands and the test fails on the policy rather than on a needle that was never in the file.
 fn rewrite_the_map(root: &Path) {
     let path = root.join("assets/blueprint/maps/m.map.yaml");
     let text = std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("{e}"));
-    let changed = text.replacen("bounds:\n- 10.0", "bounds:\n- 12.0", 1);
-    assert_ne!(text, changed, "the map's own file says its bounds, so the rewrite changes it");
+    let changed = text.replacen("note: null", "note: written by somebody else", 1);
+    assert_ne!(text, changed, "the map's own file carries `note: null`, so the rewrite changes it: {text}");
     std::fs::write(path, changed).unwrap_or_else(|e| panic!("{e}"));
 }
 
@@ -101,7 +104,7 @@ fn take_the_file_drops_the_persons_map_edits_and_reads_the_file() {
         app.update();
     }
     let open = app.world().resource::<OpenMap>();
-    assert_eq!(open.map.bounds.0, 12.0, "the file's bounds were read, so the file's map is the editor's");
+    assert_eq!(open.map.note.as_deref(), Some("written by somebody else"), "the file's note was read, so the file's map is the editor's");
     assert_eq!(open.map.note, None, "the person's unsaved note is gone, which is what taking the file means");
     assert!(!open.dirty(), "the editor holds what the file says");
 }

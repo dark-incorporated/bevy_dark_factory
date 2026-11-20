@@ -241,8 +241,11 @@ fn the_timer_is_parked_while_a_question_is_up_and_when_no_project_is_open() {
     step_seconds(&mut app, 1.0);
     assert_eq!(app.world().resource::<AutoSave>().remaining, before, "and the countdown is parked, not restarted");
 
-    // **Answered, and the countdown runs again.**
-    let _ = app.world_mut().resource_mut::<bevy_dark_factory::confirm::Confirm>().answer(bevy_dark_factory::confirm::Asked::LeaveMap);
+
+    // **The question is answered, and the countdown runs again.** `Confirm::answer` only returns an answer a key or a button
+    // settled, so the test takes the question away outright: `is_open` reads a missing `Confirm` as no question, which is the
+    // state a person who answered is in.
+    app.world_mut().remove_resource::<bevy_dark_factory::confirm::Confirm>();
     step_seconds(&mut app, 3.0);
     assert!(!app.world().resource::<OpenMap>().dirty(), "with nothing in the way the save lands");
 }
