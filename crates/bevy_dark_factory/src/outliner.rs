@@ -898,7 +898,7 @@ fn rebuild_the_tree(
     // **This system's cost, into the frame's total** (UI-93, #259): the tree is the list that grows with the map, and the
     // budget's whole point is that a settled frame pays nothing for its depth. The guard writes on drop, so every `return`
     // below is measured without a call of its own.
-    let spent = crate::ui_budget::measure(&mut budget);
+    let spent = crate::ui_budget::measure(&mut budget).named("outliner::rebuild_the_tree");
     let (Some(open), Some(project)) = (open, project) else { return };
     // **The marks on the rows are part of what the tree is built from** (UI-51, #237): a hide or a lock is a relabelled row.
     let (eyes_changed, locks_changed) = (eyes.is_changed(), locks.is_changed());

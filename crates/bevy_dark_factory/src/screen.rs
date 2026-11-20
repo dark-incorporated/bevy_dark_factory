@@ -792,6 +792,14 @@ pub const OWNERSHIP: &[(&str, Ownership)] = &[
     // the next door's frame is folded the same way the frame of this one was.
     ("bevy_dark_factory::shell_view::ShellView", Ownership::Session),
     ("bevy_dark_factory::selection::Selection", Ownership::Session),
+    // **The console's ring is the session's** (#509): the first lines of a run are written before `DefaultPlugins` and
+    // before there is a project to be about (`log_file` opens at `main`'s first instruction), so a door change must not
+    // empty the panel a person opened to read them. Its `hidden` filters and its open line are the same session's.
+    ("bevy_dark_factory::console::Console", Ownership::Session),
+    // **The frame profile's ring is the session's too** (#504): a frame history is a fact about this process, not about
+    // the project it happens to have open, and a door change that emptied it would erase the stutter a person opened the
+    // panel to find.
+    ("bevy_dark_factory::profile::Profiler", Ownership::Session),
     // **`Door`, like the light map**: the audio panel's buses, cue names and selection are read from
     // this door's `family/bevy_siren.yaml`, and another project's sound is another file.
     #[cfg(feature = "bevy_siren")]

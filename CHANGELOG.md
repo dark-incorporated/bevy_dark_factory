@@ -2,6 +2,11 @@
 
 What each change added, newest first. A visible change has a clip: click the still to play it. `python3 tools/changelog/changelog.py page --open` plays them all in one page.
 
+## 2026-11-20
+
+- **504-frame-profile** A frame profile a person can open: the last frame's time, the heaviest system it ran and its share of the frame, over 120 frames of history, with blueprint/state.frame reporting the same frame_ms *No clip: a panel with no clip recorded yet, and no display on bmb; proved by tests/the_profile_names_a_system_the_frame_ran.rs*
+- **509-console** The editor's own log gets a panel: every info, warn and error in a console with a count per level, a line's whole text and frame one click away, and a chip that selects the piece a line names *No clip: a panel with no clip recorded yet, and no display on bmb; proved by tests/a_warn_from_a_system_reaches_the_console.rs*
+
 ## 2026-11-19
 
 - **wave7** `3181cbad` Six capture issues land, and the front-ends contracts catch four things branch runs could not *No clip: a docs report and issue fixes; proved by the 4,953-test push gate and the six closed issues*

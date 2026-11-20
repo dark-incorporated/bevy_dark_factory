@@ -56,6 +56,8 @@ pub mod build;
 pub mod build_view;
 pub mod catalog;
 pub mod checks;
+// **The editor's own log, in the window** (#509).
+pub mod console;
 pub mod chrome;
 pub mod command_palette;
 pub mod crosslinks;
@@ -207,6 +209,7 @@ pub mod design_view;
 pub mod ops_people;
 pub mod ops_scripts;
 pub mod ops_runs;
+pub mod profile;
 pub mod project;
 pub mod project_assets;
 pub mod project_page;

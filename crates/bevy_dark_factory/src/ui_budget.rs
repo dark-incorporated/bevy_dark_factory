@@ -91,6 +91,10 @@ impl UiFrame {
 pub struct Measured<'a> {
     started: Instant,
     frame: &'a mut UiFrame,
+    /// **The system's name**, so the frame profile can say *which* system took the time (#504), or `None` for a span
+    /// whose owner has not said. A `&'static str` and not a `String`: it is `std::any::type_name`-shaped data, and the
+    /// profiler's ring must not allocate to hold it.
+    system: Option<&'static str>,
     rebuild: bool,
 }
 
@@ -101,11 +105,25 @@ impl<'a> Measured<'a> {
         self.rebuild = true;
         self
     }
+
+    /// **This span is this system's**, so the frame profile lists it under that name (#504). A span nobody named is
+    /// measured into the budget as before and does not appear in the profile: a row called `unknown` would be a name
+    /// that answers nothing.
+    pub fn named(mut self, system: &'static str) -> Self {
+        self.system = Some(system);
+        self
+    }
 }
 
 impl Drop for Measured<'_> {
     fn drop(&mut self) {
         let ms = self.started.elapsed().as_secs_f64() * 1000.0;
+        // **The profile hears about the same span**, through a call whose whole cost with recording off is one relaxed
+        // atomic load (#504). The budget and the profile are therefore one measurement of one thing, and the test that
+        // holds them together (`tests/the_profile_names_a_system_the_frame_ran.rs`) is what keeps them agreeing.
+        if let Some(system) = self.system {
+            crate::profile::record_span(system, ms);
+        }
         self.frame.ms += ms;
         self.frame.systems += 1;
         if self.rebuild {
@@ -117,13 +135,16 @@ impl Drop for Measured<'_> {
 
 /// **Start timing a system's body.** Bind it (`let _spent = …`) so it lives to the end of the body: a bare call is dropped at
 /// once and measures nothing.
+///
+/// **Name the span for the frame profile** with [`Measured::named`] (#504), so the panel lists it under the system's own
+/// name and a reader of the panel and a reader of the source name the same thing.
 #[must_use]
 pub fn measure(frame: &mut UiFrame) -> Measured<'_> {
-    Measured { started: Instant::now(), frame, rebuild: false }
+    Measured { started: Instant::now(), frame, system: None, rebuild: false }
 }
 
 /// **The finished frame is kept and the new one starts at zero**, before any system in `Update` can add to it.
-fn roll_the_frame(mut frame: ResMut<UiFrame>) {
+pub fn roll_the_frame(mut frame: ResMut<UiFrame>) {
     frame.last_ms = frame.ms;
     frame.last_systems = frame.systems;
     frame.last_rebuild_ms = frame.rebuild_ms;
@@ -135,6 +156,10 @@ fn roll_the_frame(mut frame: ResMut<UiFrame>) {
     frame.rebuilds = 0;
     frame.gooey_ms = 0.0;
 }
+
+/// **The name gooey's own drawing is listed under** in the frame profile (#504), beside the three systems this crate
+/// times: one line says what the tables and trees cost, which is where a long session's frames go.
+pub const GOOEY_SPAN: &str = "bevy_gooey::update_trees..update_tables";
 
 /// **When gooey's table and tree drawing began this frame**, for [`end_the_gooey_span`] to read.
 #[derive(Resource, Default)]
@@ -151,6 +176,9 @@ fn begin_the_gooey_span(mut span: ResMut<GooeySpan>) {
 fn end_the_gooey_span(mut span: ResMut<GooeySpan>, mut frame: ResMut<UiFrame>) {
     let Some(began) = span.0.take() else { return };
     let ms = began.elapsed().as_secs_f64() * 1000.0;
+    // **The profile lists gooey's drawing too** (#504): it is the largest single thing a long session spends its frames
+    // in, and a panel that named only this crate's three systems would leave the actual answer out.
+    crate::profile::record_span(GOOEY_SPAN, ms);
     frame.ms += ms;
     frame.gooey_ms += ms;
     frame.systems += 1;

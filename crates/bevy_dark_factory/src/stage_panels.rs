@@ -64,10 +64,22 @@ pub fn is_screen(id: &str) -> bool {
 /// **Panels the shell registers and a capture cannot stage**, with the reason, so the catalog can be checked against the
 /// registry in both directions. The status band is drawn by the frame under every workbench panel rather than by a tab, so
 /// it has no group to select and is already in every workbench clip.
-pub const NOT_STAGED: &[(&str, &str)] = &[(
-    "status",
-    "the status band is drawn by the frame under every workbench panel, not by a tab, so it is in every workbench clip",
-)];
+pub const NOT_STAGED: &[(&str, &str)] = &[
+    (
+        "status",
+        "the status band is drawn by the frame under every workbench panel, not by a tab, so it is in every workbench clip",
+    ),
+    // **The console and the profile are overlays a chord opens** (#509, #504). They are not `PanelRegistry` entries — the
+    // journal is not either — and a capture starts on one by pressing its chord, not by staging a tab.
+    (
+        "console",
+        "the console is an overlay its own chord (Cmd/Ctrl+Shift+E) opens, so a clip starts on it by pressing that rather than by staging a tab",
+    ),
+    (
+        "profile",
+        "the frame profile is an overlay its own chord (Cmd/Ctrl+Shift+D) opens, so a clip starts on it by pressing that rather than by staging a tab",
+    ),
+];
 
 /// **The order a run stages them in**: the workbench's own panels first, then the settings dialog over them, then the
 /// loader, then the launcher last — because leaving the workbench is what the last two do, and only a stage that moves

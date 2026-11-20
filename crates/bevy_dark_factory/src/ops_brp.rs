@@ -739,6 +739,7 @@ fn frame_busy_end(mut busy: ResMut<FrameBusy>) {
 fn frame_json(
     store: Option<&bevy::diagnostic::DiagnosticsStore>,
     busy: Option<&FrameBusy>,
+    profiler: Option<&crate::profile::Profiler>,
 ) -> Value {
     use bevy::diagnostic::FrameTimeDiagnosticsPlugin as F;
     let get = |p: &bevy::diagnostic::DiagnosticPath| {
@@ -746,12 +747,21 @@ fn frame_json(
     };
     let time = get(&F::FRAME_TIME);
     let fps = get(&F::FPS);
+    // **`frame_ms` is the profile's number when the profile has one** (#504), because the panel draws that one: two
+    // numbers for one frame is exactly the disagreement this issue is about. `frame_ms_smoothed` stays Bevy's, because
+    // the smoothed figure is for a human reading a graph and not for holding anyone to a budget.
     json!({
-        "frame_ms": time.and_then(|t| t.0),
+        "frame_ms": profiler.and_then(|p| p.last_ms()).or_else(|| time.and_then(|t| t.0)),
         "frame_ms_smoothed": time.and_then(|t| t.1),
         "fps": fps.and_then(|t| t.0),
         "busy_ms": busy.filter(|b| b.ms > 0.0).map(|b| b.ms),
         "frame_count": store.and_then(|s| s.get(&F::FRAME_COUNT)).and_then(|d| d.value()),
+        // **The heaviest span of the last recorded frame**, named only while the panel is recording: an agent asking
+        // "which system" gets the same sentence a person sees.
+        "heaviest_span": profiler
+            .and_then(|p| p.last())
+            .and_then(|frame| frame.heaviest().map(|span| json!({"system": span.system, "ms": span.ms, "frame": frame.number}))),
+        "profile_recording": profiler.map(|p| p.recording()),
     })
 }
 
@@ -1164,6 +1174,9 @@ struct Loaded<'w> {
     live: Option<Res<'w, crate::live::LiveWrite>>,
     diagnostics: Option<Res<'w, bevy::diagnostic::DiagnosticsStore>>,
     busy: Option<Res<'w, FrameBusy>>,
+    /// **The frame profile's ring** (#504): the one `frame_ms` a person and an agent both read, so the panel and this
+    /// answer cannot disagree about how long the frame took.
+    profiler: Option<Res<'w, crate::profile::Profiler>>,
     /// The file editor's open files and the tabs that say which is shown: `file_outline` is read from them.
     files: Option<Res<'w, crate::files::Files>>,
     session: Option<Res<'w, crate::session::Session>>,
@@ -1235,7 +1248,7 @@ fn editor_state(
     #[cfg(feature = "bevy_elements")] clock: Option<Res<bevy_elements::WorldClock>>,
     #[cfg(feature = "bevy_elements")] scrub: Option<Res<crate::environment::ClockScrub>>,
 ) -> Result<Value, String> {
-    let Loaded { project, open, game, reloads, live, diagnostics, busy, files, session, style_proposals } = loaded;
+    let Loaded { project, open, game, reloads, live, diagnostics, busy, profiler, files, session, style_proposals } = loaded;
     // **The agent's presentation, and the person's answer to it** (S1.7). `None` until an agent
     // presents something; then an object whose `answer` is `null` while the question is up. This is
     // the only channel an agent has for what a person did after its call returned.
@@ -1483,7 +1496,7 @@ fn editor_state(
         // **The style changes the agent proposed this session** (SG-07, #406): `[{id, path, state, lines}]`, oldest first. `kept` means the change is in the page, which
         // the editor wrote on the person's Keep, and `discarded` that the person dropped it. **No text of a page**: only names, paths and numbers.
         "style_proposals": style_proposals.as_deref().map(|s| s.state_json()).unwrap_or(Value::Null),
-        "frame": frame_json(diagnostics.as_deref(), busy.as_deref()),
+        "frame": frame_json(diagnostics.as_deref(), busy.as_deref(), profiler.as_deref()),
         // **The game's verdict on the last reload** (S3.5): null, "pending", or {ok, message, at_unix_ms}.
         "game": game.as_deref().map_or(Value::Null, |g| g.state_json(open.as_ref().map(|o| o.map_path.as_path()))),
         // **The editor's own verdicts** on the files it watches and draws (#200, H3): `{ok, seq, kinds}`,

@@ -91,6 +91,10 @@ fn main() -> AppExit {
     if let Some(log) = log.clone() {
         app.insert_resource(log);
     }
+    // **And the console's ring, for the same reason** (#509): a second layer pushes every line into it, and it is found
+    // through the world because `custom_layer` is a `fn` pointer with nothing to capture. Registered here rather than by
+    // `ConsolePlugin` so the first lines of a run — the starting line, a legacy upgrade's notices — reach the panel.
+    app.init_resource::<bevy_dark_factory::console::Console>();
     app.insert_resource(bevy_dark_factory::legacy::StartupNotices(upgrading));
     app.add_plugins(
         plugins
@@ -102,7 +106,9 @@ fn main() -> AppExit {
                 filter: bevy_dark_factory::log_filter::LOG_SILENCES.to_owned(),
                 // The file layer comes *after* the filter, so both sinks carry the same events: a log that
                 // said more or less than the terminal would be a second answer to the same question.
-                custom_layer: bevy_dark_factory::log_file::plugin_layer,
+                // **The file and the console, as one layer**: both read the events the filter let through, so the panel
+                // and the file say the same thing and neither is a second answer to "what did the process say".
+                custom_layer: bevy_dark_factory::console::both_layers,
                 ..default()
             })
             // Meshes are named relative to the project, so the project IS the asset root: the default asset
