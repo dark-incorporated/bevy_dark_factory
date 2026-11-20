@@ -1648,7 +1648,13 @@ pub fn spawn_frame(
                 // at 3.0, with 1.0 and 1.6 unchanged. What clips the long row is the body's own
                 // `clip`, and the pane re-wraps its scrollback to the columns the narrowed body gives
                 // it, which is what `terminal_view::measure_the_cell` exists for.
-                min_width: Some(bevy_gooey::Extent::Px(0.0)),
+                //
+                // **Not stated here** (measured 2026-11-20): `min_width: Px(0.0)` on the frame root
+                // fixes the text-scale-3.0 overflow on its own, but combined with c1's status band it
+                // makes a panel's child sit 29 px right of where the pane allows — `no_panel_draws_a_
+                // control_past_its_own_content_box`, `the_terminal_bar_keeps_every_chip_whole` and both
+                // `rig_history` tests refuse it in the full suite while plain main passes all four. The
+                // ceiling belongs where the overflowing row's own box can express it, not on the root.
                 ..default()
             }),
             // See the type doc: no `Hovered`, and nothing here eats a click meant for the map.
