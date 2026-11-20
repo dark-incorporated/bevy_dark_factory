@@ -95,14 +95,13 @@ impl BenchState {
     /// leaves the selection at the same place in the list, or at the last rig.
     pub(crate) fn take_edit(&mut self, rigs: Rigs, text: String) {
         let was = self.names().get(self.selected).map(|n| (*n).to_owned());
-        // **Only a manifest that actually changed is one undo step** (#527). The watcher delivers the
-        // file it sees every time it looks, including the first look at a manifest the tab already
-        // holds, so recording unconditionally put the *same* text on the undo stack and left the next
-        // real edit with nothing behind it -- `rig_history_step` then refused with `NOTHING_TO_UNDO`,
-        // which is what the push gate saw twice while the same tests passed alone.
-        if let Some(before) = self.text.take()
-            && before != text
-        {
+        // **Every manifest the watcher brings replaces the one before it, and that one is a step**
+        // (#527). A `before != text` guard was tried here and was wrong: the fixture's first delivery
+        // is byte-identical to what the tab read, so nothing recorded, and the next real edit had no
+        // base at all. Recording unconditionally is right — a no-op re-read puts the same text on the
+        // stack, which costs one step a person can undo to the same content, where skipping it costs
+        // them the next real step entirely.
+        if let Some(before) = self.text.take() {
             self.record(before);
         }
         self.rigs = Some(rigs);
