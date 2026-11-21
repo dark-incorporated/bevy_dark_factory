@@ -198,6 +198,30 @@ A `Fire` standing on a placement draws the crate's flame and the light the pool 
 | Read by | The MCP server's oplog read tools. The game does not read it. |
 | Format version | None. |
 
+## A file the Files workspace makes, renames or deletes
+
+| | |
+|---|---|
+| Where | Anywhere the tree lists, except the command files (`agent.yaml`, `play.yaml`), the guide, `oplog.jsonl` and what `.gitignore` names. |
+| What it holds | Whatever the person or an agent gave it. A create never overwrites a path that is there. |
+| Written by | `file_create`, `file_rename` and `file_delete`, from the Files tree's right-click or from an agent. Duplicate is a `file_create` with `copy_from`. |
+| Live reload | A file kind the project reads reloads as any other write does. The tree walks again at once rather than on its 1.5 s poll. |
+| Read by | The game, for a kind it knows. |
+| Format version | None: the file is the person's own bytes. |
+
+**The guards are the reason these are operations rather than a shell.** A rename or delete of a file another file of the project names is refused, naming that file, so a moved file leaves no dead name behind. A delete of a map that places pieces is refused, naming them. A command file is refused in `file_edit`'s own words, so the menu cannot do what an edit may not.
+
+## A draft of an unsaved buffer
+
+| | |
+|---|---|
+| Where | `<data_dir>/Blueprint/drafts/<hash>.json`, **never inside a project**: a half-typed file in a project is a file an agent or a game could read. |
+| What it holds | For each unsaved buffer: its path, its text, the text the file held when the buffer was read, and when the draft was taken. |
+| Written by | The editor, a second after the unsaved set changes, and removed when nothing is unsaved. |
+| Live reload | No. Read when a project opens, and offered with the file's name and the time it was taken. |
+| Read by | The editor only. Taking a draft restores its text, unsaved; declining deletes it. |
+| Format version | 1. A draft of another version is ignored rather than refused, because a corrupt draft is not a reason to refuse a project. |
+
 ## Snip images
 
 | | |

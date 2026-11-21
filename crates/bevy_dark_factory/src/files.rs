@@ -176,6 +176,16 @@ impl Files {
         self.open.get(rel)
     }
 
+    /// **The project these buffers belong to**, when one is open.
+    pub fn root(&self) -> Option<&Path> {
+        self.root.as_deref()
+    }
+
+    /// **Every buffer**, by path: what the draft writer harvests (#508).
+    pub fn every_open(&self) -> &BTreeMap<String, OpenFile> {
+        &self.open
+    }
+
     pub fn get_mut(&mut self, rel: &str) -> Option<&mut OpenFile> {
         self.open.get_mut(rel)
     }
@@ -353,7 +363,34 @@ pub fn hold_for_editing(world: &mut World, rel: &str) -> Result<(), String> {
     Ok(())
 }
 
+/// **The one policy a conflict obeys** (#502): a file the editor holds was changed on disk under unsaved edits.
+///
+/// **One value for the map and the Files workspace**, so one setting cannot mean two things. [`crate::settings::sync_settings`]
+/// publishes the resolved settings here every frame it changes them ([`publish_conflict_policy`]), and the map's re-read
+/// ([`crate::watch::adopt_map`]) and a buffer's save both read it — neither of them has a world to ask, and a save runs from a
+/// key, an interval and a menu.
+pub fn conflict_policy_now() -> crate::settings::ExternalEdits {
+    registry().policy
+}
+
+/// **Publish the resolved policy**, from [`crate::settings::sync_settings`]. Called only when the value changed, so the lock
+/// is taken once per settings change and not once per save.
+pub fn publish_conflict_policy(policy: crate::settings::ExternalEdits) {
+    let mut registry = registry();
+    if registry.policy != policy {
+        registry.policy = policy;
+    }
+}
+
+/// **The policy an [`Option<EditorSettings>`](crate::settings::EditorSettings) names**, for a caller that has the settings in
+/// hand: the same answer [`conflict_policy_now`] gives once the settings are published.
+pub fn conflict_policy(settings: Option<&crate::settings::EditorSettings>) -> crate::settings::ExternalEdits {
+    settings.map(|s| s.external_edits).unwrap_or_default()
+}
+
 pub fn save_file(files: &mut Files, root: &Path, rel: &str) -> Result<(), String> {
+    use crate::settings::ExternalEdits;
+    let policy = conflict_policy_now();
     let file = files.open.get_mut(rel).ok_or_else(|| format!("{rel} is not open"))?;
     if let Some(why) = &file.problem {
         return Err(why.clone());
@@ -362,7 +399,17 @@ pub fn save_file(files: &mut Files, root: &Path, rel: &str) -> Result<(), String
         return Err(format!("{rel}: {}", files_lang::READ_ONLY_NOTE));
     }
     if file.external.is_some() {
-        return Err(format!("{rel} changed on disk while you were editing it: choose Reload or Keep mine first"));
+        // **The policy answers it, or asks**: `Keep mine` writes over the file the person has seen the change of, and
+        // `Take the file` drops the person's text — a save is not the place to do that, so it is refused naming the two
+        // answers. `Prompt` is the same refusal (`files::conflict_sentence`'s two buttons are the question).
+        return Err(match policy {
+            ExternalEdits::KeepEditorChanges => return overwrite_what_the_disk_holds(files, root, rel),
+            ExternalEdits::ReloadFromDisk => {
+                take_the_files_version(files, rel);
+                format!("{rel} changed on disk and this editor takes the file's version: your edits were dropped and the file was not written")
+            }
+            ExternalEdits::Prompt => format!("{rel} changed on disk while you were editing it: choose Reload or Keep mine first"),
+        });
     }
     // **Nothing to write is nothing written**: a save of a clean file does not touch it (its modification time is
     // somebody's to watch).
@@ -382,14 +429,47 @@ pub fn save_file(files: &mut Files, root: &Path, rel: &str) -> Result<(), String
         && now != file.disk
         && now != file.text
     {
-        file.external = Some(now);
-        return Err(format!("{rel} changed on disk while you were editing it: choose Reload or Keep mine first"));
+        match policy {
+            // **The person's text is written over the file**, which is what "keep mine" means, and only because the
+            // setting says so: without it this is the refusal that protects the file.
+            ExternalEdits::KeepEditorChanges => {}
+            ExternalEdits::ReloadFromDisk => {
+                file.external = Some(now);
+                return Err(format!("{rel} changed on disk and this editor takes the file's version: the save was refused and Reload will drop your edits"));
+            }
+            ExternalEdits::Prompt => {
+                file.external = Some(now);
+                return Err(format!("{rel} changed on disk while you were editing it: choose Reload or Keep mine first"));
+            }
+        }
     }
     blueprint_model::atomic_file::write(&full, &file.text).map_err(|e| format!("{rel} was not saved: {e}"))?;
     file.disk = file.text.clone();
     file.stamp = Stamp::of(&full);
     Ok(())
 }
+/// **Write the person's text over what the disk holds**, for `KeepEditorChanges`: the person has been told the file changed
+/// and has chosen their own version, so this is the one save that may overwrite a change nobody here made.
+fn overwrite_what_the_disk_holds(files: &mut Files, root: &Path, rel: &str) -> Result<(), String> {
+    let Some(file) = files.open.get_mut(rel) else { return Err(format!("{rel} is not open")) };
+    file.external = None;
+    let full = inside(root, rel)?;
+    blueprint_model::atomic_file::write(&full, &file.text).map_err(|e| format!("{rel} was not saved: {e}"))?;
+    file.disk = file.text.clone();
+    file.stamp = Stamp::of(&full);
+    Ok(())
+}
+
+/// **Take the disk's text into the buffer**, for `ReloadFromDisk`: the person's edits go, and the tab says so.
+fn take_the_files_version(files: &mut Files, rel: &str) {
+    let Some(file) = files.open.get_mut(rel) else { return };
+    if let Some(theirs) = file.external.take() {
+        file.text = theirs.clone();
+        file.disk = theirs;
+        file.pushed += 1;
+    }
+}
+
 // ── The tree ─────────────────────────────────────────────────────────────────
 
 pub fn key_of(rel: &str) -> u64 {
@@ -799,8 +879,9 @@ fn open_the_picked_file(picked: On<ValueChange<TableSelection>>, mut commands: C
 
 /// What each row key of the tree names, as the last walk made it: kept on the tree's own entity.
 #[derive(Component, Default)]
-struct TreeNames {
-    names: HashMap<u64, (String, bool)>,
+pub struct TreeNames {
+    /// Each row key and what it names: the path under the project, and whether it is a folder.
+    pub names: HashMap<u64, (String, bool)>,
     fingerprint: u64,
     next_poll: f64,
     selected: Option<u64>,
@@ -1468,6 +1549,12 @@ fn keep_the_tree(
         Some(Err(std::sync::mpsc::TryRecvError::Disconnected)) => names.scan = None,
         _ => {}
     }
+    // **A file made, renamed or deleted by an operation asks for the walk now** (#507): the operation publishes the flag
+    // ([`note_tree_changed`]) and the row is on screen a frame or two later rather than a `TREE_POLL_S` (1.5 s) later. A
+    // walk already in flight is left to finish; the flag takes the next one's wait away, not this one's.
+    if take_tree_changed() {
+        names.next_poll = now;
+    }
     if names.scan.is_none() && now >= names.next_poll {
         names.next_poll = now + TREE_POLL_S;
         let root = project.root.clone();
@@ -1576,6 +1663,10 @@ struct Registry {
     /// The open project's root and the files the person has unsaved edits in: one slot, because one project is open.
     unsaved: Option<(PathBuf, Vec<String>)>,
     agent: Vec<(PathBuf, String)>,
+    /// **What a conflict does** (#502), published from the resolved settings by [`publish_conflict_policy`]. A process-wide
+    /// value for the same reason the unsaved list is: a save runs from a key handler, an interval and a menu, and one of
+    /// those has no world to ask.
+    policy: crate::settings::ExternalEdits,
 }
 
 static REGISTRY: std::sync::LazyLock<std::sync::Mutex<Registry>> = std::sync::LazyLock::new(Default::default);
@@ -1594,6 +1685,23 @@ pub fn person_is_editing(root: &Path, rel: &str) -> bool {
 pub fn any_unsaved() -> bool {
     registry().unsaved.as_ref().is_some_and(|(_, files)| !files.is_empty())
 }
+/// **A file was made, renamed or deleted by an operation** (#507): the tree is walked again at once rather than at its own
+/// poll ([`TREE_POLL_S`], 1.5 s), so the row the change made is on screen in the next frame.
+///
+/// Process-wide for the reason [`person_is_editing`] is: an operation runs in a [`crate::ops::Ctx`], which has no world to
+/// ask. [`keep_the_tree`] takes the flag and starts its walk; nothing else reads it.
+pub fn note_tree_changed() {
+    TREE_CHANGED.store(true, std::sync::atomic::Ordering::Relaxed);
+}
+
+/// **Take the flag [`note_tree_changed`] set**, and say whether a walk is owed.
+fn take_tree_changed() -> bool {
+    TREE_CHANGED.swap(false, std::sync::atomic::Ordering::Relaxed)
+}
+
+/// Set by an operation that changes the listing, taken by [`keep_the_tree`]'s own frame.
+static TREE_CHANGED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
 fn publish_unsaved(root: &Path, dirty: Vec<String>) {
     let mut registry = registry();
     let same = registry.unsaved.as_ref().is_some_and(|(r, files)| r == root && *files == dirty);

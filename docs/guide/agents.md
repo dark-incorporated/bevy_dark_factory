@@ -117,6 +117,9 @@ Goal: know what an agent can change, and what undoes each change.
 | Operation | What it does | Undo |
 |---|---|---|
 | `map_set_settings` | Sets a map's origin, bounds, axis, bash, or note. `null` clears the bash or the note. | Puts the old settings back |
+| `file_create` | Makes a project file, and its folder, holding `text`; `copy_from` duplicates another file byte for byte. A path already there is refused, so a create never overwrites. `text` defaults empty. | Takes the new file away |
+| `file_rename` | Renames a project file, keeping its extension when the new name carries none (`a.map.yaml` given `b` is `b.map.yaml`). A file another file of the project names is refused, naming it. | Renames it back |
+| `file_delete` | Deletes a project file, keeping its text in the log. Refused for a command file, for a file another file names (naming it), and for a map that places pieces (naming them). | Puts the file's text back, byte for byte |
 | `placement_set_pin` | Pins or unpins a placement. | Puts the old pin back |
 | `placement_set_yaw` | Turns a placement to a new yaw in degrees, wrapped to 0 to 360. | Puts the old yaw back |
 | `placement_set_tip` | Tips a placement to quarter turns about X and Z, each 0 to 3, as `Y` and `U` do. Refuses a piece something rests on and an unmeasured piece. | Puts the old tip back |

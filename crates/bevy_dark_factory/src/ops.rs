@@ -8030,6 +8030,9 @@ pub fn registry() -> Vec<Box<dyn Operation>> {
         Box::new(crate::ops_data::DataSet),
         Box::new(crate::ops_files::FilesReplace),
         Box::new(crate::ops_files::FileEdit),
+        Box::new(crate::ops_files_verbs::FileCreate),
+        Box::new(crate::ops_files_verbs::FileRename),
+        Box::new(crate::ops_files_verbs::FileDelete),
         Box::new(crate::ops_family::FamilySet),
         Box::new(crate::ops_family::PlacementSetFamily),
         #[cfg(feature = "bevy_light_grid")]
@@ -8453,6 +8456,12 @@ pub const UI_ENTRY_POINTS: &[(&str, &str)] = &[
     // through `set_the_field`, the same comment-keeping write an agent's `apply` makes.
     ("files_replace", "replace_all("),
     ("file_edit", "set_the_field("),
+    // **The Files tree's right-click** (#507): New file, New folder and Rename dispatch `file_create` and `file_rename` through
+    // the menu's own rows, Duplicate dispatches `file_create` with `copy_from`, and Delete dispatches `file_delete` — so a
+    // menu choice is one log line and one `Cmd+Z`, the same as an agent's call, and the guards live in one place.
+    ("file_create", "\"file_create\""),
+    ("file_rename", "\"file_rename\""),
+    ("file_delete", "\"file_delete\""),
     // **The Terrain field (#99)** — Enter on `<brush> <x> <z> <radius_m> <strength>` dispatches
     // `terrain_stroke` through `sculpt_terrain`, the same write an agent's `apply` makes.
     ("terrain_stroke", "sculpt_terrain("),
@@ -9216,6 +9225,12 @@ fn operation_id_for(seq: u64, session: &str) -> String {
 /// **When it happened, as RFC 3339 UTC.**
 ///
 /// **Computed here, not passed in**, so a caller cannot record a time that is not the time.
+/// **Now, as RFC 3339 in UTC**, for a caller outside this module that stamps something a person reads later (a draft's
+/// `taken_at`): one clock, so an offer and a log line can be read the same way.
+pub fn now_rfc3339_public() -> String {
+    now_rfc3339()
+}
+
 pub(crate) fn now_rfc3339() -> String {
     // **`SystemTime` and a hand-rolled formatter**, because the crate has no date dependency and
     // adding one for a timestamp is not worth it. The format is the RFC 3339 subset that matters:

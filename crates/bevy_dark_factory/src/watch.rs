@@ -291,7 +291,7 @@ pub fn adopt_changes(
         if let Some(o) = open.as_deref_mut()
             && o.map_path == *path
         {
-            match adopt_map(path, o) {
+            match adopt_map(path, o, crate::files::conflict_policy_now()) {
                 Ok(changed) => {
                     // **The map was replaced, and the screen has to hear about it.**
                     //
@@ -423,7 +423,7 @@ fn differs(path: &Path, project: &Project) -> bool {
 ///    between two versions of somebody's work on their behalf. The caller puts this in the Map
 ///    door's `status.problem`, so it is an alarm rather than a note.
 /// 4. **Otherwise** → a clean editor and a file that says something new: adopt it.
-fn adopt_map(path: &Path, open: &mut OpenMap) -> Result<bool, String> {
+fn adopt_map(path: &Path, open: &mut OpenMap, policy: crate::settings::ExternalEdits) -> Result<bool, String> {
     let text = std::fs::read_to_string(path).map_err(|e| format!("{}: {e}", path.display()))?;
     let fresh =
         blueprint_model::map::Map::parse(&text).map_err(|e| format!("{}: {e}", path.display()))?;
@@ -439,16 +439,31 @@ fn adopt_map(path: &Path, open: &mut OpenMap) -> Result<bool, String> {
         return Ok(false);
     }
     if open.dirty() {
-        // **Two versions, and one of them is unsaved work.** Refusing is the only answer that
-        // cannot destroy either: the file is still on disk, and the editor still holds what the
-        // person typed. The route out is in the message, because "it refused" without one is a
-        // person who cannot save.
-        return Err(format!(
-            "`{}` changed on disk while this map has unsaved edits, so the file was not read. Save \
-             to keep your version; to take the file's, leave the map without saving and open it \
-             again",
-            path.display()
-        ));
+        // **Two versions, and one of them is unsaved work.** The policy decides, and it is one value the Files
+        // workspace's save reads too (#502) — so the map and a buffer cannot answer the same question two ways.
+        //
+        // - **Keep mine**: the person's map stays, and nothing is read. The file is still on disk, and a save is then
+        //   their own decision to overwrite it.
+        // - **Take the file**: the person's map edits go, and the file's map is adopted. The one answer that loses work,
+        //   which is why the caller says which file and what was dropped.
+        // - **Prompt** (the shipped default): refused, naming both answers, so the person chooses.
+        match policy {
+            crate::settings::ExternalEdits::KeepEditorChanges => return Ok(false),
+            crate::settings::ExternalEdits::ReloadFromDisk => {
+                open.map = fresh;
+                open.mark_saved();
+                return Ok(true);
+            }
+            crate::settings::ExternalEdits::Prompt => {
+                // **The route out is in the message**, because "it refused" without one is a person who cannot save.
+                return Err(format!(
+                    "`{}` changed on disk while this map has unsaved edits, so the file was not read. Save \
+                     to keep your version; to take the file's, set When a file changes under my edits to \
+                     Take the file in Settings, or leave the map without saving and open it again",
+                    path.display()
+                ));
+            }
+        }
     }
     // **The new map replaces the old one, and the editor's own save record is refreshed** — so
     // the editor does not think the map is unsaved when it is not.

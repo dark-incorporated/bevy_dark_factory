@@ -2,6 +2,7 @@
 
 What each change added, newest first. A visible change has a clip: click the still to play it. `python3 tools/changelog/changelog.py page --open` plays them all in one page.
 
+<<<<<<< HEAD
 ## 2026-11-21
 
 - **panel-content-box** `70c62b05` a panel's controls are measured against its own content box, at both interface scales *No clip: a test only, no user-visible change; proved by crates/bevy_dark_factory/tests/a_panel_control_stays_inside_its_content_box.rs*
@@ -18,6 +19,13 @@ What each change added, newest first. A visible change has a clip: click the sti
 - **chips-shrink** `HEAD` A chip narrows before the row wraps it to a new line *No clip: a layout behaviour; proved by the_g87_nodes_are_gooeys and the three chip-whole sweeps*
 - **textscaleleak** `07416eba` An app's text scale no longer outlives the app: the process-global resets when its world drops *No clip: an ordering fix nothing draws; proved by an_app_leaves_no_text_scale_behind*
 - **filetreefill** `6135378` The file tree fills its panel: bevy_gooey's table root grows to the height it is given *No clip: the visible result is the file explorer filling its div; proved by the_files_tree_fills_the_region_that_holds_it*
+=======
+## 2026-11-20
+
+- **508** An unsaved buffer keeps a draft outside the project, and the map and buffers save on an interval through the manual path *No clip: A draft file and a timer; proved by crates/bevy_dark_factory/tests/a_never_saved_buffer_has_a_draft.rs, which drafts an unsaved buffer outside the project, offers it on a fresh editor, declines it away, saves the map once through map_save on the interval, and asserts the band speaks only inside five seconds*
+- **502** A file edited under unsaved work obeys one policy: Prompt, Keep mine or Take the file *No clip: A settings row and one value both the map and the Files workspace read; proved by crates/bevy_dark_factory/tests/a_file_that_changes_under_edits_obeys_a_policy.rs, which keeps the map under KeepEditorChanges, takes the file under ReloadFromDisk, changes nothing under Prompt, and asserts both paths read one value*
+- **507** The Files workspace makes, renames, duplicates and deletes a file, as operations an agent can call *No clip: A right-click menu and four operations; proved by crates/bevy_dark_factory/tests/the_files_workspace_makes_renames_duplicates_and_deletes.rs, which creates notes/new.yaml and asserts the oplog line, one undo removing it, and the row in the tree before its 1.5 s poll, and refuses a rename or delete of a file another file names*
+>>>>>>> refs/remotes/origin/fleet/wave-files
 
 ## 2026-11-19
 

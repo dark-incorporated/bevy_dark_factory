@@ -16,7 +16,7 @@
 
 use std::path::Path;
 
-use crate::settings::{EditorSettings, GRID_STRENGTH_RANGE, KIND, SettingsLayer, TerminalAgent, TerminalCursor, Theme};
+use crate::settings::{EditorSettings, ExternalEdits, GRID_STRENGTH_RANGE, KIND, SettingsLayer, TerminalAgent, TerminalCursor, Theme};
 use bevy_oracle::DecisionModel;
 
 /// One key's value: what a control shows and what a write carries.
@@ -89,6 +89,12 @@ pub fn interface_step_down(now: f32) -> f32 {
 
 /// The categories, in the order the screen's tabs show them.
 pub const CATEGORIES: &[&str] = &["Appearance", "Accessibility", "Map", "Terminal", "Decisions"];
+
+/// **The intervals the periodic save offers** (#508), in seconds, and their words. `0` is off, which is the shipped default:
+/// the draft is the part worth having unconditionally, and a timer that writes a project is a behaviour a person asks for.
+pub const AUTO_SAVE_CHOICES: [f64; 5] = [0.0, 30.0, 60.0, 300.0, 600.0];
+/// The words the Auto save row offers, in the same order as [`AUTO_SAVE_CHOICES`].
+pub const AUTO_SAVE_NAMES: &[&str] = &["Off", "Every 30 s", "Every minute", "Every 5 minutes", "Every 10 minutes"];
 
 /// The names of [`Theme`]'s variants, in declaration order.
 pub const THEMES: &[&str] = &["Tool dark", "Parchment", "High contrast"];
@@ -167,6 +173,25 @@ pub const CATALOGUE: &[Setting] = &[
         category: "Decisions",
         description: "When you press Cmd+D, copy the capture into the checkout below, commit it on a branch of its own, push it, and open a GitHub issue in the editor's repository with the pictures embedded. Off, a capture is only saved to this computer.",
         kind: Kind::Switch,
+    },
+    // **A file edited under unsaved work** (#502): the one value the map's watcher and the Files workspace's save both read.
+    // `Prompt` is the shipped default, and the row's description says what each answer costs, because `Take the file` is the
+    // one answer that can lose work.
+    Setting {
+        key: "external_edits",
+        label: "When a file changes under my edits",
+        category: "Map",
+        description: "A file you have unsaved edits in is changed on disk — by an agent, a script or another editor. Ask me leaves both versions alone until you answer; Take the file drops your edits and reads the file; Keep mine keeps your text, and a save then overwrites the file. The map you are editing and a file open in the Files workspace obey this one setting, so they cannot disagree.",
+        kind: Kind::Options(ExternalEdits::NAMES),
+    },
+    // **A periodic save, off until asked for** (#508): it reuses the manual save path (`map_save` and the buffers' own save),
+    // so a timer's write is a `Cmd+S` in the log. Off is the shipped default; the draft is the part worth having anyway.
+    Setting {
+        key: "auto_save_interval",
+        label: "Auto save",
+        category: "Map",
+        description: "How often the map and the files open in the Files workspace are saved, through the same save Cmd+S makes. Off keeps the work only when you save it, though an unsaved buffer's draft is still kept. Nothing is saved while a question is up, while no project is open, or while the game plays.",
+        kind: Kind::Options(AUTO_SAVE_NAMES),
     },
     Setting {
         key: "reduced_motion",
@@ -309,6 +334,38 @@ fn agent_at(index: usize) -> TerminalAgent {
     }
 }
 
+/// **The offered interval nearest `seconds`**, so a file that sets one the row does not offer still shows a rung.
+fn auto_save_index(seconds: f64) -> usize {
+    AUTO_SAVE_CHOICES
+        .iter()
+        .enumerate()
+        .min_by(|(_, a), (_, b)| (*a - seconds).abs().total_cmp(&(*b - seconds).abs()))
+        .map_or(0, |(at, _)| at)
+}
+
+/// The interval at `index` in [`AUTO_SAVE_CHOICES`]; anything past the end is off.
+fn auto_save_at(index: usize) -> f64 {
+    AUTO_SAVE_CHOICES.get(index).copied().unwrap_or(0.0)
+}
+
+/// Where an [`ExternalEdits`] answer sits in [`ExternalEdits::NAMES`], for the row that shows or writes it.
+pub fn external_edits_index(answer: ExternalEdits) -> usize {
+    match answer {
+        ExternalEdits::Prompt => 0,
+        ExternalEdits::ReloadFromDisk => 1,
+        ExternalEdits::KeepEditorChanges => 2,
+    }
+}
+
+/// The answer at `index` in [`ExternalEdits::NAMES`]; anything past the end is the default, `Prompt`.
+fn external_edits_at(index: usize) -> ExternalEdits {
+    match index {
+        1 => ExternalEdits::ReloadFromDisk,
+        2 => ExternalEdits::KeepEditorChanges,
+        _ => ExternalEdits::Prompt,
+    }
+}
+
 /// Where a decision model sits in [`DECISION_MODELS`], for the row that shows or writes the choice.
 pub fn decision_index(model: DecisionModel) -> usize {
     match model {
@@ -366,6 +423,8 @@ impl EditorSettings {
             "terminal_agent" => Value::Option(agent_index(self.terminal_agent)),
             "decision_model" => Value::Option(decision_index(self.decision_model)),
             "capture_issue" => Value::On(self.capture_issue),
+            "external_edits" => Value::Option(external_edits_index(self.external_edits)),
+            "auto_save_interval" => Value::Option(auto_save_index(self.auto_save_interval_s)),
             _ => return None,
         })
     }
@@ -407,6 +466,8 @@ impl SettingsLayer {
             "terminal_agent" => self.terminal_agent.map(|a| Value::Option(agent_index(a))),
             "decision_model" => self.decision_model.map(|m| Value::Option(decision_index(m))),
             "capture_issue" => self.capture_issue.map(Value::On),
+            "external_edits" => self.external_edits.map(|e| Value::Option(external_edits_index(e))),
+            "auto_save_interval" => self.auto_save_interval_s.map(|s| Value::Option(auto_save_index(s))),
             // **The checkout is not a catalogue row** (#495): it is drawn in the switch's own row as a
             // text field, the way the Custom agent's command is, so the screen owns its write.
             "capture_issue_repo" => None,
@@ -434,6 +495,8 @@ impl SettingsLayer {
             ("terminal_agent", Value::Option(i)) => self.terminal_agent = Some(agent_at(i)),
             ("decision_model", Value::Option(i)) => self.decision_model = Some(decision_at(i)),
             ("capture_issue", Value::On(on)) => self.capture_issue = Some(on),
+            ("external_edits", Value::Option(i)) => self.external_edits = Some(external_edits_at(i)),
+            ("auto_save_interval", Value::Option(i)) => self.auto_save_interval_s = Some(auto_save_at(i)),
             _ => return false,
         }
         true
@@ -459,6 +522,8 @@ impl SettingsLayer {
             "terminal_agent" => self.terminal_agent = None,
             "decision_model" => self.decision_model = None,
             "capture_issue" => self.capture_issue = None,
+            "external_edits" => self.external_edits = None,
+            "auto_save_interval" => self.auto_save_interval_s = None,
             "capture_issue_repo" => self.capture_issue_repo = None,
             _ => {}
         }
