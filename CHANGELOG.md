@@ -2,6 +2,10 @@
 
 What each change added, newest first. A visible change has a clip: click the still to play it. `python3 tools/changelog/changelog.py page --open` plays them all in one page.
 
+## 2026-11-21
+
+- **457-ask-latency** The decision model's own answer time is written in `blueprint_decide`'s description, as the pair it is: about 150 ms with no picture and 280 ms with one still (median, 25 calls each, local `d3-flash`), replacing "in about a second" *For you: The one line describing how fast the check answers now says a quarter of a second, and says what a still costs.* *No clip: A description's words, with no visible surface; proved by the measurement in docs/bench/ask-revised-guide.md and the tool description regenerated into docs/mcp-tools.md*
+
 ## 2026-11-20
 
 - **chips-shrink** `HEAD` A chip narrows before the row wraps it to a new line *No clip: a layout behaviour; proved by the_g87_nodes_are_gooeys and the three chip-whole sweeps*
