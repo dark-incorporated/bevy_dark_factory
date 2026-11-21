@@ -122,6 +122,7 @@ Goal: know what an agent can change, and what undoes each change.
 | `placement_set_tip` | Tips a placement to quarter turns about X and Z, each 0 to 3, as `Y` and `U` do. Refuses a piece something rests on and an unmeasured piece. | Puts the old tip back |
 | `placement_set_lift` | Lifts a placement to a height in metres above the one its mount decides, as `[` and `]` do; negative lowers it, and 0 puts it back on its datum. Anything resting on it rides with it. | Puts the old lift back |
 | `placement_set_pose` | Sets a placement's yaw and tip together, as `V` does with `0` and `[0, 0]`; one change, one undo. Refuses a tip on a piece something rests on and on an unmeasured piece. | Puts the old yaw and tip back |
+| `placement_move` | Moves a placement to `at` (where it should stand) or by `by` (how far it should travel), in map metres, as a drag does; everything resting on it rides with it. Refuses a place the piece's mount cannot hold, and one it already stands on. | Puts the piece and its riders back where they stood |
 | `placement_remove` | Removes a placement, and any piece standing on it. | Puts the pieces back |
 | `stamp_remove` | Removes a stamp from the map. | Puts the stamp back |
 | `placement_set_hidden` | Takes one placement out of the editor's viewport for this session, or puts it back, as the outliner's Hide does. The piece stays on the map and in the file, and a click cannot pick what is not drawn. | None: it changes the view, not the map |

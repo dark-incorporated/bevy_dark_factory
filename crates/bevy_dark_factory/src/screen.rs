@@ -356,6 +356,7 @@ door_state![
     crate::editor::MoveDrag,
     crate::editor::PlaceDrag,
     crate::editor::RemovalDrag,
+    crate::editor::MarqueeDrag,
     crate::editor::NoteBox,
     // **The note a reveal selected** (AF-03, #359): it names a row of *this map's* `.notes.yaml`, so a
     // selection carried across a door would name a note the next map does not have.
@@ -699,6 +700,7 @@ pub const OWNERSHIP: &[(&str, Ownership)] = &[
     ("bevy_dark_factory::editor::MoveDrag", Ownership::Workspace),
     ("bevy_dark_factory::editor::PlaceDrag", Ownership::Workspace),
     ("bevy_dark_factory::editor::RemovalDrag", Ownership::Workspace),
+    ("bevy_dark_factory::editor::MarqueeDrag", Ownership::Workspace),
     ("bevy_dark_factory::editor::NoteBox", Ownership::Workspace),
     ("bevy_dark_factory::editor::SelectedNote", Ownership::Workspace),
     ("bevy_dark_factory::editor::NotesFilter", Ownership::Workspace),

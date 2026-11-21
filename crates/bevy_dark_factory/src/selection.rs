@@ -95,6 +95,45 @@ impl Selection {
         true
     }
 
+    /// **Replace the set with everything a rectangle covers** (UI-52, #505), primary first.
+    ///
+    /// A marquee is a selection, not an edit: no file, no operation, no undo step — the rule this
+    /// module's own doc states. The primary is the first id the rectangle caught, and `lock` is held
+    /// on it for the reason [`Selection::shift_click`] holds it: a plain click after a marquee replaces
+    /// the set ([`Selection::follow`]), and that rule needs an anchor to replace.
+    ///
+    /// `false` when the set did not change, so the caller writes no status line for a box that caught
+    /// what was already selected.
+    pub(crate) fn marquee(
+        &mut self,
+        lock: &mut TargetLock,
+        ids: Vec<String>,
+        places: &[(f32, f32)],
+    ) -> bool {
+        let Some(first) = ids.first().cloned() else {
+            // **An empty box selects nothing**, and releases the anchor with it: a drag over bare
+            // floor is how a person says "none of these".
+            let had = !self.ids.is_empty();
+            if had {
+                self.primary = None;
+                self.ids.clear();
+                lock.release();
+            }
+            return had;
+        };
+        let at = places
+            .first()
+            .copied()
+            .unwrap_or((0.0, 0.0));
+        lock.hold(&first, at);
+        if self.ids == ids {
+            return false;
+        }
+        self.primary = Some(first);
+        self.ids = ids;
+        true
+    }
+
     /// **Add `id` beside the primary**, or take it out again. The primary — whatever the lock holds —
     /// is never removed by this: Shift-clicking the piece you are standing on should not empty the
     /// selection the inspector is drawn from.

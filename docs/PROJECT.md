@@ -31,7 +31,7 @@ The answer is structural: **there is one way to change anything**, a typed opera
 
 ## 3. What it is made of
 
-About 405,000 lines of Rust (`find crates -name '*.rs' | xargs cat | wc -l` per crate: source, tests and examples) in 13 crates, 844 Rust files under `crates/*/tests/` (`ls crates/*/tests/*.rs | wc -l`), 29 MCP tools, and 139 entries in the operation registry (`ops::registry()`; 132 in a default build, because the family crates' operations are behind cargo features: `bevy_dark_factory --print-operations` lists the ones a build has).
+About 405,000 lines of Rust (`find crates -name '*.rs' | xargs cat | wc -l` per crate: source, tests and examples) in 13 crates, 844 Rust files under `crates/*/tests/` (`ls crates/*/tests/*.rs | wc -l`), 29 MCP tools, and 140 entries in the operation registry (`ops::registry()`; 133 in a default build, because the family crates' operations are behind cargo features: `bevy_dark_factory --print-operations` lists the ones a build has).
 
 | Crate | Lines | On crates.io | What it is |
 |---|---:|---|---|
@@ -124,7 +124,7 @@ This is the section to read if you are reading someone else's project.
 | | |
 |---|---|
 | Workspaces | 10 |
-| Operations | 139 in the registry, 132 in a default build |
+| Operations | 140 in the registry, 133 in a default build |
 | MCP tools | 30 |
 | Test files | 844 under `crates/*/tests/` |
 | Published | `bevy_blueprint`, `_core`, `_solver`, `_rng`, `_anim`, `_rhai` and `_snip` on crates.io; what `blueprint_model` 0.12 removed (the `references` module and `trust::GuideGrant`) is under "Upgrading from 0.11" in [its README](https://github.com/dark-incorporated/bevy_dark_factory/blob/main/crates/blueprint_model/README.md) |

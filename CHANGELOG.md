@@ -12,6 +12,10 @@ What each change added, newest first. A visible change has a clip: click the sti
 
 - **499-compose-issue** The editor composes an issue procedurally, previews it, and files it without a capture *No clip: A composed Markdown body, a preview that is the bytes filed, a draft that survives a restart and one create through #498's connection; proved by crates/bevy_dark_factory/tests/an_issue_is_composed_previewed_and_filed.rs*
 - **chips-shrink** `028173d3` A chip narrows before the row wraps it to a new line *No clip: a layout behaviour; proved by the_g87_nodes_are_gooeys and the three chip-whole sweeps*
+- **500-guard** `53e29f3d` An undo never silently pushes along a piece a person has moved: the move's guard follows the operation into the log *No clip: no visible surface changed; proved by a_person_removes_a_piece_and_undoes_it::an_agents_undo_of_a_removal_waits_while_the_person_has_moved_a_piece_since*
+- **505** `84c53a62` Shift-drag on the map selects every piece the box covers, in one act, with no operation and no undo step *No clip: a marquee seen only with a window and a mouse; proved by a_marquee_selects_what_it_covers*
+- **500** `9931978e` A drag is one placement_move: the move tool writes the map, logs one line, and can be undone with one Cmd+Z *No clip: an editor interaction that needs a window and a mouse to see; proved by a_drag_is_one_placement_move*
+- **chips-shrink** `HEAD` A chip narrows before the row wraps it to a new line *No clip: a layout behaviour; proved by the_g87_nodes_are_gooeys and the three chip-whole sweeps*
 - **textscaleleak** `07416eba` An app's text scale no longer outlives the app: the process-global resets when its world drops *No clip: an ordering fix nothing draws; proved by an_app_leaves_no_text_scale_behind*
 - **filetreefill** `6135378` The file tree fills its panel: bevy_gooey's table root grows to the height it is given *No clip: the visible result is the file explorer filling its div; proved by the_files_tree_fills_the_region_that_holds_it*
 

@@ -127,6 +127,11 @@ const REMOVE_TINT: Color = Color::srgba(0.86, 0.20, 0.16, 0.38); // CHROME-OK: w
 /// opposite promises and an author reads the colour before the status line.
 const CLONE_TINT: Color = Color::srgba(0.20, 0.55, 0.86, 0.32); // CHROME-OK: world ink — see REMOVE_TINT
 
+/// **The marquee's tint** (UI-52, #505) — the target lock's gold, translucent: a Shift-drag makes a
+/// selection, so it wears the selection's colour rather than removal's red or clone's blue, and a
+/// person reads "this set is selected" before the status line says how many.
+const MARQUEE_TINT: Color = Color::srgba(0.90, 0.72, 0.20, 0.22); // CHROME-OK: world ink — see REMOVE_TINT
+
 /// The target lock's tint — gold: neither removal's threat nor clone's copy, just "this one".
 const TARGET_TINT: Color = Color::srgba(0.90, 0.72, 0.20, 0.35); // CHROME-OK: world ink — see REMOVE_TINT
 /// How far the marker floats above the floor, metres. Enough to beat z-fighting against a floor tile
@@ -602,6 +607,25 @@ impl EditorState {
         all.split_off(start)
     }
 
+    /// **Does the stack hold a move above `line`?** A move is a registry line now (`placement_move`,
+    /// #500), not an [`Undo::Moved`] entry, so [`EditorState::row_recorded_above`] cannot see it. This
+    /// answers the same question from the one place that still knows the order the person worked in.
+    ///
+    /// **The guard it feeds** is the same one: an undo of a removal reinserts rows, so every row after
+    /// the first comes back one place lower — and a piece the person has moved since would be pushed
+    /// along silently. The log cannot answer it, because the log has no idea what the person's stack
+    /// still holds; the stack can, because a move the person has taken back is no longer on it.
+    pub(crate) fn move_recorded_above(&self, line: &str) -> bool {
+        fn is_move(op: &Undo) -> bool {
+            match op {
+                Undo::Logged { phrase, .. } => phrase.starts_with("moved "),
+                Undo::Group { ops } => ops.iter().any(is_move),
+                _ => false,
+            }
+        }
+        self.entries_above(line).into_iter().any(is_move)
+    }
+
     /// **Is a change recorded by row number sitting above a registry line's entry?** An undo of a
     /// `placement_remove` puts a row back or takes one out, and every row-recorded change above it
     /// names its piece by a number the undo has just moved. `Added` names its pieces from the tail,
@@ -610,9 +634,7 @@ impl EditorState {
     pub(crate) fn row_recorded_above(&self, line: &str) -> bool {
         fn by_row(op: &Undo) -> bool {
             match op {
-                Undo::RemovedMany { .. }
-                | Undo::Moved { .. }
-                | Undo::RemoveAt { .. } => true,
+                Undo::RemovedMany { .. } | Undo::RemoveAt { .. } => true,
                 Undo::Group { ops } => ops.iter().any(by_row),
                 Undo::Added { .. }
                 | Undo::Stamped { .. }
@@ -704,6 +726,25 @@ pub struct RemovalDrag {
     from: Option<(f32, f32)>,
 }
 
+/// **The rectangle a Shift-drag is sweeping to select with** (UI-52, #505), in map space.
+///
+/// Its own resource for the reason [`RemovalDrag`] gives: it is written every frame of a drag and
+/// `rebuild_palette` watches [`EditorState`].
+///
+/// **A marquee is a selection, not an edit** ([`crate::selection`]'s own rule): nothing is written to
+/// the map, no operation is dispatched, and `undo_depth` does not move. The box reuses
+/// [`removal_box`]'s snapping so the rectangle a person draws round four crates is the cell lines they
+/// see, and the set it selects is [`marquee_ids`]'s — the same "anything whose centre is inside"
+/// rule the removal box's own sweep uses, so a box that would delete four pieces selects four pieces.
+#[derive(Resource, Default)]
+pub struct MarqueeDrag {
+    /// Where the button went down, or `None` while no Shift-drag is in flight.
+    from: Option<(f32, f32)>,
+    /// Where the pointer was on the press, in viewport pixels, so a Shift **click** is told from a
+    /// Shift **drag** by the same [`DRAG_SLOP_PX`] rule every other box uses.
+    from_px: Option<Vec2>,
+}
+
 /// **Which placement is in hand**, under [`Tool::Move`] — by `Placed::id`, never by index.
 ///
 /// The id is the reference for the reason `Placed::id`'s own doc gives for being a string rather than
@@ -749,6 +790,11 @@ pub enum Held {
 /// The translucent red marker: the hovered piece's footprint, or the dragged rectangle.
 #[derive(Component)]
 struct RemovalTile;
+
+/// **The marquee's outline** (UI-52, #505) — its own component so the three rectangles can never
+/// claim each other's colour or each other's visibility.
+#[derive(Component)]
+struct MarqueeTile;
 
 /// The clone tool's marker — the box being dragged out, then the held set's bounds riding the
 /// cursor. Its own component so the two tools' rectangles can never claim each other's colour.
@@ -1012,6 +1058,13 @@ impl TargetLock {
         self.1 = true;
     }
 
+    /// **Let the lock go**, as `Esc` does: nothing is the target, and a selection anchored on it
+    /// empties with it ([`crate::selection::Selection::follow`]).
+    pub(crate) fn release(&mut self) {
+        self.0 = None;
+        self.1 = false;
+    }
+
     /// **The ids of the pieces the outliner's eye has taken out of the viewport**, mirrored here by
     /// `outliner::mirror_the_unseen` because every piece-verb already carries this resource into
     /// [`under_cursor_target`]: a key aimed at the cursor must not act on what is not drawn (UI-51, #237).
@@ -1094,11 +1147,6 @@ enum Undo {
     /// the later ones into place. One entry for the whole rectangle, on the same argument the fill
     /// makes: a box the author drew once is one act to undo once.
     RemovedMany { items: Vec<(usize, Box<Placed>)> },
-    /// Put a moved group back where it came from. **One entry for the whole group** — the piece and
-    /// everything that was riding on it — on the same argument `RemovedMany` makes: one act the
-    /// author performed is one act to take back. `blueprint_model::stack::Moved` records what changed and
-    /// `restore_moved` is its inverse, so the undo cannot drift from the move.
-    Moved { moved: blueprint_model::stack::Moved },
     /// Remove exactly these rows again — the inverse of [`Undo::RemovedMany`].
     ///
     /// **Not `Added { count }`.** That one removes the *last* `count`, which is right for a place or a
@@ -1207,7 +1255,6 @@ impl Undo {
             Undo::RemovedMany { items } => format!("remove {}", items.len()),
             Undo::RemoveAt { indices } if redo => format!("remove {}{again}", indices.len()),
             Undo::RemoveAt { indices } => format!("place {}", indices.len()),
-            Undo::Moved { moved } => format!("move {}{again}", moved.was.len()),
             Undo::Group { ops } => format!("{} changes{again}", ops.len()),
             Undo::Stamped { count } if redo => format!("remove {count} stamps{again}"),
             Undo::Stamped { count } => format!("stamp {count}"),
@@ -1272,10 +1319,6 @@ impl Undo {
             Undo::RemovedMany { items } => {
                 let names: Vec<&str> = items.iter().map(|(_, p)| p.descriptor.as_str()).collect();
                 format!("restore {}", piece_count(&names))
-            }
-            Undo::Moved { moved } => {
-                let names: Vec<&str> = moved.was.iter().map(|(i, _, _)| name_at(*i)).collect();
-                format!("move {}{back}", piece_count(&names))
             }
             Undo::RemoveAt { indices } => {
                 // Apply skips an index past the end, so the phrase names only what it will take out.
@@ -2725,6 +2768,7 @@ impl Plugin for EditorPlugin {
         app.init_resource::<EditorState>()
             .init_resource::<MapFraming>()
             .init_resource::<RemovalDrag>()
+            .init_resource::<MarqueeDrag>()
             .init_resource::<NoteBox>()
             .init_resource::<NotesFilter>()
             .init_resource::<crate::notes_view::NotesView>()
@@ -2893,6 +2937,7 @@ impl Plugin for EditorPlugin {
                     spawn_palette_panel,
                     spawn_cost_readout,
                     spawn_removal_tile,
+                    spawn_marquee_tile,
                     spawn_bounds_floor,
                     spawn_clone_tile,
                     spawn_target_tile,
@@ -2936,6 +2981,9 @@ impl Plugin for EditorPlugin {
                     // their guard.
                     (
                         (drive_place, drive_removal, drive_move, drive_clone, drive_run).run_if(not_typing),
+                        // **The marquee is the Shift-drag in PLACE with nothing armed** (UI-52, #505),
+                        // and it is its own system so the removal box's tool can never claim it.
+                        drive_marquee.run_if(not_typing),
                         // **Not behind `not_typing`** (#173): its own box would shut it off, and a box
                         // of Shift-clicked pieces takes more Shift-clicks.
                         drive_note.run_if(note_takes_clicks),
@@ -11289,6 +11337,26 @@ fn spawn_removal_tile(
     ));
 }
 
+/// **The marquee's outline**, spawned once and then only moved — [`spawn_removal_tile`]'s reason.
+fn spawn_marquee_tile(
+    mut commands: Commands,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+) {
+    commands.spawn((
+        MarqueeTile,
+        Mesh3d(meshes.add(Rectangle::new(1.0, 1.0))),
+        MeshMaterial3d(materials.add(StandardMaterial {
+            base_color: MARQUEE_TINT,
+            unlit: true,
+            alpha_mode: AlphaMode::Blend,
+            ..default()
+        })),
+        Transform::default(),
+        Visibility::Hidden,
+    ));
+}
+
 /// **The removal tool**: show what would go, and take it when the button comes up.
 ///
 /// Preview and commit in one system because they are one question asked twice — the rectangle the
@@ -11757,6 +11825,12 @@ fn drive_place(
         if drag.from.is_some() {
             drag.from = None;
         }
+        return;
+    }
+    // **A Shift press is the marquee's** (UI-52, #505), whether or not a piece is in hand: Shift
+    // selects, and `drive_marquee` is the one system that reads it. Only the press is deferred, so a
+    // fill box already under way finishes normally.
+    if keys::shift_held(&keyboard) && drag.from.is_none() {
         return;
     }
     let Some(camera) = camera else {
@@ -13689,75 +13763,6 @@ fn apply(
                 .status
                 .note(format!("undid {} placement(s)", gone.len()));
             Undo::RemovedMany { items: taken }
-        }
-        Undo::Moved { moved } => {
-            // **The inverse is where they are NOW**, read before the restore puts them back. `moved`
-            // records where they came *from*; redoing needs where they went *to*.
-            let now = blueprint_model::stack::Moved {
-                was: moved
-                    .was
-                    .iter()
-                    .filter_map(|(i, _, _)| {
-                        open
-                            .map
-                            .placements
-                            .get(*i)
-                            .map(|p| (*i, p.at, p.on.clone()))
-                    })
-                    .collect(),
-            };
-            // `restore_moved` is the recorded inverse, so the undo cannot drift from the move: it
-            // replays exactly the `(at, on)` pairs the move displaced, rather than recomputing where
-            // things "should" go and hoping the two agree.
-            blueprint_model::stack::restore_moved(&mut open.map, &moved);
-            persist(open, project, state);
-            let ids: Vec<String> = moved
-                .was
-                .iter()
-                .filter_map(|(i, _, _)| open.map.placements.get(*i).map(|p| p.id.clone()))
-                .collect();
-            for (entity, marker) in placed {
-                if ids.contains(&marker.0) {
-                    commands.entity(entity).despawn();
-                }
-            }
-            // Restored first, drawn second — how high a piece sits is a question about the finished
-            // map, the same reason `RemovedMany` below waits.
-            match heights(project, &*open) {
-                Ok(ys) => {
-                    for (i, _, _) in &moved.was {
-                        let Some(p) = open.map.placements.get(*i) else {
-                            continue;
-                        };
-                        let (id, at, yaw, tip) = (p.id.clone(), p.at, p.yaw, p.tip);
-                        let (Some(d), Some(&y)) =
-                            (descriptor_of(&project.library, p), ys.get(*i))
-                        else {
-                            continue;
-                        };
-                        if let Some(e) =
-                            spawn_piece(commands, assets, Pose { d: &d, yaw, tip }, at, open.map.origin, y)
-                        {
-                            commands.entity(e).insert(Placement(id));
-                        }
-                    }
-                }
-                Err(e) => {
-                    state
-                        .status
-                        .problem(format!("put back, but cannot draw it: {e}"));
-                    error!("{e}");
-                    // `restore_moved` above ALREADY moved the rows, so the map has changed whatever
-                    // happened to the drawing.
-                    // Nothing goes on the other stack: the map moved but could not be drawn, and
-                    // offering to redo a state the author cannot see would compound it.
-                    return Reversal::Stranded;
-                }
-            }
-            state
-                .status
-                .note(format!("put back {} placement(s)", moved.was.len()));
-            Undo::Moved { moved: now }
         }
         Undo::RemovedMany { items } => {
             let n = items.len();
@@ -16104,6 +16109,46 @@ pub(crate) fn removal_box(from: (f32, f32), at: (f32, f32), pitch: f32) -> (f32,
     )
 }
 
+/// **Which placements a marquee rectangle selects** (UI-52, #505): every piece whose centre is inside
+/// the box, **primary first** (the one nearest the box's top-left corner), and the places that go with
+/// them so a caller can hold the lock.
+///
+/// **The same rule the removal box's sweep uses** — a piece is in the box when its `at` is — so a box
+/// that would delete four pieces selects four pieces, and a person can switch from one to the other
+/// without re-learning where the edge lands. **A piece the eye has hidden is not in the set**, the same
+/// rule [`pick_at_seen`] follows: a click cannot reach what is not drawn.
+///
+/// **A stamp is not a placement**, so its rows are not here: a marquee selects loose pieces, and a
+/// stamp is reached by clicking one of its members (which resolves to the instance, `pick_subject`'s
+/// rule). Sorted by `(distance from the box's near corner, id)`, a total order that does not depend on
+/// authoring order.
+pub(crate) fn marquee_ids(
+    project: &Project,
+    open: &OpenMap,
+    box_: (f32, f32, f32, f32),
+    unseen: &dyn Fn(&blueprint_model::map::Placed) -> bool,
+) -> Vec<(String, (f32, f32))> {
+    let (x0, z0, x1, z1) = box_;
+    let mut caught: Vec<(f32, String, (f32, f32))> = open
+        .map
+        .placements
+        .iter()
+        .filter(|p| !unseen(p))
+        .filter(|p| p.at.0 >= x0 && p.at.0 <= x1 && p.at.1 >= z0 && p.at.1 <= z1)
+        .map(|p| {
+            let d2 = (p.at.0 - x0).powi(2) + (p.at.1 - z0).powi(2);
+            (d2, p.id.clone(), p.at)
+        })
+        .collect();
+    // **`project` is read so the signature says what the rule depends on** — a piece whose descriptor
+    // the library does not have is still a row on the map and still selected; the box is about where
+    // things stand, not what they look like.
+    let _ = project;
+    // SORT-OK: a pick in the editor, total by the unique placement id tiebreak.
+    caught.sort_by(|a, b| (a.0, a.1.as_str()).partial_cmp(&(b.0, b.1.as_str())).unwrap_or(std::cmp::Ordering::Equal));
+    caught.into_iter().map(|(_, id, at)| (id, at)).collect()
+}
+
 /// **Does a panel under the cursor stop this gesture?** Only if the gesture has not started.
 ///
 /// Pointer capture, in one expression. A press on a control is a control click and must not reach
@@ -16192,17 +16237,8 @@ struct MoveInput<'w> {
     anchor: Res<'w, FineAnchor>,
     picture: Res<'w, StampPicture>,
     compose: Res<'w, crate::compose::Armed>,
-    chosen: Chosen<'w>,
     /// What the outliner has hidden and locked (UI-51, #237), which a grab asks before it picks.
     sight: crate::outliner::Sight<'w>,
-}
-
-/// What the person has chosen on the map: the lock (the primary) and the selection set around it.
-/// One bundle, because `drive_move` is at clippy's argument limit.
-#[derive(bevy::ecs::system::SystemParam)]
-struct Chosen<'w> {
-    lock: ResMut<'w, TargetLock>,
-    selection: ResMut<'w, crate::selection::Selection>,
 }
 
 /// Where the cursor is, and which UI node it is over.
@@ -16266,7 +16302,6 @@ fn drive_move(
         anchor,
         picture,
         compose,
-        chosen: Chosen { mut lock, mut selection },
         sight,
     } = input;
     let Aim { over_ui, pointer, snip, report } = aim;
@@ -16303,6 +16338,13 @@ fn drive_move(
     if over_ui.0 || snip.claims_pointer() || report.claims_pointer() {
         return;
     }
+    // **A Shift press is the marquee's, not this carry's** (UI-52, #505). `drive_marquee` decides on
+    // the release whether the gesture was a click (add one piece to the set) or a drag (select the
+    // box) — so the grab waits for that answer rather than picking the piece up and then being told
+    // the box won. Exactly one of the two acts on a press.
+    if keys::shift_held(&keyboard) {
+        return;
+    }
     let Some(camera) = camera else {
         return;
     };
@@ -16320,22 +16362,6 @@ fn drive_move(
             // its stamp, so grabbing a member picks up the instance rather than reaching into it.
             // **A piece the eye has hidden is not in the competition** (UI-51, #237): it is not drawn.
             let picked = pick_subject_seen(&project, &open, &picture, probe, &|p| sight.unseen(&project.library, p));
-            // **Shift-click selects; it does not carry** (#236, #89). Shift on a *drop* is the finer
-            // snap and is untouched — only the grab is read, and only for a piece, since a stamp is
-            // not a placement the pose operations address.
-            if keys::shift_held(&keyboard)
-                && let Some(Subject::Placement(index)) = picked
-                && let Some(p) = open.map.placements.get(index)
-            {
-                let (id, at) = (p.id.clone(), p.at);
-                let changed = selection.shift_click(&mut lock, &id, at);
-                state.status.note(match (changed, selection.len()) {
-                    (false, _) => format!("`{id}` is the primary of the selection already"),
-                    (true, 1) => format!("`{id}` selected — Shift-click more to add beside it, Esc releases"),
-                    (true, n) => format!("{n} pieces selected — Shift-click one again to leave, Esc releases"),
-                });
-                return;
-            }
             let held = match picked {
                 Some(Subject::Placement(index)) => {
                     let Some(p) = open.map.placements.get(index) else {
@@ -16471,68 +16497,87 @@ fn drop_piece(
         state.status.note(format!("`{id}` put back where it was"));
         return;
     }
-    let moved = match blueprint_model::stack::move_placement(&mut open.map, &project.library, index, at)
-    {
-        Ok(moved) => moved,
-        // **Refused, and still in hand.** Dropping it anyway is the behaviour this exists to
-        // avoid: the piece would land somewhere its mount does not hold and read as an
-        // authoring mistake. Keeping hold of it means the next click is another try.
-        Err(e) => {
-            state.status.note(e);
-            return;
-        }
+    let id = row.id.clone();
+    // **The drop is `placement_move`** (#500): the registry validates it, writes the file and appends
+    // the log line, so a drag is an operation an agent can make too. The refusal keeps the piece in
+    // hand — the next click is another try — because a drop somewhere its mount does not hold reads
+    // as an authoring mistake.
+    let Some((line, phrase)) = move_through(project, open, state, &id, at) else {
+        return;
     };
     drag.held = None;
+    state.record_logged(line, phrase, false);
 
     // Everything that moved is redrawn from the finished map — never by nudging a transform.
     // `turn_under_cursor` states the rule; this obeys it for a whole group, because a lamp
     // whose table moved has a new `y` in the data and an entity still standing over the old
-    // spot.
-    let ids: Vec<String> = moved
-        .was
-        .iter()
-        .filter_map(|(i, _, _)| open.map.placements.get(*i).map(|p| p.id.clone()))
-        .collect();
-    for (entity, marker) in placed {
-        if ids.iter().any(|id| id == &marker.0) {
-            commands.entity(entity).despawn();
-        }
-    }
-    match heights(project, open) {
-        Ok(ys) => {
-            for (i, _, _) in &moved.was {
-                let Some(p) = open.map.placements.get(*i) else {
-                    continue;
-                };
-                let (id, at, yaw, tip) = (p.id.clone(), p.at, p.yaw, p.tip);
-                let (Some(d), Some(&y)) = (descriptor_of(&project.library, p), ys.get(*i))
-                else {
-                    continue;
-                };
-                if let Some(e) = spawn_piece(commands, assets, Pose { d: &d, yaw, tip }, at, open.map.origin, y) {
-                    commands.entity(e).insert(Placement(id));
-                }
-            }
-        }
+    // spot. **Which rows moved is the carrier's own answer**, read off `stack::group_of` for the
+    // anchor, so the redraw and the move cannot name different sets.
+    let indices: Vec<usize> = blueprint_model::stack::group_of(&open.map, index);
+    let carried = indices.len();
+    match redraw_placements(commands, assets, project, &*open, placed, &indices) {
+        Ok(()) => {}
         Err(e) => {
             state
                 .status
                 .problem(format!("moved, but cannot draw it: {e}"));
             error!("{e}");
-            state.record(Undo::Moved { moved });
             return;
         }
     }
 
-    let carried = moved.was.len();
-    state.record(Undo::Moved { moved });
-    let head = ids.first().cloned().unwrap_or_default();
     let how = if free { " free" } else { "" };
     state.status.note(if carried > 1 {
-        format!("moved {head} and {} riding on it{how}", carried - 1)
+        format!("moved {id} and {} riding on it{how}", carried - 1)
     } else {
-        format!("moved {head}{how}")
+        format!("moved {id}{how}")
     });
+}
+
+/// **Move a placement through the operation registry** (#500), so a drag, a nudge and an agent's call
+/// are one validated, saved and logged change. Returns the log line and its receipt; `None` when the
+/// registry refused, and the refusal is a note where the author looks.
+fn move_through(
+    project: &Project,
+    open: &mut OpenMap,
+    state: &mut EditorState,
+    id: &str,
+    at: (f32, f32),
+) -> Option<(String, String)> {
+    let params = serde_json::json!({"id": id, "at": [at.0, at.1]});
+    let mut ctx = crate::ops::Ctx {
+        view: None, trust_file: None, decisions: None,
+        project: Some(project.clone()),
+        open: Some(std::mem::replace(
+            &mut *open,
+            OpenMap::new(
+                blueprint_model::map::Map::default(),
+                std::path::PathBuf::new(),
+            ),
+        )),
+        source: crate::ops::Source::Human,
+        root: None,
+        session: crate::ops::session_id(),
+        proposal: None,
+    };
+    let outcome = crate::ops::dispatch(&mut ctx, "placement_move", &params);
+    if let Some(fresh) = ctx.open.take() {
+        *open = fresh;
+    }
+    match outcome {
+        Ok(crate::ops::Applied::Done {
+            outcome,
+            operation_id,
+            ..
+        }) => {
+            state.status.note(outcome.summary.clone());
+            Some((operation_id, outcome.summary))
+        }
+        Ok(crate::ops::Applied::Refused(e)) | Err(e) => {
+            state.status.note(e.0);
+            None
+        }
+    }
 }
 
 /// **The thing you are pointing at**, given a probe in map space.
@@ -16862,6 +16907,155 @@ impl UnderCursor {
 /// is worse than none, by this function's own argument; the gate is the same `view::over_ui` the
 /// verbs ask, so the line and the key cannot disagree.
 #[allow(clippy::too_many_arguments)]
+/// **Shift-drag a rectangle to select what it covers** (UI-52, #505), and Shift-click still adds one.
+///
+/// # Why Shift, and why this is not the removal box
+///
+/// The removal tool's rectangle is a tool's, and the tool that claims a drag is the one armed. A
+/// marquee cannot be a tool: the author wants it while placing, while moving and while doing nothing,
+/// and a fourth mode would be a fourth thing to remember. Shift is the modifier the codebase already
+/// gives "select rather than act" — Shift-click adds to the set (`selection::Selection::shift_click`),
+/// so Shift-drag selects a set. On a **drop** Shift is the finer snap and stays untouched: this reads
+/// the grab only, as the Shift-click path already does.
+///
+/// # A selection, not an edit
+///
+/// Nothing is dispatched and nothing is written: a marquee is where a person is looking
+/// (`selection.rs`'s own rule), so there is no operation, no log line and no undo entry. The set is
+/// [`marquee_ids`]'s, and it goes through [`crate::selection::Selection::marquee`], the one writer.
+///
+/// # The click it must not steal
+///
+/// Under the drag slop — a Shift click — this releases and lets the click path do its job, so
+/// Shift-clicking one piece still adds it rather than replacing the set with itself.
+fn drive_marquee(
+    mouse: Res<ButtonInput<MouseButton>>,
+    keyboard: Res<ButtonInput<KeyCode>>,
+    claim: Claim,
+    sight: crate::outliner::Sight,
+    camera: Option<Single<(&Camera, &GlobalTransform), With<MainCamera>>>,
+    mut drag: ResMut<MarqueeDrag>,
+    mut marker: Query<(&mut Transform, &mut Visibility), With<MarqueeTile>>,
+    project: Res<Project>,
+    open: Res<OpenMap>,
+    rung: Res<Rung>,
+    mut state: ResMut<EditorState>,
+    mut lock: ResMut<TargetLock>,
+    mut selection: ResMut<crate::selection::Selection>,
+) {
+    let Claim { over_ui, pointer, snip, report } = claim;
+    // **Shift outranks the brush.** A brush armed with a piece still leaves Shift meaning "select":
+    // a modifier that quietly stopped working because something was in hand would be the kind of
+    // surprise this editor's "one click, one meaning" rule exists to avoid. `drive_place` returns on
+    // a Shift press for the same reason, so exactly one of the two acts.
+    let armed = state.tool == Tool::Place;
+    if !armed && drag.from.is_some() {
+        drag.from = None;
+        drag.from_px = None;
+    }
+    if !armed {
+        for (_, mut vis) in &mut marker {
+            if *vis != Visibility::Hidden {
+                *vis = Visibility::Hidden;
+            }
+        }
+        return;
+    }
+    let Some(camera) = camera else {
+        return;
+    };
+    let (cam, cam_tf) = *camera;
+    // A gesture already under way owns the pointer — `drive_place`'s pointer-capture rule.
+    let blocked = snip.claims_pointer()
+        || report.claims_pointer()
+        || ui_blocks_gesture(over_ui.0, drag.from.is_some());
+    let hit = cursor_ground(pointer.0, cam, cam_tf).filter(|_| !blocked);
+    let Some(hit) = hit else {
+        if mouse.just_released(MouseButton::Left) {
+            drag.from = None;
+            drag.from_px = None;
+        }
+        for (_, mut vis) in &mut marker {
+            *vis = Visibility::Hidden;
+        }
+        return;
+    };
+    let at = open.map.to_map_space((hit.x, hit.z));
+
+    if mouse.just_pressed(MouseButton::Left) && keys::shift_held(&keyboard) {
+        drag.from = Some(at);
+        drag.from_px = pointer.0;
+    }
+
+    let pitch = snap_level(&keyboard, rung.0).pitch(project.lattice.snap_divisor);
+    let travelled = drag
+        .from_px
+        .zip(pointer.0)
+        .is_some_and(|(from, now)| now.distance(from) > DRAG_SLOP_PX);
+    let rect = drag.from.map(|from| removal_box(from, at, pitch));
+
+    // The outline, drawn the way `drive_place` draws a fill box: an outline rather than the removal
+    // tool's fill, because selecting and destroying must not look the same.
+    for (mut tf, mut vis) in &mut marker {
+        match rect.filter(|_| travelled) {
+            Some((x0, z0, x1, z1)) => {
+                *vis = Visibility::Visible;
+                *tf = Transform::from_xyz(
+                    open.map.origin.0 + (x0 + x1) * 0.5,
+                    open.map.origin.1 + MARKER_LIFT,
+                    open.map.origin.2 + (z0 + z1) * 0.5,
+                )
+                .with_rotation(Quat::from_rotation_x(-std::f32::consts::FRAC_PI_2))
+                .with_scale(Vec3::new((x1 - x0).max(0.05), (z1 - z0).max(0.05), 1.0));
+            }
+            None => *vis = Visibility::Hidden,
+        }
+    }
+
+    if !mouse.just_released(MouseButton::Left) {
+        return;
+    }
+    let Some(from) = drag.from.take() else {
+        return;
+    };
+    drag.from_px = None;
+    for (_, mut vis) in &mut marker {
+        *vis = Visibility::Hidden;
+    }
+    // **A Shift click is not a Shift drag**: under the slop the one piece under the cursor joins the
+    // set, which is the rule Shift-click has always had (`selection::Selection::shift_click`) — one
+    // path for both, so "Shift selects" is one sentence rather than two gestures that must agree.
+    if !travelled {
+        let Some(index) = pick_at_seen(&project, &open, at, &|p| sight.unseen(&project.library, p))
+        else {
+            state.status.note("nothing here to select".to_owned());
+            return;
+        };
+        let Some(p) = open.map.placements.get(index) else {
+            return;
+        };
+        let (id, place) = (p.id.clone(), p.at);
+        let changed = selection.shift_click(&mut lock, &id, place);
+        state.status.note(match (changed, selection.len()) {
+            (false, _) => format!("`{id}` is the primary of the selection already"),
+            (true, 1) => format!("`{id}` selected — Shift-click more to add beside it, Esc releases"),
+            (true, n) => format!("{n} pieces selected — Shift-click one again to leave, Esc releases"),
+        });
+        return;
+    }
+    let caught = marquee_ids(&project, &open, removal_box(from, at, pitch), &|p| {
+        sight.unseen(&project.library, p)
+    });
+    let ids: Vec<String> = caught.iter().map(|(id, _)| id.clone()).collect();
+    let places: Vec<(f32, f32)> = caught.iter().map(|(_, at)| *at).collect();
+    selection.marquee(&mut lock, ids, &places);
+    state.status.note(match selection.len() {
+        0 => "nothing inside that box".to_owned(),
+        1 => "1 piece selected — Shift-drag more to add beside it, Esc releases".to_owned(),
+        n => format!("{n} pieces selected — Shift-drag more to add beside it, Esc releases"),
+    });
+}
+
 fn sense_under_cursor(
     pointer: Res<crate::view::Pointer>,
     camera: Option<Single<(&Camera, &GlobalTransform), With<MainCamera>>>,

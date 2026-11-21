@@ -3088,6 +3088,15 @@ fn rows_refusal(
              change would then point at the wrong piece. Have the person take their later changes back \
              (Cmd+Z) first, then undo `{id}`."
         ))),
+        // **A move above it too** (#500): a drag is the registry's `placement_move` now, so the
+        // stack sees a `Logged` entry rather than an `Undo::Moved`, and `row_recorded_above` cannot
+        // name it. Same refusal, same reason — the put-back would reinsert rows and push the piece the
+        // person moved along. Tested only where it can displace: `moved_under_a_put_back` in `ops.rs`
+        // is the log's own half, and refuses a move that happened *after* the removal.
+        "placement_remove" if state.move_recorded_above(id) => Some(ops::Refusal::new(format!(
+            "Undoing `{id}` would put rows back where they were and push along a piece the person has \
+             moved since. Have the person take their move back (Cmd+Z) first, then undo `{id}`."
+        ))),
         "stamp_remove" if state.stamp_recorded_above(id) => Some(ops::Refusal::new(format!(
             "Undoing `{id}` would put a stamp back in its place and move every stamp after it, and the \
              person has changed the stamps since with a change recorded by place (a stamp taken off or \
