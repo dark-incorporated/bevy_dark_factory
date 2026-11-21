@@ -129,6 +129,11 @@ fn settle(app: &mut App) {
 #[test]
 fn cmd_z_and_an_agent_step_the_benchs_history_through_one_operation() {
     let (mut app, path) = editor("steps");
+    {
+        let b = app.world().resource::<BenchState>();
+        let h = b.history();
+        eprintln!("PROBE-START undo={} redo={} text={:?} rigs={}", h.undo.len(), h.redo.len(), h.text.as_deref().map(|t| t.len()), b.rigs.is_some());
+    }
     let original = on_disk(&path);
     assert_eq!(held(&app), original, "the bench read the manifest");
 
