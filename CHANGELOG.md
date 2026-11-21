@@ -4,7 +4,7 @@ What each change added, newest first. A visible change has a clip: click the sti
 
 ## 2026-11-20
 
-- **500-guard** `a418f665` An undo never silently pushes along a piece a person has moved: the move's guard follows the operation into the log *No clip: no visible surface changed; proved by a_person_removes_a_piece_and_undoes_it::an_agents_undo_of_a_removal_waits_while_the_person_has_moved_a_piece_since*
+- **500-guard** `53e29f3d` An undo never silently pushes along a piece a person has moved: the move's guard follows the operation into the log *No clip: no visible surface changed; proved by a_person_removes_a_piece_and_undoes_it::an_agents_undo_of_a_removal_waits_while_the_person_has_moved_a_piece_since*
 - **505** `84c53a62` Shift-drag on the map selects every piece the box covers, in one act, with no operation and no undo step *No clip: a marquee seen only with a window and a mouse; proved by a_marquee_selects_what_it_covers*
 - **500** `9931978e` A drag is one placement_move: the move tool writes the map, logs one line, and can be undone with one Cmd+Z *No clip: an editor interaction that needs a window and a mouse to see; proved by a_drag_is_one_placement_move*
 - **chips-shrink** `HEAD` A chip narrows before the row wraps it to a new line *No clip: a layout behaviour; proved by the_g87_nodes_are_gooeys and the three chip-whole sweeps*
