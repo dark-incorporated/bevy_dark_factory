@@ -2,7 +2,6 @@
 
 What each change added, newest first. A visible change has a clip: click the still to play it. `python3 tools/changelog/changelog.py page --open` plays them all in one page.
 
-<<<<<<< HEAD
 ## 2026-11-21
 
 - **panel-content-box** `70c62b05` a panel's controls are measured against its own content box, at both interface scales *No clip: a test only, no user-visible change; proved by crates/bevy_dark_factory/tests/a_panel_control_stays_inside_its_content_box.rs*
@@ -11,6 +10,7 @@ What each change added, newest first. A visible change has a clip: click the sti
 
 ## 2026-11-20
 
+<<<<<<< HEAD
 - **499-compose-issue** The editor composes an issue procedurally, previews it, and files it without a capture *No clip: A composed Markdown body, a preview that is the bytes filed, a draft that survives a restart and one create through #498's connection; proved by crates/bevy_dark_factory/tests/an_issue_is_composed_previewed_and_filed.rs*
 - **chips-shrink** `028173d3` A chip narrows before the row wraps it to a new line *No clip: a layout behaviour; proved by the_g87_nodes_are_gooeys and the three chip-whole sweeps*
 - **500-guard** `53e29f3d` An undo never silently pushes along a piece a person has moved: the move's guard follows the operation into the log *No clip: no visible surface changed; proved by a_person_removes_a_piece_and_undoes_it::an_agents_undo_of_a_removal_waits_while_the_person_has_moved_a_piece_since*

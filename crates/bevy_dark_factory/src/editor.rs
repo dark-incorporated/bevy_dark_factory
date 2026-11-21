@@ -13022,6 +13022,9 @@ type ToolsParam<'w> = (
     // **The proposal counter rides here for the same reason** the parameter list is full: it is a
     // `ResMut` and there is no seventeenth slot. See [`ProposalClock`].
     ResMut<'w, ProposalClock>,
+    // **The map's picture rides here too**, and for the same reason: `save_map` runs inside this system
+    // and cannot reach the world, so what it writes the capture to has to be a parameter already in hand.
+    ResMut<'w, crate::map_thumbs::PaintAfterSave>,
 );
 
 /// The Tiles tab's state as one `keys` param.
@@ -13096,7 +13099,7 @@ fn keys(
         return;
     }
     let (mode, import, confirm, transforms) = &mut tiles;
-    let (move_drag, clone_drag, target, proposal, compose, clock) = &mut tools;
+    let (move_drag, clone_drag, target, proposal, compose, clock, paint_after_save) = &mut tools;
     // `proposal` is a `&mut ResMut<Proposal>` here; the two layout helpers take a plain
     // `&mut Proposal`, so the deref happens at the call rather than at the binding.
     let proposal: &mut Proposal = &mut *proposal;
@@ -13318,7 +13321,7 @@ fn keys(
     // tab that only committed the composition answered "saved" to an author who had twenty unsaved
     // Map edits behind them.
     if keys::just_pressed(&keyboard, *live, Action::Save) && live.0 != keys::Context::Tiles {
-        save_map(&project, &mut open, &mut state);
+        save_map(&project, &mut open, &mut state, paint_after_save);
         return;
     }
 
@@ -18564,6 +18567,7 @@ fn accept_layout(
 /// The save itself is `OpenMap::save`, unchanged — it validates and expands the stamps the way the
 /// game does, so a map the game could not load is refused here rather than written. What changed is
 /// that the act has a name an agent can call, and that the two front ends cannot drift.
+<<<<<<< HEAD
 /// **The same call a `Cmd+S` makes**, for a caller outside this file: the periodic save (#508) dispatches `map_save` through
 /// this, so a timer's save is a person's save in the log and an undo sees one line.
 pub fn save_map_public(project: &Project, open: &mut OpenMap, state: &mut EditorState) {
@@ -18571,6 +18575,14 @@ pub fn save_map_public(project: &Project, open: &mut OpenMap, state: &mut Editor
 }
 
 fn save_map(project: &Project, open: &mut OpenMap, state: &mut EditorState) {
+=======
+fn save_map(
+    project: &Project,
+    open: &mut OpenMap,
+    state: &mut EditorState,
+    paint_after_save: &mut crate::map_thumbs::PaintAfterSave,
+) {
+>>>>>>> refs/remotes/origin/fleet/wave-assets
     let mut ctx = crate::ops::Ctx {
         project: Some(project.clone()),
         open: Some(std::mem::replace(open, empty_map_for_take())),
@@ -18586,6 +18598,12 @@ fn save_map(project: &Project, open: &mut OpenMap, state: &mut EditorState) {
         Ok(crate::ops::Applied::Done { outcome, .. }) => {
             state.status.note(outcome.summary.clone());
             info!("{}", outcome.summary);
+            // **A save is where a map's picture is taken** (#506): the person is already looking at
+            // the map, so the frame that is about to be drawn is the one a card should show, and
+            // staging a second one would reproduce it for nothing. The capture itself is a system
+            // (`map_thumbs::capture_the_saved_map`) because this one already has a key handler's
+            // sixteen parameters.
+            crate::map_thumbs::ask_for_a_picture(paint_after_save, project, open);
         }
         Ok(_) => {}
         // The save refuses on an invalid map rather than writing one, and says which rule.

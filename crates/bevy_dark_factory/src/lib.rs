@@ -262,6 +262,7 @@ pub mod terminal_agent;
 pub mod terminal_pane;
 pub mod terminal_view;
 pub mod thumbs;
+pub mod map_thumbs;
 pub mod tiles;
 pub mod toolbar;
 pub mod token_prompt;

@@ -22,6 +22,8 @@ use serde_json::Value;
 
 use crate::descriptor::Face;
 
+mod prune;
+
 /// A parsed binary glTF container: the JSON chunk and the BIN chunk.
 pub struct Glb {
     pub json: Value,
@@ -126,10 +128,37 @@ impl Measured {
             base_y: lo[1],
             // A rotation cannot change the largest span, but deriving it rather than copying keeps
             // every field of a `Measured` produced the one way.
-            suspect_centimetres: w.max(h).max(d) > 12.0,
+            suspect_centimetres: w.max(h).max(d) > SUSPECT_SPAN_M,
+        }
+    }
+
+    /// **A measurement from the box it spans.**
+    ///
+    /// Every derived field is computed here and nowhere else, so a reader that learns a new box — a
+    /// part of a kit, a rotation of one — cannot produce a `Measured` whose footprint disagrees with
+    /// its own bounds.
+    pub fn from_bounds(lo: [f32; 3], hi: [f32; 3]) -> Measured {
+        let (w, h, d) = (hi[0] - lo[0], hi[1] - lo[1], hi[2] - lo[2]);
+        Measured {
+            lo,
+            hi,
+            footprint: (w, d),
+            height: h,
+            pivot: ((lo[0] + hi[0]) * 0.5, (lo[2] + hi[2]) * 0.5),
+            base_y: lo[1],
+            // 12 m is `fbx_to_glb.py`'s own "unusually large" threshold; a real prop at 100× lands
+            // far past it. See [`SUSPECT_SPAN_M`].
+            suspect_centimetres: w.max(h).max(d) > SUSPECT_SPAN_M,
         }
     }
 }
+
+/// **The largest span a metre-authored prop plausibly has**, metres. Past it the file is centimetre
+/// data read as metres, or architecture.
+///
+/// 12 m is `fbx_to_glb.py`'s own "unusually large" threshold; a door exported in centimetres is
+/// 200 m by this scale, so the two are not close.
+pub const SUSPECT_SPAN_M: f32 = 12.0;
 
 /// Where the file's origin sits relative to its geometry, in the vocabulary the asset library's own
 /// per-pack READMEs already use.
@@ -141,6 +170,25 @@ pub enum OriginAlignment {
     Centred,
     /// Neither.
     Offset,
+}
+
+/// **One node of a `.glb` that carries a mesh** — a part a kit export was assembled from (#503).
+///
+/// A kit is one file whose furniture is placed by node translation, so `bounds` measures the union and
+/// a chair-and-desk export becomes one 4 m blob in the palette. This is the other reading of the same
+/// scene graph: the nodes, each measured where the graph puts it.
+///
+/// **Its own mesh only.** A child node is a part of its own, so a part's bounds never include its
+/// children's geometry — that is what makes "choose the desk" mean the desk.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Part {
+    /// The node's `name`, or `Node{index}` when the file gives none — the same spelling bevy's loader
+    /// uses for an unnamed node, so a person choosing a part and an engine reading one agree.
+    pub name: String,
+    /// The glTF node index, which is what [`Glb::keep_only`] takes.
+    pub node: usize,
+    /// What this node's own mesh measures, in the file's frame with its place in the graph composed.
+    pub measured: Measured,
 }
 
 /// Tolerance for "centred" / "on the ground", metres. `tests/ozea_asset.rs` asserts the shipped kit to
@@ -615,18 +663,152 @@ impl Glb {
 
     pub fn measure(&self) -> Result<Measured, String> {
         let (lo, hi) = self.bounds()?;
-        let (w, h, d) = (hi[0] - lo[0], hi[1] - lo[1], hi[2] - lo[2]);
-        Ok(Measured {
-            lo,
-            hi,
-            footprint: (w, d),
-            height: h,
-            pivot: ((lo[0] + hi[0]) * 0.5, (lo[2] + hi[2]) * 0.5),
-            base_y: lo[1],
-            // 12 m is `fbx_to_glb.py`'s own "unusually large" threshold; a real prop at 100× lands
-            // far past it.
-            suspect_centimetres: w.max(h).max(d) > 12.0,
-        })
+        Ok(Measured::from_bounds(lo, hi))
+    }
+
+    /// **What a node's own mesh measures**, with the scene graph's placement composed into it.
+    ///
+    /// `world` is the node's composed matrix, which [`Self::for_each_mesh_node`] is the one place that
+    /// builds. A node naming no mesh measures nothing, which is the honest answer for a group node.
+    fn measured_of(&self, mesh_ix: usize, world: &[f32; 16]) -> Option<Measured> {
+        let mut lo = [f32::MAX; 3];
+        let mut hi = [f32::MIN; 3];
+        self.accumulate_mesh(mesh_ix, world, &mut lo, &mut hi)
+            .then(|| Measured::from_bounds(lo, hi))
+    }
+
+    /// **Every node of the file that carries a mesh, measured where the scene graph puts it** (#503).
+    ///
+    /// `bounds` answers "how big is this file", which is the question a whole-file import asks and the
+    /// wrong one for a kit export: `animal-horse.glb` and every chair-and-desk export in this project
+    /// assembles its furniture out of nodes placed by translation, so the union is one 4 m blob and
+    /// there is no way to say which chair was meant.
+    ///
+    /// In node order, so two machines list the same parts in the same order — a directory walk is not
+    /// the only thing that shuffles. A file whose geometry no node references reports one part per
+    /// mesh, because a file with geometry and no scene graph is still a file with parts.
+    pub fn parts(&self) -> Result<Vec<Part>, String> {
+        let mut out: Vec<Part> = Vec::new();
+        let mut failed: Option<String> = None;
+        let mut seen: Vec<usize> = Vec::new();
+
+        // **Its own mesh only**, so the walk is over nodes rather than `for_each_mesh_node`: that one
+        // visits a node's whole subtree, which is what `bounds` wants and the opposite of what a part
+        // is.
+        let roots: Vec<usize> = self
+            .json
+            .get("scenes")
+            .and_then(|s| s.as_array())
+            .and_then(|scenes| {
+                let ix = self.json["scene"].as_u64().unwrap_or(0) as usize;
+                scenes.get(ix)
+            })
+            .and_then(|s| s["nodes"].as_array())
+            .map(|n| n.iter().filter_map(|v| v.as_u64()).map(|v| v as usize).collect())
+            .unwrap_or_else(|| {
+                (0..self.json["nodes"].as_array().map_or(0, |n| n.len())).collect()
+            });
+
+        let mut stack: Vec<(usize, [f32; 16])> = roots.into_iter().map(|n| (n, IDENTITY)).collect();
+        let mut budget = 100_000usize;
+        while let Some((node_ix, parent)) = stack.pop() {
+            budget = match budget.checked_sub(1) {
+                Some(b) => b,
+                None => return Err("glb: node hierarchy is cyclic or absurdly deep".to_owned()),
+            };
+            let Some(node) = self.json["nodes"].get(node_ix) else {
+                continue;
+            };
+            let world = mul(&parent, &node_matrix(node));
+            if let Some(mesh_ix) = node["mesh"].as_u64() {
+                match self.measured_of(mesh_ix as usize, &world) {
+                    Some(measured) => {
+                        seen.push(node_ix);
+                        let name = node["name"]
+                            .as_str()
+                            .map_or_else(|| format!("Node{node_ix}"), str::to_owned);
+                        out.push(Part { name, node: node_ix, measured });
+                    }
+                    // **A node naming a mesh with no declared bounds is a part that cannot be
+                    // measured**, and saying so is worse than silence: whoever chose it would get a
+                    // plausible wrong number.
+                    None => {
+                        failed = Some(format!(
+                            "glb: node {node_ix} names mesh {mesh_ix}, whose POSITION accessor declares \
+                             no min/max, so that part cannot be measured"
+                        ));
+                    }
+                }
+            }
+            if let Some(kids) = node["children"].as_array() {
+                for k in kids.iter().filter_map(|v| v.as_u64()) {
+                    stack.push((k as usize, world));
+                }
+            }
+        }
+        if let Some(e) = failed {
+            return Err(e);
+        }
+
+        // **A file with geometry and no scene graph** is measured where it sits, as `bounds` does.
+        if out.is_empty() {
+            let count = self.json["meshes"].as_array().map_or(0, |m| m.len());
+            for mesh_ix in 0..count {
+                if let Some(measured) = self.measured_of(mesh_ix, &IDENTITY) {
+                    let name = self.json["meshes"][mesh_ix]["name"]
+                        .as_str()
+                        .map_or_else(|| format!("Mesh{mesh_ix}"), str::to_owned);
+                    out.push(Part { name, node: mesh_ix, measured });
+                }
+            }
+        }
+        if out.is_empty() {
+            return Err("glb: no node carries a mesh, so the file has no parts".to_owned());
+        }
+        // Node order, whichever order the stack walked them in.
+        out.sort_by_key(|p| p.node);
+        Ok(out)
+    }
+
+    /// **A new `.glb` holding one node's subtree, and nothing else** — the file a chosen part becomes
+    /// (#503).
+    ///
+    /// The prune is a **JSON edit and a buffer rebuild**, which is why it can live in this crate at all:
+    /// `blueprint_model` refuses a `bevy` dependency (`tests/engine_free.rs`) and Bevy's glTF writer is
+    /// not available to it. Everything a glTF file addresses is an index, so keeping a part means
+    /// renumbering nodes, meshes, accessors, buffer views, materials and textures — and rebuilding the
+    /// BIN chunk so the bytes the new accessors name are the bytes they read:
+    ///
+    /// | what goes | why |
+    /// |---|---|
+    /// | every node outside the kept subtree | they are the other pieces |
+    /// | a node inside it that **is** its ancestors' place | kept — translation is what puts the part where it is |
+    /// | every mesh no surviving node names | it is the other pieces' geometry |
+    /// | every accessor and buffer view those meshes used, and no survivor uses | they are bytes |
+    /// | every material no surviving primitive names | named by the file and used by nothing |
+    /// | every image, sampler and texture no surviving material samples | same |
+    ///
+    /// **The kept node's own transform is baked into its vertices** and its node left at the identity:
+    /// a descriptor's `align.pivot`, `extent` and `y_offset` are all measured from the file's origin, so
+    /// a part whose node was left at x = 2 m would measure 1.6 m wide and sit 2 m off its own footprint.
+    /// That is the same failure `import::measure`'s origin finding describes for a hand-exported mesh.
+    ///
+    /// Refuses a node index the file does not have, naming the parts that are there — a person choosing
+    /// from a list and an agent passing an index make the same mistake, and both need to be told what
+    /// the choices were.
+    pub fn keep_only(&self, node: usize) -> Result<Vec<u8>, String> {
+        let parts = self.parts()?;
+        if !parts.iter().any(|p| p.node == node) {
+            let offered = parts
+                .iter()
+                .map(|p| format!("{} ({})", p.name, p.node))
+                .collect::<Vec<_>>()
+                .join(", ");
+            return Err(format!(
+                "glb: there is no part at node {node}. The parts this file holds are: {offered}"
+            ));
+        }
+        prune::keep_only(self, node)
     }
 
     /// Classify where the origin sits, in the asset library's own vocabulary.

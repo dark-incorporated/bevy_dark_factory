@@ -6323,6 +6323,14 @@ pub mod piece_import {
         /// The id to import it under. Absent means the one the measurement proposes (the file stem).
         #[serde(default)]
         pub id: Option<String>,
+        /// **Which part of a multi-part file**, by glTF node name (#503).
+        ///
+        /// A kit export is one file whose furniture is placed by node translation, so importing it
+        /// whole puts a chair-and-desk in the palette as one 4 m blob. `part` names one node; the
+        /// import writes a `.glb` holding that node's subtree and measures that. Absent means the whole
+        /// file, which is what a single-piece mesh wants and what every import did before.
+        #[serde(default)]
+        pub part: Option<String>,
         /// **The undo's own form**: take this id out of the library.
         #[serde(default)]
         pub remove: Option<String>,
@@ -6345,6 +6353,10 @@ pub mod piece_import {
                         "description": "The id to import it under. Omit and the file's stem is used, in the project's snake_case. A kit's ids are one namespace, so an id already in the library is refused rather than replaced.",
                         "type": "string"
                     },
+                    "part": {
+                        "description": "Which part of a multi-part `.glb` to import, by its node name (or `Node3` for an unnamed node — `piece_parts` lists them with their sizes). The import writes a new `.glb` holding that part alone and measures that. Omit to import the whole file: a one-piece mesh needs no part, and every import before this one named none.",
+                        "type": "string"
+                    },
                     "remove": {
                         "description": "The id an undo takes out of the library. Only an undo may set this.",
                         "type": "string"
@@ -6361,8 +6373,8 @@ pub mod piece_import {
             serde_json::from_value(raw.clone()).map_err(|e| {
                 Refusal::new(format!(
                     "these are not the parameters for importing a mesh: {e}. The fields are `glb`, \
-                     `id`, `remove` and `restore`; give `glb` to import, or `remove`/`restore` as an \
-                     undo."
+                     `id`, `part`, `remove` and `restore`; give `glb` to import (with `part` to take one \
+                     piece of a multi-part file), or `remove`/`restore` as an undo."
                 ))
             })
         }
@@ -6441,26 +6453,15 @@ pub mod piece_import {
             if let Some(d) = &p.restore {
                 return Ok(json!({"restore": d.id, "would": "put it back"}));
             }
-            let (abs, rel) = resolve(project, p.glb.as_deref())?;
-            let candidate = blueprint_model::import::measure(&abs, &rel, &project.measured);
-            if candidate.blocked() {
-                return Err(Refusal::new(format!(
-                    "this mesh cannot be measured, so there is nothing to add: {}",
-                    candidate
-                        .findings
-                        .iter()
-                        .map(|f| f.message.as_str())
-                        .collect::<Vec<_>>()
-                        .join("; ")
-                )));
-            }
-            let id = p.id.clone().unwrap_or_else(|| candidate.proposed.id.clone());
-            let descriptor = crate::tiles::admit_candidate(project, &candidate, &id)
+            let chosen = choose(project, &p)?;
+            let id = p.id.clone().unwrap_or_else(|| chosen.candidate.proposed.id.clone());
+            let descriptor = crate::tiles::admit_candidate(project, &chosen.candidate, &id)
                 .map_err(Refusal::new)?;
             Ok(json!({
                 "id": descriptor.id,
                 "mesh": descriptor.mesh,
-                "triangles": candidate.triangles,
+                "part": chosen.part,
+                "triangles": chosen.candidate.triangles,
                 "kit": project.namespace,
             }))
         }
@@ -6506,23 +6507,14 @@ pub mod piece_import {
                 });
             }
 
-            let (abs, rel) = resolve(project, p.glb.as_deref())?;
-            let candidate = blueprint_model::import::measure(&abs, &rel, &project.measured);
-            if candidate.blocked() {
-                return Err(Refusal::new(format!(
-                    "this mesh cannot be measured, so there is nothing to add: {}",
-                    candidate
-                        .findings
-                        .iter()
-                        .map(|f| f.message.as_str())
-                        .collect::<Vec<_>>()
-                        .join("; ")
-                )));
-            }
-            let id = p.id.clone().unwrap_or_else(|| candidate.proposed.id.clone());
-            let descriptor = crate::tiles::admit_candidate(project, &candidate, &id)
+            let chosen = choose(project, &p)?;
+            let id = p.id.clone().unwrap_or_else(|| chosen.candidate.proposed.id.clone());
+            let descriptor = crate::tiles::admit_candidate(project, &chosen.candidate, &id)
                 .map_err(Refusal::new)?;
             let imported = descriptor.id.clone();
+            // **The mesh the descriptor names**, which for a chosen part is the new file rather than
+            // the kit it came out of.
+            let rel = descriptor.mesh.clone().unwrap_or_else(|| chosen.rel.clone());
             let mut trial = project.measured.clone();
             trial.descriptors.push(descriptor);
             crate::tiles::commit_measured(project, trial).map_err(Refusal::new)?;
@@ -6555,6 +6547,96 @@ pub mod piece_import {
                 })),
             })
         }
+    }
+
+    /// **What the import will actually measure**, after choosing a part and refusing what cannot be
+    /// admitted.
+    ///
+    /// One function for the plan and the commit, because they used to be two copies of the same four
+    /// lines and a preview that refused differently from the write is the thing an operation registry
+    /// exists to prevent. Three decisions, in order:
+    ///
+    /// 1. resolve the path (inside `assets`, a `.glb`);
+    /// 2. **choose a part** when `part` is given — the prune writes a new `.glb` beside the source and the
+    ///    descriptor names *that*, so a chosen chair is a file holding the chair;
+    /// 3. **refuse a centimetre-authored file**, because admitting one puts a 200 m door in a palette
+    ///    where every other piece is metres and nothing downstream ever rescales it.
+    fn choose(project: &Project, p: &Params) -> Result<Chosen, Refusal> {
+        let (abs, rel) = resolve(project, p.glb.as_deref())?;
+        let (abs, rel, part) = match p.part.as_deref() {
+            None => (abs, rel, None),
+            Some(name) => {
+                let glb = blueprint_model::glb::Glb::open(&abs)
+                    .map_err(|e| Refusal::new(format!("`{rel}` cannot be read as a .glb: {e}")))?;
+                let parts = glb.parts().map_err(|e| {
+                    Refusal::new(format!("`{rel}` has no parts to choose from: {e}"))
+                })?;
+                let part = parts.iter().find(|x| x.name == name).ok_or_else(|| {
+                    // **The list is the answer**, not a correction: a person choosing from a palette
+                    // and an agent passing a name both need to be told what the choices were.
+                    Refusal::new(format!(
+                        "`{rel}` has no part called `{name}`. It holds: {}",
+                        parts
+                            .iter()
+                            .map(|x| format!(
+                                "{} ({:.2} x {:.2} m)",
+                                x.name, x.measured.footprint.0, x.measured.footprint.1
+                            ))
+                            .collect::<Vec<_>>()
+                            .join(", ")
+                    ))
+                })?;
+                let kept = glb.keep_only(part.node).map_err(|e| Refusal::new(format!("`{rel}`: {e}")))?;
+                // **The new file sits beside the source**, named after it and the part, so a kit
+                // exported once and split into six gives six files a person can find again.
+                let stem = rel.strip_suffix(".glb").unwrap_or(&rel);
+                let kept_rel = format!("{stem}.{}.glb", blueprint_model::naming::to_snake_case(name));
+                let kept_abs = project.root.join("assets").join(&kept_rel);
+                if let Some(parent) = kept_abs.parent() {
+                    std::fs::create_dir_all(parent).map_err(|e| {
+                        Refusal::new(format!("could not make {}: {e}", parent.display()))
+                    })?;
+                }
+                std::fs::write(&kept_abs, &kept)
+                    .map_err(|e| Refusal::new(format!("could not write {}: {e}", kept_abs.display())))?;
+                (kept_abs, kept_rel, Some(name.to_owned()))
+            }
+        };
+        let candidate = blueprint_model::import::measure(&abs, &rel, &project.measured);
+        if candidate.blocked() {
+            return Err(Refusal::new(format!(
+                "this mesh cannot be measured, so there is nothing to add: {}",
+                candidate
+                    .findings
+                    .iter()
+                    .map(|f| f.message.as_str())
+                    .collect::<Vec<_>>()
+                    .join("; ")
+            )));
+        }
+        // **A centimetre-authored file is refused here**, which is the door: `import::measure` reports
+        // it as a warning and would let a preview draw it, and this is the decision to admit it.
+        if let Some(f) = candidate
+            .findings
+            .iter()
+            .find(|f| f.message.contains("centimetre data read as metres"))
+        {
+            return Err(Refusal::new(format!(
+                "this mesh measures {} — it is centimetre data, so no size here is true and importing \
+                 it would put a piece in the palette at 100x. {}",
+                f.message.split(" — ").next().unwrap_or("implausibly large"),
+                f.fix.as_deref().unwrap_or("re-export it in metres")
+            )));
+        }
+        Ok(Chosen { candidate, rel, part })
+    }
+
+    /// **What [`choose`] answered**: the candidate, the mesh it names (a chosen part's new file), and
+    /// the part's name when one was chosen.
+    struct Chosen {
+        candidate: blueprint_model::import::Candidate,
+        rel: String,
+        part: Option<String>,
     }
 
     /// **The mesh's absolute path and its project-relative one**, or a refusal.
