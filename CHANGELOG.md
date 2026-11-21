@@ -4,7 +4,7 @@ What each change added, newest first. A visible change has a clip: click the sti
 
 ## 2026-11-21
 
-- **panel-content-box** `028173d3` a panel's controls are measured against its own content box, at both interface scales *No clip: a test only, no user-visible change; proved by crates/bevy_dark_factory/tests/a_panel_control_stays_inside_its_content_box.rs*
+- **panel-content-box** `70c62b05` a panel's controls are measured against its own content box, at both interface scales *No clip: a test only, no user-visible change; proved by crates/bevy_dark_factory/tests/a_panel_control_stays_inside_its_content_box.rs*
 - **wave8-report** `7507f130` Fleet wave 8: the owner hold, and four ratchets that refused new code *No clip: docs only (a runbook paragraph and an iteration report); proved by tools/changelog/changelog.py check*
 
 ## 2026-11-20
