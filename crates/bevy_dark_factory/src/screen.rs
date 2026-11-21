@@ -546,6 +546,27 @@ pub const OWNERSHIP: &[(&str, Ownership)] = &[
     // `HandBacks::asked` numbers presentations for the whole session, and a note's key carries the
     // map it is on, so the one-wish rule cannot read two hand-backs as one.
     ("bevy_dark_factory::present::HandBacks", Ownership::Session),
+    // **The periodic save's clock and its record** (#508): a timer that survived a door change
+    // would fire on the new kit with the old kit's interval, so both are the session's.
+    ("bevy_dark_factory::autosave::AutoSave", Ownership::Session),
+    // **A never-saved buffer's draft clock and the offers it feeds** (#508): a draft is written from
+    // the buffer's own edits, and a door change drops the buffers, so both go with them.
+    ("bevy_dark_factory::draft::DraftClock", Ownership::Workspace),
+    ("bevy_dark_factory::draft::DraftOffers", Ownership::Workspace),
+    // **The Files workspace's open menu** (#507): a handle while a menu is up, so it is the workspace's.
+    ("bevy_dark_factory::files_menu::FilesMenuHandle", Ownership::Workspace),
+    // **The map cards' pictures, queued for a repaint** (#506): a render of the current map, so a
+    // door change drops the queue rather than repainting the old kit into a new card.
+    ("bevy_dark_factory::map_thumbs::PaintAfterSave", Ownership::Workspace),
+    // **Which step the tour last pointed at** (#510): a step belongs to the tour that is running in
+    // this workspace, so the record goes when the workspace's map does.
+    ("bevy_dark_factory::tour::PointedAt", Ownership::Workspace),
+    // **A composed issue in progress** (#499): the six fields, the preview and the one filing in
+    // flight. `Project`, not `Workspace`: the composer names files and line numbers of *this* kit, so
+    // carrying a half-written report across a door change would file against the wrong one.
+    ("bevy_dark_factory::issue_compose_panel::Composer", Ownership::Project),
+    ("bevy_dark_factory::issue_compose_panel::Filing", Ownership::Project),
+    ("bevy_dark_factory::issue_compose_panel::Pending", Ownership::Project),
     // **A composed issue in progress** (#499): the six fields, the preview and the one filing in
     // flight. `Project`, not `Workspace`: the composer names files and line numbers of *this* kit, so
     // carrying a half-written report across a door change would file a report about the wrong one.

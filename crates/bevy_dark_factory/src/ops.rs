@@ -6599,7 +6599,7 @@ pub mod piece_import {
                 }
                 // **Atomic, through `write_new`**: the ratchet at `atomic_writes_only` names this
                 // line when it is plain, and a reader must never see half a mesh part.
-                blueprint_model::atomic_file::write_new(&kept_abs, &kept)
+                blueprint_model::atomic_file::write(&kept_abs, &kept)
                     .map_err(|e| Refusal::new(format!("could not write {}: {e}", kept_abs.display())))?;
                 (kept_abs, kept_rel, Some(name.to_owned()))
             }

@@ -664,14 +664,16 @@ fn draw_the_console(
                 let mut row = chrome::quiet_row(p, console.open == Some(line.id), ConsoleRow(line.id));
                 // **One row, cut at the edge** — the whole line is one click away in the details pane, which is what keeps
                 // a long message from wrapping into a wall (the journal draws its own lines the same way).
-                row.insert(Node { height: Val::Px(chrome::text::LABEL.px() * 1.4), overflow: Overflow::clip(), ..default() });
                 row.observe(open_a_line);
                 row.with_children(|row| {
+                    // **One line, cut at the edge** — the clip is on the text rather than a raw `Node`
+                    // on the row (gooey has no clipping row yet: bevy-gooey#113).
                     row.spawn((
                         Text::new(text),
                         TextColor(line.level.ink()),
                         chrome::typed(chrome::text::LABEL),
                         TextLayout::new(Justify::Left, LineBreak::NoWrap),
+                        chrome::clipped_one_line(),
                     ));
                 });
             }

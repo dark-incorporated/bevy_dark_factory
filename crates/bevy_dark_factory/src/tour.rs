@@ -379,6 +379,9 @@ fn spawn_the_pointer(mut commands: Commands, frame: Res<crate::chrome::Frame>) {
             bevy_gooey::placed(UiRect::all(Val::Auto)),
             bevy_gooey::HostGeometry,
             bevy_gooey::BorderPx(bevy_gooey::Sides::all(OUTLINE_PX)),
+            // **The tour's own accent on the edge** (#260's rule): a node with a `BorderPx` edge and
+            // neither marker would be painted in the skin's outline colour instead.
+            bevy_gooey::InkOverride { edge: Some(ink.accent), ..default() },
             BorderColor::all(ink.accent),
             BackgroundColor(Color::NONE),
             Visibility::Hidden,

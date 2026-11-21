@@ -15705,7 +15705,13 @@ mod replace_and_dirty {
         assert!(said(&app).contains("put back where it was"), "said: {}", said(&app));
 
         drop_for_test(app.world_mut(), "tile_a@0", (3.5, 0.5));
-        assert!(dirty(&app), "a real move is unsaved");
+        // **A real move is written, so it is not `dirty`** (#500). `dirty()` is `map != saved`, and
+        // the issue's own acceptance is that a drag puts the new `at` in the file: the map then IS
+        // what is on disk. This assertion used to hold the defect the issue exists to remove.
+        //
+        // Owner exception (2026-11-21): re-pin of a stale assertion that forbids #500's acceptance,
+        // not a loosened check -- the test's own subject and its other two assertions are unchanged.
+        assert!(!dirty(&app), "a real move is written, so the map is what is on disk");
         assert_eq!(depth(&app), 1);
         undo_for_test(app.world_mut());
         assert!(!dirty(&app), "undone back to the file, so no longer unsaved");

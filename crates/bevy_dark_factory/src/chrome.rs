@@ -3343,6 +3343,22 @@ pub fn list_row<'a>(
 /// that makes a row *look* like a row — [`RowRest`], `Hovered`, the fill, the padding — and
 /// `style_list_rows` repaints it exactly the same, because that system keys on `RowRest` and has
 /// never needed `Button`.
+/// **How tall a cut row is, as a multiple of its own text size** — the console's own 1.4.
+const CUT_LINE_FACTOR: f32 = 1.4;
+
+/// **One line of text, cut at the edge**: a fixed line height with whatever overflows it clipped.
+///
+/// gooey's `Sizing` carries both (`height` and `clip`), so this is not a raw `Node` — which is what
+/// the raw-node ratchet requires, and what the first version of this helper got wrong.
+#[must_use]
+pub fn clipped_one_line() -> impl Bundle {
+    bevy_gooey::Sizing {
+        height: Some(bevy_gooey::Extent::Px(text::LABEL.px() * CUT_LINE_FACTOR)),
+        clip: Some(true),
+        ..default()
+    }
+}
+
 pub fn quiet_row<'a>(
     parent: &'a mut ChildSpawnerCommands,
     selected: bool,
