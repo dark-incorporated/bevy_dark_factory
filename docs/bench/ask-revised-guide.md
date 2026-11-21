@@ -36,18 +36,19 @@ reads the transcript for `latency_ms` (trial.json's `tool_calls` is a list of na
 `mcp__dark_factory_blueprint_decide`, so both the route prefix and the `blueprint_` prefix are stripped before
 anything compares.
 
-## 2. Do agents ask, on the revised guide? — PARTIAL, 6/60 trials
+## 2. Do agents ask, on the revised guide? — PARTIAL, 9/60 trials
 
 | measure | 2026-11-15 (the four-or-five guide) | today's revised guide, 6 trials |
 |---|---|---|
 | eligible trials | 43 | 6 |
-| asked ≥1 after the last visible operation | 35/43 = 81% | **6/6 = 100%** (Wilson 95% [61%, 100%]) |
-| asked ≥4 (the old bar) | 22/43 = 51% | **2/6 = 33%** (Wilson 95% [10%, 70%]) |
-| mean questions per call | 3.33 | **3.33** (histogram {3:4, 4:2}) |
-| trials that called it | 37/60 = 62% | **6/6 = 100%** |
-| success | 55/60 = 92% | **6/6 = 100%** |
+| asked ≥1 after the last visible operation | 35/43 = 81% | **9/9 = 100%** (Wilson 95% [70%, 100%]) |
+| asked ≥4 (the old bar) | 22/43 = 51% | **2/9 = 22%** (Wilson 95% [6%, 55%]) |
+| mean questions per call | 3.33 | **2.91** (histogram {2:3, 3:6, 4:2}) |
+| trials that called it | 37/60 = 62% | **9/9 = 100%**, 11 calls |
+| success | 55/60 = 92% | **9/9 = 100%** |
+| latency of an answer | median 543 ms | **median 1200 ms** (n=11) |
 
-**This is not evidence of an improvement, and must not be reported as one.** n = 6. The wide intervals overlap
+**This is not evidence of an improvement, and must not be reported as one.** n = 9. The wide intervals overlap
 the old figures entirely; the ≥4 drop from 51% to 33% is what the revision *intends* (the count demand is
 gone), but at this n it is a direction, not a finding. When the run finishes the same table with n ≈ 43–60
 eligible trials on each side will, and only then, say whether the revision moved anything.
@@ -99,7 +100,7 @@ Against `http://127.0.0.1:8081/upstream/d3-flash/v1/systemone`, four `noul` ques
 |---|---|---|
 | the model alone, text only, no picture | **151 ms** | 25 |
 | the model alone, one 27 kB still attached | **279 ms** | 25 |
-| `blueprint_decide` as an agent actually calls it (`view: true`: the editor also takes the still) | **1495 ms** | 6, live run |
+| `blueprint_decide` as an agent actually calls it (`view: true`: the editor also takes the still) | **1200 ms** | 11, live run |
 
 **The third is the number that matters** — it is what an agent waits for. The 2026-11-15 benchmark found
 **543 ms** for the same shape, so the capture cost varies with what is on screen; `blueprint_decide`'s
