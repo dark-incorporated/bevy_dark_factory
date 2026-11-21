@@ -1,7 +1,7 @@
 # Do agents ask, and does asking help? Measured on today's main (#457, DM-06)
 
-**Status: PARTIAL, and the latency section was corrected after review.** The arm is **running** (36 of 60
-trials, zero harness errors) and continues; §2 quotes those trials and concludes nothing from them. Concluded:
+**Status: FINISHED — 60/60 trials, zero harness errors.** §2 has a result and gives its interval. The latency
+section was corrected after review and is §4. Concluded:
 §1 (the analyser reproduces the published figures it claims), §3 (arm A is not expressible on main), §4
 (the decision model's own latency, corrected), §5 (the endpoint was down; two host faults, both fixed).
 
@@ -45,21 +45,44 @@ BENCH_ROOT=$HOME/.local/state/cauldron-bench python3 docs/bench/analyse.py ask-w
 era's tool prefix (`mcp__cauldron_grimoire_` against today's `mcp__dark_factory_`) follows from that root, and
 `TOOL_PREFIX` overrides it.
 
-## 2. Do agents ask, on the revised guide? — PARTIAL, 36/60 trials
+## 2. Do agents ask, on the revised guide? — FINISHED, 60/60 trials
 
 | measure | 2026-11-15 (four-or-five guide) | today's revised guide |
 |---|---|---|
-| eligible trials | 43 | **25** |
-| asked ≥1 after the last visible operation | — (not published) | **25/25 = 100%** (Wilson 95% [87%, 100%]) |
-| asked ≥4 (the old bar) | 22/43 = 51% | **3/25 = 12%** (Wilson 95% [4%, 30%]) |
-| mean questions per call | 3.33 | **2.43** (histogram {1:7, 2:6, 3:14, 4:3}) |
-| trials that called it | 37/60 = 62% | **26/36 = 72%**, 30 calls |
-| success | 55/60 = 92% | **33/36 = 92%** |
+| trials / harness errors | 60, 0 | **60, 0** |
+| eligible trials (a visible operation applied) | 43 | **43** |
+| asked ≥1 after the last visible operation | — (not published) | **36/43 = 84%** (Wilson 95% [70%, 92%]) |
+| **asked ≥4 (the old bar)** | **22/43 = 51%** | **3/43 = 7%** (Wilson 95% [2.4%, 18.6%]) |
+| mean questions per call | 3.33 | **2.24** (histogram {1:9, 2:23, 3:15, 4:3}) |
+| trials that called it | 37/60 = 62% | **40/60 = 67%**, 50 calls |
+| success | 55/60 = 92% | **56/60 = 93%** (Wilson [84%, 97%]; the bench's own report says 93% [83%, 100%]) |
+| latency of an answer (`latency_ms`) | median 543 ms | **median 965 ms** (n=48) |
 
-**This is not evidence, and is not reported as one.** n = 25 eligible. The ≥4 fall from 51% to 13% is what
-removing the count demand intends, and the mean falling 3.33 → 2.50 points the same way — but at this n both
-intervals are wide, every figure above moved as trials landed, and the run has 24 trials still to go. **Do not
-quote these as a finding.**
+### The finding: the revision moved how many questions agents ask, and the interval excludes 51%
+
+**3/43 = 7%, Wilson 95% [2.4%, 18.6%]**, against the 2026-11-15 figure of 51%. The upper bound is **18.6%**, so
+the interval excludes 51% by 32 points. On the same 20 tasks, the same agent and model and the same
+`--jobs 1`, an agent given the revised guide asks four or more questions **far less often** than one given the
+text that demanded four or five — which is exactly what the revision set out to do: the count demand was
+removed and the guide now asks only for questions whose answer would change the next operation.
+
+**And they still ask.** 84% of eligible trials ask at least one question (36/43 [70%, 92%]), and the mean is
+2.24 questions per call against 3.33. So the effect is **narrower and shallower questioning, not less
+asking**: the agent kept using the check and stopped padding it.
+
+**What this does not say.** It does not say asking *helped* — §3 is untouched by it, and success moved 92% →
+93%: three trials, and the run's own report puts `pass^k` at 1:0.93, 2:0.88, 3:0.85. That is not a difference
+at this n, and the two runs' success intervals overlap almost completely. The two runs also differ in the guide's text only as built; any
+effect of DM-05's other changes is in both. And a comparison of 51% to 7% is a comparison of **two different
+instructions**, which is the point: the revision changed what the text asks for, and the text was obeyed.
+
+### The two void cells, reported rather than removed
+
+2 of the 50 decision calls failed at the endpoint (`status 500 … upstream command exited prematurely`) in
+`raise-a-hill-in-the-north-east` trials 2 and 3. Under this issue's rule a run whose endpoint was down is void,
+so those cells are named here: **both trials still passed**, the agent carried on after the refusal (which is
+advisory), and neither is one of the 4 failures (`count-what-the-bedroom-holds` ×2, `hedge-along-the-south-edge`,
+`turn-the-wardrobe-into-the-room`). 48 of 50 calls answered.
 
 ## 3. Does asking help? (arm A vs arm B) — NOT EXPRESSIBLE ON TODAY'S MAIN
 
@@ -114,7 +137,7 @@ and says so (`:448-449`: "the sum of its answers' round trips, so the pictures' 
 | the model, 4 questions, with the still | **261 ms** | 5 | " |
 | the model, 8 questions, text only | **320 ms** | 5 | " |
 | the model, 8 questions, with the still | **597 ms** | 5 | " |
-| **`blueprint_decide`, `view: true`, 4-ish questions, in a live run** | **993 ms** | 30 | the run's own `latency_ms` |
+| **`blueprint_decide`, `view: true`, 4-ish questions, in a live run** | **965 ms** | 48 | the run's own `latency_ms` |
 
 The repo's own fixture re-measured the same way: **3 questions + its 164 kB image, median 613 ms** (samples
 1321, 519, 613, 528, 632) while the benchmark arm was running, against the 397 ms
@@ -177,6 +200,5 @@ python3 docs/bench/probe_latency.py <still.png> 8081                # the model'
 ```
 
 **Limits:** three trials a task; one model; one decision model; dev tasks only; the guide measured is today's
-revised text, so the ≥4 row compares *different instructions*, not a like-for-like improvement; **§2 is n = 25
-and says nothing yet**; and **the editor's capture is unmeasured**, so no figure here is the latency an agent
+revised text, so the ≥4 row compares *different instructions*, not a like-for-like improvement; **§2's finding is about *how many questions agents ask*, not about whether asking helps**; and **the editor's capture is unmeasured**, so no figure here is the latency an agent
 experiences end to end.
