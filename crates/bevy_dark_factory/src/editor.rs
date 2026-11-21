@@ -9117,6 +9117,10 @@ pub struct Fields<'w> {
     /// The snip's one-line note, added with E-014. Without this line, typing a note would also
     /// fire every action its letters are bound to.
     pub snip: Res<'w, crate::snip::SnipEdit>,
+    /// **The issue composer (#499)**, added with its dialog. Without this line a paragraph typed into
+    /// one of its six sections dispatched every verb its letters are bound to — the same defect the
+    /// `token` line above records.
+    pub compose_issue: Res<'w, crate::issue_compose_panel::Composer>,
 }
 
 /// **The chords the settings gave to commands** (UI-72b, #265), as [`sense_context`] hands them to the
@@ -9187,6 +9191,7 @@ impl Fields<'_> {
             || self.token.open.is_some()
             || self.compose.renaming.is_some()
             || self.snip.pending.is_some()
+            || self.compose_issue.open
     }
 }
 

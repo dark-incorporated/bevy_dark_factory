@@ -132,6 +132,10 @@ pub fn add_editor_plugins(app: &mut App) -> &mut App {
                 crate::scale_chords::ScaleChordsPlugin,
                 // **A capture filed as an issue** (#495): the answer of a filing, said in the band.
                 crate::report_issue::ReportIssuePlugin,
+                // **Composing an issue by hand** (#499): `Cmd+Shift+I`, the six fields, the preview and one
+                // filing. In the shared list for the report's reason: a person composes an issue from any
+                // screen, and the headless harness drives the dialog the same way a person does.
+                crate::issue_compose_panel::IssueComposePlugin,
                 // **The write-through** (`--live`): every committed change is saved at once, so a game
                 // watching the project reloads it. Inert unless `live::LiveWrite` is inserted.
                 crate::live::LivePlugin,

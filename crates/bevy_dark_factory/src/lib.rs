@@ -266,6 +266,13 @@ pub mod update;
 // the stated reason it holds none, and a check that tells a missing token from a refused one from a
 // repository it cannot reach. `github` is the value and the four answers; nothing here draws.
 pub mod github;
+// **An issue composed in the editor** (#499): six named sections, the Markdown composed from them, a
+// preview that is the bytes filed, a draft that survives a restart, and one create through the
+// connection above. `issue_compose` is the value and its filing; nothing here draws.
+pub mod issue_compose;
+// **The composer's dialog** (#499): six fields, the preview that is the bytes filed, Save draft, and
+// File issue. `issue_compose` is the value and the filing; this is the panel that drives them.
+pub mod issue_compose_panel;
 pub mod view;
 pub mod workspace;
 pub mod watch;
