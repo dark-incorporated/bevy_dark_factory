@@ -83,9 +83,9 @@
     }
   ],
   "controls": {
-    "look at the tag block before touching it": "Tags",
-    "find the filter without being told where it is": "Tags",
-    "narrow it to one token": "Tags",
-    "take it with Enter": "Tags"
+    "look at the tag block before touching it": "Filter",
+    "find the filter without being told where it is": "Filter",
+    "narrow it to one token": "Filter",
+    "take it with Enter": "Filter"
   }
 }
