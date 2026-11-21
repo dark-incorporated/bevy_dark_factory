@@ -103,6 +103,21 @@ bisect, which reads exactly like a hung test and is not one. Take the lock for a
 build; run a single test module without it. A run at 0% CPU for more than a minute is the queue:
 `pgrep -fa 'flock -x /tmp/fleet/big-heavy.lock'`.
 
+**A stale `flock -s` holder starves the gate, and an empty gate log means the lock, not a slow build**
+(measured 2026-11-21: 20 minutes lost). The gate script writes its header line *under* the lock, so
+`/tmp/fleet/gate-rel.log` at **0 bytes** means the push has not started. A worker told to stand down can
+leave `flock -s ... cargo nextest` running — it believed it had killed its build — and the gate's exclusive
+`flock` queues behind it indefinitely. Check the two things instead of reading the log:
+
+```sh
+fuser -v /tmp/fleet/big-heavy.lock   # who actually holds it, and for how long
+head -1 /tmp/fleet/gate-rel.log      # a header line means it is past the lock
+```
+
+Kill a `flock -s` holder that outlives its worker; shared runs are meant to be short. The same session lost
+time to `/home` at 100% full, which surfaces as `clang: error: linker command failed with exit code -2` and
+as "test failures" finishing in 0.2 s — check `df -h ~` before believing any suspiciously fast failure.
+
 **`mac_air` takes no editor tests** (measured 2026-11-18). `cargo nextest run -p <editor crate>` sits at
 0% CPU for 15+ minutes there, repeatedly, on an idle host with 58 GB free — three separate workers lost
 15-20 minutes each before the cause was obvious. Every test that builds an `App` runs on `big` under

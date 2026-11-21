@@ -2,6 +2,10 @@
 
 What each change added, newest first. A visible change has a clip: click the still to play it. `python3 tools/changelog/changelog.py page --open` plays them all in one page.
 
+## 2026-11-21
+
+- **wave8-report** `7507f130` Fleet wave 8: the owner hold, and four ratchets that refused new code *No clip: docs only (a runbook paragraph and an iteration report); proved by tools/changelog/changelog.py check*
+
 ## 2026-11-20
 
 - **499-compose-issue** The editor composes an issue procedurally, previews it, and files it without a capture *No clip: A composed Markdown body, a preview that is the bytes filed, a draft that survives a restart and one create through #498's connection; proved by crates/bevy_dark_factory/tests/an_issue_is_composed_previewed_and_filed.rs*
