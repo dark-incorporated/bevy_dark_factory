@@ -70,6 +70,10 @@ removed and the guide now asks only for questions whose answer would change the 
 2.24 questions per call against 3.33. So the effect is **narrower and shallower questioning, not less
 asking**: the agent kept using the check and stopped padding it.
 
+**This run cannot say whether asking helps.** The issue's second question — *does asking help?* — is not
+answered here: §3 explains why arm A is not expressible on today's main, and success moving 92% → 93% is not a
+difference at this n. What this section measures is only *how many questions agents ask*.
+
 **What this does not say.** It does not say asking *helped* — §3 is untouched by it, and success moved 92% →
 93%: three trials, and the run's own report puts `pass^k` at 1:0.93, 2:0.88, 3:0.85. That is not a difference
 at this n, and the two runs' success intervals overlap almost completely. The two runs also differ in the guide's text only as built; any
@@ -83,6 +87,11 @@ instructions**, which is the point: the revision changed what the text asks for,
 so those cells are named here: **both trials still passed**, the agent carried on after the refusal (which is
 advisory), and neither is one of the 4 failures (`count-what-the-bedroom-holds` ×2, `hedge-along-the-south-edge`,
 `turn-the-wardrobe-into-the-room`). 48 of 50 calls answered.
+
+**If that 500 recurs, check the launcher's `olmocr` precondition first.** It is the same fault class as the two
+host bugs in §5 and it produces this exact string: `run-d3-flash.sh` exits 75 unless `olmocr` is already `ready`,
+so any llama-swap restart — or the reaper moving the card — turns d3-flash into a 500 in 0.25 s that reads as a
+model that cannot load. §5 has the reproduction and the fix.
 
 ## 3. Does asking help? (arm A vs arm B) — NOT EXPRESSIBLE ON TODAY'S MAIN
 
@@ -198,6 +207,14 @@ bash docs/bench/run-ask-revised.sh                                  # ~85 s/tria
 python3 docs/bench/analyse.py ask-revised-guide                     # the arm
 python3 docs/bench/probe_latency.py <still.png> 8081                # the model's own latency
 ```
+
+**A footnote on the run script, because a reader will find it in the log.** `run-ask-revised.sh` printed
+`syntax error near unexpected token` after the run finished. The cause is that it was **edited while bash was
+executing it**, so bash resumed reading at a byte offset into text that had moved. **The run is unaffected**, and
+the evidence is better than this paragraph: 60 trials were written, the harness's own `report.md` exists, and the
+guide hash `ae87fc6b…` is in `run.json`, written by the binary rather than by the script. What was lost is one
+redundant step after everything else — a second copy of a hash `run.json` already carried. No number in this file
+depends on it.
 
 **Limits:** three trials a task; one model; one decision model; dev tasks only; the guide measured is today's
 revised text, so the ≥4 row compares *different instructions*, not a like-for-like improvement; **§2's finding is about *how many questions agents ask*, not about whether asking helps**; and **the editor's capture is unmeasured**, so no figure here is the latency an agent
