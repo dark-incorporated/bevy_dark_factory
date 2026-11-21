@@ -4,7 +4,7 @@ What each change added, newest first. A visible change has a clip: click the sti
 
 ## 2026-11-21
 
-- **457-ask-latency** The decision model's own answer time is written in `blueprint_decide`'s description, as the pair it is: about 150 ms with no picture and 280 ms with one still (median, 25 calls each, local `d3-flash`), replacing "in about a second" *For you: The one line describing how fast the check answers now says a quarter of a second, and says what a still costs.* *No clip: A description's words, with no visible surface; proved by the measurement in docs/bench/ask-revised-guide.md and the tool description regenerated into docs/mcp-tools.md*
+- **457-ask-latency** The decision model's own answer time is written in `blueprint_decide`'s description as the three figures it is: about 150 ms for the model alone with no picture, 280 ms with one still, and **about 1.5 s through the tool** when the editor also takes the still (`view: true`, the way an agent calls it) -- replacing "in about a second", which was the agent's number measured without its capture. *For you: The line describing how fast the check answers now says about a second and a half, and says the model itself is only 150-280 ms of it.* *No clip: A description's words, with no visible surface; proved by the measurement in docs/bench/ask-revised-guide.md. docs/mcp-tools.md is regenerated once the benchmark arm finishes: rebuilding the server binary now would swap it under the trials in flight, so run `cargo build -p dark_factory_mcp && dark_factory_mcp --emit-docs > docs/mcp-tools.md` afterwards.*
 
 ## 2026-11-20
 
