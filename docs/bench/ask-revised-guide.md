@@ -118,7 +118,13 @@ and says so (`:448-449`: "the sum of its answers' round trips, so the pictures' 
 
 The repo's own fixture re-measured the same way: **3 questions + its 164 kB image, median 613 ms** (samples
 1321, 519, 613, 528, 632) while the benchmark arm was running, against the 397 ms
-`docs/decide/serving-d3-flash.md` recorded on an idle card. That difference is contention, not a disagreement.
+`docs/decide/serving-d3-flash.md` recorded on an idle card.
+
+**Those are two measurements of one thing on different loads, and they are not averaged or reconciled.** 613 ms
+is what the fixture costs with a trial's editor and a keep-alive sharing the card; 397 ms is what it costs idle.
+The gap is **contention** — the other tenant on the 3090 — and it is the honest reason the shipped wording is
+rounded rather than a millisecond promise. A blended number would hide the one fact worth having: the same
+request can cost 1.5× more when the card is busy, so any latency a reader plans around should be the busy one.
 
 **An earlier version of this section was wrong and is withdrawn.** It reported 151 ms and 279 ms for four
 questions with no derivation, and said "the editor taking the still is the rest" — a claim nobody measured.
