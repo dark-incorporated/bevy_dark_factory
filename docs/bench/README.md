@@ -9,6 +9,9 @@ dark_factory-bench compare docs/bench/runs/<a>.json docs/bench/runs/<b>.json
 
 | run | date | agent and model | variant | commit | dev tasks: mean success (95% interval) | mean pass^k | cost per success | harness errors | held-out total |
 |---|---|---|---|---|---|---|---|---|---|
+| [2026-11-21-ask-revised-guide](runs/2026-11-21-ask-revised-guide.md) | 2026-11-21 | omp:anthropic/claude-sonnet-5-5 | none | `c763194ed6` | 93% [83%, 100%] over 20 task(s) | 1:0.93 2:0.88 3:0.85 | $0.1909 | 0 | none |
+| [2026-11-17-bench-omp-omp-anthropic-claude-haiku-4-5](runs/2026-11-17-bench-omp-omp-anthropic-claude-haiku-4-5.md) | 2026-11-17 | omp:anthropic/claude-haiku-4-5 | none | `6b5162eab2` | 33% [0%, 100%] over 3 task(s) | 1:0.33 | $0.2577 | 0 | none |
+| [2026-11-17-bench-omp-omp-anthropic-claude-sonnet-5-5](runs/2026-11-17-bench-omp-omp-anthropic-claude-sonnet-5-5.md) | 2026-11-17 | omp:anthropic/claude-sonnet-5-5 | none | `6b5162eab2` | 100% [100%, 100%] over 3 task(s) | 1:1.00 | $0.1292 | 0 | none |
 | [2026-11-17-omp-real](runs/2026-11-17-omp-real.md) | 2026-11-17 | omp:anthropic/claude-sonnet-5-5 | none | `6b5162eab2` | 67% [0%, 100%] over 3 task(s) | 1:0.67 | $0.2170 | 0 | none |
 | [2026-11-16-ask-without-guide](runs/2026-11-16-ask-without-guide.md) | 2026-11-16 | omp:anthropic/claude-sonnet-5-5 | none | `c21f8ff35a` | 95% [85%, 100%] over 20 task(s) | 1:0.95 2:0.92 3:0.90 | $0.1762 | 0 | none |
 | [2026-11-15-ask-with-guide](runs/2026-11-15-ask-with-guide.md) | 2026-11-15 | omp:anthropic/claude-sonnet-5-5 | none | `c21f8ff35a` | 92% [78%, 100%] over 20 task(s) | 1:0.92 2:0.88 3:0.85 | $0.1867 | 0 | none |

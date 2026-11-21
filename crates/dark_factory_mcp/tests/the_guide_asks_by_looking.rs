@@ -177,7 +177,12 @@ fn the_tool_description_leads_with_the_use() {
         .unwrap_or_else(|| panic!("the server offers no blueprint_decide: {listed}"));
     let description = decide["description"].as_str().expect("the tool has a description");
     assert!(description.starts_with(LEAD), "the description leads with the mechanism, not the use: {description}");
-    assert!(description.contains("in about a second"), "{description}");
+    // **The latency sentence says what it measures and what it does not** (#457, DM-06): the model's own
+    // round trips, with the still-taking named as *not counted*. Pinned by the two halves rather than by the
+    // whole sentence, so the numbers may be re-measured without the test going stale, and so a wording that
+    // silently dropped the "not counted here" caveat fails.
+    assert!(description.contains("for the model itself"), "{description}");
+    assert!(description.contains("not counted here"), "the description must say the still is not counted: {description}");
     let cap_mib = dark_factory_mcp::decide::IMAGE_BYTES_MAX / (1024 * 1024);
     assert!(description.contains(&format!("at most {cap_mib} MiB")), "the description states the picture cap: {description}");
     // **The description does not restate the retired count demand** (#457): the rule is the guide's, and

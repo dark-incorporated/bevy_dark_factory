@@ -1,0 +1,1349 @@
+{
+  "header": {
+    "version": 1,
+    "label": "ask-revised-guide",
+    "commit": "c763194ed68024180b0d0fe112ea388a7df1531f+dirty",
+    "guide_sha256": "ae87fc6b12b0b00d224fcd66240696ef389a89d5838995298299f6498fa0143f",
+    "agent": "omp",
+    "agent_version": "omp/19.0.1",
+    "model": "anthropic/claude-sonnet-5-5",
+    "variant": null,
+    "suite": "bench/tasks",
+    "trials": 3,
+    "host": "big",
+    "date": "2026-11-21",
+    "price": {
+      "input": 2.0,
+      "output": 10.0,
+      "cache_read": 0.1,
+      "cache_write": 2.5
+    }
+  },
+  "unfit": null,
+  "trials_total": 60,
+  "harness_errors": 0,
+  "dev": {
+    "name": "dev",
+    "tasks": 20,
+    "trials": 60,
+    "successes": 56,
+    "harness_errors": 0,
+    "mean_success": 0.9333333333333333,
+    "interval": {
+      "lo": 0.8333333333333333,
+      "hi": 1.0
+    },
+    "mean_pass_hat": [
+      0.9333333333333333,
+      0.8833333333333332,
+      0.85
+    ],
+    "cost_usd": 10.689634800000002,
+    "cost_per_success_usd": 0.19088633571428576,
+    "wall_mean_s": 33.55380581920001,
+    "tool_calls_mean": 9.35,
+    "edits_behind": 0
+  },
+  "held_out": null,
+  "tags": [
+    {
+      "name": "compose",
+      "tasks": 1,
+      "trials": 3,
+      "successes": 3,
+      "harness_errors": 0,
+      "mean_success": 1.0,
+      "interval": {
+        "lo": 1.0,
+        "hi": 1.0
+      },
+      "mean_pass_hat": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "cost_usd": 0.6969016,
+      "cost_per_success_usd": 0.23230053333333334,
+      "wall_mean_s": 37.444316904666664,
+      "tool_calls_mean": 14.666666666666666,
+      "edits_behind": 0
+    },
+    {
+      "name": "data",
+      "tasks": 1,
+      "trials": 3,
+      "successes": 3,
+      "harness_errors": 0,
+      "mean_success": 1.0,
+      "interval": {
+        "lo": 1.0,
+        "hi": 1.0
+      },
+      "mean_pass_hat": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "cost_usd": 0.2264099,
+      "cost_per_success_usd": 0.07546996666666667,
+      "wall_mean_s": 14.392509660333333,
+      "tool_calls_mean": 5.333333333333333,
+      "edits_behind": 0
+    },
+    {
+      "name": "fix",
+      "tasks": 2,
+      "trials": 6,
+      "successes": 6,
+      "harness_errors": 0,
+      "mean_success": 1.0,
+      "interval": {
+        "lo": 1.0,
+        "hi": 1.0
+      },
+      "mean_pass_hat": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "cost_usd": 1.2668165,
+      "cost_per_success_usd": 0.21113608333333334,
+      "wall_mean_s": 32.9760305465,
+      "tool_calls_mean": 11.666666666666666,
+      "edits_behind": 0
+    },
+    {
+      "name": "handback",
+      "tasks": 4,
+      "trials": 12,
+      "successes": 10,
+      "harness_errors": 0,
+      "mean_success": 0.8333333333333333,
+      "interval": {
+        "lo": 0.49999999999999994,
+        "hi": 1.0
+      },
+      "mean_pass_hat": [
+        0.8333333333333333,
+        0.75,
+        0.75
+      ],
+      "cost_usd": 1.3027863,
+      "cost_per_success_usd": 0.13027863,
+      "wall_mean_s": 17.325360921083334,
+      "tool_calls_mean": 3.9166666666666665,
+      "edits_behind": 0
+    },
+    {
+      "name": "maps",
+      "tasks": 1,
+      "trials": 3,
+      "successes": 3,
+      "harness_errors": 0,
+      "mean_success": 1.0,
+      "interval": {
+        "lo": 1.0,
+        "hi": 1.0
+      },
+      "mean_pass_hat": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "cost_usd": 0.5153311,
+      "cost_per_success_usd": 0.17177703333333336,
+      "wall_mean_s": 30.493284609,
+      "tool_calls_mean": 9.0,
+      "edits_behind": 0
+    },
+    {
+      "name": "mount",
+      "tasks": 1,
+      "trials": 3,
+      "successes": 3,
+      "harness_errors": 0,
+      "mean_success": 1.0,
+      "interval": {
+        "lo": 1.0,
+        "hi": 1.0
+      },
+      "mean_pass_hat": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "cost_usd": 0.4413753,
+      "cost_per_success_usd": 0.1471251,
+      "wall_mean_s": 27.041809138,
+      "tool_calls_mean": 8.666666666666666,
+      "edits_behind": 0
+    },
+    {
+      "name": "notes",
+      "tasks": 1,
+      "trials": 3,
+      "successes": 3,
+      "harness_errors": 0,
+      "mean_success": 1.0,
+      "interval": {
+        "lo": 1.0,
+        "hi": 1.0
+      },
+      "mean_pass_hat": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "cost_usd": 0.9352353999999999,
+      "cost_per_success_usd": 0.3117451333333333,
+      "wall_mean_s": 47.653168443,
+      "tool_calls_mean": 12.666666666666666,
+      "edits_behind": 0
+    },
+    {
+      "name": "place",
+      "tasks": 3,
+      "trials": 9,
+      "successes": 9,
+      "harness_errors": 0,
+      "mean_success": 1.0,
+      "interval": {
+        "lo": 1.0,
+        "hi": 1.0
+      },
+      "mean_pass_hat": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "cost_usd": 1.7371433999999997,
+      "cost_per_success_usd": 0.1930159333333333,
+      "wall_mean_s": 53.94318642288889,
+      "tool_calls_mean": 9.88888888888889,
+      "edits_behind": 0
+    },
+    {
+      "name": "read",
+      "tasks": 1,
+      "trials": 3,
+      "successes": 1,
+      "harness_errors": 0,
+      "mean_success": 0.3333333333333333,
+      "interval": {
+        "lo": 0.0,
+        "hi": 1.0
+      },
+      "mean_pass_hat": [
+        0.3333333333333333,
+        0.0,
+        0.0
+      ],
+      "cost_usd": 0.21043789999999998,
+      "cost_per_success_usd": 0.21043789999999998,
+      "wall_mean_s": 10.010271347333335,
+      "tool_calls_mean": 3.0,
+      "edits_behind": 0
+    },
+    {
+      "name": "refusal",
+      "tasks": 2,
+      "trials": 6,
+      "successes": 6,
+      "harness_errors": 0,
+      "mean_success": 1.0,
+      "interval": {
+        "lo": 1.0,
+        "hi": 1.0
+      },
+      "mean_pass_hat": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "cost_usd": 0.7737082,
+      "cost_per_success_usd": 0.12895136666666665,
+      "wall_mean_s": 19.862464431333333,
+      "tool_calls_mean": 4.666666666666667,
+      "edits_behind": 0
+    },
+    {
+      "name": "relations",
+      "tasks": 2,
+      "trials": 6,
+      "successes": 6,
+      "harness_errors": 0,
+      "mean_success": 1.0,
+      "interval": {
+        "lo": 1.0,
+        "hi": 1.0
+      },
+      "mean_pass_hat": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "cost_usd": 1.2957680999999999,
+      "cost_per_success_usd": 0.21596134999999997,
+      "wall_mean_s": 67.39387506533335,
+      "tool_calls_mean": 10.5,
+      "edits_behind": 0
+    },
+    {
+      "name": "remove",
+      "tasks": 1,
+      "trials": 3,
+      "successes": 3,
+      "harness_errors": 0,
+      "mean_success": 1.0,
+      "interval": {
+        "lo": 1.0,
+        "hi": 1.0
+      },
+      "mean_pass_hat": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "cost_usd": 0.4783801,
+      "cost_per_success_usd": 0.15946003333333333,
+      "wall_mean_s": 27.65914589033333,
+      "tool_calls_mean": 9.0,
+      "edits_behind": 0
+    },
+    {
+      "name": "runs",
+      "tasks": 1,
+      "trials": 3,
+      "successes": 2,
+      "harness_errors": 0,
+      "mean_success": 0.6666666666666666,
+      "interval": {
+        "lo": 0.0,
+        "hi": 1.0
+      },
+      "mean_pass_hat": [
+        0.6666666666666666,
+        0.3333333333333333,
+        0.0
+      ],
+      "cost_usd": 0.6450089,
+      "cost_per_success_usd": 0.32250445,
+      "wall_mean_s": 33.76528113733334,
+      "tool_calls_mean": 13.0,
+      "edits_behind": 0
+    },
+    {
+      "name": "terrain",
+      "tasks": 2,
+      "trials": 6,
+      "successes": 6,
+      "harness_errors": 0,
+      "mean_success": 1.0,
+      "interval": {
+        "lo": 1.0,
+        "hi": 1.0
+      },
+      "mean_pass_hat": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "cost_usd": 1.5091071999999999,
+      "cost_per_success_usd": 0.25151786666666665,
+      "wall_mean_s": 58.29810921033334,
+      "tool_calls_mean": 14.5,
+      "edits_behind": 0
+    },
+    {
+      "name": "tiles",
+      "tasks": 1,
+      "trials": 3,
+      "successes": 3,
+      "harness_errors": 0,
+      "mean_success": 1.0,
+      "interval": {
+        "lo": 1.0,
+        "hi": 1.0
+      },
+      "mean_pass_hat": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "cost_usd": 0.6138453,
+      "cost_per_success_usd": 0.20461510000000002,
+      "wall_mean_s": 21.085203528333334,
+      "tool_calls_mean": 13.333333333333334,
+      "edits_behind": 0
+    },
+    {
+      "name": "turn",
+      "tasks": 1,
+      "trials": 3,
+      "successes": 2,
+      "harness_errors": 0,
+      "mean_success": 0.6666666666666666,
+      "interval": {
+        "lo": 0.0,
+        "hi": 1.0
+      },
+      "mean_pass_hat": [
+        0.6666666666666666,
+        0.3333333333333333,
+        0.0
+      ],
+      "cost_usd": 0.5901017,
+      "cost_per_success_usd": 0.29505085,
+      "wall_mean_s": 33.929847636333335,
+      "tool_calls_mean": 8.333333333333334,
+      "edits_behind": 0
+    },
+    {
+      "name": "undo",
+      "tasks": 1,
+      "trials": 3,
+      "successes": 3,
+      "harness_errors": 0,
+      "mean_success": 1.0,
+      "interval": {
+        "lo": 1.0,
+        "hi": 1.0
+      },
+      "mean_pass_hat": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "cost_usd": 0.17256739999999998,
+      "cost_per_success_usd": 0.05752246666666666,
+      "wall_mean_s": 10.974076108,
+      "tool_calls_mean": 4.0,
+      "edits_behind": 0
+    },
+    {
+      "name": "verify",
+      "tasks": 1,
+      "trials": 3,
+      "successes": 3,
+      "harness_errors": 0,
+      "mean_success": 1.0,
+      "interval": {
+        "lo": 1.0,
+        "hi": 1.0
+      },
+      "mean_pass_hat": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "cost_usd": 0.31864020000000004,
+      "cost_per_success_usd": 0.10621340000000001,
+      "wall_mean_s": 19.566243474333334,
+      "tool_calls_mean": 3.3333333333333335,
+      "edits_behind": 0
+    },
+    {
+      "name": "water",
+      "tasks": 1,
+      "trials": 3,
+      "successes": 3,
+      "harness_errors": 0,
+      "mean_success": 1.0,
+      "interval": {
+        "lo": 1.0,
+        "hi": 1.0
+      },
+      "mean_pass_hat": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "cost_usd": 0.9436146999999999,
+      "cost_per_success_usd": 0.3145382333333333,
+      "wall_mean_s": 68.89131910366667,
+      "tool_calls_mean": 15.666666666666666,
+      "edits_behind": 0
+    }
+  ],
+  "tasks": [
+    {
+      "task": "bed-against-the-north-wall",
+      "title": "The bed against the north wall",
+      "tags": [
+        "place",
+        "relations"
+      ],
+      "trials": 3,
+      "successes": 3,
+      "harness_errors": 0,
+      "outcomes": [
+        "pass",
+        "pass",
+        "pass"
+      ],
+      "success_rate": 1.0,
+      "pass_hat": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "wall_median_s": 48.713725102,
+      "wall_p90_s": 56.8873883348,
+      "tool_calls_mean": 9.666666666666666,
+      "refusals": 0,
+      "undos": 0,
+      "edits_behind": 0,
+      "trials_with_edits_behind": 0,
+      "tokens_in": 78,
+      "tokens_out": 10830,
+      "tokens_cache_read": 1131028,
+      "tokens_cache_write": 119996,
+      "cost_usd": 0.5215488,
+      "wishes": 0,
+      "failures": [],
+      "budget_exhausted": 0,
+      "budget_exhausted_trials": [],
+      "agent_errors": 0,
+      "agent_error_trials": []
+    },
+    {
+      "task": "chair-west-of-the-desk-facing-it",
+      "title": "The chair to the left of the desk, facing it",
+      "tags": [
+        "place",
+        "relations"
+      ],
+      "trials": 3,
+      "successes": 3,
+      "harness_errors": 0,
+      "outcomes": [
+        "pass",
+        "pass",
+        "pass"
+      ],
+      "success_rate": 1.0,
+      "pass_hat": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "wall_median_s": 82.770785182,
+      "wall_p90_s": 100.07087785479999,
+      "tool_calls_mean": 11.333333333333334,
+      "refusals": 4,
+      "undos": 0,
+      "edits_behind": 0,
+      "trials_with_edits_behind": 0,
+      "tokens_in": 94,
+      "tokens_out": 18269,
+      "tokens_cache_read": 1908588,
+      "tokens_cache_write": 160193,
+      "cost_usd": 0.7742192999999999,
+      "wishes": 0,
+      "failures": [],
+      "budget_exhausted": 0,
+      "budget_exhausted_trials": [],
+      "agent_errors": 0,
+      "agent_error_trials": []
+    },
+    {
+      "task": "clear-the-overlap-keep-both",
+      "title": "Clear the problems list without removing anything",
+      "tags": [
+        "fix"
+      ],
+      "trials": 3,
+      "successes": 3,
+      "harness_errors": 0,
+      "outcomes": [
+        "pass",
+        "pass",
+        "pass"
+      ],
+      "success_rate": 1.0,
+      "pass_hat": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "wall_median_s": 43.101343392,
+      "wall_p90_s": 56.3354107432,
+      "tool_calls_mean": 16.0,
+      "refusals": 8,
+      "undos": 0,
+      "edits_behind": 0,
+      "trials_with_edits_behind": 0,
+      "tokens_in": 116,
+      "tokens_out": 14217,
+      "tokens_cache_read": 3061103,
+      "tokens_cache_write": 194876,
+      "cost_usd": 0.9357023,
+      "wishes": 0,
+      "failures": [],
+      "budget_exhausted": 0,
+      "budget_exhausted_trials": [],
+      "agent_errors": 0,
+      "agent_error_trials": []
+    },
+    {
+      "task": "count-what-the-bedroom-holds",
+      "title": "Count what the bedroom holds",
+      "tags": [
+        "read",
+        "handback"
+      ],
+      "trials": 3,
+      "successes": 1,
+      "harness_errors": 0,
+      "outcomes": [
+        "fail",
+        "pass",
+        "fail"
+      ],
+      "success_rate": 0.3333333333333333,
+      "pass_hat": [
+        0.3333333333333333,
+        0.0,
+        0.0
+      ],
+      "wall_median_s": 9.862512868,
+      "wall_p90_s": 10.4192513112,
+      "tool_calls_mean": 3.0,
+      "refusals": 0,
+      "undos": 0,
+      "edits_behind": 0,
+      "trials_with_edits_behind": 0,
+      "tokens_in": 36,
+      "tokens_out": 3215,
+      "tokens_cache_read": 318784,
+      "tokens_cache_write": 58535,
+      "cost_usd": 0.21043789999999998,
+      "wishes": 0,
+      "failures": [
+        {
+          "trial": 1,
+          "check": "handback_contains",
+          "wanted": "a hand-back stating three, dresser",
+          "measured": "the hand-back `Bedroom: 3 pieces; dresser is nearest the north wall` does not state `three`",
+          "last_calls": [
+            "blueprint_guide {}",
+            "blueprint_state {}",
+            "blueprint_present {\"inferred\":[\"North is -Z, from the map file's header comment, so the north wall is the z = -2.5 plane\",\"Distance is measured from each piece's placement point …"
+          ]
+        },
+        {
+          "trial": 3,
+          "check": "handback_contains",
+          "wanted": "a hand-back stating three, dresser",
+          "measured": "the hand-back `Bedroom contents: 3 pieces, dresser nearest the north wall` does not state `three`",
+          "last_calls": [
+            "blueprint_guide {}",
+            "blueprint_state {}",
+            "blueprint_present {\"inferred\":[\"'Bedroom map' means the open map bench_bedroom\",\"North wall is the z = -2.5 plane, from the map file's header comment\",\"Distance is measured from …"
+          ]
+        }
+      ],
+      "budget_exhausted": 0,
+      "budget_exhausted_trials": [],
+      "agent_errors": 0,
+      "agent_error_trials": []
+    },
+    {
+      "task": "cover-the-hallway-floor",
+      "title": "Paint the hallway floor with the grey tile",
+      "tags": [
+        "tiles"
+      ],
+      "trials": 3,
+      "successes": 3,
+      "harness_errors": 0,
+      "outcomes": [
+        "pass",
+        "pass",
+        "pass"
+      ],
+      "success_rate": 1.0,
+      "pass_hat": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "wall_median_s": 21.015219608,
+      "wall_p90_s": 21.785028316000002,
+      "tool_calls_mean": 13.333333333333334,
+      "refusals": 0,
+      "undos": 0,
+      "edits_behind": 0,
+      "trials_with_edits_behind": 0,
+      "tokens_in": 64,
+      "tokens_out": 7311,
+      "tokens_cache_read": 1289048,
+      "tokens_cache_write": 164681,
+      "cost_usd": 0.6138453,
+      "wishes": 0,
+      "failures": [],
+      "budget_exhausted": 0,
+      "budget_exhausted_trials": [],
+      "agent_errors": 0,
+      "agent_error_trials": []
+    },
+    {
+      "task": "fix-the-floating-lamp",
+      "title": "Something in the bedroom is floating",
+      "tags": [
+        "fix"
+      ],
+      "trials": 3,
+      "successes": 3,
+      "harness_errors": 0,
+      "outcomes": [
+        "pass",
+        "pass",
+        "pass"
+      ],
+      "success_rate": 1.0,
+      "pass_hat": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "wall_median_s": 21.494256288,
+      "wall_p90_s": 23.6152674888,
+      "tool_calls_mean": 7.333333333333333,
+      "refusals": 0,
+      "undos": 1,
+      "edits_behind": 0,
+      "trials_with_edits_behind": 0,
+      "tokens_in": 60,
+      "tokens_out": 6342,
+      "tokens_cache_read": 734967,
+      "tokens_cache_write": 77631,
+      "cost_usd": 0.3311142,
+      "wishes": 0,
+      "failures": [],
+      "budget_exhausted": 0,
+      "budget_exhausted_trials": [],
+      "agent_errors": 0,
+      "agent_error_trials": []
+    },
+    {
+      "task": "furnish-a-reading-nook",
+      "title": "Furnish the empty corner as a reading nook",
+      "tags": [
+        "compose"
+      ],
+      "trials": 3,
+      "successes": 3,
+      "harness_errors": 0,
+      "outcomes": [
+        "pass",
+        "pass",
+        "pass"
+      ],
+      "success_rate": 1.0,
+      "pass_hat": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "wall_median_s": 41.391010943,
+      "wall_p90_s": 42.186025589399996,
+      "tool_calls_mean": 14.666666666666666,
+      "refusals": 7,
+      "undos": 0,
+      "edits_behind": 0,
+      "trials_with_edits_behind": 0,
+      "tokens_in": 90,
+      "tokens_out": 12202,
+      "tokens_cache_read": 1824941,
+      "tokens_cache_write": 156883,
+      "cost_usd": 0.6969016,
+      "wishes": 0,
+      "failures": [],
+      "budget_exhausted": 0,
+      "budget_exhausted_trials": [],
+      "agent_errors": 0,
+      "agent_error_trials": []
+    },
+    {
+      "task": "hedge-along-the-south-edge",
+      "title": "A hedge of six plants along the south edge",
+      "tags": [
+        "runs"
+      ],
+      "trials": 3,
+      "successes": 2,
+      "harness_errors": 0,
+      "outcomes": [
+        "pass",
+        "fail",
+        "pass"
+      ],
+      "success_rate": 0.6666666666666666,
+      "pass_hat": [
+        0.6666666666666666,
+        0.3333333333333333,
+        0.0
+      ],
+      "wall_median_s": 38.42973982,
+      "wall_p90_s": 39.0840011408,
+      "tool_calls_mean": 13.0,
+      "refusals": 3,
+      "undos": 0,
+      "edits_behind": 0,
+      "trials_with_edits_behind": 0,
+      "tokens_in": 86,
+      "tokens_out": 12165,
+      "tokens_cache_read": 1653969,
+      "tokens_cache_write": 143116,
+      "cost_usd": 0.6450089,
+      "wishes": 0,
+      "failures": [
+        {
+          "trial": 2,
+          "check": "placements_within",
+          "wanted": "6 × a `plant_b`, all inside x -4.00..4.00, z 2.20..3.00",
+          "measured": "0 × a `plant_b` on the map, 0 of them inside x -4.00..4.00, z 2.20..3.00, and the task wants 6 all inside",
+          "last_calls": [
+            "blueprint_guide {}",
+            "blueprint_state {}",
+            "blueprint_list_operations {}",
+            "blueprint_list_operations {\"operation\":\"placement_add\"}",
+            "blueprint_preview_operation (refused) {\"operation\":\"placement_add\",\"parameters\":{\"at\":[-1.25,2.6],\"piece\":\"plant_b\"}}"
+          ]
+        }
+      ],
+      "budget_exhausted": 0,
+      "budget_exhausted_trials": [],
+      "agent_errors": 0,
+      "agent_error_trials": []
+    },
+    {
+      "task": "is-the-lamp-on-the-table",
+      "title": "Check whether the lamp sits on the table",
+      "tags": [
+        "verify",
+        "handback"
+      ],
+      "trials": 3,
+      "successes": 3,
+      "harness_errors": 0,
+      "outcomes": [
+        "pass",
+        "pass",
+        "pass"
+      ],
+      "success_rate": 1.0,
+      "pass_hat": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "wall_median_s": 19.232477749,
+      "wall_p90_s": 21.748505505,
+      "tool_calls_mean": 3.3333333333333335,
+      "refusals": 0,
+      "undos": 0,
+      "edits_behind": 0,
+      "trials_with_edits_behind": 0,
+      "tokens_in": 52,
+      "tokens_out": 6617,
+      "tokens_cache_read": 602737,
+      "tokens_cache_write": 76837,
+      "cost_usd": 0.31864020000000004,
+      "wishes": 0,
+      "failures": [],
+      "budget_exhausted": 0,
+      "budget_exhausted_trials": [],
+      "agent_errors": 0,
+      "agent_error_trials": []
+    },
+    {
+      "task": "lamp-on-the-bedside-table",
+      "title": "The lamp on the small table by the bed",
+      "tags": [
+        "place",
+        "mount"
+      ],
+      "trials": 3,
+      "successes": 3,
+      "harness_errors": 0,
+      "outcomes": [
+        "pass",
+        "pass",
+        "pass"
+      ],
+      "success_rate": 1.0,
+      "pass_hat": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "wall_median_s": 26.202739576,
+      "wall_p90_s": 29.1716770616,
+      "tool_calls_mean": 8.666666666666666,
+      "refusals": 1,
+      "undos": 0,
+      "edits_behind": 0,
+      "trials_with_edits_behind": 0,
+      "tokens_in": 68,
+      "tokens_out": 8581,
+      "tokens_cache_read": 1003293,
+      "tokens_cache_write": 102040,
+      "cost_usd": 0.4413753,
+      "wishes": 0,
+      "failures": [],
+      "budget_exhausted": 0,
+      "budget_exhausted_trials": [],
+      "agent_errors": 0,
+      "agent_error_trials": []
+    },
+    {
+      "task": "make-a-cellar-map",
+      "title": "Make a new map called cellar, 12 by 8",
+      "tags": [
+        "maps"
+      ],
+      "trials": 3,
+      "successes": 3,
+      "harness_errors": 0,
+      "outcomes": [
+        "pass",
+        "pass",
+        "pass"
+      ],
+      "success_rate": 1.0,
+      "pass_hat": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "wall_median_s": 27.460400296,
+      "wall_p90_s": 37.169127472,
+      "tool_calls_mean": 9.0,
+      "refusals": 0,
+      "undos": 0,
+      "edits_behind": 0,
+      "trials_with_edits_behind": 0,
+      "tokens_in": 62,
+      "tokens_out": 8428,
+      "tokens_cache_read": 1042996,
+      "tokens_cache_write": 130651,
+      "cost_usd": 0.5153311,
+      "wishes": 0,
+      "failures": [],
+      "budget_exhausted": 0,
+      "budget_exhausted_trials": [],
+      "agent_errors": 0,
+      "agent_error_trials": []
+    },
+    {
+      "task": "move-the-locked-bed",
+      "title": "Move the bed, which is locked: ask, do not unlock",
+      "tags": [
+        "refusal",
+        "handback"
+      ],
+      "trials": 3,
+      "successes": 3,
+      "harness_errors": 0,
+      "outcomes": [
+        "pass",
+        "pass",
+        "pass"
+      ],
+      "success_rate": 1.0,
+      "pass_hat": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "wall_median_s": 18.380806775,
+      "wall_p90_s": 18.558899363000002,
+      "tool_calls_mean": 4.0,
+      "refusals": 0,
+      "undos": 0,
+      "edits_behind": 0,
+      "trials_with_edits_behind": 0,
+      "tokens_in": 42,
+      "tokens_out": 3916,
+      "tokens_cache_read": 470255,
+      "tokens_cache_write": 89726,
+      "cost_usd": 0.31058450000000004,
+      "wishes": 0,
+      "failures": [],
+      "budget_exhausted": 0,
+      "budget_exhausted_trials": [],
+      "agent_errors": 0,
+      "agent_error_trials": []
+    },
+    {
+      "task": "pond-in-the-lowest-corner",
+      "title": "A pond in the yard's lowest corner",
+      "tags": [
+        "terrain",
+        "water"
+      ],
+      "trials": 3,
+      "successes": 3,
+      "harness_errors": 0,
+      "outcomes": [
+        "pass",
+        "pass",
+        "pass"
+      ],
+      "success_rate": 1.0,
+      "pass_hat": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "wall_median_s": 75.652845048,
+      "wall_p90_s": 79.7432879472,
+      "tool_calls_mean": 15.666666666666666,
+      "refusals": 0,
+      "undos": 1,
+      "edits_behind": 0,
+      "trials_with_edits_behind": 0,
+      "tokens_in": 116,
+      "tokens_out": 15881,
+      "tokens_cache_read": 2910002,
+      "tokens_cache_write": 197429,
+      "cost_usd": 0.9436146999999999,
+      "wishes": 0,
+      "failures": [],
+      "budget_exhausted": 0,
+      "budget_exhausted_trials": [],
+      "agent_errors": 0,
+      "agent_error_trials": []
+    },
+    {
+      "task": "raise-a-hill-in-the-north-east",
+      "title": "Raise a 2 m hill in the north-east corner",
+      "tags": [
+        "terrain"
+      ],
+      "trials": 3,
+      "successes": 3,
+      "harness_errors": 0,
+      "outcomes": [
+        "pass",
+        "pass",
+        "pass"
+      ],
+      "success_rate": 1.0,
+      "pass_hat": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "wall_median_s": 46.160767784,
+      "wall_p90_s": 51.801180648,
+      "tool_calls_mean": 13.333333333333334,
+      "refusals": 2,
+      "undos": 0,
+      "edits_behind": 0,
+      "trials_with_edits_behind": 0,
+      "tokens_in": 92,
+      "tokens_out": 12252,
+      "tokens_cache_read": 1465685,
+      "tokens_cache_write": 118488,
+      "cost_usd": 0.5654925,
+      "wishes": 0,
+      "failures": [],
+      "budget_exhausted": 0,
+      "budget_exhausted_trials": [],
+      "agent_errors": 0,
+      "agent_error_trials": []
+    },
+    {
+      "task": "refuse-a-piece-the-project-lacks",
+      "title": "Refuse a piece the project does not have",
+      "tags": [
+        "refusal",
+        "handback"
+      ],
+      "trials": 3,
+      "successes": 3,
+      "harness_errors": 0,
+      "outcomes": [
+        "pass",
+        "pass",
+        "pass"
+      ],
+      "success_rate": 1.0,
+      "pass_hat": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "wall_median_s": 22.160551133,
+      "wall_p90_s": 23.4648109426,
+      "tool_calls_mean": 5.333333333333333,
+      "refusals": 0,
+      "undos": 0,
+      "edits_behind": 0,
+      "trials_with_edits_behind": 0,
+      "tokens_in": 46,
+      "tokens_out": 5016,
+      "tokens_cache_read": 716492,
+      "tokens_cache_write": 136489,
+      "cost_usd": 0.4631237,
+      "wishes": 0,
+      "failures": [],
+      "budget_exhausted": 0,
+      "budget_exhausted_trials": [],
+      "agent_errors": 0,
+      "agent_error_trials": []
+    },
+    {
+      "task": "remove-both-crates",
+      "title": "Remove both crates and nothing else",
+      "tags": [
+        "remove"
+      ],
+      "trials": 3,
+      "successes": 3,
+      "harness_errors": 0,
+      "outcomes": [
+        "pass",
+        "pass",
+        "pass"
+      ],
+      "success_rate": 1.0,
+      "pass_hat": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "wall_median_s": 28.100926578,
+      "wall_p90_s": 28.141265740399998,
+      "tool_calls_mean": 9.0,
+      "refusals": 0,
+      "undos": 0,
+      "edits_behind": 0,
+      "trials_with_edits_behind": 0,
+      "tokens_in": 68,
+      "tokens_out": 7459,
+      "tokens_cache_read": 1088291,
+      "tokens_cache_write": 117930,
+      "cost_usd": 0.4783801,
+      "wishes": 0,
+      "failures": [],
+      "budget_exhausted": 0,
+      "budget_exhausted_trials": [],
+      "agent_errors": 0,
+      "agent_error_trials": []
+    },
+    {
+      "task": "set-the-gates-health",
+      "title": "Set the gate's health to 40 in the game's data",
+      "tags": [
+        "data"
+      ],
+      "trials": 3,
+      "successes": 3,
+      "harness_errors": 0,
+      "outcomes": [
+        "pass",
+        "pass",
+        "pass"
+      ],
+      "success_rate": 1.0,
+      "pass_hat": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "wall_median_s": 13.830024971,
+      "wall_p90_s": 15.5562150902,
+      "tool_calls_mean": 5.333333333333333,
+      "refusals": 0,
+      "undos": 0,
+      "edits_behind": 0,
+      "trials_with_edits_behind": 0,
+      "tokens_in": 58,
+      "tokens_out": 4102,
+      "tokens_cache_read": 579539,
+      "tokens_cache_write": 50928,
+      "cost_usd": 0.2264099,
+      "wishes": 0,
+      "failures": [],
+      "budget_exhausted": 0,
+      "budget_exhausted_trials": [],
+      "agent_errors": 0,
+      "agent_error_trials": []
+    },
+    {
+      "task": "take-back-the-last-change",
+      "title": "The last change was a mistake; take it back",
+      "tags": [
+        "undo"
+      ],
+      "trials": 3,
+      "successes": 3,
+      "harness_errors": 0,
+      "outcomes": [
+        "pass",
+        "pass",
+        "pass"
+      ],
+      "success_rate": 1.0,
+      "pass_hat": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "wall_median_s": 9.323281063,
+      "wall_p90_s": 13.503816611800001,
+      "tool_calls_mean": 4.0,
+      "refusals": 0,
+      "undos": 3,
+      "edits_behind": 0,
+      "trials_with_edits_behind": 0,
+      "tokens_in": 38,
+      "tokens_out": 3320,
+      "tokens_cache_read": 308139,
+      "tokens_cache_write": 43391,
+      "cost_usd": 0.17256739999999998,
+      "wishes": 0,
+      "failures": [],
+      "budget_exhausted": 0,
+      "budget_exhausted_trials": [],
+      "agent_errors": 0,
+      "agent_error_trials": []
+    },
+    {
+      "task": "turn-the-wardrobe-into-the-room",
+      "title": "Turn the wardrobe to face into the room",
+      "tags": [
+        "turn"
+      ],
+      "trials": 3,
+      "successes": 2,
+      "harness_errors": 0,
+      "outcomes": [
+        "pass",
+        "pass",
+        "fail"
+      ],
+      "success_rate": 0.6666666666666666,
+      "pass_hat": [
+        0.6666666666666666,
+        0.3333333333333333,
+        0.0
+      ],
+      "wall_median_s": 28.521725198,
+      "wall_p90_s": 44.222226698,
+      "tool_calls_mean": 8.333333333333334,
+      "refusals": 0,
+      "undos": 0,
+      "edits_behind": 0,
+      "trials_with_edits_behind": 0,
+      "tokens_in": 72,
+      "tokens_out": 10608,
+      "tokens_cache_read": 1259527,
+      "tokens_cache_write": 143170,
+      "cost_usd": 0.5901017,
+      "wishes": 0,
+      "failures": [
+        {
+          "trial": 3,
+          "check": "placement_at",
+          "wanted": "`wardrobe` at (0.000, -2.200) ±0.050 m and facing 90.0° ±10.00°",
+          "measured": "its centre is at (0.000, -2.200), 0.000 m from (0.000, -2.200); it faces 0.0°, 90.00° from 90.0° — facing is off by 90.00°, more than 10.00°",
+          "last_calls": [
+            "blueprint_decide {\"questions\":{\"faces\":{\"instructions\":\"The wardrobe's doors face into the room, away from the north wall.\",\"type\":\"noul\"},\"wall\":{\"instructions\":\"The wardrobe's…",
+            "blueprint_capture_still {\"label\":\"wardrobe_after\"}",
+            "blueprint_apply_operation {\"operation\":\"placement_set_yaw\",\"parameters\":{\"id\":\"wardrobe\",\"yaw\":0}}",
+            "blueprint_capture_still {\"label\":\"wardrobe_yaw0\"}",
+            "blueprint_present {\"check\":[{\"placements\":[\"wardrobe\"],\"what\":\"The wardrobe's fronts face +z (open floor) at yaw 0, and it is still at (0.0, -2.2) against the north wall\"}],\"infe…"
+          ]
+        }
+      ],
+      "budget_exhausted": 0,
+      "budget_exhausted_trials": [],
+      "agent_errors": 0,
+      "agent_error_trials": []
+    },
+    {
+      "task": "work-the-open-note",
+      "title": "Work the open note",
+      "tags": [
+        "notes"
+      ],
+      "trials": 3,
+      "successes": 3,
+      "harness_errors": 0,
+      "outcomes": [
+        "pass",
+        "pass",
+        "pass"
+      ],
+      "success_rate": 1.0,
+      "pass_hat": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "wall_median_s": 44.694833844,
+      "wall_p90_s": 58.877213939200004,
+      "tool_calls_mean": 12.666666666666666,
+      "refusals": 0,
+      "undos": 0,
+      "edits_behind": 0,
+      "trials_with_edits_behind": 0,
+      "tokens_in": 88,
+      "tokens_out": 16549,
+      "tokens_cache_read": 2167569,
+      "tokens_cache_write": 221125,
+      "cost_usd": 0.9352353999999999,
+      "wishes": 0,
+      "failures": [],
+      "budget_exhausted": 0,
+      "budget_exhausted_trials": [],
+      "agent_errors": 0,
+      "agent_error_trials": []
+    }
+  ],
+  "tool_counts": {
+    "blueprint_apply_operation": 106,
+    "blueprint_capture_still": 40,
+    "blueprint_decide": 50,
+    "blueprint_frame_view": 9,
+    "blueprint_guide": 63,
+    "blueprint_list_operations": 64,
+    "blueprint_list_pieces": 25,
+    "blueprint_open_project": 2,
+    "blueprint_present": 62,
+    "blueprint_preview_operation": 39,
+    "blueprint_project_feedback_list": 4,
+    "blueprint_read_oplog": 12,
+    "blueprint_run_command": 1,
+    "blueprint_schema": 3,
+    "blueprint_snip": 1,
+    "blueprint_state": 66,
+    "blueprint_style": 9,
+    "blueprint_undo_operation": 5
+  },
+  "refusals_by_tool": {
+    "blueprint_apply_operation": 9,
+    "blueprint_capture_still": 1,
+    "blueprint_decide": 2,
+    "blueprint_present": 1,
+    "blueprint_preview_operation": 11,
+    "blueprint_style": 1
+  },
+  "wishes_by_tool": {},
+  "harness_error_reasons": [],
+  "preflight": {
+    "tokens_in": 4,
+    "tokens_out": 4,
+    "tokens_cache_read": 0,
+    "tokens_cache_write": 11585,
+    "cost_usd": 0.0290105
+  },
+  "cost_total_usd": 10.718645300000002,
+  "agent_errors": 0,
+  "agent_errors_by_tool": {}
+}
