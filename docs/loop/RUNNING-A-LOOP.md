@@ -107,16 +107,18 @@ build; run a single test module without it. A run at 0% CPU for more than a minu
 (measured 2026-11-21: 20 minutes lost). The gate script writes its header line *under* the lock, so
 `/tmp/fleet/gate-rel.log` at **0 bytes** means the push has not started. A worker told to stand down can
 leave `flock -s ... cargo nextest` running — it believed it had killed its build — and the gate's exclusive
-`flock` queues behind it indefinitely. Check the two things instead of reading the log:
+`flock` queues behind it. Check the two things instead of reading the log:
 
 ```sh
 fuser -v /tmp/fleet/big-heavy.lock   # who actually holds it, and for how long
 head -1 /tmp/fleet/gate-rel.log      # a header line means it is past the lock
 ```
 
-Kill a `flock -s` holder that outlives its worker; shared runs are meant to be short. The same session lost
-time to `/home` at 100% full, which surfaces as `clang: error: linker command failed with exit code -2` and
-as "test failures" finishing in 0.2 s — check `df -h ~` before believing any suspiciously fast failure.
+`/tmp` is tmpfs, so a reboot takes the lock **and** the log with it — recreate both before a gate.
+A full `/home` surfaces as `clang: error: linker command failed with exit code -2` and as "test failures"
+finishing in 0.2 s: check `df -h ~` before believing any suspiciously fast failure.
+
+Kill a `flock -s` holder that outlives its worker; shared runs are meant to be short.
 
 **`mac_air` takes no editor tests** (measured 2026-11-18). `cargo nextest run -p <editor crate>` sits at
 0% CPU for 15+ minutes there, repeatedly, on an idle host with 58 GB free — three separate workers lost
