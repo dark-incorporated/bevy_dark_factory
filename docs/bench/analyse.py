@@ -12,10 +12,15 @@ Two shares are reported, because the target changed with the text:
 """
 import json, glob, os, re, sys, collections, math, subprocess
 
+# **`BENCH_ROOT` names the run directory, so the 2026-11-15 control is reproducible**: those runs were
+# written by the pre-rebrand binary under `~/.local/state/cauldron-bench`, so
+# `BENCH_ROOT=~/.local/state/cauldron-bench python3 analyse.py ask-with-guide-final` reads them, and
+# `BENCH_ROOT=~/.local/state/cauldron-bench TOOL_PREFIX=mcp__cauldron_grimoire_` is that era's default.
 ROOT = os.environ.get("BENCH_ROOT") or os.path.expanduser("~/.local/state/dark_factory-bench")
 # **The MCP tool prefix, in either era.** Runs before the rebrand say `mcp__cauldron_grimoire_`, today's say
 # `mcp__dark_factory_`; one analyser reads both, so the 2026-11-15 figure stays comparable.
-PREFIX = os.environ.get("TOOL_PREFIX") or "mcp__cauldron_grimoire_"
+PREFIX = os.environ.get("TOOL_PREFIX") or (
+    "mcp__cauldron_grimoire_" if "cauldron-bench" in ROOT else "mcp__dark_factory_")
 # **Tool names, normalized across the rebrand**: a call is `blueprint_apply_operation` today and
 # `apply_operation` in the pre-rebrand runs, so the leading `blueprint_` is dropped before anything compares.
 MUT = {"apply_operation"}   # what changes a map the person sees
@@ -107,7 +112,11 @@ def calls_of(d):
             err = bool(e.get("isError")) or text.lstrip().startswith(("Error", '{"refused"'))
             for tool, args in items:
                 q = args.get("questions")
-                nq = len(q) if isinstance(q, dict) else (q if isinstance(q, int) else 0)
+                # **A dict, a list, or an int, as the published analyser counts them.** `nq()` there takes a
+                # dict or a list; the `eval` route (which parses the call out of code) carries an int count,
+                # and dropping it is what made this script disagree with the 2026-11-15 means (0.39 against
+                # 0.55 for the without arm, 3.26 against 3.33 for the with arm).
+                nq = len(q) if isinstance(q, (dict, list)) else (q if isinstance(q, int) else 0)
                 out.append({"tool": bare(tool), "nq": nq, "view": bool(args.get("view")),
                             "refused": err and name != "eval", "text": text})
     return out
@@ -211,7 +220,7 @@ def main():
         for task, r in s["failed"][:5]:
             print(f"    - {task}: {str(r)[:160]}")
         print()
-        print("| task | n | pass | eligible | asked>=1 |")
+        print(f"| task | n | pass | eligible | asked>={MIN_Q} |")
         print("|---|---|---|---|---|")
         for task, v in sorted(s["per_task"].items()):
             print(f"| `{task}` | {v[0]} | {v[1]} | {v[2]} | {v[3]} |")

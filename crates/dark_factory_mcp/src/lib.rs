@@ -19,34 +19,38 @@ pub mod sequence;
 
 /// **How fast `blueprint_decide` answers, in the words the tool's description uses** (#456, #457).
 ///
-/// **The one place the latency is written**, so the figure measured on the local model is changed here and
-/// nowhere else: the server's tool description (`main.rs`) and the reference's copy of it (`docs.rs`) both
-/// build their sentence from this. A macro, not a `const`, because an attribute's description is assembled
-/// with `concat!`, which takes literals. Then regenerate `docs/mcp-tools.md`
+/// **The one place the latency is written**: the server's tool description (`main.rs`) and the reference's
+/// copy of it (`docs.rs`) both build their sentence from this. A macro, not a `const`, because an attribute's
+/// description is assembled with `concat!`, which takes literals. Then regenerate `docs/mcp-tools.md`
 /// (`cargo run -q -p dark_factory_mcp -- --emit-docs > docs/mcp-tools.md`).
 ///
-/// **Three figures, because there are three things to buy, and which one you get is the design question.**
-/// Measured on big against the local `d3-flash`, four `noul` questions in every case:
+/// **What the figure covers, and what it does not.** `latency_ms` times `Transport::send` and nothing else
+/// ([`decide::Measured`]): the decision model's round trips. It does **not** include the editor taking the
+/// still, so it is not what an agent waits. Measured 2026-11-21 on big against the local `d3-flash`, five calls
+/// per cell with a **different `state` every call** (llama-server caches prompts, so a repeated body measures
+/// the cache):
 ///
-/// | the call | median | n |
+/// | the model, one call | text only | with a 27 kB still |
 /// |---|---|---|
-/// | the model alone, text only, no picture | **151 ms** | 25 |
-/// | the model alone, one 27 kB still attached | **279 ms** | 25 |
-/// | `blueprint_decide` as an agent actually calls it (`view: true`, so the editor also takes the still) | **1495 ms** | 5 |
+/// | 1 question | 36 ms | 76 ms |
+/// | 3 questions | 107 ms | 203 ms |
+/// | 4 questions | 150 ms | 261 ms |
+/// | 8 questions | 320 ms | 597 ms |
 ///
-/// **The number that matters is the third**, and it is the one an agent waits for: a trial's editor takes the
-/// still, encodes it, and the server reads the checks, before the model is asked anything. Measured inside a
-/// live benchmark run on 2026-11-20, every call with `view: true`: median 1495 ms, max 1848. The 2026-11-15
-/// benchmark found a median of **543 ms** for the same thing, so the editor's capture is the expensive half
-/// and it varies with what is on screen — which is why the figure below is the rounded "about a second and a
-/// half" and not a millisecond count that would read as a promise the capture cannot keep.
+/// The repo's own three-question fixture (`crates/bevy_oracle/fixtures/request.json` with its 164 kB image)
+/// re-measured at **613 ms** beside a running benchmark arm, against the 397 ms
+/// `docs/decide/serving-d3-flash.md` recorded on an idle card: the difference is contention, and it is why the
+/// sentence below is rounded rather than a promise.
 ///
-/// **A cold call is seconds, not milliseconds**: the first request after llama-swap has unloaded the model
-/// pays its load (5.3 s measured). That is `ttl`, not the tool; the benchmark's keep-alive exists for it.
+/// **What an agent waits is longer and is unmeasured.** The editor's capture is the part nobody has timed, so
+/// the description says the model's number and names the rest as unmeasured instead of blaming a component.
+///
+/// **A cold call is seconds**: 5.34 s for the first request after llama-swap has unloaded the model. That is
+/// `ttl`, not the tool; the benchmark's keep-alive exists for it.
 #[macro_export]
 macro_rules! decide_latency {
     () => {
-        "in about a second and a half (the model itself answers in 150-280 ms; the editor taking the still is the rest)"
+        "in a fraction of a second for the model itself (about 150 ms for four questions without a picture, 260 ms with one; what you wait also includes the still being taken, which is not counted here)"
     };
 }
 

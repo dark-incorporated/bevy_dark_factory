@@ -4,7 +4,7 @@ What each change added, newest first. A visible change has a clip: click the sti
 
 ## 2026-11-21
 
-- **457-ask-latency** The decision model's own answer time is written in `blueprint_decide`'s description as the three figures it is: about 150 ms for the model alone with no picture, 280 ms with one still, and **about 1.5 s through the tool** when the editor also takes the still (`view: true`, the way an agent calls it) -- replacing "in about a second", which was the agent's number measured without its capture. *For you: The line describing how fast the check answers now says about a second and a half, and says the model itself is only 150-280 ms of it.* *No clip: A description's words, with no visible surface; proved by the measurement in docs/bench/ask-revised-guide.md. The same sentence is carried into docs/mcp-tools.md, which the server writes from this macro: the substitution is the one line the macro produces, because rebuilding the binary to run --emit-docs would swap the server under the benchmark trials in flight.*
+- **457-ask-latency** `blueprint_decide`'s description says what its own answer time is, and what it leaves out: the model's round trips are about 150 ms for four questions with no picture and 260 ms with one, and **the still being taken is not counted there**, so the sentence names it as unmeasured rather than as the remainder *For you: The line describing how fast the check answers now gives the model's own time and says the picture-taking is extra.* *No clip: A description's words, with no visible surface; proved by docs/bench/probe_latency.py (five calls per question count, a different `state` each so llama-server's prompt cache cannot answer) and by the measurement in docs/bench/ask-revised-guide.md*
 
 ## 2026-11-20
 
