@@ -18,7 +18,9 @@
         "click two or three spots on the ground"
       ],
       "checkpoint": "the map has placements",
-      "with": { "n": 2 },
+      "with": {
+        "n": 2
+      },
       "recovery": "if a click lands nothing the panel names why -- a click over the interface places nothing, so aim at the ground"
     },
     {
@@ -57,7 +59,9 @@
         "press Enter"
       ],
       "checkpoint": "the proposal was kept",
-      "with": { "n": 1 },
+      "with": {
+        "n": 1
+      },
       "recovery": "Esc throws it away instead -- if you did that on purpose, say so and generate again"
     },
     {
@@ -78,5 +82,10 @@
       "checkpoint": null,
       "recovery": "there is nothing to recover here: the answer is the finding"
     }
-  ]
+  ],
+  "controls": {
+    "open the Map tab": "WorkspaceStrip",
+    "arm a piece and place a few": "Palette",
+    "save the map": "Title"
+  }
 }

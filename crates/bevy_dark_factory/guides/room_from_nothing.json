@@ -3,7 +3,9 @@
     {
       "label": "open the Meshes tab",
       "goal": "on a blank kit there is nothing to build with yet, so the first job is turning raw meshes into pieces the library knows. Nothing else can happen before this",
-      "do": ["press 2"],
+      "do": [
+        "press 2"
+      ],
       "checkpoint": "the Meshes tab is open",
       "recovery": "if a text field has the keyboard the number types into it: press Escape first"
     },
@@ -32,7 +34,9 @@
     {
       "label": "import it into the library",
       "goal": "a labelled candidate is still not a piece until it is accepted -- this is the step that puts it in the palette everything else draws from",
-      "do": ["press Enter"],
+      "do": [
+        "press Enter"
+      ],
       "checkpoint": null,
       "recovery": "if it refuses, the message names what it objected to -- usually a missing measurement. That message is the report"
     },
@@ -50,7 +54,12 @@
     {
       "label": "open the Tiles tab and start the corner",
       "goal": "now the tiles. A corner is where two solid sides meet -- without one a kit can only make corridors, because there is no way to close a room off",
-      "do": ["press 2", "press N for a new tile", "type a name like corner", "press Enter"],
+      "do": [
+        "press 2",
+        "press N for a new tile",
+        "type a name like corner",
+        "press Enter"
+      ],
       "checkpoint": "the open tile is unsaved",
       "recovery": "if the list on this tab is empty, the meshes did not import -- go back to 2 and check the IN LIBRARY side"
     },
@@ -63,22 +72,30 @@
         "press Enter for a second wall, press R to turn it, shift-arrow it flush to an ADJACENT side"
       ],
       "checkpoint": "the tile has turns",
-      "with": { "n": 2 },
+      "with": {
+        "n": 2
+      },
       "recovery": "if the second wall will not sit flush it is probably not turned -- press R again. If the arrows walk the list instead of the piece, press Escape then Enter"
     },
     {
       "label": "does it read as a corner",
       "goal": "before saving: the two walls should meet, not overlap and not leave a gap at the join. This is the question no checkpoint can answer and the reason a person is doing this",
-      "do": ["orbit the camera and look at where the two walls meet"],
+      "do": [
+        "orbit the camera and look at where the two walls meet"
+      ],
       "checkpoint": null,
       "recovery": "if they overlap or gap, say which, and say what flush landed on"
     },
     {
       "label": "save the corner",
       "goal": "saving is what puts it in the kit, and only what is in the kit can be stamped onto a map",
-      "do": ["press Cmd+S"],
+      "do": [
+        "press Cmd+S"
+      ],
       "checkpoint": "the kit has tiles",
-      "with": { "n": 1 },
+      "with": {
+        "n": 1
+      },
       "recovery": "if it refuses, the message names what it objected to -- that message is the report"
     },
     {
@@ -89,13 +106,19 @@
         "press N, name it, floor plus the doorway flushed to the SAME side, Cmd+S"
       ],
       "checkpoint": "the kit has tiles",
-      "with": { "n": 3 },
+      "with": {
+        "n": 3
+      },
       "recovery": "if a tile will not save, say what it said -- a tile that cannot be saved is a tile that cannot be placed"
     },
     {
       "label": "arm the wall tile on the Compose tab",
       "goal": "the Map stamps whatever is armed here. This is the step that connects the two halves, and the one an author is least likely to guess",
-      "do": ["press 4", "walk to your wall tile with up and down", "press Enter to arm it"],
+      "do": [
+        "press 4",
+        "walk to your wall tile with up and down",
+        "press Enter to arm it"
+      ],
       "checkpoint": "the Compose tab is open",
       "recovery": "the status line says which tile is armed -- if it says nothing was armed, the selection is on something else"
     },
@@ -109,7 +132,9 @@
         "lay four runs, leaving the corners open and one gap for the door"
       ],
       "checkpoint": "the map has tiles on it",
-      "with": { "n": 4 },
+      "with": {
+        "n": 4
+      },
       "recovery": "if a click places nothing, nothing is armed -- back to 4 and press Enter on the tile"
     },
     {
@@ -121,7 +146,9 @@
         "stamp one into each corner, pressing R to turn it to face the right way"
       ],
       "checkpoint": "the map has tiles on it",
-      "with": { "n": 8 },
+      "with": {
+        "n": 8
+      },
       "recovery": "refusing to overlap is correct; landing somewhere you did not point is not. Say which happened"
     },
     {
@@ -133,7 +160,9 @@
         "stamp it into the gap, turned to match the run it sits in"
       ],
       "checkpoint": "the map has tiles on it",
-      "with": { "n": 9 },
+      "with": {
+        "n": 9
+      },
       "recovery": "if it will not go in the gap, the gap is the wrong size -- say what it refused with"
     },
     {
@@ -150,9 +179,21 @@
     {
       "label": "save the map",
       "goal": "what you built is on disk as nine tile references rather than a hundred loose pieces, in a form the game reads",
-      "do": ["press Cmd+S"],
+      "do": [
+        "press Cmd+S"
+      ],
       "checkpoint": "the map is saved",
       "recovery": "if it refuses, the message names what it objected to"
     }
-  ]
+  ],
+  "controls": {
+    "open the Meshes tab": "WorkspaceStrip",
+    "find something flat and square for a floor": "Filter",
+    "import it into the library": "Pieces",
+    "open the Tiles tab and start the corner": "WorkspaceStrip",
+    "save the corner": "Title",
+    "arm the wall tile on the Compose tab": "WorkspaceStrip",
+    "lay the four walls": "WorkspaceStrip",
+    "save the map": "Title"
+  }
 }

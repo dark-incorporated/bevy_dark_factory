@@ -37,5 +37,9 @@
       "checkpoint": "the map is saved",
       "recovery": "if the save is refused, the status bar says why"
     }
-  ]
+  ],
+  "controls": {
+    "Pick a piece": "Palette",
+    "Save the map": "Title"
+  }
 }

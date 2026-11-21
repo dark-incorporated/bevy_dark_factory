@@ -57,7 +57,9 @@
         "press R"
       ],
       "checkpoint": "the tile has turns",
-      "with": { "n": 2 },
+      "with": {
+        "n": 2
+      },
       "recovery": "if the same wall turns again, it is the focused one — use , and . to step the focus to the other wall, then press R"
     },
     {
@@ -100,5 +102,11 @@
       "checkpoint": null,
       "recovery": "there is nothing to recover here: an answer is the finding"
     }
-  ]
+  ],
+  "controls": {
+    "open the Tiles tab": "WorkspaceStrip",
+    "bring a floor in": "Pieces",
+    "bring a wall in": "Pieces",
+    "save it": "Title"
+  }
 }
