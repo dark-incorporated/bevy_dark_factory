@@ -549,18 +549,19 @@ pub const OWNERSHIP: &[(&str, Ownership)] = &[
     // **The periodic save's clock and its record** (#508): a timer that survived a door change
     // would fire on the new kit with the old kit's interval, so both are the session's.
     ("bevy_dark_factory::autosave::AutoSave", Ownership::Session),
-    // **A never-saved buffer's draft clock and the offers it feeds** (#508): a draft is written from
-    // the buffer's own edits, and a door change drops the buffers, so both go with them.
-    ("bevy_dark_factory::draft::DraftClock", Ownership::Workspace),
-    ("bevy_dark_factory::draft::DraftOffers", Ownership::Workspace),
+    // **A never-saved buffer's draft clock and the offers it feeds** (#508): both name files of *this*
+    // kit, so a door change must drop them -- `Workspace` state is deliberately NOT reset, which is what
+    // `the_door_resets_what_it_says_it_owns` caught on the first answer.
+    ("bevy_dark_factory::draft::DraftClock", Ownership::Project),
+    ("bevy_dark_factory::draft::DraftOffers", Ownership::Project),
     // **The Files workspace's open menu** (#507): a handle while a menu is up, so it is the workspace's.
-    ("bevy_dark_factory::files_menu::FilesMenuHandle", Ownership::Workspace),
+    ("bevy_dark_factory::files_menu::FilesMenuHandle", Ownership::Project),
     // **The map cards' pictures, queued for a repaint** (#506): a render of the current map, so a
     // door change drops the queue rather than repainting the old kit into a new card.
-    ("bevy_dark_factory::map_thumbs::PaintAfterSave", Ownership::Workspace),
+    ("bevy_dark_factory::map_thumbs::PaintAfterSave", Ownership::Project),
     // **Which step the tour last pointed at** (#510): a step belongs to the tour that is running in
     // this workspace, so the record goes when the workspace's map does.
-    ("bevy_dark_factory::tour::PointedAt", Ownership::Workspace),
+    ("bevy_dark_factory::tour::PointedAt", Ownership::Project),
     // **A composed issue in progress** (#499): the six fields, the preview and the one filing in
     // flight. `Project`, not `Workspace`: the composer names files and line numbers of *this* kit, so
     // carrying a half-written report across a door change would file against the wrong one.
