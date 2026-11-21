@@ -546,10 +546,12 @@ pub const OWNERSHIP: &[(&str, Ownership)] = &[
     // map it is on, so the one-wish rule cannot read two hand-backs as one.
     ("bevy_dark_factory::present::HandBacks", Ownership::Session),
     // **A composed issue in progress** (#499): the six fields, the preview and the one filing in
-    // flight. A person's half-written report belongs to the workspace they are writing it in.
-    ("bevy_dark_factory::issue_compose_panel::Composer", Ownership::Workspace),
-    ("bevy_dark_factory::issue_compose_panel::Filing", Ownership::Workspace),
-    ("bevy_dark_factory::issue_compose_panel::Pending", Ownership::Workspace),
+    // flight. `Project`, not `Workspace`: the composer names files and line numbers of *this* kit, so
+    // carrying a half-written report across a door change would file a report about the wrong one.
+    // The door test is what caught the first answer -- `Workspace` state is deliberately not reset.
+    ("bevy_dark_factory::issue_compose_panel::Composer", Ownership::Project),
+    ("bevy_dark_factory::issue_compose_panel::Filing", Ownership::Project),
+    ("bevy_dark_factory::issue_compose_panel::Pending", Ownership::Project),
     // A filed issue's answer and its in-flight step: this door's working state.
     ("bevy_dark_factory::report_issue::Filed", Ownership::Session),
     ("bevy_dark_factory::report_issue::Pending", Ownership::Session),
