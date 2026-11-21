@@ -9,6 +9,7 @@
 //!   files against a fake connection: exactly one create, with the preview's body;
 //! - **the dialog's own keys do not reach the tab behind it**, which is the defect every field in this
 //!   crate records at least once;
+//!
 //! A click on the dialog's Cancel is *not* proved here: a headless app lays the card out with no pointer
 //! position, so the click never lands. The rule the button reaches — a draft written before a restart is
 //! restored unchanged — is proved at the value level by

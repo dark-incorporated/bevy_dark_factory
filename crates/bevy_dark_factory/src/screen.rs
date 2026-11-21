@@ -545,6 +545,11 @@ pub const OWNERSHIP: &[(&str, Ownership)] = &[
     // `HandBacks::asked` numbers presentations for the whole session, and a note's key carries the
     // map it is on, so the one-wish rule cannot read two hand-backs as one.
     ("bevy_dark_factory::present::HandBacks", Ownership::Session),
+    // **A composed issue in progress** (#499): the six fields, the preview and the one filing in
+    // flight. A person's half-written report belongs to the workspace they are writing it in.
+    ("bevy_dark_factory::issue_compose_panel::Composer", Ownership::Workspace),
+    ("bevy_dark_factory::issue_compose_panel::Filing", Ownership::Workspace),
+    ("bevy_dark_factory::issue_compose_panel::Pending", Ownership::Workspace),
     // A filed issue's answer and its in-flight step: this door's working state.
     ("bevy_dark_factory::report_issue::Filed", Ownership::Session),
     ("bevy_dark_factory::report_issue::Pending", Ownership::Session),

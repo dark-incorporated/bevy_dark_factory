@@ -606,10 +606,10 @@ fn created_of(body: &str) -> Result<Created, String> {
 /// **What GitHub said went wrong**, from a create's refusal body, which puts it in `message`. A body that
 /// is not JSON says nothing more than its own first line, so a person still reads a sentence.
 fn message_of(body: &str) -> String {
-    if let Ok(value) = serde_json::from_str::<serde_json::Value>(body) {
-        if let Some(message) = value.get("message").and_then(serde_json::Value::as_str) {
-            return message.to_owned();
-        }
+    if let Ok(value) = serde_json::from_str::<serde_json::Value>(body)
+        && let Some(message) = value.get("message").and_then(serde_json::Value::as_str)
+    {
+        return message.to_owned();
     }
     match body.lines().next().map(str::trim).filter(|line| !line.is_empty()) {
         Some(line) => line.to_owned(),

@@ -148,7 +148,12 @@ impl Composer {
 ///
 /// One list, so adding a section means adding it here and in [`issue_compose::HEADINGS`], and the panel's
 /// order is the filed order.
-fn section_fields(issue: &Issue) -> Vec<(&'static str, String, fn(&mut Issue, String))> {
+/// **One editable section**: its heading, the text as it stands, and the setter that writes it back.
+///
+/// Named because the three-tuple reads as noise inline and clippy is right that it is a type.
+type SectionField = (&'static str, String, fn(&mut Issue, String));
+
+fn section_fields(issue: &Issue) -> Vec<SectionField> {
     use issue_compose::HEADINGS;
     vec![
         (HEADINGS[0], issue.what_happened.clone(), |i: &mut Issue, v: String| i.what_happened = v),

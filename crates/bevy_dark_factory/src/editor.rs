@@ -9120,7 +9120,11 @@ pub struct Fields<'w> {
     /// **The issue composer (#499)**, added with its dialog. Without this line a paragraph typed into
     /// one of its six sections dispatched every verb its letters are bound to — the same defect the
     /// `token` line above records.
-    pub compose_issue: Res<'w, crate::issue_compose_panel::Composer>,
+    // **`Option`, because these reads are also a run condition's** (`not_typing`): a `SystemParam`
+    // whose field is a hard `Res` fails validation when the resource is absent, and a run condition
+    // that fails validation silently stops every system behind it (`keys.rs:3750` records the rule).
+    // The line below is `Option` for the same reason.
+    pub compose_issue: Option<Res<'w, crate::issue_compose_panel::Composer>>,
 }
 
 /// **The chords the settings gave to commands** (UI-72b, #265), as [`sense_context`] hands them to the
@@ -9191,7 +9195,7 @@ impl Fields<'_> {
             || self.token.open.is_some()
             || self.compose.renaming.is_some()
             || self.snip.pending.is_some()
-            || self.compose_issue.open
+            || self.compose_issue.as_deref().is_some_and(|c| c.open)
     }
 }
 
