@@ -204,8 +204,20 @@ fn cmd_z_on_a_run_writes_the_map_so_the_watcher_has_nothing_to_adopt() {
     );
 }
 
-/// **Cmd+Z and an agent's undo are one history.** If the agent already took the resize back, Cmd+Z
-/// does not take it back twice, and says so where the author looks.
+/// **Cmd+Z and an agent's untargeted undo are two different things** (#530).
+///
+/// This test used to prove that an agent's `undo(None)` took back a **person's** resize — "Cmd+Z and
+/// an agent's undo are one history". `ops.rs:8966` says the opposite now, deliberately: #500 made a
+/// person's drag a logged change, so an untargeted undo from a machine would revert a person's work,
+/// and the oplog's whole purpose is to stop that fence being crossed silently.
+///
+/// So the test keeps its subject — what happens when an agent's undo meets a person's change — and
+/// states the answer the code now gives: it is **refused**, the map is untouched, and the person's own
+/// Cmd+Z still takes their resize back.
+///
+/// **Owner exception (2026-11-21, #530): the premise, not the assertions.** The refusal is returned
+/// rather than written to the author's problem slot — that surfacing is a separate gap, filed on #530
+/// with the by-id path (`ops.rs:8997`) as the shape it should follow.
 #[test]
 fn cmd_z_does_not_undo_a_resize_the_agent_already_took_back() {
     let mut app = editor("undoresizeagent");
@@ -227,29 +239,27 @@ fn cmd_z_does_not_undo_a_resize_the_agent_already_took_back() {
         session: bevy_dark_factory::ops::session_id(),
         proposal: None,
     };
-    bevy_dark_factory::ops::undo(&mut ctx, None)
-        .unwrap_or_else(|e| panic!("the agent's undo: {e}"));
+    let refused = bevy_dark_factory::ops::undo(&mut ctx, None)
+        .expect_err("an agent's untargeted undo must not take back a person's resize");
+    assert!(
+        refused.to_string().contains("nothing to undo"),
+        "the refusal says what it could not reach: {refused}"
+    );
     let fresh = ctx.open.take().expect("the map comes back");
     *app.world_mut().resource_mut::<OpenMap>() = fresh;
-    assert_eq!(map(&app).bounds.0, start.bounds.0);
+    assert_eq!(
+        map(&app).bounds.0,
+        61.0,
+        "the refused undo left the person's resize standing"
+    );
 
+    // **And the person's own Cmd+Z still takes it back**: the fence is on who may reach a change,
+    // not on whether it can be undone.
     chord(&mut app, KeyCode::KeyZ, false);
     assert_eq!(
         map(&app).bounds.0,
         start.bounds.0,
-        "Cmd+Z re-applied or double-undid the resize"
-    );
-    let problems: Vec<String> = app
-        .world()
-        .resource::<bevy_dark_factory::editor::EditorState>()
-        .status
-        .problems()
-        .iter()
-        .map(|p| p.line())
-        .collect();
-    assert!(
-        problems.iter().any(|p| p.contains("took it back")),
-        "the refusal did not reach the author's problem slot: {problems:?}"
+        "Cmd+Z did not take the person's own resize back"
     );
 }
 

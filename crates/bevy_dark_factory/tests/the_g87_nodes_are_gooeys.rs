@@ -206,8 +206,12 @@ fn the_chips_buttons_and_rows_keep_their_drawn_heights() {
     let mut drawn: Vec<f32> = world.query_filtered::<&ComputedNode, With<RowRest>>().iter(world).map(|c| c.size().y * c.inverse_scale_factor()).collect();
     drawn.sort_by(f32::total_cmp);
     // The terminal's own chips (two of the 20 px ones at 4a12b153) are laid out to nothing now: the pane is collapsed by default (#421), merged from fleet/seams. The rest are as they were.
-    let was = [0.0, 0.0, 0.0, 0.0, 0.0, 20.0, 20.0, 24.17, 24.17, 36.67];
-    assert_eq!(drawn.len(), was.len(), "the Map door carries ten chips, buttons and rows: {drawn:?}");
+    // **Four more chips than `4a12b153` measured** (#494's own chip work, #526): the Map door carries
+    // fourteen now, and the four new ones are laid out at the same two heights as their neighbours.
+    // Owner exception (2026-11-21): a regenerated baseline, not a loosened check -- every height is
+    // still compared, and `the_g87_nodes_are_gooeys` remains the assertion that no box drifts.
+    let was = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 20.0, 20.0, 24.17, 24.17, 36.67];
+    assert_eq!(drawn.len(), was.len(), "the Map door carries fourteen chips, buttons and rows: {drawn:?}");
     for (got, want) in drawn.iter().zip(was) {
         assert!((got - want).abs() < 0.1, "a box is {got} tall, it was {want}: {drawn:?}");
     }
