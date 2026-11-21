@@ -4,6 +4,7 @@ What each change added, newest first. A visible change has a clip: click the sti
 
 ## 2026-11-21
 
+- **ci-weekly** `9f3ab9f6` the nightly CI runs weekly, since the daily re-tested a tree the gate had just passed *No clip: a workflow change; proved by #528's measurement*
 - **tour-click-ignored** `b4f40fd9` the tour's click test is ignored while its pointer never hovers, and the fixture has a window *No clip: a test fixture fix and one ignore with its reason; proved by the other three tour tests passing in 3 s instead of 270 s*
 - **compass-marker** `cfc7c323` the compass test asks for the compass's own markers, not every HostGeometry node *No clip: a test and two visibility changes, no user-visible behaviour; proved by the_round_7_review_is_pinned 5/5*
 - **panel-content-box** `70c62b05` a panel's controls are measured against its own content box, at both interface scales *No clip: a test only, no user-visible change; proved by crates/bevy_dark_factory/tests/a_panel_control_stays_inside_its_content_box.rs*

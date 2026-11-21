@@ -4,7 +4,12 @@ name: CI
 # locally before it pushes. A red daily run is a bug the loops take first (`build-loop.md`, "Parallel workers").
 on:
   schedule:
-    - cron: "0 9 * * *"   # 09:00 UTC, 04:00 in Texas
+    # **Weekly, not daily** (#528, owner 2026-11-21). The daily re-tested a `main` that could not
+    # have changed since the pre-push gate passed it, and it was killed by contention rather than by
+    # a test: `56b79814` failed as a `schedule` run and succeeded as a `workflow_dispatch` on the
+    # same tree and runner. Weekly keeps the dependency-and-host check without paying 17 minutes of
+    # `big`'s RAM for a tree that provably cannot differ from the one the gate just ran.
+    - cron: "0 9 * * 1"   # Mondays, 09:00 UTC, 04:00 in Texas
   workflow_dispatch:
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
