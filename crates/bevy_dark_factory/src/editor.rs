@@ -607,6 +607,25 @@ impl EditorState {
         all.split_off(start)
     }
 
+    /// **Does the stack hold a move above `line`?** A move is a registry line now (`placement_move`,
+    /// #500), not an [`Undo::Moved`] entry, so [`EditorState::row_recorded_above`] cannot see it. This
+    /// answers the same question from the one place that still knows the order the person worked in.
+    ///
+    /// **The guard it feeds** is the same one: an undo of a removal reinserts rows, so every row after
+    /// the first comes back one place lower — and a piece the person has moved since would be pushed
+    /// along silently. The log cannot answer it, because the log has no idea what the person's stack
+    /// still holds; the stack can, because a move the person has taken back is no longer on it.
+    pub(crate) fn move_recorded_above(&self, line: &str) -> bool {
+        fn is_move(op: &Undo) -> bool {
+            match op {
+                Undo::Logged { phrase, .. } => phrase.starts_with("moved "),
+                Undo::Group { ops } => ops.iter().any(is_move),
+                _ => false,
+            }
+        }
+        self.entries_above(line).into_iter().any(is_move)
+    }
+
     /// **Is a change recorded by row number sitting above a registry line's entry?** An undo of a
     /// `placement_remove` puts a row back or takes one out, and every row-recorded change above it
     /// names its piece by a number the undo has just moved. `Added` names its pieces from the tail,

@@ -8870,6 +8870,14 @@ pub fn undo_target(ctx: &Ctx, target: Option<&str>) -> Result<UndoPlan, Refusal>
                         }
                     }
                 })
+                // **An agent's untargeted undo takes back the agent's own newest change, never a
+                // person's.** "Undo the last thing" from a machine that then reverts the crate a
+                // person just dragged is the fence the log exists to keep — and it became reachable
+                // when a drag started going through this registry (`placement_move`, #500), because
+                // a person's move is a logged change now and was the newest one. A person's undo
+                // comes in with `Source::Human` and is not filtered; naming a line by id is not
+                // filtered either, so an agent may still take back a specific logged change.
+                .filter(|c| ctx.source != Source::Agent || lines[newest[c]].source == Source::Agent)
                 .max_by_key(|c| newest[c])
             else {
                 return Err(Refusal::new(
@@ -9046,12 +9054,101 @@ pub fn undo_target(ctx: &Ctx, target: Option<&str>) -> Result<UndoPlan, Refusal>
             line.operation_id
         )));
     };
-    Ok(UndoPlan {
+    let plan = UndoPlan {
         change: chain.to_owned(),
         line: line.clone(),
         inverse,
         restores: !in_effect.contains(chain),
-    })
+    };
+    // **A put-back lands among the pieces where they stand now**, so one a person has moved since is
+    // refused here rather than pushed along (see `moved_under_a_put_back`).
+    if let Some(refusal) = moved_under_a_put_back(ctx, &plan, &lines, &Chains { chain_of, in_effect, newest }) {
+        return Err(refusal);
+    }
+    Ok(plan)
+}
+
+/// **An undo that would put a piece back among pieces a person has moved since is refused** (#500).
+///
+/// **The guard `Undo::Moved` used to carry.** While a move was an in-memory stack entry, the editor's
+/// stack could see it: [`crate::editor::EditorState::row_recorded_above`] answered "a change recorded
+/// by row number sits above this line", and an undo of a removal that would reinsert a row was refused
+/// rather than pushing the person's moved piece along. A move goes through this registry now, so its
+/// entry is a `Logged` line and the stack cannot see what it did — the answer has to come from the
+/// log, which is where every change is recorded.
+///
+/// # Only a *displacing* undo, and only a piece that *moved*
+///
+/// **Refusing too much is worse than refusing too little here.** A removal's put-back places rows at
+/// fixed indices, so every row after the first comes back one place lower — that is the push that must
+/// not happen silently. An undo that takes a piece away, or one that moves a piece nobody dragged,
+/// lands normally: only an undo that would **put pieces back into a map whose pieces have moved** is
+/// refused, and only over the piece that moved.
+///
+/// **The piece that moved is named**, so the refusal tells the reader which one to put back first.
+fn moved_under_a_put_back(
+    ctx: &Ctx,
+    plan: &UndoPlan,
+    lines: &[Entry],
+    chains: &Chains,
+) -> Option<Refusal> {
+    // **Only a put-back displaces rows**, and the test is on **what is about to be dispatched**
+    // (`plan.inverse`), not on the line it comes from: a redo of a removal dispatches a removal, and a
+    // redo of a put-back dispatches a put-back, so reading the line's own inverse would refuse the
+    // first and let the second through.
+    if plan.inverse.get("put_back").is_none() {
+        return None;
+    }
+    // **The newest move still in effect that happened after this line.** A move the person has taken
+    // back is not one, so the answer follows the stack of changes rather than the log's length.
+    let newest = lines
+        .iter()
+        .filter(|e| e.op == "placement_move" && e.seq > plan.line.seq)
+        .filter(|e| {
+            chains
+                .chain_of
+                .get(e.operation_id.as_str())
+                .is_some_and(|c| chains.in_effect.contains(c))
+        })
+        .max_by_key(|e| e.seq)?;
+    let move_line = newest.operation_id.clone();
+    // **The piece it carried**: the first id the move recorded.
+    let piece = newest
+        .after
+        .as_ref()
+        .and_then(|a| a.get("ids"))
+        .and_then(|i| i.as_array())
+        .and_then(|ids| ids.iter().find_map(|v| v.as_str()))
+        .map(str::to_owned)?;
+    // **The rows the put-back would land among**: the removal's own rows, so a piece that moved and is
+    // not one of them does not refuse anything.
+    let rows: Vec<usize> = plan
+        .inverse
+        .get("put_back")
+        .and_then(|p| p.get("rows"))
+        .and_then(serde_json::Value::as_array)
+        .map(|rows| {
+            rows.iter()
+                .filter_map(|r| r.get("index")?.as_u64().map(|i| i as usize))
+                .collect()
+        })
+        .unwrap_or_default();
+    let Some(map) = ctx.open.as_ref().map(|o| &o.map) else {
+        return None;
+    };
+    // **The moved piece's row now.** A put-back inserts at the rows it recorded, so a piece standing
+    // at or past the first of them is pushed along by it.
+    let Some(index) = map.placements.iter().position(|p| p.id == piece) else {
+        return None;
+    };
+    let first = rows.iter().copied().min()?;
+    if index < first {
+        return None;
+    }
+    Some(Refusal::new(format!(
+        "`{piece}` has moved since `{}` (`{move_line}`), and putting that removal back would push it          along. Have the person take the move back (Cmd+Z) first, then undo the removal — or leave the          piece where it is.",
+        plan.line.operation_id
+    )))
 }
 
 /// **Take one change back, or put it back, by dispatching the inverse its newest line recorded.**
