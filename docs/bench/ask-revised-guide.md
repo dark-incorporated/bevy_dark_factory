@@ -36,19 +36,19 @@ reads the transcript for `latency_ms` (trial.json's `tool_calls` is a list of na
 `mcp__dark_factory_blueprint_decide`, so both the route prefix and the `blueprint_` prefix are stripped before
 anything compares.
 
-## 2. Do agents ask, on the revised guide? — PARTIAL, 9/60 trials
+## 2. Do agents ask, on the revised guide? — PARTIAL, 17/60 trials
 
 | measure | 2026-11-15 (the four-or-five guide) | today's revised guide, 6 trials |
 |---|---|---|
-| eligible trials | 43 | 6 |
-| asked ≥1 after the last visible operation | 35/43 = 81% | **9/9 = 100%** (Wilson 95% [70%, 100%]) |
-| asked ≥4 (the old bar) | 22/43 = 51% | **2/9 = 22%** (Wilson 95% [6%, 55%]) |
-| mean questions per call | 3.33 | **2.91** (histogram {2:3, 3:6, 4:2}) |
-| trials that called it | 37/60 = 62% | **9/9 = 100%**, 11 calls |
-| success | 55/60 = 92% | **9/9 = 100%** |
-| latency of an answer | median 543 ms | **median 1200 ms** (n=11) |
+| eligible trials | 43 | 13 |
+| asked ≥1 after the last visible operation | 35/43 = 81% | **13/13 = 100%** (Wilson 95% [77%, 100%]) |
+| asked ≥4 (the old bar) | 22/43 = 51% | **2/13 = 15%** (Wilson 95% [4%, 42%]) |
+| mean questions per call | 3.33 | **2.53** (histogram {1:3, 2:4, 3:8, 4:2}) |
+| trials that called it | 37/60 = 62% | **14/17 = 82%**, 17 calls |
+| success | 55/60 = 92% | **15/17 = 88%** |
+| latency of an answer | median 543 ms | **median 965 ms** (n=17) |
 
-**This is not evidence of an improvement, and must not be reported as one.** n = 9. The wide intervals overlap
+**This is not evidence of an improvement, and must not be reported as one.** n = 13 eligible, and every number above moved when 4 more trials landed — which is the whole point of saying it now rather than after 60. The wide intervals overlap
 the old figures entirely; the ≥4 drop from 51% to 33% is what the revision *intends* (the count demand is
 gone), but at this n it is a direction, not a finding. When the run finishes the same table with n ≈ 43–60
 eligible trials on each side will, and only then, say whether the revision moved anything.
