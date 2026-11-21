@@ -4,6 +4,7 @@ What each change added, newest first. A visible change has a clip: click the sti
 
 ## 2026-11-21
 
+- **compass-marker** `cfc7c323` the compass test asks for the compass's own markers, not every HostGeometry node *No clip: a test and two visibility changes, no user-visible behaviour; proved by the_round_7_review_is_pinned 5/5*
 - **panel-content-box** `70c62b05` a panel's controls are measured against its own content box, at both interface scales *No clip: a test only, no user-visible change; proved by crates/bevy_dark_factory/tests/a_panel_control_stays_inside_its_content_box.rs*
 - **wave8-report** `7507f130` Fleet wave 8: the owner hold, and four ratchets that refused new code *No clip: docs only (a runbook paragraph and an iteration report); proved by tools/changelog/changelog.py check*
 - **457-ask-latency** `blueprint_decide`'s description says what its own answer time is, and what it leaves out: the model's round trips are about 150 ms for four questions with no picture and 260 ms with one, and **the still being taken is not counted there**, so the sentence names it as unmeasured rather than as the remainder *For you: The line describing how fast the check answers now gives the model's own time and says the picture-taking is extra.* *No clip: A description's words, with no visible surface; proved by docs/bench/probe_latency.py (five calls per question count, a different `state` each so llama-server's prompt cache cannot answer) and by the measurement in docs/bench/ask-revised-guide.md*

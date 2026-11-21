@@ -62,11 +62,11 @@ struct Compass;
 
 /// One axis's arm — the line from the centre outward. Carries its index into [`AXES`].
 #[derive(Component)]
-struct CompassArm(usize);
+pub struct CompassArm(pub usize);
 
 /// One axis's dot and label, at the end of the arm.
 #[derive(Component)]
-struct CompassDot(usize);
+pub struct CompassDot(pub usize);
 
 pub struct CompassPlugin;
 
