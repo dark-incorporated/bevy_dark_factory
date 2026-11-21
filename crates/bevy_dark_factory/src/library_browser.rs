@@ -307,7 +307,7 @@ fn draw_the_cards(
 ) {
     // **This system's cost, into the frame's total** (UI-93, #259): a library of hundreds of cards is content, and
     // the budget's whole point is that a settled frame pays nothing for it.
-    let spent = crate::ui_budget::measure(&mut budget);
+    let spent = crate::ui_budget::measure(&mut budget).named("library_browser::draw_the_cards");
     let Some(project) = project else { return };
     let Ok(mut browser) = browsers.single_mut() else { return };
     // **A settled frame is two comparisons and nothing that grows with the library.** What a person can change

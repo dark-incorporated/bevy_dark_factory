@@ -85,6 +85,12 @@ pub fn add_editor_plugins(app: &mut App) -> &mut App {
             // The key badges. In the shared list because a headless test drives `K` the same way a
             // person does, and because it binds nothing -- unlike `add_debugger_plugins`.
             crate::badges::BadgePlugin,
+            // **The two panels that say how the editor is doing** (#509, #504): the console, a ring the `tracing` layer
+            // fills with every `info`, `warn` and `error` this process said; and the frame profile, a bounded ring of the
+            // frames it ran. In the shared list because they are about how the editor sees itself, not about debugging it
+            // — and here rather than at the top level because that list is at its fifteen (`add_plugins`' cap).
+            crate::console::ConsolePlugin,
+            crate::profile::ProfilePlugin,
         ),
         crate::editor::EditorPlugin,
         crate::thumbs::ThumbsPlugin,

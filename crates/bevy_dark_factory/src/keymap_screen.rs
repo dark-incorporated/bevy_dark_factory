@@ -123,6 +123,11 @@ fn reserved() -> Vec<(Taker, Shortcut)> {
             .into_iter()
             .map(|(id, title, chord)| (Taker { id, title }, chord)),
     );
+    // **The two panels a chord opens and no tab owns** (#509, #504): the console and the frame profile. They are live on
+    // every screen, like the interface's size chords, so the screen must not let a command be rebound onto one — the
+    // chord answers first and a command parked there would never fire.
+    out.push((Taker { id: "console.open", title: "Show or hide the log" }, crate::console::toggle_chord()));
+    out.push((Taker { id: "profile.open", title: "Show or hide the frame profile" }, crate::profile::toggle_chord()));
     out
 }
 

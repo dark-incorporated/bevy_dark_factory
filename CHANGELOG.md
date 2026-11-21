@@ -22,10 +22,9 @@ What each change added, newest first. A visible change has a clip: click the sti
 =======
 ## 2026-11-20
 
-- **508** An unsaved buffer keeps a draft outside the project, and the map and buffers save on an interval through the manual path *No clip: A draft file and a timer; proved by crates/bevy_dark_factory/tests/a_never_saved_buffer_has_a_draft.rs, which drafts an unsaved buffer outside the project, offers it on a fresh editor, declines it away, saves the map once through map_save on the interval, and asserts the band speaks only inside five seconds*
-- **502** A file edited under unsaved work obeys one policy: Prompt, Keep mine or Take the file *No clip: A settings row and one value both the map and the Files workspace read; proved by crates/bevy_dark_factory/tests/a_file_that_changes_under_edits_obeys_a_policy.rs, which keeps the map under KeepEditorChanges, takes the file under ReloadFromDisk, changes nothing under Prompt, and asserts both paths read one value*
-- **507** The Files workspace makes, renames, duplicates and deletes a file, as operations an agent can call *No clip: A right-click menu and four operations; proved by crates/bevy_dark_factory/tests/the_files_workspace_makes_renames_duplicates_and_deletes.rs, which creates notes/new.yaml and asserts the oplog line, one undo removing it, and the row in the tree before its 1.5 s poll, and refuses a rename or delete of a file another file names*
->>>>>>> refs/remotes/origin/fleet/wave-files
+- **504-frame-profile** A frame profile a person can open: the last frame's time, the heaviest system it ran and its share of the frame, over 120 frames of history, with blueprint/state.frame reporting the same frame_ms *No clip: a panel with no clip recorded yet, and no display on bmb; proved by tests/the_profile_names_a_system_the_frame_ran.rs*
+- **509-console** The editor's own log gets a panel: every info, warn and error in a console with a count per level, a line's whole text and frame one click away, and a chip that selects the piece a line names *No clip: a panel with no clip recorded yet, and no display on bmb; proved by tests/a_warn_from_a_system_reaches_the_console.rs*
+>>>>>>> refs/remotes/origin/fleet/wave-diag
 
 ## 2026-11-19
 

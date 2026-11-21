@@ -715,6 +715,8 @@ mod the_agent_guide_on_the_project_page;
 mod the_agent_guide_is_edited_by_label;
 mod the_guide_is_a_file_kind;
 mod a_broken_relation_is_a_problem_with_go_to;
+mod a_warn_from_a_system_reaches_the_console;
+mod the_profile_names_a_system_the_frame_ran;
 mod a_note_body_is_edited_on_several_lines;
 mod the_data_panel_is_a_table_and_a_cell_edit_is_one_data_set;
 mod an_operation_says_where_its_change_is_seen;

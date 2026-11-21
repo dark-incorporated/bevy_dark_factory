@@ -8501,7 +8501,7 @@ fn refresh_history(
 ) {
     // **This system's cost, into the frame's total** (UI-93, #259). The guard writes on drop, so the early return below
     // and every path after it are measured without the body having to remember to.
-    let spent = crate::ui_budget::measure(&mut budget);
+    let spent = crate::ui_budget::measure(&mut budget).named("editor::refresh_history");
     let Ok((mark, tree)) = built.single() else { return };
     if !state.is_changed() && !open.is_changed() {
         return;
