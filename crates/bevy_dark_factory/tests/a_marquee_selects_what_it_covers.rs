@@ -126,7 +126,6 @@ fn shift_drag(app: &mut App, from: Vec2, to: Vec2) {
             keys: vec![SHIFT_KEYS[0]],
             pointer: Some(from),
             mouse: Some(true),
-            ..default()
         },
     );
     step(

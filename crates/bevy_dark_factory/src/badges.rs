@@ -561,7 +561,6 @@ pub fn control_rect(world: &mut World, id: keys::ControlId) -> Option<Rect> {
 /// `chrome::panel_root`'s hidden form is `Display::None`, which measures zero — that is a whole
 /// panel belonging to a tab nobody is on, and a badge aimed at it would point at nothing. That is
 /// the only way to be absent, and [`resolve`] sends those verbs to the legend.
-
 ///
 /// # A row scrolled past the fold used to count as absent, and that was the wrong answer
 ///

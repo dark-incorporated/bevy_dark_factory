@@ -15,7 +15,7 @@
 //!   import says so before anything lands in a library.
 
 use blueprint_model::glb::Glb;
-use blueprint_model::import::{self, Severity};
+use blueprint_model::import;
 use blueprint_model::library::{LIBRARY_VERSION, Library};
 
 /// A container, so a fixture is bytes and not a directory of files.

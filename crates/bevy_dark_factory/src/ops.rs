@@ -6597,7 +6597,9 @@ pub mod piece_import {
                         Refusal::new(format!("could not make {}: {e}", parent.display()))
                     })?;
                 }
-                std::fs::write(&kept_abs, &kept)
+                // **Atomic, through `write_new`**: the ratchet at `atomic_writes_only` names this
+                // line when it is plain, and a reader must never see half a mesh part.
+                blueprint_model::atomic_file::write_new(&kept_abs, &kept)
                     .map_err(|e| Refusal::new(format!("could not write {}: {e}", kept_abs.display())))?;
                 (kept_abs, kept_rel, Some(name.to_owned()))
             }
@@ -9187,9 +9189,7 @@ fn moved_under_a_put_back(
     // (`plan.inverse`), not on the line it comes from: a redo of a removal dispatches a removal, and a
     // redo of a put-back dispatches a put-back, so reading the line's own inverse would refuse the
     // first and let the second through.
-    if plan.inverse.get("put_back").is_none() {
-        return None;
-    }
+    plan.inverse.get("put_back")?;
     // **The newest move still in effect that happened after this line.** A move the person has taken
     // back is not one, so the answer follows the stack of changes rather than the log's length.
     let newest = lines
@@ -9224,14 +9224,10 @@ fn moved_under_a_put_back(
                 .collect()
         })
         .unwrap_or_default();
-    let Some(map) = ctx.open.as_ref().map(|o| &o.map) else {
-        return None;
-    };
+    let map = ctx.open.as_ref().map(|o| &o.map)?;
     // **The moved piece's row now.** A put-back inserts at the rows it recorded, so a piece standing
     // at or past the first of them is pushed along by it.
-    let Some(index) = map.placements.iter().position(|p| p.id == piece) else {
-        return None;
-    };
+    let index = map.placements.iter().position(|p| p.id == piece)?;
     let first = rows.iter().copied().min()?;
     if index < first {
         return None;

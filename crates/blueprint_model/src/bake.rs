@@ -382,10 +382,10 @@ fn check_stamps(root: &Path) -> Result<(), Problem> {
             break;
         }
         let file = dir.join(crate::composition::Compositions::FILE);
-        if let Ok(text) = std::fs::read_to_string(&file) {
-            if let Ok(set) = crate::composition::Compositions::parse(&text) {
-                defined.extend(set.compositions.iter().map(|c| c.id.clone()));
-            }
+        if let Ok(text) = std::fs::read_to_string(&file)
+            && let Ok(set) = crate::composition::Compositions::parse(&text)
+        {
+            defined.extend(set.compositions.iter().map(|c| c.id.clone()));
         }
         // A kit is a subdirectory holding a `library.yaml`, which is what `Catalog::scan` tests; that
         // is the same walk, so a kit this misses is one the project does not have.

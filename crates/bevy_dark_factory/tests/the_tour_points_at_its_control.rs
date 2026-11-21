@@ -270,7 +270,6 @@ fn a_click_at_the_outlined_control_reaches_it() {
         .world_mut()
         .query_filtered::<Entity, With<tour::TourPointerLayer>>()
         .single(app.world())
-        .ok()
         .expect("a running step with a control draws a pointer layer");
     let world = app.world_mut();
     let mut parents = world.query::<&ChildOf>();

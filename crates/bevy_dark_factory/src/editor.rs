@@ -8746,15 +8746,15 @@ impl StatusInk {
 struct StatusReads<'w> {
     project: Res<'w, Project>,
     faults: Res<'w, EdgeFaults>,
+    open: Res<'w, OpenMap>,
+    state: Res<'w, EditorState>,
+    under: Res<'w, UnderCursor>,
     /// **The status line's ink, from the editor's skin** (UI-02, #210).
     skin: Option<Res<'w, bevy_gooey::GooeySkin>>,
 }
 
 fn refresh_status(
-    StatusReads { project, faults, skin }: StatusReads<'_>,
-    open: Res<OpenMap>,
-    state: Res<EditorState>,
-    under: Res<UnderCursor>,
+    StatusReads { project, faults, skin, open, state, under }: StatusReads<'_>,
     timer: Option<Res<crate::autosave::AutoSave>>,
     // **When the relations file was last read**, on the wall clock: a file on disk changes on it, and
     // virtual time clamps a long frame to 250 ms and can be paused.
@@ -17077,15 +17077,23 @@ fn drive_marquee(
     });
 }
 
+/// **What one frame of hovering reads**, bundled so `sense_under_cursor` is under clippy's limit.
+#[derive(bevy::ecs::system::SystemParam)]
+struct SenseReads<'w, 's> {
+    pointer: Res<'w, crate::view::Pointer>,
+    camera: Option<Single<'w, 's, (&'static Camera, &'static GlobalTransform), With<MainCamera>>>,
+    project: Res<'w, Project>,
+    open: Res<'w, OpenMap>,
+    lock: ResMut<'w, TargetLock>,
+    under: ResMut<'w, UnderCursor>,
+    ui_nodes: Query<'w, 's, (&'static bevy::ui::ComputedNode, &'static bevy::ui::UiGlobalTransform),
+        With<Hovered>>,
+    areas: Option<ResMut<'w, crate::design_areas::StyleAreas>>,
+}
+
 fn sense_under_cursor(
-    pointer: Res<crate::view::Pointer>,
-    camera: Option<Single<(&Camera, &GlobalTransform), With<MainCamera>>>,
-    project: Res<Project>,
-    open: Res<OpenMap>,
-    mut lock: ResMut<TargetLock>,
-    mut under: ResMut<UnderCursor>,
-    ui_nodes: Query<(&bevy::ui::ComputedNode, &bevy::ui::UiGlobalTransform), With<Hovered>>,
-    areas: Option<ResMut<crate::design_areas::StyleAreas>>,
+    SenseReads { pointer, camera, project, open, mut lock, mut under, ui_nodes, areas }:
+        SenseReads<'_, '_>,
 ) {
     let on_ui = crate::view::over_ui(
         pointer.0,
@@ -18567,22 +18575,25 @@ fn accept_layout(
 /// The save itself is `OpenMap::save`, unchanged — it validates and expands the stamps the way the
 /// game does, so a map the game could not load is refused here rather than written. What changed is
 /// that the act has a name an agent can call, and that the two front ends cannot drift.
-<<<<<<< HEAD
-/// **The same call a `Cmd+S` makes**, for a caller outside this file: the periodic save (#508) dispatches `map_save` through
-/// this, so a timer's save is a person's save in the log and an undo sees one line.
-pub fn save_map_public(project: &Project, open: &mut OpenMap, state: &mut EditorState) {
-    save_map(project, open, state);
+/// **The same call a `Cmd+S` makes**, for a caller outside this file (#508): the periodic save
+/// dispatches this, so a timer's save is a person's save in the log and an undo sees one line.
+/// It takes the map card's `PaintAfterSave` too (#506): a public save that skipped the picture
+/// would leave a card showing a stale render.
+pub fn save_map_public(
+    project: &Project,
+    open: &mut OpenMap,
+    state: &mut EditorState,
+    paint_after_save: &mut crate::map_thumbs::PaintAfterSave,
+) {
+    save_map(project, open, state, paint_after_save);
 }
 
-fn save_map(project: &Project, open: &mut OpenMap, state: &mut EditorState) {
-=======
 fn save_map(
     project: &Project,
     open: &mut OpenMap,
     state: &mut EditorState,
     paint_after_save: &mut crate::map_thumbs::PaintAfterSave,
 ) {
->>>>>>> refs/remotes/origin/fleet/wave-assets
     let mut ctx = crate::ops::Ctx {
         project: Some(project.clone()),
         open: Some(std::mem::replace(open, empty_map_for_take())),

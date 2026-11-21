@@ -408,19 +408,48 @@ const OUTLINE_PX: f32 = 2.0;
 /// restated), and writes the outline and arrow from it. A step that names a control which is not on screen **raises a
 /// problem** naming the step and the control rather than drawing nothing — `renzora_tutorial`'s silent miss is the
 /// failure this is designed against, and it is raised once per step rather than once a frame.
+/// **What a step reads** — its resources, bundled so `point_at_the_step` is under clippy's limit.
+#[derive(bevy::ecs::system::SystemParam)]
+struct StepReads<'w, 's> {
+    guide: Option<Res<'w, Guide>>,
+    controls: Option<Res<'w, ScriptControls>>,
+    frame: Option<Res<'w, crate::chrome::Frame>>,
+    ui_scale: Res<'w, UiScale>,
+    _marker: std::marker::PhantomData<&'s ()>,
+}
+
+/// A node and its children, shown by the tour's pointer layer.
+type LayerQuery<'w, 's> = Query<'w, 's, (&'static mut bevy_gooey::Shown, &'static Children),
+    With<TourPointerLayer>>;
+/// A node's placement and visibility — the outline and the arrow share the shape.
+type PlaceQuery<'w, 's, F> = Query<'w, 's, (&'static mut Node, &'static mut Visibility), F>;
+/// The arrow also carries its own text.
+type ArrowQuery<'w, 's> = Query<'w, 's,
+    (&'static mut Node, &'static mut Visibility, &'static mut Text),
+    (With<TourArrow>, Without<TourOutline>)>;
+/// Where every drawn box stands, which is what the tour aims at.
+type BoxQuery<'w, 's> = Query<'w, 's, (&'static ComputedNode, &'static UiGlobalTransform)>;
+/// A control that is on screen, with the box it occupies.
+type ScreenQuery<'w, 's> = Query<'w, 's,
+    (Entity, &'static crate::chrome::Control, &'static ComputedNode, &'static UiGlobalTransform)>;
+
+/// **What a step draws into** — the five queries, named rather than six complex types inline.
+#[derive(bevy::ecs::system::SystemParam)]
+struct StepQueries<'w, 's> {
+    layers: LayerQuery<'w, 's>,
+    outline: PlaceQuery<'w, 's, (With<TourOutline>, Without<TourArrow>)>,
+    arrow: ArrowQuery<'w, 's>,
+    boxes: BoxQuery<'w, 's>,
+    controls_on_screen: ScreenQuery<'w, 's>,
+}
+
 fn point_at_the_step(
-    guide: Option<Res<Guide>>,
-    controls: Option<Res<ScriptControls>>,
+    StepReads { guide, controls, frame, ui_scale, .. }: StepReads<'_, '_>,
     mut said: Option<ResMut<EditorState>>,
     mut complained: ResMut<PointedAt>,
-    frame: Option<Res<crate::chrome::Frame>>,
-    ui_scale: Res<UiScale>,
-    mut layers: Query<(&mut bevy_gooey::Shown, &Children), With<TourPointerLayer>>,
-    mut outline: Query<(&mut Node, &mut Visibility), (With<TourOutline>, Without<TourArrow>)>,
-    mut arrow: Query<(&mut Node, &mut Visibility, &mut Text), (With<TourArrow>, Without<TourOutline>)>,
-    boxes: Query<(&ComputedNode, &UiGlobalTransform)>,
-    controls_on_screen: Query<(Entity, &crate::chrome::Control, &ComputedNode, &UiGlobalTransform)>,
+    drawn: StepQueries<'_, '_>,
 ) {
+    let StepQueries { mut layers, mut outline, mut arrow, boxes, controls_on_screen } = drawn;
     let (Some(guide), Some(controls)) = (guide, controls) else {
         return;
     };

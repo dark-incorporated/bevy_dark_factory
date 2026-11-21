@@ -54,16 +54,24 @@ pub fn band_text(remaining: f64, armed: bool) -> String {
 /// The map's save is [`crate::editor::save_map_public`] (which dispatches `map_save`, so the log records it exactly as
 /// `Cmd+S` does) and the buffers' is [`Files::save_all`] — the two calls a person's own `Cmd+S` and their leaving the
 /// editor make, so a timer cannot write something a key would not.
+/// **What a tick reads**, bundled so `tick` stays under clippy's argument limit.
+#[derive(bevy::ecs::system::SystemParam)]
+pub struct AutoSaveReads<'w> {
+    pub settings: Option<Res<'w, crate::settings::EditorSettings>>,
+    pub project: Option<Res<'w, Project>>,
+    pub open: Option<ResMut<'w, OpenMap>>,
+    pub files: Option<ResMut<'w, Files>>,
+    pub confirm: Option<Res<'w, Confirm>>,
+    pub state: Option<ResMut<'w, EditorState>>,
+}
+
 pub fn tick(
     // **The editor's own clock** (`Time`, which is `Time<Virtual>`), not the wall clock: a countdown that ran on real seconds
     // would fire while the app is paused, and the frame's own step is what "an interval" means here.
+    AutoSaveReads { settings, project, mut open, mut files, confirm, mut state }: AutoSaveReads<'_>,
     time: Res<Time>,
-    settings: Option<Res<crate::settings::EditorSettings>>,
-    project: Option<Res<Project>>,
-    mut open: Option<ResMut<OpenMap>>,
-    mut files: Option<ResMut<Files>>,
-    confirm: Option<Res<Confirm>>,
-    mut state: Option<ResMut<EditorState>>,
+    // **The map cards' pictures** (#506): a periodic save refreshes the render behind a card.
+    mut paint_after_save: ResMut<crate::map_thumbs::PaintAfterSave>,
     mut timer: ResMut<AutoSave>,
 ) {
     let interval = settings.as_deref().map(|s| s.auto_save_interval_s).unwrap_or(0.0);
@@ -99,7 +107,7 @@ pub fn tick(
     if let (Some(open), Some(state)) = (open.as_deref_mut(), state.as_deref_mut())
         && open.dirty()
     {
-        crate::editor::save_map_public(&project, open, state);
+        crate::editor::save_map_public(&project, open, state, &mut paint_after_save);
     }
     // **The buffers**, through the one call a person's leaving makes. **A read-only buffer is skipped rather than refused**:
     // a refusal every interval would be a toast nobody can dismiss, and there is nothing to save in a command file anyway.
@@ -121,6 +129,7 @@ pub struct AutoSavePlugin;
 
 impl Plugin for AutoSavePlugin {
     fn build(&self, app: &mut App) {
-        app.init_resource::<AutoSave>().add_systems(Update, tick.run_if(in_state(Screen::Editor)));
+        app.init_resource::<crate::map_thumbs::PaintAfterSave>()
+            .init_resource::<AutoSave>().add_systems(Update, tick.run_if(in_state(Screen::Editor)));
     }
 }

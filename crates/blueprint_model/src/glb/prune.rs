@@ -82,7 +82,7 @@ fn kept_nodes(json: &Value, chosen: usize) -> Vec<usize> {
     }
 
     // Upwards: a parent's transform is part of where the chosen node stands.
-    for ix in 0..nodes.len() {
+    for (ix, _) in nodes.iter().enumerate() {
         if keep.contains(&ix) {
             continue;
         }
@@ -460,10 +460,10 @@ pub(super) fn keep_only(glb: &Glb, chosen: usize) -> Result<Vec<u8>, String> {
         // **Point the primitive at it**, in the mesh this primitive belongs to.
         let Some(m) = chosen_mesh else { continue };
         let Some(new_mesh_ix) = mesh_map.get(m).copied().flatten() else { continue };
-        if let Some(prims) = new_meshes[new_mesh_ix]["primitives"].as_array_mut() {
-            if let Some(prim) = prims.get_mut(prim_ix) {
-                prim["attributes"]["POSITION"] = json!(accessor_ix);
-            }
+        if let Some(prims) = new_meshes[new_mesh_ix]["primitives"].as_array_mut()
+            && let Some(prim) = prims.get_mut(prim_ix)
+        {
+            prim["attributes"]["POSITION"] = json!(accessor_ix);
         }
     }
     out.insert("meshes".into(), Value::Array(new_meshes));

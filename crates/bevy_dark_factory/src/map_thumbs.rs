@@ -265,11 +265,11 @@ pub fn capture_the_saved_map(
                 (MAP_THUMB_PX as f32 / MAP_CARD_ASPECT).round() as u32,
                 image::imageops::FilterType::Triangle,
             );
-            if let Some(parent) = path.parent() {
-                if let Err(e) = std::fs::create_dir_all(parent) {
-                    warn!("could not make {}: {e}", parent.display());
-                    return;
-                }
+            if let Some(parent) = path.parent()
+                && let Err(e) = std::fs::create_dir_all(parent)
+            {
+                warn!("could not make {}: {e}", parent.display());
+                return;
             }
             if let Err(e) = card.save(&path) {
                 warn!("could not write {}: {e}", path.display());

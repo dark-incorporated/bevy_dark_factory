@@ -503,7 +503,7 @@ fn draw_body(commands: &mut Commands, body: Entity, page: &ProjectPage, map_menu
                 // piece's portrait is square.
                 let picture = map_pictures
                     .for_map(images, &page.root, &m.path)
-                    .map(|image| ImageNode::new(image));
+                    .map(ImageNode::new);
                 (m.clone(), picture.or_else(|| fallback.clone()))
             })
             .collect::<Vec<_>>();
