@@ -2,6 +2,10 @@
 
 What each change added, newest first. A visible change has a clip: click the still to play it. `python3 tools/changelog/changelog.py page --open` plays them all in one page.
 
+## 2026-11-22
+
+- **497** `bdb26784` At text scale 3.0 the terminal bar clips instead of pushing the pane past the window, so the Start agent button can be clicked *No clip: no visible clip needed; proved by the_leds_word_is_the_size_of_a_chip_in_the_bar_and_of_a_row_on_the_card_at_every_text_size*
+
 ## 2026-11-21
 
 - **ci-weekly** `9f3ab9f6` the nightly CI runs weekly, since the daily re-tested a tree the gate had just passed *No clip: a workflow change; proved by #528's measurement*
