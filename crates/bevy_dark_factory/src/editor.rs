@@ -1620,8 +1620,7 @@ struct DataCellEdit {
 }
 
 /// Column widths of the DATA table, in body text sizes (gooey's `Column::width`): a registry id such as `tuning/mob`, a leaf
-/// path such as `mob.speed`, and the value, which takes the room that is left. Every column wraps (`Column::wrap`, bevy_gooey#109): a long id, path or
-/// value is broken at the cell's edge instead of being drawn out past it, and a row is as tall as its tallest cell.
+/// path such as `mob.speed`, and the value, which takes the room that is left.
 const DATA_COLUMN_FILE_W: f32 = 5.0;
 const DATA_COLUMN_PATH_W: f32 = 8.0;
 const DATA_COLUMN_VALUE_W: f32 = 9.0;
@@ -6871,9 +6870,9 @@ fn refresh_data_list(
                 p.spawn((
                     bevy_gooey::table(
                         [
-                            bevy_gooey::Column::new("File").width(DATA_COLUMN_FILE_W).wrap(),
-                            bevy_gooey::Column::new("Path").width(DATA_COLUMN_PATH_W).wrap(),
-                            bevy_gooey::Column::new("Value").width(DATA_COLUMN_VALUE_W).wrap(),
+                            bevy_gooey::Column::new("File").width(DATA_COLUMN_FILE_W),
+                            bevy_gooey::Column::new("Path").width(DATA_COLUMN_PATH_W),
+                            bevy_gooey::Column::new("Value").width(DATA_COLUMN_VALUE_W),
                         ],
                         DataRows(rows.clone()),
                     ),
