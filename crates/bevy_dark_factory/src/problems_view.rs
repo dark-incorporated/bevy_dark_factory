@@ -238,6 +238,7 @@ struct Held {
 /// clock of its own), so an edit to it, its undo and a hand edit all show once the index has seen them: within a debounce and a sweep
 /// ([`crate::project_index`]). The relations are checked again when the open map changes, which needs no file: a moved piece shows on the
 /// frame it moves. The rows are rebuilt only when what they say changed.
+#[allow(clippy::too_many_arguments)]
 fn refresh_problems_list(
     mut commands: Commands,
     index: Res<ProjectIndex>,
