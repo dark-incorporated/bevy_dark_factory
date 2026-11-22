@@ -8,6 +8,8 @@
 //! What is not a row yet: the checks of `blueprint_state.checks` and the reload verdicts. Both have their own panels; folding them in
 //! here is a later slice of #240.
 
+use std::path::Path;
+
 use bevy::prelude::*;
 use bevy::ui_widgets::Activate;
 use blueprint_model::map::Placed;
@@ -16,12 +18,11 @@ use blueprint_model::relations::{self, Kind, Outcome, Relation, Relations};
 use crate::compose::PanelInk;
 use crate::editor::{EditorState, FrameTarget, TargetLock, apply_frame, aspect_of, resolve_frame};
 use crate::project::{OpenMap, Project};
+use crate::project_index::ProjectIndex;
 use crate::screen::Screen;
 use crate::selection::Selection;
 use crate::view::{MainCamera, Rig};
-
-/// How often the section looks at the relations file again, in seconds.
-const READ_SECS: f32 = 0.5;
+use crate::world_lists::Follow;
 
 /// The section's list, inside the Map door's inspector.
 #[derive(Component, Clone, Copy)]
@@ -47,6 +48,7 @@ pub struct ProblemsViewPlugin;
 
 impl Plugin for ProblemsViewPlugin {
     fn build(&self, app: &mut App) {
+        crate::project_index::ensure(app);
         app.add_observer(on_problem_go_to)
             .add_systems(Update, (refresh_problems_list, show_the_problems_on_the_chord).run_if(in_state(Screen::Editor)));
     }
@@ -174,21 +176,42 @@ enum Said {
     Line { words: String, unreadable: bool },
 }
 
-fn said_for(open: &OpenMap) -> Said {
-    let path = relations::path_for_map(&open.map_path);
-    let unreadable = || {
-        let name = path.file_name().map_or_else(|| path.display().to_string(), |n| n.to_string_lossy().into_owned());
-        Said::Line { words: format!("{name} does not read"), unreadable: true }
-    };
-    let relations = match std::fs::read_to_string(&path) {
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Said::Line { words: "no problems".to_owned(), unreadable: false },
-        Err(_) => return unreadable(),
+/// **What the relations file said when it was last read.**
+enum RelationsFile {
+    /// There is none: nothing is broken.
+    Absent,
+    Read(Relations),
+    /// It is there and does not read, or the project index cannot answer for it: the line the section says instead.
+    Broken(String),
+}
+
+/// **Read the relations file at `path`**: not there is `no problems`; a file that cannot be read or does not parse is logged and said
+/// by name, never taken for an empty one.
+fn read_relations(path: &Path) -> RelationsFile {
+    let name = path.file_name().map_or_else(|| path.display().to_string(), |n| n.to_string_lossy().into_owned());
+    match std::fs::read_to_string(path) {
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => RelationsFile::Absent,
+        Err(e) => {
+            warn!("{name} cannot be read: {e}");
+            RelationsFile::Broken(format!("{name} does not read"))
+        }
         Ok(text) => match Relations::parse(&text) {
-            Ok(r) => r,
-            Err(_) => return unreadable(),
+            Ok(relations) => RelationsFile::Read(relations),
+            Err(e) => {
+                warn!("{name} does not parse: {e}");
+                RelationsFile::Broken(format!("{name} does not read"))
+            }
         },
+    }
+}
+
+fn said_for(open: &OpenMap, file: &RelationsFile) -> Said {
+    let relations = match file {
+        RelationsFile::Absent => return Said::Line { words: "no problems".to_owned(), unreadable: false },
+        RelationsFile::Broken(words) => return Said::Line { words: words.clone(), unreadable: true },
+        RelationsFile::Read(relations) => relations,
     };
-    let outcomes = relations::check_map(&open.map.placements, &relations);
+    let outcomes = relations::check_map(&open.map.placements, relations);
     let rows: Vec<ProblemRow> = relations
         .relations
         .iter()
@@ -203,33 +226,62 @@ fn said_for(open: &OpenMap) -> Said {
     if rows.is_empty() { Said::Line { words: "no problems".to_owned(), unreadable: false } } else { Said::Rows(rows) }
 }
 
-/// **Keep the section equal to the open map's broken relations.** The file is read twice a second, so an edit to it, an undo
-/// and a moved piece all show; the rows are rebuilt only when what they say changed.
+/// What the section keeps between frames: what it says, the relations file it follows, and what that file held when it was last read.
+#[derive(Default)]
+struct Held {
+    said: Option<Said>,
+    file: Follow,
+    relations: Option<RelationsFile>,
+}
+
+/// **Keep the section equal to the open map's broken relations.** The relations file is read when the project index says it moved (#501: no
+/// clock of its own), so an edit to it, its undo and a hand edit all show once the index has seen them: within a debounce and a sweep
+/// ([`crate::project_index`]). The relations are checked again when the open map changes, which needs no file: a moved piece shows on the
+/// frame it moves. The rows are rebuilt only when what they say changed.
 fn refresh_problems_list(
     mut commands: Commands,
-    time: Res<Time>,
+    index: Res<ProjectIndex>,
+    project: Option<Res<Project>>,
     open: Option<Res<OpenMap>>,
     skin: Option<Res<bevy_gooey::GooeySkin>>,
     lists: Query<Entity, With<ProblemsList>>,
     unfilled: Query<Entity, (With<ProblemsList>, Without<Children>)>,
-    mut local: Local<(Option<Said>, f32)>,
+    mut held: Local<Held>,
 ) {
-    let (shown, since) = &mut *local;
-    *since += time.delta_secs();
-    if shown.is_some() && *since < READ_SECS {
-        return;
-    }
-    *since = 0.0;
     let Some(open) = open else { return };
-    let now = said_for(&open);
+    let Held { said, file, relations: loaded } = &mut *held;
+    let inputs_changed = open.is_changed() || project.as_ref().is_some_and(|p| p.is_changed());
+    let mut stale = said.is_none() || open.is_changed();
+    match file.moved(&index, project.as_deref(), inputs_changed, |_| Some(relations::path_for_map(&open.map_path))) {
+        Some(Ok(path)) => {
+            *loaded = Some(read_relations(&path));
+            stale = true;
+        }
+        Some(Err(why)) => {
+            warn!("{why}");
+            *loaded = Some(RelationsFile::Broken(why));
+            stale = true;
+        }
+        None => {}
+    }
+    let Some(file_said) = loaded.as_ref() else { return };
+    let mut rebuild = false;
+    if stale {
+        let now = said_for(&open, file_said);
+        if said.as_ref() != Some(&now) {
+            *said = Some(now);
+            rebuild = true;
+        }
+    }
+    let Some(now) = said.as_ref() else { return };
     // A list with no children is one a door change just respawned: it is filled again even when nothing it says changed.
-    if shown.as_ref() == Some(&now) && unfilled.is_empty() {
+    if !rebuild && unfilled.is_empty() {
         return;
     }
     let ink = PanelInk::of(skin.as_deref());
     for list in &lists {
         commands.entity(list).despawn_related::<Children>();
-        commands.entity(list).with_children(|p| match &now {
+        commands.entity(list).with_children(|p| match now {
             Said::Line { words, unreadable } => {
                 let colour = if *unreadable { ink.danger } else { ink.quiet };
                 p.spawn((Text::new(words.clone()), TextColor(colour), crate::chrome::typed(crate::chrome::text::LABEL)));
@@ -250,7 +302,6 @@ fn refresh_problems_list(
             }
         });
     }
-    *shown = Some(now);
 }
 
 /// **Go to: select the pieces and frame them**, as a click on the outliner's rows selects (the first is the primary) and as an

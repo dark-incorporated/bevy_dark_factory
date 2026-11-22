@@ -253,7 +253,7 @@ These are written but are not project data, so they have no class. None is read 
 - [ ] 6. `notes_view` `RECHECK_SECS` (1.0)
 - [ ] 7. `oplog_view` `RECHECK_SECS` (1.0)
 - [ ] 8. `checks_view` `RECHECK_SECS` (1.0)
-- [ ] 9. `problems_view` `READ_SECS` (0.5)
+- [x] 9. `problems_view` `READ_SECS` (0.5): the relations file is read when its stamp in the index moves, and the relations are checked again on the frame the open map changes, which needs no file (`the_problems_list_follows_the_project_index`)
 - [x] 10. `world_lists` `READ_SECS` (0.5): the water, forest and cue lists read their file when its stamp in the index moves (`world_lists::Follow`, which items 9 and 14 reuse), the lights and the cue uses rebuild when the map or the choice changes; none reads on a clock (`the_world_lists_follow_the_project_index`)
 - [ ] 11. `reference_view` `RECHECK_SECS` (1.0)
 - [ ] 12. `forest_view` `POLL_S` (0.5)
