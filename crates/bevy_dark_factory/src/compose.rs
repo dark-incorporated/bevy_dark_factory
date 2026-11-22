@@ -2562,19 +2562,17 @@ fn rebuild(input: ComposeInput<'_, '_>) {
                                 bevy_gooey::cell(0.0),
                                 crate::chrome::Control(crate::keys::ControlId::ComposeNames),
                             ));
-                            row.spawn((
-                                Text::new(text),
-                                TextColor(ink.read),
-                                crate::chrome::typed(ROW_PX),
-                            ));
+                            // **The row's words take the room the row leaves and break inside it** (#494): a bare `Text` kept
+                            // its longest word's width, so at the smallest interface size a group's `id  —  n member(s)` line
+                            // was drawn 30 px past the COMPOSE panel's content edge, over its border and into the gutter.
+                            let mut name = crate::chrome::fill_text(row, text, ink.read, ROW_PX);
                             if armed {
-                                // The armed mark in its own ink — the same `*` the stage labels
-                                // carry for "this is the one a stamp places".
-                                row.spawn((
-                                    Text::new("  *"),
-                                    TextColor(ink.accent),
-                                    crate::chrome::typed(ROW_PX),
-                                ));
+                                // **The armed mark is a span of the name's own text**, in its own ink — the same `*` the stage
+                                // labels carry for "this is the one a stamp places". The name now fills the row, so a mark spawned
+                                // as a sibling after it would stand at the row's far right; a span stands right after the last word.
+                                // (A `TextSpan` is not rewritten when the person's text size changes, see `chrome::resize_the_labels`;
+                                // the row is rebuilt whenever the groups or the armed one change.)
+                                name.with_child((TextSpan::new("  *"), TextColor(ink.accent), crate::chrome::typed(ROW_PX)));
                             }
                         },
                     );
@@ -2582,11 +2580,7 @@ fn rebuild(input: ComposeInput<'_, '_>) {
                 Line::Member { ix, text, at } => {
                     crate::chrome::list_row(p, at, (MemberRow(ix), ComposeLine)).with_children(
                         |row| {
-                            row.spawn((
-                                Text::new(text),
-                                TextColor(ink.read),
-                                crate::chrome::typed(ROW_PX),
-                            ));
+                            crate::chrome::fill_text(row, text, ink.read, ROW_PX);
                         },
                     );
                 }
