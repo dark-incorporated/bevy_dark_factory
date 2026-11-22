@@ -2,6 +2,10 @@
 
 What each change added, newest first. A visible change has a clip: click the still to play it. `python3 tools/changelog/changelog.py page --open` plays them all in one page.
 
+## 2026-11-22
+
+- **fleet-wave10** `c2eeb243` wave 10 report: the release that shipped without a name or an icon, and the loop that had been dead for fourteen days *No clip: a report and runbook facts; no code*
+
 ## 2026-11-21
 
 - **org-refs** `f649c9e8` The repository's own addresses name its real organization, dark-incorporated *For you: The Report, Guide and Changelog links in the app open the right pages again.* *No clip: a rename of the repository's own addresses; proved by cargo metadata --locked resolving every git dependency at its new URL*
