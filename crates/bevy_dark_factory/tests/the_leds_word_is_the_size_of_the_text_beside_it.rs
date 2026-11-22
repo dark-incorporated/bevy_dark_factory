@@ -124,7 +124,7 @@ fn the_leds_word_is_the_size_of_a_chip_in_the_bar_and_of_a_row_on_the_card_at_ev
                 && row_size(app).is_some()
                 && chip == Some(FontSize::Px(10.0 * scale))
         });
-        assert!(app.world().resource::<Terminal>().len() > 0, "text scale {scale}: the click on the Invoke button started the agent");
+        assert!(!app.world().resource::<Terminal>().is_empty(), "text scale {scale}: the click on the Invoke button started the agent");
         for _ in 0..4 {
             app.update();
         }
