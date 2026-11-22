@@ -1006,10 +1006,16 @@ pub const COL_WIDE: f32 = 96.0;
 ///
 /// The separation is the work — a heading with the same gap above it as below is a label that could
 /// belong to either side.
+///
+/// **A word longer than the panel breaks at a letter** (`LineBreak::WordOrCharacter`, #535): a heading can carry a name, as COMPOSE's
+/// `MEMBERS OF <group id>` does, and with Bevy's word-boundary break a 50-character id stayed one word and was laid out 500 px past the panel's
+/// content box at the capture's scale, where a clip hid it and a larger interface scale drew the panel empty. The break alone, and no zero
+/// minimum width, is [`body`]'s and [`row_value`]'s: the box keeps reserving its own line.
 pub fn section<'a>(parent: &'a mut ChildSpawnerCommands, label: &str) -> EntityCommands<'a> {
     parent.spawn((
         Text::new(label.to_owned()),
         TextColor(ink().label),
+        TextLayout::new(Justify::Left, LineBreak::WordOrCharacter),
         typed(text::HEADING),
         spaced(bevy_gooey::Sides { top: Some(STEP_GROUP), bottom: Some(STEP_TIGHT), ..NO_MARGIN }),
     ))

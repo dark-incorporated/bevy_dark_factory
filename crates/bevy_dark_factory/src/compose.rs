@@ -396,20 +396,15 @@ fn rebuild_picker(
             let is_cursor = picker.selected == ix;
             crate::chrome::list_row(p, is_cursor, (picker::PickerRow(ix),))
                 .with_children(|row| {
-                    row.spawn((
-                        Text::new(c.id.clone()),
-                        TextColor(ink.read),
-                        crate::chrome::typed(crate::chrome::text::BODY),
-                    ));
+                    // **The id wraps inside the row and breaks a long word at a letter** (#535): a bare `Text` kept the whole width of a
+                    // 50-character id, laid out 325 px past the INSPECTOR's content box at the capture's scale, where a clip hid it.
+                    let mut name = crate::chrome::fill_text(row, c.id.clone(), ink.read, crate::chrome::text::BODY);
                     if is_armed {
                         // **The armed mark in its own ink** — the same `*` the COMPOSE tab's rows
                         // carry for "this is the one a stamp places", so the two lists say the same
-                        // thing the same way.
-                        row.spawn((
-                            Text::new("  *"),
-                            TextColor(ink.accent),
-                            crate::chrome::typed(crate::chrome::text::BODY),
-                        ));
+                        // thing the same way. **A span of the id's own text**, as there: the id now fills the row, so a sibling would
+                        // stand at the row's far right.
+                        name.with_child((TextSpan::new("  *"), TextColor(ink.accent), crate::chrome::typed(crate::chrome::text::BODY)));
                     }
                 })
                 // **Pickable, and that is what makes the row a button.**
