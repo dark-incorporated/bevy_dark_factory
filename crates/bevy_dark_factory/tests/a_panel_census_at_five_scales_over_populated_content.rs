@@ -1,38 +1,57 @@
 //! **A panel's controls stay inside its own content box, at five interface scales, over content that
 //! fills the panel** (#494, `feedback-1794921716691`).
 //!
-//! # Why this file exists beside `a_panel_control_stays_inside_its_content_box`
+//! # Why this file exists beside the two earlier tests
 //!
-//! That test passes with 0.0 px of overhang on all seven panels, and a green that could never have been
-//! red proves nothing. Measured against the capture, it differs from it in four ways, and this file
-//! removes each:
+//! `a_panel_control_stays_inside_its_content_box` passed with 0.0 px of overhang on all seven panels, and
+//! `no_panel_draws_a_control_past_its_own_content_box` passes on the four panes it stages. A green that could never
+//! have been red proves nothing, so what each could and could not see was read, not assumed:
 //!
-//! | The earlier census | The capture | This file |
-//! |---|---|---|
-//! | `interface_scale` 1.0 and 1.6 | `ui_scale` 2.4 at 2560 x 1604 physical | 0.5, 1.0, 1.6, 2.4 and 3.0, **at the capture's window**, 2560 x 1604 at a 2.0 display factor |
-//! | text at 100% | the capture's glyph pitch is the 150% rung ([`CAPTURE_TEXT_SCALE`]) | both 100% and 150% |
-//! | one descriptor, nothing in any list | a panel populated from a kit | 36 pieces with 50-character names, long kind/effect/look tokens, a second kit with a long name, 30 import candidates, 14 placements, 12 compositions and 12 tiles with long names, 6 rigs of 10 clips (the rig bench opened, as `Cmd`/`Ctrl`+`R` opens it) |
-//! | a node's **box** against the content box | the capture is a *glyph* drawn over the border | the union of the box and **the glyphs it paints** (`TextLayoutInfo`), so a text wider than its node counts |
+//! | | `a_panel_control_...` | `no_panel_draws_...` | this file |
+//! |---|---|---|---|
+//! | interface scales | 1.0, 1.6 | 1.0, 1.6 | 0.5, 1.0, 1.6, 2.4, 3.0 |
+//! | text size | 100% | 150% (the capture's) | 100% and 150% |
+//! | window | 2560 x 1406 | the capture's 2560 x 1604 | the capture's 2560 x 1604 |
+//! | content | one descriptor | an empty library, four pack meshes | [`PIECES`] pieces with 50-character names and long tags, a second kit, [`CANDIDATES`] import candidates, [`GROUPS`] groups, [`GROUPS`] tiles, [`RIGS`] rigs of [`CLIPS`] clips (bench opened), every name long |
+//! | what is measured | node boxes only (`ComputedNode`) | the box united with the painted glyphs (`TextLayoutInfo`), counted whether or not a clip hides them | the box united with the painted glyphs, **cut by `CalculatedClip`**, so only what is seen counts; the laid-out figure is printed beside it |
+//! | panels | seven `PanelWidth` panels | four panes | every panel shown on nine modes, and the left pane |
 //!
-//! The last row is the one that matters most: a node can be narrower than the words in it, and the old
-//! census, which read only `ComputedNode`, could not see that half of the defect.
+//! So the sibling already read glyphs; what neither earlier test had was **populated content** (the Tiles rows, the
+//! Compose groups, the rig list and the Place headings are empty or short in both) and **the clip cut**.
 //!
 //! # What is measured
 //!
-//! Every panel that is *shown* (a `PanelWidth` node whose `display` is not `None`) on each of the editor's
-//! panels in turn, plus the left pane (the frame's left region's parent, #482). For each, every drawn
-//! descendant of it, tooltips out, is held to the panel's **content box**: its border box less the
-//! `ComputedNode::content_inset` it carries. The overhang is the farthest a descendant's drawn right edge,
-//! or the farthest its drawn left edge, stands outside that box. The table is printed per panel per case,
-//! and **every cell is asserted at most [`OVERHANG_PX`]**.
+//! Every panel that is *shown* (a `PanelWidth` node whose `display` is not `None`) on each of the editor's panels in
+//! turn, plus the left pane (the frame's left region's parent, #482). For each, every drawn descendant of it, tooltips
+//! out, is held to the panel's **content box**: its border box less the `ComputedNode::content_inset` it carries. The
+//! overhang is the farthest a descendant's visible right edge, or its visible left edge, stands outside that box. The
+//! table is printed per panel per case, and **every cell is asserted at most [`OVERHANG_PX`]**.
 //!
 //! gooey's table-cell text is one line by construction (`bevy_gooey#109`) and is exempted exactly as
 //! `no_panel_draws_a_control_past_its_own_content_box` exempts it: counted, and capped.
 //!
+//! # What this file does not count, said plainly
+//!
+//! **Clipped text is not counted.** A text a clip hides is not on the screen, so it is not an overhang here; the
+//! `laid out` figure in the printed table is the unasserted size of what is laid out past the box, and INSPECTOR,
+//! COMPOSE and ANIMATION lay out 160 to 2700 px of no-wrap text that a pane or viewport clip cuts off. The owner sees
+//! it cut off with no wrap: that is a residual defect, recorded on #494, that this test does not hold.
+//!
+//! **A 1.0 px tolerance also hides a real 1 px overhang.** The cells that read exactly 1.0 are layout rounding
+//! (e.g. `ANIMATION` at scale 0.5 reads 1.0 on `INSPECTOR [59.0..301.0] in content [60.0..302.0]`, and `PLACE` at scale
+//! 1.6 / text 150% reads 1.0 on `PLACE [2494.0..2685.0] in content [2495.0..3005.0]`), and none reads between 0 and 1;
+//! a genuine 1 px spill would be indistinguishable from them.
+//!
 //! # That this census can see the defect
 //!
-//! the mutation is recorded where it was run (the commit body and the issue comment): the frame root's
-//! `min_width: Some(Extent::Px(0.0))`, which `70a86f11` took *out* because it displaced a panel's child 29 px.
+//! Adding `min_width: Some(Extent::Px(0.0))` back to the `sized(Sizing { .. })` of `chrome::spawn_frame` (the clamp
+//! `70a86f11` removed because it displaced a panel's child) turns this test red: `left pane draws 52.0 px outside its
+//! content box` at scale 1.0, at both text sizes. The earlier `a_panel_control_...` stays green under it.
+//!
+//! # That the fix did not move ordinary rows
+//!
+//! This file measures overhang and nothing else. `a_short_row_stands_where_it_stood` holds the four rows #494 changed
+//! to where they stood on `main` for an ordinary short name.
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
@@ -65,21 +84,24 @@ const TEXT_SCALES: [f32; 2] = [1.0, 1.5];
 
 /// **The most a drawn edge may stand outside its panel's content box**, physical px: **one device pixel**.
 ///
-/// The assignment asked for 0.5, and it was measured before it was kept: at interface scales 0.5, 1.0, 1.6 and
-/// 3.0, with nothing wider than its box anywhere, a node whose box is laid out on whole pixels stands exactly
-/// **1.0 px** outside a panel's content box (`a ScrollViewport [59.0..301.0] in content [60.0..302.0]`; `a Sized
-/// [1061.0..1380.0] in content [1060.0..1379.0]`): `content_inset` is the panel's own fractional border and
-/// padding and the child is rounded to the pixel. Every such cell reads 1.0 and none reads between 0 and 1, so the
-/// rounding step is the tolerance, as in `no_panel_draws_a_control_past_its_own_content_box`'s `SLACK_PX`. The
-/// defects start at 30 px.
+/// The assignment asked for 0.5, and it was measured before it was kept: with nothing wider than its box anywhere, a
+/// node laid out on whole pixels stands exactly **1.0 px** outside a panel's content box in some cells (see the module
+/// header for two), because `content_inset` is the panel's own fractional border and padding and the child is rounded to
+/// the pixel. No cell reads between 0 and 1, so the rounding step is the tolerance, as in
+/// `no_panel_draws_a_control_past_its_own_content_box`'s `SLACK_PX`. The defects start at 30 px.
 const OVERHANG_PX: f32 = 1.0;
 
-/// Frames a layout needs to settle after the scale is read from the settings file, and after a panel is shown.
 /// How many culprits a failing cell names.
 const CULPRITS: usize = 4;
 
+/// Frames a layout needs to settle after the scale is read from the settings file.
 const SETTLE_FRAMES: usize = 18;
+
+/// Frames a panel needs to settle after it is shown.
 const SHOW_FRAMES: usize = 8;
+
+/// How close the `UiScale` the editor settled on must be to the one the window and the person's size give.
+const UI_SCALE_EPSILON: f32 = 1e-3;
 
 /// The editor's panels, each of which is shown in turn. The seven the acceptance names live on the first
 /// five; the rest are measured too, because the defect is a family and not a panel.
@@ -99,12 +121,47 @@ const MODES: [Mode; 9] = [
 /// case, or the census would pass over a panel it never saw.
 const SEVEN: [&str; 7] = ["ANIMATION", "COMPOSE", "CONTROLS", "INSPECTOR", "PLACE", "RIGS", "TILES"];
 
-/// How many pieces the Place panel's kit holds.
+/// How many pieces the default kit holds.
 const PIECES: usize = 36;
+/// How many pieces the second kit holds.
+const EXTRA_PIECES: usize = 12;
+/// How many import candidates the pack holds (one more, with an unbreakable name, is added).
+const CANDIDATES: usize = 30;
+/// How many pieces are placed on the map.
+const PLACEMENTS: usize = 14;
+/// How many placements make a row of the map before the next row starts, in metres.
+const PLACEMENTS_PER_ROW: usize = 5;
+/// How many anchored groups, and how many bounded tiles, the project holds.
+const GROUPS: usize = 12;
+/// How many rigs, and how many clips each.
+const RIGS: usize = 6;
+const CLIPS: usize = 10;
+/// How many long tokens each tag axis (`kind`, `effects`, `look`) holds, and every piece carries.
+const TOKENS: usize = 8;
 
 /// **The most gooey table-cell texts one panel may draw** before the exemption for `bevy_gooey#109` is
 /// treated as having grown past what it was written for.
 const MOST_GOOEY_CELLS: usize = 40;
+
+/// **What identifies a text of each of the four spawners #494 changed**, per panel, so a cell can say it *saw* one
+/// that was visible (not merely laid out): `(panel, signature)`.
+const FIXED_ROWS: [(&str, &str); 4] =
+    [("PLACE", "heading"), ("TILES", "reason"), ("COMPOSE", "group row"), ("RIGS", "rig row")];
+
+/// Which of [`FIXED_ROWS`] a text is, by its words.
+fn signature(words: &str) -> Option<&'static str> {
+    if words.starts_with("AN_EXTRA_KIT") || words.starts_with("FURNITURE \u{b7}") {
+        Some("heading")
+    } else if words == "no tile \u{2014} see COMPOSE" {
+        Some("reason")
+    } else if words.contains("member(s),") {
+        Some("group row")
+    } else if words.starts_with("rig_0") {
+        Some("rig row")
+    } else {
+        None
+    }
+}
 
 fn settle(app: &mut App, frames: usize) {
     for _ in 0..frames {
@@ -112,12 +169,13 @@ fn settle(app: &mut App, frames: usize) {
     }
 }
 
-/// A name no row can hold in one line at any scale: `n` words of length 9, so a break has somewhere to go.
+/// A name no row can hold in one line at any scale: the stem, a two-digit index and one 41-character run of
+/// underscore-joined words with no space in it, so only a break at a letter can wrap it.
 fn long(stem: &str, i: usize) -> String {
     format!("{stem}_{i:02}_with_a_name_that_keeps_on_going_and_going")
 }
 
-/// A tag token that is long on purpose.
+/// A tag token that is long on purpose: the axis name and a 36-character spelling.
 fn token(axis: &str, i: usize) -> String {
     format!("{axis}_token_with_a_very_long_spelling_{i}")
 }
@@ -135,20 +193,20 @@ fn project(tag: &str) -> PathBuf {
     }
     // **A second kit whose directory and namespace are long.**
     let namespace = "an_extra_kit_whose_namespace_is_long_enough_to_wrap";
-    let extra: Vec<String> = (0..12).map(|i| format!("{namespace}/{}", long("extra", i))).collect();
+    let extra: Vec<String> = (0..EXTRA_PIECES).map(|i| format!("{namespace}/{}", long("extra", i))).collect();
     let extra_refs: Vec<&str> = extra.iter().map(String::as_str).collect();
     fixture = fixture.kit("an_extra_kit_whose_directory_is_long", "beta", &extra_refs);
     // Import candidates: meshes on disk that are in no library, one with a name no column holds.
-    let candidates: Vec<String> = (0..30).map(|i| long("candidate", i)).collect();
+    let candidates: Vec<String> = (0..CANDIDATES).map(|i| long("candidate", i)).collect();
     let mut candidate_refs: Vec<&str> = candidates.iter().map(String::as_str).collect();
     candidate_refs.push("a_single_mesh_name_with_no_break_in_it_at_all_that_is_longer_than_any_column_holds");
     fixture = fixture.pack("a_pack_folder_with_a_long_name", &candidate_refs);
     // Placements, so the Inspector and the status block have something to say.
-    for i in 0..14 {
-        fixture = fixture.place(&long("piece", i), (i as f32 % 5.0, (i / 5) as f32));
+    for i in 0..PLACEMENTS {
+        fixture = fixture.place(&long("piece", i), ((i % PLACEMENTS_PER_ROW) as f32, (i / PLACEMENTS_PER_ROW) as f32));
     }
     // Compositions (the Compose panel's groups) and bounded ones (the Tiles panel's tiles).
-    for i in 0..12 {
+    for i in 0..GROUPS {
         fixture = fixture.composition(&long("group", i), &[("member_a", first.as_str(), (0.0, 0.0))]);
         fixture = fixture.bounded_composition(&long("tile", i), (1.0, 2.4, 1.0), &[("member_a", first.as_str(), (0.0, 0.0))]);
     }
@@ -160,7 +218,7 @@ fn project(tag: &str) -> PathBuf {
     let mut vocab: blueprint_model::vocab::Vocabularies =
         blueprint_model::yaml::read(&vocab_path).unwrap_or_else(|p| panic!("{}", p.line()));
     let add = |axis: &mut blueprint_model::vocab::Vocabulary, name: &str| {
-        for i in 0..8 {
+        for i in 0..TOKENS {
             axis.tokens.push(blueprint_model::vocab::Token {
                 name: token(name, i),
                 note: "a tag with a long spelling".to_owned(),
@@ -176,9 +234,9 @@ fn project(tag: &str) -> PathBuf {
     for kit in ["furniture", "an_extra_kit_whose_directory_is_long"] {
         fixtures::edit_library(&blueprint.join(kit).join("library.yaml"), |library| {
             for d in &mut library.descriptors {
-                d.kind = (0..8).map(|i| token("kind", i)).collect();
-                d.effects = (0..8).map(|i| token("effects", i)).collect();
-                d.look = (0..8).map(|i| token("look", i)).collect();
+                d.kind = (0..TOKENS).map(|i| token("kind", i)).collect();
+                d.effects = (0..TOKENS).map(|i| token("effects", i)).collect();
+                d.look = (0..TOKENS).map(|i| token("look", i)).collect();
                 d.note = Some("a note long enough to take several lines in any column a panel can give it".to_owned());
             }
         });
@@ -186,9 +244,9 @@ fn project(tag: &str) -> PathBuf {
 
     // **Rigs with long names and many clips**, in the manifest's own spelling.
     let mut rigs = String::from("version: 3\nrigs:\n");
-    for r in 0..6 {
+    for r in 0..RIGS {
         rigs.push_str(&format!("  {}:\n    mesh: characters/{r}.glb\n    scale: 1.0\n    slots:\n", long("rig", r)));
-        for c in 0..10 {
+        for c in 0..CLIPS {
             rigs.push_str(&format!(
                 "    - clip: {c}\n      playback: !Free\n        speed: 1.0\n      note: {}\n",
                 long("clip", c)
@@ -217,10 +275,17 @@ fn editor(root: &Path, tag: &str, interface_scale: f32, text_scale: f32) -> App 
     window.resolution.set_scale_factor_override(Some(DISPLAY_FACTOR));
     harness::resize_surface(&mut app, WINDOW_PHYSICAL.0, WINDOW_PHYSICAL.1).unwrap_or_else(|e| panic!("{e}"));
     settle(&mut app, SETTLE_FRAMES);
+    // **The text size is read back, not assumed**: a 1.5 the settings file silently lost would make every 150% cell a
+    // second run of the 100% one, and `UiScale` below says nothing about type.
+    let applied = app.world().resource::<bevy_dark_factory::settings::EditorSettings>().text_scale;
+    assert!(
+        (applied - text_scale).abs() < UI_SCALE_EPSILON,
+        "the editor runs at text size {applied}, not the {text_scale} this cell was asked for"
+    );
     let want = bevy_dark_factory::surface::ui_scale_for_a_person(1280.0, DISPLAY_FACTOR, interface_scale);
     let got = app.world().resource::<UiScale>().0;
     assert!(
-        (got - want).abs() < 1e-3,
+        (got - want).abs() < UI_SCALE_EPSILON,
         "the editor draws at UiScale {got}, not the {want} the window and interface scale {interface_scale} give"
     );
     app
@@ -330,8 +395,12 @@ struct Measured {
     /// How far a node was **laid out** outside the box, whatever clipped it afterwards. Reported, not asserted:
     /// the sibling test's point that a pane which hides what does not fit has still laid it out too wide.
     laid_out: f32,
-    /// How many texts were drawn under the region: how *full* it was.
+    /// How many texts were laid out under the region: how *full* it was.
     texts: usize,
+    /// How many of those survive the clip cut: the texts a person can see.
+    visible_texts: usize,
+    /// Which of [`FIXED_ROWS`]' spawners had a text that survived the clip cut here.
+    signatures: std::collections::BTreeSet<&'static str>,
     /// gooey's one-line table cells, exempt and counted.
     cells: usize,
 }
@@ -346,6 +415,8 @@ impl Measured {
         self.culprits.dedup_by(|a, b| a.1 == b.1);
         self.culprits.truncate(CULPRITS);
         (self.texts, self.cells, self.laid_out) = (texts, cells, laid_out);
+        self.visible_texts = self.visible_texts.max(other.visible_texts);
+        self.signatures.extend(other.signatures);
     }
 }
 
@@ -397,6 +468,10 @@ fn measure(world: &World, region: Entity) -> Option<Measured> {
         }
         out.laid_out = out.laid_out.max((rect.max.x - right).max(left - rect.min.x));
         let Some(rect) = seen(world, entity, rect) else { continue };
+        if let Some(text) = world.get::<Text>(entity) {
+            out.visible_texts += 1;
+            out.signatures.extend(signature(&text.0));
+        }
         let past = (rect.max.x - right).max(left - rect.min.x);
         if past > OVERHANG_PX {
             out.culprits.push((
@@ -497,7 +572,7 @@ fn every_panel_stays_inside_its_content_box_when_it_is_full() {
         let row: Vec<String> = panels
             .iter()
             .filter_map(|p| {
-                table.get(&(case.clone(), p.clone())).map(|m| format!("{p}={:.1} (laid out {:.1}, {} texts)", m.overhang, m.laid_out, m.texts))
+                table.get(&(case.clone(), p.clone())).map(|m| format!("{p}={:.1} (laid out {:.1}, {} texts, {} visible)", m.overhang, m.laid_out, m.texts, m.visible_texts))
             })
             .collect();
         println!("  [{case}] {}", row.join("  "));
@@ -527,14 +602,30 @@ fn every_panel_stays_inside_its_content_box_when_it_is_full() {
             }
         }
         if let Some(rigs) = table.get(&(case.clone(), "RIGS".to_owned()))
-            && rigs.texts < 6
+            && rigs.texts < RIGS
         {
-            failures.push(format!("[{case}] the RIGS panel drew {} texts for six rigs", rigs.texts));
+            failures.push(format!("[{case}] the RIGS panel drew {} texts for {RIGS} rigs", rigs.texts));
         }
         if let Some(place) = table.get(&(case.clone(), "PLACE".to_owned()))
             && place.texts < PIECES
         {
             failures.push(format!("[{case}] the PLACE panel drew {} texts for a kit of {PIECES} pieces", place.texts));
+        }
+    }
+    // **A text of each spawner #494 changed was *visible*, at both text sizes**: laid out is not enough, because a row
+    // scrolled off the fold or cut by a clip is skipped, and the census could then pass over the very rows it fixed.
+    for text_scale in TEXT_SCALES {
+        let suffix = format!("text {text_scale}");
+        for (panel, which) in FIXED_ROWS {
+            let seen_once = table
+                .iter()
+                .filter(|((case, name), _)| case.ends_with(&suffix) && name == panel)
+                .any(|(_, m)| m.signatures.contains(which));
+            if !seen_once {
+                failures.push(format!(
+                    "no cell at {suffix} showed a visible {which} text in `{panel}`, so the fix to it was never measured there"
+                ));
+            }
         }
     }
     assert!(
