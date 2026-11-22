@@ -103,7 +103,7 @@ fn c_and_an_agent_check_every_rig_through_one_operation() {
     assert_eq!(lines.len(), 1, "one key, one logged operation: {lines:?}");
     assert_eq!(lines[0].0, "human", "{:?}", lines[0]);
     // **The watcher was asked to measure every rig, not only the selected one**: the fixture has no `.glb` for the shipped
-    // rigs, so the mtime poll queues none of them and `queue_selected` queues one; the others get a report only because
+    // rigs, so the watcher (which follows a rig's GLB through the project index) queues none of them and `queue_selected` queues one; the others get a report only because
     // `take_check` queued them. Mutation-checked: with `queue.push_back_unique(name)` deleted from `BenchState::take_check`,
     // this fails with one report of `rigs`.
     for _ in 0..400 {
