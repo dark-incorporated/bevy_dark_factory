@@ -63,8 +63,8 @@ use crate::keys::{self};
 /// caught drifting against itself twice. They are gone: every colour the chrome paints is a field
 /// here, and every field is read from **the running skin** ([`Ink::of`]) — the same data `bevy_gooey`
 /// restyles the widgets from and the same data `GooeySkin::problems()` measures. One palette, one
-/// skin, one check. Tool dark's is `src/editor_skin.yaml`; Parchment's and High contrast's are
-/// `src/editor_theme_*.yaml` laid over it by [`crate::ui::skin_for`].
+/// skin, one check. The skin is the style sheet's (`crate::style`): `src/style/editor.yaml`, with a
+/// theme's `src/style/theme_*.yaml` laid over it.
 ///
 /// # Why a struct, and why [`ink`] is a function of the skin and not a parameter
 ///
@@ -143,30 +143,14 @@ pub struct Ink {
     pub snip_wash: Color,
 }
 
-/// **How far [`Ink::bar_bg`] sits above a slot's ground.** `Ink::bar_bg` was `scaled(SLOT_BG, 0.78)`; the
-/// relationship is the point (chrome a step above a panel, a step below a slot), so it is kept as a
-/// derivation rather than transcribed.
-const BAR_STEP_BACK: f32 = 0.78;
-
-/// **How far [`Ink::unchecked`] is lifted off [`Ink::suggest`]** — the value a model wrote, one state
-/// after the proposal, so it still reads on a chosen row.
-const UNCHECKED_LIFT: f32 = 1.45;
-
-/// The ladder's step for a selected row: `background, surface, header, raised, slot, hover,
-/// selected, edge`, lowest first (`src/editor_skin.yaml`).
-const ROW_SELECTED_STEP: u8 = 6;
-/// The ladder's step for an inspector slot.
-const SLOT_STEP: u8 = 4;
-/// The ladder's step for a group heading band.
-const HEADER_STEP: u8 = 2;
-/// The ladder's step for the hairline that ends a surface.
-const EDGE_STEP: u8 = 7;
-
 impl Ink {
     /// **The ink as a skin says it.** Every field is one of the skin's own roles or tones, except
     /// the two that are *derived* and say so: [`Ink::bar_bg`] from a slot's ground and
-    /// [`Ink::unchecked`] from the suggest tone.
-    pub fn of(skin: &bevy_gooey::GooeySkin) -> Ink {
+    /// [`Ink::unchecked`] from the suggest tone. **How** they are derived, and which step of the skin's
+    /// ladder a row, a slot, a heading band and an edge stand on, is the style sheet's `metrics.ink`
+    /// (`steps`): the ladder is `background, surface, header, raised, slot, hover, selected, edge`,
+    /// lowest first.
+    pub fn of(skin: &bevy_gooey::GooeySkin, steps: &crate::style::InkMetrics) -> Ink {
         let tone = |name: &str| skin.tone(name).unwrap_or_else(|| {
             // **Magenta, loudly.** This module answers a colour it cannot derive in fuchsia rather
             // than with a silent grey ([`scaled`], [`ink`]); a skin missing one of the editor's tones
@@ -174,13 +158,13 @@ impl Ink {
             // `tests/the_skin_carries_the_editors_other_colours.rs`.
             Color::srgb(1.0, 0.0, 1.0)
         });
-        let slot_bg = skin.surface_at(SLOT_STEP);
+        let slot_bg = skin.surface_at(steps.slot_step);
         let suggest = tone("suggest");
         Ink {
             panel_bg: skin.surface,
             row_bg: skin.surface_raised,
             row_hover: skin.hovered(),
-            row_selected: skin.surface_at(ROW_SELECTED_STEP),
+            row_selected: skin.surface_at(steps.row_selected_step),
             row_pressed: skin.pressed(),
             text: skin.text,
             dim: skin.text_muted,
@@ -192,26 +176,27 @@ impl Ink {
             veil: tone("veil"),
             muted: tone("muted"),
             suggest,
-            unchecked: scaled(suggest, UNCHECKED_LIFT),
+            unchecked: scaled(suggest, steps.unchecked_lift),
             labeled: tone("labeled"),
             slot_bg,
             overlay_bg: skin.card(),
             focus_bg: tone("focus_bg"),
-            header_bg: skin.surface_at(HEADER_STEP),
+            header_bg: skin.surface_at(steps.header_step),
             grid_line: tone(GRID_TONE),
             bounds_line: tone("bounds_line"),
             void: skin.background,
-            bar_bg: scaled(slot_bg, BAR_STEP_BACK),
-            panel_edge: skin.surface_at(EDGE_STEP),
+            bar_bg: scaled(slot_bg, steps.bar_step_back),
+            panel_edge: skin.surface_at(steps.edge_step),
             edge_strong: skin.outline,
             snip_wash: tone("snip_wash"),
         }
     }
 
-    /// **The ink the editor starts with**, from `src/editor_skin.yaml` — the Tool dark theme, and the
-    /// value [`ink`] holds until a skin says otherwise.
+    /// **The ink the editor starts with**, from the compiled style sheet (`src/style/editor.yaml`) — the
+    /// Tool dark theme, and the value [`ink`] holds until a skin says otherwise.
     pub fn editor() -> Ink {
-        Ink::of(&crate::ui::editor_skin())
+        let style = crate::style::compiled_default();
+        Ink::of(&style.skin, &style.metrics.ink)
     }
 
     /// **Every field, in declaration order**, so a theme change can say "the colour that was `panel_bg`
@@ -265,6 +250,14 @@ impl Ink {
 /// How many colours an [`Ink`] holds.
 pub const INK_FIELDS: usize = 28;
 
+/// **Each [`Ink`] field's name, in [`Ink::fields`] order**: what a style sheet rule paints with
+/// (`background: !Host row_hover`), published by `crate::style` as gooey's `HostPaints`.
+pub const INK_NAMES: [&str; INK_FIELDS] = [
+    "panel_bg", "row_bg", "row_hover", "row_selected", "row_pressed", "text", "dim", "accent", "key", "label", "danger", "scrim", "veil", "muted",
+    "suggest", "unchecked", "labeled", "slot_bg", "overlay_bg", "focus_bg", "header_bg", "grid_line", "bounds_line", "void", "bar_bg",
+    "panel_edge", "edge_strong", "snip_wash",
+];
+
 /// **How near two sRGB channels must be to be the same ink**: a thousandth, well under one 8-bit step
 /// (1/255), so a colour that went through a `Color` conversion still matches and two inks that differ
 /// by a step do not.
@@ -275,7 +268,7 @@ const INK_MATCH_TOLERANCE: f32 = 1.0e-3;
 /// There is one, and `crate::theme_ink::follow_the_skin` is the only thing that writes it: whenever the
 /// running [`bevy_gooey::GooeySkin`] changes colour (a theme chosen in Settings, a settings file edited
 /// by hand) the ink is rebuilt from it and everything already drawn is moved onto it. Until a skin says
-/// otherwise it is the editor's own, `src/editor_skin.yaml`.
+/// otherwise it is the editor's own style sheet's, `src/style/editor.yaml`.
 ///
 /// It is a process-wide value rather than a resource because 300 call sites paint from [`ink`] where no
 /// system parameter reaches — the same reason [`text_scale`] is one atomic. A process has one editor.
@@ -293,31 +286,11 @@ pub(crate) fn swap_ink(next: Ink) -> Ink {
     std::mem::replace(&mut *LIVE_INK.write().unwrap_or_else(std::sync::PoisonError::into_inner), next)
 }
 
-/// **How far a ground fill steps back while the shortcuts key is held.**
-///
-/// A panel's fill is the ground its rows stand on ([`Ground`]), and while `K` is down that ground is
-/// also what a badge may stand on. At full opacity the badge and the panel are two opaque boxes of
-/// the same colour meeting at a border; at this alpha the `Ink::veil` and the world read faintly
-/// through the ground, so the badge is plainly the nearest thing and the panel is plainly behind it.
-///
-/// **Only the fill.** Rows, fields, chips and every word keep their own opacity — a badge points at
-/// words, and dimming those in the instant they are being read is the opposite of the point.
-pub const GROUND_HELD: f32 = 0.55;
-
-/// **How far the world's own wireframe steps back while the shortcut key is held.**
-///
-/// Deeper than [`GROUND_HELD`], because a panel's fill is a flat wash a badge sits on and the
-/// world's envelope is a *line* crossing the same ground a badge stands on. On the Tiles tab a
-/// 1 x 4 x 1 m tile projects to three near-full-height verticals that run straight through the
-/// badge stack, and at full strength they read as leaders — which is the one thing on this screen a
-/// hairline is supposed to mean. Reported from the keyboard: *"the tiles tab is super muddy."*
-///
-/// It is a fade and not a hide: the envelope is what the author is building, and a box that
-/// vanished when they reached for a key would be a different confusion. `badges::WorldOnScreen`
-/// still keeps boxes off it either way — this is about reading, not about placement.
-pub const WORLD_HELD: f32 = 0.25;
-
-/// A world gizmo's colour, faded while the shortcut key is held. See [`WORLD_HELD`].
+/// A world gizmo's colour, faded while the shortcut key is held, to the sheet's
+/// `metrics.layout.world_held` alpha: deeper than a ground's `ground_held`, because a panel's fill is a
+/// flat wash a badge sits on and the world's envelope is a *line* crossing the same ground a badge stands
+/// on (*"the tiles tab is super muddy"*). A fade and not a hide: the envelope is what the author is
+/// building.
 ///
 /// A free function rather than a resource because the drawers are ordinary `Update` systems with no
 /// stated order against anything in `badges`, and a resource written in one phase and read in
@@ -325,16 +298,12 @@ pub const WORLD_HELD: f32 = 0.25;
 /// header records paying for.
 pub fn stepped_back(color: Color, held: bool) -> Color {
     if held {
-        color.with_alpha(color.alpha() * WORLD_HELD)
+        color.with_alpha(color.alpha() * crate::style::metrics().layout.world_held)
     } else {
         color
     }
 }
 
-/// Edge of a row's preview box, logical px. One home since 2026-09-04: the map palette and the
-/// kit door's MESHES shelf both draw a portrait in this slot, and two copies of the size would
-/// be two row heights for one picture.
-pub const THUMB_SLOT: f32 = 30.0;
 // ── world ink ────────────────────────────────────────────────────────────────────────────────────
 //
 // Gizmo colours the tabs draw INTO the scene — the exception to "nothing here knows what a map is",
@@ -366,17 +335,6 @@ pub fn focus_edge(focused: bool) -> Color {
     if focused { ink().accent } else { ink().panel_edge }
 }
 
-/// One hairline. Not two: a 2 px border reads as a frame, and the thing being framed here is a work
-/// surface rather than a picture.
-pub const EDGE_W: f32 = 1.0;
-
-/// **A surface's corner.** Small on purpose — enough that the eye closes the shape, not so much that
-/// a 20 px row turns into a lozenge. Blender's editor rounds at 4–5 px on a panel and 3 on a widget;
-/// this is the same relationship at this editor's density.
-pub const RADIUS_PANEL: f32 = 4.0;
-/// A row, a chip, a field, a button.
-pub const RADIUS_ROW: f32 = 3.0;
-
 /// **The lattice an author reads a map by, as the running skin colours it** (UI-80, #254).
 ///
 /// The map's grid and the kit door's seating lattice are the editor's two grids, and both used to
@@ -391,21 +349,9 @@ pub fn grid_ink(skin: Option<&bevy_gooey::GooeySkin>) -> Color {
 
 /// **The skin tone a lattice's colour is kept under.** One name for the two places it is read — the
 /// lookup in [`grid_ink`] and the `Ink::grid_line` field's own read of it in `Ink::of` — so a rename in
-/// `src/editor_skin.yaml` cannot leave one of them asking for a tone that no longer exists.
+/// the style sheet's `skin.tones` cannot leave one of them asking for a tone that no longer exists.
 pub const GRID_TONE: &str = "grid_line";
 
-/// **The rail that says "this one"** — `Ink::accent` down the leading edge of the selected row.
-///
-/// Selection used to be carried by fill and by amber *text*, and both were problems: the fill had to
-/// be loud enough to be unambiguous on its own, which pushed `Ink::row_selected` bright enough to fail
-/// contrast for `Ink::label` on it, and the amber text was one of `Ink::accent`'s five jobs. A rail is a
-/// shape, so it is unambiguous at any fill, and it re-uses the vocabulary [`severity_rail`] already
-/// established in this same interface — a tinted left edge means *this line is special*.
-pub const SELECT_RAIL_W: f32 = 2.0;
-
-/// The snip's drag-rectangle border. It is heavier than the rail's 2 px on purpose: at 2 px a drag
-/// measured about 1% of a 600 px-wide capture and was hard to find, so the box gets 3 px.
-pub const SNIP_EDGE_W: f32 = 3.0;
 /// **A wash at `share` of a named colour's own strength**: `Ink::snip_wash` at `0.5` is the quieter tint
 /// a report draws over a pick it has already taken, so a person adding a second can tell which is the
 /// decision already made and which is the one being made now.
@@ -459,116 +405,11 @@ pub const fn ink_bytes(colour: Color) -> [u8; 4] {
 }
 
 // ── layout ───────────────────────────────────────────────────────────────────────────────────────
-
-/// **The editor's interface scale**, and the one `main` starts the application at.
-///
-/// Named here rather than written as a number in two places: `main` starts at it and
-/// `fit_surface_to_window` scales from it. The menu screen that once ran at its own scale (its
-/// offscreen capture) went with the chooser (#296).
-///
-/// **Raised on 2026-09-03, then made a base rather than an answer.** `fit_surface_to_window`
-/// multiplies this by the display's scale factor, which reports *density* and not *size*: on a
-/// 3396 px window reporting a factor of 1, body text rendered at 13 physical pixels and the two
-/// Meshes panels together used under 14 % of the width (the audit's F2).
-///
-/// A larger constant was the first fix and it was wrong in the other direction — it is the density
-/// a **small** window also gets, and at 1280 x 800 two 380 px docks scaled by 1.45 leave almost no
-/// stage, which the badge packer reported by covering its own legend. So the growth belongs where
-/// the window's size is known: this is the density the design is drawn at, and
-/// [`crate::surface::ui_scale_for`] is what a bigger window does with it.
-pub const EDITOR_UI_SCALE: f32 = 1.2;
-
-pub const TAB_STRIP_BOTTOM: f32 = 46.0;
-/// The gap every panel keeps from the window edge.
-pub const MARGIN: f32 = 12.0;
-/// Inside a panel.
-pub const PAD: f32 = 12.0;
-
-/// **Width of a controls panel — one number for every left dock.**
-///
-/// It was two: `CONTROLS_W` 300 on the Map door and `TILES_CONTROLS_W` 380 on the other three, so
-/// the viewport jumped 80 px when the author changed door, and three of the four callers used a
-/// constant named for one tab. The wider value wins because the reason it exists is still true —
-/// below the key list the Tiles inspector carries four rows of tag chips and a findings paragraph,
-/// neither of which is a two-column table, and at 300 the chips wrapped to twice the height and
-/// pushed the findings off the bottom of the screen. A panel that is 80 px wider than it needs costs
-/// nothing; a viewport that changes size when you change tab costs the author their place.
-pub const CONTROLS_W: f32 = 380.0;
-/// Width of a list panel. Narrower than the controls: a row here is a thumbnail, an id and a number
-/// rather than two text columns. Both panels together leave a little under half the screen for the
-/// map at `UiScale(1.2)`, which is the thing the right edge was chosen to protect.
-pub const LIST_W: f32 = 264.0;
-
-/// **The narrowest a panel may be squeezed to before the viewport gets the rest** — B-014.
-///
-/// The two widths above are *preferred* widths, and a panel took its own whatever the window could
-/// afford, because [`panel_root`] set `width: Val::Px(width)` and nothing could give it back. At a
-/// 900 logical px window that left the map **69 px** — measured from the real layout in
-/// `the_viewport_keeps_a_usable_width_in_a_narrow_window`, and the same number the item filed
-/// ("about 70 logical px at 1800 x 1406 physical").
-///
-/// Two things make the overhead bigger than the constants suggest. `EDITOR_UI_SCALE` multiplies
-/// every `Val::Px`, so `CONTROLS_W` 380 is 456 on screen at 1.2 before the panel's own `MARGIN` and
-/// border; measured, the left dock was **485** and the right **346**. And a dock is as wide as its
-/// widest *visible* panel, so it cannot answer for the sum.
-///
-/// The floor is not zero: a panel narrowed past this stops being a panel, its rows wrap and its tag
-/// chips stack into a column of single words. So panels shrink **down to** this and no further, and
-/// the viewport is guaranteed the remainder — see [`fit_docks_to_the_window`].
-pub const DOCK_MIN_W: f32 = LIST_W * 0.6;
-
-/// **The width the viewport is owed before either dock gets more than its floor** — B-014.
-///
-/// The docks were never *overflowing* a 900 px window; measured, they took 835 of it and the map got
-/// the 65 that was left. So the defect is not "the panels do not fit", it is **"nothing reserved the
-/// viewport"**: the map was the leftover of two fixed panels, and at a narrow window that leftover is
-/// a sliver. Below this width the docks give ground down to [`DOCK_MIN_W`] each, because a map
-/// narrower than two palette rows is not a map you can place a piece on.
-///
-/// It is a floor with a reason rather than a round number: `LIST_W` plus room for a piece of the
-/// largest tile class and the ghost's footprint beside it, which is what the author needs to see to
-/// judge where a piece will land.
-///
-/// **It is a reserve, not a guarantee, and the distinction is honest.** A window can be too narrow
-/// for this *and* two readable docks at once — at 900 logical px, `1.2` scaling makes the pair owe
-/// `(158 + 24) * 1.2 * 2 = 438` even at their floors, and 438 + 504 of viewport is more than the
-/// window has. When that happens [`DOCK_MIN_W`] wins and the viewport takes the remainder: a panel
-/// squeezed past its floor is a column of single words with nothing to read, while a viewport
-/// smaller than this is merely cramped and still shows the map. Measured at a 900 px window, the map
-/// went from **69 px to 379**: the sliver is gone, and the panels are still panels.
-pub const VIEWPORT_MIN_W: f32 = 420.0;
-
-/// **The share of the window the viewport is owed once the window is wide enough for that to be
-/// more than [`VIEWPORT_MIN_W`]** (#282). The frame's own test says the viewport "must hold a usable
-/// share of the window", and the shell's `SplitFraction(0.22)` used to give it 56% of a 1280 px
-/// window by letting the left panel overflow its pane; a panel that fits its pane cannot, so the
-/// share is asked of the docks instead.
-pub const VIEWPORT_SHARE: f32 = 0.52;
-
-/// **The room the shell's split divider takes, in the `Val::Px` units the panel widths are written
-/// in** — and the thickness the owner asked for (#476).
-///
-/// # What a person sees today, and what this number is
-///
-/// gooey draws `Role::SplitDivider` at `MIN_TARGET_PX`, **24** px (`skin.rs:5036`; WCAG 2.5.8's target
-/// size), and nothing a host can set changes it. The owner's capture `feedback-1794783253218` asked for
-/// it **half as thick** — *"I like this being thick, but maybe only half as thick as this?"* — and its
-/// pick rect is `[610, 343, 668, 1344]`: 58 px, which at `ui_scale` 2.4 is **24.17 logical**, exactly
-/// gooey's floor.
-///
-/// The band the issue measured instead (33 px at `x=546..578`) is **not the divider**: measured on the
-/// same frame at `y=700` and `y=900`, that band is the left panel's own 4 px scroll thumb, its `(5,5,5)`
-/// fill and that panel's border rules; the divider is the `(34,34,34)` block at `612..665`.
-///
-/// **So this is 12 — the number the owner asked for — and it is not yet what is drawn.** `bevy_gooey#108`
-/// asks the crate that owns the widget for a divider thickness; until it lands, the seam is gooey's 24
-/// and this constant is what `fit_docks_to_the_window` must reserve once it is not.
-///
-/// **It is deliberately NOT 24 to "match" what is drawn.** A number that restates another crate's floor
-/// is a fact in two places: it agrees today and drifts the first time gooey's target size changes, and
-/// nothing would say so. A test asserts the divider's width is *this*, and that test failing is the
-/// honest report that the knob is still owed.
-pub const DIVIDER_W_PX: f32 = 12.0;
+//
+// **The editor's measures are the style sheet's** (`crate::style::LayoutMetrics`, `metrics.layout` in
+// `src/style/editor.yaml`): the interface scale, the docks' preferred widths and their floors (B-014), the
+// viewport's reserve and share (#282), the divider (#476), the bottom dock and every hairline. Their
+// reasons are written beside each field there, where a person changing one reads them.
 
 // ── the widget layer ─────────────────────────────────────────────────────────────────────────────
 
@@ -679,7 +520,7 @@ pub fn theme() -> bevy::feathers::theme::ThemeProps {
 /// A role is not the same thing as a distinct size, and two roles sharing a value is not a defect:
 /// [`HEADING`] and [`text::LABEL`] are both 10 because both are quiet supporting text, and what separates
 /// a heading from a label is that it is uppercase, in a different ink, and preceded by
-/// [`GAP_GROUP`]. `section`'s own doc says so — *"quiet, and separated from what came before it…
+/// [`STEP_GROUP`]. `section`'s own doc says so — *"quiet, and separated from what came before it…
 /// the separation is the work"* — which is why the fix for three heading dialects is the smallest
 /// of them and not the largest. A scale where headings out-shouted values would be a different
 /// editor, and nobody asked for that one.
@@ -699,35 +540,61 @@ pub mod text {
     /// A regex cannot close that; a type can. A builder takes a [`Role`], a `Role` is only ever one
     /// of the constants below, and a bare number at a call site is a compile error rather than a
     /// finding in the next audit.
-    #[derive(Clone, Copy, PartialEq, Debug)]
-    pub struct Role(f32);
+    ///
+    /// **The size is the style sheet's** (`metrics.type` in `src/style/editor.yaml`): a role names
+    /// which size, and [`Role::px`] reads it from the running metrics, so an edit to the sheet
+    /// resizes every label live ([`super::resize_the_labels`]).
+    #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+    pub struct Role(Size);
+
+    /// Which of the sheet's type sizes a role is.
+    #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+    enum Size {
+        Title,
+        Tab,
+        Body,
+        Heading,
+        Label,
+        Control,
+        Hint,
+    }
 
     impl Role {
-        /// The role's size in logical pixels. For [`super::font`] and for measurement
-        /// (`chars * BODY_CHAR_W`); **not** a way back to writing numbers at a call site.
-        pub const fn px(self) -> f32 {
-            self.0
+        /// The role's size in logical pixels at 100% text, from the running style sheet. For
+        /// [`super::font`] and for measurement (`chars * body_char_w`); **not** a way back to
+        /// writing numbers at a call site.
+        pub fn px(self) -> f32 {
+            let sizes = crate::style::metrics().r#type;
+            match self.0 {
+                Size::Title => sizes.title,
+                Size::Tab => sizes.tab,
+                Size::Body => sizes.body,
+                Size::Heading => sizes.heading,
+                Size::Label => sizes.label,
+                Size::Control => sizes.control,
+                Size::Hint => sizes.hint,
+            }
         }
     }
 
     /// The panel's own name — `BLUEPRINT MAPPER`, `MESHES AND TILES`. One per panel.
-    pub const TITLE: Role = Role(15.0);
+    pub const TITLE: Role = Role(Size::Title);
     /// A tab's word in the strip, and the chooser's column headers.
-    pub const TAB: Role = Role(13.0);
+    pub const TAB: Role = Role(Size::Tab);
     /// **The readable default.** A row's value, a field's contents, the problem banner, a census
     /// row — anything the author is reading rather than orienting by. The chord on a badge is
     /// this size on purpose: it is the one thing a badge exists to have read.
-    pub const BODY: Role = Role(11.0);
-    /// A block or list heading. Quiet: uppercase, dim ink, and [`super::GAP_GROUP`] above it.
+    pub const BODY: Role = Role(Size::Body);
+    /// A block or list heading. Quiet: uppercase, dim ink, and a group's gap above it.
     // **Eleven, not ten** (#518, owner 2026-11-21): a heading has to outrank the label it heads.
     // It was 10 beside `LABEL`'s 10 because both are "quiet supporting text", and that left the
     // hierarchy entirely in the case and the ink — which is what the owner's note was about. One
     // pixel is inside `the_type_scale_stays_short`'s seven-role cap and needs no new role.
-    pub const HEADING: Role = Role(11.0);
+    pub const HEADING: Role = Role(Size::Heading);
     /// The dim half of a label/value pair, and a log line.
-    pub const LABEL: Role = Role(10.0);
+    pub const LABEL: Role = Role(Size::Label);
     /// **A control's own word** — the text on a chip, a button, a field. Ten pixels, the same
-    /// number as [`LABEL`] and [`HEADING`], and a seventh role anyway.
+    /// number as [`LABEL`], and a seventh role anyway.
     ///
     /// `the_type_scale_stays_short` says a seventh role *"is a decision somebody should have to make
     /// on purpose"*, so here is the purpose. The 2026-09-03 decision was **shape carries kind,
@@ -735,11 +602,14 @@ pub mod text {
     /// control is therefore a role in its own right — it is the only text in this interface that
     /// names an *action* rather than describing a value — and the twenty call sites that used to
     /// pass a bare `10.0` into `chip(px: f32)` had nothing else honest to say.
-    pub const CONTROL: Role = Role(10.0);
+    pub const CONTROL: Role = Role(Size::Control);
     /// Badge descriptions, footnotes, and the always-on hint — the smallest thing on screen, and
     /// never the thing being read. (Badge *chords* moved up to [`BODY`]; the description beside a
     /// chord stays down here, quieter on both axes.)
-    pub const HINT: Role = Role(9.0);
+    pub const HINT: Role = Role(Size::Hint);
+
+    /// Every role, largest first.
+    pub const ALL: [Role; 7] = [TITLE, TAB, BODY, HEADING, LABEL, CONTROL, HINT];
 }
 
 /// **What the chrome bar's readouts are drawn at** (#480, feedback-1794783606350: *"The debug text is overlayed on the
@@ -815,14 +685,18 @@ pub fn typed(role: text::Role) -> impl Bundle {
 /// goes through [`typed`].
 pub fn resize_the_labels(
     settings: Option<Res<crate::settings::EditorSettings>>,
-    mut applied: Local<Option<f32>>,
+    revision: Option<Res<crate::style::StyleRevision>>,
+    mut applied: Local<Option<(f32, u64)>>,
     mut labels: Query<(&TypeRole, &mut TextFont)>,
 ) {
     let Some(settings) = settings else { return };
-    if applied.is_some_and(|last| (last - settings.text_scale).abs() < f32::EPSILON) {
+    // **The text size and the sheet's type scale are one key**: a size edited in the style sheet resizes every
+    // label already drawn, the same way a person's text size does.
+    let metrics = revision.map_or(0, |r| r.metrics_revision);
+    if applied.is_some_and(|(last, seen)| (last - settings.text_scale).abs() < f32::EPSILON && seen == metrics) {
         return;
     }
-    *applied = Some(settings.text_scale);
+    *applied = Some((settings.text_scale, metrics));
     let scale = settings.text_scale;
     for (role, mut font) in &mut labels {
         let want = FontSize::Px(role.0.px() * scale);
@@ -871,36 +745,40 @@ pub fn font_scaled(role: text::Role, scale: f32) -> TextFont {
     TextFont::from_font_size(role.px() * scale)
 }
 
-/// **One glyph's advance at [`text::BODY`], logical pixels.** The shipped face is
-/// `FiraMono-Regular.ttf` — monospace — so `chars * BODY_CHAR_W` is exact, not an estimate, and a
-/// string can be measured without a text-layout round trip. Stated once, beside the scale it
-/// belongs to (and outside it — this is a metric of the face, not a type role, and the census that
-/// keeps the scale short counts the module): it was measured independently in `badges` (chord
-/// columns) and `compose` (centred slot labels), and two hand-copied 6.6s drift the day the face or
-/// the size changes. If the face ever goes proportional, layouts drift; they do not break.
-pub const BODY_CHAR_W: f32 = 6.6;
+/// **One glyph's advance at [`text::BODY`], logical pixels** (`metrics.type.body_char_w`). The shipped face
+/// is `FiraMono-Regular.ttf` — monospace — so `chars * body_char_w()` is exact, not an estimate, and a
+/// string can be measured without a text-layout round trip. Stated once, in the style sheet beside the
+/// scale it belongs to: it was measured independently in `badges` (chord columns) and `compose` (centred
+/// slot labels), and two hand-copied 6.6s drift the day the face or the size changes. If the face ever goes
+/// proportional, layouts drift; they do not break.
+pub fn body_char_w() -> f32 {
+    crate::style::metrics().r#type.body_char_w
+}
 
 /// **One nesting step of the editor's own trees, in logical pixels: two advances of the body face.**
 /// This is #489's rule — *"the editor's own indents should be the 2-space step the file editor already
 /// uses"* — stated as the width it is drawn at rather than as a count of spaces.
 ///
-/// **It is the file editor's own step** ([`crate::files::YAML_INDENT_SPACES`] x [`BODY_CHAR_W`]), so a
+/// **It is the file editor's own step** ([`crate::files::YAML_INDENT_SPACES`] x [`body_char_w`]), so a
 /// tree row one level in stands exactly where a YAML line one level in stands in the editor beside it.
-/// Before #523 there was no such constant: gooey's `tree_indent` sized a level at `1.5 x the text size`
+/// Before #523 there was no such step: gooey's `tree_indent` sized a level at `1.5 x the text size`
 /// (24 px here, measured — 3.64 advances), so a folder's children stepped four-odd spaces while the
 /// file the folder held indented by two. Two steps in one tree, which is what the owner saw.
 ///
 /// Written onto every `TreeTwisty` by [`the_tree_steps_two_advances`], after gooey has laid the skin
 /// out, and read by the tests that measure a row's inset.
-pub const TREE_STEP: f32 = crate::files::YAML_INDENT_SPACES as f32 * BODY_CHAR_W;
+pub fn tree_step() -> f32 {
+    crate::files::YAML_INDENT_SPACES as f32 * body_char_w()
+}
 
-/// **One line of [`text::BODY`], logical pixels**: Bevy 0.20's default `LineHeight`, which is
-/// `RelativeToFont(1.2)` (`bevy_text` `text.rs`, `impl Default for LineHeight`). For reserving room
-/// for text that comes and goes, so its arrival does not move what sits below it. A metric, beside
-/// [`BODY_CHAR_W`], for the same reason that one is not a type role.
-pub const BODY_LINE_H: f32 = text::BODY.px() * 1.2;
+/// **One line of [`text::BODY`] at 100% text, logical pixels**: the body size times the sheet's
+/// `line_height_factor`, Bevy 0.20's default `LineHeight` (`RelativeToFont(1.2)`, `bevy_text` `text.rs`).
+/// For reserving room for text that comes and goes, so its arrival does not move what sits below it.
+pub fn body_line() -> f32 {
+    text::BODY.px() * crate::style::metrics().r#type.line_height_factor
+}
 
-/// **One line of [`text::BODY`] at the person's text size** — [`BODY_LINE_H`] times [`text_scale`].
+/// **One line of [`text::BODY`] at the person's text size** — [`body_line`] times [`text_scale`].
 ///
 /// A box that reserves room for text has to reserve it at the size the text is drawn, or a person
 /// at 200% gets a row one line tall holding a two-line-tall label: the text is clipped, and
@@ -908,7 +786,7 @@ pub const BODY_LINE_H: f32 = text::BODY.px() * 1.2;
 /// this; a box that has to follow a *live* change asks gooey for `Extent::LinesCeil`, which tracks the
 /// running text size itself.
 pub fn body_line_h() -> f32 {
-    BODY_LINE_H * text_scale()
+    body_line() * text_scale()
 }
 
 // ── spacing ──────────────────────────────────────────────────────────────────────────────────────
@@ -924,84 +802,19 @@ pub fn body_line_h() -> f32 {
 // and Yang et al. 2017 measured more information **improving** performance. So the answer to a
 // crowded panel is spacing and grouping, not deletion.
 
-/// Between items that belong to each other — chips in one axis, cells in one row.
-/// **One step of a gooey layout's gap**, as `bevy_gooey::row(1.0)` / `column(1.0)` ask for: a
-/// multiple of the running skin's `gap` (5 px in `editor_skin.yaml`), so an interface-size change
-/// moves every row's rhythm together (UI-58/#244, UI-59/#245).
-pub const GOOEY_GAP_ONE: f32 = 1.0;
+// **The steps are the skin's** (`skin.spacing` in the style sheet: `[3, 5, 12, 16, 20, 24]` px for the
+// editor), named below as [`STEP_TIGHT`] (between items that belong to each other), [`STEP_ROW`] (between
+// the rows of one block), [`STEP_PAD`] (inside a panel, and a panel from the window's edge) and
+// [`STEP_GROUP`] (between blocks: several times the tight step, which is the whole point). A node takes its
+// room from a class rule in the sheet (`.chrome-chip`, `.chrome-field`, `.chrome-button`, the label columns
+// `.chrome-col-*`); arithmetic about the same room reads [`space`], so the two cannot disagree.
 
-/// **The skin's `gap`**, from `editor_skin.yaml`: the pixel unit [`GOOEY_GAP_ONE`] is a multiple of,
-/// and the divisor a hand-built pixel gap is turned into one (`GAP_TIGHT / SKIN_GAP_PX` is 0.6).
-pub const SKIN_GAP_PX: f32 = 5.0;
+/// **A step of the sheet's spacing scale, logical px** — for code that measures with a step rather than
+/// spawning one (a badge's reach, a chip's width). See `crate::style::space`.
+pub fn space(step: bevy_gooey::Space) -> f32 {
+    crate::style::space(step)
+}
 
-pub const GAP_TIGHT: f32 = 3.0;
-/// Between the rows of one block.
-pub const GAP_ROW: f32 = 5.0;
-/// Between blocks. Several times [`GAP_TIGHT`], which is the whole point.
-pub const GAP_GROUP: f32 = 16.0;
-/// [`GAP_TIGHT`] in steps of the skin's gap, which is what a gooey row's or column's `gap` takes (0.6).
-pub const GAP_TIGHT_STEPS: f32 = GAP_TIGHT / SKIN_GAP_PX;
-/// [`GAP_GROUP`] in steps of the skin's gap (3.2).
-pub const GAP_GROUP_STEPS: f32 = GAP_GROUP / SKIN_GAP_PX;
-/// [`GAP_ROW`] in steps of the skin's gap (1.0: the editor skin's gap is the row gap).
-pub const GAP_ROW_STEPS: f32 = GAP_ROW / SKIN_GAP_PX;
-
-/// **A chip's (and a compact list row's) inset.** The 6 × 3 pair was an undeclared constant at
-/// twelve sites in five files before it had this name — the exact drift this module's header
-/// describes. The vertical 3 is [`GAP_TIGHT`] on purpose: a chip's own padding and the gap to its
-/// neighbour read as one rhythm. Do not shrink it — the padding is most of a chip's click target
-/// (Fitts: selection time grows as the target narrows), and 1 px of vertical padding made a row of
-/// chips "a solid bar of text rather than a row of things".
-pub const CHIP_PAD: UiRect = UiRect::axes(Val::Px(6.0), Val::Px(GAP_TIGHT));
-/// A text field's inner inset — tighter than [`CHIP_PAD`] because a field's box is already drawn
-/// by its fill, and the caret needs the width more than the text needs air.
-pub const FIELD_PAD: UiRect = UiRect::axes(Val::Px(4.0), Val::Px(2.0));
-/// A text field's floor. An unstated height lays out at 7 px while empty — this fact was restated
-/// at five sites as a bare `18.0` before it had a name.
-pub const MIN_FIELD_H: f32 = 18.0;
-
-/// **The box a number is typed into**, and the field's third dimension beside [`MIN_FIELD_H`] and
-/// [`FIELD_PAD`].
-///
-/// One idea with two values before 2026-09-03 — 62 in `tiles.rs` for a size and a mount height, 56
-/// in `editor.rs` for a map extent — which is a fact stated twice, one file apart. 62 wins on the
-/// measurement rather than by being the larger: the widest thing typed into one of these is
-/// `12.34` plus the caret, which does not fit in 56 at [`text::BODY`], while the Map's `48` fits
-/// comfortably in 62.
-pub const NUM_FIELD_W: f32 = 62.0;
-
-/// **A command button's inset**, and deliberately larger than [`CHIP_PAD`].
-///
-/// This is half of *shape carries kind* (the 2026-09-03 decision): a **toggle** — a tag, an axis
-/// value, a thing that is on or off — is a [`chip`], and a **command** — `rescan mesh`, `clear this
-/// cell`, a thing that happens once — is a [`button`]. Before that they were the same grey box in
-/// the same row, told apart only by an ink that also meant three other things, so the way to learn
-/// which was which was to press one.
-pub const BUTTON_PAD: UiRect = UiRect::axes(Val::Px(10.0), Val::Px(GAP_ROW));
-
-/// **The label column of a `LABEL  value` row.**
-///
-/// It was six unnamed literals — 76, 62, 56, 48, 40 and 14 — one per author, which is why no two
-/// panels in this editor lined their values up with each other. Three widths, chosen by what the
-/// column has to hold rather than by which file it is in:
-///
-/// - [`COL_TIGHT`] a single glyph or an axis letter,
-/// - [`COL_LABEL`] an ordinary word (`size`, `mount`, `pieces`),
-/// - [`COL_WIDE`] a phrase (`new work lands here`, `not imported`).
-///
-/// A value that will not fit its column is a [`COL_WIDE`] row, not a seventh number — and since
-/// 2026-09-03 a column is a **floor** rather than a cap, so a label that outgrows even `COL_WIDE`
-/// pushes its own value right instead of drawing on top of it.
-///
-/// **The KIT INFO overlap (`docs/ui_audit.md` F5) lived here**, and measuring it is what showed a
-/// wider constant could not fix it: `new work lands here` plus the inspector's selection mark is 21
-/// characters, which at `text::LABEL` on this monospace face is 126 px of glyphs — over `COL_WIDE`
-/// as well as over the 76 px column it actually had. See [`row_label`].
-pub const COL_TIGHT: f32 = 16.0;
-/// See [`COL_TIGHT`].
-pub const COL_LABEL: f32 = 52.0;
-/// See [`COL_TIGHT`].
-pub const COL_WIDE: f32 = 96.0;
 /// A block heading: quiet, and separated from what came before it.
 ///
 /// The separation is the work — a heading with the same gap above it as below is a label that could
@@ -1084,8 +897,8 @@ pub fn panel_root<'a>(
     // walks every ground is what makes it the skin's, once per frame, comparing before it writes.
     let panel = commands
         .spawn((
-            // A panel: a gooey sized box laid out as a column, `width` wide (`fit_docks_to_the_window` and the left pane write that `Sizing` width, so the skin never fights them), `GAP_ROW` px
-            // between its parts, `PAD` in all round, `MARGIN` out all round, a 1 px edge and a panel radius; it grows into what the dock leaves when `full_height`. Its fill and edge are
+            // A panel: a gooey sized box laid out as a column, `width` wide (`fit_docks_to_the_window` and the left pane write that `Sizing` width, so the skin never fights them), its
+            // gap, inset, margin and corner from the sheet's `.chrome-panel`, a hairline edge; it grows into what the dock leaves when `full_height`. Its fill and edge are
             // the editor's (`InkFollow`: `Ground`, `PanelEdge` lit by focus and the theme move them). `display` is the tabs' to write (`ShownFollow`), and a hidden panel starts closed.
             bevy_gooey::sized(bevy_gooey::Sizing {
                 width: Some(bevy_gooey::Extent::Px(width)),
@@ -1102,10 +915,9 @@ pub fn panel_root<'a>(
             (
                 bevy_gooey::RowLayout { direction: Some(FlexDirection::Column), ..default() },
                 bevy_gooey::TextFlow { grow: full_height.then_some(1.0), ..default() },
-                bevy_gooey::GapPx(GAP_ROW),
-                bevy_gooey::Spacing { padding: bevy_gooey::Sides::all(STEP_PAD), margin: bevy_gooey::Sides::all(STEP_PAD) },
-                bevy_gooey::BorderPx(bevy_gooey::Sides::all(EDGE_W)),
-                bevy_gooey::Shape { radius: Some(bevy_gooey::Radius::Step(1)), ..default() },
+                // Its gap, padding, margin and corner are the style sheet's `.chrome-panel`.
+                bevy_gooey::StyleClass::of("chrome-panel"),
+                bevy_gooey::BorderPx(bevy_gooey::Sides::all(crate::style::metrics().layout.edge_w)),
                 bevy_gooey::InkFollow,
             ),
             PanelWidth { preferred: width, side },
@@ -1360,7 +1172,7 @@ fn light_the_focused_panel(mut panels: Query<(&mut BorderColor, Has<Focused>), W
 /// the fraction is 1 nothing is written at all, which is the common case and the reason this costs
 /// nothing on an ordinary window.
 ///
-/// The floor is [`DOCK_MIN_W`] per side. A window narrower than the two floors can afford does not
+/// The floor is the sheet's `dock_min_w` per side. A window narrower than the two floors can afford does not
 /// get a smaller interface, it gets the viewport it has left — the docks cannot lie about their
 /// content by becoming narrower than a row.
 fn fit_docks_to_the_window(
@@ -1390,6 +1202,9 @@ fn fit_docks_to_the_window(
     // lay out to nothing. Two per door are visible on no door, so the two slots below are exactly
     // the two docks.
     let mut widest = [0.0f32; 2];
+    // Each dock is its panel plus the margin that panel carries, **measured rather than derived**: the
+    // margin is the style sheet's (`.chrome-panel`), so it is read off the laid-out node, never restated.
+    let mut overhead = 0.0f32;
     // **A collapsed left pane still has the panel's room counted** (UI-R06, #336): the pane slides to nothing and a peek floats it
     // back over the viewport, and a right dock that was re-fitted to the room the hidden panel gave up would jump with the
     // collapse and move the viewport again when a peek showed the panel. The panel is out of the layout (its dock is
@@ -1402,12 +1217,10 @@ fn fit_docks_to_the_window(
         }
         let side = usize::from(want.side == Side::Right);
         widest[side] = widest[side].max(want.preferred);
+        let px = |val: Val| if let Val::Px(px) = val { px } else { 0.0 };
+        overhead = overhead.max(px(node.margin.left) + px(node.margin.right));
     }
-
-    // Each dock is its panel plus the margin that panel carries, **measured rather than derived**:
-    // `(380 + 2 * 12) * 1.2 = 484.8`, against a real left dock of 485, and `(264 + 24) * 1.2 = 345.6`
-    // against a right dock of 346. The border is inside that width, so it is not added here.
-    let overhead: f32 = 2.0 * MARGIN;
+    let layout = crate::style::metrics().layout;
     let sides: Vec<f32> = widest.iter().copied().filter(|w| *w > 0.0).collect();
     if sides.is_empty() {
         return;
@@ -1423,10 +1236,10 @@ fn fit_docks_to_the_window(
     // (#282). The shell's split costs a divider's width that the two fixed docks never paid, and a
     // pane that is as wide as its panel (see [`size_the_shell_split`]) leaves the map what is left:
     // measured 741 px at a 1600 px window, 28 short of the 769 the docks alone left, and 504 at 1280
-    // where the frame's own test asks for half the window. So the map is owed [`VIEWPORT_SHARE`] of
+    // where the frame's own test asks for half the window. So the map is owed the sheet's `viewport_share` of
     // the window once that is more than the floor, and the panels give the difference back.
-    let room = room - DIVIDER_W_PX;
-    let owed = VIEWPORT_MIN_W.max(VIEWPORT_SHARE * room);
+    let room = room - layout.divider_w;
+    let owed = layout.viewport_min_w.max(layout.viewport_share * room);
     // (The map is owed its share of the room *before* the bar comes out, below.)
     let room = room - bar;
     let squeeze = if room - (sum_pref + sum_overhead) >= owed {
@@ -1436,9 +1249,9 @@ fn fit_docks_to_the_window(
         (affordable / sum_pref).clamp(0.0, 1.0)
     };
     // **No panel narrower than the floor**, which binds hardest on the *narrowest* side: the two
-    // sides scale by one fraction, so the fraction that keeps the smaller panel at `DOCK_MIN_W` is
+    // sides scale by one fraction, so the fraction that keeps the smaller panel at `dock_min_w` is
     // the one that keeps both usable.
-    let floor_fraction = DOCK_MIN_W / sides.iter().copied().fold(f32::INFINITY, f32::min);
+    let floor_fraction = layout.dock_min_w() / sides.iter().copied().fold(f32::INFINITY, f32::min);
     let squeeze = squeeze.max(floor_fraction.min(1.0));
 
     let person_owns_the_split = !owned.is_empty();
@@ -1455,10 +1268,6 @@ fn fit_docks_to_the_window(
         }
     }
 }
-
-/// Height of the two bars. Fixed, because a bar that changed height as its content changed would
-/// move the viewport under the author's hands.
-const BAR_H: f32 = 26.0;
 
 /// **Build the frame and remember its slots.**
 ///
@@ -1479,14 +1288,15 @@ pub fn spawn_frame(
         .as_deref()
         .and_then(|s| s.workspace_layout.get(workspace.id()).cloned())
         .unwrap_or_else(|| crate::ui::shell_layout(workspace));
-    // **A bar** (G-87): a gooey row `BAR_H` tall and the window wide, its parts centred and `GAP_GROUP` px apart, `MARGIN` in from each end, that never shrinks, with a 1 px edge along
-    // the one side that faces the rest of the screen. Its colours are the editor's (`InkFollow`): `Ground`/`BandGround` paint the fill and the theme moves them.
+    // **A bar** (G-87): a gooey row the sheet's `bar_h` tall and the window wide, its parts centred, never shrinking, its gap and its inset from each
+    // end the sheet's `.chrome-bar`, with a hairline along the one side that faces the rest of the screen. Its colours are the editor's (`InkFollow`):
+    // `Ground`/`BandGround` paint the fill and the theme moves them.
+    let bar_h = crate::style::metrics().layout.bar_h;
     let bar = |border: bevy_gooey::Sides<f32>| {
         (
             bevy_gooey::row_with(0.0, bevy_gooey::RowLayout { align: Some(AlignItems::Center), shrink: Some(0.0), ..default() }),
-            bevy_gooey::GapPx(GAP_GROUP),
-            bevy_gooey::Sizing { width: Some(bevy_gooey::Extent::Percent(100.0)), height: Some(bevy_gooey::Extent::Px(BAR_H)), ..default() },
-            bevy_gooey::Spacing { padding: bevy_gooey::Sides::x(STEP_PAD), ..default() },
+            bevy_gooey::StyleClass::of("chrome-bar"),
+            bevy_gooey::Sizing { width: Some(bevy_gooey::Extent::Percent(100.0)), height: Some(bevy_gooey::Extent::Px(bar_h)), ..default() },
             bevy_gooey::BorderPx(border),
             bevy_gooey::InkFollow,
         )
@@ -1590,10 +1400,10 @@ pub fn spawn_frame(
             // Without it `SplitMin` is `(0, 0)` and `SplitFraction` 0.95 left the viewport 47 px of
             // a 1280-px body — a dock covering the world in the only way that matters. gooey's own
             // dock uses the same 96 px for both panes. The left pane's floor is a panel's own
-            // (`DOCK_MIN_W` plus its margins), because a dragged-narrow pane makes the panel
-            // narrow with it ([`the_left_panel_follows_its_pane`]) and a panel under that floor
-            // stops being a panel.
-            bevy_gooey::SplitMin::new(DOCK_MIN_W + 2.0 * MARGIN, bevy_gooey::DOCK_PANE_MIN_PX),
+            // (the sheet's `dock_min_w` plus its margins, a panel's `STEP_PAD` each side), because a
+            // dragged-narrow pane makes the panel narrow with it ([`the_left_panel_follows_its_pane`])
+            // and a panel under that floor stops being a panel.
+            bevy_gooey::SplitMin::new(crate::style::metrics().layout.dock_min_w() + 2.0 * space(STEP_PAD), bevy_gooey::DOCK_PANE_MIN_PX),
             // **`Pickable::default()`, not `IGNORE`** (UI-30, #224). `bevy_picking` skips an
             // entity *and everything below it* when the entity is `IGNORE`, so an ignoring split
             // root made its divider — the one grabbable node in the frame — unhittable: the
@@ -1737,13 +1547,14 @@ pub fn spawn_frame(
             bevy::picking::Pickable::IGNORE,
         ))
         .id();
-    // The window wide and `BOTTOM_DOCK_H` tall, never shrinking, with a 1 px edge along its top, in the editor's colours (`InkFollow`). **Not shown until there is room**
+    // The window wide and the sheet's `bottom_dock_h` tall, never shrinking, with a hairline along its top, in the editor's colours (`InkFollow`). **Not shown until there is room**
     // ([`crate::shell_view::give_the_bottom_dock_its_room`] opens it, writing `display` itself: `ShownFollow`): a dock that is never laid out has no text for a label census to
     // find drawn outside it, and takes nothing from the workbench.
+    let measures = crate::style::metrics().layout;
     commands.entity(bottom).insert((
-        bevy_gooey::Sizing { width: Some(bevy_gooey::Extent::Percent(100.0)), height: Some(bevy_gooey::Extent::Px(BOTTOM_DOCK_H)), ..default() },
+        bevy_gooey::Sizing { width: Some(bevy_gooey::Extent::Percent(100.0)), height: Some(bevy_gooey::Extent::Px(measures.bottom_dock_h)), ..default() },
         bevy_gooey::TextFlow { shrink: Some(0.0), ..default() },
-        bevy_gooey::BorderPx(bevy_gooey::Sides { top: Some(EDGE_W), ..default() }),
+        bevy_gooey::BorderPx(bevy_gooey::Sides { top: Some(measures.edge_w), ..default() }),
         bevy_gooey::InkFollow,
         bevy_gooey::ShownFollow::closed(),
         BorderColor::all(ink().panel_edge),
@@ -1765,19 +1576,6 @@ pub fn spawn_frame(
         status,
     });
 }
-
-/// **The height of the bottom dock** (UI-61, #247), logical px: a panel's body at a comfortable
-/// reading size — a heading and six lines of the reload state.
-pub const BOTTOM_DOCK_H: f32 = 148.0;
-
-/// **The least height the workbench keeps while the bottom dock is shown**, logical px: the row of
-/// the left dock, the viewport and the inspector. The dock is the room the workbench can spare, so it
-/// is shown only when the workbench would still have this much beside it. Set from the editor's
-/// reference window (1280 x 720, which the headless harness's surface reproduces): with the terminal
-/// open the Map workbench measures 326 px there, and a 148-px dock took nearly half of that and left
-/// the inspector 24 px of visible height — a note being typed was off the panel — and in the Kit tabs
-/// it covered their badge legends.
-pub const WORKBENCH_FLOOR_H: f32 = 420.0;
 
 /// **The dock that holds the workspace's arrangement** (UI-30, #224; a second dock since #247).
 ///
@@ -2270,15 +2068,15 @@ pub fn problem_toast(mut commands: Commands, frame: Res<Frame>) {
             bevy_gooey::sized(bevy_gooey::Sizing { width: Some(bevy_gooey::Extent::Percent(100.0)), height: Some(bevy_gooey::Extent::Vh(100.0)), ..default() }),
             bevy_gooey::ToastStack,
             bevy::picking::Pickable::IGNORE,
-            GlobalZIndex(TOAST_Z),
+            GlobalZIndex(crate::style::metrics().z.toast),
         ))
         .insert(bevy_gooey::Role::ToastStack)
         .id();
     commands
         .spawn((
             // A toast is not a panel. It is over the viewport rather than in the layout, which is the whole point: `Frame` owns where panels go and this is deliberately not
-            // one of them. Placed `GAP_GROUP` down and the viewport wide with its stack centred, and hidden (through `Shown`) until a toast is raised.
-            bevy_gooey::placed(UiRect { left: Val::Px(0.0), top: Val::Px(GAP_GROUP), ..UiRect::all(Val::Auto) }),
+            // one of them. Placed a group's step down and the viewport wide with its stack centred, and hidden (through `Shown`) until a toast is raised.
+            bevy_gooey::placed(UiRect { left: Val::Px(0.0), top: Val::Px(space(STEP_GROUP)), ..UiRect::all(Val::Auto) }),
             bevy_gooey::Sizing { width: Some(bevy_gooey::Extent::Percent(100.0)), ..default() },
             bevy_gooey::RowLayout { justify: Some(JustifyContent::Center), ..default() },
             bevy_gooey::Shown(false),
@@ -2287,10 +2085,6 @@ pub fn problem_toast(mut commands: Commands, frame: Res<Frame>) {
         .add_child(stack)
         .insert(ChildOf(frame.viewport));
 }
-
-/// Above a dialog's scrim (100), as `bevy_gooey` stands its own toast stack: a refusal about what a
-/// dialog's button did must be readable over it.
-const TOAST_Z: i32 = 150;
 
 /// **Gooey's toast stack keeps clear of the menu bar** (#305).
 ///
@@ -2335,8 +2129,8 @@ pub struct ToastLayer;
 /// gooey's own guide asks of a game ("put it in a panel or a dialog of your own"): an overlay placed 8% down and 10% in, 80% wide and at most 76%
 /// tall, with the key hint and the after-edit check beside the centre.
 ///
-/// **An overlay, not a panel in the frame's flow**: it is asked for, read and dismissed, and `Frame` owns the docks. Its lines are `GAP_ROW` apart
-/// and `PAD` in, a 1 px edge, in the editor's own colours (`InkFollow`); closed until `Cmd+E`, and `display` is the notices' to write (`ShownFollow`).
+/// **An overlay, not a panel in the frame's flow**: it is asked for, read and dismissed, and `Frame` owns the docks. Its lines are `STEP_ROW` apart
+/// and a panel's padding in (`.chrome-panel`), a 1 px edge, in the editor's own colours (`InkFollow`); closed until `Cmd+E`, and `display` is the notices' to write (`ShownFollow`).
 ///
 /// No `CopyPane` marker: `notice::copy_out` harvests the TEXT of every visible node by walking the roots, so an open centre is carried by `Cmd+C`
 /// already.
@@ -2350,8 +2144,8 @@ pub fn notifications_overlay(mut commands: Commands, frame: Res<Frame>) {
             bevy_gooey::placed(UiRect { left: Val::Percent(10.0), top: Val::Percent(8.0), ..UiRect::all(Val::Auto) }),
             bevy_gooey::Sizing { width: Some(bevy_gooey::Extent::Percent(80.0)), max_height: Some(bevy_gooey::Extent::Percent(76.0)), ..default() },
             bevy_gooey::RowLayout { direction: Some(FlexDirection::Column), ..default() },
-            bevy_gooey::GapPx(GAP_ROW),
-            bevy_gooey::Spacing { padding: bevy_gooey::Sides::all(STEP_PAD), ..default() },
+            // Its gap and inset are the sheet's `.chrome-overlay`.
+            bevy_gooey::StyleClass::of("chrome-overlay"),
             bevy_gooey::BorderPx(bevy_gooey::Sides::all(1.0)),
             bevy_gooey::InkFollow,
             bevy_gooey::ShownFollow::closed(),
@@ -2498,7 +2292,7 @@ pub fn scroll_to_reveal(
     let (row_h, list_h) = (row.1 * 2.0, list.1 * 2.0);
     // The largest margin that still leaves the row itself room, so a short viewport degrades to
     // flush rather than to a fight between two margins it cannot satisfy.
-    let margin = (CONTEXT_ROWS * row_h).min(((list_h - row_h) * 0.5).max(0.0));
+    let margin = (crate::style::metrics().layout.context_rows * row_h).min(((list_h - row_h) * 0.5).max(0.0));
     // Above the fold, or below it. Never both — the above check winning is what sends an
     // over-tall row to its top.
     let delta = if row_top - margin < top {
@@ -2538,22 +2332,17 @@ pub fn scroll_bounds(list: &ComputedNode) -> (f32, f32) {
     (list.scroll_position.y * inv, max * inv)
 }
 
-/// **How much list stays visible past the selection.** Two rows: one is enough to prove the list
-/// continues and not enough to read, and the cost of a third is a viewport that scrolls sooner than
-/// the eye asks it to.
-const CONTEXT_ROWS: f32 = 2.0;
-
 /// The scrollbar's track. Marked so [`forward_a_wheel_over_a_scrollbar`] can find it and its own width is
 /// stated once.
 #[derive(Component)]
 pub struct ScrollTrack;
 
-/// Width of the bar, and how far it is inset from the panel's inner edge.
-const BAR_W: f32 = 5.0;
-const BAR_INSET: f32 = 1.0;
-/// **What the bar reserves.** Derived from the bar rather than picked, so the lane and the thing it
-/// is a lane for cannot drift apart — the failure this module exists to prevent, one more time.
-pub const SCROLL_GUTTER: f32 = BAR_W + BAR_INSET;
+/// **What a scroll bar reserves**: the sheet's bar and its inset (`metrics.layout.scroll_bar_w` and
+/// `scroll_bar_inset`), derived from the bar rather than picked, so the lane and the thing it is a lane for
+/// cannot drift apart.
+pub fn scroll_gutter() -> f32 {
+    crate::style::metrics().layout.scroll_gutter()
+}
 
 /// **A list that scrolls, and now says so.**
 ///
@@ -2594,11 +2383,11 @@ pub fn scroll_list<'a>(
     marker: impl Bundle,
 ) -> EntityCommands<'a> {
     // **gooey's scroll viewport** (G-90): one bundle that IS the scrolling viewport (the wheel, a drag on the rail, glide and edge fade, keyboard focus followed into view, Page/Home/End),
-    // filling the room its parent leaves and able to be nothing tall. Its children are `GAP_TIGHT` px apart (`GapPx`, not a skin multiple), and `SCROLL_GUTTER` px on its right stay clear
+    // filling the room its parent leaves and able to be nothing tall. Its children's gap is the sheet's `.chrome-scroll`, and the sheet's scroll gutter on its right stays clear
     // for the rail, so nothing is drawn under it (the audit's F7). The rail is gooey's, a sibling of the viewport in its parent; [`tag_the_scroll_rails`] gives it the editor's `ScrollTrack`.
     parent.spawn((
-        bevy_gooey::scroll_viewport(0.0, Some(bevy_gooey::Space::Px(SCROLL_GUTTER))),
-        bevy_gooey::GapPx(GAP_TIGHT),
+        bevy_gooey::scroll_viewport(0.0, Some(bevy_gooey::Space::Px(scroll_gutter()))),
+        bevy_gooey::StyleClass::of("chrome-scroll"),
         marker,
     ))
 }
@@ -2796,7 +2585,7 @@ pub fn palette_rule(parent: &mut ChildSpawnerCommands, words: &str) {
         bevy_gooey::Sizing { width: Some(bevy_gooey::Extent::Percent(100.0)), ..default() },
         // The rail's lane, so the sentence and the rows end at one edge.
         bevy_gooey::Spacing {
-            padding: bevy_gooey::Sides { right: Some(bevy_gooey::Space::Px(SCROLL_GUTTER)), ..default() },
+            padding: bevy_gooey::Sides { right: Some(bevy_gooey::Space::Px(scroll_gutter())), ..default() },
             ..default()
         },
         TextLayout::new(Justify::Left, LineBreak::WordBoundary),
@@ -2804,8 +2593,40 @@ pub fn palette_rule(parent: &mut ChildSpawnerCommands, words: &str) {
     ));
 }
 
+/// **The label columns of `LABEL  value` rows**, as the style-sheet classes that size them (`chrome-col-tight`,
+/// `chrome-col-label`, `chrome-col-wide`): it was six unnamed literals — 76, 62, 56, 48, 40 and 14 — one per author,
+/// which is why no two panels lined their values up. Three widths, chosen by what the column has to hold: a single
+/// glyph or an axis letter, an ordinary word (`size`, `mount`, `pieces`), a phrase (`new work lands here`). A value
+/// that will not fit its column is a `Wide` row, not a seventh number. Their widths are the sheet's rules.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Col {
+    /// A single glyph or an axis letter.
+    Tight,
+    /// An ordinary word.
+    Label,
+    /// A phrase.
+    Wide,
+}
+
+impl Col {
+    /// The class whose rule gives the column its width.
+    pub fn name(self) -> &'static str {
+        match self {
+            Col::Tight => "chrome-col-tight",
+            Col::Label => "chrome-col-label",
+            Col::Wide => "chrome-col-wide",
+        }
+    }
+}
+
+/// **The lane a list row's mark stands in, logical px at 100% text**: the tight label column's width, so a mark
+/// (`x`, `!`, a fold) and an axis letter take one lane. Spawned as a gooey `cell`, measured in body sizes, so it
+/// grows with the person's reading size instead of clipping the mark at 200%.
+pub const MARK_LANE_PX: f32 = 16.0;
+
 /// **The label column of a `LABEL  value` row** — the shape the audit found hand-rolled eight times,
-/// differing only in this width. 10 px `Ink::label`, never wrapping, never shrinking.
+/// differing only in this width. 10 px `Ink::label`, never wrapping, never shrinking. `column` is the class
+/// that sizes it: a [`Col`]'s, or a panel's own (`editor-readout-label`).
 ///
 /// # The column is a floor, not a cap, and that is the F5 fix
 ///
@@ -2816,49 +2637,46 @@ pub fn palette_rule(parent: &mut ChildSpawnerCommands, words: &str) {
 /// 76 px column, so `yes` rendered underneath the word `lands`.
 ///
 /// Measured by `ChooserSlice` on 2026-09-03, and the measurement is the argument: widening the
-/// constant to [`COL_WIDE`] takes the overlap from ~74 px to ~30 px. It does not remove it, because
+/// column to `Wide` takes the overlap from ~74 px to ~30 px. It does not remove it, because
 /// no fixed number can — a caller can always be handed a longer string.
 ///
-/// So `min_width` holds the alignment that the constant exists for, and `Val::Auto` lets a label
-/// that does not fit push its own value right instead of painting on it. Short labels line up at
+/// So the column's rule sets a `min_width`, which holds the alignment the column exists for, and a label
+/// that does not fit pushes its own value right instead of painting on it. Short labels line up at
 /// exactly the column, which is the whole point, and no call site changes.
-pub fn row_label(row: &mut ChildSpawnerCommands, width: f32, label: &str) {
-    row_label_with(row, width, label, ());
+pub fn row_label(row: &mut ChildSpawnerCommands, column: &str, label: &str) {
+    row_label_with(row, column, label, ());
 }
 
 /// **A [`row_label`] that keeps its column and says a long phrase on two lines** (#302).
 ///
 /// `row_label` lets a label wider than its column push the value right, which keeps the words apart and
 /// moves that one row's value out of line with every other row's. Here the column is the label's width
-/// and a phrase of two words wraps inside it, so `UNDER CURSOR` stands as `UNDER` over `CURSOR` and its
-/// value starts where the others do. A word still wider than `width` is the caller's to size the column
-/// for: it is never cut.
-pub fn row_label_wrapping(row: &mut ChildSpawnerCommands, width: f32, label: &str) {
-    let id = row_label_with(row, width, label, ());
-    row.commands()
-        .entity(id)
-        .insert((
-            TextLayout::new(Justify::Left, LineBreak::WordBoundary),
-            bevy_gooey::Sizing { width: Some(bevy_gooey::Extent::Px(width)), ..default() },
-        ));
+/// (the sheet's `.chrome-col-wrapping` rule for the column) and a phrase of two words wraps inside it, so
+/// `UNDER CURSOR` stands as `UNDER` over `CURSOR` and its value starts where the others do. A word still
+/// wider than the column is the caller's to size the column for: it is never cut.
+pub fn row_label_wrapping(row: &mut ChildSpawnerCommands, column: &str, label: &str) {
+    let id = row_label_with(row, column, label, ());
+    row.commands().entity(id).insert((
+        TextLayout::new(Justify::Left, LineBreak::WordBoundary),
+        bevy_gooey::StyleClass::of(&format!("chrome-row-label chrome-col-wrapping {column}")),
+    ));
 }
 
 /// [`row_label`] with a marker on its label, for a label that changes while the row is on screen.
 pub fn row_label_with(
     row: &mut ChildSpawnerCommands,
-    width: f32,
+    column: &str,
     label: &str,
     marker: impl Bundle,
 ) -> Entity {
     row.spawn((
-        // **The value never starts at the label's last glyph**: the label keeps its words' width and is at least the column wide, and a margin of its own
-        // (`GAP_ROW`, the design system's row gap, as its spacing step `STEP_ROW`)
-        // (outside its box) stands the value off however wide a long label turned out, because the row's `column_gap` only applies between boxes, and a label
-        // longer than its column pushes its own box wider (measured on the KIT INFO panel: 5 px against 133 px).
+        // **The value never starts at the label's last glyph**: the label keeps its words' width and is at least the column wide (`column`'s rule), and a margin
+        // of its own (`.chrome-row-label`: the row step) stands the value off however wide a long label turned out, because the row's `column_gap` only applies
+        // between boxes, and a label longer than its column pushes its own box wider (measured on the KIT INFO panel: 5 px against 133 px).
         (
             bevy_gooey::Role::Sized,
-            bevy_gooey::TextFlow { grow: None, shrink: Some(0.0), min_width: Some(bevy_gooey::Extent::Px(width)), align: None },
-            spacing(margin_right(STEP_ROW)),
+            bevy_gooey::TextFlow { grow: None, shrink: Some(0.0), min_width: None, align: None },
+            bevy_gooey::StyleClass::of(&format!("chrome-row-label {column}")),
         ),
         Text::new(label.to_owned()),
         TextColor(ink().label),
@@ -3019,7 +2837,8 @@ pub fn the_tree_steps_two_advances(
     if theirs <= 0.0 {
         return;
     }
-    let step = Val::Px(TREE_STEP);
+    let step_px = tree_step();
+    let step = Val::Px(step_px);
     for (entity, role, mut node, known) in twists.iter_mut() {
         if *role != bevy_gooey::Role::TreeTwisty {
             continue;
@@ -3040,7 +2859,7 @@ pub fn the_tree_steps_two_advances(
             (None, Some(known)) => known.0,
             (None, None) => 0,
         };
-        let in_by = Val::Px(depth as f32 * TREE_STEP);
+        let in_by = Val::Px(depth as f32 * step_px);
         if node.margin.left != in_by {
             node.margin.left = in_by;
         }
@@ -3050,15 +2869,44 @@ pub fn the_tree_steps_two_advances(
     }
 }
 
-/// **The editor skin's spacing steps, named** (#260): `editor_skin.yaml`'s `spacing` scale is `[3, 5, 12, 16, 20, 24]` px, so the editor's own gaps are
-/// steps of it. [`bevy_gooey::Spacing`] takes a step, and `the_editor_spacing_steps_are_its_gap_constants` holds each to the px constant it replaces.
+/// **The editor skin's spacing steps, named** (#260): the style sheet's `skin.spacing` scale is `[3, 5, 12, 16, 20, 24]` px, so the editor's own gaps
+/// are steps of it. [`bevy_gooey::Spacing`] takes a step.
 pub const STEP_TIGHT: bevy_gooey::Space = bevy_gooey::Space::Step(0);
-/// [`GAP_ROW`] (5 px) as a step of the skin's spacing scale.
+/// Between the rows of one block (5 px) as a step of the skin's spacing scale.
 pub const STEP_ROW: bevy_gooey::Space = bevy_gooey::Space::Step(1);
-/// [`PAD`] (12 px) as a step of the skin's spacing scale.
+/// Inside a panel (12 px) as a step of the skin's spacing scale.
 pub const STEP_PAD: bevy_gooey::Space = bevy_gooey::Space::Step(2);
-/// [`GAP_GROUP`] (16 px) as a step of the skin's spacing scale.
+/// Between blocks (16 px) as a step of the skin's spacing scale.
 pub const STEP_GROUP: bevy_gooey::Space = bevy_gooey::Space::Step(3);
+
+/// **The gap between a container's children, as the style-sheet class that sets it**: `chrome-gap-tight`, `-row` and `-group`,
+/// whose rules in `src/style/editor.yaml` give the [`STEP_TIGHT`], [`STEP_ROW`] and [`STEP_GROUP`] of the skin's scale. A row's or
+/// a column's rhythm is taste, so it is the sheet's: put `Gap::Tight.class()` beside a gooey `row(0.0)` or `column(0.0)`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Gap {
+    /// Between items that belong to each other — chips in one axis, cells in one row.
+    Tight,
+    /// Between the rows of one block.
+    Row,
+    /// Between blocks: several times the tight gap, which is the whole point.
+    Group,
+}
+
+impl Gap {
+    /// The class whose rule sets this gap.
+    pub fn name(self) -> &'static str {
+        match self {
+            Gap::Tight => "chrome-gap-tight",
+            Gap::Row => "chrome-gap-row",
+            Gap::Group => "chrome-gap-group",
+        }
+    }
+
+    /// The class, to spawn beside a gooey container.
+    pub fn class(self) -> bevy_gooey::StyleClass {
+        bevy_gooey::StyleClass::of(self.name())
+    }
+}
 
 /// No margin on any side.
 pub const NO_MARGIN: bevy_gooey::Sides<bevy_gooey::Space> = bevy_gooey::Sides { top: None, right: None, bottom: None, left: None };
@@ -3092,68 +2940,37 @@ pub fn the_words_of_a_quiet_item_are_a_control(commands: &mut Commands, item: En
     });
 }
 
-/// **The shape of a small box that holds one edge colour** (#260): a sized box laid out as a row, with a row radius and a `px` border in `edge`, which is passed as `InkOverride` because the skin
-/// paints any `BorderPx` edge in its outline unless the host's colour is pinned (so a box whose edge the host changes by state cannot be this: see the chip's GAP4). A row writes only what it is
-/// asked to, so a caller's `entry::<Node>()` stands; `shrink` is `Some(0.0)` for a box that never gives way to its neighbours.
-pub fn small_box(spacing: bevy_gooey::Spacing, border: bevy_gooey::Sides<f32>, edge: Color, shrink: Option<f32>) -> impl Bundle {
+/// **The shape of a small box that holds one edge colour** (#260): a sized box laid out as a row, its inset and corner the style sheet's
+/// rule for `class` (`chrome-chip`, `chrome-button`), and a `px` border in `edge`, which is passed as `InkOverride` because the skin paints any
+/// `BorderPx` edge in its outline unless the host's colour is pinned (so a box whose edge the host changes by state cannot be this: see the chip's
+/// GAP4). A row writes only what it is asked to, so a caller's `entry::<Node>()` stands; `shrink` is `Some(0.0)` for a box that never gives way to
+/// its neighbours.
+pub fn small_box(class: &str, border: bevy_gooey::Sides<f32>, edge: Color, shrink: Option<f32>) -> impl Bundle {
     (
         bevy_gooey::sized(bevy_gooey::Sizing::default()),
         bevy_gooey::RowLayout { direction: Some(FlexDirection::Row), shrink, ..default() },
-        spacing,
+        bevy_gooey::StyleClass::of(class),
         bevy_gooey::BorderPx(border),
         bevy_gooey::InkOverride { edge: Some(edge), ..default() },
-        bevy_gooey::Shape { radius: Some(bevy_gooey::Radius::Step(0)), ..default() },
     )
 }
 
-/// **The shape of a small box whose colours the editor paints** (#260, G-87): a sized box laid out as a row, with a row radius and a `px` border, marked `InkFollow`, so the skin writes neither its fill nor
-/// its edge and the editor's `RowRest`/`style_list_rows`, tag painters and `theme_ink::follow_the_skin` stay the one thing that colours it (by state: rest, hover, press, held, selected). A row writes
-/// only what it is asked to, so a caller's `entry::<Node>()` (a margin, a centred `align_items`) stands; `shrink` is `Some(0.0)` for a box that never gives way to its neighbours.
-pub fn held_box(spacing: bevy_gooey::Spacing, border: bevy_gooey::Sides<f32>, shrink: Option<f32>, sizing: bevy_gooey::Sizing) -> impl Bundle {
+/// **The shape of a small box whose colours the editor paints** (#260, G-87): a sized box laid out as a row, its inset and corner the style sheet's
+/// rule for `class` (`chrome-chip`, `chrome-row`, `chrome-button`), a `px` border, marked `InkFollow`, so the skin writes neither its fill nor its
+/// edge and the editor's `RowRest`/`style_list_rows`, tag painters and `theme_ink::follow_the_skin` stay the one thing that colours it (by state:
+/// rest, hover, press, held, selected). A row writes only what it is asked to, so a caller's `entry::<Node>()` (a margin, a centred `align_items`)
+/// stands; `shrink` is `Some(0.0)` for a box that never gives way to its neighbours.
+pub fn held_box(class: &str, border: bevy_gooey::Sides<f32>, shrink: Option<f32>, sizing: bevy_gooey::Sizing) -> impl Bundle {
     (
         // A gooey `sized` box that is laid out as a row. Not a gooey row: `Role::Row` gives a node a least width of 0, and a chip, a button or a list row keeps its automatic least
         // width (its content), so a row in a narrow lane is as wide as what it holds rather than squeezed under it.
         bevy_gooey::sized(sizing),
         bevy_gooey::RowLayout { direction: Some(FlexDirection::Row), shrink, ..default() },
-        spacing,
+        bevy_gooey::StyleClass::of(class),
         bevy_gooey::BorderPx(border),
         bevy_gooey::InkFollow,
-        bevy_gooey::Shape { radius: Some(bevy_gooey::Radius::Step(0)), ..default() },
     )
 }
-
-/// **A text field's inset as gooey's `Spacing`** (#260): 4 px across and 2 px down, the same box as [`FIELD_PAD`] (neither is a step of the skin's scale).
-pub const FIELD_SPACING: bevy_gooey::Spacing = bevy_gooey::Spacing {
-    margin: NO_MARGIN,
-    padding: bevy_gooey::Sides {
-        top: Some(bevy_gooey::Space::Px(2.0)),
-        right: Some(bevy_gooey::Space::Px(4.0)),
-        bottom: Some(bevy_gooey::Space::Px(2.0)),
-        left: Some(bevy_gooey::Space::Px(4.0)),
-    },
-};
-
-/// **A button's inset as gooey's `Spacing`** (#260): 10 px across and a row step down, the same box as [`BUTTON_PAD`].
-pub const BUTTON_SPACING: bevy_gooey::Spacing = bevy_gooey::Spacing {
-    margin: NO_MARGIN,
-    padding: bevy_gooey::Sides {
-        top: Some(STEP_ROW),
-        right: Some(bevy_gooey::Space::Px(10.0)),
-        bottom: Some(STEP_ROW),
-        left: Some(bevy_gooey::Space::Px(10.0)),
-    },
-};
-
-/// **A chip's inset as gooey's `Spacing`** (#260): 6 px a side and a tight step above and below, the same box as [`CHIP_PAD`]. The 6 px is not a step of the skin's scale, so it is a literal `Space::Px`.
-pub const CHIP_SPACING: bevy_gooey::Spacing = bevy_gooey::Spacing {
-    margin: NO_MARGIN,
-    padding: bevy_gooey::Sides {
-        top: Some(STEP_TIGHT),
-        right: Some(bevy_gooey::Space::Px(6.0)),
-        bottom: Some(STEP_TIGHT),
-        left: Some(bevy_gooey::Space::Px(6.0)),
-    },
-};
 
 /// **A margin for a text or a cell to stand off its neighbours by** (UI-59, #245; #260): gooey's [`bevy_gooey::Spacing`], in steps of the skin's scale.
 ///
@@ -3183,40 +3000,48 @@ pub fn spacing(margin: bevy_gooey::Sides<bevy_gooey::Space>) -> bevy_gooey::Spac
     bevy_gooey::Spacing { margin, padding: default() }
 }
 
+/// **The classes a row helper's row carries**: `chrome-row-layout`, the helper's own modifier (`chrome-row-gapped`, `-wrapping`,
+/// `-rigid`, `-end`) and, when it has one, the [`Gap`]'s class — so a sheet rule can style every helper row, one kind, or one rhythm.
+fn row_classes(kind: &str, gap: Option<Gap>) -> bevy_gooey::StyleClass {
+    let gap = gap.map_or("", Gap::name);
+    bevy_gooey::StyleClass::of(&format!("chrome-row-layout chrome-row-{kind} {gap}"))
+}
+
 /// **A gooey row with room around it** (UI-59, #245): [`bevy_gooey::row_with`] with no gap of its own, the margin outside it and
 /// its cells on `align` across. `.insert(..)` a marker on the returned commands, or `.with_children(..)` the row's cells.
 pub fn spaced_row<'a>(parent: &'a mut ChildSpawnerCommands, margin: bevy_gooey::Sides<bevy_gooey::Space>, align: AlignItems) -> EntityCommands<'a> {
-    gapped_row(parent, 0.0, margin, align)
+    gapped_row(parent, None, margin, align)
 }
 
-/// **A [`spaced_row`] whose cells stand `gap` steps of the skin's gap apart** (a gooey row's own rhythm: 1.0 is the skin's gap).
-pub fn gapped_row<'a>(parent: &'a mut ChildSpawnerCommands, gap: f32, margin: bevy_gooey::Sides<bevy_gooey::Space>, align: AlignItems) -> EntityCommands<'a> {
+/// **A [`spaced_row`] whose cells stand a [`Gap`] apart** (the sheet's rule for the gap's class).
+pub fn gapped_row<'a>(parent: &'a mut ChildSpawnerCommands, gap: Option<Gap>, margin: bevy_gooey::Sides<bevy_gooey::Space>, align: AlignItems) -> EntityCommands<'a> {
     parent.spawn((
-        bevy_gooey::row_with(gap, bevy_gooey::RowLayout { align: Some(align), ..default() }),
+        bevy_gooey::row_with(0.0, bevy_gooey::RowLayout { align: Some(align), ..default() }),
         bevy_gooey::Spacing { margin, padding: default() },
+        row_classes("gapped", gap),
     ))
 }
 
 /// **A gooey row that wraps its cells onto a second line instead of running off the panel's edge** (UI-59, #245): the cells
-/// stand `gap` steps of the skin's gap apart, and so do the lines (gooey's wrapping container puts the skin's gap between its
-/// lines as well), and the row may narrow below its widest run, which a gooey row always may, so a last chip is never clipped
-/// by the panel (the 2026-09-03 audit's F7).
-pub fn wrapping_row<'a>(parent: &'a mut ChildSpawnerCommands, gap: f32, margin: bevy_gooey::Sides<bevy_gooey::Space>, align: AlignItems) -> EntityCommands<'a> {
+/// stand a [`Gap`] apart, and so do the lines (a gap is both a row's and a column's), and the row may narrow below its widest run,
+/// which a gooey row always may, so a last chip is never clipped by the panel (the 2026-09-03 audit's F7).
+pub fn wrapping_row<'a>(parent: &'a mut ChildSpawnerCommands, gap: Option<Gap>, margin: bevy_gooey::Sides<bevy_gooey::Space>, align: AlignItems) -> EntityCommands<'a> {
     parent.spawn((
-        bevy_gooey::row_with(gap, bevy_gooey::RowLayout { align: Some(align), wrap: Some(FlexWrap::Wrap), ..default() }),
+        bevy_gooey::row_with(0.0, bevy_gooey::RowLayout { align: Some(align), wrap: Some(FlexWrap::Wrap), ..default() }),
         bevy_gooey::Spacing { margin, padding: default() },
+        row_classes("wrapping", gap),
     ))
 }
 
-/// **A [`gapped_row`] that is never squeezed** (#260): the cells stand `gap` steps apart on `align` across, and the row keeps its height when
+/// **A [`gapped_row`] that is never squeezed** (#260): the cells stand a [`Gap`] apart on `align` across, and the row keeps its height when
 /// the panel is shorter than its rows (a flex item that may shrink is made shorter than its text, which draws one line over the next).
-pub fn rigid_row<'a>(parent: &'a mut ChildSpawnerCommands, gap: f32, align: AlignItems) -> EntityCommands<'a> {
-    parent.spawn(bevy_gooey::row_with(gap, bevy_gooey::RowLayout { align: Some(align), shrink: Some(0.0), ..default() }))
+pub fn rigid_row<'a>(parent: &'a mut ChildSpawnerCommands, gap: Option<Gap>, align: AlignItems) -> EntityCommands<'a> {
+    parent.spawn((bevy_gooey::row_with(0.0, bevy_gooey::RowLayout { align: Some(align), shrink: Some(0.0), ..default() }), row_classes("rigid", gap)))
 }
 
 /// **A [`gapped_row`] whose cells gather at the right edge** (#260): a dialog's answers.
-pub fn end_row<'a>(parent: &'a mut ChildSpawnerCommands, gap: f32) -> EntityCommands<'a> {
-    parent.spawn(bevy_gooey::row_with(gap, bevy_gooey::RowLayout { justify: Some(JustifyContent::FlexEnd), ..default() }))
+pub fn end_row<'a>(parent: &'a mut ChildSpawnerCommands, gap: Option<Gap>) -> EntityCommands<'a> {
+    parent.spawn((bevy_gooey::row_with(0.0, bevy_gooey::RowLayout { justify: Some(JustifyContent::FlexEnd), ..default() }), row_classes("end", gap)))
 }
 
 /// **A text that takes the rest of its row and wraps inside it** (UI-59, #245): a label column that grows with the row and
@@ -3289,8 +3114,8 @@ pub fn chip<'a>(
         // sweeps actually protect, and they pass 3/3 with this. The old `0.0` here was #494's fixed-target
         // rule; #526 supersedes it and `the_g87_nodes_are_gooeys` moves with the contract.
         held_box(
-            CHIP_SPACING,
-            bevy_gooey::Sides::all(EDGE_W),
+            "chrome-chip",
+            bevy_gooey::Sides::all(crate::style::metrics().layout.edge_w),
             Some(1.0),
             bevy_gooey::Sizing { max_width: Some(bevy_gooey::Extent::Percent(100.0)), ..default() },
         ),
@@ -3331,7 +3156,7 @@ pub fn list_row<'a>(
 ) -> EntityCommands<'a> {
     // `Button` is what puts a row on the editor's `Activate` bus — see [`quiet_row`] for who is
     // deliberately not on it.
-    parent.spawn((bevy::ui_widgets::Button, row_shape(selected), marker))
+    parent.spawn((bevy::ui_widgets::Button, row_shape(selected, "chrome-row"), marker))
 }
 
 /// **The same row, not on the `Activate` bus.**
@@ -3374,7 +3199,12 @@ pub fn quiet_row<'a>(
     selected: bool,
     marker: impl Bundle,
 ) -> EntityCommands<'a> {
-    parent.spawn((row_shape(selected), marker))
+    parent.spawn((quiet_row_shape(selected), marker))
+}
+
+/// **What [`quiet_row`] spawns**, for a row built where there are no `Commands` (an overlay spawned on the `World`).
+pub fn quiet_row_shape(selected: bool) -> impl Bundle {
+    row_shape(selected, "chrome-row chrome-row-quiet")
 }
 
 /// **Whether a row is the chosen one.** Carried rather than baked into the fill alone, because since
@@ -3388,13 +3218,18 @@ pub struct RowSelected(pub bool);
 /// **The rail is a left border, not a child node**, and the width is reserved whether or not the row
 /// is selected — so selecting a row cannot move its text sideways by two pixels, which is what an
 /// added child or a conditional border would do to a list the author is reading down.
-fn row_shape(selected: bool) -> impl Bundle {
+fn row_shape(selected: bool, classes: &str) -> impl Bundle {
     let rest = if selected { ink().row_selected } else { ink().row_bg };
     (
         Hovered::default(),
         RowRest(rest),
         RowSelected(selected),
-        held_box(CHIP_SPACING, bevy_gooey::Sides { left: Some(SELECT_RAIL_W), ..default() }, None, bevy_gooey::Sizing { width: Some(bevy_gooey::Extent::Percent(100.0)), ..default() }),
+        held_box(
+            classes,
+            bevy_gooey::Sides { left: Some(crate::style::metrics().layout.select_rail_w), ..default() },
+            None,
+            bevy_gooey::Sizing { width: Some(bevy_gooey::Extent::Percent(100.0)), ..default() },
+        ),
         BorderColor::all(if selected { ink().accent } else { Color::NONE }),
         BackgroundColor(rest),
     )
@@ -3545,7 +3380,7 @@ pub fn button<'a>(
         Hovered::default(),
         RowRest(ink().row_bg),
         marker,
-        held_box(BUTTON_SPACING, bevy_gooey::Sides::all(EDGE_W), Some(0.0), bevy_gooey::Sizing::default()),
+        held_box("chrome-button", bevy_gooey::Sides::all(crate::style::metrics().layout.edge_w), Some(0.0), bevy_gooey::Sizing::default()),
         BorderColor::all(ink().panel_edge),
         BackgroundColor(ink().row_bg),
     ));
@@ -3571,33 +3406,40 @@ pub fn button<'a>(
 // Read it top-down: a question you must answer is in front of the keys that teach you the
 // application, which are in front of a readout you glance at.
 
-/// **A modal question.** In front of everything, because nothing else on screen is actionable while
-/// one is up.
-pub const MODAL_Z: i32 = 900;
+// The numbers are the style sheet's `metrics.z` (`crate::style::ZMetrics`), in this order, lowest first:
+// `balloon` (a speech balloon over a piece, #106: in front of the viewport, behind every panel), `compass`
+// (a persistent readout, never the thing you look at; below gooey's dialog layer, 100), `terminal_maximised`
+// (#435: above the map's overlays, below the dialogs and every notice), `toast` (above a dialog's scrim, as
+// gooey stands its own stack), `notice` (the session journal and the problem toast, which carried no z until
+// 2026-09-03), `menu_overlay`, `badge` (the key badges: below a modal, which is exactly when they must not
+// cover its answer), `modal` (in front of everything, because nothing else is actionable) and `report`.
+/// **How wide a [`text_field`] is**, as the style-sheet class that says so.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum FieldWidth {
+    /// As wide as its readout.
+    Hug,
+    /// All of its row (`.chrome-field-fill`).
+    Fill,
+    /// **The box a number is typed into** (`.chrome-field-number`): the widest thing typed into one is `12.34`
+    /// plus the caret, measured at the body size (2026-09-03, when 56 in one file and 62 in another were one idea).
+    Number,
+}
 
-/// A speech balloon over a piece (#106): in front of the viewport, behind every panel and modal.
-pub const BALLOON_Z: i32 = 50;
-/// **The key badges**, which you hold a key to see. Below a modal — a question that has taken the
-/// keyboard is exactly the moment the shortcut layer must not cover its own answer.
-pub const BADGE_Z: i32 = 500;
-/// **The session journal and the problem toast.** Above the panels they are reporting on and below
-/// the badges that name the key which dismisses them. These two carried **no `GlobalZIndex` at all**
-/// until 2026-09-03, which is not "behind everything" but "wherever the spawn order left them".
-pub const NOTICE_Z: i32 = 300;
-/// **The compass**, a persistent readout in the corner of the viewport. Lowest, because it is the
-/// one overlay that is never the thing you are looking at. **Below gooey's own dialog layer (100)**, so a dialog stands over it, and so a maximised terminal
-/// ([`TERMINAL_MAXIMISED_Z`], above this) can stand under the dialogs too.
-pub const COMPASS_Z: i32 = 60;
-/// **The terminal while it is maximised** (#435): above the map's overlays ([`COMPASS_Z`]: the axis gizmo, the Look chip), which are layers of their own
-/// and were drawn over the terminal's text, and **below** gooey's dialogs (`GlobalZIndex(100)` by default: Settings, Keymap, project config, New project),
-/// the session journal and the problem toast ([`NOTICE_Z`], and the toast's own), the key badges and every modal, which are things to answer or to read
-/// whatever the terminal covers.
-pub const TERMINAL_MAXIMISED_Z: i32 = COMPASS_Z + 20;
-/// **A text field's box** — [`MIN_FIELD_H`] floor, [`FIELD_PAD`] inset, `Ink::row_bg` fill, with its
+impl FieldWidth {
+    fn classes(self) -> &'static str {
+        match self {
+            FieldWidth::Hug => "chrome-field",
+            FieldWidth::Fill => "chrome-field chrome-field-fill",
+            FieldWidth::Number => "chrome-field chrome-field-number",
+        }
+    }
+}
+
+/// **A text field's box** — the sheet's `.chrome-field` floor and inset, `Ink::row_bg` fill, with its
 /// readout text spawned inside. The audit found this shape six times with three paddings.
 pub fn text_field<'a>(
     parent: &'a mut ChildSpawnerCommands,
-    width: Val,
+    width: FieldWidth,
     field: impl Bundle,
     role: text::Role,
     initial: (String, Color),
@@ -3607,19 +3449,11 @@ pub fn text_field<'a>(
         bevy::ui_widgets::Button,
         Hovered::default(),
         field,
-        // The field's box (G-87): a gooey row that never shrinks, as wide as asked (`Auto` hugs its readout), `MIN_FIELD_H` tall at least, `FIELD_PAD` in from the edge (4 x 2 px, not
-        // a step of the scale). Its fill is the editor's (`InkFollow`), `Ink::row_bg`.
-        bevy_gooey::sized(bevy_gooey::Sizing {
-            width: match width {
-                Val::Px(px) => Some(bevy_gooey::Extent::Px(px)),
-                Val::Percent(percent) => Some(bevy_gooey::Extent::Percent(percent)),
-                _ => None,
-            },
-            min_height: Some(bevy_gooey::Extent::Px(MIN_FIELD_H)),
-            ..default()
-        }),
+        // The field's box (G-87): a gooey row that never shrinks, its width, least height and inset the sheet's
+        // `.chrome-field` (and `-fill` or `-number`). Its fill is the editor's (`InkFollow`), `Ink::row_bg`.
+        bevy_gooey::sized(bevy_gooey::Sizing::default()),
         bevy_gooey::RowLayout { direction: Some(FlexDirection::Row), shrink: Some(0.0), ..default() },
-        FIELD_SPACING,
+        bevy_gooey::StyleClass::of(width.classes()),
         bevy_gooey::InkFollow,
         BackgroundColor(ink().row_bg),
     ));
@@ -3657,8 +3491,8 @@ pub fn severity_style(severity: blueprint_model::import::Severity) -> (Color, &'
 }
 
 /// **A severity rail** — the tinted left border that makes a finding's weight visible before it is
-/// read. 2 px (the tiles dialect; the decision of 2026-08-17), [`GAP_TIGHT`] breathing room, a
-/// [`GAP_ROW`] gap to the next. Returns the block for the caller to fill — the severity word first,
+/// read. 2 px (the tiles dialect; the decision of 2026-08-17), [`STEP_TIGHT`] breathing room, a
+/// [`STEP_ROW`] gap to the next. Returns the block for the caller to fill — the severity word first,
 /// by convention, in the same tint. A clickable rail (anim's jump rows) adds `Button`/`Hovered`
 /// and a fill through `marker`.
 pub fn severity_rail<'a>(
@@ -3713,19 +3547,17 @@ fn spawn_name_box(mut commands: Commands) {
             bevy_gooey::RowLayout { align: Some(AlignItems::Center), justify: Some(JustifyContent::Center), ..default() },
             bevy_gooey::Shown(false),
             bevy_gooey::InkFollow,
-            // Above the panels and the tab strip (101), and below the key badges (500) and the
-            // confirm prompt (900) — the tier for "the screen is asking you something", which
-            // outranks a panel and is outranked by a question you have to answer.
-            GlobalZIndex(400),
+            // Above the panels and the tab strip (101), and below the key badges and the confirm
+            // prompt — the tier for "the screen is asking you something", which outranks a panel and
+            // is outranked by a question you have to answer (`metrics.z.menu_overlay`).
+            GlobalZIndex(crate::style::metrics().z.menu_overlay),
             BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.72)),
         ))
         .with_children(|p| {
             p.spawn((
-                // The dialog card: a column 10 px between its lines (`GapPx`), 18 px in all round (neither is a step of the scale), 360 px at least, in the editor's panel colour.
+                // The dialog card: a column whose gap, inset and least width are the sheet's `.chrome-dialog-card`, in the editor's panel colour.
                 bevy_gooey::column(0.0),
-                bevy_gooey::GapPx(GAP_ROW * 2.0),
-                bevy_gooey::Spacing { padding: bevy_gooey::Sides::all(bevy_gooey::Space::Px(PAD * 1.5)), ..default() },
-                bevy_gooey::Sizing { min_width: Some(bevy_gooey::Extent::Px(360.0)), ..default() },
+                bevy_gooey::StyleClass::of("chrome-dialog-card"),
                 bevy_gooey::InkFollow,
                 BackgroundColor(ink().panel_bg),
                 // **The dialog itself is UI; the dimmed backdrop behind it is not.**
@@ -4011,7 +3843,8 @@ fn size_the_shell_split(
         if extent <= 0.0 {
             continue;
         }
-        let to = ((want + 2.0 * MARGIN) / extent).clamp(0.0, 1.0);
+        // The panel's margin each side: a panel's `STEP_PAD` (the sheet's `.chrome-panel`).
+        let to = ((want + 2.0 * space(STEP_PAD)) / extent).clamp(0.0, 1.0);
         if fraction.0 != to {
             fraction.0 = to;
         }
@@ -4055,7 +3888,7 @@ fn the_left_panel_follows_its_pane(
     if wide <= 0.0 {
         return;
     }
-    let width = Some(bevy_gooey::Extent::Px((wide - 2.0 * MARGIN).max(DOCK_MIN_W)));
+    let width = Some(bevy_gooey::Extent::Px((wide - 2.0 * space(STEP_PAD)).max(crate::style::metrics().layout.dock_min_w())));
     for (panel, mut sizing) in &mut panels {
         if panel.side == Side::Left && sizing.width != width {
             sizing.width = width;
@@ -4597,10 +4430,9 @@ pub fn spawn_chrome_bar(
         bar.spawn((
             BackButton,
             Control(keys::ControlId::Back),
-            // A chip-sized row: its words a row step apart, a chip's inset, never shrinking, in the editor's own fill (`InkFollow`).
+            // A chip-sized row: its words' gap and its inset the sheet's `.chrome-back`, never shrinking, in the editor's own fill (`InkFollow`).
             bevy_gooey::row_with(0.0, bevy_gooey::RowLayout { align: Some(AlignItems::Center), shrink: Some(0.0), ..default() }),
-            bevy_gooey::GapPx(GAP_ROW),
-            CHIP_SPACING,
+            bevy_gooey::StyleClass::of("chrome-back"),
             bevy_gooey::InkFollow,
             BackgroundColor(ink().slot_bg),
             // The bar is `Pickable::IGNORE` so the frame answers no clicks; this narrows that for
@@ -4768,9 +4600,10 @@ pub fn spawn_status_band(mut commands: Commands, frame: Res<Frame>, project: Opt
 pub fn spawn_agent_band(band: &mut ChildSpawnerCommands) {
     band.spawn((
         AgentBand,
-        // A row: the agent's half, then the decision model's. `GAP_TIGHT_STEPS` so the pair reads as one region and each half reads as
-        // one fact.
-        bevy_gooey::row_with(GAP_TIGHT_STEPS, bevy_gooey::RowLayout { align: Some(AlignItems::Center), ..default() }),
+        // A row: the agent's half, then the decision model's, a tight step apart (the sheet's `.chrome-agent-band`) so the pair reads as
+        // one region and each half reads as one fact.
+        bevy_gooey::row_with(0.0, bevy_gooey::RowLayout { align: Some(AlignItems::Center), ..default() }),
+        bevy_gooey::StyleClass::of("chrome-agent-band"),
         AccessibleLabel::new("Agent and decision model"),
         Name::new("agent band"),
         bevy::picking::Pickable::IGNORE,
@@ -4785,7 +4618,8 @@ pub fn spawn_agent_band(band: &mut ChildSpawnerCommands) {
         region
             .spawn((
                 AgentBandHalf,
-                bevy_gooey::row_with(GAP_TIGHT_STEPS, bevy_gooey::RowLayout { align: Some(AlignItems::Center), ..default() }),
+                bevy_gooey::row_with(0.0, bevy_gooey::RowLayout { align: Some(AlignItems::Center), ..default() }),
+                bevy_gooey::StyleClass::of("chrome-agent-band-half"),
                 bevy::picking::Pickable::default(),
                 Hovered::default(),
                 bevy_gooey::Tooltip::new(String::new()),
@@ -5016,7 +4850,7 @@ pub fn dim_the_ground(
         } else {
             ground.0
         };
-        let want = if held { rest.with_alpha(rest.alpha() * GROUND_HELD) } else { rest };
+        let want = if held { rest.with_alpha(rest.alpha() * crate::style::metrics().layout.ground_held) } else { rest };
         if bg.0 != want {
             bg.0 = want;
         }

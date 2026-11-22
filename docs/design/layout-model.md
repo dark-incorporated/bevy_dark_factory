@@ -2,6 +2,11 @@
 
 **Issue #521** (`feedback-1795094182023`). Research, with measurements. **Nothing was re-implemented.**
 
+**Since 2026-11-22** the measures named below as constants (`CONTROLS_W`, `LIST_W`, `BOTTOM_DOCK_H`, `WORKBENCH_FLOOR_H`, `PAD`,
+`GAP_ROW`, …) are `metrics.layout` values and class rules of the editor's live style sheet,
+`crates/bevy_dark_factory/src/style/editor.yaml` ([data files](../guide/data-files.md#the-editors-style-sheet)). The numbers
+here are as measured at the time.
+
 The owner's note, in full:
 
 > *"This layout is a hotmess. We need a mental and data models for layouts like this. Ultimately, we need a damn good UX."*

@@ -226,7 +226,7 @@ fn open_the_search(
         .id();
     // The block takes twice the room of its siblings and may shrink to nothing: a fill region that stands a row gap between its parts.
     commands.entity(block).insert((
-        bevy_gooey::fill_region_with(crate::chrome::GAP_ROW_STEPS),
+        (bevy_gooey::fill_region_with(0.0), crate::chrome::Gap::Row.class()),
         bevy_gooey::TextFlow { grow: Some(2.0), ..default() },
     ));
     commands.entity(side).add_child(block);

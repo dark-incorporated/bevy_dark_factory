@@ -121,7 +121,7 @@ fn the_bench_draws_rows_and_cells_inside_its_own_pane() {
     // **And the column holds its text** (review of #244, MUST-FIX a): a `cell` clips what does not fit,
     // so a width under the string cuts the clip index — the one thing that column is for.
     let text = slot_text.expect("the fixture's one slot draws `0 - clip 0`");
-    let needed = text.chars().count() as f32 * bevy_dark_factory::chrome::BODY_CHAR_W;
+    let needed = text.chars().count() as f32 * bevy_dark_factory::chrome::body_char_w();
     assert!(
         widest >= needed,
         "the slot column is {widest:.1} px and `{text}` needs {needed:.1} px, so the cell cuts it"

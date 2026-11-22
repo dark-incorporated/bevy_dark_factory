@@ -110,9 +110,10 @@ pub struct Terminal {
     /// **The settings have been given at least once.** No shell opens before: a first tab that opened
     /// a frame before the settings were read would be a plain shell for a person who chose an agent.
     settings_taken: bool,
-    /// **The projects whose agent tab was closed or whose shell left**, until `terminal_agent::keep_the_resume_record`
-    /// takes them: the person ended that agent, so its resume record goes. Quitting the editor adds nothing here.
-    ended_agents: Vec<PathBuf>,
+    /// **The projects whose agent tab was closed or whose shell left**, with the kind of agent, until
+    /// `terminal_agent::keep_the_resume_record` takes them: the person ended that agent, so its resume record goes. Quitting the
+    /// editor adds nothing here.
+    ended_agents: Vec<(PathBuf, crate::terminal_agent::AgentKind)>,
     /// **How wide the bar is drawn**, logical px, as the pane last measured it (#423): what [`crate::terminal_pane::bar_plan`] decides a
     /// narrow bar holds from. `None` until a bar has been laid out, which holds everything.
     bar_room: Option<f32>,
@@ -215,7 +216,7 @@ impl Terminal {
     /// too, so the card says why.
     pub fn spawn_agent(&mut self, cols: u16, rows: u16, cwd: &Path, launch: AgentLaunch) -> usize {
         let AgentLaunch { line, env, mut post } = launch;
-        let index = self.open_tab(cols, rows, cwd, &env, Some(post.harness.name().to_owned()));
+        let index = self.open_tab(cols, rows, cwd, &env, Some(post.tab_title().to_owned()));
         let tab = &mut self.open[index];
         if !line.is_empty() {
             if tab.session.is_some() {
@@ -335,9 +336,22 @@ impl Terminal {
         self.open.iter_mut().filter_map(|tab| tab.agent.as_mut())
     }
 
-    /// **Take the projects whose agent tab has been taken out** since the last call ([`Self::remove_tab`]).
-    pub fn take_ended_agents(&mut self) -> Vec<PathBuf> {
+    /// **Take the projects whose agent tab has been taken out**, with the kind of agent, since the last call ([`Self::remove_tab`]).
+    pub fn take_ended_agents(&mut self) -> Vec<(PathBuf, crate::terminal_agent::AgentKind)> {
         std::mem::take(&mut self.ended_agents)
+    }
+
+    /// **Keystrokes to the agent tab whose launch minted `token`**, drawn or not: what the editor types into a tab on its own
+    /// (the editor development agent's `/editor-dev`). Refused, saying why, when no tab has the token or its shell is gone.
+    pub fn write_to_agent(&mut self, token: &str, bytes: &[u8]) -> Result<(), String> {
+        let tab = self
+            .open
+            .iter_mut()
+            .find(|tab| tab.agent.as_ref().is_some_and(|post| post.token == token))
+            .ok_or_else(|| format!("no agent tab has the token {token}"))?;
+        let session = tab.session.as_mut().ok_or_else(|| "the agent tab's shell is gone".to_owned())?;
+        tab.screen.scroll_to_bottom();
+        session.write(bytes)
     }
 
     /// **The caret every shell gets when its program asks for none** (#324), now and for each shell
@@ -406,8 +420,8 @@ impl Terminal {
     /// **Take the tab at `index` out**, with its shell (`Drop` hangs the child up), keeping the same tab
     /// drawn when it is another one that goes.
     fn remove_tab(&mut self, index: usize) {
-        if let Some(project) = self.open[index].agent.as_ref().and_then(|post| post.project.clone()) {
-            self.ended_agents.push(project);
+        if let Some((project, kind)) = self.open[index].agent.as_ref().and_then(|post| post.project.clone().map(|project| (project, post.kind))) {
+            self.ended_agents.push((project, kind));
         }
         self.open.remove(index);
         if index < self.active {

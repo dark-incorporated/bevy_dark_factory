@@ -91,54 +91,33 @@ pub struct Taker {
     pub title: &'static str,
 }
 
-/// **The terminal's own chords** (#426): `terminal.collapse` (Cmd/Ctrl+J) and `terminal.maximise` (Shift+Cmd/Ctrl+J). They are read by the
-/// pane before the shell hears anything, so they are not rows of the key census; they are listed under the commands, fixed, and a command
-/// cannot be rebound onto either.
-pub fn terminal_chords() -> Vec<(Taker, Shortcut)> {
-    vec![
-        (Taker { id: "terminal.collapse", title: "Collapse or raise the terminal" }, crate::terminal_pane::COLLAPSE_CHORD),
-        (Taker { id: "terminal.maximise", title: "Maximise the terminal" }, crate::terminal_pane::maximise_chord()),
-    ]
+/// **The fixed chords as `keymap` has them** ([`crate::chords::CHORDS`]): the palette's, the settings', the console's and
+/// the profile's, the reports', the interface's size, the session's tabs, the shell's and the terminal's own. They answer
+/// on every screen and in no tab, so each clashes with a command anywhere; a person rebinds one by its id, as a command.
+pub fn fixed(keymap: &BTreeMap<String, Shortcut>) -> Vec<(Taker, Shortcut)> {
+    crate::chords::CHORDS
+        .iter()
+        .map(|named| (Taker { id: named.id, title: named.title }, keymap.get(named.id).copied().unwrap_or_else(named.default)))
+        .collect()
 }
 
-/// **The chords the editor answers to outside the command registry**: the settings screen's and the
-/// command palette's (`command_palette.rs`), which are modals over every tab and so clash with a command
-/// anywhere.
-fn reserved() -> Vec<(Taker, Shortcut)> {
-    let mut out = vec![(Taker { id: "settings.open", title: "Open the settings" }, Shortcut::primary(KeyCode::Comma))];
-    out.extend(crate::command_palette::chords().into_iter().map(|(source, chord)| {
-        let taker = match source {
-            crate::goto::Source::Everything => Taker { id: "goto.open", title: "Go to anything" },
-            crate::goto::Source::Commands => Taker { id: "palette.open", title: "Open the command palette" },
-        };
-        (taker, chord)
-    }));
-    out.extend(terminal_chords());
-    // **The interface's three size chords** (`scale_chords`, `feedback-1794783912982`). They are live
-    // on every screen and in no tab, so the screen must not let a command be rebound onto one: the
-    // chord answers first, and a command parked there would never fire.
-    out.extend(
-        crate::scale_chords::reserved_chords()
-            .into_iter()
-            .map(|(id, title, chord)| (Taker { id, title }, chord)),
-    );
-    // **The two panels a chord opens and no tab owns** (#509, #504): the console and the frame profile. They are live on
-    // every screen, like the interface's size chords, so the screen must not let a command be rebound onto one — the
-    // chord answers first and a command parked there would never fire.
-    out.push((Taker { id: "console.open", title: "Show or hide the log" }, crate::console::toggle_chord()));
-    out.push((Taker { id: "profile.open", title: "Show or hide the frame profile" }, crate::profile::toggle_chord()));
-    out
+/// **What `id` is**: a command's or a fixed chord's title, its default chord, and where it is live.
+fn rebindable(id: &str) -> Option<(&'static str, Shortcut, Context)> {
+    match commands::by_id(id) {
+        Some(command) => Some((command.title, command.shortcut, command.context)),
+        None => crate::chords::by_id(id).map(|named| (named.title, (named.default)(), Context::Global)),
+    }
 }
 
 /// **What already answers to `chord` where `id` would fire**, other than `id` itself.
 pub fn taken_by(keymap: &BTreeMap<String, Shortcut>, id: &str, chord: Shortcut) -> Vec<Taker> {
-    let Some(me) = commands::by_id(id) else { return Vec::new() };
+    let Some((_, _, context)) = rebindable(id) else { return Vec::new() };
     let mut taken: Vec<Taker> = effective(keymap)
         .into_iter()
-        .filter(|(c, now)| c.id != id && *now == chord && overlaps(c.context, me.context))
+        .filter(|(c, now)| c.id != id && *now == chord && overlaps(c.context, context))
         .map(|(c, _)| Taker { id: c.id, title: c.title })
         .collect();
-    taken.extend(reserved().into_iter().filter(|(_, c)| *c == chord).map(|(t, _)| t));
+    taken.extend(fixed(keymap).into_iter().filter(|(taker, c)| taker.id != id && *c == chord).map(|(taker, _)| taker));
     taken.dedup();
     taken
 }
@@ -172,8 +151,8 @@ pub fn rebind(
     others: &BTreeMap<String, Shortcut>,
     below: Option<Shortcut>,
 ) -> Result<(), String> {
-    let Some(command) = commands::by_id(id) else { return Err(format!("`{id}` is not a command")) };
-    let fallback = below.unwrap_or(command.shortcut);
+    let Some((title, default, _)) = rebindable(id) else { return Err(format!("`{id}` is not a command or a fixed chord")) };
+    let fallback = below.unwrap_or(default);
     let target = chord.unwrap_or(fallback);
     let clash = taken_by(others, id, target);
     if !clash.is_empty() {
@@ -183,7 +162,7 @@ pub fn rebind(
             target.label(),
             who.join(" and "),
             if who.len() == 1 { "it" } else { "them" },
-            command.title
+            title
         ));
     }
     crate::setting_catalogue::edit_layer(path, |layer| {
@@ -336,52 +315,58 @@ fn refresh(
 
     let now = resolved(&snapshot.user, &snapshot.project);
     let own = own_keymap(edited);
+    let users = own_keymap(&snapshot.user);
     let query = dialog.query.to_lowercase();
-    let found: Vec<(Command, Shortcut)> = effective(&now)
+    // **Every command, then every fixed chord** (`crate::chords`): one kind of row, found by the same words.
+    let listed: Vec<Row> = effective(&now)
         .into_iter()
-        .filter(|(c, chord)| {
-            let hay = format!("{} {} {}", c.title, c.id, chord.label()).to_lowercase();
+        .map(|(c, chord)| Row { id: c.id, title: c.title, chord, default: c.shortcut })
+        .chain(crate::chords::CHORDS.iter().map(|named| Row {
+            id: named.id,
+            title: named.title,
+            chord: now.get(named.id).copied().unwrap_or_else(named.default),
+            default: (named.default)(),
+        }))
+        .filter(|row| {
+            let hay = format!("{} {} {}", row.title, row.id, row.chord.label()).to_lowercase();
             query.split_whitespace().all(|w| hay.contains(w))
         })
         .collect();
     let Ok(column) = rows.single() else { return };
     commands.entity(column).despawn_children();
-    if found.is_empty() {
+    if listed.is_empty() {
         commands.entity(column).with_children(|c| {
             c.spawn(label(format!("No command matches \"{}\".", dialog.query.trim())));
         });
     } else {
-        let below = |c: &Command| match dialog.scope {
-            Scope::User => c.shortcut,
-            Scope::Project => own_keymap(&snapshot.user).get(c.id).copied().unwrap_or(c.shortcut),
+        let below = |row: &Row| match dialog.scope {
+            Scope::User => row.default,
+            Scope::Project => users.get(row.id).copied().unwrap_or(row.default),
         };
-        let items: Vec<_> = found.into_iter().map(|(command, chord)| command_row(command, chord, own.contains_key(command.id), below(&command))).collect();
+        let items: Vec<_> = listed.into_iter().map(|row| rebind_row(own.contains_key(row.id), below(&row), row)).collect();
         commands.entity(column).with_children(|c| {
             c.spawn(list(LIST_ROWS, Children::spawn(SpawnIter(items.into_iter()))));
         });
     }
-    // **The terminal's own chords are listed under the commands** (#426), fixed, and found by the same words.
-    let fixed: Vec<String> = terminal_chords()
-        .into_iter()
-        .map(|(taker, chord)| format!("{} ({}): {}, fixed", taker.title, taker.id, chord.label()))
-        .filter(|words| query.split_whitespace().all(|w| words.to_lowercase().contains(w)))
-        .collect();
-    commands.entity(column).with_children(|c| {
-        for words in fixed {
-            c.spawn(label(words));
-        }
-    });
     built.0 = Some(snapshot);
 }
 
-/// One command: the rebinding row, and while the file being edited rebinds it, its default and a Reset.
-fn command_row(command: Command, chord: Shortcut, modified: bool, default_chord: Shortcut) -> impl Bundle {
-    let id = command.id;
+/// One row of the screen: a command, or a fixed chord, with the chord it answers to now and its default.
+struct Row {
+    id: &'static str,
+    title: &'static str,
+    chord: Shortcut,
+    default: Shortcut,
+}
+
+/// One row: the rebinding, and while the file being edited rebinds it, the chord without it and a Reset.
+fn rebind_row(modified: bool, below: Shortcut, row: Row) -> impl Bundle {
+    let Row { id, title, chord, .. } = row;
     (
         bevy_gooey::column(0.0),
-        Children::spawn(SpawnWith(move |row: &mut RelatedSpawner<ChildOf>| {
-            row.spawn((
-                binding(command.title, Binding::Chord(chord)),
+        Children::spawn(SpawnWith(move |line: &mut RelatedSpawner<ChildOf>| {
+            line.spawn((
+                binding(title, Binding::Chord(chord)),
                 observe(move |c: On<ValueChange<Binding>>, mut w: Writer| {
                     if let Binding::Chord(chosen) = c.value {
                         w.set(id, Some(chosen));
@@ -389,10 +374,10 @@ fn command_row(command: Command, chord: Shortcut, modified: bool, default_chord:
                 }),
             ));
             if modified {
-                row.spawn(bevy_gooey::row_with(crate::chrome::GAP_GROUP_STEPS, bevy_gooey::RowLayout { align: Some(AlignItems::Center), ..default() }))
-                    .with_children(|line| {
-                        line.spawn(label(format!("Modified; without it the chord is {}", default_chord.label())));
-                        line.spawn((button(format!("Reset {}", command.title)), observe(move |_: On<Activate>, mut w: Writer| w.set(id, None))));
+                line.spawn((bevy_gooey::row_with(0.0, bevy_gooey::RowLayout { align: Some(AlignItems::Center), ..default() }), crate::chrome::Gap::Group.class()))
+                    .with_children(|reset| {
+                        reset.spawn(label(format!("Modified; without it the chord is {}", below.label())));
+                        reset.spawn((button(format!("Reset {title}")), observe(move |_: On<Activate>, mut w: Writer| w.set(id, None))));
                     });
             }
         })),

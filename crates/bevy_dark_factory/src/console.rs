@@ -46,7 +46,6 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard};
 
 use bevy::prelude::*;
-use bevy_gooey::{Modifiers, Shortcut};
 
 use crate::chrome::{self, Severity};
 use bevy::picking::hover::Hovered;
@@ -58,12 +57,6 @@ pub const MAX_ROWS: usize = 400;
 /// **The tracing field that names the piece a line is about.** A line carrying it offers a chip that selects that piece;
 /// the shape `Status::problem_about` already keeps (`blueprint_model::problem::Location::entity`).
 pub const PIECE_FIELD: &str = "piece";
-
-/// **The chord that shows and hides the console**, beside the journal's `Cmd+E`. Not a `const` because
-/// `Shortcut::new` is not `const` at this pin, and one function is one definition.
-pub fn toggle_chord() -> Shortcut {
-    Shortcut::new(Modifiers::PRIMARY | Modifiers::SHIFT, KeyCode::KeyE)
-}
 
 /// **The frame a line was recorded in**, published by [`count_the_frames`].
 ///
@@ -427,7 +420,7 @@ fn toggle_the_console(
     mut panels: Query<&mut Node, With<ConsoleOverlay>>,
     mut console: ResMut<Console>,
 ) {
-    if !editing.is_empty() || !toggle_chord().just_pressed(&keys) {
+    if !editing.is_empty() || !crate::chords::chord(crate::chords::Fixed::ConsoleToggle).just_pressed(&keys) {
         return;
     }
     let open = panels.iter().any(|node| node.display != Display::None);
@@ -453,9 +446,9 @@ fn spawn_the_console(mut commands: Commands, frame: Res<chrome::Frame>) {
             bevy_gooey::placed(UiRect { left: Val::Percent(6.0), top: Val::Percent(8.0), ..UiRect::all(Val::Auto) }),
             bevy_gooey::Sizing { width: Some(bevy_gooey::Extent::Percent(80.0)), max_height: Some(bevy_gooey::Extent::Percent(76.0)), ..default() },
             bevy_gooey::RowLayout { direction: Some(FlexDirection::Column), ..default() },
-            bevy_gooey::GapPx(chrome::GAP_ROW),
-            bevy_gooey::Spacing { padding: bevy_gooey::Sides::all(chrome::STEP_PAD), ..default() },
-            bevy_gooey::BorderPx(bevy_gooey::Sides::all(chrome::EDGE_W)),
+            // Its gap and inset are the sheet's `.chrome-overlay`, the journal's.
+            bevy_gooey::StyleClass::of("chrome-overlay"),
+            bevy_gooey::BorderPx(bevy_gooey::Sides::all(crate::style::metrics().layout.edge_w)),
             bevy_gooey::InkFollow,
             bevy_gooey::ShownFollow::closed(),
             BackgroundColor(chrome::ink().panel_bg),
@@ -472,14 +465,14 @@ fn spawn_the_console(mut commands: Commands, frame: Res<chrome::Frame>) {
         p.spawn((
             Text::new(format!(
                 "every info, warn and error this process said  ·  {} shows and hides it  ·  {} closes it",
-                crate::terminal_pane::chord_words(&toggle_chord()),
+                crate::terminal_pane::chord_words(&crate::chords::chord(crate::chords::Fixed::ConsoleToggle)),
                 crate::keys::chord(crate::keys::Action::Cancel)
             )),
             TextColor(chrome::ink().dim),
             chrome::typed(chrome::text::LABEL),
         ));
         // The pills and the tally, on one row: each pill carries its own count, which is what makes it worth pressing.
-        p.spawn(bevy_gooey::row(chrome::GAP_ROW)).with_children(|row| {
+        p.spawn((bevy_gooey::row(0.0), bevy_gooey::StyleClass::of("console-pills"))).with_children(|row| {
             for level in Level::ALL {
                 let mut pill = chrome::chip(
                     row,
@@ -744,15 +737,13 @@ mod tests {
 
     #[test]
     fn the_chord_is_the_journals_with_shift_and_answers_to_no_other() {
-        assert_eq!(toggle_chord().key, KeyCode::KeyE);
-        assert!(toggle_chord().modifiers.shift, "Shift is what keeps it off the journal's Cmd+E");
-        for (_, _, reserved) in crate::scale_chords::reserved_chords() {
-            assert_ne!(reserved, toggle_chord());
+        use crate::chords::{Fixed, default_of};
+        let toggle = default_of(Fixed::ConsoleToggle);
+        assert_eq!(toggle.key, KeyCode::KeyE);
+        assert!(toggle.modifiers.shift, "Shift is what keeps it off the journal's Cmd+E");
+        for other in [Fixed::ScaleUp, Fixed::ScaleDown, Fixed::ScaleReset, Fixed::GotoOpen, Fixed::PaletteOpen, Fixed::PaletteOpenAlt, Fixed::TerminalCollapse] {
+            assert_ne!(default_of(other), toggle, "{other:?}");
         }
-        for (_, chord) in crate::command_palette::chords() {
-            assert_ne!(chord, toggle_chord());
-        }
-        assert_ne!(crate::terminal_pane::COLLAPSE_CHORD, toggle_chord());
     }
 
     #[test]

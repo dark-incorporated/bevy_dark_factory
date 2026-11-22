@@ -55,12 +55,12 @@ fn the_wish_chip_is_hidden_through_shown_until_a_row_waits() {
 /// **The triangle readout keeps its reserved column and its 8 px inset**, now `Sizing` + `Spacing { Space::Px }`.
 #[test]
 fn the_cost_readout_keeps_its_column_and_its_inset() {
-    use bevy_dark_factory::editor::{COST_COL, COST_PAD_X, TriangleTotal};
+    use bevy_dark_factory::editor::{COST_PAD_X, TriangleTotal, cost_col};
     let mut app = editor("cost", 1);
     let words = app.world_mut().query_filtered::<Entity, With<TriangleTotal>>().single(app.world()).expect("the bar carries the triangle readout");
     let readout = app.world().get::<ChildOf>(words).map(ChildOf::parent).expect("the words stand in a readout box");
     let node = app.world().get::<Node>(readout).expect("the readout has a Node");
-    assert_eq!(node.min_width, Val::Px(COST_COL), "it reserves its column, so the number grows leftwards into it");
+    assert_eq!(node.min_width, Val::Px(cost_col()), "it reserves its column, so the number grows leftwards into it");
     assert_eq!(node.padding.left, Val::Px(COST_PAD_X), "8 px in from the left");
     assert_eq!(node.padding.right, Val::Px(COST_PAD_X), "and from the right");
     assert_eq!(node.justify_content, JustifyContent::FlexEnd, "the digits flush right");

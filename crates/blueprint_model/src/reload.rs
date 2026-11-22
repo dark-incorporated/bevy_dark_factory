@@ -206,6 +206,8 @@ pub const KINDS: &[FileKind] = &[
         "Which family crates the project uses, read when the editor needs the list; nothing holds it."),
     kind("editor_settings", Blueprint, "editor.yaml", "EditorSettings", Live, Global, "by hand",
         "The project layer of the editor's settings, laid over the user's `<config_dir>/Blueprint/settings.yaml` key by key. The editor looks at it while it runs and applies it in place; a file that does not read keeps the last good one and is refused in `blueprint_state.reloads`. The game has no reader."),
+    kind("editor_style", Blueprint, "editor_style.yaml", "EditorStyle", Live, Global, "by hand, and the editor's dev agent",
+        "The project layer of the editor's style sheet (skin tokens, metrics, class rules), laid over the editor's built-in sheet, its theme and the user's `<config_dir>/Blueprint/style.yaml`. Followed by the project's file index, not polled, and applied in place; a file that does not read keeps the last good one and is refused in `blueprint_state.reloads`. The game has no reader."),
     kind("agent", Root, "agent.yaml", "AgentSettings", Live, Global, "by hand",
         "The note agent's model and prompt, read each time a note is sent; nothing holds it."),
     kind("guide", Root, crate::agent_guide::PROJECT_PATH, "Markdown for an agent", Live, Global, "by hand",

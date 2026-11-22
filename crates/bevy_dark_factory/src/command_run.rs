@@ -65,14 +65,17 @@ impl Chords {
 }
 
 /// **The keys a binding asks of the keyboard**, modifiers first so the key lands with them held.
-/// A row that does not ask for Shift is pressed without it: `Cmd+Z` undoes, `Shift+Cmd+Z` redoes.
+/// A row that does not ask for Shift is pressed without it: `Cmd+Z` undoes, `Shift+Cmd+Z` redoes. Alt likewise.
 fn keys_of(binding: &Binding) -> Vec<KeyCode> {
-    let mut chord = Vec::with_capacity(3);
+    let mut chord = Vec::with_capacity(4);
     if binding.needs_mod {
         chord.push(keys::MOD_KEYS[0]);
     }
     if binding.needs_shift == Some(true) {
         chord.push(KeyCode::ShiftLeft);
+    }
+    if binding.needs_alt {
+        chord.push(keys::ALT_KEYS[0]);
     }
     chord.push(binding.key);
     chord

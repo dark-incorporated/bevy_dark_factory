@@ -222,7 +222,7 @@ fn the_card_and_the_chip_are_repainted_from_the_running_skin() {
     // `AgentInk::of` reads `chrome::ink()`, which is the *running* skin's ink since #428 — this very test's own
     // skin, so the two could never differ. The shipped palette is the default theme's, `editor_skin.yaml`, so
     // that is what it is compared with: the same four inks, from the same file, as before. Every check kept.
-    let shipped = bevy_dark_factory::chrome::Ink::of(&bevy_dark_factory::ui::editor_skin());
+    let shipped = bevy_dark_factory::chrome::Ink::of(&bevy_dark_factory::style::compiled_default().skin, &bevy_dark_factory::style::metrics().ink);
     let palette = AgentInk { read: shipped.text, muted: shipped.muted, good: shipped.labeled, danger: shipped.danger };
     assert_ne!(
         (expect.read, expect.muted, expect.good, expect.danger),

@@ -25,7 +25,7 @@
 use bevy::prelude::*;
 use bevy::ui::{UiTransform, Val2};
 
-use crate::chrome::{MARGIN};
+use crate::chrome::{STEP_PAD, space};
 use crate::view::Rig;
 
 /// How wide the gizmo's box is, and therefore how long an arm can be.
@@ -94,12 +94,12 @@ fn spawn(mut commands: Commands, frame: Res<crate::chrome::Frame>) {
         .spawn((
             // A gizmo's arms and dots are placed by projecting a world axis, not by flow: the gizmo is a box in the viewport's bottom-left corner, `SIZE` square, and its
             // arms and dots are `HostGeometry` that `follow_the_camera` moves every time the rig turns.
-            bevy_gooey::placed(UiRect { left: Val::Px(MARGIN), bottom: Val::Px(MARGIN), ..UiRect::all(Val::Auto) }),
+            bevy_gooey::placed(UiRect { left: Val::Px(space(STEP_PAD)), bottom: Val::Px(space(STEP_PAD)), ..UiRect::all(Val::Auto) }),
             bevy_gooey::Sizing { width: Some(bevy_gooey::Extent::Px(SIZE)), height: Some(bevy_gooey::Extent::Px(SIZE)), ..default() },
             // The circle the arms turn inside — the "circle" of the request, and what makes a rotating cluster read as one object rather than three drifting dots.
             bevy_gooey::Shape { radius: Some(bevy_gooey::Radius::Full), ..default() },
             BackgroundColor(crate::chrome::ink().panel_bg.with_alpha(0.72)),
-            GlobalZIndex(crate::chrome::COMPASS_Z),
+            GlobalZIndex(crate::style::metrics().z.compass),
             // A readout that eats clicks is a readout that steals the corner of the map underneath it — the rule `spawn_cost_readout` states: `placed` is `Pickable::IGNORE`.
             Compass,
         ))

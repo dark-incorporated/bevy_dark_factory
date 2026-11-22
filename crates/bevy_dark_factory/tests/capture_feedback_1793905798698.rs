@@ -24,7 +24,6 @@
 
 use bevy::prelude::*;
 use bevy::ui::ComputedNode;
-use bevy_dark_factory::chrome::PAD;
 use bevy_dark_factory::launcher::LauncherPlugin;
 use bevy_dark_factory::screen::Screen;
 
@@ -98,7 +97,7 @@ fn splash_insets(app: &mut App) -> ((f32, f32, f32, f32), f32) {
             );
             let padding = match padded.padding.left {
                 Val::Px(px) => px,
-                _ => PAD,
+                _ => bevy_dark_factory::chrome::space(bevy_dark_factory::chrome::STEP_PAD),
             };
             return (insets, padding);
         }

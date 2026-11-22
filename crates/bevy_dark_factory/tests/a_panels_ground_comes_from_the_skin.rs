@@ -21,7 +21,7 @@ use bevy_dark_factory::chrome;
 
 #[test]
 fn a_panels_ground_is_the_skins_surface() {
-    let skin = bevy_dark_factory::ui::editor_skin();
+    let skin = bevy_dark_factory::style::compiled_default().skin;
     let fills = chrome::PanelFills::of(Some(&skin));
     assert_eq!(
         fills.panel, skin.surface,
@@ -48,7 +48,7 @@ fn with_no_skin_the_constant_still_paints() {
 /// value has to come *from the skin*, so a skin whose `surface` is not `Ink::panel_bg` must paint its own.
 #[test]
 fn a_skin_that_is_not_the_editors_paints_its_own_surface() {
-    let mut skin = bevy_dark_factory::ui::editor_skin();
+    let mut skin = bevy_dark_factory::style::compiled_default().skin;
     skin.surface = Color::srgb(0.2, 0.6, 0.95);
     let fills = chrome::PanelFills::of(Some(&skin));
     assert_eq!(fills.panel, Color::srgb(0.2, 0.6, 0.95));
@@ -68,7 +68,7 @@ fn a_theme_edit_reaches_a_panel_that_was_already_built() {
     app.add_plugins(MinimalPlugins);
     app.init_resource::<ButtonInput<KeyCode>>();
     app.insert_resource(bevy_dark_factory::keys::Live::default());
-    app.insert_resource(bevy_dark_factory::ui::editor_skin());
+    app.insert_resource(bevy_dark_factory::style::compiled_default().skin);
     app.add_systems(Update, chrome::dim_the_ground);
 
     let panel = app
@@ -97,7 +97,7 @@ fn a_theme_edit_reaches_a_panel_that_was_already_built() {
     assert_eq!(app.world().get::<BackgroundColor>(panel).unwrap().0, chrome::ink().panel_bg);
 
     // The edit: a project writes a skin with a blue surface while the panel already exists.
-    let mut edited = bevy_dark_factory::ui::editor_skin();
+    let mut edited = bevy_dark_factory::style::compiled_default().skin;
     edited.surface = Color::srgb(0.2, 0.6, 0.95);
     app.insert_resource(edited);
     app.update();
@@ -144,7 +144,7 @@ fn a_projects_bar_tone_repaints_the_bands() {
         .id();
 
     // A project's skin: the editor's own, plus one tone it wrote for its bands.
-    let mut project = bevy_dark_factory::ui::editor_skin();
+    let mut project = bevy_dark_factory::style::compiled_default().skin;
     project.tones.insert("bar_bg".to_owned(), Color::srgb(0.5, 0.1, 0.6));
     app.insert_resource(project);
     app.update();

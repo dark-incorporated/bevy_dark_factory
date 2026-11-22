@@ -13,7 +13,6 @@
 
 use bevy::prelude::*;
 use bevy::ui::{ComputedNode, Selected};
-use bevy_dark_factory::chrome::MIN_FIELD_H;
 use bevy_dark_factory::harness;
 use bevy_dark_factory::tiles::{CellButton, CellEdit, CellGlyph, CellLayer, FillHeader, ImportState, Mode, PackHeader, Tab, TabLabel};
 use bevy_gooey::{GooeySkin, PrimaryButton, Role};
@@ -28,6 +27,9 @@ const SLACK_PX: f32 = 1.0;
 
 /// The narrowest a hand-built lattice button was, logical px (`min_width` of the `Node` it replaces).
 const OLD_CELL_MIN_W_PX: f32 = 20.0;
+
+/// The height of the field box a glyph button replaces, logical px (the old `MIN_FIELD_H`, now the sheet's `.chrome-field`).
+const OLD_FIELD_MIN_H_PX: f32 = 18.0;
 
 /// How tall the hand-built tab was, logical px: two 8 px paddings, a 3 px edge and a 16 px line. The strip keeps it, so everything under the strip
 /// (the inspector, the badges' free ground, the history list) stands where it stood.
@@ -93,8 +95,8 @@ fn the_lattice_buttons_are_glyph_buttons_no_smaller_than_the_hand_built_ones() {
         let what = if *cell { "cell button" } else { "header button" };
         assert_eq!(*role, Some(Role::GlyphButton), "a {what} is gooey's `glyph_button`, not a `Button` and a `Node` of the editor's own");
         assert!(
-            size.x + SLACK_PX >= OLD_CELL_MIN_W_PX && size.y + SLACK_PX >= MIN_FIELD_H,
-            "a {what} is {size:?} px on screen, smaller than the {OLD_CELL_MIN_W_PX} x {MIN_FIELD_H} px box it replaces"
+            size.x + SLACK_PX >= OLD_CELL_MIN_W_PX && size.y + SLACK_PX >= OLD_FIELD_MIN_H_PX,
+            "a {what} is {size:?} px on screen, smaller than the {OLD_CELL_MIN_W_PX} x {OLD_FIELD_MIN_H_PX} px box it replaces"
         );
         assert!(
             size.x + SLACK_PX >= target && size.y + SLACK_PX >= target,

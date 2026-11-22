@@ -358,7 +358,7 @@ fn enter_the_editor(
             .spawn((
                 bevy_gooey::placed(UiRect { left: Val::Px(BAND_INSET_PX), bottom: Val::Px(BAND_INSET_PX), ..UiRect::all(Val::Auto) }),
                 PreparingBand,
-                GlobalZIndex(crate::chrome::MODAL_Z),
+                GlobalZIndex(crate::style::metrics().z.modal),
                 DespawnOnExit(Screen::Editor),
                 Name::new("preparing the view"),
             ))
@@ -537,7 +537,7 @@ fn show_the_report(
             for row in rows {
                 card.spawn((label(row), ReportRow));
             }
-            crate::chrome::gapped_row(card, crate::chrome::GAP_GROUP_STEPS, crate::chrome::NO_MARGIN, AlignItems::Stretch).with_children(|row| {
+            crate::chrome::gapped_row(card, Some(crate::chrome::Gap::Group), crate::chrome::NO_MARGIN, AlignItems::Stretch).with_children(|row| {
                 if open_anyway {
                     row.spawn((
                         button("Open anyway"),

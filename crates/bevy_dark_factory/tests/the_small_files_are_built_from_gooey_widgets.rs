@@ -5,7 +5,6 @@
 //! hand-built node standing in a gooey widget's place, or a gap that moved by the swap, fails here and not in a screenshot.
 
 use bevy::prelude::*;
-use bevy_dark_factory::chrome::GAP_TIGHT;
 use bevy_dark_factory::harness;
 use bevy_dark_factory::tiles::Mode;
 use bevy_gooey::Role;
@@ -42,7 +41,8 @@ fn assert_column(app: &App, entity: Entity, what: &str) {
     let node = app.world().get::<Node>(entity).unwrap_or_else(|| panic!("{what} has a Node"));
     assert_eq!(node.flex_direction, FlexDirection::Column, "{what} stacks its children");
     let Val::Px(gap) = node.row_gap else { panic!("{what}: the skin writes the gap in px, found {:?}", node.row_gap) };
-    assert!((gap - GAP_TIGHT).abs() < 0.01, "{what} keeps the tight gap between its rows: {gap} px, wanted {GAP_TIGHT}");
+    let tight = bevy_dark_factory::chrome::space(bevy_dark_factory::chrome::STEP_TIGHT);
+    assert!((gap - tight).abs() < 0.01, "{what} keeps the tight gap between its rows: {gap} px, wanted {tight}");
 }
 
 /// A gooey `row` whose cells stand the tight gap apart.
@@ -51,7 +51,8 @@ fn assert_row(app: &App, entity: Entity, what: &str) {
     let node = app.world().get::<Node>(entity).unwrap_or_else(|| panic!("{what} has a Node"));
     assert_eq!(node.flex_direction, FlexDirection::Row, "{what} lays its cells in a line");
     let Val::Px(gap) = node.column_gap else { panic!("{what}: the skin writes the gap in px, found {:?}", node.column_gap) };
-    assert!((gap - GAP_TIGHT).abs() < 0.01, "{what} keeps the tight gap between its cells: {gap} px, wanted {GAP_TIGHT}");
+    let tight = bevy_dark_factory::chrome::space(bevy_dark_factory::chrome::STEP_TIGHT);
+    assert!((gap - tight).abs() < 0.01, "{what} keeps the tight gap between its cells: {gap} px, wanted {tight}");
 }
 
 /// **The World workspace**: each section's block and each list in it is a gooey column.

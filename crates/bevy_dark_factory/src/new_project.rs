@@ -348,7 +348,7 @@ fn spawn_the_card(
                     observe(|change: On<ValueChange<String>>, mut form: ResMut<NewProjectForm>| form.0.name = change.value.clone()),
                 ));
                 card.spawn((crate::launcher::quiet(FOLDER_UNNAMED), FolderLine));
-                crate::chrome::gapped_row(card, crate::chrome::GAP_GROUP_STEPS, crate::chrome::NO_MARGIN, AlignItems::End).with_children(|row| {
+                crate::chrome::gapped_row(card, Some(crate::chrome::Gap::Group), crate::chrome::NO_MARGIN, AlignItems::End).with_children(|row| {
                     row.spawn((
                         text_input("Location", start.location.clone()),
                         LocationField,
@@ -371,7 +371,7 @@ fn spawn_the_card(
                 ));
                 card.spawn((crate::launcher::quiet(start.template.describe()), TemplateNote));
                 card.spawn((label(""), ReasonLine));
-                crate::chrome::end_row(card, crate::chrome::GAP_GROUP_STEPS).with_children(|row| {
+                crate::chrome::end_row(card, Some(crate::chrome::Gap::Group)).with_children(|row| {
                     row.spawn((
                         button("Cancel"),
                         observe(|_: On<bevy_gooey::Activate>, mut launcher: ResMut<Launcher>| launcher.new_project_done = true),

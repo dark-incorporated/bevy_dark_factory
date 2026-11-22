@@ -419,6 +419,94 @@ pub struct EditorSettings {
     pub auto_save_interval_s: f64,
     /// **The checkout that receives captures** (#495), or empty for "captures stay local".
     pub capture_issue_repo: String,
+    /// **The editor's own source checkout** (`crate::style::editor_source`): where the base style sheet is read and watched
+    /// and where the editor-development agent works. `None` is the checkout this binary was built from, when it is on disk.
+    /// A free-text key, set in the file: an absolute path to a `bevy_dark_factory` checkout.
+    pub editor_source: Option<PathBuf>,
+    /// **The Map camera's tunables** (`view:`): how near and how far it goes, one wheel notch, the keys' pan and one
+    /// turn of a piece. Read through [`crate::view::tunables`].
+    pub view: ViewSettings,
+}
+
+/// **The Map camera's tunables**, every one a person may set in `view:` of a settings file.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct ViewSettings {
+    /// The nearest the rig comes, metres of height: low enough that a 12 cm mug can be looked at.
+    pub zoom_min_m: f32,
+    /// The furthest out it goes on an ordinary map, metres; a map too big to see whole from there raises it.
+    pub zoom_max_m: f32,
+    /// One wheel notch's factor on the height: above 1, so a notch in is the inverse of a notch out.
+    pub zoom_step: f32,
+    /// The keys' pan, in heights of the camera per second, so the ground crosses the screen at one pace near or far.
+    pub pan_speed: f32,
+    /// One turn of a piece, degrees.
+    pub yaw_step_deg: f32,
+}
+
+impl Default for ViewSettings {
+    fn default() -> Self {
+        ViewSettings { zoom_min_m: 0.25, zoom_max_m: 80.0, zoom_step: 1.2, pan_speed: 16.0 / 18.0, yaw_step_deg: 15.0 }
+    }
+}
+
+/// **The largest turn of a piece a person may set**, degrees: a quarter turn. Past it a turn skips the right angle a
+/// piece is squared to.
+pub const YAW_STEP_MAX_DEG: f32 = 90.0;
+
+/// **One layer's `view:` keys**: only the ones it sets.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct ViewLayer {
+    #[serde(rename = "zoom_min", skip_serializing_if = "Option::is_none")]
+    pub zoom_min_m: Option<f32>,
+    #[serde(rename = "zoom_max", skip_serializing_if = "Option::is_none")]
+    pub zoom_max_m: Option<f32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub zoom_step: Option<f32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub pan_speed: Option<f32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub yaw_step_deg: Option<f32>,
+}
+
+impl ViewLayer {
+    /// Sets nothing, so a file written without `view:` is written back without it.
+    pub fn is_empty(&self) -> bool {
+        *self == ViewLayer::default()
+    }
+
+    /// `under` with this layer's keys laid over it.
+    pub fn over(&self, under: ViewSettings) -> ViewSettings {
+        ViewSettings {
+            zoom_min_m: self.zoom_min_m.unwrap_or(under.zoom_min_m),
+            zoom_max_m: self.zoom_max_m.unwrap_or(under.zoom_max_m),
+            zoom_step: self.zoom_step.unwrap_or(under.zoom_step),
+            pan_speed: self.pan_speed.unwrap_or(under.pan_speed),
+            yaw_step_deg: self.yaw_step_deg.unwrap_or(under.yaw_step_deg),
+        }
+    }
+
+    /// **What a camera with these keys could not do**, as the field and the reason: judged laid over the defaults, so a
+    /// file that sets `zoom_max` alone is held to the default `zoom_min`.
+    fn problem(&self) -> Option<(&'static str, String)> {
+        let view = self.over(ViewSettings::default());
+        if view.zoom_min_m.is_nan() || view.zoom_min_m <= 0.0 {
+            return Some(("view.zoom_min", format!("{} m: the nearest the camera comes must be above 0 m", view.zoom_min_m)));
+        }
+        if view.zoom_max_m.is_nan() || view.zoom_max_m <= view.zoom_min_m {
+            return Some(("view.zoom_max", format!("{} m is not further than zoom_min's {} m", view.zoom_max_m, view.zoom_min_m)));
+        }
+        if view.zoom_step.is_nan() || view.zoom_step <= 1.0 {
+            return Some(("view.zoom_step", format!("{}: a notch must change the height, so the factor is above 1", view.zoom_step)));
+        }
+        if view.pan_speed.is_nan() || view.pan_speed <= 0.0 {
+            return Some(("view.pan_speed", format!("{}: the keys must move the camera, so the speed is above 0", view.pan_speed)));
+        }
+        if view.yaw_step_deg.is_nan() || view.yaw_step_deg <= 0.0 || view.yaw_step_deg > YAW_STEP_MAX_DEG {
+            return Some(("view.yaw_step_deg", format!("{} degrees is outside above 0 to {YAW_STEP_MAX_DEG}", view.yaw_step_deg)));
+        }
+        None
+    }
 }
 
 impl Default for EditorSettings {
@@ -451,6 +539,8 @@ impl Default for EditorSettings {
             capture_issue_repo: String::new(),
             external_edits: ExternalEdits::default(),
             auto_save_interval_s: 0.0,
+            editor_source: None,
+            view: ViewSettings::default(),
         }
     }
 }
@@ -549,6 +639,12 @@ pub struct SettingsLayer {
     /// the Settings screen shows, so the field's `_s` suffix is a Rust reading of the unit and not a second name for the key.
     #[serde(default, rename = "auto_save_interval", skip_serializing_if = "Option::is_none")]
     pub auto_save_interval_s: Option<f64>,
+    /// **The editor's own source checkout** (`crate::style::editor_source`). Absent leaves the detected checkout.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub editor_source: Option<PathBuf>,
+    /// **The Map camera's tunables** (`view:`), only the keys this file sets.
+    #[serde(default, skip_serializing_if = "ViewLayer::is_empty")]
+    pub view: ViewLayer,
 }
 
 impl Default for SettingsLayer {
@@ -583,6 +679,8 @@ impl Default for SettingsLayer {
             capture_issue_repo: None,
             external_edits: None,
             auto_save_interval_s: None,
+            editor_source: None,
+            view: ViewLayer::default(),
         }
     }
 }
@@ -631,6 +729,17 @@ impl SettingsLayer {
         {
             return Err(refuse("terminal_agent_command", "an empty command runs nothing: leave the key out or name a program".to_owned()));
         }
+        if let Some(source) = &layer.editor_source {
+            if !source.is_absolute() {
+                return Err(refuse("editor_source", "must be an absolute path to a bevy_dark_factory checkout".to_owned()));
+            }
+            if !source.join("crates/bevy_dark_factory/Cargo.toml").is_file() {
+                return Err(refuse(
+                    "editor_source",
+                    format!("must be an absolute path to a bevy_dark_factory checkout: {} has no crates/bevy_dark_factory/Cargo.toml", source.display()),
+                ));
+            }
+        }
         if let Some(shell) = &layer.terminal_shell
             && shell.trim().is_empty()
         {
@@ -641,12 +750,15 @@ impl SettingsLayer {
         }
         for (id, chord) in &layer.keymap {
             let field = format!("keymap.{id}");
-            if crate::commands::by_id(id).is_none() {
-                return Err(refuse(&field, format!("`{id}` is not a command the editor has")));
+            if crate::commands::by_id(id).is_none() && crate::chords::by_id(id).is_none() {
+                return Err(refuse(&field, format!("`{id}` is not a command or a fixed chord the editor has")));
             }
             if !chord.is_valid() {
                 return Err(refuse(&field, "this chord has no key (a modifier alone is not a shortcut)".to_owned()));
             }
+        }
+        if let Some((field, reason)) = layer.view.problem() {
+            return Err(refuse(field, reason));
         }
         Ok(layer)
     }
@@ -717,6 +829,7 @@ impl EditorSettings {
             for (workspace, layout) in &layer.workspace_layout {
                 out.workspace_layout.insert(workspace.clone(), layout.clone());
             }
+            out.view = layer.view.over(out.view);
         }
         // **Only the person's own layer chooses the decision model** (DM-03, #454): a project that could say Remote would
         // send its agents' pictures off the LAN for everyone who opens it. The project's key is a settings problem
@@ -731,6 +844,11 @@ impl EditorSettings {
             if let Some(repo) = user.capture_issue_repo.as_deref() {
                 out.capture_issue_repo = repo.to_owned();
             }
+        }
+        // **Only the person's own file names the editor's checkout**: the editor-development agent builds and runs code
+        // there, so a project that could point it elsewhere would choose what an agent builds for everyone who opens it.
+        if let Some(source) = user.and_then(|user| user.editor_source.as_ref()) {
+            out.editor_source = Some(source.clone());
         }
         out
     }
@@ -861,9 +979,9 @@ pub struct Heard {
     project: Feed,
 }
 
-/// One file as a reader follows it.
+/// One file as a reader follows it. The style sheet's layers are followed the same way (`crate::style`).
 #[derive(Default)]
-struct Feed {
+pub(crate) struct Feed {
     path: Option<PathBuf>,
     /// The file's index has had its first listing since this path was first seen: the one read that catches a change made between the
     /// reader's first read and that listing (the first listing publishes no event).
@@ -874,7 +992,7 @@ struct Feed {
 impl Feed {
     /// Whether the file must be read now: the index said it changed, or this is the first frame its index has a listing, or the index
     /// started or stopped failing (the read then says why, as it always did). `None` for no file.
-    fn moved(&mut self, path: Option<&Path>, listing_in: bool, failure: Option<String>, changed: bool) -> bool {
+    pub(crate) fn moved(&mut self, path: Option<&Path>, listing_in: bool, failure: Option<String>, changed: bool) -> bool {
         let Some(path) = path else {
             *self = Feed::default();
             return false;
@@ -1149,6 +1267,10 @@ pub fn sync_settings(
         // **The conflict policy is published where a caller with no world can read it** (#502): a save runs from a key
         // handler, an interval and the Files tree's menu, and none of them can ask this resource.
         crate::files::publish_conflict_policy(resolved.external_edits);
+        // **And the camera's tunables, for the same reason**: the rig's maths runs in pure functions with no world.
+        crate::view::publish_tunables(resolved.view);
+        // **And the fixed chords** (`crate::chords`): a menu label and a tooltip read them where no world is.
+        crate::chords::publish(&resolved.keymap);
         *settings = resolved;
     }
 }

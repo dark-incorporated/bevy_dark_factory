@@ -21,6 +21,9 @@
 //! the property *emphasis is drawn in colour in a Markdown page* is the same, and is read from the rendered `TextSpan` runs. One assertion is
 //! gone because gooey does not do it: the old tokenizer drew `*em*` and `**strong**` in two inks and gooey draws both in one (`SyntaxRole::Type`,
 //! measured: `("*Emphasised words.*", CodeSyntax(Type))` and `("**strong**", CodeSyntax(Type))`).
+//!
+//! Contract update (2026-11-22, the gooey pin moved from v0.54.0 to v0.57.0 for the live style sheet): gooey's `CodeMarkdown` draws the two
+//! in two inks again (#115 there), as `SyntaxRole::Emphasis` and `SyntaxRole::Strong`, so the star test names those roles.
 
 use bevy::input_focus::{FocusCause, InputFocus};
 use bevy::prelude::*;
@@ -132,7 +135,7 @@ fn a_star_that_is_not_an_emphasis_stays_plain() {
         // it "zero emphasis runs" would also be true of an editor that draws no Markdown at all.
         let (mut app, _editor) = page(&format!("star{n}"), &format!("{text}\nA *real* emphasis.\n"));
         let runs = drawn(&mut app);
-        let emphases: Vec<&str> = runs.iter().filter(|(_, role, _)| matches!(role, Role::CodeSyntax(SyntaxRole::Function | SyntaxRole::Type))).map(|(run, ..)| run.as_str()).collect();
+        let emphases: Vec<&str> = runs.iter().filter(|(_, role, _)| matches!(role, Role::CodeSyntax(SyntaxRole::Emphasis | SyntaxRole::Strong))).map(|(run, ..)| run.as_str()).collect();
         assert_eq!(emphases, ["*real*"], "{label}: only the real emphasis is drawn as one; runs: {runs:?}");
     }
     // The value the editor shows is the page's own text: a colour is a drawing, never an edit.

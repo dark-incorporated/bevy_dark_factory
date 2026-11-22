@@ -176,7 +176,7 @@ fn the_region_states_the_agents_state_and_how_to_start_one() {
     // collapsed, would be a dead end; the hover names the chord that raises the pane where `Start agent` lives.
     let half = one::<AgentBandHalf>(&mut app);
     let tip = app.world().get::<Tooltip>(half).map(|t| t.text.clone()).expect("the agent's half carries a hover");
-    let chord = bevy_dark_factory::terminal_pane::chord_words(&bevy_dark_factory::terminal_pane::COLLAPSE_CHORD);
+    let chord = bevy_dark_factory::terminal_pane::chord_words(&bevy_dark_factory::chords::chord(bevy_dark_factory::chords::Fixed::TerminalCollapse));
     assert!(tip.contains("No agent is running"), "the hover says no agent is running: {tip:?}");
     assert!(tip.contains(&chord), "the hover names the chord that raises the terminal ({chord:?}): {tip:?}");
     assert!(tip.contains("Start agent"), "the hover names the button that opens one: {tip:?}");

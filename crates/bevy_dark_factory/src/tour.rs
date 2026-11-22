@@ -368,7 +368,7 @@ fn spawn_the_pointer(mut commands: Commands, frame: Res<crate::chrome::Frame>) {
             bevy_gooey::Shown(false),
             // Above the panels and below a modal question, the tier the badges hold: the pointer reads over the interface
             // it points into, and a dialog that has taken the keyboard still outranks it.
-            GlobalZIndex(crate::chrome::BADGE_Z),
+            GlobalZIndex(crate::style::metrics().z.badge),
         ))
         .id();
     commands.entity(layer).with_children(|p| {

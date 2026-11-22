@@ -116,7 +116,7 @@ fn uses_outside_chrome(names: &[String], dir: &Path) -> usize {
 /// **The ratchet reached zero (UI-02, #210, 2026-11-10), which is what it was for.**
 ///
 /// The three legs below were a ceiling on a table that was being emptied. It is empty now: the 28
-/// constants are `chrome::Ink`, read from `src/editor_skin.yaml`, and `tests/no_colour_lives_in_chrome.rs`
+/// constants are `chrome::Ink`, read from `src/style/editor.yaml`, and `tests/no_colour_lives_in_chrome.rs`
 /// is the check that keeps it that way — it asserts the scan finds *nothing*, which is the same rule
 /// with no ceiling left to lower. These three stay at 0 as the second statement of it, so a constant
 /// reintroduced here fails both tests rather than one.
@@ -129,11 +129,13 @@ fn the_colour_table_only_shrinks() {
     let names = colour_constants();
     // **The scan is still reading the file.** With the table at zero an empty answer is the expected
     // one, so "found nothing" no longer tells a migration from a scanner that stopped opening
-    // `chrome.rs` — a metric that must still exist is what says the file was read.
+    // `chrome.rs` — a metric that must still exist is what says the file was read. Contract update
+    // (2026-11-22): `EDGE_W` became the style sheet's `metrics.layout.edge_w`, so the metric that
+    // still lives in `chrome.rs` as a constant is the mark lane every glyph column shares.
     let src = std::fs::read_to_string(src_dir().join("chrome.rs"))
         .unwrap_or_else(|e| panic!("cannot read chrome.rs: {e}"));
     assert!(
-        src.contains("pub const EDGE_W: f32"),
+        src.contains("pub const MARK_LANE_PX: f32"),
         "chrome.rs is where this crate's furniture lives, and the scan found it empty — the scan is \
          broken, so this test proves nothing"
     );

@@ -407,7 +407,7 @@ fn stage_camera(
                     let size = hi - lo;
                     let height =
                         crate::compose::framing_height((size.x, size.z), size.y, hole.x / hole.y)
-                            .clamp(crate::view::MIN_ZOOM, crate::view::MAX_ZOOM);
+                            .clamp(crate::view::tunables().zoom_min_m, crate::view::tunables().zoom_max_m);
                     ((lo + hi) * 0.5, height)
                 });
             match framed {
@@ -487,7 +487,7 @@ fn stage_camera(
             // two used to compute it separately and this one alone applied the ceiling, so the
             // sentence an author read named a height the rig was never set to.
             rig.height =
-                crate::compose::carousel_height(&carousel.0).min(crate::view::MAX_ZOOM);
+                crate::compose::carousel_height(&carousel.0).min(crate::view::tunables().zoom_max_m);
             rig.elevation = crate::view::ISO_ELEVATION;
         }
         Mode::Map | Mode::World | Mode::Sound | Mode::Game | Mode::Agent | Mode::Files | Mode::Project | Mode::Design => {
@@ -911,10 +911,6 @@ pub struct ScaleReadout;
 /// in `library.yaml` as an authored fact where there is none — the same rule `rotate_mesh` follows when
 /// it writes `(want != (0,0,0)).then_some(want)`. The bound is a tenth of a millimetre on a 1 m piece,
 /// which is finer than anything the importer can measure.
-/// **A row's rhythm at half the skin's step**: the 3 px [`crate::chrome::GAP_TIGHT`] the hand-built
-/// strips used, over the skin's 5 px gap — 0.6, not 0.5, which would be 2.5 px (review of #245).
-const GAP_HALF: f32 = crate::chrome::GAP_TIGHT / crate::chrome::SKIN_GAP_PX;
-
 const SCALE_EPS: f32 = 1e-4;
 
 
@@ -4103,9 +4099,9 @@ fn spawn_tab_strip(
     // ground. In the frame nothing overlaps, so neither number is needed.
     let strip = commands
         // **A gooey row** (UI-59, #245). `AlignItems::Stretch` was the default it names; the strip's
-        // half-step gap is `row(0.5)`.
+        // half-step gap is the tight gap's class (3 px, not 2.5).
         .spawn((
-            bevy_gooey::row(GAP_HALF),
+            (bevy_gooey::row(0.0), crate::chrome::Gap::Tight.class()),
             // **The editor's first accessibility, and the strip is the right place to start.**
             //
             // There was none at all — `AccessibilityNode` appeared zero times in `src/`. A screen
@@ -4174,7 +4170,7 @@ fn spawn_tab_strip(
             // **The name is here; the keys are the workspace chords'.** `=` was this cue's key
             // until #379 replaced it with `Cmd`/`Ctrl`+`1`…`9`, which are on the strip's badge
             // already, so this prints the *name* of where a click goes and the badge prints the keys.
-            crate::chrome::gapped_row(p, crate::chrome::GAP_ROW_STEPS, crate::chrome::margin_left(crate::chrome::STEP_GROUP), AlignItems::Center)
+            crate::chrome::gapped_row(p, Some(crate::chrome::Gap::Row), crate::chrome::margin_left(crate::chrome::STEP_GROUP), AlignItems::Center)
                 .insert(OtherWorkspaceMark)
             // **A click on the name crosses.** The mark says where it goes, and a name that names
             // a place is a name that gets clicked (#288). The Rigs door hides the mark, so a click
@@ -4562,7 +4558,7 @@ fn spawn_tiles_panel(
         &mut commands,
         &frame,
         crate::chrome::Side::Left,
-        crate::chrome::CONTROLS_W,
+        crate::style::metrics().layout.controls_w,
         // Pinned to the bottom as well, so the detail block below has a bounded height to scroll
         // inside rather than running off the screen edge the way it did at first.
         true,
@@ -4634,7 +4630,7 @@ fn spawn_tiles_panel(
         &mut commands,
         &frame,
         crate::chrome::Side::Right,
-        crate::chrome::LIST_W,
+        crate::style::metrics().layout.list_w,
         true,
         true,
         // What a screen reader calls this panel (UI-30, #224).
@@ -4654,7 +4650,7 @@ fn spawn_tiles_panel(
         // **The batch, while it runs** — above the list it is filling. See `paint_label_progress`.
         // Hidden (through `Shown`) until a walk exists, and a row of room under it when it shows.
         let mut batch = p.spawn((
-            bevy_gooey::column(crate::chrome::GAP_TIGHT_STEPS),
+            (bevy_gooey::column(0.0), crate::chrome::Gap::Tight.class()),
             LabelProgress,
             crate::chrome::spacing(crate::chrome::margin_bottom(crate::chrome::STEP_ROW)),
             bevy_gooey::Shown(false),
@@ -8310,7 +8306,7 @@ fn shelf_strip(
     // the panel edge, which is the same class of defect as the kit row that wrapped into its own value column — a fixed
     // width and content that outgrew it. The hint drops to a second line rather than being cut, and on a wider panel it stays
     // where it was.
-    crate::chrome::wrapping_row(p, crate::chrome::GAP_ROW_STEPS, crate::chrome::NO_MARGIN, AlignItems::Center)
+    crate::chrome::wrapping_row(p, Some(crate::chrome::Gap::Row), crate::chrome::NO_MARGIN, AlignItems::Center)
     .with_children(|row| {
         // A tab shows the two shelves its own keys reach: `Meshes` imports (candidates <-> library),
         // `Tiles` composes (library <-> kit). Drawing all three everywhere would offer a chip whose
@@ -8889,7 +8885,7 @@ fn draw_ink(
                     // so the mark here and the rail in the detail pane cannot disagree.
                     crate::chrome::text_cell(
                         row,
-                        crate::chrome::COL_TIGHT,
+                        crate::chrome::MARK_LANE_PX,
                         match mark {
                             Some(Severity::Blocking) => "x",
                             Some(Severity::Warn) => "!",
@@ -8929,7 +8925,7 @@ fn draw_ink(
                     // white over the slot's fill.
                     let image = if *portrait { thumbs.and_then(|t| t.image(id)) } else { None };
                     row.spawn((
-                        bevy_gooey::image_box(image.unwrap_or(bevy::image::TRANSPARENT_IMAGE_HANDLE), Vec2::splat(crate::chrome::THUMB_SLOT)),
+                        bevy_gooey::image_box(image.unwrap_or(bevy::image::TRANSPARENT_IMAGE_HANDLE), Vec2::splat(crate::style::metrics().layout.thumb_slot)),
                         crate::chrome::spacing(crate::chrome::margin_right(crate::chrome::STEP_ROW)),
                         BackgroundColor(crate::chrome::ink().slot_bg),
                     ));
@@ -9738,13 +9734,14 @@ fn rebuild_detail(detail: DetailInputs<'_, '_>) {
             );
             crate::chrome::text_field(
                 p,
-                Val::Auto,
+                crate::chrome::FieldWidth::Hug,
                 NoteField,
                 crate::chrome::text::CONTROL,
                 (note_text, note_tint),
                 NoteReadout,
             )
-            .insert(bevy_gooey::Spacing { margin: crate::chrome::margin_bottom(crate::chrome::STEP_ROW), ..crate::chrome::FIELD_SPACING });
+            // A field's own class with a row step below it (`.tiles-note-field`).
+            .insert(bevy_gooey::StyleClass::of("chrome-field tiles-note-field"));
 
             // **The proposal header** — machine-proposed, human-unconfirmed, and it says so with
             // its provenance and its verbs. Everything below in `SUGGEST` is part of this question.
@@ -9896,10 +9893,10 @@ fn rebuild_detail(detail: DetailInputs<'_, '_>) {
             };
             crate::chrome::spaced_row(p, crate::chrome::margin_top(crate::chrome::STEP_GROUP), AlignItems::Center)
             .with_children(|row| {
-                crate::chrome::row_label(row, crate::chrome::COL_LABEL, "size");
+                crate::chrome::row_label(row, crate::chrome::Col::Label.name(), "size");
                 crate::chrome::text_field(
                     row,
-                    Val::Px(crate::chrome::NUM_FIELD_W),
+                    crate::chrome::FieldWidth::Number,
                     ScaleField,
                     crate::chrome::text::BODY,
                     (width_text, width_tint),
@@ -9923,7 +9920,7 @@ fn rebuild_detail(detail: DetailInputs<'_, '_>) {
             if !standards_lines.is_empty() {
                 crate::chrome::spaced_row(p, crate::chrome::margin_top(crate::chrome::STEP_ROW), AlignItems::FlexStart)
                 .with_children(|row| {
-                    crate::chrome::row_label(row, crate::chrome::COL_LABEL, "standards");
+                    crate::chrome::row_label(row, crate::chrome::Col::Label.name(), "standards");
                     row.spawn(bevy_gooey::column(0.0))
                     .with_children(|col| {
                         for line in standards_lines {
@@ -9967,7 +9964,7 @@ fn rebuild_detail(detail: DetailInputs<'_, '_>) {
             if !dead.is_empty() {
                 crate::chrome::spaced_row(p, crate::chrome::margin_top(crate::chrome::STEP_ROW), AlignItems::FlexStart)
                 .with_children(|row| {
-                    crate::chrome::row_label(row, crate::chrome::COL_LABEL, "dead ends");
+                    crate::chrome::row_label(row, crate::chrome::Col::Label.name(), "dead ends");
                     row.spawn(bevy_gooey::column(0.0))
                     .with_children(|col| {
                         for line in dead {
@@ -10031,14 +10028,14 @@ fn rebuild_detail(detail: DetailInputs<'_, '_>) {
             // Wrapping gives the second pair a line of its own: measured on the same window after
             // this, the row is two lines tall and every word is one line inside the panel. That is
             // the fix `tiles::shelf_strip` and the page's kit row (#516) state for the same class.
-            crate::chrome::wrapping_row(p, 0.0, crate::chrome::margin_top(crate::chrome::STEP_GROUP), AlignItems::Center)
+            crate::chrome::wrapping_row(p, None, crate::chrome::margin_top(crate::chrome::STEP_GROUP), AlignItems::Center)
                 // The row `M` cycles.
                 .insert(crate::chrome::Control(crate::keys::ControlId::Mount))
             .with_children(|row| {
                 // **"mount", not "layer".** The subgrid below has its own `layer y` picker, and
                 // one panel saying "layer" twice about two different things is the confusion the
                 // key census already fixed on its side (`Action::CycleMount`).
-                crate::chrome::row_label(row, crate::chrome::COL_LABEL, "mount");
+                crate::chrome::row_label(row, crate::chrome::Col::Label.name(), "mount");
                 crate::chrome::chip(
                     row,
                     MountChip,
@@ -10050,8 +10047,8 @@ fn rebuild_detail(detail: DetailInputs<'_, '_>) {
                 );
                 // The second pair, spaced off the first by a group gap so the line reads as two
                 // label/value pairs rather than four words.
-                crate::chrome::gap_cell(row, crate::chrome::GAP_GROUP);
-                crate::chrome::row_label(row, crate::chrome::COL_LABEL, "front");
+                crate::chrome::gap_cell(row, crate::chrome::space(crate::chrome::STEP_GROUP));
+                crate::chrome::row_label(row, crate::chrome::Col::Label.name(), "front");
                 crate::chrome::row_value(row, front_text, front_ink, ());
             });
 
@@ -10067,7 +10064,7 @@ fn rebuild_detail(detail: DetailInputs<'_, '_>) {
             };
             crate::chrome::spaced_row(p, crate::chrome::margin_top(crate::chrome::STEP_TIGHT), AlignItems::Center)
             .with_children(|row| {
-                crate::chrome::row_label(row, crate::chrome::COL_LABEL, "mesh");
+                crate::chrome::row_label(row, crate::chrome::Col::Label.name(), "mesh");
                 crate::chrome::row_value(row, mesh_text, mesh_ink, ());
             });
 
@@ -10138,7 +10135,7 @@ fn rebuild_detail(detail: DetailInputs<'_, '_>) {
             };
             crate::chrome::spaced_row(p, crate::chrome::margin_top(crate::chrome::STEP_TIGHT), AlignItems::Center)
             .with_children(|row| {
-                crate::chrome::row_label(row, crate::chrome::COL_LABEL, "labels");
+                crate::chrome::row_label(row, crate::chrome::Col::Label.name(), "labels");
                 // **Wraps, like the mesh row above it.** The value used to be one no-wrap line clipped
                 // at the row's edge, so a long model stem cut the confidence word off the panel.
                 crate::chrome::row_value(row, labels_text, labels_ink, ());
@@ -10156,10 +10153,10 @@ fn rebuild_detail(detail: DetailInputs<'_, '_>) {
                 );
                 crate::chrome::spaced_row(p, crate::chrome::margin_top(crate::chrome::STEP_TIGHT), AlignItems::Center)
                 .with_children(|row| {
-                    crate::chrome::row_label(row, crate::chrome::COL_LABEL, "height");
+                    crate::chrome::row_label(row, crate::chrome::Col::Label.name(), "height");
                     crate::chrome::text_field(
                         row,
-                        Val::Px(crate::chrome::NUM_FIELD_W),
+                        crate::chrome::FieldWidth::Number,
                         MountHeightField,
                         crate::chrome::text::BODY,
                         (height_text, height_tint),
@@ -10318,7 +10315,7 @@ fn rebuild_detail(detail: DetailInputs<'_, '_>) {
                     // and "the filter matched nothing" is precisely the moment an author wants to add
                     // the word they just typed. So the row is spawned unconditionally and the dash
                     // moves inside it, where it can stand beside the `+` alone.
-                    crate::chrome::wrapping_row(p, crate::chrome::GAP_TIGHT_STEPS, crate::chrome::NO_MARGIN, AlignItems::Center)
+                    crate::chrome::wrapping_row(p, Some(crate::chrome::Gap::Tight), crate::chrome::NO_MARGIN, AlignItems::Center)
                     .with_children(|chips| {
                         if kept.is_empty() {
                             chips.spawn((
@@ -10414,7 +10411,7 @@ fn rebuild_detail(detail: DetailInputs<'_, '_>) {
                 let mut line = |label: &str, now: String, prop: Option<String>| {
                     p.spawn(bevy_gooey::row(0.0))
                     .with_children(|row| {
-                        crate::chrome::row_label(row, 48.0, label);
+                        crate::chrome::row_label(row, "tiles-placement-label", label);
                         // 11 px like every other value beside a label — this pane rendered 10/10
                         // until the 2026-08-17 type-role decision unified the pair at 10/11.
                         // **One value.** It read `rooms  -  -> proposed: bedroom, office`, which
@@ -10564,7 +10561,7 @@ fn rebuild_detail(detail: DetailInputs<'_, '_>) {
             // of off the edge.
             crate::chrome::wrapping_row(
                 p,
-                crate::chrome::GAP_GROUP_STEPS,
+                Some(crate::chrome::Gap::Group),
                 crate::chrome::margin_top(crate::chrome::STEP_ROW),
                 AlignItems::FlexStart,
             )
@@ -10574,7 +10571,7 @@ fn rebuild_detail(detail: DetailInputs<'_, '_>) {
             .with_children(|layers| {
                 for y in 0..dy {
                     layers
-                        .spawn(bevy_gooey::column(GAP_HALF))
+                        .spawn((bevy_gooey::column(0.0), crate::chrome::Gap::Tight.class()))
                         .with_children(|col| {
                             col.spawn((
                                 Text::new(layer_label(y, dy)),
@@ -10585,7 +10582,7 @@ fn rebuild_detail(detail: DetailInputs<'_, '_>) {
                             // The column headers, with the layer header in the corner above the row
                             // ones — the spreadsheet arrangement, because that is where a hand
                             // already looks for them.
-                            col.spawn(bevy_gooey::row(GAP_HALF))
+                            col.spawn((bevy_gooey::row(0.0), crate::chrome::Gap::Tight.class()))
                             .with_children(|row| {
                                 header_button(
                                     row,
@@ -10608,7 +10605,7 @@ fn rebuild_detail(detail: DetailInputs<'_, '_>) {
                             });
 
                             for z in 0..dz {
-                                col.spawn(bevy_gooey::row(GAP_HALF))
+                                col.spawn((bevy_gooey::row(0.0), crate::chrome::Gap::Tight.class()))
                                 .with_children(|row| {
                                     header_button(
                                         row,
@@ -10674,7 +10671,7 @@ fn rebuild_detail(detail: DetailInputs<'_, '_>) {
             ));
             crate::chrome::wrapping_row(
                 p,
-                crate::chrome::GAP_TIGHT_STEPS,
+                Some(crate::chrome::Gap::Tight),
                 crate::chrome::margin_top(crate::chrome::STEP_TIGHT),
                 AlignItems::Center,
             )
@@ -10712,7 +10709,7 @@ fn rebuild_detail(detail: DetailInputs<'_, '_>) {
                 //
                 // **A group gap before the first, none between them**, where every one of the
                 // three used to carry the same hand-written left margin: the three turns are one
-                // block, and `GAP_GROUP` is the name for the space that says so.
+                // block, and `STEP_GROUP` is the name for the space that says so.
                 for (i, axis) in [RotateAxis::X, RotateAxis::Y, RotateAxis::Z]
                     .into_iter()
                     .enumerate()
@@ -10724,7 +10721,7 @@ fn rebuild_detail(detail: DetailInputs<'_, '_>) {
                         crate::chrome::Severity::Plain,
                     );
                     if i == 0 {
-                        turn.insert(bevy_gooey::Spacing { margin: crate::chrome::margin_left(crate::chrome::STEP_GROUP), ..crate::chrome::BUTTON_SPACING });
+                        turn.insert(bevy_gooey::StyleClass::of("chrome-button chrome-button-apart"));
                     }
                 }
 
@@ -10742,7 +10739,7 @@ fn rebuild_detail(detail: DetailInputs<'_, '_>) {
                     "rescan mesh",
                     crate::chrome::Severity::Plain,
                 )
-                .insert(bevy_gooey::Spacing { margin: crate::chrome::margin_left(crate::chrome::STEP_GROUP), ..crate::chrome::BUTTON_SPACING });
+                .insert(bevy_gooey::StyleClass::of("chrome-button chrome-button-apart"));
 
                 // **The triangle count, beside the mesh it counts.**
                 //

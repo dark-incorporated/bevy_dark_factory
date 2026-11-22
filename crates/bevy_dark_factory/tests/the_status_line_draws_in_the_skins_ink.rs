@@ -58,7 +58,7 @@ fn with_no_skin_the_band_is_the_shipped_palette() {
 /// band. A skin retuned without its constant (or the reverse) fails here.
 #[test]
 fn the_editor_skin_draws_the_shipped_palette() {
-    let ink = StatusInk::of(Some(&bevy_dark_factory::ui::editor_skin()));
+    let ink = StatusInk::of(Some(&bevy_dark_factory::style::compiled_default().skin));
     assert_eq!(ink.read, chrome::ink().text);
     assert_eq!(ink.quiet, chrome::ink().dim);
     assert_eq!(ink.accent, chrome::ink().accent);

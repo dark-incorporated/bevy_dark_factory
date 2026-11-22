@@ -424,7 +424,7 @@ fn spawn_the_page(commands: &mut Commands, parent: Entity, page: &ProjectPage, i
     let kit_menu = commands.spawn((context_menu(()), KitMenu, ChildOf(parent))).id();
     spawn_menus(commands, map_menu, kit_menu, &page.catalog);
     let body = commands
-        .spawn((bevy_gooey::fill_region_with(crate::chrome::GAP_GROUP_STEPS), PageBody, ChildOf(parent)))
+        .spawn(((bevy_gooey::fill_region_with(0.0), crate::chrome::Gap::Group.class()), PageBody, ChildOf(parent)))
         .id();
     draw_body(commands, body, page, map_menu, kit_menu, images, splash, pictures, map_pictures);
 }
@@ -483,7 +483,7 @@ fn draw_body(commands: &mut Commands, body: Entity, page: &ProjectPage, map_menu
             // **No breadcrumb inside the workbench**: the project is open, and leaving it is Close project, which asks about unsaved work.
             body.spawn(heading(page.name()));
         } else {
-            crate::chrome::gapped_row(body, crate::chrome::GAP_ROW_STEPS, crate::chrome::NO_MARGIN, AlignItems::Center).with_children(|crumbs| {
+            crate::chrome::gapped_row(body, Some(crate::chrome::Gap::Row), crate::chrome::NO_MARGIN, AlignItems::Center).with_children(|crumbs| {
                 crumbs.spawn((button("Projects"), observe(|_: On<Activate>, mut out: MessageWriter<PageAction>| { out.write(PageAction::Back); })));
                 crumbs.spawn(label("›"));
                 crumbs.spawn(heading(page.name()));
@@ -515,7 +515,7 @@ fn draw_body(commands: &mut Commands, body: Entity, page: &ProjectPage, map_menu
             Children::spawn(bevy::ecs::spawn::SpawnWith(move |parent: &mut bevy::ecs::relationship::RelatedSpawner<ChildOf>| {
                 parent
                     .spawn((
-                        bevy_gooey::row_with(crate::chrome::GAP_GROUP_STEPS, bevy_gooey::RowLayout { wrap: Some(FlexWrap::Wrap), ..default() }),
+                        (bevy_gooey::row_with(0.0, bevy_gooey::RowLayout { wrap: Some(FlexWrap::Wrap), ..default() }), crate::chrome::Gap::Group.class()),
                         bevy_gooey::Spacing { padding: bevy_gooey::Sides::y(crate::chrome::STEP_ROW), ..default() },
                     ))
                     .with_children(|grid| {
@@ -532,7 +532,7 @@ fn draw_body(commands: &mut Commands, body: Entity, page: &ProjectPage, map_menu
             "Kits",
             true,
             Children::spawn(bevy::ecs::spawn::SpawnWith(move |parent: &mut bevy::ecs::relationship::RelatedSpawner<ChildOf>| {
-                parent.spawn((bevy_gooey::column(crate::chrome::GAP_TIGHT_STEPS), bevy_gooey::Spacing { padding: bevy_gooey::Sides::y(crate::chrome::STEP_ROW), ..default() })).with_children(|rows| {
+                parent.spawn(((bevy_gooey::column(0.0), crate::chrome::Gap::Tight.class()), bevy_gooey::Spacing { padding: bevy_gooey::Sides::y(crate::chrome::STEP_ROW), ..default() })).with_children(|rows| {
                     for kit in &kits {
                         kit_row(rows, kit, authoring.as_deref() == Some(kit.label.as_str()), kit_menu);
                     }
@@ -681,7 +681,7 @@ fn draw_agent_guide(parent: &mut bevy::ecs::relationship::RelatedSpawnerCommands
             "Agent guide",
             true,
             Children::spawn(SpawnWith(move |parent: &mut bevy::ecs::relationship::RelatedSpawner<ChildOf>| {
-                parent.spawn((bevy_gooey::column(crate::chrome::GAP_TIGHT_STEPS), bevy_gooey::Spacing { padding: bevy_gooey::Sides::y(crate::chrome::STEP_ROW), ..default() })).with_children(|rows| {
+                parent.spawn(((bevy_gooey::column(0.0), crate::chrome::Gap::Tight.class()), bevy_gooey::Spacing { padding: bevy_gooey::Sides::y(crate::chrome::STEP_ROW), ..default() })).with_children(|rows| {
                     rows.spawn((label(status.clone()), AgentGuideStatus));
                     // **A file nobody can read is its problem, not an editor**: saving over it would throw
                     // away whatever it is, and the person is owed the reason instead.
@@ -716,7 +716,7 @@ fn draw_agent_guide(parent: &mut bevy::ecs::relationship::RelatedSpawnerCommands
                     // section, so a press of the first key — which flips whether there is an edit and so
                     // whether Allow is offered — changes this row alone and never rebuilds the area under the
                     // person typing in it.
-                    rows.spawn((bevy_gooey::row(crate::chrome::GAP_GROUP_STEPS), AgentGuideButtons));
+                    rows.spawn(((bevy_gooey::row(0.0), crate::chrome::Gap::Group.class()), AgentGuideButtons));
                 });
             })),
         ),
@@ -1639,7 +1639,7 @@ fn open_dialog(commands: &mut Commands, page: &ProjectPage, form: Form, existing
         if kind == FormKind::NewKit {
             card.spawn((toggle("Make it the default for new pieces", make_default), observe(|change: On<ValueChange<bool>>, mut form: ResMut<Form>| form.default = change.value)));
         }
-        crate::chrome::end_row(card, crate::chrome::GAP_GROUP_STEPS).with_children(|row| {
+        crate::chrome::end_row(card, Some(crate::chrome::Gap::Group)).with_children(|row| {
             row.spawn((button("Cancel"), observe(|_: On<Activate>, mut commands: Commands, dialogs: Query<Entity, With<PageDialog>>| close(&mut commands, &dialogs))));
             row.spawn((submit_button(accent), bevy_gooey::DefaultButton, CreateButton, observe(create_clicked)));
         });
@@ -1657,12 +1657,12 @@ fn open_policy_dialog(commands: &mut Commands, kit_label: &str, entries: Vec<Pol
         }
         for entry in entries {
             let kit = kit_label.to_owned();
-            card.spawn(bevy_gooey::row_with(crate::chrome::GAP_GROUP_STEPS, bevy_gooey::RowLayout { align: Some(AlignItems::Center), justify: Some(JustifyContent::SpaceBetween), ..default() })).with_children(|row| {
+            card.spawn((bevy_gooey::row_with(0.0, bevy_gooey::RowLayout { align: Some(AlignItems::Center), justify: Some(JustifyContent::SpaceBetween), ..default() }), crate::chrome::Gap::Group.class())).with_children(|row| {
                 row.spawn(label(entry.shown.clone()));
                 row.spawn((button("Remove"), observe(move |_: On<Activate>, mut out: MessageWriter<PageAction>| { out.write(PageAction::RemovePolicy { kit: kit.clone(), entry: entry.clone() }); })));
             });
         }
-        crate::chrome::end_row(card, 0.0).with_children(|row| {
+        crate::chrome::end_row(card, None).with_children(|row| {
             row.spawn((submit_button("Close"), observe(|_: On<Activate>, mut commands: Commands, dialogs: Query<Entity, With<PageDialog>>| close(&mut commands, &dialogs))));
         });
     });

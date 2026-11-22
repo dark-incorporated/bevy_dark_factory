@@ -172,6 +172,6 @@ fn the_settings_files_interface_size_reaches_the_ui_scale() {
 /// acceptance and the reason a theme is a preset rather than a palette this crate derives.
 #[test]
 fn the_high_contrast_theme_keeps_passing_the_librarys_rules() {
-    let skin = bevy_dark_factory::ui::skin_for(Theme::HighContrast);
+    let skin = bevy_dark_factory::style::compiled_for(Theme::HighContrast).skin;
     assert_eq!(skin.problems(), vec![], "a theme the editor offers must pass `problems()`");
 }

@@ -298,7 +298,7 @@ pub fn toggle_the_outliner(
         .spawn((
             Outliner::default(),
             Name::new("outliner"),
-            bevy_gooey::column(crate::chrome::GAP_TIGHT_STEPS),
+            (bevy_gooey::column(0.0), crate::chrome::Gap::Tight.class()),
         ))
         .with_children(|block| {
             crate::chrome::list_heading(block, "OUTLINER");

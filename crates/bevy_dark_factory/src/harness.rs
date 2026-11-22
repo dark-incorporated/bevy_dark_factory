@@ -554,7 +554,7 @@ pub fn build_stepped_at(
     .insert_resource(ClearColor(crate::chrome::ink().void))
     // The same knob the binary sets, by the same name — a literal here would be the second
     // definition the constant exists to prevent, and headless is where a drift goes unseen.
-    .insert_resource(UiScale(crate::chrome::EDITOR_UI_SCALE));
+    .insert_resource(UiScale(crate::style::metrics().layout.ui_scale));
 
     // **Despawning a light or a mesh must not panic in here.** `backends: None` registers every
     // render type but skips the render world — and with it `SyncWorldPlugin`, whose

@@ -41,11 +41,13 @@
 //! | `blueprint_list_rules` | the block rules a layout is generated from, as the project states them |
 //! | `blueprint_run_command` | run a registered editor command by its id, as its shortcut would |
 //! | `blueprint_jobs_stop` | ask a background job, such as the palette's thumbnail bake, to stop |
+//! | `blueprint_ui_style_inspect` | why the editor's own chrome looks the way it does at a point: classes, style sheet rules and their lines |
+//! | `blueprint_relaunch_editor` | the editor development agent's relaunch on the build it just made; its session is restored in the new editor |
 //! | `blueprint_read_log` | the editor's own log file, read from disk, so it answers when the editor does not |
 //! | `blueprint_open_project` | open a project folder in the running editor, from any screen including the Projects home |
 //! | `blueprint_self_test` | the power-on self test an agent runs when Dark Factory's terminal starts it |
 //!
-//! **Thirty tools, and the set is small on purpose.** An agent's context is spent on the tools it
+//! **Thirty-two tools, and the set is small on purpose.** An agent's context is spent on the tools it
 //! is offered, and a catalogue of ninety-six verbs is a catalogue of ninety-six things to choose
 //! badly from. **The operation tools are a discovery surface**: the first names what exists, and
 //! the others preview, run and take back what it names. Later iterations add one tool per
@@ -516,6 +518,18 @@ pub struct JobsStopParams {
     /// **Which job to stop**: its own name. `thumbs` is the palette's thumbnail bake, and
     /// `blueprint_state.jobs.items` lists every key that is running.
     pub key: String,
+}
+
+/// **The parameters of `blueprint_ui_style_inspect`.**
+#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct UiStyleInspectParams {
+    /// **Surface pixels from the window's left edge.** Omit both `x` and `y` for the editor's pointer.
+    #[serde(default)]
+    pub x: Option<f32>,
+    /// **Surface pixels from the window's top edge.**
+    #[serde(default)]
+    pub y: Option<f32>,
 }
 
 /// **The parameters of `blueprint_state`.**
@@ -2548,6 +2562,68 @@ impl Blueprint {
                     Ok(CallToolResult::structured(v))
                 }
             }
+            Err(e) => Ok(refusal(&e)),
+        }
+    }
+
+    /// **`blueprint_ui_style_inspect` — the style inspector's answer, at a point** (the editor's `Cmd+Alt+I`).
+    ///
+    /// **A read.** The editor's own chrome is styled by a layered style sheet (the checkout's
+    /// `src/style/editor.yaml`, a theme's, the person's `style.yaml`, the project's `editor_style.yaml`); this
+    /// names which rules made the node at a point look the way it does, so an agent changing the editor's look
+    /// edits the right line of the right file.
+    #[tool(
+        name = "blueprint_ui_style_inspect",
+        description = "Why the editor's own interface looks the way it does at a point: the topmost node with a \
+                       style class there, its classes and laid-out size, each style sheet rule that matches it in \
+                       cascade order (selector, layer, file, line, specificity, what it sets; the last rule that \
+                       sets a property wins it) and what they add up to. x and y are surface pixels, the \
+                       coordinates of blueprint_capture_still's picture; omit both for the editor's pointer. Edit \
+                       the named file at the named line to change the look: the editor applies the edit about a \
+                       second after the save. Refused, saying why, where no classed node is.",
+        annotations(
+            title = "Inspect the editor's style at a point",
+            read_only_hint = true,
+            destructive_hint = false,
+            idempotent_hint = true,
+            open_world_hint = false
+        )
+    )]
+    async fn ui_style_inspect(
+        &self,
+        Parameters(p): Parameters<UiStyleInspectParams>,
+    ) -> Result<CallToolResult, ErrorData> {
+        match self.editor.call("blueprint/ui_style_inspect", json!({"x": p.x, "y": p.y})).await {
+            Ok(v) => Ok(CallToolResult::structured(v)),
+            Err(e) => Ok(refusal(&e)),
+        }
+    }
+
+    /// **`blueprint_relaunch_editor` — the editor development agent's relaunch** (the editor's `blueprint/relaunch_editor`).
+    ///
+    /// **The token is this server's own** (`DARK_FACTORY_AGENT_TOKEN`), so only the tab that started this server can ask, and the
+    /// editor refuses any tab but an editor development one.
+    #[tool(
+        name = "blueprint_relaunch_editor",
+        description = "Relaunch the editor on the build you just made. Call only after `cargo build -p bevy_dark_factory` \
+                       succeeded. Your process is killed and this session is restored in the new editor, where you continue \
+                       by verifying with blueprint_capture_still. Refused, saying why, when there is no new build (`no new \
+                       build: ...`), when this session has not been recorded yet, or from any agent but the editor's own \
+                       development agent.",
+        annotations(
+            title = "Relaunch the editor on the new build",
+            read_only_hint = false,
+            destructive_hint = false,
+            idempotent_hint = false,
+            open_world_hint = false
+        )
+    )]
+    async fn relaunch_editor(&self) -> Result<CallToolResult, ErrorData> {
+        let Some(token) = agent_token() else {
+            return Ok(refusal("this server was not started by an editor terminal tab (DARK_FACTORY_AGENT_TOKEN is not set), so it cannot ask for a relaunch"));
+        };
+        match self.editor.call("blueprint/relaunch_editor", json!({"token": token})).await {
+            Ok(v) => Ok(CallToolResult::structured(v)),
             Err(e) => Ok(refusal(&e)),
         }
     }

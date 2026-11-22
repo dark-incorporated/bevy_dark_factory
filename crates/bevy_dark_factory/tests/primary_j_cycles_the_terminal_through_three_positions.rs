@@ -23,7 +23,7 @@ use bevy::window::PrimaryWindow;
 use bevy_dark_factory::app_verbs::{self, AppVerb};
 use bevy_dark_factory::menu_bar::EditorMenuBar;
 use bevy_dark_factory::terminal::Terminal;
-use bevy_dark_factory::terminal_pane::{COLLAPSE_CHORD, TERMINAL_QUARTER_SHARE, TerminalPaneRoot, maximise_chord};
+use bevy_dark_factory::terminal_pane::{TERMINAL_QUARTER_SHARE, TerminalPaneRoot};
 
 use crate::fixtures;
 
@@ -279,9 +279,10 @@ fn the_status_labels_tooltip_names_the_next_press() {
 #[test]
 fn cmd_j_is_the_cycle_chord() {
     use bevy_dark_factory::terminal_pane::TerminalPlacement;
-    assert_eq!(COLLAPSE_CHORD.key, KeyCode::KeyJ, "Cmd+J is the cycle's chord");
-    assert_eq!(COLLAPSE_CHORD.modifiers, bevy_gooey::Modifiers::PRIMARY, "with no Shift: Shift+Cmd+J is still the maximise chord");
-    assert_eq!(maximise_chord().key, KeyCode::KeyJ);
+    use bevy_dark_factory::chords::{Fixed, chord};
+    assert_eq!(chord(Fixed::TerminalCollapse).key, KeyCode::KeyJ, "Cmd+J is the cycle's chord");
+    assert_eq!(chord(Fixed::TerminalCollapse).modifiers, bevy_gooey::Modifiers::PRIMARY, "with no Shift: Shift+Cmd+J is still the maximise chord");
+    assert_eq!(chord(Fixed::TerminalMaximise).key, KeyCode::KeyJ);
     assert_eq!(TerminalPlacement::Maximised.next(), TerminalPlacement::Collapsed, "maximised -> collapsed, the owner's order");
     assert_eq!(TerminalPlacement::Collapsed.next(), TerminalPlacement::Quarter, "collapsed -> a quarter");
     assert_eq!(TerminalPlacement::Quarter.next(), TerminalPlacement::Maximised, "a quarter -> maximised");

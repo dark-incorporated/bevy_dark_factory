@@ -18,7 +18,7 @@ use bevy_dark_factory::app_verbs::AppVerb;
 use bevy_dark_factory::keymap_screen::{self, OpenKeymap};
 use bevy_dark_factory::menu_bar::EditorMenuBar;
 use bevy_dark_factory::terminal::Terminal;
-use bevy_dark_factory::terminal_pane::{TerminalPane, TerminalPaneRoot, maximise_chord};
+use bevy_dark_factory::terminal_pane::{TerminalPane, TerminalPaneRoot};
 
 use crate::fixtures;
 
@@ -153,26 +153,28 @@ fn from_collapsed_shift_primary_j_raises_the_pane_straight_to_full() {
     assert!((full - room).abs() <= 1.0, "straight to full: {full} of {room}");
 }
 
-/// **It is a command: a View menu row with its chord, a keymap row, and a chord no command can be rebound onto.**
+/// **It is a command: a View menu row with its chord, a keymap row a person rebinds, and a chord no command can be rebound onto.**
 #[test]
 fn terminal_maximise_is_a_view_row_a_keymap_row_and_a_reserved_chord() {
     let mut app = editor("maximise_command");
+    let maximise = bevy_dark_factory::chords::chord(bevy_dark_factory::chords::Fixed::TerminalMaximise);
     let verbs: Vec<(String, Option<bevy_gooey::Shortcut>)> = {
         let world = app.world_mut();
         world.query::<&AppVerb>().iter(world).filter(|verb| **verb == AppVerb::MaximiseTerminal).map(|verb| (verb.title(), verb.shortcut())).collect()
     };
-    assert_eq!(verbs, [("Maximise terminal".to_owned(), Some(maximise_chord()))], "the View menu has its row, with the chord");
+    assert_eq!(verbs, [("Maximise terminal".to_owned(), Some(maximise))], "the View menu has its row, with the chord");
 
     app.world_mut().write_message(OpenKeymap);
     settle(&mut app, 6);
     let listed = {
         let world = app.world_mut();
-        world.query::<&Text>().iter(world).any(|text| text.0.contains("terminal.maximise") && text.0.contains(&maximise_chord().label()))
+        let rows: Vec<Entity> = world.query_filtered::<Entity, With<bevy_gooey::BindingValue>>().iter(world).collect();
+        rows.into_iter().any(|row| keymap_screen::shown(world, row) == Some(maximise))
     };
-    assert!(listed, "the keymap lists terminal.maximise with its chord");
+    assert!(listed, "the keymap lists the maximise chord as a row a person rebinds");
 
     let file = std::env::temp_dir().join(format!("terminal_maximise_keymap_{}/settings.yaml", std::process::id()));
-    let refused = keymap_screen::rebind(&file, "file.save", Some(maximise_chord()), &BTreeMap::new(), None);
+    let refused = keymap_screen::rebind(&file, "file.save", Some(maximise), &BTreeMap::new(), None);
     let why = refused.expect_err("a command cannot be rebound onto the maximise chord");
     assert!(why.contains("terminal.maximise"), "the refusal names it: {why}");
     assert!(!file.exists(), "and nothing was saved");

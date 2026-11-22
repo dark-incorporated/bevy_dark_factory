@@ -6,7 +6,6 @@
 //! row can be labelled as the agent's.
 
 use bevy::prelude::*;
-use bevy_dark_factory::chrome::BODY_LINE_H;
 use bevy_dark_factory::editor::{
     EditorState, jump_for_test, place_for_test, plant_stale_move_for_test, redo_for_test,
     undo_for_test,
@@ -384,11 +383,12 @@ fn a_history_row_holds_its_inset_and_one_line() {
         let clip = px(world.get::<Node>(row).expect("a row has a node").height, "row height");
         let pad = world.get::<Node>(row).expect("a row has a node").padding;
         let inset = px(pad.top, "row top inset") + px(pad.bottom, "row bottom inset");
-        let need = inset + BODY_LINE_H;
+        let line = bevy_dark_factory::chrome::body_line();
+        let need = inset + line;
         assert!(
             clip >= need - 0.01,
             "a history row is {clip} px tall, but the row needs {need} px: its {inset} px \
-             inset and a {BODY_LINE_H} px line"
+             inset and a {line} px line"
         );
     }
 }

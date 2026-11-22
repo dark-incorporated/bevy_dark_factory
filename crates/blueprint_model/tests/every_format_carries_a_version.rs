@@ -53,6 +53,7 @@ const VERSIONED_ABOVE: &[(&str, &str, &str)] = &[
     ("checks", "crates/bevy_oracle/tests/a_checks_file_of_another_version_is_refused.rs", "the decision crate's `Checks`"),
     ("oplog", "crates/bevy_dark_factory/tests/an_oplog_line_of_another_version_is_refused.rs", "the editor's operation log entry, one JSON line each"),
     ("editor_settings", "crates/bevy_dark_factory/tests/a_key_set_in_both_settings_layers_takes_the_projects.rs", "the editor's `SettingsLayer`, one settings file"),
+    ("editor_style", "crates/bevy_dark_factory/tests/the_style_sheet_reloads_live.rs", "the editor's style-sheet layer, one style file"),
 ];
 
 /// **Kinds whose format is not the editor's to version**, and whose it is.

@@ -5,7 +5,7 @@
 //! off its neighbours (a section heading, a panel title) keeps its ink and its font while it does.
 
 use bevy::prelude::*;
-use bevy_dark_factory::chrome::{self, GAP_GROUP, GAP_ROW, GAP_TIGHT, PAD};
+use bevy_dark_factory::chrome;
 use bevy_dark_factory::harness;
 use bevy_dark_factory::tiles::Mode;
 use bevy_gooey::{GooeySkin, Role};
@@ -21,14 +21,15 @@ fn editor(tag: &str, mode: Mode) -> App {
     app
 }
 
-/// **The steps are the px**: `STEP_TIGHT`, `STEP_ROW`, `STEP_PAD` and `STEP_GROUP` read the editor skin's `spacing` scale, and the scale holds the gap constants
-/// they replace. A skin edit that moved a step would move every margin that names it, so this is where it fails first.
+/// **The steps are the px**: `STEP_TIGHT`, `STEP_ROW`, `STEP_PAD` and `STEP_GROUP` read the editor skin's `spacing` scale, and the scale holds the px
+/// the editor always used (3, 5, 12, 16). A skin edit that moved a step would move every margin that names it, so this is where it fails first.
 #[test]
 fn the_editor_spacing_steps_are_its_gap_constants() {
     let app = editor("steps", Mode::Map);
     let skin = app.world().resource::<GooeySkin>();
-    for (step, px, name) in [(chrome::STEP_TIGHT, GAP_TIGHT, "STEP_TIGHT"), (chrome::STEP_ROW, GAP_ROW, "STEP_ROW"), (chrome::STEP_PAD, PAD, "STEP_PAD"), (chrome::STEP_GROUP, GAP_GROUP, "STEP_GROUP")] {
+    for (step, px, name) in [(chrome::STEP_TIGHT, 3.0, "STEP_TIGHT"), (chrome::STEP_ROW, 5.0, "STEP_ROW"), (chrome::STEP_PAD, 12.0, "STEP_PAD"), (chrome::STEP_GROUP, 16.0, "STEP_GROUP")] {
         assert_eq!(step.px(skin), px, "{name} is {px} px in the editor's skin");
+        assert_eq!(chrome::space(step), px, "{name} is {px} px in the published scale arithmetic reads");
     }
 }
 
@@ -43,8 +44,8 @@ fn the_section_headings_keep_their_ink_and_their_margins() {
     };
     assert_eq!(app.world().get::<Role>(entity), Some(&Role::Sized), "the heading carries gooey's layout role, so `Spacing` is written on it");
     let node = app.world().get::<Node>(entity).expect("a heading has a Node");
-    assert_eq!(node.margin.top, Val::Px(GAP_GROUP), "16 px above the heading");
-    assert_eq!(node.margin.bottom, Val::Px(GAP_TIGHT), "3 px below it");
+    assert_eq!(node.margin.top, Val::Px(chrome::space(chrome::STEP_GROUP)), "16 px above the heading");
+    assert_eq!(node.margin.bottom, Val::Px(chrome::space(chrome::STEP_TIGHT)), "3 px below it");
     assert_eq!(app.world().get::<TextColor>(entity).map(|c| c.0), Some(chrome::ink().label), "the heading keeps the label ink the host gave it");
     let size = app.world().get::<TextFont>(entity).map(|f| f.font_size).expect("a heading has a font");
     assert_eq!(size, chrome::font(chrome::text::HEADING).font_size, "and the heading type size");
@@ -60,6 +61,7 @@ fn a_settings_rows_have_their_group_margin() {
     }
     let world = app.world_mut();
     let mut q = world.query::<(&Role, &Node)>();
-    let rows = q.iter(world).filter(|(role, node)| **role == Role::Column && node.margin.bottom == Val::Px(GAP_GROUP)).count();
+    let group = chrome::space(chrome::STEP_GROUP);
+    let rows = q.iter(world).filter(|(role, node)| **role == Role::Column && node.margin.bottom == Val::Px(group)).count();
     assert!(rows >= 3, "Settings lists its settings as columns with a group margin below each; found {rows}");
 }

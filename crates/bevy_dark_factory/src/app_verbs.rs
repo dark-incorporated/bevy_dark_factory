@@ -36,9 +36,6 @@ pub const REPORT_URL: &str = "https://github.com/dark-incorporated/bevy_dark_fac
 /// The recent projects File → Open recent lists.
 pub const RECENT_SHOWN: usize = 5;
 
-/// The chord that quits: the platform's own modifier and Q.
-pub const QUIT: Shortcut = Shortcut::primary(KeyCode::KeyQ);
-
 /// A row of the menu bar that is a verb of the application and no chord of the editor's.
 #[derive(Component, Clone, Debug, PartialEq, Eq)]
 pub enum AppVerb {
@@ -105,9 +102,9 @@ impl AppVerb {
     /// The chord the row shows at its end, when the verb has one.
     pub fn shortcut(&self) -> Option<Shortcut> {
         match self {
-            AppVerb::Quit => Some(QUIT),
-            AppVerb::ShowProblems => Some(crate::problems_view::show_problems_chord()),
-            AppVerb::MaximiseTerminal => Some(crate::terminal_pane::maximise_chord()),
+            AppVerb::Quit => Some(crate::chords::chord(crate::chords::Fixed::Quit)),
+            AppVerb::ShowProblems => Some(crate::chords::chord(crate::chords::Fixed::ProblemsShow)),
+            AppVerb::MaximiseTerminal => Some(crate::chords::chord(crate::chords::Fixed::TerminalMaximise)),
             _ => None,
         }
     }
@@ -327,7 +324,7 @@ fn percent_encode(text: &str) -> String {
 
 /// `Cmd/Ctrl+Q` is a quit request on every screen. The press is taken, so nothing behind it reads the Q.
 fn quit_chord(mut keyboard: ResMut<ButtonInput<KeyCode>>, mut out: MessageWriter<QuitRequested>) {
-    if QUIT.just_pressed(&keyboard) {
+    if crate::chords::chord(crate::chords::Fixed::Quit).just_pressed(&keyboard) {
         crate::confirm::take(&mut keyboard, KeyCode::KeyQ);
         out.write(QuitRequested);
     }
@@ -424,7 +421,7 @@ fn open_about(
     };
     commands
         .spawn((dialog(), AboutDialog, Name::new("about")))
-        .insert(GlobalZIndex(crate::chrome::MODAL_Z))
+        .insert(GlobalZIndex(crate::style::metrics().z.modal))
         .observe(|cancel: On<Cancel>, mut keyboard: ResMut<ButtonInput<KeyCode>>, mut commands: Commands| {
             // The `Esc` that closes this is this dialog's alone.
             crate::confirm::take(&mut keyboard, KeyCode::Escape);

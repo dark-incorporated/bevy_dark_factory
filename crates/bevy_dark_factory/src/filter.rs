@@ -270,7 +270,7 @@ pub fn spawn(parent: &mut ChildSpawnerCommands, pane: Pane, skin: Option<&bevy_g
     let ink = FieldInk::of(skin);
     let mut b = crate::chrome::text_field(
         parent,
-        Val::Percent(100.0),
+        crate::chrome::FieldWidth::Fill,
         FilterBox(pane),
         crate::chrome::text::BODY,
         (placeholder(pane).to_owned(), ink.quiet),

@@ -92,7 +92,7 @@ fn editor(tag: &str, theme: Theme) -> (App, std::path::PathBuf) {
 /// then a few frames more so every painter has run.
 fn choose(app: &mut App, file: &std::path::Path, theme: Theme) {
     std::fs::write(file, format!("{{version: 1, theme: {}}}", named(theme))).expect("a settings file");
-    let want = bevy_dark_factory::ui::skin_for(theme).surface;
+    let want = bevy_dark_factory::style::compiled_for(theme).skin.surface;
     let deadline = std::time::Instant::now() + std::time::Duration::from_secs(WATCH_PATIENCE_S);
     while app.world().resource::<GooeySkin>().surface != want && std::time::Instant::now() < deadline {
         app.update();
@@ -109,12 +109,12 @@ fn same(a: Color, b: Color) -> bool {
 
 /// The theme's ink, as its own skin says it — **not** `chrome::ink()`, which is what is being tested.
 fn expected(theme: Theme) -> Ink {
-    Ink::of(&bevy_dark_factory::ui::skin_for(theme))
+    Ink::of(&bevy_dark_factory::style::compiled_for(theme).skin, &bevy_dark_factory::style::metrics().ink)
 }
 
 /// Every colour a theme's skin and ink own: the 28 ink fields and the skin's roles, ladder and tones.
 fn palette(theme: Theme) -> Vec<Color> {
-    let skin = bevy_dark_factory::ui::skin_for(theme);
+    let skin = bevy_dark_factory::style::compiled_for(theme).skin;
     let mut colours: Vec<Color> = expected(theme).fields().to_vec();
     colours.extend([
         skin.background,
@@ -285,7 +285,7 @@ fn the_samples_are_the_themes_own_colours() {
         for fill in &on.bands {
             assert!(same(*fill, ink.bar_bg), "{theme:?}: the status band is the theme's `bar_bg`: {fill:?} vs {:?}", ink.bar_bg);
         }
-        let skin = bevy_dark_factory::ui::skin_for(theme);
+        let skin = bevy_dark_factory::style::compiled_for(theme).skin;
         for fill in &on.panels {
             assert!(same(*fill, skin.surface), "{theme:?}: a panel is the theme's `surface`: {fill:?}");
         }
@@ -366,11 +366,15 @@ fn nothing_is_left_in_another_themes_colours() {
 #[test]
 fn every_theme_reads_on_screen() {
     for theme in THEMES {
-        let skin = bevy_dark_factory::ui::skin_for(theme);
+        let skin = bevy_dark_factory::style::compiled_for(theme).skin;
         assert_eq!(bevy_dark_factory::ui::unreadable_pairs(&skin), Vec::<String>::new(), "{theme:?}: every ink clears every ground it is on");
         assert_eq!(skin.problems(), vec![], "{theme:?}: a well-formed skin");
     }
-    assert_eq!(bevy_dark_factory::ui::skin_for(Theme::HighContrast).high_contrast_problems(), vec![], "High contrast holds 7:1");
+    assert_eq!(
+        bevy_dark_factory::style::compiled_for(Theme::HighContrast).skin.high_contrast_problems(),
+        vec![],
+        "High contrast holds 7:1"
+    );
 
     let (mut app, file) = editor("theme_contrast", Theme::ToolDark);
     for theme in [Theme::Parchment, Theme::HighContrast, Theme::ToolDark] {
@@ -412,7 +416,7 @@ fn every_theme_reads_on_screen() {
 fn a_theme_applies_in_the_frame_the_setting_lands() {
     let (mut app, file) = editor("theme_same_frame", Theme::ToolDark);
     std::fs::write(&file, "{version: 1, theme: Parchment}").expect("a settings file");
-    let want = bevy_dark_factory::ui::skin_for(Theme::Parchment);
+    let want = bevy_dark_factory::style::compiled_for(Theme::Parchment).skin;
     let deadline = std::time::Instant::now() + std::time::Duration::from_secs(WATCH_PATIENCE_S);
     // The frame the running skin first becomes Parchment's is the frame its ink must be too.
     while app.world().resource::<GooeySkin>().surface != want.surface && std::time::Instant::now() < deadline {
@@ -445,7 +449,7 @@ fn a_theme_chosen_in_the_project_layer_reaches_the_ink() {
     }
     let project = app.world().resource::<bevy_dark_factory::project::Project>().project_dir.join(bevy_dark_factory::settings::PROJECT_FILE);
     std::fs::write(&project, "{version: 1, theme: HighContrast}").expect("a project settings file");
-    let want = bevy_dark_factory::ui::skin_for(Theme::HighContrast).surface;
+    let want = bevy_dark_factory::style::compiled_for(Theme::HighContrast).skin.surface;
     let deadline = std::time::Instant::now() + std::time::Duration::from_secs(WATCH_PATIENCE_S);
     while app.world().resource::<GooeySkin>().surface != want && std::time::Instant::now() < deadline {
         app.update();
@@ -507,15 +511,15 @@ fn a_pictures_tint_and_a_clear_node_are_not_the_themes() {
 /// magenta, so a theme file that dropped one would paint fuchsia only on the screen that used it.
 #[test]
 fn every_theme_carries_the_tones_the_editor_draws_with() {
-    let own: Vec<String> = bevy_dark_factory::ui::editor_skin().tones.keys().cloned().collect();
+    let own: Vec<String> = bevy_dark_factory::style::compiled_default().skin.tones.keys().cloned().collect();
     assert!(own.len() >= 12, "the editor's own skin names its tones: {own:?}");
     for theme in THEMES {
-        let skin = bevy_dark_factory::ui::skin_for(theme);
+        let skin = bevy_dark_factory::style::compiled_for(theme).skin;
         let named: Vec<String> = skin.tones.keys().cloned().collect();
         assert_eq!(named, own, "{theme:?}: the theme file names exactly the tones the editor's own skin does");
         let magenta = Color::srgb(1.0, 0.0, 1.0);
         assert!(
-            !one_of(magenta, &Ink::of(&skin).fields()),
+            !one_of(magenta, &Ink::of(&skin, &bevy_dark_factory::style::metrics().ink).fields()),
             "{theme:?}: no ink is the magenta that answers a missing tone"
         );
     }
