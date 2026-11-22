@@ -26,6 +26,9 @@ use crate::fixtures;
 const SETTLE: usize = 14;
 /// One frame of the test clock, in seconds: the file watchers run on the real clock, which the manual strategy drives.
 const FRAME_S: f32 = 1.0 / 60.0;
+/// How long a test waits, on the wall clock, for the editor to learn of a file written from outside: it follows the project index, whose sweep and
+/// debounce run on their own thread and not on the manual clock the frames above drive.
+const WAIT_FOR_THE_INDEX_S: u64 = 20;
 
 const GAME: &str = "design/style.md";
 const LEVEL: &str = "design/levels/m/style.md";
@@ -110,6 +113,8 @@ fn editor(root: &std::path::Path) -> App {
     TrustStore::default().save(&store).unwrap_or_else(|e| panic!("{e}"));
     app.world_mut().resource_mut::<EditorState>().trust.file = Some(store);
     settle(&mut app);
+    // The index's shortest sweep: the open file follows the project index (#501), and a test that writes a file from outside waits for it.
+    app.world().resource::<bevy_dark_factory::project_index::ProjectIndex>().set_sweep(bevy_dark_factory::project_index::MIN_SWEEP);
     app
 }
 
@@ -282,8 +287,12 @@ fn a_change_on_disk_during_edit_offers_reload_or_keep_mine_and_overwrites_nothin
     // Someone else writes the file: the question is asked, and the disk is not touched by the editor.
     let theirs = "# Theirs\n\nWritten by an agent.\n";
     write(&root, LEVEL, theirs);
-    for _ in 0..40 {
+    // The editor learns of the change from the project index (#501), on the wall clock: wait for the question, not for a number of frames
+    // (the frames run on a manual clock, so forty of them took a machine-dependent few milliseconds and the test passed or failed with the load).
+    let started = std::time::Instant::now();
+    while started.elapsed() < std::time::Duration::from_secs(WAIT_FOR_THE_INDEX_S) && !(visible(&mut app, "Reload") && visible(&mut app, "Keep mine")) {
         app.update();
+        std::thread::sleep(std::time::Duration::from_millis(10));
     }
     assert!(visible(&mut app, "Reload") && visible(&mut app, "Keep mine"), "a change on disk under unsaved typing asks Reload or Keep mine");
     assert_eq!(std::fs::read_to_string(root.join(LEVEL)).unwrap_or_default(), theirs, "the editor overwrote nothing");
