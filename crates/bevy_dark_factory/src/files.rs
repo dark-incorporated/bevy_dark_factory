@@ -72,9 +72,6 @@ pub const DIAGNOSE_IDLE_S: f64 = 0.15;
 /// quarter of a second.
 pub const POLL_S: f64 = 0.25;
 
-/// How often the project's tree is read again for a file made or removed, in seconds.
-pub const TREE_POLL_S: f64 = 1.5;
-
 /// **The largest file the editor opens**, in bytes: two mebibytes. A text file a person edits by hand is
 /// kilobytes; past this it is data a program wrote, and a 2 MB buffer in a UI thread is a stall, not an edit.
 pub const MAX_FILE_BYTES: u64 = 2 * 1024 * 1024;
@@ -101,7 +98,7 @@ const TAB_COLUMNS: u8 = 4;
 pub const TREE_PANEL_W: f32 = 300.0;
 
 /// The folders the tree never lists, by name, beside what `.gitignore` names.
-const SKIPPED_DIRS: [&str; 4] = [".git", "target", ".live", "node_modules"];
+pub(crate) const SKIPPED_DIRS: [&str; 4] = [".git", "target", ".live", "node_modules"];
 
 /// The notice under the tree when it stopped at [`TREE_LIMIT`].
 pub const TREE_TRUNCATED: &str = "The tree is not complete: it lists at most 20,000 entries, and 5,000 of a folder; narrow the project to see the rest";
@@ -548,84 +545,66 @@ pub(crate) fn wildcard(pattern: &str, text: &str, across_slash: bool) -> bool {
     }
     pi == p.len()
 }
-/// What the walk of a project's folders made: the tree's nodes and what each key names.
-#[derive(Default)]
-struct Walked {
-    nodes: Vec<TreeNode>,
-    names: HashMap<u64, (String, bool)>,
-    count: usize,
-    truncated: bool,
+/// **What the tree draws, built from the index's entries**: the nodes, what each key names, and the tree's own caps ([`TREE_LIMIT`]
+/// in all, [`TREE_DIR_LIMIT`] in one folder). The caps are the tree's, not the index's, so a search and a replace see every file.
+#[derive(Debug)]
+pub struct TreeBuild {
+    pub nodes: Vec<TreeNode>,
+    pub names: HashMap<u64, (String, bool)>,
+    pub truncated: bool,
     /// An order-independent sum of what is listed, so a settled tree is told from a changed one without keeping a copy.
-    fingerprint: u64,
-    /// Read with no limit: what a search and a replace walk, so a project-wide rename never covers only part of a project.
-    uncapped: bool,
+    pub fingerprint: u64,
 }
 
-fn walk_dir(root: &Path, dir: &Path, ignore: &Ignore, walked: &mut Walked) -> Vec<TreeNode> {
-    let Ok(entries) = std::fs::read_dir(dir) else { return Vec::new() };
-    // **A folder is read for its first [`TREE_DIR_LIMIT`] entries only**: collecting, statting and sorting a folder of a
-    // hundred thousand files is the stall the limit exists to prevent.
-    let mut read = entries.filter_map(Result::ok);
-    let mut listed: Vec<(String, bool)> = Vec::new();
-    for entry in read.by_ref().take(if walked.uncapped { usize::MAX } else { TREE_DIR_LIMIT }) {
-        let Ok(meta) = std::fs::symlink_metadata(entry.path()) else { continue };
-        // A link is never followed (the tree stays inside the project) and never listed.
-        if !meta.file_type().is_symlink() {
-            listed.push((entry.file_name().to_string_lossy().into_owned(), meta.is_dir()));
-        }
+/// **The tree of a project's entries**, each given as its path under the project and whether it is a folder: a folder's children
+/// are folders first and then by name, case-folded.
+pub fn build_tree<'a>(entries: impl Iterator<Item = (&'a str, bool)>) -> TreeBuild {
+    let mut children: HashMap<&str, Vec<(&str, bool)>> = HashMap::new();
+    for (rel, is_dir) in entries {
+        let (parent, name) = rel.rsplit_once('/').unwrap_or(("", rel));
+        children.entry(parent).or_default().push((name, is_dir));
     }
-    if read.next().is_some() {
-        walked.truncated = true;
+    for listed in children.values_mut() {
+        listed.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.to_lowercase().cmp(&b.0.to_lowercase())));
     }
-    listed.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.to_lowercase().cmp(&b.0.to_lowercase())));
+    let mut built = TreeBuild { nodes: Vec::new(), names: HashMap::new(), truncated: false, fingerprint: 0 };
+    let mut count = 0;
+    built.nodes = tree_level("", &children, &mut built, &mut count);
+    built
+}
+
+fn tree_level(dir: &str, children: &HashMap<&str, Vec<(&str, bool)>>, built: &mut TreeBuild, count: &mut usize) -> Vec<TreeNode> {
+    let Some(listed) = children.get(dir) else { return Vec::new() };
+    // **A folder lists its first [`TREE_DIR_LIMIT`] entries only**: a folder of a hundred thousand files is shown for its first
+    // ones and says so.
+    if listed.len() > TREE_DIR_LIMIT {
+        built.truncated = true;
+    }
     let mut out = Vec::new();
-    for (name, is_dir) in listed {
-        let rel_path = dir.join(&name);
-        let Ok(rel) = rel_path.strip_prefix(root) else { continue };
-        let rel = rel.to_string_lossy().replace('\\', "/");
-        if (is_dir && SKIPPED_DIRS.contains(&name.as_str())) || name == ".DS_Store" || ignore.matches(&rel, is_dir) {
-            continue;
-        }
-        if !walked.uncapped && walked.count >= TREE_LIMIT {
-            walked.truncated = true;
+    for &(name, is_dir) in listed.iter().take(TREE_DIR_LIMIT) {
+        if *count >= TREE_LIMIT {
+            built.truncated = true;
             break;
         }
-        walked.count += 1;
+        *count += 1;
+        let rel = if dir.is_empty() { name.to_owned() } else { format!("{dir}/{name}") };
         let key = key_of(&rel);
-        walked.names.insert(key, (rel.clone(), is_dir));
-        walked.fingerprint = walked.fingerprint.wrapping_add(key ^ u64::from(is_dir));
+        built.names.insert(key, (rel.clone(), is_dir));
+        built.fingerprint = built.fingerprint.wrapping_add(key ^ u64::from(is_dir));
         let mut node = TreeNode::new(key, name);
         if is_dir {
-            node = node.children(walk_dir(root, &rel_path, ignore, walked));
+            node = node.children(tree_level(&rel, children, built, count));
         }
         out.push(node);
     }
     out
 }
-fn walk_project(root: &Path) -> Walked {
-    walk_with(root, false)
-}
 
-/// **The files the tree lists**, with the tree's own caps: the finder's index reads this (NV-05, #382) on a timer, so it is bounded the way the
-/// tree is. A search and a replace use [`listed_files`], which has no limit.
-pub fn tree_files(root: &Path) -> Vec<String> {
-    walk_project(root).names.into_values().filter(|(_, dir)| !dir).map(|(rel, _)| rel).collect()
-}
-
-fn walk_with(root: &Path, uncapped: bool) -> Walked {
-    let ignore = std::fs::read_to_string(root.join(".gitignore")).map(|t| Ignore::parse(&t)).unwrap_or_default();
-    let mut walked = Walked { uncapped, ..Walked::default() };
-    let nodes = walk_dir(root, root, &ignore, &mut walked);
-    walked.nodes = nodes;
-    walked
-}
-/// **The paths the tree lists**, files only, in tree order: what a test and the search read.
-pub fn listed_files(root: &Path) -> Vec<String> {
-    // **No limit**: the tree stops at its caps and says so, but a search and a replace must see every file.
-    let walked = walk_with(root, true);
-    let mut files: Vec<String> = walked.names.into_values().filter(|(_, dir)| !dir).map(|(rel, _)| rel).collect();
-    files.sort();
-    files
+/// **The paths the tree lists**, files only, sorted, with no cap: what a test, the search and a replace read. **The project
+/// index's answer** ([`crate::project_index`], #501), so it is the same list the finder's scan and the tree read. **An error, said,
+/// when no index can answer** (none follows `root`, it did not settle, or the root cannot be read): there is no second walk.
+pub fn listed_files(root: &Path) -> Result<Vec<String>, String> {
+    crate::project_index::listed(root)
 }
 
 // ── Components ───────────────────────────────────────────────────────────────
@@ -726,6 +705,8 @@ pub struct FilesPlugin;
 
 impl Plugin for FilesPlugin {
     fn build(&self, app: &mut App) {
+        // **The tree reads the project index**, so the plugin that has the dependency adds it (an app cannot be built with a tree and no index).
+        crate::project_index::ensure(app);
         app.init_resource::<PointerAt>();
         app.init_resource::<Files>()
             .add_systems(OnEnter(Screen::Editor), spawn_the_files_workspace.after(FrameSystems).run_if(in_files))
@@ -877,21 +858,20 @@ fn open_the_picked_file(picked: On<ValueChange<TableSelection>>, mut commands: C
     });
 }
 
-/// What each row key of the tree names, as the last walk made it: kept on the tree's own entity.
+/// What each row key of the tree names, as the last listing made it: kept on the tree's own entity.
 #[derive(Component, Default)]
 pub struct TreeNames {
     /// Each row key and what it names: the path under the project, and whether it is a folder.
     pub names: HashMap<u64, (String, bool)>,
     fingerprint: u64,
-    next_poll: f64,
+    /// The generation of the project index's listing the nodes were taken from.
+    seen: u64,
     selected: Option<u64>,
     /// The row key the tree has been opened and scrolled to (#359), so a person who scrolls away is not pulled back.
     revealed: Option<u64>,
     /// How many frames in a row the revealed row has been inside the viewport: layout is a frame behind the rows.
     steady: u8,
     truncated: bool,
-    /// The walk in flight, on a thread of its own: the tree is read off the UI thread.
-    scan: Option<std::sync::Mutex<std::sync::mpsc::Receiver<Walked>>>,
 }
 fn tree_names(world: &mut World) -> HashMap<u64, (String, bool)> {
     world.query_filtered::<&TreeNames, With<FilesTree>>().iter(world).next().map(|t| t.names.clone()).unwrap_or_default()
@@ -1515,8 +1495,8 @@ fn on_hover_request(request: On<CodeHoverRequested>, mut files: ResMut<Files>, e
 fn keep_the_tree(
     mut commands: Commands,
     project: Option<Res<Project>>,
+    index: Res<crate::project_index::ProjectIndex>,
     session: Res<Session>,
-    time: Res<Time<Real>>,
     mut trees: Query<(Entity, &mut bevy_gooey::Table, Option<&mut TreeNames>), With<FilesTree>>,
     mut notices: Query<&mut Text, With<TreeNotice>>,
 ) {
@@ -1526,45 +1506,36 @@ fn keep_the_tree(
         commands.entity(entity).insert(TreeNames::default());
         return;
     };
-    let now = time.elapsed_secs_f64();
-    // **The walk is read off the UI thread**: started on a timer, taken when it is done, and only a changed listing
-    // replaces the nodes.
-    let finished = names.scan.as_ref().and_then(|scan| scan.lock().ok().map(|rx| rx.try_recv()));
-    match finished {
-        Some(Ok(walked)) => {
-            names.scan = None;
-            names.truncated = walked.truncated;
-            if walked.fingerprint != names.fingerprint || names.names.is_empty() {
-                if let Some(tree) = table.source_mut::<Tree>() {
-                    let open = tree.open_keys();
-                    tree.set_nodes(walked.nodes);
-                    for key in open {
-                        tree.set_open(key, true);
-                    }
+    // **The listing is the project index's** ([`crate::project_index`], #501): nothing here walks, and a frame in which nothing
+    // moved costs one atomic load. The index publishes a new generation for every change it folds in (an operation's own write
+    // at once, an outside one within a sweep), and only a listing whose structure moved replaces the nodes.
+    if index.root() == Some(project.root.as_path())
+        && index.generation() != names.seen
+        && let Some(snapshot) = index.snapshot()
+    {
+        names.seen = snapshot.generation;
+        let walked = &snapshot.tree;
+        names.truncated = walked.truncated;
+        if walked.fingerprint != names.fingerprint || names.names.is_empty() {
+            if let Some(tree) = table.source_mut::<Tree>() {
+                let open = tree.open_keys();
+                tree.set_nodes(walked.nodes.clone());
+                for key in open {
+                    tree.set_open(key, true);
                 }
-                names.names = walked.names;
-                names.fingerprint = walked.fingerprint;
             }
+            names.names = walked.names.clone();
+            names.fingerprint = walked.fingerprint;
         }
-        Some(Err(std::sync::mpsc::TryRecvError::Disconnected)) => names.scan = None,
-        _ => {}
     }
-    // **A file made, renamed or deleted by an operation asks for the walk now** (#507): the operation publishes the flag
-    // ([`note_tree_changed`]) and the row is on screen a frame or two later rather than a `TREE_POLL_S` (1.5 s) later. A
-    // walk already in flight is left to finish; the flag takes the next one's wait away, not this one's.
-    if take_tree_changed() {
-        names.next_poll = now;
-    }
-    if names.scan.is_none() && now >= names.next_poll {
-        names.next_poll = now + TREE_POLL_S;
-        let root = project.root.clone();
-        let (tx, rx) = std::sync::mpsc::channel();
-        std::thread::spawn(move || {
-            let _ = tx.send(walk_project(&root));
-        });
-        names.scan = Some(std::sync::Mutex::new(rx));
-    }
-    let want_notice = if names.truncated { TREE_TRUNCATED } else { "" };
+    // **A project that cannot be listed says so where the tree is**, rather than showing a tree that may be of a root that has gone. One
+    // atomic load when nothing is wrong.
+    let failure = index.failure();
+    let want_notice = match (&failure, names.truncated) {
+        (Some(why), _) => why.as_str(),
+        (None, true) => TREE_TRUNCATED,
+        (None, false) => "",
+    };
     for mut notice in &mut notices {
         if notice.0 != want_notice {
             notice.0 = want_notice.to_owned();
@@ -1685,22 +1656,6 @@ pub fn person_is_editing(root: &Path, rel: &str) -> bool {
 pub fn any_unsaved() -> bool {
     registry().unsaved.as_ref().is_some_and(|(_, files)| !files.is_empty())
 }
-/// **A file was made, renamed or deleted by an operation** (#507): the tree is walked again at once rather than at its own
-/// poll ([`TREE_POLL_S`], 1.5 s), so the row the change made is on screen in the next frame.
-///
-/// Process-wide for the reason [`person_is_editing`] is: an operation runs in a [`crate::ops::Ctx`], which has no world to
-/// ask. [`keep_the_tree`] takes the flag and starts its walk; nothing else reads it.
-pub fn note_tree_changed() {
-    TREE_CHANGED.store(true, std::sync::atomic::Ordering::Relaxed);
-}
-
-/// **Take the flag [`note_tree_changed`] set**, and say whether a walk is owed.
-fn take_tree_changed() -> bool {
-    TREE_CHANGED.swap(false, std::sync::atomic::Ordering::Relaxed)
-}
-
-/// Set by an operation that changes the listing, taken by [`keep_the_tree`]'s own frame.
-static TREE_CHANGED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
 fn publish_unsaved(root: &Path, dirty: Vec<String>) {
     let mut registry = registry();

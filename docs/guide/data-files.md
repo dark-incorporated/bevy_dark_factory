@@ -205,7 +205,7 @@ A `Fire` standing on a placement draws the crate's flame and the light the pool 
 | Where | Anywhere the tree lists, except the command files (`agent.yaml`, `play.yaml`), the guide, `oplog.jsonl` and what `.gitignore` names. |
 | What it holds | Whatever the person or an agent gave it. A create never overwrites a path that is there. |
 | Written by | `file_create`, `file_rename` and `file_delete`, from the Files tree's right-click or from an agent. Duplicate is a `file_create` with `copy_from`. |
-| Live reload | A file kind the project reads reloads as any other write does. The tree walks again at once rather than on its 1.5 s poll. |
+| Live reload | A file kind the project reads reloads as any other write does. The tree shows the row in the next frame: the operation tells the project index which path it wrote, and the index publishes it at once rather than at its next sweep. |
 | Read by | The game, for a kind it knows. |
 | Format version | None: the file is the person's own bytes. |
 

@@ -232,3 +232,36 @@ These are written but are not project data, so they have no class. None is read 
 
 - `<blueprint>/.live/game.yaml`, the game's verdict on its latest reload. The game writes it, and the watcher skips every name that starts with a dot so it cannot trigger the reload it reports.
 - `slop/llm/vocab_proposals.yaml`, a VLM's label proposals, `target/blueprint_thumbs/`, `target/anim_bench_cache.yaml` and `target/loop/captures/snips/`: caches and captures.
+
+## The one watcher (#501)
+
+**One background thread is the only code that walks the project's directory tree after its first listing, and the panels migrated so far subscribe to it. Twenty modules still `stat` their own files on their own clocks** (the checklist below). `project_index.rs` publishes `ProjectFileChanged { rel, kind, stamp, dir }` once per changed entry (a Bevy message: each subscriber has its own `MessageReader` cursor over the one message, so nothing is published per subscriber), debounced for 100 ms (the number and the reason #501 cites from Renzora's `renzora_project_watch`) so that a save, which arrives as a create, several writes and a close, is one event; a file written more often than that still publishes after `MAX_HOLD`. The `ProjectIndex` resource follows those events: its first listing is one walk, and after that nobody walks the project again. It publishes an immutable `Snapshot` (every file with its stamp, sorted, with no cap, and the tree the Files workspace draws with its caps) and a generation number that is larger after every applied change. There is no new crate: the thread sweeps on one clock (`SWEEP`, 1 s by default), statting each folder it knows (a folder's mtime moves when an entry is added, removed or renamed) and re-reading only the folders that moved, and statting each file it knows. An operation that has just finished writing (`file_create`, `file_rename`, `file_delete`) calls `project_index::note_written` and is published at once. A `.gitignore` change is the one event that walks again, because it changes what is listed.
+
+**How a panel subscribes.** Read `Res<ProjectIndex>` and add the index with `project_index::ensure(app)` in the plugin that reads it (`FilesPlugin` and `GotoPlugin` do): `generation()` (an atomic load) says whether anything moved since the panel last looked, `snapshot()` is an `Arc` clone with no filesystem in it, and a `MessageReader<ProjectFileChanged>` says which path moved. A caller with no world calls `files::listed_files(root)`, which asks the index that follows `root` to settle and answers from it; **it returns an error, and does not walk, when no index follows `root`, when the index does not settle, or when the project root cannot be read.** A folder the index cannot read is listed empty, warned about once, and read again on every sweep. **What is proved, and what is not:** `project_index::lookups_on_this_thread()` counts the `stat`, `read_dir` and `.gitignore` reads that go through the index's own functions, on one thread, and `tests/the_project_index_is_the_one_watcher.rs` asserts that count does not move on the UI thread across a frame. It does not see a `std::fs` call made by any other module, so it does not show that a panel never touches the disk: the twenty modules on the checklist below still do.
+
+**What it costs, measured on `big` with a throwaway test at 10,000 and 100,000 files.** A sweep that looks at every file takes 36 ms and 266 ms on the index's own thread, so the thread waits at least ten times a sweep's length before the next one (and never more than 30 s unless a longer time was set). **On the UI thread, the finder's scan (`crosslinks::scan`) takes 4 ms at 10,000 files and 43 ms at 100,000 whenever a text file comes, goes or changes, so a save of one YAML file hitches that frame; that is not reduced yet.** A change in a picture or a folder does not run it. `listed_files` from an operation blocks its caller while the index settles: for the first listing (0.26 s and 1.6 s with a stepped editor's own build) or a sweep already running, and for at most 10 s before it is refused.
+
+**What stays as it is.** `watch.rs` decides what the editor adopts, and its `adopt_map` refusal (a file changed on disk while the map has unsaved edits is not read) is a correctness rule about unsaved work, not a poll; the index only says that a path moved.
+
+**Migration checklist.** #501 lists twenty-two poll constants in seventeen modules that each re-stat on their own clock (the list in the issue body, checked against the constants in the source when stage 1 landed). Retiring one is one module, its own commit, and it must keep `the_frame_a_change_lands_on_stays_inside_two_milliseconds` passing at 10,000 outliner nodes and 5,000 history lines. The order reads a file under the project root first, then the files that live elsewhere and need a second root.
+
+- [x] 1. `crosslinks` `SCAN_POLL_S` (1.5): the finder's scan reads the index's listing and re-reads only the YAML files whose stamp moved (`bd52f181`, review fixes `1607592a`, `9e1ea118`, `3dfb5c19`)
+- [x] 2. `files` `TREE_POLL_S` (1.5): the tree and `listed_files` are one answer from the index (`bd52f181`, review fixes `1607592a`, `9e1ea118`, `3dfb5c19`)
+- [ ] 3. `crosslinks` `USED_BY_POLL_S` (1.0): re-read `maps/` when a `maps/*.yaml` event arrives
+- [ ] 4. `files` `POLL_S` (0.25): an open file reloads on its own `Modified` event
+- [ ] 5. `data_view` `RECHECK_SECS` (1.0)
+- [ ] 6. `notes_view` `RECHECK_SECS` (1.0)
+- [ ] 7. `oplog_view` `RECHECK_SECS` (1.0)
+- [ ] 8. `checks_view` `RECHECK_SECS` (1.0)
+- [ ] 9. `problems_view` `READ_SECS` (0.5)
+- [ ] 10. `world_lists` `READ_SECS` (0.5)
+- [ ] 11. `reference_view` `RECHECK_SECS` (1.0)
+- [ ] 12. `forest_view` `POLL_S` (0.5)
+- [ ] 13. `game_view` `FIELD_FILES_POLL_S` (1.5) and `STATE_POLL_S` (1.0)
+- [ ] 14. `night_shift` `PLAN_READ_SECS` (0.5)
+- [ ] 15. `anim_watch` `POLL_SECS` (1.0) and `RIGS_RECHECK_SECS` (1.0)
+- [ ] 16. `audit_view` `LOOK_EVERY_S` (5.0)
+- [ ] 17. `game_view` `LOG_POLL_S` (0.25): a growing log is a tail, not a listing; decide whether it stays a read loop
+- [ ] 18. `settings` `RECHECK_SECS` (1.0), `settings_screen` `LOOK_EVERY` (0.25) and `keymap_screen` `LOOK_EVERY` (0.25): these read the user's own settings and keymap files, outside the project root, so the index needs a second watched root first
+
+Items 1 and 2 are two of the 22 constants; the 20 that remain are items 3 to 18. `watch.rs`'s own 250 ms `POLL` is not one of the 22, and `project_index::SWEEP` is the one clock that stays. #501 closes when the last constant is retired.

@@ -23,9 +23,9 @@
 //
 // # The tree follows the operation, not a timer
 //
-// [`crate::files::tree_files`] is what the tree draws, and a walk of it is the tree's own poll ([`crate::files::TREE_POLL_S`],
-// 1.5 s). A create, rename or delete asks for the walk **now** ([`crate::files::note_tree_changed`]), so the row the change
-// made is on screen in the next frame rather than a poll later.
+// The tree and the finder read the project index ([`crate::project_index`], #501). A create, rename or delete says which path it has
+// finished writing ([`crate::project_index::note_written`]), and the index publishes it at once, so the row the change made is on
+// screen in the next frame rather than a sweep later.
 
 use std::path::Path;
 
@@ -76,10 +76,11 @@ pub fn keep_extension(old: &str, new: &str, is_dir: bool) -> String {
 ///
 /// One reader for both verbs, so they cannot disagree. A file names another by its **path under the project**, written
 /// anywhere in its text (`See notes/keep.yaml`), which is the only spelling a project file can carry that the editor can
-/// follow without guessing. A file's own name is not a reference to itself.
-pub fn named_elsewhere(root: &Path, rel: &str) -> Vec<String> {
+/// follow without guessing. A file's own name is not a reference to itself. **An error, said, when the project's files cannot be
+/// listed** (the project index could not answer): a refusal that did not look is not a refusal.
+pub fn named_elsewhere(root: &Path, rel: &str) -> Result<Vec<String>, String> {
     let mut out = Vec::new();
-    for file in crate::files::listed_files(root) {
+    for file in crate::files::listed_files(root)? {
         if file == rel || crate::files::project_path(root, &file).is_err() {
             continue;
         }
@@ -94,7 +95,7 @@ pub fn named_elsewhere(root: &Path, rel: &str) -> Vec<String> {
             out.push(file);
         }
     }
-    out
+    Ok(out)
 }
 
 /// **The pieces a map's own file places**, read from the map so the refusal can name them: `Ok(None)` when `rel` is not a
@@ -247,7 +248,7 @@ impl Operation for FileCreate {
         let rel = p.target();
         if p.remove.is_some() {
             std::fs::remove_file(root.join(rel)).map_err(|e| Refusal::new(format!("{rel} was not taken away ({e}); nothing was changed.")))?;
-            crate::files::note_tree_changed();
+            crate::project_index::note_written(&root, rel);
             return Ok(Outcome {
                 summary: format!("took away {rel}"),
                 affected: 1,
@@ -259,7 +260,7 @@ impl Operation for FileCreate {
         make_parent(&root, rel)?;
         blueprint_model::save::save_atomic_no_replace(&root.join(rel), &text)
             .map_err(|e| Refusal::new(format!("{rel} was not written: {e}. Nothing was changed.")))?;
-        crate::files::note_tree_changed();
+        crate::project_index::note_written(&root, rel);
         Ok(Outcome {
             summary: match &p.copy_from {
                 Some(from) => format!("made {rel} as a copy of {from}"),
@@ -365,7 +366,7 @@ impl FileRename {
         }
         let text = std::fs::read_to_string(&old_full).map_err(|e| Refusal::new(format!("{was} was not read ({e}), so nothing was renamed.")))?;
         // **The reference rule**: a file another file names is refused, naming it, or the move leaves a dead name behind.
-        let named = named_elsewhere(&root, &was);
+        let named = named_elsewhere(&root, &was).map_err(|why| Refusal::new(format!("{why}. Nothing was changed.")))?;
         if !named.is_empty() {
             let list = named.join(", ");
             return Err(Refusal::new(format!("{was} is named by {list}, so renaming it would leave that name pointing at nothing. Change {list} first, or move the file and leave a copy under the old name. Nothing was changed.")));
@@ -406,7 +407,8 @@ impl Operation for FileRename {
             let _ = std::fs::remove_file(&full);
             return Err(Refusal::new(format!("{was} could not be taken away ({e}), so the rename was undone and nothing was changed.")));
         }
-        crate::files::note_tree_changed();
+        crate::project_index::note_written(&root, &was);
+        crate::project_index::note_written(&root, &now);
         Ok(Outcome {
             summary: format!("renamed {was} to {now}"),
             affected: 1,
@@ -498,7 +500,7 @@ impl FileDelete {
             return Err(Refusal::new(format!("{} is a map that places {}, so taking it away would orphan them. Remove them from the map first, or delete a map that places nothing. Nothing was changed.", p.path, pieces.join(", "))));
         }
         // **The reference rule, the rename's own**: one function, so the two verbs cannot disagree.
-        let named = named_elsewhere(&root, &p.path);
+        let named = named_elsewhere(&root, &p.path).map_err(|why| Refusal::new(format!("{why}. Nothing was changed.")))?;
         if !named.is_empty() {
             let list = named.join(", ");
             return Err(Refusal::new(format!("{} is named by {list}, so deleting it would leave that name pointing at nothing. Change {list} first. Nothing was changed.", p.path)));
@@ -535,7 +537,7 @@ impl Operation for FileDelete {
             make_parent(&root, &p.path)?;
             blueprint_model::save::save_atomic(&full, text)
                 .map_err(|e| Refusal::new(format!("{} was not put back: {e}", p.path)))?;
-            crate::files::note_tree_changed();
+            crate::project_index::note_written(&root, &p.path);
             return Ok(Outcome {
                 summary: format!("put {} back", p.path),
                 affected: 1,
@@ -545,7 +547,7 @@ impl Operation for FileDelete {
             });
         }
         std::fs::remove_file(&full).map_err(|e| Refusal::new(format!("{} was not deleted ({e}); nothing was changed.", p.path)))?;
-        crate::files::note_tree_changed();
+        crate::project_index::note_written(&root, &p.path);
         Ok(Outcome {
             summary: format!("deleted {}", p.path),
             affected: 1,

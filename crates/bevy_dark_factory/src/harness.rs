@@ -569,6 +569,9 @@ pub fn build_stepped_at(
         app.add_plugins(SyncRender::default());
     }
 
+    // **A stepped editor waits for the project index's first listing** when it starts following the project, so its first frame
+    // reads a finished listing, as it did when the listing was a walk on the frame. The binary does not wait.
+    app.insert_resource(crate::project_index::WaitsForFirstListing);
     add_editor_plugins(&mut app);
     // **The screen plugin, so a test can change the door.**
     //

@@ -191,9 +191,13 @@ fn a_files_name_opens_the_files_workspace_on_it() {
 fn a_cue_added_to_the_sound_file_is_found_without_reopening_the_project() {
     let (mut app, root) = editor("added");
     std::fs::write(root.join("family/bevy_siren.yaml"), MORE_CUES).unwrap_or_else(|e| panic!("{e}"));
-    // A sound file is a project file the editor reads every second and a half; a little longer than that.
-    for _ in 0..180 {
+    // Owner exception (2026-11-14): the_finder_goes_to_cues_scripts_and_files.rs::a_cue_added_to_the_sound_file_is_found_without_reopening_the_project: the finder's files used to be re-read on a timer of this test's frame clock (1.5 s, which 180 frames of the manual clock were), and are now followed by the project index (#501), whose sweep and debounce run on the wall clock (about a second). The wait counted frames that the index does not count (measured: it failed once in a run of 135 tests and passed 6 of 6 alone; [INFERENCE] 180 frames can take about a second of wall time); it now steps frames until the finder holds the cue (at most ten seconds), and the assertions after it are the same.
+    let started = std::time::Instant::now();
+    while started.elapsed().as_secs_f64() < 10.0
+        && !app.world().resource::<bevy_dark_factory::goto::GotoIndex>().of_kind(bevy_dark_factory::goto::Kind::Cue).any(|e| e.key == "bell.toll")
+    {
         app.update();
+        std::thread::sleep(std::time::Duration::from_millis(5));
     }
     go_to(&mut app, "bell");
     assert_eq!(*app.world().resource::<Workspace>(), Workspace::Sound, "the new cue is a result");
