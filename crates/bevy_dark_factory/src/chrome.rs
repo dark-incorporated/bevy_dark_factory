@@ -810,9 +810,9 @@ pub fn typed(role: text::Role) -> impl Bundle {
 /// with no system parameters can read the scale, while this needs the value the settings file
 /// resolved to and a place to remember what it last drew.
 ///
-/// **A `TextSpan` child is not rewritten.** No `TextSpan` in this editor is spawned through
-/// [`typed`]; a span carries its own `TextFont` and would need its own marker, and nothing asks for
-/// one today.
+/// **A `TextSpan` spawned through [`typed`] is rewritten like any label**: [`typed`] gives it a `TypeRole` and a `TextFont`, which is what this
+/// system queries. A span spawned with its own `TextFont` and no `TypeRole` is not. COMPOSE's armed mark is the first span here, and it
+/// goes through [`typed`].
 pub fn resize_the_labels(
     settings: Option<Res<crate::settings::EditorSettings>>,
     mut applied: Local<Option<f32>>,

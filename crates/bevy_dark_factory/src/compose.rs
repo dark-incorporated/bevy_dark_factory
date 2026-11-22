@@ -2570,8 +2570,8 @@ fn rebuild(input: ComposeInput<'_, '_>) {
                                 // **The armed mark is a span of the name's own text**, in its own ink — the same `*` the stage
                                 // labels carry for "this is the one a stamp places". The name now fills the row, so a mark spawned
                                 // as a sibling after it would stand at the row's far right; a span stands right after the last word.
-                                // (A `TextSpan` is not rewritten when the person's text size changes, see `chrome::resize_the_labels`;
-                                // the row is rebuilt whenever the groups or the armed one change.)
+                                // (The span is spawned through `typed`, which gives it a `TypeRole` and a `TextFont`: the two components
+                                // `chrome::resize_the_labels` queries, so it is rewritten with the name when the text size changes.)
                                 name.with_child((TextSpan::new("  *"), TextColor(ink.accent), crate::chrome::typed(ROW_PX)));
                             }
                         },
