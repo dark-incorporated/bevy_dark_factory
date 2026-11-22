@@ -412,8 +412,9 @@ fn the_wrap_and_the_ink_follow_the_file_the_editor_shows() {
     assert_eq!(marks(&mut app), (true, true), "the page again: both");
 }
 
-/// **An unsaved edit survives going to a map and back**, and the page is still unsaved (the wrap is a drawing: it does not touch the buffer,
-/// and switching the marks does not write a file). The caret stands where it was left.
+/// **An unsaved edit survives going to a map and back**: the page is still unsaved, its text is the person's, and the caret is where it was
+/// left. This is what a tab round trip keeps (the `Files` buffer holds the text); the wrap components are not what keeps it, so the test
+/// would pass without them. It then checks the page still wraps and moves by drawn row after the round trip, which would not.
 #[test]
 fn an_unsaved_edit_survives_a_tab_change_between_a_page_and_a_map() {
     let mut app = files_editor("unsaved", 1.0, &format!("{}\nnext line\n", paragraph()));
@@ -437,7 +438,6 @@ fn an_unsaved_edit_survives_a_tab_change_between_a_page_and_a_map() {
     assert_eq!(held.0, edited, "and the buffer holds it");
     assert_ne!(held.1, edited, "while the disk still holds the file as it was");
     let at = caret(&mut app);
-    eprintln!("caret after the round trip: {at:?} (set to (0, 8) before it)");
     assert_eq!(at, CodePos::new(0, 8), "the caret is where the person left it (the end of the selection set before the tab change)");
     // The page still edits as a wrapped page: the caret moves by drawn row and a letter lands where the caret is.
     caret_at(&mut app, 0, 4);

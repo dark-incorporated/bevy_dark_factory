@@ -725,12 +725,15 @@ fn mark_the_prose(mut commands: Commands, editors: Query<(Entity, &FileEditor, H
     }
 }
 
+/// The extension of a plain-text file, which is prose that wraps (and is not Markdown).
+const PLAIN_TEXT_EXTENSION: &str = "txt";
+
 /// **What the editor does with a file as prose**: `(wraps, drawn as Markdown)`. A Markdown page does both; a `.txt` file is prose too and wraps, but its
 /// asterisks and backticks are not markup, so it is not drawn as Markdown; every other file (YAML, RON, Rhai, anything unknown) is code and does neither.
 fn prose_of(rel: &str) -> (bool, bool) {
     match Lang::of(rel) {
         Lang::Markdown => (true, true),
-        Lang::Plain if rel.rsplit_once('.').is_some_and(|(_, ext)| ext.eq_ignore_ascii_case("txt")) => (true, false),
+        Lang::Plain if rel.rsplit_once('.').is_some_and(|(_, ext)| ext.eq_ignore_ascii_case(PLAIN_TEXT_EXTENSION)) => (true, false),
         _ => (false, false),
     }
 }

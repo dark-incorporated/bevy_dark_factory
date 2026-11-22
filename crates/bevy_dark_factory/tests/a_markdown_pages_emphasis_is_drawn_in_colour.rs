@@ -128,10 +128,12 @@ fn a_star_that_is_not_an_emphasis_stays_plain() {
     .into_iter()
     .enumerate()
     {
-        let (mut app, _editor) = page(&format!("star{n}"), text);
+        // **A positive control on the same page**: a real `*emphasis*` on another line, measured the same way, must be drawn as an emphasis run. Without
+        // it "zero emphasis runs" would also be true of an editor that draws no Markdown at all.
+        let (mut app, _editor) = page(&format!("star{n}"), &format!("{text}\nA *real* emphasis.\n"));
         let runs = drawn(&mut app);
-        let emphases = runs.iter().filter(|(_, role, _)| matches!(role, Role::CodeSyntax(SyntaxRole::Function | SyntaxRole::Type))).count();
-        assert_eq!(emphases, 0, "{label} draws no emphasis run; runs: {runs:?}");
+        let emphases: Vec<&str> = runs.iter().filter(|(_, role, _)| matches!(role, Role::CodeSyntax(SyntaxRole::Function | SyntaxRole::Type))).map(|(run, ..)| run.as_str()).collect();
+        assert_eq!(emphases, ["*real*"], "{label}: only the real emphasis is drawn as one; runs: {runs:?}");
     }
     // The value the editor shows is the page's own text: a colour is a drawing, never an edit.
     let (mut app, _editor) = page("plain", PAGE);
