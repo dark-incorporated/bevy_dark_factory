@@ -1619,10 +1619,14 @@ struct DataCellEdit {
 }
 
 /// Column widths of the DATA table, in body text sizes (gooey's `Column::width`): a registry id such as `tuning/mob`, a leaf
-/// path such as `mob.speed`, and the value, which takes the room that is left.
-const DATA_COLUMN_FILE_W: f32 = 5.0;
-const DATA_COLUMN_PATH_W: f32 = 8.0;
-const DATA_COLUMN_VALUE_W: f32 = 9.0;
+/// path such as `mob.speed`, and the value. **The value column is the last, and gooey gives the last column what the first two leave**, so its
+/// own width is only its least: the three sum to 8.5 em, which fits the table of the narrowest left pane the editor allows (the table shows 120
+/// logical px there, 10.9 em at the default text size, and a Value cell is never under 33 px wide). The old 5 + 8 + 9 = 22 em put the Value column's
+/// right half under the scroll gutter at the default window and the whole of it outside the table at the narrowest
+/// (`the_data_tables_columns_stay_inside_the_table_at_every_width_the_pane_allows`).
+const DATA_COLUMN_FILE_W: f32 = 3.0;
+const DATA_COLUMN_PATH_W: f32 = 4.5;
+const DATA_COLUMN_VALUE_W: f32 = 1.0;
 /// How many rows tall the DATA table stands before it scrolls: the inspector is a narrow column with a dozen sections, and a half row cut
 /// off at the foot says there is more.
 const DATA_TABLE_ROWS: f32 = 6.5;

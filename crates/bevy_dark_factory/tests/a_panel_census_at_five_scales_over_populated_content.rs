@@ -184,9 +184,10 @@ const CLIPS: usize = 10;
 /// How many long tokens each tag axis (`kind`, `effects`, `look`) holds, and every piece carries.
 const TOKENS: usize = 8;
 
-/// **The most gooey table-cell texts one panel may draw** before the exemption for `bevy_gooey#109` is
-/// treated as having grown past what it was written for.
-const MOST_GOOEY_CELLS: usize = 40;
+/// **The most one-line gooey table-cell texts one panel may draw** before the exemption for `bevy_gooey#109` is treated as having grown past what it was
+/// written for. **One, measured at every scale and text size: the left pane's history list**, a gooey `tree`, whose cells gooey draws on one line and which has
+/// no wrap option (`Column::wrap` is a table's). Every other table the editor builds wraps its columns and is measured as any text is. Was 40.
+const MOST_GOOEY_CELLS: usize = 1;
 
 /// **What identifies a text of each of the four spawners #494 changed**, per panel, so a cell can say it *saw* one
 /// that was visible (not merely laid out): `(panel, signature)`.
@@ -571,7 +572,10 @@ fn measure(world: &World, region: Entity) -> Option<Measured> {
     let left = region_box.min.x + inset.min_inset.x;
     let mut out = Measured { body_px: Some(region_box.height() - inset.min_inset.y - inset.max_inset.y), ..default() };
     for entity in under(world, region) {
-        if matches!(world.get::<bevy_gooey::Role>(entity), Some(bevy_gooey::Role::TableCellText)) {
+        // **Only a one-line cell is exempt** (`bevy_gooey#109`): a cell of a column that wraps (`Column::wrap`) is measured like any text.
+        if matches!(world.get::<bevy_gooey::Role>(entity), Some(bevy_gooey::Role::TableCellText))
+            && world.get::<bevy::text::TextLayout>(entity).is_some_and(|layout| layout.linebreak == bevy::text::LineBreak::NoWrap)
+        {
             out.cells += 1;
             continue;
         }

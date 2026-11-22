@@ -58,7 +58,6 @@ const SETTLE_FRAMES: usize = 12;
 
 /// A drawn word: what it says, the size it is drawn at in the skin's own px, and its ink.
 struct Drawn {
-    entity: Entity,
     words: String,
     px: f32,
     ink: Color,
@@ -106,37 +105,12 @@ fn drawn_rows(world: &World, root: Entity, ui_scale: f32) -> Vec<Drawn> {
         }
         let Some(px) = size_in_skin_px(font, ui_scale) else { continue };
         found.push(Drawn {
-            entity,
             words: text.0.clone(),
             px,
             ink: world.get::<TextColor>(entity).map(|c| c.0).unwrap_or(Color::WHITE),
         });
     }
     found
-}
-
-/// **The most words gooey's decision LED may draw at the menu's size**: its label and its hidden state
-/// word. See the exemption in the test.
-const MOST_GOOEY_LED_WORDS: usize = 2;
-
-/// Whether this line is the decision chip's own label, which `bevy_gooey` sizes.
-///
-/// The chip is `bevy_gooey::led`, whose label is drawn at the skin's `text_size` (`led.rs:100`) — the
-/// menu titles' size — and `apply_skin` restyles it, so this crate cannot make it quieter without
-/// writing over a widget's own component every frame. See `bevy_gooey#110`.
-/// Whether this line belongs to the decision chip: its **entity** is under a `DecisionLed`, which is
-/// the editor's own marker on that chip (`decision_model.rs`), so the test asks ancestry rather than
-/// matching words. A word-matching version let the model's own name (`d3-flash`) through, because a
-/// name is whatever the person chose and cannot be listed.
-fn is_a_gooey_led(world: &World, entity: Entity) -> bool {
-    let mut at = Some(entity);
-    while let Some(current) = at {
-        if world.get::<bevy_dark_factory::decision_model::DecisionLed>(current).is_some() {
-            return true;
-        }
-        at = world.get::<ChildOf>(current).map(|parent| parent.parent());
-    }
-    false
 }
 
 /// Whether this line is drawn inside a `TooltipBox` the bar owns — a hover card, not a readout.
@@ -192,24 +166,9 @@ fn the_chrome_bars_readouts_are_a_quieter_role_than_the_menu_titles() {
     let readouts = drawn_rows(app.world(), bar, ui_scale);
     assert!(!readouts.is_empty(), "the chrome bar draws its readouts; none was found");
 
-    // **1. Every editor-owned readout is smaller than the menu's titles by a step a person can see.**
-    //
-    // **The decision chip is exempt, by name and counted.** `bevy_gooey::led` draws its label at the
-    // skin's `text_size` (`led.rs:100`), which is the same size the menu titles are drawn at, and
-    // `apply_skin` restyles `Role::Label` on every state change — so a host that typed the label
-    // instead would be overwriting a widget's own component every frame, the same two-writers defect
-    // that made the divider's thickness a `bevy_gooey` issue (#108). Measured: a system that set the
-    // label's role after `GooeySystems::Style` left it at 9.7 px anyway. Filed as `bevy_gooey#110`.
-    let world = app.world();
-    let (loud, gooey_led): (Vec<&Drawn>, Vec<&Drawn>) =
-        readouts.iter().partition(|r| !is_a_gooey_led(world, r.entity));
-    assert!(
-        gooey_led.len() <= MOST_GOOEY_LED_WORDS,
-        "{} words are drawn at the menu's size by gooey's LED, more than the {MOST_GOOEY_LED_WORDS} that chip \
-         has — the exemption for `bevy_gooey#110` now covers more than it was written for: {:?}",
-        gooey_led.len(),
-        gooey_led.iter().map(|r| &r.words).collect::<Vec<_>>()
-    );
+    // **1. Every editor-owned readout is smaller than the menu's titles by a step a person can see.** The decision chip's LED is one of them since
+    // `LedSize` (bevy_gooey#110): it is no longer exempt, by name or by count.
+    let loud: Vec<&Drawn> = readouts.iter().collect();
     let mut too_loud = Vec::new();
     for readout in &loud {
         if readout.px > MENU_TITLE_PX - LEAST_STEP_PX {
@@ -249,4 +208,25 @@ fn the_chrome_bars_readouts_are_a_quieter_role_than_the_menu_titles() {
         !matches!(edge, Val::Px(0.0)),
         "the chrome bar has no bottom edge, so the rule between the menu and the bar ({edge:?}) is gone"
     );
+}
+
+/// **The decision model's LED is a quiet readout**: its label and its state word are drawn at least a step under the menu's titles, by `LedSize(0)`
+/// (bevy_gooey#110), measured on the drawn words like every readout here. Without the component gooey draws an LED at the body size, the menu titles'.
+#[test]
+fn the_decision_models_led_is_drawn_a_step_under_the_menu_titles() {
+    let (_root, mut app) = editor(&format!("decision_led_quiet_{}", std::process::id()));
+    settle(&mut app);
+    let ui_scale = app.world().resource::<UiScale>().0;
+    let led = {
+        let world = app.world_mut();
+        world.query_filtered::<Entity, With<bevy_dark_factory::decision_model::DecisionLed>>().single(world).unwrap_or_else(|e| panic!("one decision LED: {e}"))
+    };
+    let words = drawn_rows(app.world(), led, ui_scale);
+    assert!(!words.is_empty(), "the decision LED draws its label");
+    let too_loud: Vec<String> = words
+        .iter()
+        .filter(|w| w.px > MENU_TITLE_PX - LEAST_STEP_PX)
+        .map(|w| format!("`{}` is drawn at {:.2} px against the menu's {MENU_TITLE_PX:.2}", w.words, w.px))
+        .collect();
+    assert!(too_loud.is_empty(), "the decision LED is drawn at the menu's size:\n{}", too_loud.join("\n"));
 }

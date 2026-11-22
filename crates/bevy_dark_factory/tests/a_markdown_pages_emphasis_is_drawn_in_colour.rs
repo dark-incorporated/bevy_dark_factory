@@ -15,15 +15,13 @@
 //! merely stored: the spans the tokenizer returns and the `TextSpan` runs the editor spawns are read together, so a
 //! highlight that never reaches the screen fails here.
 //!
-//! # Re-pointed for #525
+//! # Re-pointed for #525, and whole again with gooey 0.56
 //!
-//! The Markdown colours are now `bevy_gooey`'s `CodeMarkdown` (v0.54.0), and the host's own tokenizer, which these tests called, is deleted:
-//! the property *emphasis is drawn in colour in a Markdown page* is the same, and is read from the rendered `TextSpan` runs. One assertion is
-//! gone because gooey does not do it: the old tokenizer drew `*em*` and `**strong**` in two inks and gooey draws both in one (`SyntaxRole::Type`,
-//! measured: `("*Emphasised words.*", CodeSyntax(Type))` and `("**strong**", CodeSyntax(Type))`).
-//!
-//! Contract update (2026-11-22, the gooey pin moved from v0.54.0 to v0.57.0 for the live style sheet): gooey's `CodeMarkdown` draws the two
-//! in two inks again (#115 there), as `SyntaxRole::Emphasis` and `SyntaxRole::Strong`, so the star test names those roles.
+//! The Markdown colours are `bevy_gooey`'s `CodeMarkdown`, and the host's own tokenizer, which these tests once called, is deleted: the property
+//! *emphasis is drawn in colour in a Markdown page* is read from the rendered `TextSpan` runs. At gooey 0.54 `*em*` and `**strong**` were both
+//! `SyntaxRole::Type`, so the assertion that the two are told apart was dropped for a time; gooey 0.56 gives them `SyntaxRole::Emphasis` and
+//! `SyntaxRole::Strong` (`bevy_gooey#115`) and the assertion is back, with a second reading of it from the colours the runs are drawn in. The
+//! star test names those two roles as well (the gooey pin moved past v0.57.0 for the live style sheet, 2026-11-22).
 
 use bevy::input_focus::{FocusCause, InputFocus};
 use bevy::prelude::*;
@@ -80,8 +78,8 @@ fn drawn(app: &mut App) -> Vec<(String, Role, Color)> {
     q.iter(world).filter(|(t, ..)| !t.0.trim().is_empty()).map(|(t, role, colour)| (t.0.clone(), *role, colour.0)).collect()
 }
 
-/// **Both emphases are drawn in an ink the plain words around them are not.** Before #525 the host's tokenizer coloured them (and told the two
-/// apart); `bevy_gooey`'s `CodeMarkdown` does now, from the runs it draws, and gives both emphases one ink.
+/// **Both emphases are drawn in an ink the plain words around them are not, and in two inks, not one.** The colours are those the rendered runs
+/// carry (`TextColor`), so a role that never reached the screen as a colour fails here.
 #[test]
 fn both_emphases_are_drawn_in_an_ink_the_plain_words_are_not() {
     let (mut app, editor) = page("inks", PAGE);
@@ -93,6 +91,7 @@ fn both_emphases_are_drawn_in_an_ink_the_plain_words_are_not() {
     let plain = ink("phrase.");
     assert_ne!(ink("Emphasised"), plain, "`*Emphasised words.*` is drawn in the plain text's ink: {runs:?}");
     assert_ne!(ink("strong"), plain, "`**strong**` is drawn in the plain text's ink: {runs:?}");
+    assert_ne!(ink("Emphasised"), ink("strong"), "an emphasis and a strong emphasis are drawn in one colour, not two: {runs:?}");
 }
 
 /// **The colours reach the screen**: the editor's own `TextSpan` runs carry a syntax role, so a colour that is
@@ -116,6 +115,11 @@ fn the_emphasis_is_drawn_as_a_coloured_run() {
     };
     assert!(lit("Emphasised"), "the emphasis's run is drawn with a syntax role; runs: {drawn:?}");
     assert!(lit("strong"), "the strong emphasis's run is drawn with a syntax role; runs: {drawn:?}");
+    // And the two are not drawn in one role, so a reader can tell them apart.
+    let role_of = |needle: &str| {
+        drawn.iter().find(|(run, _)| run.contains(needle)).map(|(_, role)| *role)
+    };
+    assert_ne!(role_of("Emphasised"), role_of("strong"), "emphasis and strong are two colours: {drawn:?}");
 }
 
 /// **A star that is not an emphasis stays plain**: a bullet's `*`, a lone star, and a star inside a code span are not
