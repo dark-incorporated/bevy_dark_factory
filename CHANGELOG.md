@@ -4,6 +4,7 @@ What each change added, newest first. A visible change has a clip: click the sti
 
 ## 2026-11-22
 
+- **497** `88b481d3` At text scale 3.0 the terminal bar clips instead of pushing the pane past the window, and keeps its 24 px height, so the Start agent button can be clicked *For you: With very large text, the terminal no longer pushes its Start agent button off the window.* *No clip: no visible clip needed; proved by the_leds_word_is_the_size_of_a_chip_in_the_bar_and_of_a_row_on_the_card_at_every_text_size and the bar-height check in shift_primary_j_covers_the_window_below_the_menu_bar_and_again_gives_the_height_back*
 - **prune-gate-target** `823fc609` tools/loop/prune_gate_target.sh frees the stale test executables a gate leaves behind (162 GB on big) *No clip: a host tool; proved by tools/loop/test_prune_gate_target.py*
 - **fleet-wave10** `c2eeb243` wave 10 report: the release that shipped without a name or an icon, and the loop that had been dead for fourteen days *No clip: a report and runbook facts; no code*
 

@@ -92,6 +92,19 @@ fn heights(app: &mut App) -> (f32, f32, bool) {
     (pane, root - menu, node)
 }
 
+/// **The bar is `TERMINAL_BAR_H` (24 px) tall, however the pane got its height** (#497: letting the bar give way horizontally once made its
+/// height depend on history, 23.3 px on the first raise and 20 px after a restore, which moved the body's rows).
+fn assert_bar_height(app: &mut App, when: &str) {
+    let world = app.world_mut();
+    let bar = world
+        .query_filtered::<&ComputedNode, With<bevy_dark_factory::terminal_pane::TerminalBar>>()
+        .iter(world)
+        .next()
+        .map(|c| c.size().y * c.inverse_scale_factor())
+        .expect("the terminal's bar");
+    assert!((bar - 24.0).abs() <= 0.5, "the bar is 24 px tall {when}, not {bar}");
+}
+
 fn rows(app: &App) -> u16 {
     app.world().resource::<TerminalPane>().cells().1
 }
@@ -106,6 +119,7 @@ fn shift_primary_j_covers_the_window_below_the_menu_bar_and_again_gives_the_heig
     let (normal, room, drawn) = heights(&mut app);
     assert!(drawn && normal > 0.0 && normal < room, "the pane is raised at its normal height {normal} inside {room}");
     let normal_rows = rows(&app);
+    assert_bar_height(&mut app, "after the first raise");
 
     chord_j(&mut app, true);
     let (full, room, _) = heights(&mut app);
@@ -117,6 +131,7 @@ fn shift_primary_j_covers_the_window_below_the_menu_bar_and_again_gives_the_heig
     let (back, _, _) = heights(&mut app);
     assert!((back - normal).abs() <= 1.0, "pressed again, the pane is {back} tall, the height it had ({normal})");
     assert_eq!(rows(&app), normal_rows, "and the program is told that size too");
+    assert_bar_height(&mut app, "after the restore");
 
     // Maximised, Cmd+J lowers the pane; the next raise returns the normal height, not full.
     chord_j(&mut app, true);
