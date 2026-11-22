@@ -5,7 +5,7 @@ edition = "2024"
 rust-version = "1.97.1"
 description = "Moves a project's files from RON to YAML, losslessly: every file is converted in memory and read back before anything is written, comments travel with their keys, and the old files are archived rather than deleted."
 license = "MIT OR Apache-2.0"
-repository = "https://github.com/bevy-coven/bevy_blueprint"
+repository = "https://github.com/dark-incorporated/bevy_dark_factory"
 publish = false
 
 # **The only crate in the workspace that reads RON** (GD-03, #365). The cutover's last step is that

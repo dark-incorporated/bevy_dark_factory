@@ -303,7 +303,7 @@ fn example_to_open(example: &Path) -> Result<PathBuf, String> {
 }
 
 /// Where "Getting started guide" opens.
-pub const GUIDE_URL: &str = "https://github.com/bevy-coven/bevy_blueprint/blob/main/docs/guide/getting-started.md";
+pub const GUIDE_URL: &str = "https://github.com/dark-incorporated/bevy_dark_factory/blob/main/docs/guide/getting-started.md";
 
 /// **The guide's own folder, as the editor publishes it**, with the trailing slash. [`GUIDE_URL`] is one page of it and
 /// [`crate::help::url`] builds every other page's address from this, so the repository's location is written once.
@@ -315,7 +315,7 @@ pub fn guide_dir_url() -> &'static str {
 const GUIDE_FILE: &str = "getting-started.md";
 
 /// Where "See every change" opens.
-pub const CHANGELOG_URL: &str = "https://github.com/bevy-coven/bevy_blueprint/blob/main/CHANGELOG.md";
+pub const CHANGELOG_URL: &str = "https://github.com/dark-incorporated/bevy_dark_factory/blob/main/CHANGELOG.md";
 
 /// The sidebar's width, in logical pixels.
 const SIDEBAR_PX: f32 = 240.0;

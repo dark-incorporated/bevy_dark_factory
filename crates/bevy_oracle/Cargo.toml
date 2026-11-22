@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2024"
 description = "Typed questions to a decision model (Clef): yes/no, choice and score questions about a state and up to four images, answered with a probability for every option. Authoring time only; no Bevy."
 license = "MIT OR Apache-2.0"
-repository = "https://github.com/bevy-coven/bevy_blueprint"
+repository = "https://github.com/dark-incorporated/bevy_dark_factory"
 keywords = ["decision", "clef", "vlm", "calibration"]
 publish = false
 

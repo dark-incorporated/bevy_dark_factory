@@ -31,7 +31,7 @@ use crate::project::{OpenMap, Project};
 use crate::screen::Screen;
 
 /// Where "Report a problem" opens. The version and the system are the body the form starts with.
-pub const REPORT_URL: &str = "https://github.com/bevy-coven/bevy_blueprint/issues/new";
+pub const REPORT_URL: &str = "https://github.com/dark-incorporated/bevy_dark_factory/issues/new";
 
 /// The recent projects File → Open recent lists.
 pub const RECENT_SHOWN: usize = 5;

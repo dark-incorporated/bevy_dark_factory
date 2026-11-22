@@ -756,7 +756,7 @@ dependencies = [
 [[package]]
 name = "bevy_carnage"
 version = "0.7.0"
-source = "git+https://github.com/bevy-coven/bevy_carnage?rev=615c264e28680448b934d3f28b73487dd8b98750#615c264e28680448b934d3f28b73487dd8b98750"
+source = "git+https://github.com/dark-incorporated/bevy_carnage?rev=615c264e28680448b934d3f28b73487dd8b98750#615c264e28680448b934d3f28b73487dd8b98750"
 dependencies = [
  "bevy",
  "isomesh 0.0.10",
@@ -1036,7 +1036,7 @@ dependencies = [
 [[package]]
 name = "bevy_elements"
 version = "0.7.8"
-source = "git+https://github.com/bevy-coven/bevy_elements?rev=0778a620452368662771825ea568b7d79966b87c#0778a620452368662771825ea568b7d79966b87c"
+source = "git+https://github.com/dark-incorporated/bevy_elements?rev=0778a620452368662771825ea568b7d79966b87c#0778a620452368662771825ea568b7d79966b87c"
 dependencies = [
  "bevy",
  "bevy_isomesh",
@@ -1098,7 +1098,7 @@ dependencies = [
 [[package]]
 name = "bevy_fairy"
 version = "0.3.1"
-source = "git+https://github.com/bevy-coven/bevy_fairy?rev=06c9c1805651fabb2474a9d09af84c761be406aa#06c9c1805651fabb2474a9d09af84c761be406aa"
+source = "git+https://github.com/dark-incorporated/bevy_fairy?rev=06c9c1805651fabb2474a9d09af84c761be406aa#06c9c1805651fabb2474a9d09af84c761be406aa"
 dependencies = [
  "bevy",
  "image",
@@ -1141,7 +1141,7 @@ dependencies = [
 [[package]]
 name = "bevy_flora"
 version = "0.46.0"
-source = "git+https://github.com/bevy-coven/bevy_flora?rev=25e956b3f88ba32a1b6d75957360c6840da6afd9#25e956b3f88ba32a1b6d75957360c6840da6afd9"
+source = "git+https://github.com/dark-incorporated/bevy_flora?rev=25e956b3f88ba32a1b6d75957360c6840da6afd9#25e956b3f88ba32a1b6d75957360c6840da6afd9"
 dependencies = [
  "bevy",
  "serde",
@@ -1270,7 +1270,7 @@ dependencies = [
 [[package]]
 name = "bevy_gooey"
 version = "0.52.1"
-source = "git+https://github.com/bevy-coven/bevy_gooey?rev=6135378#613537885824a772991d9f1b49786f3d5ab7bc35"
+source = "git+https://github.com/dark-incorporated/bevy_gooey?rev=6135378#613537885824a772991d9f1b49786f3d5ab7bc35"
 dependencies = [
  "accesskit",
  "bevy",
@@ -1453,7 +1453,7 @@ dependencies = [
 [[package]]
 name = "bevy_light_grid"
 version = "0.1.0"
-source = "git+https://github.com/bevy-coven/bevy_light_grid?rev=8b4a3c760ccc05f39e81bb22e366b330080fcc95#8b4a3c760ccc05f39e81bb22e366b330080fcc95"
+source = "git+https://github.com/dark-incorporated/bevy_light_grid?rev=8b4a3c760ccc05f39e81bb22e366b330080fcc95#8b4a3c760ccc05f39e81bb22e366b330080fcc95"
 dependencies = [
  "bevy_ecs",
  "bevy_math",
@@ -1462,7 +1462,7 @@ dependencies = [
 [[package]]
 name = "bevy_lights"
 version = "0.5.0"
-source = "git+https://github.com/bevy-coven/bevy_lights?rev=ae3b818e06cfcde24a0cbfed1a897732c1dfb444#ae3b818e06cfcde24a0cbfed1a897732c1dfb444"
+source = "git+https://github.com/dark-incorporated/bevy_lights?rev=ae3b818e06cfcde24a0cbfed1a897732c1dfb444#ae3b818e06cfcde24a0cbfed1a897732c1dfb444"
 dependencies = [
  "bevy",
  "serde",
@@ -1599,7 +1599,7 @@ dependencies = [
 [[package]]
 name = "bevy_orca"
 version = "0.2.0"
-source = "git+https://github.com/bevy-coven/bevy_orca?rev=e7160df097dc75652633f801f6c0ab1c73356bc4#e7160df097dc75652633f801f6c0ab1c73356bc4"
+source = "git+https://github.com/dark-incorporated/bevy_orca?rev=e7160df097dc75652633f801f6c0ab1c73356bc4#e7160df097dc75652633f801f6c0ab1c73356bc4"
 dependencies = [
  "bevy_math",
 ]
@@ -1943,7 +1943,7 @@ dependencies = [
 [[package]]
 name = "bevy_siren"
 version = "0.1.0"
-source = "git+https://github.com/bevy-coven/bevy_siren?rev=7029b20#7029b20c6250d5ec05db3b50282bacfcaf2089a9"
+source = "git+https://github.com/dark-incorporated/bevy_siren?rev=7029b20#7029b20c6250d5ec05db3b50282bacfcaf2089a9"
 dependencies = [
  "bevy",
  "ron",
@@ -1953,7 +1953,7 @@ dependencies = [
 [[package]]
 name = "bevy_society"
 version = "0.5.0"
-source = "git+https://github.com/bevy-coven/bevy_society?rev=d2e39703e06ebf40b5e787a2da4b6882a9beee3e#d2e39703e06ebf40b5e787a2da4b6882a9beee3e"
+source = "git+https://github.com/dark-incorporated/bevy_society?rev=d2e39703e06ebf40b5e787a2da4b6882a9beee3e#d2e39703e06ebf40b5e787a2da4b6882a9beee3e"
 dependencies = [
  "bevy",
  "bevy_emerge_rng",
@@ -1966,7 +1966,7 @@ dependencies = [
 [[package]]
 name = "bevy_speech_bubbles"
 version = "0.2.1"
-source = "git+https://github.com/bevy-coven/bevy_speech_bubbles?rev=b2d67f0d8a8a984a78f9bc9291cc63be867c6822#b2d67f0d8a8a984a78f9bc9291cc63be867c6822"
+source = "git+https://github.com/dark-incorporated/bevy_speech_bubbles?rev=b2d67f0d8a8a984a78f9bc9291cc63be867c6822#b2d67f0d8a8a984a78f9bc9291cc63be867c6822"
 dependencies = [
  "ab_glyph",
  "bevy",
@@ -2066,7 +2066,7 @@ dependencies = [
 [[package]]
 name = "bevy_stigmergy"
 version = "0.2.0"
-source = "git+https://github.com/bevy-coven/bevy_stigmergy?rev=6ecee6a3c2ff0bf7f18dab10f376c49b49914c44#6ecee6a3c2ff0bf7f18dab10f376c49b49914c44"
+source = "git+https://github.com/dark-incorporated/bevy_stigmergy?rev=6ecee6a3c2ff0bf7f18dab10f376c49b49914c44#6ecee6a3c2ff0bf7f18dab10f376c49b49914c44"
 dependencies = [
  "bevy_math",
  "rayon",
@@ -4253,7 +4253,7 @@ dependencies = [
 [[package]]
 name = "isomesh"
 version = "0.0.11"
-source = "git+https://github.com/bevy-coven/isomesh?rev=d3dc6c0fb6b43b899e534643f51f76a856d2d9ee#d3dc6c0fb6b43b899e534643f51f76a856d2d9ee"
+source = "git+https://github.com/dark-incorporated/isomesh?rev=d3dc6c0fb6b43b899e534643f51f76a856d2d9ee#d3dc6c0fb6b43b899e534643f51f76a856d2d9ee"
 dependencies = [
  "libm",
 ]

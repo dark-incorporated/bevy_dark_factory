@@ -1,4 +1,4 @@
-//! **The workbench split moves: the left pane slides shut and open, and a collapsed one peeks** (UI-R06, bevy-coven/bevy_blueprint#336).
+//! **The workbench split moves: the left pane slides shut and open, and a collapsed one peeks** (UI-R06, dark-incorporated/bevy_dark_factory#336).
 //!
 //! Cmd+B (View ▸ Show left panel) used to cut the left pane out of the layout in one frame (`Display::None` and a fraction of
 //! nothing), so the viewport jumped. It collapses the shell's gooey split now, the way Enter on the divider does: the panes

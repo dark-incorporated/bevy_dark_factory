@@ -1,4 +1,4 @@
-//! **The shell's other motion: toasts enter from their edge and menus open from their anchor** (UI-R06, bevy-coven/bevy_blueprint#336).
+//! **The shell's other motion: toasts enter from their edge and menus open from their anchor** (UI-R06, dark-incorporated/bevy_dark_factory#336).
 //!
 //! These are gooey's (#72 and #71) and the editor draws them through gooey's own widgets, so what is held here is that **the
 //! editor's wiring lets them happen**: its toast stack hangs under the viewport in a strip, its menus are `menu_title`s of a bar. The headless editor runs with motion off so every other test

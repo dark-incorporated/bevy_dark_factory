@@ -79,7 +79,7 @@ use crate::keys::{self};
 ///
 /// Twelve of these have no `GooeySkin` field — `key`, `label`, `muted`, `suggest`, `labeled`,
 /// `grid_line`, `bounds_line`, `veil`, `focus_bg`, `row_pressed`, `snip_wash`, `overlay_bg` — and
-/// live in the skin's `tones` map (bevy-coven/bevy_gooey#33). A tone the skin does not carry is
+/// live in the skin's `tones` map (dark-incorporated/bevy_gooey#33). A tone the skin does not carry is
 /// answered in magenta, this module's convention for a colour that cannot be derived
 /// ([`scaled`], [`ink`]); for the editor's own skin it cannot happen, and
 /// `tests/the_skin_carries_the_editors_other_colours.rs` holds all twelve in place.
@@ -1686,7 +1686,7 @@ pub fn spawn_frame(
         // the same tuple as `cover` (a bundle with `Pickable` twice panics).
         .insert(bevy::picking::Pickable::default())
         .id();
-    // **The dock's own body is the host's, and it is not laid out** (bevy-coven/bevy_gooey#85).
+    // **The dock's own body is the host's, and it is not laid out** (dark-incorporated/bevy_gooey#85).
     //
     // The dock here is the arrangement's *data*: what `ui::save_the_layout` saves, what
     // `ui::follow_the_saved_layout` restores, what `stage_panels::arrange` selects a tab in, and the node a

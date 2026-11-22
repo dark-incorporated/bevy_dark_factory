@@ -1,4 +1,4 @@
-//! **The toolbar's tool light slides from the tool that was armed to the one that is** (UI-R06, bevy-coven/bevy_blueprint#336).
+//! **The toolbar's tool light slides from the tool that was armed to the one that is** (UI-R06, dark-incorporated/bevy_dark_factory#336).
 //!
 //! The tool modes are one gooey `toggle_group`, and gooey's G-61 springs one accent node (its `SelectionIndicator`) from the old
 //! option's rect to the new one's instead of swapping two fills. The headless editor runs with motion off so every other test reads

@@ -168,7 +168,7 @@ pub fn follow_the_theme(
 }
 
 /// **How the editor spells a chord: in words, `Cmd+Z`, never the symbol `⌘Z`** (`feedback-1794097488318`, and
-/// `feedback-1793927744511` before it; `bevy-coven/bevy_gooey#45`).
+/// `feedback-1793927744511` before it; `dark-incorporated/bevy_gooey#45`).
 ///
 /// gooey spells a Mac's chords with Apple's symbols by default (`⌘⌃⌥⇧` and `↩⌫⌦⎋⇥`), and a face that does not
 /// map a symbol draws the missing-glyph box, which the owner twice reported as "a `?`". The face this editor
@@ -244,7 +244,7 @@ impl Plugin for EditorUiPlugin {
         // What changes here is the *arrangement*: a region can be dragged and resized by gooey rather
         // than by a hand-built flex row nothing can move.
         app.add_systems(PreStartup, register_the_shell_panels);
-        // **`K` is the reveal, and gooey owns the rule** (UI-41, #235; bevy-coven/bevy_gooey#36).
+        // **`K` is the reveal, and gooey owns the rule** (UI-41, #235; dark-incorporated/bevy_gooey#36).
         //
         // `ShortcutBadges` is ExposeHK's overlay, and until G-32 it could only be shown by a
         // *modifier* held exactly — `Modifiers::held(keys) == hold`. This editor's overlay key is
@@ -308,7 +308,7 @@ impl Plugin for EditorUiPlugin {
 
 /// A [`bevy_gooey::button`] that is the screen's primary action: gooey's [`bevy_gooey::ButtonVariant::Submit`] (the accent fill,
 /// lifting under the pointer; UI-R03, #333). A screen has at most one. This replaced the editor's own marker and repaint
-/// system, which existed only because gooey had one kind of button (bevy-coven/bevy_gooey#40).
+/// system, which existed only because gooey had one kind of button (dark-incorporated/bevy_gooey#40).
 pub fn submit_button(text: impl Into<String>) -> impl Bundle {
     (bevy_gooey::button(text), bevy_gooey::ButtonVariant::Submit)
 }

@@ -173,7 +173,7 @@ fn recent_projects(recents: Option<&crate::recent::RecentProjects>) -> Vec<PathB
 /// `the_bands_item_does_not_call_itself_a_button` requires that nothing outside a dialog reads as one.
 /// A menu title is a bar control, not an answer to a question. The title is still gooey's (its button,
 /// its `Activate`, its focus, its skin), and `bevy_gooey` has a request for a role of its own:
-/// `bevy-coven/bevy_gooey#39` (G-35).
+/// `dark-incorporated/bevy_gooey#39` (G-35).
 fn read_the_titles_as_controls(
     mut commands: Commands,
     titles: Query<&Children, Added<bevy_gooey::MenuTitle>>,

@@ -5,7 +5,7 @@ edition = "2024"
 rust-version = "1.97.1"
 description = "Rhai scripts on entities, reloaded live: the one Rhai host a bevy_blueprint game runs its scripts on."
 license = "MIT OR Apache-2.0"
-repository = "https://github.com/bevy-coven/bevy_blueprint"
+repository = "https://github.com/dark-incorporated/bevy_dark_factory"
 keywords = ["bevy", "gamedev", "scripting"]
 categories = ["game-development"]
 
