@@ -1552,11 +1552,9 @@ fn rebuild_slots(
                 if !sub.is_empty() {
                     p.spawn(bevy_gooey::row(crate::chrome::GOOEY_GAP_ONE)).with_children(|row| {
                         row.spawn(bevy_gooey::cell(SLOT_CELL));
-                        row.spawn((
-                            Text::new(sub.join(" | ")),
-                            TextColor(quiet),
-                            crate::chrome::typed(crate::chrome::text::HINT),
-                        ));
+                        // **The note wraps inside the row and breaks a long word at a letter** (#535): a bare `Text` kept a 50-character
+                        // clip name's whole width, laid out 162 px past the ANIMATION panel's content box at the capture's scale.
+                        crate::chrome::fill_text(row, sub.join(" | "), quiet, crate::chrome::text::HINT);
                     });
                 }
                 // **Declared above, measured below** — the module's own promise, kept structurally
@@ -1572,11 +1570,7 @@ fn rebuild_slots(
                     }
                     p.spawn(bevy_gooey::row(crate::chrome::GOOEY_GAP_ONE)).with_children(|row| {
                         row.spawn(bevy_gooey::cell(SLOT_CELL));
-                        row.spawn((
-                            Text::new(line),
-                            TextColor(quiet),
-                            crate::chrome::typed(crate::chrome::text::HINT),
-                        ));
+                        crate::chrome::fill_text(row, line, quiet, crate::chrome::text::HINT);
                     });
                 }
             }
@@ -1591,22 +1585,20 @@ fn rebuild_slots(
                 // pane was the 2026-08-17 audit's clearest type drift.
                 crate::chrome::section(p, "MEASURED");
                 let ok = findings.iter().filter(|f| f.level == Level::Ok).count();
+                // **Each line wraps in a row of its own and breaks a long word at a letter** (#535), as the slot sub-lines above do.
                 if ok > 0 {
-                    p.spawn((
-                        Text::new(format!("{ok} measurement(s) agree with the manifest")),
-                        TextColor(quiet),
-                        crate::chrome::typed(crate::chrome::text::HINT),
-                    ));
+                    p.spawn(bevy_gooey::row(crate::chrome::GOOEY_GAP_ONE)).with_children(|row| {
+                        crate::chrome::fill_text(row, format!("{ok} measurement(s) agree with the manifest"), quiet, crate::chrome::text::HINT);
+                    });
                 }
                 for f in findings.iter().filter(|f| f.level != Level::Ok) {
-                    p.spawn((
-                        Text::new(f.text.clone()),
-                        TextColor(match f.level {
-                            Level::Note => label,
-                            _ => danger,
-                        }),
-                        crate::chrome::typed(crate::chrome::text::HINT),
-                    ));
+                    let ink = match f.level {
+                        Level::Note => label,
+                        _ => danger,
+                    };
+                    p.spawn(bevy_gooey::row(crate::chrome::GOOEY_GAP_ONE)).with_children(|row| {
+                        crate::chrome::fill_text(row, f.text.clone(), ink, crate::chrome::text::HINT);
+                    });
                 }
             }
 
