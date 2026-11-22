@@ -58,7 +58,6 @@ const SETTLE_FRAMES: usize = 12;
 
 /// A drawn word: what it says, the size it is drawn at in the skin's own px, and its ink.
 struct Drawn {
-    entity: Entity,
     words: String,
     px: f32,
     ink: Color,
@@ -106,7 +105,6 @@ fn drawn_rows(world: &World, root: Entity, ui_scale: f32) -> Vec<Drawn> {
         }
         let Some(px) = size_in_skin_px(font, ui_scale) else { continue };
         found.push(Drawn {
-            entity,
             words: text.0.clone(),
             px,
             ink: world.get::<TextColor>(entity).map(|c| c.0).unwrap_or(Color::WHITE),
