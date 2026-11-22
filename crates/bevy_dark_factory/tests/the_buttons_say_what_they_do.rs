@@ -140,7 +140,7 @@ fn a_destructive_answer_is_danger_and_an_ordinary_one_is_not() {
     // Answer it, then ask an ordinary question: quitting keeps everything saved.
     tap(&mut app, Key::Character("n".into()), KeyCode::KeyN);
     settle(&mut app, 3);
-    app.world_mut().resource_mut::<Confirm>().ask(Asked::QuitApp, "Quit DarkFactory?", "Anything already saved stays saved.", "Quit", "Stay");
+    app.world_mut().resource_mut::<Confirm>().ask(Asked::QuitApp, "Quit Dark Factory?", "Anything already saved stays saved.", "Quit", "Stay");
     settle(&mut app, 3);
     let quit = button(&mut app, "Quit");
     assert_eq!(variant_of(&app, quit), None, "an ordinary answer is not red");

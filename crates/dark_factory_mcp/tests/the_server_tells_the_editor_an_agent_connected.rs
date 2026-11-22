@@ -1,4 +1,4 @@
-//! **A server DarkFactory's terminal started tells the editor its agent connected, and runs the self test
+//! **A server Dark Factory's terminal started tells the editor its agent connected, and runs the self test
 //! the agent is asked for** (`blueprint/agent_hello`, `blueprint_self_test`, `blueprint/self_test_result`).
 //!
 //! The server is started as an agent's client starts it, with the token a terminal tab gives it, against a

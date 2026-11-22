@@ -222,7 +222,7 @@ fn fill(dir: &Path, template: Template, name: &str) -> Result<(), String> {
 /// Copies the Prototype Kit's meshes and licence out of the example project into `dir`, and its rows into the Starter kit's library.
 fn copy_prototype_kit(dir: &Path) -> Result<(), String> {
     let Some(example) = crate::launcher::example_project() else {
-        return Err("this copy of DarkFactory has no example project to take the prototype pieces from; make an Empty project instead".to_owned());
+        return Err("this copy of Dark Factory has no example project to take the prototype pieces from; make an Empty project instead".to_owned());
     };
     let rows_path = example.join(PROTOTYPE_ROWS);
     let text = std::fs::read_to_string(&rows_path).map_err(|e| format!("{}: {e}", rows_path.display()))?;

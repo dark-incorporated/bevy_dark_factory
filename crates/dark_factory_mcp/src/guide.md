@@ -1,10 +1,10 @@
-**Read this before you call anything else.** The tool descriptions say what one tool does; this says what order they come in and what the person on the other end expects. DarkFactory is a world editor a person is looking at while you work — every change you make is on their screen before they read your answer.
+**Read this before you call anything else.** The tool descriptions say what one tool does; this says what order they come in and what the person on the other end expects. Dark Factory is a world editor a person is looking at while you work — every change you make is on their screen before they read your answer.
 
 ## Orient
 
 **Start with the state, not with a change.** `blueprint_state` is the whole picture: the open map and its bounds, how many pieces it has, what is armed, what is selected, which door and tab are open, the undo and redo stacks, and what has gone wrong. Read it first and often; it is cheap and it never changes anything.
 
-**Then read what the person already told you about this project.** `blueprint_project_feedback_list` returns the reports they filed about this project from the editor itself (Cmd+Shift+D): each one's note, the interface nodes and map points they pointed at, and a picture of the screen at that moment. If they filed a report saying the wall tool draws over the road, that is the ground truth of what bothers them — read `blueprint_feedback_list` for the reports about DarkFactory itself, and `blueprint_list_snips` for the pictures they cut out to show you something.
+**Then read what the person already told you about this project.** `blueprint_project_feedback_list` returns the reports they filed about this project from the editor itself (Cmd+Shift+D): each one's note, the interface nodes and map points they pointed at, and a picture of the screen at that moment. If they filed a report saying the wall tool draws over the road, that is the ground truth of what bothers them — read `blueprint_feedback_list` for the reports about Dark Factory itself, and `blueprint_list_snips` for the pictures they cut out to show you something.
 
 **Before you change a map, learn what it is made of.** `blueprint_list_pieces` is the library, a page at a time with each piece's labels; `blueprint_list_rules` is the grammar a generated layout comes from. `blueprint_read_oplog` says what has already been done to this project, by anyone, and whether it was taken back.
 
@@ -81,7 +81,7 @@
 
 **Say what you did not do.** An operation you previewed and did not apply, a note you left for them, a file that needs their hand: put it in the summary. The editor's status line and its toast are theirs; `blueprint_read_log` is the editor's own log file, read from disk, and it answers when the editor is not running at all — so it is where you look when something failed and `blueprint_state` did not say why.
 
-**Three tools that are not part of a task.** `blueprint_open_project` opens a project folder in the running editor, from any screen including the Projects home, and is the first call when they name a project rather than a map. `blueprint_jobs_stop` asks a background job such as the palette's thumbnail bake to stop, and `blueprint_self_test` is DarkFactory's power-on self test, run once when its own terminal starts you: it reads the state, counts the operations, takes one picture and returns them.
+**Three tools that are not part of a task.** `blueprint_open_project` opens a project folder in the running editor, from any screen including the Projects home, and is the first call when they name a project rather than a map. `blueprint_jobs_stop` asks a background job such as the palette's thumbnail bake to stop, and `blueprint_self_test` is Dark Factory's power-on self test, run once when its own terminal starts you: it reads the state, counts the operations, takes one picture and returns them.
 
 **A bug you cannot fix is filed, not described.** `blueprint_feedback_file_issue` takes the capture you already made and files it as a GitHub issue on the project's repository, with the still, the operations and the facts attached: say the title and what you saw, and it returns the issue's URL. Use it when a defect is in the editor rather than in what you were asked to build — a hand-back sentence about a bug nobody files is a bug nobody fixes.
 

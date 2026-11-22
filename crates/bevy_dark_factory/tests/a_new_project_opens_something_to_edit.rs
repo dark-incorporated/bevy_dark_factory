@@ -173,7 +173,7 @@ fn the_dialog_opened_after_a_refused_folder_shows_no_problem() {
     assert_eq!(alert(&mut app), 0, "the dialog opens with no refusal toast");
     assert_eq!(app.world().resource::<Launcher>().problem, None);
     let mut texts = app.world_mut().query::<(&Role, &Text)>();
-    let said: Vec<String> = texts.iter(app.world()).map(|(_, t)| t.0.clone()).filter(|t| t.contains("not a project") || t.contains("not a DarkFactory project")).collect();
+    let said: Vec<String> = texts.iter(app.world()).map(|(_, t)| t.0.clone()).filter(|t| t.contains("not a project") || t.contains("not a Dark Factory project")).collect();
     assert!(said.is_empty(), "no problem text on screen: {said:?}");
     let _ = std::fs::remove_dir_all(&dir);
 }

@@ -1,5 +1,5 @@
-//! **Which agent session a project had running when DarkFactory was last open**, so the next launch can resume it
-//! (`feedback-1794148425925`: *"If there was an agent in process, DarkFactory should remember it and restart there."*).
+//! **Which agent session a project had running when Dark Factory was last open**, so the next launch can resume it
+//! (`feedback-1794148425925`: *"If there was an agent in process, Dark Factory should remember it and restart there."*).
 //!
 //! One file for the person, `<data_dir>/agents/resume.json` ([`RESUME_FILE`] under [`crate::terminal_agent::AgentSetup::files`]),
 //! holding at most one entry per project: the harness that was running and the session it said it was in. An entry is
@@ -7,7 +7,7 @@
 //! the harness), and **left alone when the editor quits**, which is what makes it a record of what was running when
 //! the editor closed.
 //!
-//! Only omp is remembered: it is the one harness whose sessions DarkFactory can name (`omp --resume <id>`); a custom command
+//! Only omp is remembered: it is the one harness whose sessions Dark Factory can name (`omp --resume <id>`); a custom command
 //! has no resume syntax the editor knows.
 //!
 //! Every function takes the folder, so a test owns its own and nothing here reads the real data folder.

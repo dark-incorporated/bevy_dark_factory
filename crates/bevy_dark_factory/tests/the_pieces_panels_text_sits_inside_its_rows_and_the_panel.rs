@@ -1,5 +1,5 @@
 //! **The Pieces panel's text stays inside its rows and inside the panel** (#468). Found in a person's capture of the Kit workspace's MESHES tab
-//! (`feedback-1793928048623`, DarkFactory 0.2.7: *"text running off of it, and looks squished and jumbled"*), then measured on the shipped 0.6.8 at
+//! (`feedback-1793928048623`, Dark Factory 0.2.7: *"text running off of it, and looks squished and jumbled"*), then measured on the shipped 0.6.8 at
 //! the capture's own scales: a window of 2560 x 1440 physical px, UI scale 2.4, the right panel at its drag-resized minimum.
 //!
 //! - a pack's name wrapped to two and four lines in a band **58 px** tall, so it was drawn over the rows around it (26 and 12 px of overlap);

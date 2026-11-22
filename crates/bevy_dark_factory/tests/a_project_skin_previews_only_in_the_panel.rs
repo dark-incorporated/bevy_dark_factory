@@ -1,7 +1,7 @@
 //! **A project's game skin previews only inside the Game UI preview panel** (UI-03, #211).
 //!
 //! A game ships `family/bevy_gooey.yaml` so its own UI matches its art. Until this issue, that file
-//! *was* the editor's running `GooeySkin`, so a game's palette repainted the DarkFactory's own chrome —
+//! *was* the editor's running `GooeySkin`, so a game's palette repainted the Dark Factory's own chrome —
 //! and a light game skin left every editor label at about 1.1:1. The issue's What is one sentence:
 //! "Build a `Game UI preview` panel under a `SkinScope` loaded from `family/bevy_gooey.yaml`. The editor
 //! chrome never takes it."

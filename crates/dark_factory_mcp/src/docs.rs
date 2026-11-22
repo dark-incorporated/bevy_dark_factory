@@ -43,7 +43,7 @@ pub struct ToolDoc {
 pub const TOOLS: &[ToolDoc] = &[
     ToolDoc {
         name: "blueprint_guide",
-        description: "How to work in DarkFactory, in the order a task goes: orient, change, what to do \
+        description: "How to work in Dark Factory, in the order a task goes: orient, change, what to do \
                        when a person pauses the agent's writes, how to show your work, and how to \
                        hand a result back. Call this before any other tool on your first task in a \
                        project: the other tools say what one tool does, and this says which of them \
@@ -418,7 +418,7 @@ pub const TOOLS: &[ToolDoc] = &[
     },
     ToolDoc {
         name: "blueprint_feedback_list",
-        description: "The reports the person filed about DarkFactory itself, newest first: each \
+        description: "The reports the person filed about Dark Factory itself, newest first: each \
                       one's name, when it was taken, which screen and which project were up, \
                       the window's shape, each thing that was pointed at (a node of the \
                       interface with its chain of roles and text, a dragged area, the whole \
@@ -601,7 +601,7 @@ pub const TOOLS: &[ToolDoc] = &[
     },
     ToolDoc {
         name: "blueprint_self_test",
-        description: "DarkFactory's power-on self test, for an agent started in DarkFactory's terminal: \
+        description: "Dark Factory's power-on self test, for an agent started in Dark Factory's terminal: \
                       reads the editor's state, counts its operations, takes one picture of the \
                       editor and asks the decision model one text-only question (which model \
                       answered, where it ran and how long it took, or why it did not answer), tells \

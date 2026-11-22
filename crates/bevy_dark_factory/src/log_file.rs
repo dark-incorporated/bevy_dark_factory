@@ -170,7 +170,7 @@ pub fn starting_line(argv: &[String]) -> String {
         .map(|d| d.as_secs())
         .unwrap_or_default();
     format!(
-        "--- DarkFactory {} on {} {} starting: exe {:?}, argv {:?}, unix time {}",
+        "--- Dark Factory {} on {} {} starting: exe {:?}, argv {:?}, unix time {}",
         env!("CARGO_PKG_VERSION"),
         std::env::consts::OS,
         std::env::consts::ARCH,
@@ -224,7 +224,7 @@ mod tests {
     #[test]
     fn the_starting_line_names_the_version_the_executable_and_the_arguments() {
         let line = starting_line(&["./game".to_owned(), "--door".to_owned(), "map".to_owned()]);
-        assert!(line.starts_with(&format!("--- DarkFactory {} ", env!("CARGO_PKG_VERSION"))), "{line}");
+        assert!(line.starts_with(&format!("--- Dark Factory {} ", env!("CARGO_PKG_VERSION"))), "{line}");
         assert!(line.contains("exe "), "{line}");
         assert!(line.contains("--door"), "{line}");
     }

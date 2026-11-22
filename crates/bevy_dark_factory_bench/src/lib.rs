@@ -1,4 +1,4 @@
-//! **A benchmark task for the DarkFactory: its prompt, its fixture, its checks, and the grader that
+//! **A benchmark task for the Dark Factory: its prompt, its fixture, its checks, and the grader that
 //! measures what a run left** (BM-01, #411).
 //!
 //! An agent that can drive an editor is only worth measuring against a task that a run can be *wrong*

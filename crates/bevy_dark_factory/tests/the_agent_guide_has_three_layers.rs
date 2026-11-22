@@ -1,6 +1,6 @@
 //! **`blueprint_guide` returns the shipped guide, then the person's guide, then the project's** (#347, AG-02).
 //!
-//! The shipped guide says how to work in DarkFactory and can know nothing about one person's habits or one
+//! The shipped guide says how to work in Dark Factory and can know nothing about one person's habits or one
 //! project's conventions. Those are two more files: `<config_dir>/Blueprint/AGENTS.md` and
 //! `<root>/.dark_factory/AGENTS.md`. `blueprint/agent_guide` is the editor's half — it holds the open project
 //! and the person's directories, so the editor composes the two layers and the MCP server reads no file

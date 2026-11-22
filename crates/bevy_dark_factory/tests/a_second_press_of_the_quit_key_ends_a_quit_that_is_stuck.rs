@@ -342,7 +342,7 @@ fn the_state_follows_the_unsaved_edits_question() {
     app.update();
     let state = app.world().resource::<ExitState>().clone();
     assert!(!state.question_open(), "no question, none open");
-    app.world_mut().resource_mut::<Confirm>().ask_three(Asked::QuitApp, "Quit DarkFactory?", "It has unsaved edits.", "Save and quit", "Discard changes", KeyCode::KeyD, "Stay");
+    app.world_mut().resource_mut::<Confirm>().ask_three(Asked::QuitApp, "Quit Dark Factory?", "It has unsaved edits.", "Save and quit", "Discard changes", KeyCode::KeyD, "Stay");
     app.update();
     assert!(state.question_open(), "the quit question is open, and the watchdog knows it");
 }

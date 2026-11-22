@@ -78,7 +78,7 @@ fn the_body_carries_the_seven_sections_with_the_note_verbatim_and_both_pictures(
     // 1. Provenance, first line, read from the record.
     let first = body.lines().next().unwrap_or_default();
     assert!(first.starts_with("**From the owner's capture, `feedback-1794921159460`**"), "the first line is the provenance: {first}");
-    for said in ["DarkFactory 0.7.0", "1280", "`ui_scale` 2.4", "lavender_hills", "liches_lair"] {
+    for said in ["Dark Factory 0.7.0", "1280", "`ui_scale` 2.4", "lavender_hills", "liches_lair"] {
         assert!(first.contains(said), "the provenance reads `{said}`: {first}");
     }
 

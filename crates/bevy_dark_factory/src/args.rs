@@ -181,7 +181,7 @@ fn root_from(positional: &[&str]) -> PathBuf {
 
 /// **What `--help` prints.** The arguments [`split`] takes, and nothing the editor does not read.
 pub const USAGE: &str = "\
-DarkFactory: the editor that writes a blueprint, the book your game loads.
+Dark Factory: the editor that writes a blueprint, the book your game loads.
 
 usage: bevy_dark_factory [ROOT] [MAP] [--workspace <id>] [--kit NAME] [--live]
        bevy_dark_factory migrate <project folder>
