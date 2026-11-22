@@ -511,8 +511,11 @@ one_pass() {
   fi
 
   ensure_state
+  # **The number is written when the pass starts, not when it is asked for** (below, after the disk guard). It used to be written
+  # here, so a refused start spent one: on 2026-11-07 `/home` on big fell under `WIGGUM_MIN_FREE_GB`, every start was refused, a
+  # relauncher tried again every two minutes, and 133 refusals (pass 267 to 400) reached `WIGGUM_MAX` with no work done. The driver
+  # then exited "reached WIGGUM_MAX" at once, for fourteen days (`tools/loop/test_wiggum_refused_start.py`).
   local n; n=$(( $(cat "$COUNTER" 2>/dev/null || echo 0) + 1 ))
-  echo "$n" >"$COUNTER"
   # **The fast-forward is recorded against the pass it precedes**, so `pass N START … behind=7` and
   # the reason the clone is current are adjacent lines in one log rather than in the previous pass's
   # story. `pre-pass:` lines above this point are deliberately pass-numbered too.
@@ -547,6 +550,7 @@ one_pass() {
       return 1
     fi
   fi
+  echo "$n" >"$COUNTER"
   log "pass $n START command=/$COMMAND model=$MODEL dirty=$dirty behind=$behind"
   # **A fresh process per pass is the whole design.** `omp -p` is one-shot: it reads the prompt,
   # does the work, exits. No `--continue`, no `--resume`, no session carried over — the repository is
