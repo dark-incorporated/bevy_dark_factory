@@ -259,7 +259,7 @@ These are written but are not project data, so they have no class. None is read 
 - [ ] 12. `forest_view` `POLL_S` (0.5)
 - [ ] 13. `game_view` `FIELD_FILES_POLL_S` (1.5) and `STATE_POLL_S` (1.0)
 - [ ] 14. `night_shift` `PLAN_READ_SECS` (0.5)
-- [ ] 15. `anim_watch` `POLL_SECS` (1.0) and `RIGS_RECHECK_SECS` (1.0)
+- [x] 15. `anim_watch` `POLL_SECS` (1.0) and `RIGS_RECHECK_SECS` (1.0): the watcher reads the index's stamp of each loaded rig's GLB and of `rigs.yaml` when the index's generation moves, and queues a rig whose stamp changed; the two-equal-polls debounce is now the index's (`DEBOUNCE`, and a file touched without a pause for `MAX_HOLD` is measured part-way and again when it ends); undo and redo are unchanged (`the_animation_watch_follows_the_project_index`, and the old `rig_history_is_an_operation` and `a_rigs_edit_*` tests, green); two `anim_watch` unit tests that pinned the two-poll debounce are re-pointed, see the commit
 - [ ] 16. `audit_view` `LOOK_EVERY_S` (5.0)
 - [ ] 17. `game_view` `LOG_POLL_S` (0.25): a growing log is a tail, not a listing; decide whether it stays a read loop
 - [ ] 18. `settings` `RECHECK_SECS` (1.0), `settings_screen` `LOOK_EVERY` (0.25) and `keymap_screen` `LOOK_EVERY` (0.25): these read the user's own settings and keymap files, outside the project root, so the index needs a second watched root first

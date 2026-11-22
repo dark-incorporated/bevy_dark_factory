@@ -248,6 +248,7 @@ fn keep_rig_selection_on_screen(
 
 impl Plugin for AnimTabPlugin {
     fn build(&self, app: &mut App) {
+        crate::project_index::ensure(app);
         app.add_systems(
             Update,
             keep_rig_selection_on_screen
@@ -294,7 +295,7 @@ impl Plugin for AnimTabPlugin {
                     toggle_the_rig_list.in_set(crate::keys::Phase::Act),
                     // The one measurement path: selection, the watcher and check-all feed the
                     // queue; the queue steps one rig per frame; the pane reads the reports.
-                    crate::anim_watch::poll_mtimes,
+                    crate::anim_watch::follow_the_rig_files,
                     crate::anim_watch::queue_selected,
                     crate::anim_watch::step_measure_queue,
                     // Ungated by the tab: a fact about `rigs.yaml` stays true while another tab is open.

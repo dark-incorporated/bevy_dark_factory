@@ -221,6 +221,7 @@ mod a_right_click_on_a_piece_can_move_or_note_it;
 mod a_right_click_on_a_piece_opens_its_menu;
 mod a_rigs_edit_is_measured_again_and_keeps_the_selection;
 mod a_rigs_edit_says_what_became_of_it;
+mod the_animation_watch_follows_the_project_index;
 mod a_rule_can_be_changed;
 mod a_run_lays_a_line_of_pieces;
 mod a_sequence_started_behind_schedule_still_applies_its_operation;
