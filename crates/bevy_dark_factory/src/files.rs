@@ -1528,8 +1528,9 @@ fn keep_the_tree(
             names.fingerprint = walked.fingerprint;
         }
     }
-    // **A project that cannot be listed says so where the tree is**, rather than showing an empty tree as if it were the project.
-    let failure = if index.generation() == 0 { index.failure() } else { None };
+    // **A project that cannot be listed says so where the tree is**, rather than showing a tree that may be of a root that has gone. One
+    // atomic load when nothing is wrong.
+    let failure = index.failure();
     let want_notice = match (&failure, names.truncated) {
         (Some(why), _) => why.as_str(),
         (None, true) => TREE_TRUNCATED,

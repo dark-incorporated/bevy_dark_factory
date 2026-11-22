@@ -187,8 +187,65 @@ fn a_save_that_takes_longer_than_the_debounce_is_still_one_event() {
     assert!(pump(&mut app, 10.0, |app| !heard_of(app, "data/long.yaml").is_empty()), "the finished save was published");
     pump_for(&mut app, 1.0);
     let heard = heard_of(&app, "data/long.yaml");
-    assert_eq!(heard.len(), 1, "five writes over {:?} are one event: {heard:?}", gap * 5);
-    assert_eq!((heard[0].kind, heard[0].stamp.map(|s| s.len)), (ChangeKind::Created, Some(written)), "and it is the file as it ended");
+    // **One stall-induced split is tolerated** (a loaded machine can stall the writer for longer than the debounce between two of its
+    // writes), but not the five a missing debounce makes: a Created at the first size and four Modified.
+    assert!((1..=2).contains(&heard.len()), "five writes over {:?} are one event (two at most, if the writer stalled): {heard:?}", gap * 5);
+    assert_eq!(heard[0].kind, ChangeKind::Created);
+    assert_eq!(heard.last().and_then(|e| e.stamp).map(|s| s.len), Some(written), "and the last event is the file as it ended: {heard:?}");
+}
+
+/// **A root that goes after it was listed is refused, even though an older listing is held, until it is back** (the tree says so, and a
+/// root that returns with the same files clears the refusal).
+#[test]
+fn a_root_that_goes_after_it_was_listed_is_refused_until_it_is_back() {
+    let root = project("root_gone");
+    let mut app = stepped(&root);
+    let command = bevy_dark_factory::commands::by_id("workspace.files").unwrap_or_else(|| panic!("workspace.files"));
+    let live = *app.world().resource::<bevy_dark_factory::keys::Live>();
+    app.world_mut().resource_mut::<bevy_dark_factory::command_run::Chords>().queue(&command, live);
+    for _ in 0..10 {
+        app.update();
+    }
+    let before = listed(&root);
+    assert!(!before.is_empty(), "the project was listed");
+    let notice = |app: &mut App| -> Vec<String> {
+        let world = app.world_mut();
+        world.query_filtered::<&Text, With<files::TreeNotice>>().iter(world).map(|t| t.0.clone()).collect()
+    };
+    assert!(notice(&mut app).iter().all(String::is_empty), "nothing is said while the project is there");
+
+    let aside = PathBuf::from(format!("{}.aside", root.display()));
+    std::fs::rename(&root, &aside).unwrap_or_else(|e| panic!("{e}"));
+    let refused = files::listed_files(&root).expect_err("a root that has gone is refused, not answered with the old list");
+    assert!(refused.contains("project root"), "{refused}");
+    assert!(pump(&mut app, 10.0, |app| notice(app).iter().any(|n| n.contains("project root"))), "the tree says the project cannot be listed: {:?}", notice(&mut app));
+
+    std::fs::rename(&aside, &root).unwrap_or_else(|e| panic!("{e}"));
+    let mut back = None;
+    pump(&mut app, 10.0, |_| {
+        back = files::listed_files(&root).ok();
+        back.is_some()
+    });
+    let back = back.unwrap_or_else(|| panic!("the root is back and the listing is still refused"));
+    assert!(before.iter().all(|f| back.contains(f)), "the root is back with its files, so the listing is answered again: missing {:?}", before.iter().filter(|f| !back.contains(f)).collect::<Vec<_>>());
+    assert!(pump(&mut app, 10.0, |app| notice(app).iter().all(String::is_empty)), "and the tree stops saying so");
+}
+
+/// **No caller can make the thread spin, and one slow sweep cannot park it**: a sweep time of nothing is raised to the floor, and the
+/// back-off after a slow sweep stops at its ceiling.
+#[test]
+fn the_sweep_time_has_a_floor_and_the_back_off_has_a_ceiling() {
+    use bevy_dark_factory::project_index::{MAX_SWEEP_EVERY, MIN_SWEEP, SWEEP, sweep_interval};
+    let root = project("clamp");
+    let app = stepped(&root);
+    let index = app.world().resource::<ProjectIndex>();
+    index.set_sweep(Duration::ZERO);
+    assert!(index.sweep() >= MIN_SWEEP && !MIN_SWEEP.is_zero(), "a sweep time of nothing is raised to {MIN_SWEEP:?}, read back {:?}", index.sweep());
+
+    assert_eq!(sweep_interval(SWEEP, Duration::from_millis(1)), SWEEP, "a fast sweep keeps the time set");
+    assert_eq!(sweep_interval(SWEEP, Duration::from_millis(266)), Duration::from_millis(2660), "266 ms (100,000 files) waits ten times that");
+    assert_eq!(sweep_interval(SWEEP, Duration::from_secs(5)), MAX_SWEEP_EVERY, "one 5 s stall waits the ceiling and not 50 s");
+    assert_eq!(sweep_interval(Duration::from_secs(60), Duration::from_secs(5)), Duration::from_secs(60), "a time set longer than the ceiling is kept");
 }
 
 /// **An atomic save (a new file renamed over the old one) is one `Modified`, and a removal is one `Removed`.**

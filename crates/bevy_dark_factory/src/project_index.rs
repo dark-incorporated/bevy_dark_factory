@@ -38,7 +38,12 @@
 //! The index is the only listing there is. [`crate::files::listed_files`] asks the index that follows the root and **returns an error**
 //! when none does, when it cannot settle, or when the project root cannot be read: there is no fallback walk on the caller's thread.
 //! An unreadable folder is listed empty, **warned about once**, and read again on every sweep until it can be read (its stamp is not
-//! advanced meanwhile, so what is inside is not lost). A name that is not UTF-8 is skipped with a warning.
+//! advanced meanwhile, so what is inside is not lost). A name that is not UTF-8 is skipped with a warning. **A root that goes after it was
+//! listed refuses too**, even though an older listing is held, and the tree says so; the refusal ends when the root can be looked at again.
+//!
+//! **`listed_files` from an operation blocks its caller** while the thread settles (one `stat` per folder, and what was held flushed):
+//! it can wait for the first listing (0.26 s at 10,000 files and 1.6 s at 100,000, measured below with a stepped editor's own build) or
+//! for a full sweep already running (266 ms at 100,000), and for at most [`SETTLE_WAIT`] (10 s) before it is refused.
 //!
 //! # How a subscriber reads it
 //!
@@ -85,6 +90,19 @@ pub const MAX_HOLD: Duration = Duration::from_secs(2);
 
 /// How often a held change is looked at again while it is settling.
 const TICK: Duration = Duration::from_millis(25);
+
+/// **The shortest time [`ProjectIndex::set_sweep`] accepts**: a sweep time of nothing would make the thread sweep without rest.
+pub const MIN_SWEEP: Duration = TICK;
+
+/// **The longest the back-off leaves a sweep alone** (unless a caller set a longer time): a sweep that took 266 ms at 100,000 files
+/// waits 2.7 s, and one slow sweep (a stall of seconds) cannot park the thread for ten times that.
+pub const MAX_SWEEP_EVERY: Duration = Duration::from_secs(30);
+
+/// **How long the thread waits between sweeps that look at every file**: the time set, or [`SWEEP_DUTY`] times the last sweep's length
+/// when that is longer, at most [`MAX_SWEEP_EVERY`] (the time set wins when it is longer than that).
+pub fn sweep_interval(set: Duration, last_took: Duration) -> Duration {
+    set.max((last_took * SWEEP_DUTY).min(MAX_SWEEP_EVERY))
+}
 
 /// **A folder written this recently is read again on the next sweep**: a second change in the same clock tick would leave its mtime
 /// where the first read saw it.
@@ -326,8 +344,9 @@ fn parent_of(rel: &str) -> &str {
 static GENERATION: AtomicU64 = AtomicU64::new(0);
 static NEXT_ID: AtomicU64 = AtomicU64::new(1);
 
-/// What the thread hands the rest of the editor. **Every field is replaced whole by a short assignment** under the lock, so a panic
-/// elsewhere cannot leave it torn; the index's own entries live on the thread and are never behind this lock.
+/// What the thread hands the rest of the editor, replaced under the lock: the snapshot and the failure by assignment, the outbox by
+/// appending a batch and by being taken whole. A panic elsewhere cannot tear it; the index's own entries live on the thread and are
+/// never behind this lock.
 #[derive(Default)]
 struct State {
     snapshot: Option<Arc<Snapshot>>,
@@ -352,6 +371,8 @@ struct Shared {
     walks: AtomicU64,
     sweep_millis: AtomicU64,
     last_sweep_micros: AtomicU64,
+    /// Whether `State::failure` is set, so a quiet frame asking for it costs an atomic load.
+    failed: AtomicBool,
 }
 
 impl Shared {
@@ -367,8 +388,9 @@ impl Shared {
 /// One running index: its id, the root it follows, and a weak handle to it.
 type Running = (u64, PathBuf, Weak<Shared>);
 
-/// Every running index by `(id, root)`, so a later app on the same root does not hide an earlier one: [`registered`] answers with the
-/// newest that still runs.
+/// Every running index by `(id, root)`, so a later app on the same root does not hide an earlier one in the registry. [`registered`] (so
+/// [`note_written`] and [`listed`]) answers with the **newest** that still runs: with two apps on one root the older one is not
+/// reached by them and falls back on its own sweep, which is acceptable for tests and is not a case the editor has.
 static REGISTRY: LazyLock<Mutex<Vec<Running>>> = LazyLock::new(Default::default);
 
 fn registry() -> MutexGuard<'static, Vec<Running>> {
@@ -407,7 +429,11 @@ fn settled_snapshot(root: &Path) -> Result<Arc<Snapshot>, String> {
         return Err(why);
     }
     let state = shared.lock();
-    state.snapshot.clone().ok_or_else(|| state.failure.clone().unwrap_or_else(|| format!("the project index of {} has no listing yet", root.display())))
+    // **A failure refuses even when an older listing is held**: a root that has gone is not the project the old list was of.
+    if let Some(why) = &state.failure {
+        return Err(why.clone());
+    }
+    state.snapshot.clone().ok_or_else(|| format!("the project index of {} has no listing yet", root.display()))
 }
 
 /// **Every file of the project, sorted, with no cap**: the index's answer, or the reason there is none. [`crate::files::listed_files`]
@@ -451,10 +477,19 @@ impl Sweeper {
         self.shared.stop.load(Ordering::Relaxed)
     }
 
-    /// There is no listing, and this says why: warned once, and kept for the callers who ask.
+    /// There is no listing, and this says why: warned once, and kept for the callers who ask (a listing that was there is refused too).
     fn fail(&mut self, why: String) {
         warn_once(&mut self.warned, format!("failure:{why}"), || why.clone());
         self.shared.lock().failure = Some(why);
+        self.shared.failed.store(true, Ordering::Release);
+    }
+
+    /// The root can be looked at again: the failure is over, and may be said again if it comes back.
+    fn clear_failure(&mut self) {
+        if self.shared.failed.swap(false, Ordering::AcqRel) {
+            self.shared.lock().failure = None;
+            self.warned.retain(|key| !key.starts_with("failure:"));
+        }
     }
 
     /// **The first listing**: the one walk. It publishes no events (a first sighting is not a change). `false` when the root cannot be
@@ -506,6 +541,7 @@ impl Sweeper {
         let mut st = self.shared.lock();
         st.snapshot = Some(snapshot);
         st.failure = None;
+        self.shared.failed.store(false, Ordering::Release);
         if !events.is_empty() {
             st.outbox.extend_from_slice(events);
             self.shared.news.store(true, Ordering::Release);
@@ -548,7 +584,7 @@ impl Sweeper {
     /// listing fresh passes `false` and costs one `stat` per folder, not per file.
     fn sweep(&mut self, with_files: bool) {
         match observe(&self.shared.root, "") {
-            Ok(Some((true, _))) => {}
+            Ok(Some((true, _))) => self.clear_failure(),
             Ok(_) => {
                 let why = format!("the project root {} is not there", self.root().display());
                 self.fail(why);
@@ -602,7 +638,13 @@ impl Sweeper {
             // **A folder that moved (or is too fresh to trust, or could not be read) is read, and only that folder.** Its stamp moves
             // on only when the read worked: a failed read leaves it as it was, so the next sweep reads it again.
             let children = match read_children(root, rel, ignore, warned) {
-                Ok(children) => children,
+                Ok(children) => {
+                    // A folder that can be read again is warned about again if it fails again.
+                    if !warned.is_empty() {
+                        warned.remove(&format!("dir:{rel}"));
+                    }
+                    children
+                }
                 Err(e) => {
                     warn_once(warned, format!("dir:{rel}"), || format!("`{rel}` cannot be read ({e}): it is listed empty and read again on every sweep"));
                     continue;
@@ -830,7 +872,7 @@ fn run(shared: Arc<Shared>) {
     let mut last_full_took = Duration::ZERO;
     loop {
         // **A sweep never takes more than one `SWEEP_DUTY`th of the thread**: a project whose sweep takes longer than that is swept less often.
-        let sweep_every = shared.sweep().max(last_full_took * SWEEP_DUTY);
+        let sweep_every = sweep_interval(shared.sweep(), last_full_took);
         let (noted, syncs) = {
             let mut st = shared.lock();
             if shared.stop.load(Ordering::Relaxed) {
@@ -925,7 +967,8 @@ impl ProjectIndex {
 
     /// Why there is no listing, when the project root cannot be read.
     pub fn failure(&self) -> Option<String> {
-        self.handle.as_ref().and_then(|h| h.shared.lock().failure.clone())
+        let handle = self.handle.as_ref().filter(|h| h.shared.failed.load(Ordering::Acquire))?;
+        handle.shared.lock().failure.clone()
     }
 
     /// **How many full walks the project has had**: one, and one more for each `.gitignore` change.
@@ -938,13 +981,20 @@ impl ProjectIndex {
         self.published
     }
 
-    /// **How often the thread looks at every file it knows** (default [`SWEEP`]). A test that wants only an operation's own note to
-    /// reveal a change sets this long; one that wants to see a debounce sets it short.
+    /// **How often the thread looks at every file it knows** (default [`SWEEP`]), **never less than [`MIN_SWEEP`]**: a shorter time is
+    /// raised to it, so no caller can make the thread spin. A test that wants only an operation's own note to reveal a change sets this
+    /// long; one that wants to see a debounce sets it short.
     pub fn set_sweep(&self, every: Duration) {
         if let Some(handle) = &self.handle {
+            let every = every.max(MIN_SWEEP);
             handle.shared.sweep_millis.store(u64::try_from(every.as_millis()).unwrap_or(u64::MAX), Ordering::Relaxed);
             handle.shared.wake.notify_all();
         }
+    }
+
+    /// The sweep time set now (default [`SWEEP`]); the thread may wait longer after a slow sweep (see [`sweep_interval`]).
+    pub fn sweep(&self) -> Duration {
+        self.handle.as_ref().map_or(SWEEP, |h| h.shared.sweep())
     }
 
     /// How long the thread's last sweep took.
@@ -976,6 +1026,7 @@ impl ProjectIndex {
             walks: AtomicU64::new(0),
             sweep_millis: AtomicU64::new(u64::try_from(SWEEP.as_millis()).unwrap_or(u64::MAX)),
             last_sweep_micros: AtomicU64::new(0),
+            failed: AtomicBool::new(false),
         });
         registry().push((shared.id, root.to_path_buf(), Arc::downgrade(&shared)));
         let handle = Handle { shared: shared.clone() };
