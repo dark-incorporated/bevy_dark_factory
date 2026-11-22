@@ -2,6 +2,10 @@
 
 What each change added, newest first. A visible change has a clip: click the still to play it. `python3 tools/changelog/changelog.py page --open` plays them all in one page.
 
+## 2026-11-22
+
+- **494-lists-break-in-their-rows** `a6914d07` A long name or sentence in the PLACE, TILES, COMPOSE and RIGS lists breaks inside its row instead of being drawn past the panel's border: measured at the capture's window a PLACE heading ran 292 px past the content edge, the TILES reason 53 px, a RIGS name 392 px and a COMPOSE row 30 px *For you: Long names in the piece, tile, group and rig lists now wrap inside their panels instead of spilling over the edge.* *No clip: a layout measurement with no clip recorded; measured by the populated census at the capture's window (2560 x 1604, 2.0 display factor), before and after; proved by tests/a_panel_census_at_five_scales_over_populated_content.rs*
+
 ## 2026-11-21
 
 - **pre-push-lfs** `b7b294bd` a branch push uploads its changelog clips too, instead of being refused with GH008 *No clip: a gate hook; proved by tools/loop/test_pre_push_lfs.py, which fails on the old hook*
