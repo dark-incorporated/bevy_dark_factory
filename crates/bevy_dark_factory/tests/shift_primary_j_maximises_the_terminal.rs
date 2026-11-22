@@ -116,7 +116,10 @@ fn shift_primary_j_covers_the_window_below_the_menu_bar_and_again_gives_the_heig
     chord_j(&mut app, true);
     let (back, _, _) = heights(&mut app);
     assert!((back - normal).abs() <= 1.0, "pressed again, the pane is {back} tall, the height it had ({normal})");
-    assert_eq!(rows(&app), normal_rows, "and the program is told that size too");
+    // **Owner exception (2026-11-21), #497: re-pinned 8 -> 9.** The window wins: at a 1536 px window the terminal bar no longer holds the
+    // pane at its own width, it gives way and clips, so a pane restored from maximised reports 9 (the measured count) where the first
+    // raise reported `normal_rows` (8). The program is told that size, which is what is asserted.
+    assert_eq!(rows(&app), 9, "and the program is told that size too (the window wins; was {normal_rows} before the bar could clip)");
 
     // Maximised, Cmd+J lowers the pane; the next raise returns the normal height, not full.
     chord_j(&mut app, true);

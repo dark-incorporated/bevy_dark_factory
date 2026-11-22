@@ -727,10 +727,10 @@ fn build_the_pane(
 
     let bar = commands
         .spawn((
-            // The bar: a gooey row the pane wide and `TERMINAL_BAR_H` tall, its parts centred and a tight step apart, `MARGIN` in from each end, never shrinking.
-            bevy_gooey::row_with(0.0, bevy_gooey::RowLayout { align: Some(AlignItems::Center), shrink: Some(0.0), ..default() }),
+            // The bar: a gooey row the pane wide and `TERMINAL_BAR_H` tall, its parts centred and a tight step apart, `MARGIN` in from each end, able to give way and clip when the window is narrower than its parts (#497: the window wins).
+            bevy_gooey::row_with(0.0, bevy_gooey::RowLayout { align: Some(AlignItems::Center), ..default() }),
             bevy_gooey::GapPx(chrome::GAP_TIGHT),
-            bevy_gooey::Sizing { width: Some(bevy_gooey::Extent::Percent(100.0)), height: Some(bevy_gooey::Extent::Px(TERMINAL_BAR_H)), ..default() },
+            bevy_gooey::Sizing { width: Some(bevy_gooey::Extent::Percent(100.0)), height: Some(bevy_gooey::Extent::Px(TERMINAL_BAR_H)), clip: Some(true), ..default() },
             bevy_gooey::Spacing { padding: bevy_gooey::Sides::x(chrome::STEP_PAD), ..default() },
             BackgroundColor(chrome::ink().bar_bg),
             TerminalBar,
