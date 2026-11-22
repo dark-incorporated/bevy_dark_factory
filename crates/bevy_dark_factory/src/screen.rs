@@ -808,6 +808,12 @@ pub const OWNERSHIP: &[(&str, Ownership)] = &[
     // **Which finder is open is this session's too**: the palette is a modal over every workspace, as
     // `confirm` is, and a switch made with it open must not be forgotten while it is still drawn.
     ("bevy_dark_factory::goto::Finder", Ownership::Session),
+    // **The project's file index is the session's** (#501): one background thread follows the project's files for every workspace, so a
+    // door change keeps it (a reset would stop the thread and walk the project again). It follows the project's root on its own
+    // (`project_index::follow_the_project`), which a door change does not move, so it is not `Project` either.
+    ("bevy_dark_factory::project_index::ProjectIndex", Ownership::Session),
+    // **A harness marker, the session's**: the stepped editor asks the index to finish its first listing before it runs a frame.
+    ("bevy_dark_factory::project_index::WaitsForFirstListing", Ownership::Session),
     // **The Back history is the session's** (NV-06, #383): it is the places this sitting has stood in,
     // bounded at `nav::NAV_HISTORY_MAX` and deliberately not saved. A door change is one of the moves a
     // person wants back, so carrying it across is the whole point.
