@@ -98,8 +98,8 @@ fn a_created_file_is_logged_undone_byte_for_byte_and_shows_in_the_tree_without_w
     let root = project("create");
     write(&root, "notes/old.md", "# a note\n");
     let mut app = editor(&root);
-    // **The Files workspace, with its tree walked once**: `next_poll` is then a full `TREE_POLL_S` away, so the only thing
-    // that can make the new row visible inside that window is the operation's own flag.
+    // **The Files workspace, with its tree listed once**: the next sweep is then up to a full `SWEEP` away, so the only thing
+    // that can make the new row visible inside that window is the operation's own note of the path it wrote.
     open_the_files_workspace(&mut app);
     assert!(tree_has(&mut app, "notes/old.md"), "the tree listed the project before the create");
 
@@ -111,10 +111,10 @@ fn a_created_file_is_logged_undone_byte_for_byte_and_shows_in_the_tree_without_w
     let line = log.iter().find(|e| e.op == "file_create" && e.outcome == "applied").unwrap_or_else(|| panic!("the create is in the oplog: {log:?}"));
     assert!(!line.operation_id.is_empty(), "the line has an id an agent cites");
 
-    // **The tree shows it without waiting out `TREE_POLL_S`** (1.5 s): the operation asked for the walk.
+    // **The tree shows it without waiting out the index's sweep** (`SWEEP`, 1 s): the operation said which path it had written.
     let started = std::time::Instant::now();
     let mut seen = false;
-    while started.elapsed().as_secs_f64() < files::TREE_POLL_S - 0.5 {
+    while started.elapsed().as_secs_f64() < bevy_dark_factory::project_index::SWEEP.as_secs_f64() - 0.5 {
         app.update();
         if tree_has(&mut app, "notes/new.yaml") {
             seen = true;
