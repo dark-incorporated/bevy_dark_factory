@@ -121,8 +121,8 @@ fn main() -> AppExit {
                     // **Never smaller than the layout is built for**; where it opens, and where it goes back
                     // to, is `window_frame`'s decision (#292).
                     resize_constraints: bevy::window::WindowResizeConstraints {
-                        min_width: bevy_dark_factory::window_frame::MIN_SIZE.x,
-                        min_height: bevy_dark_factory::window_frame::MIN_SIZE.y,
+                        min_width: bevy_dark_factory::window_frame::min_size().x,
+                        min_height: bevy_dark_factory::window_frame::min_size().y,
                         ..default()
                     },
                     // **Fullscreen for automated checks.** A virtual pointer is ABSOLUTE over the
@@ -144,7 +144,7 @@ fn main() -> AppExit {
     // **One knob for the whole interface.** `UiScale` multiplies every `Val::Px` and every font
     // size, so the panels grow together and nothing has to be re-tuned relative to anything else
     // — the alternative is forty constants that drift apart the first time one is missed.
-    .insert_resource(UiScale(bevy_dark_factory::chrome::EDITOR_UI_SCALE));
+    .insert_resource(UiScale(bevy_dark_factory::style::metrics().layout.ui_scale));
 
     // **The preview uses the game's own sky** (#98): `bevy_elements`' plugins, always added, dress
     // the editor camera only in a project that has an environment file (`environment::dress_camera`).
@@ -178,6 +178,10 @@ fn main() -> AppExit {
     // **The user's settings layer** (`settings.rs`, UI-70): only the binary names the file, as with the recent list.
     if let Some(file) = bevy_dark_factory::settings::user_file() {
         app.insert_resource(bevy_dark_factory::settings::UserSettingsFile(file));
+    }
+    // **The user's style layer** (`style.rs`): only the binary names it, so no test reads the real one.
+    if let Some(file) = bevy_dark_factory::style::user_file() {
+        app.insert_resource(bevy_dark_factory::style::UserStyleFile(file));
     }
     // **Where each choice of the decision model goes, and the key Remote needs** (DM-03, #454): the shipped endpoints and
     // `OPENROUTER_API_KEY` from the environment, the one thing the environment says. Only the binary reads it, so no test does.
@@ -224,8 +228,22 @@ fn main() -> AppExit {
     // of them would ever be the one under test.
     harness::add_editor_plugins(&mut app);
     // **`--live`: every committed change goes to disk at once**, so a running game reloads it.
-    if args::split(&argv).live {
+    let split = args::split(&argv);
+    if split.live {
         app.insert_resource(bevy_dark_factory::live::LiveWrite);
+    }
+    // **When this editor started**, so a relaunch the editor development agent asks for can tell a new build from this one, and
+    // what carries a relaunch out (`relaunch.rs`). Only the binary adds them: a test editor never replaces itself.
+    app.insert_resource(bevy_dark_factory::relaunch::StartedAt(std::time::SystemTime::now()));
+    app.add_plugins(bevy_dark_factory::relaunch::RelaunchPlugin);
+    // **A relaunch's agent is restored in the new terminal** (`--restore-dev-agent`). The id is typed into a shell, so one that is not an
+    // omp session id is refused, said in the log, and nothing is restored.
+    if let Some(session) = split.restore_dev_agent {
+        if bevy_dark_factory::agent_resume::is_session_id(session) {
+            app.insert_resource(bevy_dark_factory::terminal_pane::RestoreDevAgent(session.to_owned()));
+        } else {
+            bevy::log::error!("{} {session:?} is not an omp session id, so no agent is restored", args::RESTORE_DEV_AGENT);
+        }
     }
     // Behind the feature, so an ordinary build has no `bevy_remote` in its dependency graph at all.
     #[cfg(feature = "debugger")]

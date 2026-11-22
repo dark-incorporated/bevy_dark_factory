@@ -21,7 +21,7 @@
 
 use bevy::ecs::system::RunSystemOnce;
 use bevy::prelude::*;
-use bevy_dark_factory::console::{self, toggle_chord, Console, ConsolePill, ConsolePillLabel, ConsoleRows, ConsoleTally, Level, MAX_ROWS};
+use bevy_dark_factory::console::{self, Console, ConsolePill, ConsolePillLabel, ConsoleRows, ConsoleTally, Level, MAX_ROWS};
 use bevy_dark_factory::harness;
 use bevy_dark_factory::screen::Screen;
 use bevy_dark_factory::selection::Selection;
@@ -64,11 +64,12 @@ fn press(app: &mut App) {
     };
     // **Every modifier the chord holds**, not just the platform primary: `Shortcut::just_pressed` compares the held
     // modifiers for equality, so a Shift left out is a chord that never fires.
-    let held = held_modifiers(&toggle_chord());
+    let toggle = bevy_dark_factory::chords::chord(bevy_dark_factory::chords::Fixed::ConsoleToggle);
+    let held = held_modifiers(&toggle);
     for key in &held {
         tap(app, *key, bevy::input::ButtonState::Pressed);
     }
-    let chord = toggle_chord();
+    let chord = toggle;
     tap(app, chord.key, bevy::input::ButtonState::Pressed);
     tap(app, chord.key, bevy::input::ButtonState::Released);
     for key in &held {

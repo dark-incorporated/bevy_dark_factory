@@ -32,16 +32,6 @@ use bevy_gooey::{Shortcut, TextHint};
 use crate::github::Connection;
 use crate::issue_compose::{self, Attachment, Issue, Preview, Step};
 
-/// **`Cmd+Shift+I`: compose an issue.** The capture's chord is `Cmd+D`
-/// ([`crate::report::developers_chord`]), and an issue a person writes is the other half of the same
-/// act, so it is the same key.
-///
-/// **Not a census row**, for `report.rs`'s reason: a composer works on every screen, including the
-/// Projects home where there is no tab at all, and `no_context_gains_a_key` pins what a *tab* binds.
-pub fn compose_chord() -> Shortcut {
-    Shortcut::new(bevy_gooey::Modifiers::PRIMARY | bevy_gooey::Modifiers::SHIFT, KeyCode::KeyI)
-}
-
 /// **The dialog's width**, in body text sizes: wide enough for a paragraph of the Markdown, no wider
 /// than the launcher's own dialog.
 pub const CARD_TEXT_SIZES: f32 = 48.0;
@@ -280,7 +270,7 @@ fn open_composer(
     project: Option<Res<crate::project::Project>>,
     mut commands: Commands,
 ) {
-    if composer.open || !compose_chord().just_pressed(&keys) {
+    if composer.open || !crate::chords::chord(crate::chords::Fixed::IssueCompose).just_pressed(&keys) {
         return;
     }
     // **The connection comes from the person's own file**, never a project's (#498's rule), and a
@@ -335,7 +325,7 @@ fn draw_composer(commands: &mut Commands, composer: &Composer) {
     let body = composer.body();
     commands
         .spawn((bevy_gooey::dialog(), ComposerRoot, ComposerShown, Name::new("compose an issue")))
-        .insert(GlobalZIndex(crate::chrome::MODAL_Z))
+        .insert(GlobalZIndex(crate::style::metrics().z.modal))
         .with_children(|scrim| {
             scrim.spawn((bevy_gooey::sized_panel(bevy_gooey::CardWidth::Text(CARD_TEXT_SIZES)), bevy::picking::hover::Hovered::default())).with_children(|card| {
                 card.spawn(bevy_gooey::heading("COMPOSE AN ISSUE"));
@@ -393,7 +383,7 @@ fn draw_composer(commands: &mut Commands, composer: &Composer) {
                 ));
                 card.spawn((bevy_gooey::label(line_text(Line::Preview, composer)), Line::Preview));
 
-                card.spawn(bevy_gooey::row(crate::chrome::GAP_GROUP_STEPS)).with_children(|row| {
+                card.spawn((bevy_gooey::row(0.0), crate::chrome::Gap::Group.class())).with_children(|row| {
                     row.spawn((
                         bevy_gooey::button("Attach the log tail"),
                         bevy_gooey::observe(|_: On<bevy_gooey::Activate>, mut composer: ResMut<Composer>| {
@@ -419,7 +409,7 @@ fn draw_composer(commands: &mut Commands, composer: &Composer) {
                     ));
                 });
 
-                card.spawn(bevy_gooey::row(crate::chrome::GAP_GROUP_STEPS)).with_children(|row| {
+                card.spawn((bevy_gooey::row(0.0), crate::chrome::Gap::Group.class())).with_children(|row| {
                     row.spawn((
                         bevy_gooey::button("Save draft"),
                         bevy_gooey::observe(|_: On<bevy_gooey::Activate>, composer: Res<Composer>, project: Option<Res<crate::project::Project>>, mut commands: Commands| {

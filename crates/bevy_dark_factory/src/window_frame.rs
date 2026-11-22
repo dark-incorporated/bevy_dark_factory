@@ -2,9 +2,9 @@
 //!
 //! The window was a fixed 1280x720 wherever it opened, so on a 1024x640 screen it ran off the edge. Now:
 //!
-//! * the window cannot be made smaller than [`MIN_SIZE`] (`main.rs` sets the resize constraint);
-//! * on the first frame it has a monitor to measure, it takes [`FIT_FRACTION`] of the primary monitor's logical
-//!   size, capped at [`MAX_FIT`], floored at [`MIN_SIZE`], and is centred ([`fit`]);
+//! * the window cannot be made smaller than [`min_size`] (`main.rs` sets the resize constraint);
+//! * on the first frame it has a monitor to measure, it takes the style sheet's `window_fit_fraction` of the
+//!   primary monitor's logical size, capped at [`max_fit`], floored at [`min_size`], and is centred ([`fit`]);
 //! * the frame it had when a project last opened, or the editor last closed, is kept in the recent-projects file
 //!   ([`crate::recent::Recent::window`]) and used instead of the fit, **when it still lies within a monitor**
 //!   ([`choose`]): a monitor that was unplugged leaves a saved frame nobody can see, and that is ignored;
@@ -21,15 +21,19 @@ use bevy::window::{Monitor, PrimaryMonitor, PrimaryWindow, WindowEvent, WindowMo
 use crate::recent::{self, RecentProjects, WindowFrame};
 use crate::screen::Screen;
 
-/// The smallest window the editor's layout is built for, in logical pixels.
-pub const MIN_SIZE: Vec2 = Vec2::new(1024.0, 640.0);
+/// The smallest window the editor's layout is built for, in logical pixels: the style sheet's
+/// `metrics.layout.window_min_w` and `window_min_h`.
+pub fn min_size() -> Vec2 {
+    let layout = crate::style::metrics().layout;
+    Vec2::new(layout.window_min_w, layout.window_min_h)
+}
 
-/// The largest a window gets from the monitor fit, in logical pixels: a larger monitor has room to spare, and a
-/// person who wants more can drag it.
-pub const MAX_FIT: Vec2 = Vec2::new(1600.0, 1000.0);
-
-/// The share of the monitor's logical size the fitted window takes.
-pub const FIT_FRACTION: f32 = 0.85;
+/// The largest a window gets from the monitor fit, in logical pixels (`window_max_fit_w`, `window_max_fit_h`):
+/// a larger monitor has room to spare, and a person who wants more can drag it.
+pub fn max_fit() -> Vec2 {
+    let layout = crate::style::metrics().layout;
+    Vec2::new(layout.window_max_fit_w, layout.window_max_fit_h)
+}
 
 /// A monitor as the decision sees it.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -65,19 +69,21 @@ impl MonitorArea {
     }
 }
 
-/// The window a monitor gets when nothing was saved: [`FIT_FRACTION`] of it, capped, floored, centred.
+/// The window a monitor gets when nothing was saved: the sheet's `window_fit_fraction` of it, capped, floored,
+/// centred.
 pub fn fit(monitor: &MonitorArea) -> WindowFrame {
-    let size = (monitor.logical() * FIT_FRACTION).min(MAX_FIT).max(MIN_SIZE).round();
+    let size = (monitor.logical() * crate::style::metrics().layout.window_fit_fraction).min(max_fit()).max(min_size()).round();
     let physical = (size * monitor.scale).round().as_ivec2();
     let corner = monitor.origin + (monitor.size.as_ivec2() - physical).max(IVec2::ZERO) / 2;
     WindowFrame { x: corner.x, y: corner.y, w: size.x as u32, h: size.y as u32 }
 }
 
 /// The frame the window opens in: the one `saved` when it lies within a monitor and is no smaller than
-/// [`MIN_SIZE`], else the fit to `primary`.
+/// [`min_size`], else the fit to `primary`.
 pub fn choose(saved: Option<WindowFrame>, monitors: &[MonitorArea], primary: &MonitorArea) -> WindowFrame {
+    let least = min_size();
     saved
-        .filter(|f| f.w as f32 >= MIN_SIZE.x && f.h as f32 >= MIN_SIZE.y)
+        .filter(|f| f.w as f32 >= least.x && f.h as f32 >= least.y)
         .filter(|f| monitors.iter().any(|m| m.contains(*f)))
         .unwrap_or_else(|| fit(primary))
 }

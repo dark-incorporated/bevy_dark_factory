@@ -41,9 +41,9 @@
 //! left panel's state is likewise the session's. Neither is written to the user's file.
 
 use bevy::prelude::*;
-use bevy_gooey::{CollapseSplit, Modifiers, Role, Shortcut, SplitDivider, SplitFraction, SplitGlide, SplitMin, SplitPeek, SplitSaved};
+use bevy_gooey::{CollapseSplit, Role, SplitDivider, SplitFraction, SplitGlide, SplitMin, SplitPeek, SplitSaved};
 
-use crate::chrome::{BOTTOM_DOCK_H, BottomDock, Frame, FrameSystems, ShellSplit, WORKBENCH_FLOOR_H};
+use crate::chrome::{BottomDock, Frame, FrameSystems, ShellSplit};
 use crate::confirm::Confirm;
 use crate::empty_state::EmptyMapPrompt;
 use crate::keys::{Context, Live};
@@ -51,16 +51,6 @@ use crate::menu_bar::EditorMenuBar;
 use crate::screen::Screen;
 use crate::terminal_pane::TerminalPaneRoot;
 use crate::toolbar::Toolbar;
-
-/// **The chord that shows and hides the left panel**: Command+B on a Mac, Ctrl+B elsewhere. VS Code's Toggle Primary Side Bar.
-/// `Run` used to hold it (`keys.rs`); it is `Shift+Cmd+B` now.
-pub const LEFT_PANEL_CHORD: Shortcut = Shortcut::new(Modifiers::PRIMARY, KeyCode::KeyB);
-
-/// **The chord that begins and ends Zen mode**: Shift+Command+M on a Mac, Shift+Ctrl+M elsewhere. A letter and a modifier pair
-/// that no binding of `keys.rs` takes, so nothing else fires with it.
-pub fn zen_chord() -> Shortcut {
-    Shortcut::new(Modifiers::PRIMARY | Modifiers::SHIFT, KeyCode::KeyM)
-}
 
 /// What the person has hidden of the shell this session.
 #[derive(Resource, Default, Debug, Clone, Copy, PartialEq, Eq)]
@@ -137,8 +127,8 @@ fn toggle_on_the_chords(
     mut view: ResMut<ShellView>,
     mut commands: Commands,
 ) {
-    let left = LEFT_PANEL_CHORD.just_pressed(&keys) && !focus.owns(&LEFT_PANEL_CHORD);
-    let zen = zen_chord().just_pressed(&keys) && !focus.owns(&zen_chord());
+    let left = crate::chords::chord(crate::chords::Fixed::ShellLeftPanel).just_pressed(&keys) && !focus.owns(&crate::chords::chord(crate::chords::Fixed::ShellLeftPanel));
+    let zen = crate::chords::chord(crate::chords::Fixed::ShellZen).just_pressed(&keys) && !focus.owns(&crate::chords::chord(crate::chords::Fixed::ShellZen));
     if !(left || zen) || live.0 == Context::Typing || confirm.is_open() {
         return;
     }
@@ -149,7 +139,7 @@ fn toggle_on_the_chords(
         view.zen = !view.zen;
         if view.zen {
             focus.release();
-            commands.spawn(bevy_gooey::toast(format!("Zen mode: {} brings the editor back", bindings.chord(zen_chord()))));
+            commands.spawn(bevy_gooey::toast(format!("Zen mode: {} brings the editor back", bindings.chord(crate::chords::chord(crate::chords::Fixed::ShellZen)))));
         }
     }
 }
@@ -268,7 +258,7 @@ fn collapse_the_left_pane(
 /// A 148-px row under the body is taken from the body, and at the editor's reference window (1280 x
 /// 720, terminal open) that left the inspector 24 px of visible height and the Kit tabs' badge legends
 /// under the dock. So, unless the person has asked for it (View ▸ Show reload panel, [`ShellView::reload_shown`]),
-/// the dock is a row only when the workbench keeps [`WORKBENCH_FLOOR_H`] beside it: `Display::None`
+/// the dock is a row only when the workbench keeps the sheet's `workbench_floor_h` beside it: `Display::None`
 /// otherwise, which lays out to nothing and leaves no text for the census to find drawn outside a
 /// clip. **The room is the body plus the dock's own row, whether it is shown or not**, so showing it
 /// does not change the answer the next frame (no flicker at the threshold).
@@ -297,7 +287,8 @@ fn give_the_bottom_dock_its_room(
         let Ok(body) = laid.get(frame.body) else { return };
         let interface_px = |node: &ComputedNode| node.size().y * node.inverse_scale_factor();
         let own_row = if dock.display == Display::None { 0.0 } else { laid.get(frame.bottom).map_or(0.0, interface_px) };
-        if interface_px(body) + own_row >= WORKBENCH_FLOOR_H + BOTTOM_DOCK_H { Display::Flex } else { Display::None }
+        let layout = crate::style::metrics().layout;
+        if interface_px(body) + own_row >= layout.workbench_floor_h + layout.bottom_dock_h { Display::Flex } else { Display::None }
     };
     if dock.display != display {
         dock.display = display;
@@ -418,7 +409,8 @@ mod tests {
     /// other (`Shortcut::just_pressed` asks for exactly its modifiers).
     #[test]
     fn the_chords_do_not_overlap() {
-        assert_ne!(LEFT_PANEL_CHORD, zen_chord());
-        assert_ne!(LEFT_PANEL_CHORD.key, zen_chord().key);
+        use crate::chords::{Fixed, default_of};
+        assert_ne!(default_of(Fixed::ShellLeftPanel), default_of(Fixed::ShellZen));
+        assert_ne!(default_of(Fixed::ShellLeftPanel).key, default_of(Fixed::ShellZen).key);
     }
 }

@@ -148,7 +148,9 @@ fn report(app: &mut App, session: Option<&str>) {
 
 /// The session the record holds for the editor's project.
 fn remembered(machine: &Machine, app: &App) -> Option<String> {
-    agent_resume::recall(&machine.files, &project(app)).unwrap_or_else(|e| panic!("{e}")).map(|entry| entry.session)
+    agent_resume::recall(&machine.files, &project(app), bevy_dark_factory::terminal_agent::AgentKind::Project)
+        .unwrap_or_else(|e| panic!("{e}"))
+        .map(|entry| entry.session)
 }
 
 /// **A second editor on the same project offers `Invoke Agent` and starts nothing by itself.**

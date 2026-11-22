@@ -468,8 +468,8 @@ fn answer_by_activate(
 /// gooey's [`dialog`]: the scrim, the centring, the opaque framed card and the modal tab group are
 /// the library's, in the skin's colours. The card used to be `chrome::modal_card`, which the modals
 /// shared so that none of them could dim, pad or stack differently; gooey's `dialog` is that one
-/// contract now, and the editor's skin (`src/editor_skin.yaml`) is what colours it. Only the z-order
-/// is the editor's own: [`crate::chrome::MODAL_Z`], in front of every panel, which gooey's default
+/// contract now, and the editor's skin (`src/style/editor.yaml`) is what colours it. Only the z-order
+/// is the editor's own: the style sheet's `metrics.z.modal`, in front of every panel, which gooey's default
 /// of 100 is not.
 ///
 /// **The card carries `Hovered`**, as `modal_card`'s did, so the question "is the pointer over UI"
@@ -513,7 +513,7 @@ fn sync_dialog(
         return;
     }
     let destructive = q.of.destructive();
-    let root = commands.spawn((dialog(), QuestionDialog(q.serial))).insert(GlobalZIndex(crate::chrome::MODAL_Z)).id();
+    let root = commands.spawn((dialog(), QuestionDialog(q.serial))).insert(GlobalZIndex(crate::style::metrics().z.modal)).id();
     // **Born out of the picture**, where the flag is up: the person still has the question, one frame later than the dialog would have been drawn.
     if hide {
         commands

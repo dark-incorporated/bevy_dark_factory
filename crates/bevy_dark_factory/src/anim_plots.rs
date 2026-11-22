@@ -40,10 +40,12 @@ pub(crate) const PLOT_H: u32 = 192;
 pub(crate) const TRACE_W: u32 = 712;
 pub(crate) const TRACE_H: u32 = 448;
 
-/// The displayed (logical) sizes the pane's `Node`s use. The width is the controls panel's inner
-/// width — **derived**, so widening the panel widens the plots instead of leaving them at a stale
-/// 356 (the dependency was real and undeclared before; the audit's `SHOW_W` finding).
-pub(crate) const SHOW_W: f32 = crate::chrome::CONTROLS_W - 2.0 * crate::chrome::PAD;
+/// The displayed (logical) width the pane's `Node`s use: the controls panel's inner width — **derived**, so
+/// widening the panel (the style sheet's `controls_w`) widens the plots instead of leaving them at a stale 356
+/// (the dependency was real and undeclared before; the audit's `SHOW_W` finding).
+pub(crate) fn show_w() -> f32 {
+    crate::style::metrics().layout.controls_w - 2.0 * crate::chrome::space(crate::chrome::STEP_PAD)
+}
 pub(crate) const SHOW_PLOT_H: f32 = 96.0;
 pub(crate) const SHOW_TRACE_H: f32 = 224.0;
 

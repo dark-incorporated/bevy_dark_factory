@@ -317,6 +317,12 @@ const HANGUP_WAIT_BOUND_MS: u64 = HANGUP_GRACE_MS + 500;
 ///
 /// **The wait is listed for the exit watchdog** while it lasts, as `a terminal's shell hanging up`, so a quit that is stuck here
 /// is cut short saying so and not saying nothing.
+///
+/// **The child's output is read and dropped while it leaves.** On macOS a process that exits with output still queued on its
+/// PTY blocks in its own exit, closing the slave, until the master reads that output, and no signal ends it then, `SIGKILL`
+/// included: it is already exiting. `Pty`'s own drop waits on it before it closes the master, so a shell whose last prompt
+/// arrived after the last frame read hung the closing thread for ever (measured 2026-11-22: 1 close in 6 on `/bin/sh`, every
+/// close once a frame took longer). Reading the master until the child has left lets that exit finish.
 #[cfg(unix)]
 impl Drop for TerminalSession {
     fn drop(&mut self) {
@@ -327,7 +333,14 @@ impl Drop for TerminalSession {
             return;
         };
         let _wait = crate::exit_watchdog::waiting("a terminal's shell hanging up", std::time::Duration::from_millis(HANGUP_WAIT_BOUND_MS));
-        hang_up_then_kill(pid, std::time::Duration::from_millis(HANGUP_GRACE_MS));
+        let mut discarded = Vec::new();
+        let grace = std::time::Duration::from_millis(HANGUP_GRACE_MS);
+        let bound = std::time::Duration::from_millis(HANGUP_WAIT_BOUND_MS);
+        hang_up_then_kill(pid, grace, bound, || {
+            discarded.clear();
+            // A read that fails here is a master the child no longer writes to: nothing is left to drain.
+            let _ = self.drain(&mut discarded);
+        });
     }
 }
 
@@ -347,23 +360,29 @@ fn child_has_left(pid: rustix::process::Pid) -> bool {
     }
 }
 
-/// **Hangs up on `pid`, and kills it if it is still there after `grace`.** `true` when it had to.
+/// **Hangs up on `pid`, and kills it if it is still there after `grace`**, calling `drain` on every look so a child that is
+/// leaving is never held by its own unread output, until it has left or `bound` is up. `true` when it had to kill.
 #[cfg(unix)]
-fn hang_up_then_kill(pid: rustix::process::Pid, grace: std::time::Duration) -> bool {
+fn hang_up_then_kill(pid: rustix::process::Pid, grace: std::time::Duration, bound: std::time::Duration, mut drain: impl FnMut()) -> bool {
     use rustix::process::{Signal, kill_process};
     let _ = kill_process(pid, Signal::HUP);
-    let deadline = std::time::Instant::now() + grace;
+    let start = std::time::Instant::now();
+    let mut killed = false;
     loop {
+        drain();
         if child_has_left(pid) {
-            return false;
+            return killed;
         }
-        if std::time::Instant::now() >= deadline {
-            break;
+        let waited = start.elapsed();
+        if !killed && waited >= grace {
+            let _ = kill_process(pid, Signal::KILL);
+            killed = true;
+        }
+        if waited >= bound {
+            return killed;
         }
         std::thread::sleep(std::time::Duration::from_millis(HANGUP_POLL_MS));
     }
-    let _ = kill_process(pid, Signal::KILL);
-    true
 }
 
 /// The name a program reads in `TERM_PROGRAM` to know it runs in this editor's terminal (#324).

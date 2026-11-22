@@ -234,7 +234,7 @@ pub fn spawn_the_block(commands: &mut Commands, pause: bool, here: bool) -> Enti
             // **Never squeezed**: the INSPECTOR's rows scroll, and a flex item that may shrink is made shorter than its text when
             // the panel's rows are taller than the panel, which draws one line over the next (found in a capture, where the
             // headless layout, whose panel is not full, shows nothing wrong).
-            bevy_gooey::column_with(crate::chrome::GAP_TIGHT_STEPS, bevy_gooey::RowLayout { shrink: Some(0.0), ..default() }),
+            (bevy_gooey::column_with(0.0, bevy_gooey::RowLayout { shrink: Some(0.0), ..default() }), crate::chrome::Gap::Tight.class()),
         ))
         .with_children(|block| {
             crate::chrome::list_heading(block, "AGENT");
@@ -243,15 +243,15 @@ pub fn spawn_the_block(commands: &mut Commands, pause: bool, here: bool) -> Enti
             // drawn over it (found in a capture; the headless layout does not show it); the rows beside this block are the
             // builders that have been drawn at this width since the readout began, so these are theirs.
             for (line, name) in [(NightShiftLine::Heard, "HEARD"), (NightShiftLine::Newest, "NEWEST"), (NightShiftLine::HandBack, "HAND-BACK")] {
-                crate::chrome::rigid_row(block, 0.0, AlignItems::FlexStart).with_children(|row| {
-                    crate::chrome::row_label(row, crate::editor::READOUT_LABEL_W, name);
+                crate::chrome::rigid_row(block, None, AlignItems::FlexStart).with_children(|row| {
+                    crate::chrome::row_label(row, crate::editor::READOUT_LABEL, name);
                     row.spawn(bevy_gooey::fill_column(0.0)).with_children(|col| {
                         crate::chrome::row_value(col, "", crate::chrome::ink().text, line);
                     });
                 });
             }
-            crate::chrome::rigid_row(block, 0.0, AlignItems::FlexStart).with_children(|row| {
-                crate::chrome::row_label(row, crate::editor::READOUT_LABEL_W, "PLAN");
+            crate::chrome::rigid_row(block, None, AlignItems::FlexStart).with_children(|row| {
+                crate::chrome::row_label(row, crate::editor::READOUT_LABEL, "PLAN");
                 row.spawn(bevy_gooey::fill_column(0.0)).with_children(|col| {
                     crate::chrome::row_value(col, "", crate::chrome::ink().text, NightShiftPlanLine);
                 });
@@ -289,13 +289,13 @@ pub fn spawn_the_block(commands: &mut Commands, pause: bool, here: bool) -> Enti
             block.spawn((
                 crate::wish_view::WishRows,
                 Name::new("agent rows"),
-                bevy_gooey::column_with(crate::chrome::GAP_TIGHT_STEPS, bevy_gooey::RowLayout { shrink: Some(0.0), ..default() }),
+                (bevy_gooey::column_with(0.0, bevy_gooey::RowLayout { shrink: Some(0.0), ..default() }), crate::chrome::Gap::Tight.class()),
             ));
             // **The person's audit** (DL-07, #466): an empty container, filled on demand by `audit_view` when there is a question to answer.
             block.spawn((
                 crate::audit_view::AuditRows,
                 Name::new("audit rows"),
-                bevy_gooey::column_with(crate::chrome::GAP_TIGHT_STEPS, bevy_gooey::RowLayout { shrink: Some(0.0), ..default() }),
+                (bevy_gooey::column_with(0.0, bevy_gooey::RowLayout { shrink: Some(0.0), ..default() }), crate::chrome::Gap::Tight.class()),
             ));
         })
         .id()
@@ -595,10 +595,10 @@ fn follow_the_hand_back(
                     .spawn((
                         HandBackCard,
                         Name::new("agent hand-back"),
-                        bevy_gooey::column_with(crate::chrome::GAP_TIGHT_STEPS, bevy_gooey::RowLayout { shrink: Some(0.0), ..default() }),
+                        (bevy_gooey::column_with(0.0, bevy_gooey::RowLayout { shrink: Some(0.0), ..default() }), crate::chrome::Gap::Tight.class()),
                     ))
                     .with_children(|card| {
-                        crate::chrome::wrapping_row(card, crate::chrome::GAP_TIGHT_STEPS, crate::chrome::NO_MARGIN, AlignItems::Stretch)
+                        crate::chrome::wrapping_row(card, Some(crate::chrome::Gap::Tight), crate::chrome::NO_MARGIN, AlignItems::Stretch)
                             .with_children(|answers| {
                                 for (text, reply) in [
                                     ("Accept".to_owned(), crate::present::Reply::Accept),
@@ -625,9 +625,9 @@ fn follow_the_hand_back(
                             if text.is_empty() {
                                 continue;
                             }
-                            crate::chrome::rigid_row(card, 0.0, AlignItems::FlexStart)
+                            crate::chrome::rigid_row(card, None, AlignItems::FlexStart)
                                 .with_children(|row| {
-                                    crate::chrome::row_label(row, crate::editor::READOUT_LABEL_W, name);
+                                    crate::chrome::row_label(row, crate::editor::READOUT_LABEL, name);
                                     row.spawn(bevy_gooey::fill_column(0.0))
                                         .with_children(|col| {
                                             crate::chrome::row_value(col, text, crate::chrome::ink().text, ());
@@ -637,13 +637,13 @@ fn follow_the_hand_back(
                         // **The style lines the work followed** (SG-09, #408): at most `FOLLOWED_SHOWN_MAX` with each line's text and a link that opens it on the
                         // Design page, and a count of the rest. The text is the person's to read here; the state carries only the entries.
                         if !presented.followed.is_empty() {
-                            crate::chrome::rigid_row(card, 0.0, AlignItems::FlexStart)
+                            crate::chrome::rigid_row(card, None, AlignItems::FlexStart)
                                 .with_children(|row| {
-                                    crate::chrome::row_label(row, crate::editor::READOUT_LABEL_W, "FOLLOWED");
-                                    row.spawn(bevy_gooey::fill_column(crate::chrome::GAP_TIGHT_STEPS))
+                                    crate::chrome::row_label(row, crate::editor::READOUT_LABEL, "FOLLOWED");
+                                    row.spawn((bevy_gooey::fill_column(0.0), crate::chrome::Gap::Tight.class()))
                                         .with_children(|col| {
                                             for followed in presented.followed.iter().take(crate::style_followed::FOLLOWED_SHOWN_MAX) {
-                                                crate::chrome::wrapping_row(col, crate::chrome::GAP_TIGHT_STEPS, crate::chrome::NO_MARGIN, AlignItems::Center)
+                                                crate::chrome::wrapping_row(col, Some(crate::chrome::Gap::Tight), crate::chrome::NO_MARGIN, AlignItems::Center)
                                                     .with_children(|line| {
                                                         line.spawn((
                                                             button(format!("{}:{}", followed.path, followed.line)),

@@ -87,7 +87,13 @@ pub struct Split<'a> {
     /// `--live`: write every committed change to disk at once, so a running game that watches the
     /// project reloads it (see [`crate::live`]).
     pub live: bool,
+    /// `--restore-dev-agent <session>`: the editor development agent's omp session a relaunch carries, to be restored in this
+    /// editor's terminal (`terminal_pane::RestoreDevAgent`).
+    pub restore_dev_agent: Option<&'a str>,
 }
+
+/// The flag a relaunch passes the new editor, naming the editor development agent's session ([`Split::restore_dev_agent`]).
+pub const RESTORE_DEV_AGENT: &str = "--restore-dev-agent";
 
 /// Split an argv into its positionals and the three flags this editor takes: `--kit` and
 /// `--workspace` and `--kit`, which take a value, and `--live`, which does not.
@@ -99,6 +105,7 @@ pub fn split(args: &[String]) -> Split<'_> {
         kit: None,
         workspace: None,
         live: false,
+        restore_dev_agent: None,
     };
     let mut it = args.iter();
     while let Some(a) = it.next() {
@@ -106,6 +113,7 @@ pub fn split(args: &[String]) -> Split<'_> {
             "--kit" => out.kit = it.next().map(String::as_str),
             "--workspace" | "--door" => out.workspace = it.next().map(String::as_str),
             "--live" => out.live = true,
+            RESTORE_DEV_AGENT => out.restore_dev_agent = it.next().map(String::as_str),
             other => out.positional.push(other),
         }
     }
@@ -183,7 +191,7 @@ fn root_from(positional: &[&str]) -> PathBuf {
 pub const USAGE: &str = "\
 Dark Factory: the editor that writes a blueprint, the book your game loads.
 
-usage: bevy_dark_factory [ROOT] [MAP] [--workspace <id>] [--kit NAME] [--live]
+usage: bevy_dark_factory [ROOT] [MAP] [--workspace <id>] [--kit NAME] [--live] [--restore-dev-agent <session>]
        bevy_dark_factory migrate <project folder>
        bevy_dark_factory bake <project folder> --out <folder>
        bevy_dark_factory --print-operations
@@ -194,6 +202,9 @@ usage: bevy_dark_factory [ROOT] [MAP] [--workspace <id>] [--kit NAME] [--live]
                 `--door` is still read, so a recorded run keeps working.
   --kit NAME    the kit to author in, when the project binds more than one
   --live        write every committed change to disk at once, for a game that watches the project
+  --restore-dev-agent SESSION
+                open the editor development agent's omp SESSION again in the terminal, continuing its turn:
+                what a relaunch the agent asked for (blueprint_relaunch_editor) starts the new editor with
   -h, --help    print this and exit
   --print-operations
                 print every operation this build has, one name a line, and exit (opens nothing)

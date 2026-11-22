@@ -92,7 +92,10 @@ impl Plugin for ScreenPlugin {
             .add_systems(OnTransition { exited: Screen::Loading, entered: Screen::Editor }, open_the_door)
             .add_systems(OnExit(Screen::Editor), close_the_door)
             // A project opened from inside the editor is pointed at once its door is closed.
-            .add_systems(OnExit(Screen::Editor), crate::project_assets::apply_pending_open.after(close_the_door));
+            .add_systems(OnExit(Screen::Editor), crate::project_assets::apply_pending_open.after(close_the_door))
+            // A style edit that moved a spawn-time measure rebuilds the open door (`crate::style::RebuildPanels`).
+            .add_message::<crate::style::RebuildPanels>()
+            .add_systems(Update, rebuild_on_new_measures.after(crate::style::apply_style));
     }
 }
 
@@ -275,16 +278,32 @@ pub fn cross(world: &mut World, to: crate::workspace::Workspace) -> Result<(), S
         world.insert_resource(to.opens_on());
     }
     world.insert_resource(to);
-    // **`Crossing` marks the transition as a switch rather than a leave.** `close_the_door` reads
-    // it and spares the workspace's own resources — the project, the map, the selection — while
-    // still sweeping every entity the old workspace made and resetting its working panels. The
-    // transition is what rebuilds the frame and the strip, so a switch is one frame rather than a
-    // reload.
+    rebuild_the_door(world);
+    Ok(())
+}
+
+/// **Tear the door down and build it again on the workspace now in the world** — a switch's second half,
+/// and the whole of a rebuild in place. `Crossing` marks the transition as a switch rather than a leave:
+/// `close_the_door` reads it and spares the workspace's own resources — the project, the map, the
+/// selection — while still sweeping every entity the old door made and resetting its working panels. The
+/// transition is what rebuilds the frame and the strip, so a switch is one frame rather than a reload.
+pub fn rebuild_the_door(world: &mut World) {
     world.insert_resource(Crossing);
     if let Some(mut next) = world.get_resource_mut::<NextState<Screen>>() {
         next.set(Screen::Editor);
     }
-    Ok(())
+}
+
+/// **A style sheet edit moved a measure panels read where they are spawned** (`crate::style::RebuildPanels`):
+/// the open door is rebuilt in place, so the edit is seen without a restart. Off the editor screen there is no
+/// door, and the next one is spawned with the new measures anyway.
+pub fn rebuild_on_new_measures(mut asked: MessageReader<crate::style::RebuildPanels>, screen: Option<Res<State<Screen>>>, mut commands: Commands) {
+    if asked.read().count() == 0 {
+        return;
+    }
+    if screen.is_some_and(|screen| *screen.get() == Screen::Editor) {
+        commands.queue(rebuild_the_door);
+    }
 }
 
 /// **Put every [`Ownership::Workspace`] resource back to its opening value.**
@@ -600,6 +619,14 @@ pub const OWNERSHIP: &[(&str, Ownership)] = &[
     ("bevy_dark_factory::prose::ProseFont", Ownership::Session),
     ("bevy_dark_factory::ui_budget::UiFrame", Ownership::Session),
     ("bevy_dark_factory::ui_budget::GooeySpan", Ownership::Session),
+    // **`Session`: the editor's own style sheet** (`crate::style`): its layers' watch, the revision every restyle compares
+    // against and the lines the inspector names are the process's look, whichever door is open; a door change rebuilds
+    // panels under the same sheet.
+    ("bevy_dark_factory::style::StyleWatch", Ownership::Session),
+    ("bevy_dark_factory::style::StyleRevision", Ownership::Session),
+    ("bevy_dark_factory::style::StyleLines", Ownership::Session),
+    // **`Session`**: whether the style inspector is open is a person's tool over the whole window, kept across doors.
+    ("bevy_dark_factory::style_inspect::StyleInspector", Ownership::Session),
     // **`Session`**: whether this run opens no addresses (it records them instead) is the run's own fact, true for as long as the app runs.
     // **`Session`**: whether this run opens a browser is the run's own fact, true for as long as the
     // app runs. The harness inserts it so a stepped editor records an address instead of launching

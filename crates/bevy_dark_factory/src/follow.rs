@@ -1242,13 +1242,12 @@ fn draw_the_look_chip(
         .spawn((
             LookChipNode,
             // The chip stands over the viewport rather than in a flow, which is what "over the viewport" means: placed at the viewport's corner (the system below keeps
-            // `PlacedAt` on it), its words and the Look button in a line, a chip's inset inside and a row radius.
+            // `PlacedAt` on it), its words and the Look button in a line, a chip's inset and corner (the sheet's `.chrome-chip`).
             bevy_gooey::placed(UiRect { left: Val::Px(home.x), top: Val::Px(home.y), ..UiRect::all(Val::Auto) }),
             bevy_gooey::RowLayout { direction: Some(FlexDirection::Row), align: Some(AlignItems::Center), ..default() },
-            crate::chrome::CHIP_SPACING,
-            bevy_gooey::Shape { radius: Some(bevy_gooey::Radius::Step(0)), ..default() },
+            bevy_gooey::StyleClass::of("chrome-chip follow-look-chip"),
             BackgroundColor(crate::chrome::ink().panel_bg),
-            GlobalZIndex(crate::chrome::COMPASS_Z),
+            GlobalZIndex(crate::style::metrics().z.compass),
         ))
         .with_children(|chip_node| {
             chip_node.spawn((

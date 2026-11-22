@@ -14,7 +14,7 @@
 use bevy::prelude::*;
 use bevy::text::TextLayoutInfo;
 use bevy::ui::{ComputedNode, UiGlobalTransform, UiScale};
-use bevy_dark_factory::chrome::{DOCK_MIN_W, LIST_W, PanelWidth, Side};
+use bevy_dark_factory::chrome::{PanelWidth, Side};
 use bevy_dark_factory::harness;
 use bevy_dark_factory::tiles::{CandidateList, CandidateRow, ImportState, LibraryRow, Mode, PackHeader};
 
@@ -193,8 +193,9 @@ fn the_pieces_panels_text_stays_in_its_rows_and_inside_the_panel() {
     assert!(app.world().resource::<ImportState>().scanned, "entering MESHES scanned the project's packs");
     let panel = panel_of(&mut app);
     let mut refused = Vec::new();
+    let layout = bevy_dark_factory::style::metrics().layout;
     for scale in UI_SCALES {
-        for (name, width) in [("minimum", DOCK_MIN_W), ("ordinary", LIST_W), ("one and a half times", LIST_W * 1.5)] {
+        for (name, width) in [("minimum", layout.dock_min_w()), ("ordinary", layout.list_w), ("one and a half times", layout.list_w * 1.5)] {
             lay_out(&mut app, panel, width, scale);
             refused.extend(defects(&mut app, panel, "candidates", &format!("[UI scale {scale}, {name} {width:.0} px]")));
         }

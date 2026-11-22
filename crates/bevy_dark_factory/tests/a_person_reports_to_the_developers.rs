@@ -557,12 +557,8 @@ fn the_report_draws_over_everything() {
         .world()
         .get::<GlobalZIndex>(root)
         .expect("the layer declares its z");
-    assert!(
-        z.0 > bevy_dark_factory::chrome::MODAL_Z,
-        "a report must be able to point at a dialog: {} vs {}",
-        z.0,
-        bevy_dark_factory::chrome::MODAL_Z
-    );
+    let modal = bevy_dark_factory::style::metrics().z.modal;
+    assert!(z.0 > modal, "a report must be able to point at a dialog: {} vs {modal}", z.0);
     let boxes = app
         .world_mut()
         .query_filtered::<Entity, With<ReportBox>>()

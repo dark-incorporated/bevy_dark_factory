@@ -5,7 +5,6 @@
 //! its gooey `Role`, the gap the skin resolved (the tight 3 px), that it does not shrink, and where it aligns its cells.
 
 use bevy::prelude::*;
-use bevy_dark_factory::chrome::GAP_TIGHT;
 use bevy_dark_factory::night_shift::{NightShiftItem, NightShiftPlanLine};
 use bevy_dark_factory::harness;
 use bevy_dark_factory::wish_view::{WishDiscard, WishOf, WishOpen, WishTitle, WishUnfold};
@@ -89,7 +88,8 @@ fn assert_rigid_row(app: &App, entity: Entity, align: AlignItems, what: &str) {
     assert_eq!(node.flex_shrink, 0.0, "{what} keeps its height when the panel is short");
     assert_eq!(node.align_items, align, "{what} aligns its cells");
     let Val::Px(gap) = node.column_gap else { panic!("{what}: the skin writes the gap in px, found {:?}", node.column_gap) };
-    assert!((gap - GAP_TIGHT).abs() < 0.01 || gap == 0.0, "{what} stands its cells {gap} px apart");
+    let tight = bevy_dark_factory::chrome::space(bevy_dark_factory::chrome::STEP_TIGHT);
+    assert!((gap - tight).abs() < 0.01 || gap == 0.0, "{what} stands its cells {gap} px apart");
 }
 
 /// **The PLAN readout line** is a gooey row at the top of its cells.
@@ -164,6 +164,6 @@ fn a_readouts_label_keeps_its_column_through_textflow() {
     let node = app.world().get::<Node>(label).expect("a label has a Node");
     assert_eq!(node.min_width, Val::Px(58.0), "at least the readout label column (58 px) wide");
     assert_eq!(node.flex_shrink, 0.0, "never shrunk");
-    assert_eq!(node.margin.right, Val::Px(bevy_dark_factory::chrome::GAP_ROW), "and a 5 px margin of its own");
+    assert_eq!(node.margin.right, Val::Px(bevy_dark_factory::chrome::space(bevy_dark_factory::chrome::STEP_ROW)), "and a 5 px margin of its own");
     assert_eq!(app.world().get::<TextColor>(label).map(|c| c.0), Some(bevy_dark_factory::chrome::ink().label), "in the label ink");
 }

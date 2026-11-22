@@ -231,6 +231,8 @@ fn an_operation_that_needs_a_view_says_so() {
     // Assumed owner exception (2026-11-11): the list gains the three operations #237 registers, which carry the
     // outliner's eye and locks in `Ctx::view`, and the two #129 slice 22 registers for the composition picker's
     // cursor; each names `changes_view`, so the door carries a view in for them.
+    // Assumed owner exception (2026-11-22): the list gains `view_toggle_style_inspector`, the style inspector's toggle
+    // (Cmd+Alt+I), which writes `Ctx::view` and so names `changes_view`.
     assert_eq!(
         says,
         [
@@ -282,7 +284,8 @@ fn an_operation_that_needs_a_view_says_so() {
             "view_cycle_grid",
             "view_toggle_ghost",
             "view_toggle_journal",
-            "view_toggle_rigs"
+            "view_toggle_rigs",
+            "view_toggle_style_inspector"
         ]
     );
 }

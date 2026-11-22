@@ -580,35 +580,35 @@ pub struct FieldFileButton {
 
 /// **The Game workspace's panel**: Play, Stop, Build, the status, the log, the state and the frame line.
 fn spawn_game_panel(mut commands: Commands, frame: Res<crate::chrome::Frame>) {
-    use crate::chrome::{self, GAP_TIGHT_STEPS, Severity, button, section};
-    let root = chrome::panel_root(&mut commands, &frame, chrome::Side::Left, chrome::CONTROLS_W, true, false, "GAME").insert(GameRoot).id();
+    use crate::chrome::{self, Severity, button, section};
+    let root = chrome::panel_root(&mut commands, &frame, chrome::Side::Left, crate::style::metrics().layout.controls_w, true, false, "GAME").insert(GameRoot).id();
     let dim = chrome::ink().dim;
     let body = chrome::ink().text;
     commands.entity(root).with_children(|p| {
         chrome::title(p, "GAME");
         // FOLLOW-OK: a stack of buttons, lines and fields, not a list the arrows walk: the scroll exists for height.
         chrome::scroll_list(p, GameRootPane).with_children(|p| {
-            p.spawn(bevy_gooey::column(GAP_TIGHT_STEPS)).with_children(|s| {
+            p.spawn((bevy_gooey::column(0.0), crate::chrome::Gap::Tight.class())).with_children(|s| {
                 crate::ops_play::spawn_section(s);
-                s.spawn(bevy_gooey::row(GAP_TIGHT_STEPS)).with_children(|r| {
+                s.spawn((bevy_gooey::row(0.0), crate::chrome::Gap::Tight.class())).with_children(|r| {
                     button(r, ShowWindowButton, "Show window", Severity::Plain);
                 });
                 chrome::row_value(s, "", body, GameStatus);
             });
-            p.spawn(bevy_gooey::column(GAP_TIGHT_STEPS))
+            p.spawn((bevy_gooey::column(0.0), crate::chrome::Gap::Tight.class()))
                 .with_children(|s| {
                     crate::build_view::spawn_section(s);
                     chrome::row_value(s, "", dim, GameBuildErrors);
                 });
-            p.spawn(bevy_gooey::column(GAP_TIGHT_STEPS)).with_children(|s| {
+            p.spawn((bevy_gooey::column(0.0), crate::chrome::Gap::Tight.class())).with_children(|s| {
                 section(s, "LOG");
                 chrome::row_value(s, "", body, GameLog);
             });
-            p.spawn(bevy_gooey::column(GAP_TIGHT_STEPS)).with_children(|s| {
+            p.spawn((bevy_gooey::column(0.0), crate::chrome::Gap::Tight.class())).with_children(|s| {
                 section(s, "STATE");
-                s.spawn((bevy_gooey::column(GAP_TIGHT_STEPS), GameEntities));
+                s.spawn(((bevy_gooey::column(0.0), crate::chrome::Gap::Tight.class()), GameEntities));
                 chrome::row_value(s, "", body, GameFields);
-                s.spawn((bevy_gooey::column(GAP_TIGHT_STEPS), GameFieldFiles));
+                s.spawn(((bevy_gooey::column(0.0), crate::chrome::Gap::Tight.class()), GameFieldFiles));
                 chrome::row_value(s, "", dim, GameResources);
                 chrome::row_value(s, "", dim, GameFrame);
             });
@@ -840,7 +840,7 @@ fn draw_the_field_files(
     }
     commands.entity(container).with_children(|c| {
         for (component, rel, line) in &want {
-            crate::chrome::gapped_row(c, crate::chrome::GAP_TIGHT_STEPS, crate::chrome::NO_MARGIN, AlignItems::Center)
+            crate::chrome::gapped_row(c, Some(crate::chrome::Gap::Tight), crate::chrome::NO_MARGIN, AlignItems::Center)
                 .with_children(|r| {
                     r.spawn((Text::new(component.clone()), TextColor(crate::chrome::ink().dim), crate::chrome::typed(crate::chrome::text::BODY)));
                     crate::chrome::button(r, FieldFileButton { rel: rel.clone(), line: *line }, "Open file", crate::chrome::Severity::Plain);

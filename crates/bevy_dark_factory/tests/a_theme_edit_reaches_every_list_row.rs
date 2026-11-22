@@ -44,7 +44,7 @@ fn the_hover_colour_the_editor_paints_comes_from_the_skin() {
     for _ in 0..4 {
         app.update();
     }
-    let mut skin = bevy_dark_factory::ui::editor_skin();
+    let mut skin = bevy_dark_factory::style::compiled_default().skin;
     let distinct = Color::srgb(0.11, 0.87, 0.23);
     skin.hover = Some(distinct);
     app.insert_resource(skin);
@@ -58,7 +58,7 @@ fn the_hover_colour_the_editor_paints_comes_from_the_skin() {
     );
     assert_eq!(
         painted.pressed,
-        bevy_dark_factory::ui::editor_skin().pressed.unwrap(),
+        bevy_dark_factory::style::compiled_default().skin.pressed.unwrap(),
         "and `pressed` likewise, the other half of the pair gooey's `problems()` keeps apart"
     );
 }
@@ -74,7 +74,7 @@ fn a_pressed_row_takes_its_colour_from_the_skin() {
     for _ in 0..4 {
         app.update();
     }
-    let mut skin = bevy_dark_factory::ui::editor_skin();
+    let mut skin = bevy_dark_factory::style::compiled_default().skin;
     let distinct = Color::srgb(0.93, 0.21, 0.44);
     skin.pressed = Some(distinct);
     app.insert_resource(skin);

@@ -59,27 +59,25 @@ use blueprint_model::feedback::{
     self, Audience, CameraPose, Element, Pair, PairKind, PathStep, Pick, Picture, Report, Scene,
     Subject, WindowRecord, FEEDBACK_VERSION, TEXT_CAP,
 };
-use bevy_gooey::{Modifiers, Shortcut};
 
 use crate::chrome;
 use crate::screen::Screen;
 use crate::view::Pointer;
 
-/// **`Cmd+D`: report to the people who make Dark Factory.** Every screen, no project needed.
-pub fn developers_chord() -> Shortcut {
-    Shortcut::new(Modifiers::PRIMARY, KeyCode::KeyD)
+/// **How far the note box stands above the frozen picture it is written about**, in z: the picture is the
+/// sheet's `metrics.z.report` (above every modal: a report has to be able to point at a dialog, so the frozen
+/// picture it draws over must cover one).
+const NOTE_ABOVE_REPORT: i32 = 10;
+
+/// The report's own z: the frozen picture.
+fn report_z() -> i32 {
+    crate::style::metrics().z.report
 }
 
-/// **`Cmd+Shift+D`: report about the project that is open.**
-pub fn project_chord() -> Shortcut {
-    Shortcut::new(Modifiers::PRIMARY | Modifiers::SHIFT, KeyCode::KeyD)
+/// The note box's z, above the picture.
+fn note_z() -> i32 {
+    report_z() + NOTE_ABOVE_REPORT
 }
-
-/// **Above [`chrome::MODAL_Z`] (900).** A report has to be able to point at a dialog, so the frozen
-/// picture it draws over must cover one.
-pub const REPORT_Z: i32 = 1000;
-/// **The note box, above the frozen picture it is written about.**
-const NOTE_Z: i32 = REPORT_Z + 10;
 
 /// **The smallest drag that is a box.** Below it, a press and release is a click on what is under it.
 const MIN_PICK_PX: f32 = 8.0;
@@ -427,10 +425,10 @@ fn report_key(
     if report.open.is_some() {
         return;
     }
-    let (chord, audience) = if project_chord().just_pressed(&keys) {
-        (project_chord(), Audience::Project)
-    } else if developers_chord().just_pressed(&keys) {
-        (developers_chord(), Audience::Developers)
+    let (chord, audience) = if crate::chords::chord(crate::chords::Fixed::ReportProject).just_pressed(&keys) {
+        (crate::chords::chord(crate::chords::Fixed::ReportProject), Audience::Project)
+    } else if crate::chords::chord(crate::chords::Fixed::ReportDevelopers).just_pressed(&keys) {
+        (crate::chords::chord(crate::chords::Fixed::ReportDevelopers), Audience::Developers)
     } else {
         return;
     };
@@ -636,7 +634,7 @@ pub(crate) struct ReportWorld<'w, 's> {
     /// Every laid-out node: the hit test's three checks, and a parent to walk up.
     ///
     /// **The report's own layer is excluded**, and that is load-bearing: the frozen picture covers
-    /// the whole window at [`REPORT_Z`], so a hit test that walked the stack blindly would find the
+    /// the whole window at the report's z ([`report_z`]), so a hit test that walked the stack blindly would find the
     /// overlay itself and answer "a picture of the editor" to every click a person made on it.
     nodes: Query<
         'w,
@@ -1114,7 +1112,7 @@ fn report_overlay(
         ReportPart,
         // The whole frozen frame, drawn over the window rather than in any layout (`cover` lets the pointer through).
         bevy_gooey::cover(),
-        GlobalZIndex(REPORT_Z),
+        GlobalZIndex(report_z()),
         // The focus home: see this function's note. Only while pointing, so the note box's field
         // takes the keyboard the moment it is up.
         TabGroup::modal(),
@@ -1148,7 +1146,7 @@ fn report_overlay(
                     height: Some(bevy_gooey::Extent::Px(overlay_px((rect[3] - rect[1]).max(0.0)))),
                     ..default()
                 },
-                bevy_gooey::BorderPx(bevy_gooey::Sides::all(chrome::SNIP_EDGE_W)),
+                bevy_gooey::BorderPx(bevy_gooey::Sides::all(crate::style::metrics().layout.snip_edge_w)),
                 bevy_gooey::InkOverride { edge: Some(chrome::ink().accent), ..default() },
                 BorderColor::all(chrome::ink().accent),
                 BackgroundColor(wash),
@@ -1178,7 +1176,7 @@ fn report_overlay(
             TextColor(chrome::ink().text),
             TextLayout::default().with_no_wrap(),
             // The hint rides the top edge of the frozen frame, not a panel: pinned left and right so it is as wide as the frame, its words centred.
-            bevy_gooey::placed(UiRect { left: Val::Px(0.0), right: Val::Px(0.0), top: Val::Px(chrome::GAP_GROUP), bottom: Val::Auto }),
+            bevy_gooey::placed(UiRect { left: Val::Px(0.0), right: Val::Px(0.0), top: Val::Px(chrome::space(chrome::STEP_GROUP)), bottom: Val::Auto }),
             bevy_gooey::RowLayout { justify: Some(JustifyContent::Center), ..default() },
         ));
     });
@@ -1356,7 +1354,7 @@ fn report_box(
                 },
             ),
         ))
-        .insert(GlobalZIndex(NOTE_Z))
+        .insert(GlobalZIndex(note_z()))
         .with_children(|scrim| {
             scrim
                 .spawn(bevy_gooey::sized_panel(bevy_gooey::CardWidth::Text(crate::launcher::DIALOG_CARD_TEXT_SIZES)))
@@ -1388,7 +1386,7 @@ fn report_box(
                             },
                         ),
                     ));
-                    chrome::end_row(card, chrome::GAP_GROUP_STEPS)
+                    chrome::end_row(card, Some(chrome::Gap::Group))
                     .with_children(|row| {
                         row.spawn((
                             bevy_gooey::button("Cancel"),
@@ -1919,10 +1917,12 @@ mod tests {
     /// **The two chords are one key apart, and only the project one holds Shift.**
     #[test]
     fn the_two_chords_differ_by_shift_alone() {
-        assert_eq!(developers_chord().key, project_chord().key);
-        assert!(!developers_chord().modifiers.shift);
-        assert!(project_chord().modifiers.shift);
-        assert_ne!(developers_chord(), project_chord());
+        use crate::chords::{Fixed, default_of};
+        let (developers, project) = (default_of(Fixed::ReportDevelopers), default_of(Fixed::ReportProject));
+        assert_eq!(developers.key, project.key);
+        assert!(!developers.modifiers.shift);
+        assert!(project.modifiers.shift);
+        assert_ne!(developers, project);
     }
 
     /// The rectangle a drag makes is the same whichever corner it started at.

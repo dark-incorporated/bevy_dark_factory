@@ -804,7 +804,7 @@ fn the_report_line_comes_back_when_the_agent_block_does() {
     // **The block's own two containers**, spawned as `night_shift.rs` spawns them, so the line has somewhere to go.
     let container = app
         .world_mut()
-        .spawn((bevy_dark_factory::audit_view::AuditRows, Name::new("audit rows"), bevy_gooey::column_with(bevy_dark_factory::chrome::GAP_TIGHT_STEPS, bevy_gooey::RowLayout::default())))
+        .spawn((bevy_dark_factory::audit_view::AuditRows, Name::new("audit rows"), (bevy_gooey::column_with(0.0, bevy_gooey::RowLayout::default()), bevy_dark_factory::chrome::Gap::Tight.class())))
         .id();
     app.world_mut().resource_mut::<bevy_dark_factory::audit_view::Audit>().line = "3 turns, 1 answered".to_owned();
     for _ in 0..5 {
@@ -821,7 +821,7 @@ fn the_report_line_comes_back_when_the_agent_block_does() {
     assert_eq!(rows(&mut app), 0, "the row outlived its container");
 
     // **And comes back**: the words never changed, so a guard on the words alone would return here and the line would be gone for good.
-    app.world_mut().spawn((bevy_dark_factory::audit_view::AuditRows, Name::new("audit rows"), bevy_gooey::column_with(bevy_dark_factory::chrome::GAP_TIGHT_STEPS, bevy_gooey::RowLayout::default())));
+    app.world_mut().spawn((bevy_dark_factory::audit_view::AuditRows, Name::new("audit rows"), (bevy_gooey::column_with(0.0, bevy_gooey::RowLayout::default()), bevy_dark_factory::chrome::Gap::Tight.class())));
     for _ in 0..5 {
         app.update();
     }

@@ -863,7 +863,7 @@ pub(crate) fn spawn_chips(
 ) {
     crate::chrome::section(p, "STAGE");
     // A wrapping row of chips narrows with its pane (gooey's row may), so its last member is never clipped by the pane's right edge (the audit's F7).
-    crate::chrome::wrapping_row(p, crate::chrome::GAP_TIGHT_STEPS, crate::chrome::NO_MARGIN, AlignItems::Stretch)
+    crate::chrome::wrapping_row(p, Some(crate::chrome::Gap::Tight), crate::chrome::NO_MARGIN, AlignItems::Stretch)
     .with_children(|row| {
         for (i, slot) in rig.slots.iter().enumerate() {
             let label = slot

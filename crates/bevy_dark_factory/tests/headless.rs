@@ -12418,13 +12418,13 @@ fn the_triangle_count_does_not_shove_the_maps_name() {
         "{} tris drawn",
         bevy_dark_factory::editor::with_thousands(usize::MAX)
     );
-    let need = longest.chars().count() as f32 * bevy_dark_factory::chrome::BODY_CHAR_W
+    let need = longest.chars().count() as f32 * bevy_dark_factory::chrome::body_char_w()
         + 2.0 * bevy_dark_factory::editor::COST_PAD_X;
+    let reserved = bevy_dark_factory::editor::cost_col();
     assert!(
-        bevy_dark_factory::editor::COST_COL >= need,
-        "the reserved column is {} px and `{longest}` needs {need} px; the node is `min_width`, so \
-         it will grow past the reservation and drag the map's name with it",
-        bevy_dark_factory::editor::COST_COL
+        reserved >= need,
+        "the reserved column is {reserved} px and `{longest}` needs {need} px; the node is `min_width`, so \
+         it will grow past the reservation and drag the map's name with it"
     );
 
     // …and the node is actually given the column. Measured off the live layout rather than assumed
@@ -12446,11 +12446,10 @@ fn the_triangle_count_does_not_shove_the_maps_name() {
         widths.len()
     );
     assert!(
-        widths[0] >= bevy_dark_factory::editor::COST_COL - 0.5,
-        "the readout's box measured {} px against a reserved {} px: it is hugging its digits, so \
+        widths[0] >= reserved - 0.5,
+        "the readout's box measured {} px against a reserved {reserved} px: it is hugging its digits, so \
          every change of magnitude will move `WhereYouAre`",
-        widths[0],
-        bevy_dark_factory::editor::COST_COL
+        widths[0]
     );
 
     // The reservation is only worth anything if the neighbour it protects is on the bar at all.
@@ -13555,11 +13554,12 @@ fn the_grounds_step_back_while_the_shortcut_key_is_held() {
          every panel's fill as something to read"
     );
     for (rest, now) in &held {
+        let held_alpha = bevy_dark_factory::style::metrics().layout.ground_held;
         assert!(
-            (now - rest * bevy_dark_factory::chrome::GROUND_HELD).abs() < 0.001,
+            (now - rest * held_alpha).abs() < 0.001,
             "a ground rests at {rest} and reads {now} with the key down; it should be \
              {}",
-            rest * bevy_dark_factory::chrome::GROUND_HELD
+            rest * held_alpha
         );
     }
 
@@ -15637,7 +15637,7 @@ fn a_library_row_carries_a_portrait_slot() {
         let slot = children.iter().any(|e| {
             app.world()
                 .get::<Node>(*e)
-                .is_some_and(|n| n.width == Val::Px(bevy_dark_factory::chrome::THUMB_SLOT))
+                .is_some_and(|n| n.width == Val::Px(bevy_dark_factory::style::metrics().layout.thumb_slot))
         });
         assert!(slot, "a MESHES row without a portrait slot");
     }

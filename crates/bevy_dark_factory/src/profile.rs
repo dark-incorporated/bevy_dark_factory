@@ -43,13 +43,6 @@ use crate::chrome;
 /// ring is not a second copy of the frame.
 pub const HISTORY_FRAMES: usize = 120;
 
-/// **The chord that shows and hides the profile panel.** `Cmd`/`Ctrl`+`Shift`+`D` is bound in no context, is not one of
-/// the chords `keymap_screen` reserves (palette, terminal, settings, interface scale, the console), and `D` already means
-/// "move" here, so the modifier carries the same word.
-pub fn toggle_chord() -> bevy_gooey::Shortcut {
-    bevy_gooey::Shortcut::new(bevy_gooey::Modifiers::PRIMARY | bevy_gooey::Modifiers::SHIFT, KeyCode::KeyD)
-}
-
 /// **Whether spans are being collected.** One relaxed load is the whole cost of an instrumented system with recording
 /// off; it is a `static` rather than a field because [`record_span`] is called from inside `ui_budget`'s guard, which
 /// holds a resource borrow and has no world to reach a second one through.
@@ -220,9 +213,9 @@ fn spawn_the_profile(mut commands: Commands, frame: Res<chrome::Frame>) {
             bevy_gooey::placed(UiRect { left: Val::Percent(30.0), top: Val::Percent(10.0), ..UiRect::all(Val::Auto) }),
             bevy_gooey::Sizing { width: Some(bevy_gooey::Extent::Px(520.0)), max_height: Some(bevy_gooey::Extent::Percent(70.0)), ..default() },
             bevy_gooey::RowLayout { direction: Some(FlexDirection::Column), ..default() },
-            bevy_gooey::GapPx(chrome::GAP_ROW),
-            bevy_gooey::Spacing { padding: bevy_gooey::Sides::all(chrome::STEP_PAD), ..default() },
-            bevy_gooey::BorderPx(bevy_gooey::Sides::all(chrome::EDGE_W)),
+            // Its gap and inset are the sheet's `.chrome-overlay`, the journal's.
+            bevy_gooey::StyleClass::of("chrome-overlay"),
+            bevy_gooey::BorderPx(bevy_gooey::Sides::all(crate::style::metrics().layout.edge_w)),
             bevy_gooey::InkFollow,
             bevy_gooey::ShownFollow::closed(),
             BackgroundColor(chrome::ink().panel_bg),
@@ -238,7 +231,7 @@ fn spawn_the_profile(mut commands: Commands, frame: Res<chrome::Frame>) {
             Text::new(format!(
                 "{} frames of history  ·  {} shows and hides it",
                 HISTORY_FRAMES,
-                crate::terminal_pane::chord_words(&toggle_chord())
+                crate::terminal_pane::chord_words(&crate::chords::chord(crate::chords::Fixed::ProfileToggle))
             )),
             TextColor(chrome::ink().dim),
             chrome::typed(chrome::text::LABEL),
@@ -266,7 +259,7 @@ fn toggle_the_profile(
     mut panels: Query<&mut Node, With<ProfileOverlay>>,
     mut profiler: ResMut<Profiler>,
 ) {
-    if !editing.is_empty() || !toggle_chord().just_pressed(&keys) {
+    if !editing.is_empty() || !crate::chords::chord(crate::chords::Fixed::ProfileToggle).just_pressed(&keys) {
         return;
     }
     let open = panels.iter().any(|node| node.display != Display::None);
@@ -388,16 +381,12 @@ mod tests {
 
     #[test]
     fn the_chord_is_free_and_answers_to_no_other() {
-        let chord = toggle_chord();
+        use crate::chords::{Fixed, default_of};
+        let chord = default_of(Fixed::ProfileToggle);
         assert_eq!(chord.key, KeyCode::KeyD);
         assert!(chord.modifiers.shift);
-        assert_ne!(crate::console::toggle_chord(), chord);
-        assert_ne!(crate::terminal_pane::COLLAPSE_CHORD, chord);
-        for (_, _, reserved) in crate::scale_chords::reserved_chords() {
-            assert_ne!(reserved, chord);
-        }
-        for (_, chord) in crate::command_palette::chords() {
-            assert_ne!(chord, toggle_chord());
+        for other in [Fixed::ConsoleToggle, Fixed::TerminalCollapse, Fixed::ScaleUp, Fixed::ScaleDown, Fixed::ScaleReset, Fixed::GotoOpen, Fixed::PaletteOpen, Fixed::PaletteOpenAlt] {
+            assert_ne!(default_of(other), chord, "{other:?}");
         }
     }
 

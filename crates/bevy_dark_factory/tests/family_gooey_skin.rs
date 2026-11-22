@@ -17,7 +17,6 @@
 
 use bevy::prelude::*;
 use bevy_dark_factory::editor::EditorState;
-use bevy_dark_factory::ui::editor_skin;
 use bevy_dark_factory::ui_skin::GameSkin;
 use bevy_gooey::GooeySkin;
 
@@ -64,7 +63,7 @@ fn a_partial_skin_file_changes_only_its_field_and_an_unreadable_one_keeps_the_la
     // **And the editor's own chrome never took it** (UI-03, #211): the running skin is the editor's.
     assert_eq!(
         *app.world().resource::<GooeySkin>(),
-        editor_skin(),
+        bevy_dark_factory::style::compiled_default().skin,
         "a project's skin is the preview's, never the running one"
     );
 
@@ -97,5 +96,9 @@ fn a_partial_skin_file_changes_only_its_field_and_an_unreadable_one_keeps_the_la
     std::fs::remove_file(&file).unwrap();
     run_until(&mut app, |w| game(w).is_none());
     assert_eq!(game(app.world()), None, "no file, no game skin");
-    assert_eq!(*app.world().resource::<GooeySkin>(), editor_skin(), "the chrome keeps the editor's own palette throughout");
+    assert_eq!(
+        *app.world().resource::<GooeySkin>(),
+        bevy_dark_factory::style::compiled_default().skin,
+        "the chrome keeps the editor's own palette throughout"
+    );
 }

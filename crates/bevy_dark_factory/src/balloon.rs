@@ -114,7 +114,7 @@ pub fn show_balloon(
         bevy_gooey::placed(UiRect { left: Val::Px(left), bottom: Val::Px(bottom), ..UiRect::all(Val::Auto) }),
         bevy_gooey::Sizing { width: Some(bevy_gooey::Extent::Px(WIDTH)), ..default() },
         bevy_gooey::Spacing { padding: bevy_gooey::Sides::all(crate::chrome::STEP_ROW), ..default() },
-        GlobalZIndex(crate::chrome::BALLOON_Z),
+        GlobalZIndex(crate::style::metrics().z.balloon),
     ));
 }
 

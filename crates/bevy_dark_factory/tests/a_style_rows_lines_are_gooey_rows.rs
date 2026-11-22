@@ -5,7 +5,6 @@
 //! shrink, where it aligns its cells, and that the row fills the width of the list it stands in.
 
 use bevy::prelude::*;
-use bevy_dark_factory::chrome::GAP_TIGHT;
 use bevy_dark_factory::night_shift::NightShiftItem;
 use bevy_dark_factory::harness;
 use bevy_dark_factory::wish_view::{StyleDiscard, StyleField, StyleKeep, StyleShow, StyleTitle, WishOf, WishUnfold};
@@ -77,7 +76,8 @@ fn assert_rigid_row(app: &App, entity: Entity, align: AlignItems, what: &str) {
     assert_eq!(node.flex_shrink, 0.0, "{what} keeps its height when the panel is short");
     assert_eq!(node.align_items, align, "{what} aligns its cells");
     let Val::Px(gap) = node.column_gap else { panic!("{what}: the skin writes the gap in px, found {:?}", node.column_gap) };
-    assert!((gap - GAP_TIGHT).abs() < 0.01 || gap == 0.0, "{what} stands its cells {gap} px apart");
+    let tight = bevy_dark_factory::chrome::space(bevy_dark_factory::chrome::STEP_TIGHT);
+    assert!((gap - tight).abs() < 0.01 || gap == 0.0, "{what} stands its cells {gap} px apart");
 }
 
 /// **The header line, the answers line and a field line are gooey rows that are never squeezed.**

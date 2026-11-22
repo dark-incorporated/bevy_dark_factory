@@ -89,11 +89,11 @@ fn editor(tag: &str, theme: Theme, text_scale: f32) -> App {
 #[test]
 fn the_theme_is_the_running_skin() {
     for (theme, want) in [
-        (Theme::ToolDark, bevy_dark_factory::ui::editor_skin()),
+        (Theme::ToolDark, bevy_dark_factory::style::compiled_default().skin),
         (Theme::Parchment, GooeySkin::parchment()),
         (Theme::HighContrast, GooeySkin::high_contrast()),
     ] {
-        let skin = bevy_dark_factory::ui::skin_for(theme);
+        let skin = bevy_dark_factory::style::compiled_for(theme).skin;
         assert_eq!(skin.surface, want.surface, "{theme:?}: the panel's ground is the theme's");
         assert_eq!(skin.text, want.text, "{theme:?}: the ink is the theme's");
         assert_eq!(skin.accent, want.accent, "{theme:?}: the accent is the theme's");
@@ -122,15 +122,15 @@ fn choosing_a_theme_changes_the_running_skin() {
 #[test]
 fn every_theme_is_painted_and_its_inks_clear_its_grounds() {
     for theme in [Theme::ToolDark, Theme::Parchment, Theme::HighContrast] {
-        let skin = bevy_dark_factory::ui::skin_for(theme);
+        let skin = bevy_dark_factory::style::compiled_for(theme).skin;
         assert_eq!(
             bevy_dark_factory::ui::unreadable_pairs(&skin),
             Vec::<String>::new(),
             "{theme:?}: every ink clears every ground it is drawn on"
         );
     }
-    let parchment = bevy_dark_factory::ui::skin_for(Theme::Parchment);
-    let ink = bevy_dark_factory::chrome::Ink::of(&parchment);
+    let parchment = bevy_dark_factory::style::compiled_for(Theme::Parchment).skin;
+    let ink = bevy_dark_factory::chrome::Ink::of(&parchment, &bevy_dark_factory::style::metrics().ink);
     let ratio = |ink: Color, ground: Color| {
         let c = |colour: Color| {
             let c = Srgba::from(colour);
@@ -328,7 +328,7 @@ fn a_projects_skin_stays_in_the_preview_and_the_text_size_still_applies() {
 /// checks is held to gooey's `ENHANCED_CONTRAST`, 7:1.
 #[test]
 fn the_high_contrast_theme_clears_seven_to_one() {
-    let skin = bevy_dark_factory::ui::skin_for(Theme::HighContrast);
+    let skin = bevy_dark_factory::style::compiled_for(Theme::HighContrast).skin;
     assert_eq!(
         skin.high_contrast_problems(),
         vec![],
@@ -342,7 +342,7 @@ fn the_high_contrast_theme_clears_seven_to_one() {
 #[test]
 fn every_theme_passes_the_librarys_own_rules() {
     for theme in [Theme::ToolDark, Theme::Parchment, Theme::HighContrast] {
-        assert_eq!(bevy_dark_factory::ui::skin_for(theme).problems(), vec![], "{theme:?} must be a well-formed skin");
+        assert_eq!(bevy_dark_factory::style::compiled_for(theme).skin.problems(), vec![], "{theme:?} must be a well-formed skin");
     }
 }
 

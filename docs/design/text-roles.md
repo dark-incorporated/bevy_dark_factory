@@ -4,6 +4,10 @@
 drawn at, and the one inconsistency worth fixing now. Measured in this worktree at `b64c689f`, `bevy_gooey` at the pinned
 rev `f1904be`, a 2176 x 1406 surface (1088 x 703 logical px at `ui_scale` 2).
 
+**Since 2026-11-22** the type sizes and the body measures named below (`BODY_CHAR_W`, `BODY_LINE_H`, `GAP_GROUP`) come from
+`metrics.type` and the class rules of the editor's live style sheet, `crates/bevy_dark_factory/src/style/editor.yaml`
+([data files](../guide/data-files.md#the-editors-style-sheet)). The numbers here are as measured at the time.
+
 The owner's note, in full:
 
 > *"We ned rules, data models, mental models, and a damn fine font for all of the text information in this system. We could probably use color better too."*

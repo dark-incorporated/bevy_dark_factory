@@ -280,3 +280,21 @@ The editor's settings, in two files that are laid over the built-in defaults, ke
 | Live reload | Yes, in the editor: it looks at both files while it runs, so an edit, a deleted key or a deleted file changes the running editor at once. A file that does not read (not YAML, an unknown key, a value out of range, another version) keeps that layer's last good content, is refused in `blueprint_state.reloads` with the file and the field, and is a problem on the status line. The game does not read it. |
 | Read by | The editor only (`settings::sync_settings`, resource `EditorSettings`). |
 | Format version | 1. An old file with fewer keys still reads; a file of another version is refused by name. |
+
+Three more keys, each optional:
+
+- `view:` — the Map camera: `zoom_min` (the nearest it comes, metres of height; above 0, default 0.25), `zoom_max` (the furthest on an ordinary map, metres; above `zoom_min`, default 80), `zoom_step` (one wheel notch's factor, above 1, default 1.2), `pan_speed` (heights of the view a held pan key crosses a second, above 0, default 0.89) and `yaw_step_deg` (one turn of a piece, above 0 up to 90, default 15). A file that sets one is held to the defaults for the others. They apply at once.
+- `keymap:` — besides every command's id, the editor's **fixed chords** take an id too, and a rebinding works at once: `app.quit`, `settings.open`, `goto.open`, `palette.open`, `palette.open_alt`, `console.open`, `profile.open`, `problems.show`, `issue.compose`, `report.developers`, `report.project`, `interface_scale.up`, `interface_scale.down`, `interface_scale.reset`, `session.close_tab`, `session.reopen_tab`, `session.next_tab`, `session.previous_tab`, `shell.left_panel`, `shell.zen`, `terminal.find`, `terminal.clear`, `terminal.close_tab`, `terminal.collapse`, `terminal.maximise` and `agent.editor_dev`. The Keymap screen lists them as rows like the commands, and refuses a clash with either.
+- `editor_source` — the user's file only: an absolute path to a `bevy_dark_factory` checkout, where the editor reads its own style sheet live and where the editor development agent works. Absent, it is the checkout the binary was built from, when that is still on disk.
+
+## The editor's style sheet
+
+The editor's own look — colours, the spacing scale, type sizes, dock widths, stacking order and each class's box — is a style sheet it reads while it runs, in layers laid over one another, later wins: the checkout's `crates/bevy_dark_factory/src/style/editor.yaml`, the chosen theme's `theme_parchment.yaml` or `theme_high_contrast.yaml` beside it, the person's `<config_dir>/Blueprint/style.yaml`, and the project's `assets/blueprint/editor_style.yaml`.
+
+| | |
+|---|---|
+| Where | As above. A build run outside its checkout reads the base and theme layers compiled into it; `editor_source` in `settings.yaml` names another checkout. |
+| What it holds | `version: 1`, then any of `skin:` (gooey's skin fields: colours, the surface ladder, tones, `spacing`, `radii`, motion), `metrics:` (`type` sizes per role, `layout` measures, `z` stacking, `ink` ladder steps) and `rules:` (`".chrome-chip": {padding: !Step 0}`, CSS-like selectors on the classes the editor's nodes carry). A layer states only what it changes. |
+| Live reload | Yes: each layer's file is followed by the editor's file index, not polled (the project's layer by the project's index, the checkout's sheets and the person's `style.yaml` by the folders it follows outside the project), and an edit is drawn as soon as the index sees it, about a second at its default sweep. A `layout` or `z` measure rebuilds the open workspace's panels in place. A file that does not read keeps that layer's last good content and is refused in `blueprint_state.reloads` (`editor_style`), naming the file and the field. `Cmd/Ctrl+Alt+I` (`view.inspect_style`) and `blueprint_ui_style_inspect` name the rule and the line that styled the node under the pointer. |
+| Read by | The editor only (`style::apply_style`). |
+| Format version | 1. A layer of another version is refused by name. |

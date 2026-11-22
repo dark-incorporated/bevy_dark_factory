@@ -636,6 +636,9 @@ enumerated! {
     /// Hold to label the interface: every live key, drawn on the thing it acts on. See
     /// `crate::badges`, and [`Home`] for how a verb knows where that is.
     Shortcuts,
+    /// **Inspect the style under the pointer**: the editor's devtools for its own chrome, an overlay naming the
+    /// classes, the style sheet rules and the lines that wrote them (`crate::style_inspect`).
+    InspectStyle,
     /// Open the Tiles tab on the descriptor of the piece under the cursor.
     EditTile,
     // ── Map ──────────────────────────────────────────────────────────────────
@@ -1137,7 +1140,10 @@ impl Action {
             | Action::TileOpen
             // **The rig bench's list shown or put away** (#522): a `Display` on the workspace's own column. Nothing in `rigs.yaml`
             // changes, so it is view state and owes no operation, the same line the journal's key and the outliner's row sit on.
-            | Action::ToggleRigs => Change::View,
+            | Action::ToggleRigs
+            // **The style inspector is an overlay over the chrome** (`crate::style_inspect`): what is shown, never what is
+            // saved. `blueprint/ui_style_inspect` is the agent's read of the same thing.
+            | Action::InspectStyle => Change::View,
 
             // **Held, not pressed.** The effect is the hold: things fade, a pick is live, the overlay is
             // up. An operation whose effect reverses when a key is released is not a value an agent can
@@ -1181,6 +1187,9 @@ impl Action {
             Action::CycleGrid => Some("view_cycle_grid"),
             // **The journal is a panel, and which panel is up is view state** (E-002, #129).
             Action::ShowErrors => Some("view_toggle_journal"),
+            // **The style inspector is an overlay, so view state** (`crate::style_inspect`): `Cmd+Alt+I` dispatches the operation an
+            // agent calls, the shape the journal's key set.
+            Action::InspectStyle => Some("view_toggle_style_inspector"),
             // **The composition picker's cursor is view state** (E-002, #129 slice 22): `P` gives the arrows to the picker
             // and Shift+up and Shift+down walk it, through the operations an agent calls.
             Action::PickComposition => Some("composition_picker_toggle"),
@@ -1351,6 +1360,12 @@ pub struct Binding {
     /// twice: undo declares `Some(false)`, redo `Some(true)`, and the collision test below knows they
     /// can never both be satisfied.
     pub needs_shift: Option<bool>,
+    /// **Whether Alt (Option on a Mac) must be held.** `false` is indifferent, which is what every row was before
+    /// one asked for it: the census's rows do not look at Alt. A row that asks for it is a third chord on its key,
+    /// beside the bare key and the modifier's, for a verb a person reaches deliberately (the style inspector's
+    /// `Cmd+Alt+I`, the devtools chord). The collision test still treats an Alt row as sharing its key and
+    /// modifier with any other row on them, because an indifferent row fires with Alt held.
+    pub needs_alt: bool,
     /// **What this binding asks of the [`Stance`]**, on exactly the rule [`Binding::needs_shift`]
     /// follows — and with the third answer that rule does not need. [`Stances`] carries the whole
     /// argument: `Any` is the default that changed no row when the axis arrived, `Only` is what
@@ -1395,6 +1410,7 @@ pub struct Draft {
     key: KeyCode,
     needs_mod: bool,
     needs_shift: Option<bool>,
+    needs_alt: bool,
     needs_stance: Stances,
     context: Context,
     while_filtering: bool,
@@ -1411,6 +1427,7 @@ impl Draft {
             key: self.key,
             needs_mod: self.needs_mod,
             needs_shift: self.needs_shift,
+            needs_alt: self.needs_alt,
             needs_stance: self.needs_stance,
             context: self.context,
             while_filtering: self.while_filtering,
@@ -1459,6 +1476,13 @@ impl Draft {
         self.needs_stance = Stances::AnyBut(stance);
         self
     }
+
+    /// **A row that asks for Alt as well** ([`Binding::needs_alt`]). Chainable before [`Draft::at`], a claim a row
+    /// makes rather than a constructor parameter, for [`Draft::also_filtered`]'s reason.
+    pub const fn with_alt(mut self) -> Draft {
+        self.needs_alt = true;
+        self
+    }
 }
 
 /// The command modifier, per platform. **Cmd on a Mac, Ctrl everywhere else** — an editor that wanted
@@ -1486,6 +1510,12 @@ pub const ALT_KEYS: [KeyCode; 2] = [KeyCode::AltLeft, KeyCode::AltRight];
 pub const MOD_NAME: &str = "Cmd";
 #[cfg(not(target_os = "macos"))]
 pub const MOD_NAME: &str = "Ctrl";
+
+/// What [`ALT_KEYS`] is called in writing, on the same rule as [`MOD_NAME`]: the key's own label.
+#[cfg(target_os = "macos")]
+pub const ALT_NAME: &str = "Option";
+#[cfg(not(target_os = "macos"))]
+pub const ALT_NAME: &str = "Alt";
 
 /// The delete key, per platform. A Mac keyboard's `delete` sends **Backspace**; the key winit calls
 /// `Delete` is the one macOS keyboards label `fn+delete` and most do not have at all — so binding
@@ -1618,7 +1648,7 @@ pub const BINDINGS: &[Binding] = &[
     // **`Cmd`/`Ctrl`+`0` is the tenth workspace, Design** (SG-05, #404), appended so no chord changes meaning.
     //
     // **Shift must be up**, because `Cmd+Shift+0` is the interface size's reset
-    // (`scale_chords::reset_chord`, `feedback-1794783912982`). A row indifferent to Shift would fire
+    // (`chords::Fixed::ScaleReset`, `feedback-1794783912982`). A row indifferent to Shift would fire
     // the workspace *and* the reset on one press, which is the collision the scale issue's own note
     // says to settle rather than shadow; `Shift` is the whole difference between the two chords, so
     // stating it here is what keeps them two.
@@ -1729,6 +1759,20 @@ pub const BINDINGS: &[Binding] = &[
     )
     .also_journal()
     .at(Home::Control(ControlId::Detail)),
+    // **The devtools chord, `Cmd+Alt+I`** (a browser's own): the style inspector, the editor's devtools for its own
+    // chrome. Alt makes it a third chord on `I`, beside the Meshes tab's bare `I` and the COMPOSE tab's, which never
+    // fire with the modifier down. Its badge stands on the title with `Save`'s: the status band has no room for a second
+    // chord beside `K`'s in a 1280 px window (`no_badge_cluster_draws_through_another` measured it covering the band's ink).
+    b(
+        Action::InspectStyle,
+        KeyCode::KeyI,
+        true,
+        Context::Global,
+        "I",
+        "inspect the style under the pointer",
+    )
+    .with_alt()
+    .at(Home::Control(ControlId::Title)),
     // **One key for "not that", now on every tab** — and the problem banner is its outermost layer.
     //
     // It was `Context::Map`, where it peeled back one layer per press: a piece in hand, then the armed
@@ -3440,6 +3484,7 @@ const fn full(
         key,
         needs_mod,
         needs_shift,
+        needs_alt: false,
         needs_stance,
         context,
         while_filtering: false,
@@ -3595,10 +3640,11 @@ pub fn in_context(context: Context, stance: Stance) -> impl Iterator<Item = &'st
 /// here, so `Cmd+S` cannot appear in one and `Ctrl+S` in another — the drift `docs/ui.md` §3.5 records
 /// is exactly this, a second place that renders the same fact.
 pub fn chord_text(b: &Binding) -> String {
+    let alt = if b.needs_alt { format!("{ALT_NAME}+") } else { String::new() };
     let base = if b.needs_mod {
-        format!("{MOD_NAME}+{}", b.chord)
+        format!("{MOD_NAME}+{alt}{}", b.chord)
     } else {
-        b.chord.to_owned()
+        format!("{alt}{}", b.chord)
     };
     // Only a *required* Shift is written. `Some(false)` is a rule about what must not be held, which
     // is not something a key list should ask a reader to carry.
@@ -3960,6 +4006,8 @@ fn allowed(b: &Binding, keys: &ButtonInput<KeyCode>, live: Live) -> bool {
         // camera back — and `Cmd+Z` would turn the brush as well as undo, now that `Z` aims.
         && b.needs_mod == mod_held(keys)
         && shift_ok(b, keys)
+        // A row that asks for Alt fires only with it held; every other row is indifferent to it.
+        && (!b.needs_alt || alt_held(keys))
 }
 
 /// Is the command modifier down?
@@ -4020,7 +4068,7 @@ pub fn pressed(keys: &ButtonInput<KeyCode>, live: Live, action: Action) -> bool 
 /// like — 75 ms is about seven rows a second and the selection outran the eye reading it. This is
 /// still a third faster than the original.
 ///
-/// At [`crate::editor::YAW_STEP`] this sweeps a full turn in about 2.4 s.
+/// At the default 15 degree turn (`view.yaw_step_deg`) this sweeps a full turn in about 2.4 s.
 ///
 /// **The known cost, stated rather than discovered.** The first repeat lands one interval after the
 /// press, so a deliberate tap much over 100 ms fires *twice* — the hazard the original 0.150 was
@@ -4358,6 +4406,9 @@ mod tests {
             // `actions.len() == BINDINGS.len()` — is unchanged.
             Action::LookAtAgentChange,
             Action::SetRule,
+            // Assumed owner exception (2026-11-22): the hand-written action list follows the new row `Action::InspectStyle`, the
+            // style inspector's `Cmd+Alt+I`. The assertion it feeds — `actions.len() == BINDINGS.len()` — is unchanged.
+            Action::InspectStyle,
         ];
         assert_eq!(
             actions.len(),
@@ -4925,7 +4976,10 @@ mod tests {
             // 24 -> 25: `WorkspaceDesign`, the tenth workspace on `Cmd`/`Ctrl`+`0` (SG-05, #404).
             // Owner exception (2026-11-13): keys.rs::no_context_gains_a_key: Global 24 -> 25 (+1), the literal count following the tenth workspace
             // the issue's own decision appends; the assertion's direction is unchanged.
-            (Context::Global, 25),
+            // 25 -> 26: `InspectStyle`, the style inspector on `Cmd`/`Ctrl`+`Alt`+`I`, the editor's devtools for its own chrome.
+            // Assumed owner exception (2026-11-22): keys.rs::no_context_gains_a_key: Global 25 -> 26 (+1), the literal count following
+            // the one verb the live style sheet's plan adds; the assertion's direction is unchanged.
+            (Context::Global, 26),
             // 16 -> 17: `FocusFilter`, on `Cmd+F`. **The filter box was mouse-only on every tab
             // but one.** `FocusFilter` was `Context::Tiles`, so the Map tab's PLACE palette and the
             // Rigs tab's rig list had no keyboard route to their own filter at all — and a box the
