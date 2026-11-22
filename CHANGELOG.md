@@ -4,6 +4,7 @@ What each change added, newest first. A visible change has a clip: click the sti
 
 ## 2026-11-22
 
+- **prune-gate-target** `823fc609` tools/loop/prune_gate_target.sh frees the stale test executables a gate leaves behind (162 GB on big) *No clip: a host tool; proved by tools/loop/test_prune_gate_target.py*
 - **fleet-wave10** `c2eeb243` wave 10 report: the release that shipped without a name or an icon, and the loop that had been dead for fourteen days *No clip: a report and runbook facts; no code*
 
 ## 2026-11-21
