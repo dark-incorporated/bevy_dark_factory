@@ -27,19 +27,33 @@
 //! overhang is the farthest a descendant's visible right edge, or its visible left edge, stands outside that box. The
 //! table is printed per panel per case, and **every cell is asserted at most [`OVERHANG_PX`]**.
 //!
+//! **Two more checks hold the part a clip hides** (#535), in every case:
+//!
+//! - **(a) a panel that holds texts shows some of them.** At interface scales 2.4 and 3.0 a clip cut every text of
+//!   INSPECTOR, COMPOSE and ANIMATION away and the panels drew empty; a cell fails when `texts > 0` and no text is visible.
+//! - **(b) no text is laid out wider than the panel's content box**, visible or not ([`Measured::laid_out_text`], at most
+//!   [`OVERHANG_PX`]). A text a pane clips is not an overhang on the screen, but a row that cannot wrap has only been
+//!   cut, and the part cut off cannot be read.
+//!
 //! gooey's table-cell text is one line by construction (`bevy_gooey#109`) and is exempted exactly as
 //! `no_panel_draws_a_control_past_its_own_content_box` exempts it: counted, and capped.
 //!
+//! # The window is read back, and it was once half the size it said (#535)
+//!
+//! `WindowResolution::new` takes **physical** pixels. This file first spawned `new(1280, 802)` under a factor of 2.0, which is a
+//! 1280 x 802 physical surface (640 x 401 logical), not the capture's 2560 x 1604: the frame drew at half the capture's size. At
+//! interface 2.4 the chrome bars alone (about 153 logical px) filled the 139 logical px that surface had, so the body was zero
+//! tall and every panel drew empty *whatever its rows did*, which is where #535's "draws empty at 2.4 and 3.0" came from.
+//! [`editor`] now builds the window the capture had and asserts the frame root is [`WINDOW_PHYSICAL`] tall.
+//!
 //! # What this file does not count, said plainly
 //!
-//! **Clipped text is not counted.** A text a clip hides is not on the screen, so it is not an overhang here; the
-//! `laid out` figure in the printed table is the unasserted size of what is laid out past the box, and INSPECTOR,
-//! COMPOSE and ANIMATION lay out 160 to 2700 px of no-wrap text that a pane or viewport clip cuts off. The owner sees
-//! it cut off with no wrap: that is a residual defect, recorded on #494, that this test does not hold.
+//! **A clipped text is not an overhang** (the visible-overhang check): a text a clip hides is not on the screen. It is held by
+//! check (b) instead, which asserts the laid-out width of every text; the `laid out` figure in the printed
+//! table also holds boxes that are not texts, and is not asserted.
 //!
 //! **A 1.0 px tolerance also hides a real 1 px overhang.** The cells that read exactly 1.0 are layout rounding
-//! (e.g. `ANIMATION` at scale 0.5 reads 1.0 on `INSPECTOR [59.0..301.0] in content [60.0..302.0]`, and `PLACE` at scale
-//! 1.6 / text 150% reads 1.0 on `PLACE [2494.0..2685.0] in content [2495.0..3005.0]`), and none reads between 0 and 1;
+//! (`ANIMATION` at scale 0.5 / text 100% and `PLACE` at scale 1.6 / text 150% both read exactly 1.0), and none reads between 0 and 1;
 //! a genuine 1 px spill would be indistinguishable from them.
 //!
 //! # That this census can see the defect
@@ -93,6 +107,12 @@ const OVERHANG_PX: f32 = 1.0;
 
 /// How many culprits a failing cell names.
 const CULPRITS: usize = 4;
+
+/// How many too-wide texts a cell keeps, so the capture's own cell can list every one of them by name.
+const MOST_WIDE_TEXTS: usize = 80;
+
+/// The cell whose too-wide texts are all printed: the capture's own interface scale and text size.
+const CAPTURE_CASE: &str = "scale 1 text 1";
 
 /// Frames a layout needs to settle after the scale is read from the settings file.
 const SETTLE_FRAMES: usize = 18;
@@ -269,7 +289,7 @@ fn editor(root: &Path, tag: &str, interface_scale: f32, text_scale: f32) -> App 
     app.insert_resource(UserSettingsFile(user));
     let window = app
         .world_mut()
-        .spawn((Window { resolution: WindowResolution::new(1280, 802), ..default() }, PrimaryWindow))
+        .spawn((Window { resolution: WindowResolution::new(WINDOW_PHYSICAL.0, WINDOW_PHYSICAL.1), ..default() }, PrimaryWindow))
         .id();
     let mut window = app.world_mut().get_mut::<Window>(window).expect("the window just spawned");
     window.resolution.set_scale_factor_override(Some(DISPLAY_FACTOR));
@@ -282,6 +302,22 @@ fn editor(root: &Path, tag: &str, interface_scale: f32, text_scale: f32) -> App 
         (applied - text_scale).abs() < UI_SCALE_EPSILON,
         "the editor runs at text size {applied}, not the {text_scale} this cell was asked for"
     );
+    // **The window is read back as the capture's, not assumed** (#535). `WindowResolution::new` takes PHYSICAL pixels, so the window this
+    // census was first written with, `new(1280, 802)` under a factor of 2.0, was a 1280 x 802 physical surface: the whole frame drew
+    // at half the capture's size, the `root` below was 802 px tall where the capture's is 1604, and at interface 2.4 the chrome
+    // bars alone (153 logical px) filled the 139 logical px the surface had, so the body was zero tall and every panel drew empty
+    // whatever its rows did.
+    {
+        let world = app.world();
+        let root = world.resource::<chrome::Frame>().root;
+        let size = world.get::<ComputedNode>(root).map(ComputedNode::size).expect("the frame root is laid out");
+        assert!(
+            (size.y - WINDOW_PHYSICAL.1 as f32).abs() < 1.0,
+            "the frame is {} px tall, not the capture's {} px: the census is not drawing the window it says it is",
+            size.y,
+            WINDOW_PHYSICAL.1
+        );
+    }
     let want = bevy_dark_factory::surface::ui_scale_for_a_person(1280.0, DISPLAY_FACTOR, interface_scale);
     let got = app.world().resource::<UiScale>().0;
     assert!(
@@ -392,9 +428,18 @@ struct Measured {
     overhang: f32,
     /// The nodes that stood farthest out (worst first, one per distinct words), with how far.
     culprits: Vec<(f32, String)>,
-    /// How far a node was **laid out** outside the box, whatever clipped it afterwards. Reported, not asserted:
-    /// the sibling test's point that a pane which hides what does not fit has still laid it out too wide.
+    /// How far a node was **laid out** outside the box, whatever clipped it afterwards: the sibling test's point that a pane
+    /// which hides what does not fit has still laid it out too wide. Reported, not asserted (it holds boxes of every kind;
+    /// the asserted figure is [`Measured::laid_out_text`]).
     laid_out: f32,
+    /// How far a **text** was laid out outside the box, whatever clipped it afterwards (#535). **Asserted**: a text wider
+    /// than its content box is a row that does not reflow, and a clip only hides what it cut.
+    laid_out_text: f32,
+    /// The texts that were laid out farthest outside the box (worst first, one per distinct words), with how far.
+    wide_texts: Vec<(f32, String)>,
+    /// The first text laid out under the region that a clip cut away entirely, with its box and the clip: what to read when
+    /// a panel holds texts and none is visible.
+    hidden: Option<String>,
     /// How many texts were laid out under the region: how *full* it was.
     texts: usize,
     /// How many of those survive the clip cut: the texts a person can see.
@@ -409,6 +454,12 @@ impl Measured {
     /// Keep the worse of two readings of one named region, and the fuller of its counts.
     fn absorb(&mut self, other: Measured) {
         let (texts, cells, laid_out) = (self.texts.max(other.texts), self.cells.max(other.cells), self.laid_out.max(other.laid_out));
+        self.laid_out_text = self.laid_out_text.max(other.laid_out_text);
+        self.hidden = self.hidden.take().or(other.hidden);
+        self.wide_texts.extend(other.wide_texts);
+        self.wide_texts.sort_by(|a, b| b.0.total_cmp(&a.0));
+        self.wide_texts.dedup_by(|a, b| a.1 == b.1);
+        self.wide_texts.truncate(MOST_WIDE_TEXTS);
         self.overhang = self.overhang.max(other.overhang);
         self.culprits.extend(other.culprits);
         self.culprits.sort_by(|a, b| b.0.total_cmp(&a.0));
@@ -430,7 +481,7 @@ fn clips(world: &World, entity: Entity) -> String {
         .map(|c| {
             let back = c.world_to_clip_local.inverse();
             let (a, b) = (back.transform_point2(c.rect.min), back.transform_point2(c.rect.max));
-            format!("[{:.0}..{:.0}]", a.x.min(b.x), a.x.max(b.x))
+            format!("[{:.0}..{:.0}]x[{:.0}..{:.0}]", a.x.min(b.x), a.x.max(b.x), a.y.min(b.y), a.y.max(b.y))
         })
         .collect();
     ranges.join("+")
@@ -451,6 +502,27 @@ fn ancestry(world: &World, entity: Entity, region: Entity) -> String {
     chain.join(" < ")
 }
 
+/// **The boxes from a node up to the window**, each as its name and the box it is laid out over, both axes: what to read
+/// when a panel is laid out with no height.
+fn up_to_the_window(world: &World, entity: Entity) -> String {
+    let mut chain = Vec::new();
+    let mut at = entity;
+    while let Some(parent) = world.get::<ChildOf>(at).map(ChildOf::parent) {
+        at = parent;
+        if let Some(rect) = border_box(world, at) {
+            chain.push(format!(
+                "{}[x{:.0}..{:.0} y{:.0}..{:.0}]",
+                name_of(world, at),
+                rect.min.x,
+                rect.max.x,
+                rect.min.y,
+                rect.max.y
+            ));
+        }
+    }
+    chain.join(" < ")
+}
+
 fn measure(world: &World, region: Entity) -> Option<Measured> {
     let region_box = border_box(world, region)?;
     let inset = world.get::<ComputedNode>(region).map(ComputedNode::content_inset).unwrap_or_default();
@@ -466,8 +538,46 @@ fn measure(world: &World, region: Entity) -> Option<Measured> {
         if world.get::<Text>(entity).is_some() {
             out.texts += 1;
         }
-        out.laid_out = out.laid_out.max((rect.max.x - right).max(left - rect.min.x));
-        let Some(rect) = seen(world, entity, rect) else { continue };
+        let laid = (rect.max.x - right).max(left - rect.min.x);
+        out.laid_out = out.laid_out.max(laid);
+        if world.get::<Text>(entity).is_some() {
+            out.laid_out_text = out.laid_out_text.max(laid);
+            if laid > OVERHANG_PX {
+                out.wide_texts.push((
+                    laid,
+                    format!(
+                        "{} laid out [{:.1}..{:.1}] in content [{left:.1}..{right:.1}]; up the tree: {}",
+                        name_of(world, entity),
+                        rect.min.x,
+                        rect.max.x,
+                        ancestry(world, entity, region)
+                    ),
+                ));
+            }
+        }
+        let Some(rect) = seen(world, entity, rect) else {
+            if out.hidden.is_none()
+                && let Some(text) = world.get::<Text>(entity)
+            {
+                out.hidden = Some(format!(
+                    "`{}` at x[{:.0}..{:.0}] y[{:.0}..{:.0}], clipped by {}, in a panel at x[{:.0}..{:.0}] y[{:.0}..{:.0}]",
+                    text.0.trim(),
+                    rect.min.x,
+                    rect.max.x,
+                    rect.min.y,
+                    rect.max.y,
+                    clips(world, entity),
+                    region_box.min.x,
+                    region_box.max.x,
+                    region_box.min.y,
+                    region_box.max.y
+                ));
+                if let Some(hidden) = out.hidden.as_mut() {
+                    hidden.push_str(&format!("; the panel up to the window: {}", up_to_the_window(world, region)));
+                }
+            }
+            continue;
+        };
         if let Some(text) = world.get::<Text>(entity) {
             out.visible_texts += 1;
             out.signatures.extend(signature(&text.0));
@@ -491,6 +601,9 @@ fn measure(world: &World, region: Entity) -> Option<Measured> {
     out.culprits.sort_by(|a, b| b.0.total_cmp(&a.0));
     out.culprits.dedup_by(|a, b| a.1 == b.1);
     out.culprits.truncate(CULPRITS);
+    out.wide_texts.sort_by(|a, b| b.0.total_cmp(&a.0));
+    out.wide_texts.dedup_by(|a, b| a.1 == b.1);
+    out.wide_texts.truncate(MOST_WIDE_TEXTS);
     Some(out)
 }
 
@@ -572,7 +685,7 @@ fn every_panel_stays_inside_its_content_box_when_it_is_full() {
         let row: Vec<String> = panels
             .iter()
             .filter_map(|p| {
-                table.get(&(case.clone(), p.clone())).map(|m| format!("{p}={:.1} (laid out {:.1}, {} texts, {} visible)", m.overhang, m.laid_out, m.texts, m.visible_texts))
+                table.get(&(case.clone(), p.clone())).map(|m| format!("{p}={:.1} (laid out {:.1}, text laid out {:.1}, {} texts, {} visible)", m.overhang, m.laid_out, m.laid_out_text, m.texts, m.visible_texts))
             })
             .collect();
         println!("  [{case}] {}", row.join("  "));
@@ -583,6 +696,30 @@ fn every_panel_stays_inside_its_content_box_when_it_is_full() {
         if m.overhang > OVERHANG_PX {
             let who: Vec<String> = m.culprits.iter().map(|(past, what)| format!("{past:.1} px: {what}")).collect();
             failures.push(format!("[{case}] `{panel}` draws {:.1} px outside its content box:\n      {}", m.overhang, who.join("\n      ")));
+        }
+        if case == CAPTURE_CASE && !m.wide_texts.is_empty() {
+            println!("TOO WIDE [{case}] `{panel}`:");
+            for (past, what) in &m.wide_texts {
+                println!("  {past:.1} px: {what}");
+            }
+        }
+        // **(b) The laid-out width of any text stays inside the content box** (#535), not only the part a clip leaves visible.
+        if m.laid_out_text > OVERHANG_PX {
+            let who: Vec<String> = m.wide_texts.iter().take(CULPRITS).map(|(past, what)| format!("{past:.1} px: {what}")).collect();
+            failures.push(format!(
+                "[{case}] `{panel}` lays a text out {:.1} px wider than its content box (a clip hides it, a person cannot read it):\n      {}",
+                m.laid_out_text,
+                who.join("\n      ")
+            ));
+        }
+        // **(a) A panel that holds texts shows some of them** (#535): at a large interface scale a clip cut every text away
+        // and the panel drew empty.
+        if m.texts > 0 && m.visible_texts == 0 {
+            failures.push(format!(
+                "[{case}] `{panel}` holds {} texts and none of them is visible: the panel draws empty (first hidden: {})",
+                m.texts,
+                m.hidden.as_deref().unwrap_or("none")
+            ));
         }
         if m.cells > MOST_GOOEY_CELLS {
             failures.push(format!("[{case}] `{panel}` draws {} one-line gooey table cells, more than {MOST_GOOEY_CELLS}", m.cells));
