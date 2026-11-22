@@ -35,7 +35,13 @@ while read -r _local_ref local_sha remote_ref remote_sha; do
     code=1
   fi
 done <<<"$refs"
-[ -n "$target" ] || exit 0
+if [ -z "$target" ]; then
+  # **A push that is not to main runs no gate, but its LFS objects still go up** (measured 2026-11-21): this early exit used
+  # to skip the upload below, so a branch carrying a new changelog clip was refused by GitHub with GH008 (2 unknown LFS
+  # objects) and needed a hand-run `git lfs push` first. The refs arrive on stdin once, so they are fed again here.
+  printf '%s\n' "$refs" | git lfs pre-push "$@" >&2 || { echo "pre-push: git lfs pre-push failed: the commits' LFS objects (a changelog clip) are not on the server, so GitHub would refuse this push (GH008). Is git-lfs installed (git lfs install)?" >&2; exit 1; }
+  exit 0
+fi
 # Every gate run leaves one line per step in `<git-dir>/gate.log` (time, commit, step, seconds), so how long
 # the gate costs each worker is measured, not guessed: pass logs hold only the agent's final message.
 log="$(git rev-parse --git-dir)/gate.log"

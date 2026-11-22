@@ -182,7 +182,7 @@ fn the_dialog_opened_after_a_refused_folder_shows_no_problem() {
 fn the_location_starts_in_the_dark_factory_projects_folder_and_choose_asks_the_chooser() {
     let form = NewProject::default();
     assert_eq!(form.location, new_project::default_location().to_string_lossy(), "the place is never filled from anywhere else");
-    assert!(new_project::default_location().ends_with("DarkFactory Projects"));
+    assert!(new_project::default_location().ends_with("Dark Factory Projects"));
     assert_eq!(new_project::check(&NewProject { name: "x".into(), ..form }).location, None, "a default place that is not made yet is not a problem");
 
     let dir = scratch("choose");
