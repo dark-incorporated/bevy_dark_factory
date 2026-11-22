@@ -7,6 +7,8 @@
 //!   (the retired timer read once a second whatever happened, so this count fails on it);
 //! - a `checks.yaml` the index cannot follow (named by the project's `.gitignore`) is refused and says why, and is not read.
 
+use std::time::Duration;
+
 use bevy::prelude::*;
 use bevy_dark_factory::checks_view::{ChecksView, checks_for};
 use bevy_dark_factory::project::Project;
@@ -15,6 +17,10 @@ use serde_json::json;
 use crate::index_view_support as support;
 
 const FILE: &str = "checks.yaml";
+
+/// **How long the editor is stepped after the ignored file is edited**, a literal: longer than the retired one-second timer's period, so a
+/// view that still read on a clock of its own would read inside it.
+const EDIT_WATCHED_FOR: Duration = Duration::from_millis(1300);
 
 fn good(threshold: f64) -> String {
     format!("{{checks: [{{name: \"mine\", question: \"Is it floating?\", threshold: {threshold}}}]}}")
@@ -78,8 +84,18 @@ fn a_checks_file_the_index_does_not_follow_is_refused_and_not_read() {
     support::until_seen(&mut app, "the ignored file refused", |a| support::verdict(a, "checks")["outcome"] == json!("refused"));
     let v = support::verdict(&mut app, "checks");
     assert!(v["reason"].as_str().unwrap_or_default().contains(".gitignore"), "the refusal says why: {v}");
-    // One look, and it is the `.gitignore` read that says why: the checks file itself, which is there, is not read.
-    assert_eq!(reads(&app) - before, 1, "a file the index cannot follow is not read (only the .gitignore was)");
+    // **One `.gitignore` change reaches the view as two publications**: the index publishes the `.gitignore` entry, then walks again and
+    // publishes the file leaving the listing. A look made between them still finds the file listed and reads it, which is right at that
+    // moment, so how many looks it took is not the property and is not counted. The property is what holds from the refusal on: the view
+    // looked at least once (it is the `.gitignore` it read that says why), and the file is not read again, whatever happens to it.
+    assert!(reads(&app) > before, "the view looked, and it is the `.gitignore` it read that says why");
+    support::settle(&mut app);
+    let refused_at = reads(&app);
+    // **An edit no event announces**: the file is valid and different. A view that read on a clock would read inside this window.
+    std::fs::write(path(&app), good(0.9)).unwrap_or_else(|e| panic!("{e}"));
+    support::pump(&mut app, EDIT_WATCHED_FOR);
+    assert_eq!(reads(&app), refused_at, "a file the index cannot follow is not read, though it changed");
+    assert_eq!(mine(&app), Some(0.5), "the view holds the checks it last read, not an edit no event announced");
 }
 
 #[test]
