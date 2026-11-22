@@ -37,8 +37,8 @@
 //!    `100 / room`, at both the harness scale and the capture's 2.4. That is the property #476 must not
 //!    lose when the knob arrives, proved now so the knob cannot arrive broken.
 //!
-//! When `bevy_gooey#108` lands, the first test's `MIN_TARGET_PX` becomes `DIVIDER_W_PX` and the
-//! comment above it goes.
+//! **`bevy_gooey#108` landed in 0.53.0 (`SplitThickness`)**: the shell's split now carries `SplitThickness(DIVIDER_W_PX)` and the first test's
+//! `MIN_TARGET_PX` is `DIVIDER_W_PX`, as this doc said it would become (#525's pin bump).
 
 use bevy::camera::{ImageRenderTarget, NormalizedRenderTarget};
 use bevy::picking::pointer::{Location, PointerAction, PointerButton, PointerId, PointerInput};
@@ -118,10 +118,10 @@ fn laid_out_dividers(app: &mut App) -> Vec<(Entity, f32)> {
     found
 }
 
-/// **Every laid-out divider is gooey's `MIN_TARGET_PX` wide at every interface scale** — the one number
-/// that decides the channel today, named as gooey's so it cannot drift unnoticed.
+/// **Every laid-out divider is `DIVIDER_W_PX` wide at every interface scale** — the shell split carries it as gooey's `SplitThickness`
+/// (`bevy_gooey` 0.53, #108), so the width that is drawn and the room `fit_docks_to_the_window` reserves are one number.
 ///
-/// This is the assertion that becomes `DIVIDER_W_PX` when `bevy_gooey#108` lands; see the module doc.
+/// This was the assertion on gooey's `MIN_TARGET_PX` until the knob landed; see the module doc.
 #[test]
 fn every_laid_out_divider_is_one_number_wide_at_every_scale() {
     let mut refused: Vec<String> = Vec::new();
@@ -133,17 +133,17 @@ fn every_laid_out_divider_is_one_number_wide_at_every_scale() {
             "the shell is a gooey split, so it must have a laid-out divider at scale {scale}; none was found"
         );
         for (entity, wide) in found {
-            if (wide - bevy_gooey::MIN_TARGET_PX).abs() > SLACK_PX {
+            if (wide - bevy_dark_factory::chrome::DIVIDER_W_PX).abs() > SLACK_PX {
                 refused.push(format!(
-                    "[scale {scale}] divider {entity} is {wide:.2} px wide; gooey's floor is {}",
-                    bevy_gooey::MIN_TARGET_PX
+                    "[scale {scale}] divider {entity} is {wide:.2} px wide; the shell asks for {}",
+                    bevy_dark_factory::chrome::DIVIDER_W_PX
                 ));
             }
         }
     }
     assert!(
         refused.is_empty(),
-        "the split's channel is gooey's one number, and these disagree with it:\n{}",
+        "the split's channel is the shell's one number, and these disagree with it:\n{}",
         refused.join("\n")
     );
 }

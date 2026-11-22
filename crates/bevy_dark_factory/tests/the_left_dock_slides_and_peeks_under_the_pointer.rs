@@ -90,6 +90,35 @@ fn viewport(app: &mut App) -> (f32, f32) {
     laid(app, entity)
 }
 
+/// **One device pixel in logical px**, the grain layout rounds every edge to. The shell's divider is `DIVIDER_W_PX` (12 logical, `SplitThickness`): at
+/// the editor's `UiScale` that is a fractional number of device pixels, so the viewport's left edge sits at a fraction and a tiny change in the floating
+/// pane's residue can flip it to the next whole device pixel without the viewport having moved.
+///
+/// **Measured (#108, this test's own run):** with the divider at 12 px the viewport's rounded `(left, width)` is `(36.667, 828.333)` collapsed and
+/// `(37.5, 827.5)` under the peek (its left edge one device pixel on, its right edge the same), and its width before rounding is `828.2318` then
+/// `827.7318`. With gooey's own 24 px (the same test with `SplitThickness` removed) it is `(49.167, 815.833)` both times and `816.2318` then
+/// `816.0651`. The collapsed widths differ by exactly 12 logical px, the divider's change; the residue under the peek is 0.5 logical px now and
+/// 0.167 then, both under one device pixel (0.833). What makes the residue larger is not traced.
+fn device_px(app: &mut App) -> f32 {
+    let world = app.world_mut();
+    let entity = world.query_filtered::<Entity, With<ViewportSlot>>().single(world).expect("one viewport").to_owned();
+    world.get::<ComputedNode>(entity).expect("laid out").inverse_scale_factor()
+}
+
+/// The viewport's width before layout rounds it, logical px.
+fn unrounded_width(app: &mut App) -> f32 {
+    let world = app.world_mut();
+    let entity = world.query_filtered::<Entity, With<ViewportSlot>>().single(world).expect("one viewport").to_owned();
+    let node = world.get::<ComputedNode>(entity).expect("laid out");
+    node.unrounded_size().x * node.inverse_scale_factor()
+}
+
+/// **Whether the viewport moved between two measurements**: its right edge by more than `SLACK_PX / 4`, or its left edge or width by more than one
+/// device pixel (the grain above). A real move is many device pixels.
+fn viewport_moved(a: (f32, f32), b: (f32, f32), one_device_px: f32) -> bool {
+    ((a.0 + a.1) - (b.0 + b.1)).abs() > SLACK_PX / 4.0 || (a.0 - b.0).abs() > one_device_px + 1e-3 || (a.1 - b.1).abs() > one_device_px + 1e-3
+}
+
 fn left_dock_shown(app: &App) -> bool {
     let left = app.world().resource::<Frame>().left;
     app.world().get::<Node>(left).expect("a node").display != Display::None
@@ -157,6 +186,8 @@ fn a_collapsed_dock_peeks_under_the_pointer_and_the_viewport_does_not_move() {
     assert!(laid(&app, pane).1 < SHUT_PX, "collapsed");
     assert!(!left_dock_shown(&app));
     let before = viewport(&mut app);
+    let before_unrounded = unrounded_width(&mut app);
+    let one = device_px(&mut app);
     assert!(!app.world().get::<SplitPeek>(split).expect("a peek").is_open());
 
     // Rest the pointer on the collapsed edge.
@@ -168,7 +199,9 @@ fn a_collapsed_dock_peeks_under_the_pointer_and_the_viewport_does_not_move() {
     assert!(floating > wide * 0.9 && floating < wide + SLACK_PX, "the pane floats as wide as a restore makes it: {floating} against {wide}");
     assert!(left_dock_shown(&app), "and its dock is there to be read and clicked");
     let during = viewport(&mut app);
-    assert!((during.0 - before.0).abs() <= SLACK_PX / 4.0 && (during.1 - before.1).abs() <= SLACK_PX / 4.0, "the viewport has not moved or changed size under the peek: {before:?} to {during:?}");
+    let during_unrounded = unrounded_width(&mut app);
+    assert!(!viewport_moved(before, during, one), "the viewport has not moved or changed size under the peek: {before:?} to {during:?} (one device px is {one})");
+    assert!((during_unrounded - before_unrounded).abs() <= one, "and its width before rounding is the same: {before_unrounded} to {during_unrounded}");
     assert!(app.world().get::<SplitSaved>(split).is_some(), "the split is still collapsed");
     assert!(app.world().resource::<ShellView>().left_hidden, "and the view still says the left panel is hidden");
 
@@ -179,5 +212,5 @@ fn a_collapsed_dock_peeks_under_the_pointer_and_the_viewport_does_not_move() {
     assert!(laid(&app, pane).1 < SHUT_PX);
     assert!(!left_dock_shown(&app));
     let after = viewport(&mut app);
-    assert!((after.0 - before.0).abs() <= SLACK_PX / 4.0 && (after.1 - before.1).abs() <= SLACK_PX / 4.0, "and the viewport is where it was: {before:?} to {after:?}");
+    assert!(!viewport_moved(before, after, one), "and the viewport is where it was: {before:?} to {after:?} (one device px is {one})");
 }

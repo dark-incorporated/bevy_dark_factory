@@ -296,7 +296,13 @@ fn the_bar_takes_its_width_from_the_docks_and_the_viewport_keeps_its_own() {
         }
         assert_eq!(the_bar_is_there(&mut app), bar);
         let viewport = app.world().resource::<bevy_dark_factory::chrome::Frame>().viewport;
-        app.world().get::<ComputedNode>(viewport).map(|n| n.size().x).unwrap_or(0.0)
+        // **The width before layout rounds it** (`unrounded_size`, physical px). Measured: with the divider at 12 px (`DIVIDER_W_PX`, `SplitThickness`)
+        // the rounded widths are 658 with the bar and 659 without, and the unrounded 658.0152 and 658.3284, 0.31 px apart; with gooey's 24 px they were 644
+        // and 644 (644.0907 and 643.719, 0.37 apart). Layout rounds each edge on its own, so a width of 658.33 can be drawn 659; the property, that the docks
+        // pay for the bar, is the unrounded widths agreeing to under one device pixel, and it fails when they do not (628.1 against 658.0 without the
+        // bar being taken out of the docks' room).
+        let node = app.world().get::<ComputedNode>(viewport).map(|n| (n.size().x, n.unrounded_size().x)).unwrap_or((0.0, 0.0));
+        node.1
     };
     let (with, without) = (viewport_width(true), viewport_width(false));
     assert!(without > 0.0);
