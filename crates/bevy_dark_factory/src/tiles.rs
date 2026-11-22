@@ -8977,10 +8977,14 @@ fn draw_ink(
                     if *openable {
                         count_cell(row, format!("{members} member(s)"));
                     } else {
-                        // The reason, in the count's column, because that is where the eye
-                        // already is and because a row that refuses should say so before it is
-                        // pressed.
-                        count_cell(row, "no tile — see COMPOSE".to_owned());
+                        // The reason, where the count would stand, because that is where the eye already is and because a
+                        // row that refuses should say so before it is pressed.
+                        //
+                        // **It wraps in its own column** (#494). It was `count_cell`, which never wraps and never shrinks, so
+                        // this sentence kept its whole width: 21 characters were 53 px past the TILES panel's content edge at
+                        // the capture's window and the skin's own text size, 215 px at the capture's 150%.
+                        crate::chrome::fill_text(row, "no tile — see COMPOSE", crate::chrome::ink().dim, crate::chrome::text::LABEL)
+                            .insert(crate::chrome::spacing(crate::chrome::margin_left(crate::chrome::STEP_ROW)));
                     }
                 });
             }

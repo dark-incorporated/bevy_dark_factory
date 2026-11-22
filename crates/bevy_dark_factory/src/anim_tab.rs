@@ -1232,11 +1232,9 @@ fn rebuild_list(
                     continue;
                 }
                 crate::chrome::list_row(p, ix == bench.selected, RigRow(ix)).with_children(|row| {
-                    row.spawn((
-                        Text::new((*name).to_owned()),
-                        TextColor(read),
-                        crate::chrome::typed(crate::chrome::text::LABEL),
-                    ));
+                    // **A rig's name breaks inside its row** (#494): a bare `Text` kept its whole width, so a long name was drawn
+                    // past the RIGS panel's border (measured, 392 px at the capture's window).
+                    crate::chrome::fill_text(row, (*name).to_owned(), read, crate::chrome::text::LABEL);
                 });
             }
         });

@@ -4298,12 +4298,11 @@ fn rebuild_palette(
                         TextColor(crate::chrome::ink().label),
                         crate::chrome::typed(crate::chrome::text::LABEL),
                     ));
-                    row.spawn((
-                        crate::chrome::text_narrows(),
-                        Text::new(category.to_uppercase()),
-                        TextColor(crate::chrome::ink().label),
-                        crate::chrome::typed(crate::chrome::text::LABEL),
-                    ));
+                    // **A long word in a heading breaks at a letter** (#494), the way `chrome::fill_text` and the rows below do:
+                    // `text_narrows` narrows the box, but with Bevy's word-boundary break a word wider than the column kept its
+                    // whole width and was drawn out past the panel's border (measured: `KIND_TOKEN_WITH_A_VERY_LONG_SPELLING_0`
+                    // was 292 px past the content edge of the PLACE panel at the capture's window).
+                    crate::chrome::fill_text(row, category.to_uppercase(), crate::chrome::ink().label, crate::chrome::text::LABEL);
                     // The count in a non-wrapping column of its own, through the one builder — F6
                     // was this same defect on the Kit door's pack headings.
                     crate::tiles::count_cell(row, format!("{}", members.len()));
