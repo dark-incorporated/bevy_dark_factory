@@ -220,3 +220,65 @@ fn an_edit_an_undo_and_a_redo_leave_the_tab_and_the_file_agreeing_with_the_clock
     run_for(&mut app, QUIET_SECONDS);
     assert_eq!((on_disk(), held(&app)), (second.clone(), second.clone()), "and it stays");
 }
+
+/// **A manifest that cannot be read is said at the look the index asked for, and not on every frame; the next move of the index reads it
+/// again** (#501). `rigs.yaml` is edited and made unreadable before the index publishes the edit, so the tab's look finds a file it cannot
+/// open. Across two seconds of frames (the index's sweep is at its floor, so it looks at the file many times over) the warning is said once;
+/// then the file is made readable and edited again, which moves the index's stamp, and the tab takes that edit. The frames run on this thread so
+/// the warnings can be counted by a subscriber that is only set here. (Skipped as root, which can read anything.)
+#[cfg(unix)]
+#[test]
+fn a_manifest_that_cannot_be_read_is_said_once_per_look_and_read_again_when_the_index_moves() {
+    use std::os::unix::fs::PermissionsExt;
+    use std::sync::{Arc, Mutex};
+
+    use bevy::log::tracing::{self, Event, Subscriber, field::{Field, Visit}};
+    use bevy::log::tracing_subscriber::{Layer, Registry, layer::{Context, SubscriberExt}};
+
+    /// Every message of every event, as text.
+    struct Messages(Arc<Mutex<Vec<String>>>);
+    struct Text(String);
+    impl Visit for Text {
+        fn record_debug(&mut self, field: &Field, value: &dyn std::fmt::Debug) {
+            if field.name() == "message" {
+                self.0 = format!("{value:?}");
+            }
+        }
+    }
+    impl<S: Subscriber> Layer<S> for Messages {
+        fn on_event(&self, event: &Event<'_>, _: Context<'_, S>) {
+            let mut text = Text(String::new());
+            event.record(&mut text);
+            self.0.lock().unwrap_or_else(std::sync::PoisonError::into_inner).push(text.0);
+        }
+    }
+
+    let (mut app, root) = editor("unreadable");
+    app.edit_schedule(Update, |schedule| {
+        schedule.set_executor(bevy::ecs::schedule::SingleThreadedExecutor::new());
+    });
+    let path = root.join("assets/blueprint/rigs.yaml");
+    let original = std::fs::read_to_string(&path).expect("rigs.yaml");
+    let seen = Arc::new(Mutex::new(Vec::new()));
+    let subscriber = Registry::default().with(Messages(seen.clone()));
+    let said = || seen.lock().unwrap_or_else(std::sync::PoisonError::into_inner).iter().filter(|m| m.contains("rigs.yaml") && m.contains("cannot be read")).count();
+    tracing::subscriber::with_default(subscriber, || {
+        let edited = with_a_rig(&original, "aardvark");
+        std::fs::write(&path, &edited).expect("write");
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o000)).expect("chmod");
+        if std::fs::read_to_string(&path).is_ok() {
+            eprintln!("skipped: this user can read a file with no permissions");
+            std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o644)).expect("chmod");
+            return;
+        }
+        run_for(&mut app, 2.0);
+        assert_eq!(said(), 1, "the unreadable manifest is said once at the look, not on every frame: {:?}", seen.lock().map(|m| m.clone()));
+        assert_eq!(held(&app), original, "the tab keeps the manifest it holds");
+
+        // Readable again, and edited: the index's stamp moves, so the tab looks again and takes the edit.
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o644)).expect("chmod");
+        let again = with_a_rig(&edited, "zebra");
+        std::fs::write(&path, &again).expect("write");
+        until(&mut app, "the tab takes the edit once the file reads", |a| held(a) == again);
+    });
+}

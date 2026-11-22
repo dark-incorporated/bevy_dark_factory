@@ -21,7 +21,7 @@
 //! The stale count is painted onto the tab strip's `ANIM` label in place, so it survives tab
 //! switches: a fact about the project does not stop being true because a different tab is open.
 
-use std::collections::{HashMap, VecDeque};
+use std::collections::{HashMap, HashSet, VecDeque};
 
 use bevy::prelude::*;
 
@@ -42,12 +42,17 @@ fn stamp_in(listing: &Listing, rel: &str) -> Option<FileStamp> {
     listing.files.binary_search_by(|(path, _)| path.as_str().cmp(rel)).ok().map(|at| listing.files[at].1)
 }
 
-/// **Say once that the index cannot answer**, so a failure that lasts is one line and not one a frame.
-fn refuse(said: &mut Option<String>, who: &str, why: String) {
-    if said.as_deref() != Some(why.as_str()) {
-        warn!("{who}: the project index has no listing ({why}), so nothing is read");
-        *said = Some(why);
+/// **Say `message` once**, so a failure that lasts is one line and not one a frame.
+fn say_once(said: &mut Option<String>, message: String) {
+    if said.as_deref() != Some(message.as_str()) {
+        warn!("{message}");
+        *said = Some(message);
     }
+}
+
+/// **Say once that the index cannot answer.**
+fn refuse(said: &mut Option<String>, who: &str, why: String) {
+    say_once(said, format!("{who}: the project index has no listing ({why}), so nothing is read"));
 }
 
 /// The watcher's memory: what the rigs' meshes looked like when last taken.
@@ -59,11 +64,13 @@ pub(crate) struct RigWatch {
     seen: HashMap<String, Option<FileStamp>>,
     /// Why the index could not answer, as last said.
     refused: Option<String>,
+    /// The meshes the index does not list, said once each.
+    unlisted: HashSet<String>,
 }
 
 /// **Whether a file's stamp moved since it was last taken**, remembering the new one. The first sight
-/// of a file is its baseline, not a change; so is a stamp back at the known one (an export that was
-/// reverted before the index published it).
+/// of a file is its baseline, not a change. (A change that is undone before the index publishes it is
+/// no change at all, and the index says so by publishing nothing: it is not seen here.)
 pub(crate) fn moved(known: &mut Option<FileStamp>, observed: FileStamp) -> bool {
     known.replace(observed).is_some_and(|before| before != observed)
 }
@@ -229,7 +236,10 @@ pub(crate) fn invalidate(reports: &mut BenchReports, generation: &mut BenchGener
 }
 
 /// Follow the loaded rigs' GLBs through the project index. Only rigs already loaded — the tab's lazy
-/// load stands. A frame where the index did not move, and the tab's rigs did not, looks at nothing.
+/// load stands. A frame where neither the index's generation nor the tab moved looks at nothing; the
+/// tab moving is `bench.is_changed()`, which any change to the tab's state sets (a selection among
+/// them), and is a look because a rig that came with an edit of the manifest has a mesh nobody has
+/// taken a stamp of yet.
 pub(crate) fn follow_the_rig_files(
     index: Res<ProjectIndex>,
     bench: Option<Res<BenchState>>,
@@ -242,8 +252,7 @@ pub(crate) fn follow_the_rig_files(
     let Some(rigs) = &bench.rigs else {
         return;
     };
-    // A rig that came with an edit of the manifest has a mesh nobody has taken a stamp of yet, so the
-    // tab changing is a look as well.
+    // (See the note above: the tab changing is a look as well.)
     if watch.generation == index.generation() && !bench.is_changed() {
         return;
     }
@@ -262,11 +271,17 @@ pub(crate) fn follow_the_rig_files(
         by_mesh.entry(rig.mesh.as_str()).or_default().push(name);
     }
     for (mesh, names) in by_mesh {
-        // A file the index does not list is not the watcher's to report: the measure pass says "cannot
-        // read" loudly, and it will run as soon as the file reappears with a new stamp.
-        let Some(observed) = stamp_in(&listing, &format!("{ASSETS_REL}/{mesh}")) else {
+        // A file the index does not list is missing or named by the project's `.gitignore`: it cannot be
+        // followed, which is said once. The measure pass says "cannot read" loudly for a file that is
+        // missing, and runs as soon as the file reappears with a new stamp.
+        let rel = format!("{ASSETS_REL}/{mesh}");
+        let Some(observed) = stamp_in(&listing, &rel) else {
+            if watch.unlisted.insert(mesh.to_owned()) {
+                warn!("animation watch: {rel} is not in the project index (it is missing, or the project's .gitignore names it), so changes to it are not followed");
+            }
             continue;
         };
+        watch.unlisted.remove(mesh);
         if moved(watch.seen.entry(mesh.to_owned()).or_default(), observed) {
             for name in names {
                 queue.push_back_unique(name);
@@ -363,12 +378,15 @@ pub(crate) fn paint_stale_badge(
 #[derive(Default)]
 pub(crate) struct RigsSeen {
     /// The index's stamp of `rigs.yaml` when it was last read (`Some(None)`: the index listed none), and
-    /// `None` before the first read since the tab loaded the manifest.
+    /// `None` before the first read since the tab loaded the manifest. It is set even when the read
+    /// failed, so a file that cannot be read is tried again when the index next moves and not every frame.
     looked: Option<Option<FileStamp>>,
     /// The index generation last looked at.
     generation: u64,
     /// Why the index could not answer, as last said.
     refused: Option<String>,
+    /// That the index does not list `rigs.yaml` has been said, so it is one line however many looks follow.
+    said_read: Option<String>,
     /// `(what the disk held, what the tab held)` as last decided to refuse or to wait on, so one bad
     /// edit is one verdict however many frames pass and the same bytes are never decided twice. `None`
     /// while the two agree.
@@ -446,12 +464,23 @@ pub(crate) fn sync_rigs_reload(
     }
     seen.looked = Some(stamp);
     let path = project.root.join(RIGS_REL);
-    let text = if stamp.is_some() { std::fs::read_to_string(&path) } else { Err(std::io::ErrorKind::NotFound.into()) };
-    let disk = match text {
-        Ok(text) => Some(text),
+    // The file is read whether or not the index lists it: the stamp says when to read, not whether there is a file.
+    let disk = match std::fs::read_to_string(&path) {
+        Ok(text) => {
+            if stamp.is_none() {
+                say_once(
+                    &mut seen.said_read,
+                    format!("animation tab: {RIGS_REL} is not in the project index (the project's .gitignore names it?), so later edits to it are not followed"),
+                );
+            } else {
+                seen.said_read = None;
+            }
+            Some(text)
+        }
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => None,
         Err(e) => {
-            // Neither taken nor called gone: said, and read again when the index next moves.
+            // Neither taken nor called gone: said at each look, and a look is one the index's stamp asked for, so a file that
+            // stays unreadable is read again when the index next moves and not on every frame (`looked` is set above).
             warn!("animation tab: {} cannot be read: {e}; the rigs it holds stay", path.display());
             seen.looked = None;
             return;
@@ -546,12 +575,13 @@ mod tests {
     }
 
     #[test]
-    fn a_stamp_back_at_the_known_one_is_no_change_at_all() {
+    fn a_stamp_differing_in_size_alone_or_older_than_the_known_one_is_a_change() {
         let mut known = None;
         assert!(!moved(&mut known, stamp(100)));
-        assert!(!moved(&mut known, stamp(100)), "a revert the index published as the stamp it began with");
-        assert!(moved(&mut known, stamp(200)));
-        assert!(moved(&mut known, stamp(100)), "back at the old stamp after the new one was taken is a change again");
+        let longer = FileStamp { len: 8, ..stamp(100) };
+        assert!(moved(&mut known, longer), "the same modification time with another size is a change");
+        assert!(moved(&mut known, stamp(50)), "a stamp older than the known one is a change: the index published it");
+        assert!(!moved(&mut known, stamp(50)), "and then it is the baseline");
     }
 
     #[test]
