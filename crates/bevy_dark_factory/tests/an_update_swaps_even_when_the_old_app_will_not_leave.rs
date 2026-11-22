@@ -34,8 +34,8 @@ impl Install {
     fn new(name: &str) -> Install {
         let root = std::env::temp_dir().join(format!("swap_{name}_{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&root);
-        let running = root.join("Applications").join("DarkFactory.app");
-        let staged = root.join("updates").join("9.9.9").join("unpacked").join("DarkFactory.app");
+        let running = root.join("Applications").join("Dark Factory.app");
+        let staged = root.join("updates").join("9.9.9").join("unpacked").join("Dark Factory.app");
         for (dir, says) in [(&running, "old"), (&staged, "new")] {
             std::fs::create_dir_all(dir).unwrap_or_else(|e| panic!("{}: {e}", dir.display()));
             std::fs::write(dir.join("version"), says).unwrap_or_else(|e| panic!("{e}"));

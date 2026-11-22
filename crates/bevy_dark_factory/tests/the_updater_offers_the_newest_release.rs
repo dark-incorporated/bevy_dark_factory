@@ -29,7 +29,7 @@ fn release(tag: &str, draft: bool, prerelease: bool, assets: Vec<String>) -> ser
 }
 
 fn feed() -> String {
-    let full = |version: &str| vec![format!("DarkFactory-{version}-macos-arm64.zip"), update::SUMS.to_owned()];
+    let full = |version: &str| vec![format!("Dark-Factory-{version}-macos-arm64.zip"), update::SUMS.to_owned()];
     let r = release;
     serde_json::Value::Array(vec![
         // Another crate's tag shares the feed, and its version is the highest of all.
@@ -52,7 +52,7 @@ fn newest_offers_the_highest_published_release_that_carries_its_zip() {
         offer,
         Some(Offer {
             version: v("0.2.10"),
-            zip_url: "https://example.test/bevy_dark_factory-v0.2.10/DarkFactory-0.2.10-macos-arm64.zip".to_owned(),
+            zip_url: "https://example.test/bevy_dark_factory-v0.2.10/Dark-Factory-0.2.10-macos-arm64.zip".to_owned(),
             sums_url: "https://example.test/bevy_dark_factory-v0.2.10/SHA256SUMS".to_owned(),
         }),
         "drafts, pre-releases, other crates' tags and a release without its zip are not offers"
@@ -65,10 +65,10 @@ fn newest_offers_the_highest_published_release_that_carries_its_zip() {
 fn expected_sum_reads_the_line_for_the_file_and_names_a_missing_one() {
     let a = "a".repeat(64);
     let b = "B".repeat(64);
-    let sums = format!("{a}  DarkFactory-0.2.0-macos-arm64.dmg\n{b}  DarkFactory-0.2.0-macos-arm64.zip\n");
-    assert_eq!(update::expected_sum(&sums, "DarkFactory-0.2.0-macos-arm64.zip"), Ok("b".repeat(64)));
-    let missing = update::expected_sum(&sums, "DarkFactory-0.2.1-macos-arm64.zip").unwrap_err();
-    assert!(missing.contains("DarkFactory-0.2.1-macos-arm64.zip"), "the refusal names the file: {missing}");
+    let sums = format!("{a}  Dark-Factory-0.2.0-macos-arm64.dmg\n{b}  Dark-Factory-0.2.0-macos-arm64.zip\n");
+    assert_eq!(update::expected_sum(&sums, "Dark-Factory-0.2.0-macos-arm64.zip"), Ok("b".repeat(64)));
+    let missing = update::expected_sum(&sums, "Dark-Factory-0.2.1-macos-arm64.zip").unwrap_err();
+    assert!(missing.contains("Dark-Factory-0.2.1-macos-arm64.zip"), "the refusal names the file: {missing}");
 }
 
 /// Serves each path's body for as many requests as are made, until the test ends.
@@ -125,14 +125,14 @@ fn fetch_verified_keeps_a_zip_whose_sum_matches_and_deletes_one_that_does_not() 
 fn bundle_of_tells_an_installed_app_from_a_translocated_one_and_from_no_app() {
     let of = |p: &str| update::bundle_of(Path::new(p));
     assert_eq!(
-        of("/Applications/DarkFactory.app/Contents/MacOS/bevy_dark_factory"),
-        Bundle::Installed("/Applications/DarkFactory.app".into())
+        of("/Applications/Dark Factory.app/Contents/MacOS/bevy_dark_factory"),
+        Bundle::Installed("/Applications/Dark Factory.app".into())
     );
     assert!(matches!(
-        of("/private/var/folders/x/AppTranslocation/Y/d/DarkFactory.app/Contents/MacOS/bevy_dark_factory"),
+        of("/private/var/folders/x/AppTranslocation/Y/d/Dark Factory.app/Contents/MacOS/bevy_dark_factory"),
         Bundle::Translocated(_)
     ));
-    assert!(matches!(of("/Volumes/DarkFactory/DarkFactory.app/Contents/MacOS/bevy_dark_factory"), Bundle::Translocated(_)));
+    assert!(matches!(of("/Volumes/Dark Factory/Dark Factory.app/Contents/MacOS/bevy_dark_factory"), Bundle::Translocated(_)));
     assert_eq!(of("/home/u/target/release/bevy_dark_factory"), Bundle::NotABundle);
 }
 
@@ -150,7 +150,7 @@ fn editor(name: &str) -> App {
 #[test]
 fn the_chrome_bar_offers_an_update_and_refuses_it_over_unsaved_work() {
     let mut app = editor("updater-chrome");
-    let mut updater = Updater::new("http://127.0.0.1:9/none".into(), "/nonexistent/DarkFactory.app".into());
+    let mut updater = Updater::new("http://127.0.0.1:9/none".into(), "/nonexistent/Dark Factory.app".into());
     updater.state = UpdateState::Available(Offer {
         version: v("9.9.9"),
         zip_url: "http://127.0.0.1:9/zip".into(),
@@ -192,7 +192,7 @@ fn an_up_to_date_check_says_the_version_is_the_newest() {
 
     let mut app = editor("updater-uptodate");
     app.add_plugins(LauncherPlugin);
-    let mut updater = Updater::new("http://127.0.0.1:9/none".into(), "/nonexistent/DarkFactory.app".into());
+    let mut updater = Updater::new("http://127.0.0.1:9/none".into(), "/nonexistent/Dark Factory.app".into());
     updater.state = UpdateState::UpToDate;
     app.insert_resource(updater);
     app.world_mut()
@@ -220,7 +220,7 @@ fn an_up_to_date_check_says_the_version_is_the_newest() {
 /// **The answer reaches the person on the row they pressed**, which is where a failure would appear.
 #[test]
 fn the_up_to_date_answer_is_said_not_only_labelled() {
-    let mut updater = Updater::new("http://127.0.0.1:9/none".into(), "/nope/DarkFactory.app".into());
+    let mut updater = Updater::new("http://127.0.0.1:9/none".into(), "/nope/Dark Factory.app".into());
     updater.state = UpdateState::UpToDate;
     assert_eq!(
         updater.label(),
@@ -232,7 +232,7 @@ fn the_up_to_date_answer_is_said_not_only_labelled() {
 
 /// **The launch check that finds nothing says nothing, and a pressed one says so.**
 ///
-/// The shipped 0.2.4 opened on a sticky coral `DarkFactory v0.2.4 is the newest release.` before the
+/// The shipped 0.2.4 opened on a sticky coral `Dark Factory v0.2.4 is the newest release.` before the
 /// product's own name, on every launch, because the automatic check answered into the launcher's
 /// problem line exactly as a pressed one does. Measured in that release's own screenshot on
 /// 2026-11-05. The button's label already carries the answer; the toast is only worth the space when
@@ -247,7 +247,7 @@ fn an_automatic_check_that_finds_nothing_raises_no_problem() {
     // **A feed that cannot answer** is the sharpest case: a failure *does* speak, so the absence of
     // a problem line here would be for the wrong reason if the check had not run at all. Instead the
     // check is made to answer "nothing newer" by pointing it at an empty release list.
-    let mut updater = Updater::new("http://127.0.0.1:9/none".into(), "/nonexistent/DarkFactory.app".into());
+    let mut updater = Updater::new("http://127.0.0.1:9/none".into(), "/nonexistent/Dark Factory.app".into());
     updater.state = UpdateState::UpToDate;
     app.insert_resource(updater);
     app.world_mut()

@@ -46,7 +46,7 @@ fn serve(body: Arc<Mutex<String>>) -> String {
     format!("http://{addr}")
 }
 
-/// The feed once DarkFactory 9.9.9 is published: a tag, the zip it carries and its sums.
+/// The feed once Dark Factory 9.9.9 is published: a tag, the zip it carries and its sums.
 fn feed_with_a_release() -> String {
     let version = semver::Version::new(9, 9, 9);
     serde_json::json!([{
@@ -66,7 +66,7 @@ fn the_home(feed: String) -> App {
     let root = fixtures::Fixture::new(&format!("check_update_{}", std::process::id())).descriptor("wall", "alpha").build("m");
     let mut app = harness::build_headless(&root, "m", None).unwrap_or_else(|e| panic!("{e}"));
     app.add_plugins(LauncherPlugin);
-    let mut updater = Updater::new(feed, "/nonexistent/DarkFactory.app".into());
+    let mut updater = Updater::new(feed, "/nonexistent/Dark Factory.app".into());
     updater.state = UpdateState::UpToDate;
     app.insert_resource(updater);
     app.world_mut().resource_mut::<NextState<Screen>>().set(Screen::Launcher);
