@@ -16,7 +16,7 @@
 //!
 //! # The place
 //!
-//! The Location starts at `DarkFactory Projects` in the person's documents folder, made when the first project is
+//! The Location starts at `Dark Factory Projects` in the person's documents folder, made when the first project is
 //! created there. It is never filled from anything else, and Choose… asks the system's own chooser.
 
 use std::path::{Path, PathBuf};
@@ -62,7 +62,7 @@ const PROTOTYPE_NOTE: &str = "Kenney's Prototype Kit (CC0, its licence is beside
 const FOLDER_UNNAMED: &str = "Folder: named after the project";
 
 /// The folder, inside the person's documents, that new projects go in by default.
-const DEFAULT_PLACE: &str = "DarkFactory Projects";
+const DEFAULT_PLACE: &str = "Dark Factory Projects";
 
 impl Template {
     pub const ALL: [Template; 2] = [Template::Starter, Template::Empty];
@@ -91,7 +91,7 @@ impl Template {
     }
 }
 
-/// Where new projects go unless a person says otherwise: `DarkFactory Projects` in the documents folder, or in the home folder
+/// Where new projects go unless a person says otherwise: `Dark Factory Projects` in the documents folder, or in the home folder
 /// of a system that has no documents folder.
 pub fn default_location() -> PathBuf {
     dirs::document_dir().or_else(dirs::home_dir).unwrap_or_else(|| PathBuf::from(".")).join(DEFAULT_PLACE)

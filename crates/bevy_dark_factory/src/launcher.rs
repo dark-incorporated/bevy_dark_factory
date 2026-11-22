@@ -268,7 +268,7 @@ pub fn bundled_example() -> Option<PathBuf> {
 
 /// Where the bundled example is copied to be opened, so saves never write inside the signed app.
 pub fn user_example() -> Option<PathBuf> {
-    Some(dirs::document_dir()?.join("DarkFactory Example"))
+    Some(dirs::document_dir()?.join("Dark Factory Example"))
 }
 
 /// Copies the folder `from` to `to`: files and folders, never a symlink.
