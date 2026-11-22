@@ -4,6 +4,7 @@ What each change added, newest first. A visible change has a clip: click the sti
 
 ## 2026-11-21
 
+- **wiggum-refused-start** `3dcd9659` a start the driver refuses for low disk no longer spends a pass number, so a full disk cannot use up WIGGUM_MAX *No clip: a loop driver; proved by tools/loop/test_wiggum_refused_start.py, which fails on the old driver (10 refusals spent 10 numbers)*
 - **pre-push-lfs** `b7b294bd` a branch push uploads its changelog clips too, instead of being refused with GH008 *No clip: a gate hook; proved by tools/loop/test_pre_push_lfs.py, which fails on the old hook*
 - **dark-factory-folders** `89362ecf` the folders the app makes in Documents are Dark Factory Projects and Dark Factory Example *For you: New projects go in a Dark Factory Projects folder in your Documents, and the example in Dark Factory Example.* *No clip: a folder name; proved by a_new_project_opens_something_to_edit*
 - **app-icon** `c17a35e9` the app has an icon again: a gothic factory-cathedral before a magenta moon, at every size from 16 to 1024 px *For you: Dark Factory has an icon again: a gothic factory under a magenta moon. The last few versions shipped without one.*<br><a href="docs/changelog/media/2026-11-21-app-icon.mp4"><img src="docs/changelog/media/2026-11-21-app-icon.png" width="320" alt="clip"></a>
