@@ -494,12 +494,10 @@ fn the_languages_are_coloured_by_role_and_references_are_links() {
     assert_eq!(role_of(&s, rhai, "open"), Some(SyntaxRole::Function));
     assert_eq!(role_of(&s, rhai, "\"hi\""), Some(SyntaxRole::String));
     assert_eq!(role_of(&s, rhai, "// count"), Some(SyntaxRole::Comment));
+    // Markdown: the host colours nothing. ONE path: a Markdown page's ink is gooey's `CodeMarkdown` (#525), proved from the rendered runs in
+    // `a_markdown_page_wraps_and_is_drawn_in_ink`. This is a tombstone: if a host tokenizer for Markdown is ever added back, this fails.
     let md = "# Title\n\nSome `code` and [a link](x.md).\n\n```\nfenced\n```\n";
-    let s = spans(Lang::Markdown, md, None);
-    assert_eq!(role_of(&s, md, "# Title"), Some(SyntaxRole::Keyword));
-    assert_eq!(role_of(&s, md, "`code`"), Some(SyntaxRole::String));
-    assert_eq!(role_of(&s, md, "[a link](x.md)"), Some(SyntaxRole::Reference));
-    assert_eq!(role_of(&s, md, "fenced"), Some(SyntaxRole::String));
+    assert!(spans(Lang::Markdown, md, None).is_empty(), "a Markdown page is coloured by gooey's `CodeMarkdown`, not by a host tokenizer");
 }
 
 /// **Errors are the loader's**: a duplicate key, a tab and a second document are named by the event walk; a

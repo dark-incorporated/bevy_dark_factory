@@ -52,8 +52,8 @@ use bevy::ui::{ComputedNode, InteractionDisabled, ScrollPosition, UiGlobalTransf
 use bevy::ui_widgets::{Activate, ValueChange};
 use bevy_gooey::{
     CodeAuthor, CodeCompletionRequested, CodeCompletions, CodeEdit, CodeEditor, CodeEditorValue, CodeHover, CodeHoverRequested, CodeIndent,
-    CodeIndentation, CodeMinimap, CodePos, CodeSeverity, CompletionItem, Diagnostic, Diagnostics, FoldRanges, Highlights, ListView, RowSource, SelectMode,
-    TableSelection, Tree, TreeNode, observe, tree,
+    CodeIndentation, CodeMarkdown, CodeMinimap, CodePos, CodeSeverity, CodeSoftWrap, CompletionItem, Diagnostic, Diagnostics, FoldRanges, Highlights, ListView, RowSource,
+    SelectMode, TableSelection, Tree, TreeNode, observe, tree,
 };
 use serde_json::Value;
 
@@ -698,6 +698,53 @@ pub fn active_file(session: &Session) -> Option<String> {
     session.tabs(Workspace::Files).active_doc().filter(|d| d.kind == Kind::File).map(|d| d.name.clone())
 }
 
+/// **A Markdown page (and a `.txt` file) is prose, and the editor treats it as prose** (#525, `feedback-1795094391027`): its long lines wrap at the editor's edge
+/// ([`CodeSoftWrap`]) instead of running off it, and its marks (headings, emphasis, code, links, quotes, lists) are drawn in the skin's inks
+/// ([`CodeMarkdown`]). A wrap is drawn and never written, so the file's text, the caret and the undo history are as without it.
+///
+/// **A default chosen while implementing #525, not a setting** (the owner approved soft wrap and highlighting in the issue, and was away for
+/// the choice of a switch): the note was *"this markdown editor is not great"*, and what a person met was a paragraph on one line to scroll
+/// sideways to read, so Markdown wraps. A YAML, RON or Rhai file keeps gooey's code editor, which is what [`CodeSoftWrap`]'s own docs say a
+/// code pane is. A Files-workspace setting (a key in the editor's settings YAML read here, with a row on the Settings screen) is possible if
+/// wanted. The two components follow the file the editor shows, so a tab change from a page to a map takes them away and back; the text, the
+/// caret and an unsaved edit are the buffer's and are not touched by it.
+fn mark_the_prose(mut commands: Commands, editors: Query<(Entity, &FileEditor, Has<CodeSoftWrap>, Has<CodeMarkdown>)>) {
+    for (entity, editor, wrapped, inked) in &editors {
+        let (wrap, ink) = editor.shown.as_deref().map_or((false, false), prose_of);
+        match (wrap, wrapped) {
+            (true, false) => {
+                commands.entity(entity).insert(CodeSoftWrap);
+            }
+            (false, true) => {
+                commands.entity(entity).remove::<CodeSoftWrap>();
+            }
+            _ => {}
+        }
+        match (ink, inked) {
+            (true, false) => {
+                commands.entity(entity).insert(CodeMarkdown);
+            }
+            (false, true) => {
+                commands.entity(entity).remove::<CodeMarkdown>();
+            }
+            _ => {}
+        }
+    }
+}
+
+/// The extension of a plain-text file, which is prose that wraps (and is not Markdown).
+const PLAIN_TEXT_EXTENSION: &str = "txt";
+
+/// **What the editor does with a file as prose**: `(wraps, drawn as Markdown)`. A Markdown page does both; a `.txt` file is prose too and wraps, but its
+/// asterisks and backticks are not markup, so it is not drawn as Markdown; every other file (YAML, RON, Rhai, anything unknown) is code and does neither.
+fn prose_of(rel: &str) -> (bool, bool) {
+    match Lang::of(rel) {
+        Lang::Markdown => (true, true),
+        Lang::Plain if rel.rsplit_once('.').is_some_and(|(_, ext)| ext.eq_ignore_ascii_case(PLAIN_TEXT_EXTENSION)) => (true, false),
+        _ => (false, false),
+    }
+}
+
 fn indentation_of(lang: Lang) -> CodeIndentation {
     let spaces = match lang {
         Lang::Yaml | Lang::Markdown => YAML_INDENT_SPACES,
@@ -724,6 +771,7 @@ impl Plugin for FilesPlugin {
                     keep_the_open_files,
                     poll_the_disk.after(hear_the_project),
                     keep_the_editor,
+                    mark_the_prose,
                     decorate_the_editor,
                     track_the_pointer,
                     follow_on_f12,
@@ -742,7 +790,7 @@ impl Plugin for FilesPlugin {
             // coloured, in the Design workspace's page instead of the Files workspace's.
             .add_systems(
                 Update,
-                (keep_the_open_files, poll_the_disk.after(hear_the_project), keep_the_design_editor, decorate_the_editor)
+                (keep_the_open_files, poll_the_disk.after(hear_the_project), keep_the_design_editor, mark_the_prose, decorate_the_editor)
                     .chain()
                     .run_if(in_state(Screen::Editor))
                     .run_if(Workspace::design_is_open),

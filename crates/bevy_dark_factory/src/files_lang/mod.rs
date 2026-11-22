@@ -34,11 +34,11 @@
 //!
 //! # Not a parser, and why that is a decision and not a shortcut
 //!
-//! The colours of RON, Rhai and Markdown come from a small tokenizer each (no new dependency: the
+//! The colours of RON and Rhai come from a small tokenizer each (no new dependency: the
 //! owner's call of 2026-11-12). Their *errors* are not guessed by it: RON (no project file is RON any more, so
 //! it is only a file a game keeps of its own) and Rhai's are only what a scan can be sure of (a bracket that
 //! never closes, a string that never ends: the engine's own compile is a crate the editor does not link).
-//! Markdown's colours are the tokenizer's, and its errors are the paths the design reader names.
+//! Markdown's colours are `bevy_gooey`'s own (`CodeMarkdown`, #525), and its errors are the paths the design reader names.
 
 use std::ops::Range;
 use std::path::Path;

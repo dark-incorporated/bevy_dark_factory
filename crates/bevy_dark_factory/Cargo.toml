@@ -96,7 +96,7 @@ blueprint_model = { path = "../blueprint_model" }
 bevy_flora = { git = "https://github.com/dark-incorporated/bevy_flora", rev = "25e956b3f88ba32a1b6d75957360c6840da6afd9", features = ["serde"], optional = true }
 # The editor's UI library (UI-01, #209): required, not a family-crate feature. `EditorUiPlugin` owns it. **`markdown`** is the Markdown view the Design
 # workspace renders a page with (SG-05, #404): it adds `pulldown-cmark`, which `blueprint_model`'s design reader already depends on.
-bevy_gooey = { git = "https://github.com/dark-incorporated/bevy_gooey", rev = "6135378", features = ["serde", "reflect", "markdown"] }
+bevy_gooey = { git = "https://github.com/dark-incorporated/bevy_gooey", rev = "40df24d7d248ae7f7ee2543028b3a2cb35ff4d40", features = ["serde", "reflect", "markdown"] }
 # The runtime half. The editor spawns pieces through `bevy_blueprint::spawn_descriptor` rather than its
 # own copy, so a map cannot look one way here and another in the game — the failure `bake.rs` and
 # `site_editor::source_map` demonstrated by independently growing the same RON writer.
@@ -185,7 +185,7 @@ bevy_debugger_bevy = { package = "bevy_fairy", git = "https://github.com/dark-in
 # `bevy_gooey::testing` finds a widget by its label and clicks it (UI-06, #214). A test dependency only:
 # the editor itself ships none of it.
 [dev-dependencies]
-bevy_gooey = { git = "https://github.com/dark-incorporated/bevy_gooey", rev = "6135378", features = ["serde", "reflect", "testing"] }
+bevy_gooey = { git = "https://github.com/dark-incorporated/bevy_gooey", rev = "40df24d7d248ae7f7ee2543028b3a2cb35ff4d40", features = ["serde", "reflect", "testing"] }
 # Reads a face's own character map, so a test can say the terminal's face has the icons a prompt draws
 # (#323). Already in the lock through Bevy's text stack; a test dependency only.
 ttf-parser = "0.25"

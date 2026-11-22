@@ -54,8 +54,8 @@
 //! tables, strikethrough and task lists.
 //!
 //! **It is the one parser, not a duplicate of another.** The editor has no Markdown renderer to share it
-//! with: GD-11's Markdown support is a *tokenizer* that colours syntax and recognises neither an image nor a
-//! link, and `bevy_gooey` at the pinned revision ships no Markdown module (measured 2026-11-12). A second
+//! with: the file editor's Markdown colours are `bevy_gooey`'s `CodeMarkdown`, a colour scanner: it has no image role
+//! and resolves no path (it marks `[text]` as a reference and `(url)` as a comment), so it cannot say which picture a page cites. A second
 //! implementation written by hand would be a CommonMark parser with tables — and a picture the text cites is
 //! exactly the construct a regex gets wrong, which is the check this module exists for. When a view lands
 //! (SG-05, #404), the test that the two list the same pictures for every fixture page is what keeps them
