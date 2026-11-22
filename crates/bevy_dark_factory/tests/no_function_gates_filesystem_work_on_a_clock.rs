@@ -282,8 +282,11 @@ fn sources(dir: &Path, out: &mut Vec<PathBuf>) {
     }
 }
 
-/// **Every function that uses a clock and touches the filesystem under `crates/*/src/`**, as `(file under crates/, function, line, clock, fs)`.
-fn flagged(crates: &Path) -> Vec<(String, String, usize, Vec<&'static str>, Vec<&'static str>)> {
+/// One flagged function: the file under `crates/`, its name, its line, the clock words and the filesystem words found in it.
+type Flagged = (String, String, usize, Vec<&'static str>, Vec<&'static str>);
+
+/// **Every function that uses a clock and touches the filesystem under `crates/*/src/`**, as a [`Flagged`].
+fn flagged(crates: &Path) -> Vec<Flagged> {
     let mut found = Vec::new();
     let mut members: Vec<PathBuf> = std::fs::read_dir(crates).unwrap_or_else(|e| panic!("{}: {e}", crates.display())).flatten().map(|e| e.path()).collect();
     members.sort();
