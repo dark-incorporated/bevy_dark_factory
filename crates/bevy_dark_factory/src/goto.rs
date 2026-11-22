@@ -220,12 +220,10 @@ pub struct GotoIndex {
     /// **What the entries were built from**, so a frame that changed nothing costs a comparison
     /// rather than a second read of the project. See [`Built`].
     built: Option<Built>,
-    /// **The text files the Files tree lists**, and the values in them that name another thing (NV-07, #384): one scan, read by this
-    /// finder's rows and by every `Used by` list, so they cannot disagree.
-    files: Vec<String>,
-    refs: Vec<crate::crosslinks::Named>,
-    /// The project the scan was of and its stamp, so a settled project costs a comparison.
-    scan: Option<(std::path::PathBuf, u64)>,
+    /// **The text files the project index lists**, and the values in them that name another thing (NV-07, #384): one scan, read by this
+    /// finder's rows and by every `Used by` list, so they cannot disagree. Kept with the project it was of, and the index generation
+    /// it was read at, so a settled project costs a comparison.
+    scan: Option<(std::path::PathBuf, crate::crosslinks::Scan)>,
 }
 
 /// **The facts an index depends on.** Compared, not hashed.
@@ -291,7 +289,7 @@ impl GotoIndex {
 
     /// **Every place that names `(kind, name)`**: file and line, in file order — NV-07's `Used by`.
     pub fn used_by<'a>(&'a self, kind: &'a str, name: &'a str) -> impl Iterator<Item = &'a crate::crosslinks::Named> {
-        self.refs.iter().filter(move |n| n.kind == kind && n.name == name)
+        self.scan.iter().flat_map(|(_, scan)| scan.refs.iter()).filter(move |n| n.kind == kind && n.name == name)
     }
 }
 
@@ -394,8 +392,7 @@ fn rebuild_the_index(
     due: Option<Res<crate::watch::Due>>,
     notes: Option<Res<crate::notes_view::NotesView>>,
     bench: Option<Res<crate::anim_tab::BenchState>>,
-    time: Res<Time<Real>>,
-    mut since: Local<f32>,
+    project_index: Option<Res<crate::project_index::ProjectIndex>>,
 ) {
     let Some(project) = project.as_deref() else {
         if !index.entries.is_empty() {
@@ -405,17 +402,23 @@ fn rebuild_the_index(
         index.scan = None;
         return;
     };
-    // **The project's files are read on a timer, and again at once for a project not yet read**: a file made, removed or changed moves the
-    // stamp, and a stamp that did not move costs the listing and a `stat` per file.
-    *since += time.delta_secs();
-    let read_for = index.scan.as_ref().filter(|(root, _)| *root == project.root).map(|(_, stamp)| *stamp);
-    if read_for.is_none() || *since >= crate::crosslinks::SCAN_POLL_S {
-        *since = 0.0;
-        if let Some(read) = crate::crosslinks::scan(&project.root, read_for) {
-            index.files = read.files;
-            index.refs = read.refs;
-            index.scan = Some((project.root.clone(), read.stamp));
-        }
+    // **A scan of another project is no scan of this one**: the finder lists nothing from the old project's files while the new
+    // project's index is still making its first listing.
+    if index.scan.as_ref().is_some_and(|(root, _)| *root != project.root) {
+        index.scan = None;
+    }
+    // **The project's files come from the project index** ([`crate::project_index`], #501): a file made, removed or changed moves
+    // its generation, and a generation that did not move costs one atomic load: no timer, no listing, no `stat`. A scan reads only
+    // the YAML files whose stamp moved.
+    if let Some(files) = project_index.as_deref()
+        && files.root() == Some(project.root.as_path())
+        && files.generation() != 0
+        && Some(files.generation()) != index.scan.as_ref().map(|(_, scan)| scan.stamp)
+        && let Some(snapshot) = files.snapshot()
+    {
+        let previous = index.scan.as_ref().map(|(_, scan)| scan);
+        let read = crate::crosslinks::scan(&snapshot, &project.root, previous);
+        index.scan = Some((project.root.clone(), read));
     }
     let built = Built {
         project: project.root.clone(),
@@ -423,7 +426,7 @@ fn rebuild_the_index(
         adopted: due.as_deref().map_or(0, |d| d.adopted),
         pieces: project.library.descriptors.len(),
         notes: notes.as_deref().map_or(0, crate::notes_view::NotesView::generation),
-        scan: index.scan.as_ref().map(|(_, stamp)| *stamp),
+        scan: index.scan.as_ref().map(|(_, scan)| scan.stamp),
     };
     if index.built.as_ref() == Some(&built) && !index.entries.is_empty() {
         return;
@@ -433,7 +436,8 @@ fn rebuild_the_index(
     entries.extend(collect_the_rest(project, notes.as_deref(), bench.as_deref()));
     entries.extend(collect_the_cues(project));
     entries.extend(collect_the_design(project));
-    let files = collect_the_files(&index.files, &entries);
+    let scanned_files: &[String] = index.scan.as_ref().map_or(&[], |(_, scan)| scan.files.as_slice());
+    let files = collect_the_files(scanned_files, &entries);
     entries.extend(files);
     // **One order, the index's own**, so a rebuild cannot reorder the list under a person's finger.
     entries.sort_by(|a, b| a.kind.cmp(&b.kind).then_with(|| a.title.cmp(&b.title)));

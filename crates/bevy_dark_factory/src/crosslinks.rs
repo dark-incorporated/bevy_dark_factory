@@ -33,7 +33,6 @@
 //! #384: a game's own data says `cue: door.creak`, and the editor follows it.
 
 use std::collections::HashMap;
-use std::hash::{Hash, Hasher};
 use std::path::Path;
 
 use bevy::prelude::*;
@@ -46,9 +45,6 @@ use crate::inspector_view::PoseBlock;
 use crate::project::{OpenMap, Project};
 use crate::screen::Screen;
 use crate::workspace::Workspace;
-
-/// How often the project's files are looked at again for a reference made or removed, in seconds: the file tree's own rhythm.
-pub const SCAN_POLL_S: f32 = 1.5;
 
 /// **The largest YAML file the scan reads**, in bytes: the Files workspace's own limit, so the scan never reads what the editor will not open.
 pub const SCAN_MAX_BYTES: u64 = crate::files::MAX_FILE_BYTES;
@@ -75,13 +71,16 @@ pub struct Named {
     pub line: usize,
 }
 
-/// **What a read of the project's files found**: the text files the tree lists, the references in the YAML ones, and the stamp they were
-/// read at.
+/// **What a read of the project's files found**: the text files the project index lists, the references in the YAML ones, and the
+/// index generation they were read at.
 #[derive(Clone, Debug, Default)]
 pub struct Scan {
     pub files: Vec<String>,
     pub refs: Vec<Named>,
+    /// The [`crate::project_index::Snapshot::generation`] this was read from.
     pub stamp: u64,
+    /// The stamp each YAML file had when it was read, so a later scan reads only the files whose stamp moved.
+    read: HashMap<String, crate::project_index::FileStamp>,
 }
 
 /// **Whether a file is one the editor opens and the finder lists**: a language the editor colours, or a plain text kind a project holds.
@@ -89,27 +88,26 @@ pub fn is_text_file(rel: &str) -> bool {
     Lang::of(rel) != Lang::Plain || matches!(rel.rsplit_once('.').map(|(_, e)| e.to_ascii_lowercase()).as_deref(), Some("toml" | "json" | "txt"))
 }
 
-/// **Read the project's text files and the references in them**, or `None` when nothing changed since `last` (a file added, removed,
-/// resized or touched changes the stamp). The listing is the Files tree's own, so what the finder names is what the tree shows.
-pub fn scan(root: &Path, last: Option<u64>) -> Option<Scan> {
-    let mut files: Vec<String> = crate::files::tree_files(root).into_iter().filter(|rel| is_text_file(rel)).collect();
-    files.sort();
-    let mut hasher = std::collections::hash_map::DefaultHasher::new();
-    let mut stats: Vec<Option<(u64, std::time::SystemTime)>> = Vec::with_capacity(files.len());
-    for rel in &files {
-        rel.hash(&mut hasher);
-        let stat = std::fs::metadata(root.join(rel)).ok().map(|m| (m.len(), m.modified().unwrap_or(std::time::UNIX_EPOCH)));
-        stat.hash(&mut hasher);
-        stats.push(stat);
-    }
-    let stamp = hasher.finish();
-    if last == Some(stamp) {
-        return None;
+/// **Read the project's text files and the references in them**, from the project index's listing (#501): **no `stat`, no
+/// `read_dir`**, because the index already holds every file's stamp and follows the changes. A YAML file is read only when its stamp
+/// differs from the one `previous` read it at, so a save costs one file, not the project. The listing is the index's own, so what the
+/// finder names is what [`crate::files::listed_files`] and the tree list.
+pub fn scan(snapshot: &crate::project_index::Snapshot, root: &Path, previous: Option<&Scan>) -> Scan {
+    let files: Vec<&(String, crate::project_index::FileStamp)> = snapshot.files.iter().filter(|(rel, _)| is_text_file(rel)).collect();
+    let mut kept: HashMap<&str, Vec<&Named>> = HashMap::new();
+    for named in previous.iter().flat_map(|p| p.refs.iter()) {
+        kept.entry(named.file.as_str()).or_default().push(named);
     }
     let mut schemas: HashMap<&'static str, Option<serde_json::Value>> = HashMap::new();
     let mut refs = Vec::new();
-    for (rel, stat) in files.iter().zip(&stats) {
-        if Lang::of(rel) != Lang::Yaml || stat.is_none_or(|(len, _)| len > SCAN_MAX_BYTES) {
+    let mut read = HashMap::new();
+    for (rel, stamp) in &files {
+        if Lang::of(rel) != Lang::Yaml || stamp.len > SCAN_MAX_BYTES {
+            continue;
+        }
+        if previous.is_some_and(|p| p.read.get(rel) == Some(stamp)) {
+            refs.extend(kept.get(rel.as_str()).into_iter().flatten().map(|n| (*n).clone()));
+            read.insert(rel.clone(), *stamp);
             continue;
         }
         let Ok(text) = std::fs::read_to_string(root.join(rel)) else { continue };
@@ -118,8 +116,9 @@ pub fn scan(root: &Path, last: Option<u64>) -> Option<Scan> {
         for found in files_lang::references(Lang::Yaml, &text, schema) {
             refs.push(Named { kind: found.kind, name: found.name, file: rel.clone(), line: found.line });
         }
+        read.insert(rel.clone(), *stamp);
     }
-    Some(Scan { files, refs, stamp })
+    Scan { files: files.into_iter().map(|(rel, _)| rel.clone()).collect(), refs, stamp: snapshot.generation, read }
 }
 
 /// **The maps that place `id`**, by name, from `Project::maps_that_place` — the one reader of the

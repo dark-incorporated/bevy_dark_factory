@@ -216,6 +216,7 @@ pub mod ops_runs;
 pub mod profile;
 pub mod project;
 pub mod project_assets;
+pub mod project_index;
 pub mod project_page;
 pub mod prose;
 pub mod recent;

@@ -23,9 +23,9 @@
 //
 // # The tree follows the operation, not a timer
 //
-// [`crate::files::tree_files`] is what the tree draws, and a walk of it is the tree's own poll ([`crate::files::TREE_POLL_S`],
-// 1.5 s). A create, rename or delete asks for the walk **now** ([`crate::files::note_tree_changed`]), so the row the change
-// made is on screen in the next frame rather than a poll later.
+// The tree and the finder read the project index ([`crate::project_index`], #501). A create, rename or delete says which path it has
+// finished writing ([`crate::project_index::note_written`]), and the index publishes it at once, so the row the change made is on
+// screen in the next frame rather than a sweep later.
 
 use std::path::Path;
 
@@ -247,7 +247,7 @@ impl Operation for FileCreate {
         let rel = p.target();
         if p.remove.is_some() {
             std::fs::remove_file(root.join(rel)).map_err(|e| Refusal::new(format!("{rel} was not taken away ({e}); nothing was changed.")))?;
-            crate::files::note_tree_changed();
+            crate::project_index::note_written(&root, rel);
             return Ok(Outcome {
                 summary: format!("took away {rel}"),
                 affected: 1,
@@ -259,7 +259,7 @@ impl Operation for FileCreate {
         make_parent(&root, rel)?;
         blueprint_model::save::save_atomic_no_replace(&root.join(rel), &text)
             .map_err(|e| Refusal::new(format!("{rel} was not written: {e}. Nothing was changed.")))?;
-        crate::files::note_tree_changed();
+        crate::project_index::note_written(&root, rel);
         Ok(Outcome {
             summary: match &p.copy_from {
                 Some(from) => format!("made {rel} as a copy of {from}"),
@@ -406,7 +406,8 @@ impl Operation for FileRename {
             let _ = std::fs::remove_file(&full);
             return Err(Refusal::new(format!("{was} could not be taken away ({e}), so the rename was undone and nothing was changed.")));
         }
-        crate::files::note_tree_changed();
+        crate::project_index::note_written(&root, &was);
+        crate::project_index::note_written(&root, &now);
         Ok(Outcome {
             summary: format!("renamed {was} to {now}"),
             affected: 1,
@@ -535,7 +536,7 @@ impl Operation for FileDelete {
             make_parent(&root, &p.path)?;
             blueprint_model::save::save_atomic(&full, text)
                 .map_err(|e| Refusal::new(format!("{} was not put back: {e}", p.path)))?;
-            crate::files::note_tree_changed();
+            crate::project_index::note_written(&root, &p.path);
             return Ok(Outcome {
                 summary: format!("put {} back", p.path),
                 affected: 1,
@@ -545,7 +546,7 @@ impl Operation for FileDelete {
             });
         }
         std::fs::remove_file(&full).map_err(|e| Refusal::new(format!("{} was not deleted ({e}); nothing was changed.", p.path)))?;
-        crate::files::note_tree_changed();
+        crate::project_index::note_written(&root, &p.path);
         Ok(Outcome {
             summary: format!("deleted {}", p.path),
             affected: 1,

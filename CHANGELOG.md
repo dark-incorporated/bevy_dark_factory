@@ -2,6 +2,10 @@
 
 What each change added, newest first. A visible change has a clip: click the still to play it. `python3 tools/changelog/changelog.py page --open` plays them all in one page.
 
+## 2026-11-22
+
+- **501-index** `bd52f181` one watcher publishes what changed and the finder's scan and the file tree read it, so two of the 22 poll constants (crosslinks::SCAN_POLL_S and files::TREE_POLL_S) are gone and the project is walked once *No clip: no visible surface; stage 1 of #501, proved by crates/bevy_dark_factory/tests/the_project_index_is_the_one_watcher.rs and the_frame_a_change_lands_on_stays_inside_two_milliseconds.rs*
+
 ## 2026-11-21
 
 - **org-refs** `f649c9e8` The repository's own addresses name its real organization, dark-incorporated *For you: The Report, Guide and Changelog links in the app open the right pages again.* *No clip: a rename of the repository's own addresses; proved by cargo metadata --locked resolving every git dependency at its new URL*
