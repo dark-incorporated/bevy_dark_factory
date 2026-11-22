@@ -11,9 +11,9 @@
 //!   it was over none. It is spawned only while there is a page to open, so a project with no style has no extra button in the
 //!   panel, and a click goes through the one reveal every other way of arriving at a file uses.
 //!
-//! **The areas are read, not held**: [`refresh`] walks the level's `areas/` folder every [`REFRESH_S`] and writes the resource only
-//! when the answer differs, so an area an agent drew with `design_area_set`, or one edited by hand, is on screen within that
-//! interval and a settled editor costs a comparison.
+//! **The areas are read, not held**: [`refresh`] reads the level's `areas/` folder when the project index says a file under `design/` moved (or the
+//! map or project changed) and writes the resource only when the answer differs, so an area an agent drew with `design_area_set`, or one edited
+//! by hand, is on screen shortly after the index sees it, and a settled editor costs a comparison.
 
 use bevy::prelude::*;
 use bevy::ui_widgets::Activate;
@@ -21,10 +21,8 @@ use blueprint_model::design::{self, AreaOnMap};
 
 use crate::editor::{EditorState, MapControlsPane};
 use crate::project::{OpenMap, Project};
+use crate::project_index::ProjectIndex;
 use crate::reveal::Revealing;
-
-/// **How often the level's areas are read again, in seconds.** Half a second is "at once" to a person and one small folder walk.
-pub const REFRESH_S: f32 = 0.5;
 
 /// **How far above the floor the outline is drawn, in metres**, over the floor fill and the grid so neither hides it.
 const OUTLINE_LIFT_M: f32 = 0.04;
@@ -97,6 +95,7 @@ pub struct StyleAreasPlugin;
 
 impl Plugin for StyleAreasPlugin {
     fn build(&self, app: &mut App) {
+        crate::project_index::ensure(app);
         app.init_resource::<StyleAreas>().add_observer(on_style_link).add_systems(
             Update,
             (
@@ -154,15 +153,37 @@ fn follow_the_tick(areas: Option<Res<StyleAreas>>, items: Query<(Entity, Has<bev
     }
 }
 
-/// **Read the open map's level's areas** every [`REFRESH_S`], and write the resource only when they differ.
-fn refresh(mut areas: ResMut<StyleAreas>, project: Option<Res<Project>>, open: Option<Res<OpenMap>>, time: Res<Time>, mut since: Local<f32>) {
-    *since += time.delta_secs();
-    // **Asked only when the interval is up or the map or project changed**: the level's folder is a stat and maybe a directory read.
+/// **What `refresh` last saw of the index**: its generation and the stamps of the design folder's files then, so a frame where nothing the areas
+/// are read from moved reads nothing.
+#[derive(Default)]
+struct AreasSeen {
+    generation: u64,
+    files: Vec<(String, crate::project_index::FileStamp)>,
+}
+
+/// **Read the open map's level's areas** when the project index says a file under `design/` moved (the areas and the level's style page are
+/// there), or the map or the project changed, and write the resource only when they differ. There is no clock. **A change made elsewhere
+/// reaches the overlay after the index's sweep and debounce, up to about a second [INFERENCE: the index's own numbers, not measured here].**
+fn refresh(mut areas: ResMut<StyleAreas>, project: Option<Res<Project>>, open: Option<Res<OpenMap>>, index: Res<ProjectIndex>, mut seen: Local<AreasSeen>) {
     let moved = open.as_ref().is_some_and(|o| o.is_changed()) || project.as_ref().is_some_and(|p| p.is_changed());
-    if *since < REFRESH_S && !moved {
+    if !moved && index.generation() == seen.generation {
         return;
     }
-    *since = 0.0;
+    let design = format!("{}/", design::DESIGN_DIR);
+    if !moved {
+        let Some(listing) = index.snapshot() else { return };
+        seen.generation = listing.generation;
+        if listing.under(&design) == seen.files.as_slice() {
+            return;
+        }
+    }
+    match index.snapshot() {
+        Some(listing) => {
+            seen.generation = listing.generation;
+            seen.files = listing.under(&design).to_vec();
+        }
+        None => *seen = AreasSeen::default(),
+    }
     let level = match (project.as_deref(), open.as_deref()) {
         (Some(project), Some(open)) => Some((project.root.clone(), blueprint_model::board::level_place(&project.root, &open.map.name))),
         _ => None,

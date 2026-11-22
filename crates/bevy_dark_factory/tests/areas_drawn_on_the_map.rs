@@ -13,6 +13,7 @@ use bevy::window::PrimaryWindow;
 use bevy_dark_factory::design_areas::{self, StyleAreas};
 use bevy_dark_factory::ops::{self, Applied, Ctx};
 use bevy_dark_factory::project::{OpenMap, Project};
+use bevy_dark_factory::project_index::{MIN_SWEEP, ProjectIndex};
 use bevy_dark_factory::workspace::Workspace;
 use blueprint_model::design::{self, Tree};
 use serde_json::{Value, json};
@@ -38,6 +39,8 @@ fn editor(tag: &str) -> (App, Ctx, std::path::PathBuf) {
     for _ in 0..4 {
         app.update();
     }
+    // The index's shortest sweep: the overlay follows the files through it, and a wait on the wall clock is then a short one.
+    app.world().resource::<ProjectIndex>().set_sweep(MIN_SWEEP);
     let ctx = Ctx {
         project: Some(app.world().resource::<Project>().clone()),
         open: Some(app.world().resource::<OpenMap>().clone()),
@@ -187,12 +190,26 @@ fn pump(app: &mut App, secs: f64) {
     }
 }
 
+/// **Step the app until `done`, on the wall clock**, for the overlay and the Style link follow the design files through the project index.
+fn until(app: &mut App, what: &str, mut done: impl FnMut(&mut App) -> bool) {
+    let start = std::time::Instant::now();
+    while start.elapsed().as_secs_f64() < 30.0 {
+        app.update();
+        if done(app) {
+            return;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    }
+    panic!("never happened within 30 s: {what}");
+}
+
 #[test]
 fn the_overlays_areas_follow_the_files_and_the_line_under_the_cursor_names_the_area() {
     let (mut app, mut ctx, root) = editor("area_overlay");
     assert!(!app.world().resource::<StyleAreas>().on, "the outline is off by default");
     set(&mut ctx, json!({"name": "docks", "rect": DOCKS}));
-    pump(&mut app, design_areas::REFRESH_S as f64 + 0.8);
+    // Owner exception (2026-11-14): areas_drawn_on_the_map.rs::the_overlays_areas_follow_the_files_and_the_line_under_the_cursor_names_the_area: the overlay no longer re-reads on a 0.5 s clock (`REFRESH_S` is gone) but when the project index says a file under `design/` moved, so a fixed pump of `REFRESH_S + 0.8` s could end before the index had seen the write; the test sets the index's shortest sweep and waits on the wall clock for the area, and asserts the same properties.
+    until(&mut app, "the overlay holds the docks area", |a| a.world().resource::<StyleAreas>().area_at((-4.0, -4.0)).is_some());
     let areas = app.world().resource::<StyleAreas>();
     assert_eq!(areas.level.as_deref(), Some("design/levels/m"));
     assert_eq!(areas.area_at((-4.0, -4.0)).map(|a| a.name.as_str()), Some("docks"));
@@ -201,7 +218,7 @@ fn the_overlays_areas_follow_the_files_and_the_line_under_the_cursor_names_the_a
     // An area written by hand is read as well, and a removal takes it off.
     std::fs::create_dir_all(root.join("design/levels/m/areas/yard")).unwrap();
     std::fs::write(root.join("design/levels/m/areas/yard/area.yaml"), "version: 1\nrect: [2.0, 2.0, 6.0, 6.0]\n").unwrap();
-    pump(&mut app, design_areas::REFRESH_S as f64 + 0.8);
+    until(&mut app, "the overlay holds the area written by hand", |a| a.world().resource::<StyleAreas>().area_at((3.0, 3.0)).is_some());
     assert_eq!(app.world().resource::<StyleAreas>().area_at((3.0, 3.0)).map(|a| a.name.as_str()), Some("yard"));
 
     // The words the status band's UNDER CURSOR line gets: the piece's own line, then the area.
@@ -221,7 +238,7 @@ fn the_inspectors_style_link_opens_the_areas_page_and_the_levels_when_the_cursor
     std::fs::write(root.join("design/levels/m/style.md"), "# Yard\n").unwrap();
     set(&mut ctx, json!({"name": "docks", "rect": DOCKS}));
     std::fs::write(root.join("design/levels/m/areas/docks/style.md"), "# Docks\n").unwrap();
-    pump(&mut app, design_areas::REFRESH_S as f64 + 0.8);
+    until(&mut app, "the level's page has a Style link", |a| bevy_gooey::testing::find_by_label(a, "Open style of this level").is_ok());
     let link = bevy_gooey::testing::find_by_label(&mut app, "Open style of this level").unwrap_or_else(|e| panic!("the level's page has a link: {e:?}"));
 
     // The cursor was last in the area: the link is the area's.
@@ -338,7 +355,7 @@ fn an_undo_of_a_creation_or_a_removal_keeps_the_page_and_its_own_undo_brings_it_
 fn the_cursor_over_the_map_names_the_area_in_the_line_and_the_resource() {
     let (mut app, mut ctx, _root) = editor("area_cursor");
     set(&mut ctx, json!({"name": "docks", "rect": DOCKS}));
-    pump(&mut app, design_areas::REFRESH_S as f64 + 0.8);
+    until(&mut app, "the overlay holds the docks area", |a| a.world().resource::<StyleAreas>().area_at((-4.0, -4.0)).is_some());
     for _ in 0..12 {
         app.update();
     }

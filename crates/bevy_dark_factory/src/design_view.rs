@@ -61,6 +61,7 @@ use crate::chrome::{self, Frame, FrameSystems, Side};
 use crate::editor::EditorState;
 use crate::files::{self, Files};
 use crate::project::{OpenMap, Project};
+use crate::project_index::{FileStamp, ProjectIndex, Snapshot as Listing};
 use crate::screen::Screen;
 use crate::workspace::Workspace;
 
@@ -68,9 +69,20 @@ use crate::workspace::Workspace;
 /// never lies over it. The page's picture overlapped the rail by about 12 px when this was measured (#437); this is that and a margin.
 pub const PAGE_GUTTER_PX: f32 = 16.0;
 
-/// **How often the design tree, the selected page and its board are read again, in seconds.** Half a second is "at once" to a person, and the
-/// tree is a few small files (the reader refuses one over [`design::STYLE_FILE_MAX_BYTES`]).
-pub const REFRESH_S: f32 = 0.5;
+/// **What the design tree reads, as the index lists it**: every file below `design/`, every map file (the tree measures an area against its map),
+/// and each picture the pages and the board cite, listed or not (a picture that appears or goes changes a problem and a card). The tree is read
+/// again when this moves, or when the editor itself changed something ([`DesignView::stale`], the map or the project changing).
+fn design_fingerprint(listing: &Listing, cited: &[String]) -> Vec<(String, Option<FileStamp>)> {
+    let design = format!("{}/", design::DESIGN_DIR);
+    let maps = format!("{}/{}/", crate::catalog::BLUEPRINT_DIR, crate::catalog::MAPS_DIR);
+    listing
+        .under(&design)
+        .iter()
+        .chain(listing.under(&maps))
+        .map(|(rel, stamp)| (rel.clone(), Some(*stamp)))
+        .chain(cited.iter().map(|rel| (rel.clone(), listing.stamp(rel))))
+        .collect()
+}
 
 /// The width of the tree's panel, in logical pixels.
 pub const TREE_PANEL_W: f32 = 300.0;
@@ -205,7 +217,10 @@ pub struct DesignView {
     /// The web address the person was asked about.
     asked_address: Option<String>,
     snap: Snapshot,
-    since: f32,
+    /// The index generation the last read saw, what the tree read then ([`design_fingerprint`]), and the pictures it cited.
+    generation: u64,
+    seen: Vec<(String, Option<FileStamp>)>,
+    cited: Vec<String>,
     /// The next frame reads at once: something the readers show has just changed.
     stale: bool,
 }
@@ -412,6 +427,7 @@ pub struct DesignViewPlugin;
 
 impl Plugin for DesignViewPlugin {
     fn build(&self, app: &mut App) {
+        crate::project_index::ensure(app);
         app.init_resource::<DesignView>()
             .init_resource::<DesignPictures>()
             .add_systems(OnEnter(Screen::Editor), spawn_the_design_workspace.after(FrameSystems).run_if(Workspace::design_is_open))
@@ -491,11 +507,14 @@ fn decider<'a>(
     }
 }
 
-/// **Read the tree, the selected page and its board** when [`REFRESH_S`] has passed or something changed, and write the snapshot only when it
-/// differs: a settled workspace costs a comparison.
+/// **Read the tree, the selected page and its board** when the project index says a file the tree reads moved (#501), when the editor changed
+/// something ([`DesignView::stale`]) or the project changed, and write the snapshot only when it differs: a settled workspace costs a comparison.
+/// There is no clock. The first read is made as soon as there is a project; the first listing after it reads once more if the files differ
+/// from what the first read could see (it publishes no message). **A change made elsewhere reaches the page after the index's sweep and
+/// debounce, up to about a second [INFERENCE: the index's own numbers, not measured on this workspace].**
 #[allow(clippy::too_many_arguments)]
 fn read_the_design(
-    time: Res<Time<Real>>,
+    index: Res<ProjectIndex>,
     project: Option<Res<Project>>,
     state: Option<Res<EditorState>>,
     store_root: Option<Res<crate::trusted::StoreRoot>>,
@@ -507,11 +526,17 @@ fn read_the_design(
         }
         return;
     };
-    view.since += time.delta_secs();
-    if view.since < REFRESH_S && !view.stale && view.snap.root == project.root {
-        return;
+    if !view.stale && view.snap.root == project.root {
+        let generation = index.generation();
+        if generation == view.generation {
+            return;
+        }
+        let Some(listing) = index.snapshot() else { return };
+        view.generation = listing.generation;
+        if design_fingerprint(&listing, &view.cited) == view.seen {
+            return;
+        }
     }
-    view.since = 0.0;
     view.stale = false;
     let tree = design::Tree::read(&project.root);
     // **The workspace opens on the game's page**, which is where a style starts and where Create style writes.
@@ -582,6 +607,27 @@ fn read_the_design(
         Err(why) => (Vec::new(), Some(why)),
     };
     let offered = if tree.place(&place_path).is_some() { crate::design_templates::topics_offered(&tree, &place_path) } else { Vec::new() };
+    let mut cited: Vec<String> = tree
+        .places
+        .iter()
+        .flat_map(|place| place.topics.iter())
+        .flat_map(|topic| tree.pictures_of(&topic.file))
+        .filter_map(|picture| picture.file)
+        .chain(board.iter().map(|row| row.path.clone()))
+        .collect();
+    cited.sort();
+    cited.dedup();
+    match index.snapshot() {
+        Some(listing) => {
+            view.generation = listing.generation;
+            view.seen = design_fingerprint(&listing, &cited);
+        }
+        None => {
+            view.generation = 0;
+            view.seen = Vec::new();
+        }
+    }
+    view.cited = cited;
     let snap = Snapshot { root: project.root.clone(), places, page, problems, board, board_error, offered };
     if view.snap != snap {
         view.snap = snap;
