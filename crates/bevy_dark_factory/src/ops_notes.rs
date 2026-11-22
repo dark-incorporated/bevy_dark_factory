@@ -29,6 +29,17 @@ fn notes_path(ctx: &Ctx) -> Result<std::path::PathBuf, Refusal> {
     Ok(notes::path_for_map(&open.map_path))
 }
 
+/// **Say to the project index that the notes file is written** ([`crate::project_index::note_written`]), so the sign over a note and the
+/// Notes panel show what the operation did in the next frame and not at the index's next sweep: the view that holds the notes
+/// ([`crate::notes_view`]) reads them when the index says the file moved. A file outside the project root is one the index cannot
+/// announce, which the view refuses and says.
+fn announce_written(ctx: &Ctx, path: &std::path::Path) {
+    let Some(project) = ctx.project.as_ref() else { return };
+    if let Ok(rel) = path.strip_prefix(&project.root) {
+        crate::project_index::note_written(&project.root, &rel.to_string_lossy().replace('\\', "/"));
+    }
+}
+
 /// **The notes of the open map and the map's name**, which is the state an undo checks.
 fn state_of_open(ctx: &Ctx) -> Option<serde_json::Value> {
     let open = ctx.open.as_ref()?;
@@ -57,6 +68,7 @@ fn run(
         return Ok(None);
     }
     notes.save(&path).map_err(|e| Refusal::new(format!("the notes file refused the change, so nothing was written: {e}")))?;
+    announce_written(ctx, &path);
     Ok(Some(Outcome {
         summary: done.summary,
         affected: 1,
@@ -1017,6 +1029,7 @@ impl NoteUndoWork {
             let _ = open.save(ctx.project.as_ref().expect("checked"));
             return Err(Refusal::new(format!("the notes file refused the change, so nothing was written: {e}")));
         }
+        announce_written(ctx, &path);
         Ok(Some(Outcome { summary, affected, saved: true, inverse: Some(inverse), after: state_with_rows(ctx) }))
     }
 }
