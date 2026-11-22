@@ -814,6 +814,10 @@ pub const OWNERSHIP: &[(&str, Ownership)] = &[
     ("bevy_dark_factory::project_index::ProjectIndex", Ownership::Session),
     // **A harness marker, the session's**: the stepped editor asks the index to finish its first listing before it runs a frame.
     ("bevy_dark_factory::project_index::WaitsForFirstListing", Ownership::Session),
+    // **The folders outside the project that panels read are the session's** (#501 item 18): the person's settings folder and the turn
+    // ledger's. One thread for each folder follows it for every workspace, so a door change keeps it (a reset would stop the threads and
+    // list the folders again). The folders are the person's, not a project's, so it is not `Project`.
+    ("bevy_dark_factory::project_index::OutsideFiles", Ownership::Session),
     // **The Back history is the session's** (NV-06, #383): it is the places this sitting has stood in,
     // bounded at `nav::NAV_HISTORY_MAX` and deliberately not saved. A door change is one of the moves a
     // person wants back, so carrying it across is the whole point.
