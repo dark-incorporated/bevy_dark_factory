@@ -2,7 +2,7 @@
 
 > ⚠️ **Vibe Coded.** Written by AI agents working from a human's direction, covered by tests rather than a line-by-line human review. Read the code before you rely on it for something you care about.
 
-Moves a DarkFactory project's files from RON (Rusty Object Notation) to YAML without losing anything, for anyone whose project was written before the editor switched to YAML. Every file is converted in memory and read back before anything is written, comments travel with their keys, and the old files are archived rather than deleted.
+Moves a Dark Factory project's files from RON (Rusty Object Notation) to YAML without losing anything, for anyone whose project was written before the editor switched to YAML. Every file is converted in memory and read back before anything is written, comments travel with their keys, and the old files are archived rather than deleted.
 
 **Status:** experimental · MSRV 1.97.1
 

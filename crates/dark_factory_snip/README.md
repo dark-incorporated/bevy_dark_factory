@@ -2,7 +2,7 @@
 
 > ⚠️ **Vibe Coded.** Written by AI agents working from a human's direction, covered by tests rather than a line-by-line human review. Read the code before you rely on it for something you care about.
 
-Cutting one rectangle out of a PNG of the DarkFactory editor and saving it with a record of what was in it, for the code that handles snips: the editor that saves one and the MCP server that hands one to an agent. A snip is a rectangle a person drags round part of the editor, with a one-line note, so an agent can see and read what they mean.
+Cutting one rectangle out of a PNG of the Dark Factory editor and saving it with a record of what was in it, for the code that handles snips: the editor that saves one and the MCP server that hands one to an agent. A snip is a rectangle a person drags round part of the editor, with a one-line note, so an agent can see and read what they mean.
 
 [![crates.io](https://img.shields.io/crates/v/dark_factory_snip.svg)](https://crates.io/crates/dark_factory_snip) [![docs.rs](https://img.shields.io/docsrs/dark_factory_snip)](https://docs.rs/dark_factory_snip) [![CI](https://github.com/dark-incorporated/bevy_dark_factory/actions/workflows/ci.yml/badge.svg)](https://github.com/dark-incorporated/bevy_dark_factory/actions/workflows/ci.yml) [![licence](https://img.shields.io/badge/licence-MIT%20OR%20Apache--2.0-blue.svg)](#who-and-licence)
 
@@ -37,7 +37,7 @@ fn main() -> Result<(), String> {
 ## What is in it
 
 - **`crop_png(png, rect)`** cuts a `Rect` (`[i64; 4]`) out of PNG bytes and answers a `Crop`: the crop as PNG bytes, its size and the whole picture's size.
-- **`write_snip(dir, stem, picture, rect, record)`** writes a snip as two files, `<stem>.png` (the crop) and `<stem>.json` (a `SnipRecord`: when it was taken, the open map, the armed tool, the note, the rectangle in window and in picture pixels, the camera, the ground point under the pointer and the placements inside the rectangle). It never overwrites an earlier snip, and a bad rectangle writes nothing. The DarkFactory keeps its snips in `<project>/target/loop/captures/snips/`.
+- **`write_snip(dir, stem, picture, rect, record)`** writes a snip as two files, `<stem>.png` (the crop) and `<stem>.json` (a `SnipRecord`: when it was taken, the open map, the armed tool, the note, the rectangle in window and in picture pixels, the camera, the ground point under the pointer and the placements inside the rectangle). It never overwrites an earlier snip, and a bad rectangle writes nothing. The Dark Factory keeps its snips in `<project>/target/loop/captures/snips/`.
 - **`read_snips(dir)`** lists the snips in a folder, newest first, and names any file that is not a snip record instead of hiding the rest.
 - **`write_pending`, `read_pending`, `clear_pending` and `clear_all_pending`** record a confirmed snip before its picture lands (the editor reads the picture back a frame or more after the confirm), so a read in between sees a snip being saved and not nothing.
 

@@ -2,7 +2,7 @@
 
 > ⚠️ **Vibe Coded.** Written by AI agents working from a human's direction, covered by tests rather than a line-by-line human review. Read the code before you rely on it for something you care about.
 
-The runtime half of blueprint, for Bevy developers whose levels are authored in the DarkFactory editor: load a library of pieces and a map from a project's YAML and put them in a Bevy world, with the game's own behaviours and scripts defined in data.
+The runtime half of blueprint, for Bevy developers whose levels are authored in the Dark Factory editor: load a library of pieces and a map from a project's YAML and put them in a Bevy world, with the game's own behaviours and scripts defined in data.
 
 [![crates.io](https://img.shields.io/crates/v/bevy_blueprint.svg)](https://crates.io/crates/bevy_blueprint) [![docs.rs](https://img.shields.io/docsrs/bevy_blueprint)](https://docs.rs/bevy_blueprint) [![CI](https://github.com/dark-incorporated/bevy_dark_factory/actions/workflows/ci.yml/badge.svg)](https://github.com/dark-incorporated/bevy_dark_factory/actions/workflows/ci.yml) [![Bevy 0.20](https://img.shields.io/badge/bevy-0.20-purple.svg)](https://bevyengine.org) [![licence](https://img.shields.io/badge/licence-MIT%20OR%20Apache--2.0-blue.svg)](#who-and-licence)
 

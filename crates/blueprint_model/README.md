@@ -2,7 +2,7 @@
 
 > ⚠️ **Vibe Coded.** Written by AI agents working from a human's direction, covered by tests rather than a line-by-line human review. Read the code before you rely on it for something you care about.
 
-The engine-free core of the DarkFactory's world building, for Rust developers who read, check, generate or tool a blueprint (the folder of YAML files the DarkFactory editor writes and a game loads) without linking a renderer: the file schemas, a project loader, a constraint solver front-end, wave function collapse and the checks that run over a map.
+The engine-free core of the Dark Factory's world building, for Rust developers who read, check, generate or tool a blueprint (the folder of YAML files the Dark Factory editor writes and a game loads) without linking a renderer: the file schemas, a project loader, a constraint solver front-end, wave function collapse and the checks that run over a map.
 
 [![crates.io](https://img.shields.io/crates/v/blueprint_model.svg)](https://crates.io/crates/blueprint_model) [![docs.rs](https://img.shields.io/docsrs/blueprint_model)](https://docs.rs/blueprint_model) [![CI](https://github.com/dark-incorporated/bevy_dark_factory/actions/workflows/ci.yml/badge.svg)](https://github.com/dark-incorporated/bevy_dark_factory/actions/workflows/ci.yml) [![licence](https://img.shields.io/badge/licence-MIT%20OR%20Apache--2.0-blue.svg)](#who-and-licence)
 

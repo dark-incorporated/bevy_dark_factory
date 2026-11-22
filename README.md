@@ -1,4 +1,4 @@
-# Dark Factory: the DarkFactory world editor (`bevy_dark_factory`)
+# Dark Factory: the Dark Factory world editor (`bevy_dark_factory`)
 
 > ⚠️ **Vibe Coded.** Written by AI agents working from a human's direction, covered by tests rather than a line-by-line human review. Read the code before you rely on it for something you care about.
 
@@ -14,7 +14,7 @@ The Dark Factory is a world editor for Bevy games, for developers who build leve
 
 **Why:** an agent's change to a level is the same kind of change as yours, through the same named operations and into the same undo history, so you can let it build while you watch, cut out what is wrong and take back what you do not want. It is measured, too: `dark_factory-bench` runs a real agent against a real editor and says whether a change made the agent better or worse.
 
-**Names.** The editor is the Dark Factory (this repository, `bevy_dark_factory`). Its binary, its window and its crates still carry the earlier name, the DarkFactory (`bevy_dark_factory`), and what it writes and a game loads is still a blueprint (`bevy_blueprint`, `assets/blueprint/`). The agent is the Night Shift in Dark Inc.'s words and the NightShift in the editor's own.
+**Names.** The editor is the Dark Factory (this repository, `bevy_dark_factory`). Its binary and its crates are named for it in snake_case (`bevy_dark_factory`, `dark_factory_mcp`); its earlier name was the Cauldron. What it writes and a game loads is still a blueprint (`bevy_blueprint`, `assets/blueprint/`). The agent is the Night Shift in Dark Inc.'s words and the NightShift in the editor's own.
 
 ## Quick start
 
@@ -26,7 +26,7 @@ cargo run -p bevy_dark_factory -- .
 
 The editor opens the project's page: its **Maps** and its **Kits** as cards, and its agent guide; open a map card to start. With no argument it opens the launcher instead: the projects you opened before (with a filter box), **New project** and **Open folder…**, and what the changelog added since you last looked; on a first run it is a welcome with an **Open the example** button, which the Learn page has too. On your own game, pass its root instead of `.`; a project written before the YAML cutover is refused at open and `bevy_dark_factory migrate <project folder>` moves it. [Getting started](https://github.com/dark-incorporated/bevy_dark_factory/blob/main/docs/guide/getting-started.md) walks through your first map.
 
-**On a Mac with Apple Silicon**, download `DarkFactory-<version>-macos-arm64.dmg` from the [releases](https://github.com/dark-incorporated/bevy_dark_factory/releases) and drag DarkFactory into Applications: the same editor with every family crate built in, signed and notarized. The launcher offers **Update to v…** when a newer release exists. `tools/release/macos/build_app.sh` builds the same app locally.
+**On a Mac with Apple Silicon**, download `Dark-Factory-<version>-macos-arm64.dmg` from the [releases](https://github.com/dark-incorporated/bevy_dark_factory/releases) and drag Dark Factory into Applications: the same editor with every family crate built in, signed and notarized. The launcher offers **Update to v…** when a newer release exists. `tools/release/macos/build_app.sh` builds the same app locally.
 
 **Let an agent drive the open editor** in one of two ways. In the editor's terminal (raise it with Cmd+J, Ctrl+J elsewhere), set Settings, Terminal, **Terminal agent** to Oh My Pi and press **Start agent**: it starts already connected, and an LED in the terminal's bar says whether it is live. Or add the MCP server to any MCP client while the editor runs:
 

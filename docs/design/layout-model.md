@@ -8,7 +8,7 @@ The owner's note, in full:
 
 **Status: a model and the defects it exposes. No layout code changed.** Every number below was measured
 in this worktree at `f1e65d76` and `b64c689f`, `bevy_gooey` at the pinned rev `f1904be`, on the capture's
-own frame — `feedback-1795094182023`, DarkFactory 0.7.1, `ui_scale` 2.4, window 2176x1406 physical
+own frame — `feedback-1795094182023`, Dark Factory 0.7.1, `ui_scale` 2.4, window 2176x1406 physical
 (1088x703 logical), editor `bedroom`, `Place` armed, Meshes door.
 
 ---

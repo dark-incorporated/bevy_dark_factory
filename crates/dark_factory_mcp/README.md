@@ -2,7 +2,7 @@
 
 > ⚠️ **Vibe Coded.** Written by AI agents working from a human's direction, covered by tests rather than a line-by-line human review. Read the code before you rely on it for something you care about.
 
-The DarkFactory world editor over the Model Context Protocol (MCP), for people who want an AI agent to build and review a map in the editor they are looking at: an MCP server that lets the agent drive the editor through typed operations, the same ones a person at the keyboard uses, instead of synthesising keystrokes.
+The Dark Factory world editor over the Model Context Protocol (MCP), for people who want an AI agent to build and review a map in the editor they are looking at: an MCP server that lets the agent drive the editor through typed operations, the same ones a person at the keyboard uses, instead of synthesising keystrokes.
 
 **Status:** experimental · MSRV 1.88
 
@@ -43,12 +43,12 @@ Leave out `env` unless you moved the port. The server does not start the editor:
 | `--emit-docs` | print the generated tool reference to stdout and exit. |
 | `--help` | print the usage and exit. |
 
-## An installed DarkFactory
+## An installed Dark Factory
 
-Every macOS release carries this server beside the editor, signed with it: `DarkFactory.app/Contents/MacOS/dark_factory_mcp`. An agent on another machine attaches over ssh with no `--project`, so it follows the installed app from its first frame:
+Every macOS release carries this server beside the editor, signed with it: `Dark Factory.app/Contents/MacOS/dark_factory_mcp`. An agent on another machine attaches over ssh with no `--project`, so it follows the installed app from its first frame:
 
 ```sh
-ssh <mac> /Applications/DarkFactory.app/Contents/MacOS/dark_factory_mcp
+ssh <mac> "'/Applications/Dark Factory.app/Contents/MacOS/dark_factory_mcp'"
 ```
 
 `blueprint_read_log` reads the editor's own log (`~/Library/Application Support/Blueprint/dark_factory.log` on macOS) from disk, so it answers when the editor does not, and `blueprint_capture_still` with `"source": "window"` shows what the window itself shows rather than what the editor drew.
