@@ -46,7 +46,7 @@ say why in the section's place.
 1. **Provenance**, as the first line, read from the record and never typed by hand:
 
    ```
-   **From the owner's capture, `feedback-<stem>`** — DarkFactory <app_version>, <host>, <backend>, <window logical> at `ui_scale` <n>, <screen> <project> / <map>, <date and time>. The note: *"<the note, verbatim>"* — <what was picked, by its node path and `rect_px`>.
+   **From the owner's capture, `feedback-<stem>`** — Dark Factory <app_version>, <host>, <backend>, <window logical> at `ui_scale` <n>, <screen> <project> / <map>, <date and time>. The note: *"<the note, verbatim>"* — <what was picked, by its node path and `rect_px`>.
    ```
 
    The backend and the OS are in the capture's `.log` (`AdapterInfo { … backend: … }`,
