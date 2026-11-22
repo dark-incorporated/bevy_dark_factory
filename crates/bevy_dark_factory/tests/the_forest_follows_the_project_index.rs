@@ -131,3 +131,73 @@ fn a_tree_file_edited_on_disk_regrows_the_tree_with_the_clock_stopped() {
     assert_eq!(std::fs::read_to_string(&forest).unwrap_or_else(|e| panic!("{e}")), before, "the forest file was not touched");
     until(&mut app, "the placed tree regrows from the edited species file", |app| placed_radius(app) == Some(0.9));
 }
+
+/// **A forest file the index does not list (the project's `.gitignore` names it) is still drawn**: the view reads it when it looks and says so,
+/// and does not take an unlisted file for a missing one. The index's own listing is the ground truth that it is not listed.
+#[test]
+fn a_forest_file_the_project_ignores_is_still_drawn() {
+    let root = fixtures::Fixture::new(&format!("forest_unlisted_{}", std::process::id())).descriptor("site/wall", "alpha").build("m");
+    std::fs::write(root.join(".gitignore"), "forest/\n").unwrap_or_else(|e| panic!("{e}"));
+    let mut app = bevy_dark_factory::harness::build_headless(&root, "m", None).unwrap_or_else(|e| panic!("{e}"));
+    app.insert_resource(TimeUpdateStrategy::ManualDuration(Duration::ZERO));
+    // The file is written after the index's first listing and before the view's first frame; the project says where the forest lives.
+    let forest = app.world().resource::<Project>().blueprint_dir.join("forest").join("m.yaml");
+    std::fs::create_dir_all(forest.parent().unwrap_or_else(|| panic!("{forest:?}"))).unwrap_or_else(|e| panic!("{e}"));
+    std::fs::write(&forest, forest_text(2)).unwrap_or_else(|e| panic!("{e}"));
+    // (That the index does not list the file is asserted after the drawing, below: before its first sweep that would hold of any new file.)
+    until(&mut app, "the unlisted forest file is drawn", |app| drawn(app) == trees_in(&forest));
+    let listed = app.world().resource::<ProjectIndex>().snapshot().map(|s| s.files.iter().any(|(rel, _)| rel.ends_with("forest/m.yaml")));
+    assert_eq!(listed, Some(false), "the index does not list a file the project's .gitignore names, so the view read it without the index");
+}
+
+/// **A forest file that cannot be read keeps the drawing, and is said**, where it used to be taken for an empty forest. Frames run on this thread
+/// so the warning can be counted by a subscriber set here. (Skipped as root, which can read anything.)
+#[cfg(unix)]
+#[test]
+fn a_forest_file_that_cannot_be_read_keeps_the_trees_and_is_said() {
+    use std::os::unix::fs::PermissionsExt;
+    use std::sync::{Arc, Mutex};
+
+    use bevy::log::tracing::{self, Event, Subscriber, field::{Field, Visit}};
+    use bevy::log::tracing_subscriber::{Layer, Registry, layer::{Context, SubscriberExt}};
+
+    struct Messages(Arc<Mutex<Vec<String>>>);
+    struct Text(String);
+    impl Visit for Text {
+        fn record_debug(&mut self, field: &Field, value: &dyn std::fmt::Debug) {
+            if field.name() == "message" {
+                self.0 = format!("{value:?}");
+            }
+        }
+    }
+    impl<S: Subscriber> Layer<S> for Messages {
+        fn on_event(&self, event: &Event<'_>, _: Context<'_, S>) {
+            let mut text = Text(String::new());
+            event.record(&mut text);
+            self.0.lock().unwrap_or_else(std::sync::PoisonError::into_inner).push(text.0);
+        }
+    }
+
+    let (mut app, project) = open("forest_unreadable");
+    app.edit_schedule(Update, |schedule| {
+        schedule.set_executor(bevy::ecs::schedule::SingleThreadedExecutor::new());
+    });
+    let path = project.blueprint_dir.join("forest").join("m.yaml");
+    std::fs::create_dir_all(path.parent().unwrap_or_else(|| panic!("{path:?}"))).unwrap_or_else(|e| panic!("{e}"));
+    std::fs::write(&path, forest_text(3)).unwrap_or_else(|e| panic!("{e}"));
+    until(&mut app, "three trees drawn", |app| drawn(app) == 3);
+
+    let seen: Arc<Mutex<Vec<String>>> = Arc::new(Mutex::new(Vec::new()));
+    let said = || seen.lock().unwrap_or_else(std::sync::PoisonError::into_inner).iter().filter(|m| m.contains("m.yaml") && m.contains("cannot be read")).count();
+    tracing::subscriber::with_default(Registry::default().with(Messages(seen.clone())), || {
+        std::fs::write(&path, forest_text(5)).unwrap_or_else(|e| panic!("{e}"));
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o000)).unwrap_or_else(|e| panic!("{e}"));
+        if std::fs::read_to_string(&path).is_ok() {
+            eprintln!("skipped: this user can read a file with no permissions");
+            return;
+        }
+        until(&mut app, "the view said it cannot read the forest file", |_| said() >= 1);
+        assert_eq!(drawn(&mut app), 3, "a file that cannot be read leaves the drawing as it was, not an empty forest");
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o644)).unwrap_or_else(|e| panic!("{e}"));
+    });
+}

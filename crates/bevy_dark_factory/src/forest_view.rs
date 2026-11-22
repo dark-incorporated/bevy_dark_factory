@@ -9,7 +9,8 @@
 //! clock. A look happens on a frame where the index's generation moved, or the open map or the project
 //! changed. **When the index has no listing** (the project root cannot be read) the view says so once and
 //! reads nothing, leaving the trees as drawn; **a file the project's `.gitignore` names is not listed**, so
-//! it is not followed, and **a change reaches the view after the index has seen it** (the index's sweep,
+//! it is read when the view looks (and said, once for each look that reads it) but later edits to it are not
+//! followed, and **a change reaches the view after the index has seen it** (the index's sweep,
 //! then its debounce), not within the half second the old poll took.
 //!
 //! Every tree is `bevy_flora`'s, never a mesh the editor builds:
@@ -118,7 +119,10 @@ fn decide_tree(project: &Project, path: &Path, stamp: Option<FileStamp>, held: &
     let file = crate::map_files::file_name(project, path);
     let entry = held.entry(path.to_owned()).or_insert(HeldTree { read: None, good: None, verdict: None });
     entry.read = stamp;
-    let text = if stamp.is_some() { std::fs::read_to_string(path) } else { Err(std::io::ErrorKind::NotFound.into()) };
+    let text = std::fs::read_to_string(path);
+    if stamp.is_none() && text.is_ok() {
+        warn!("forest view: {file} is not in the project index (the project's .gitignore names it?), so it is read now and later edits to it are not followed");
+    }
     match text {
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
             entry.good = None;
@@ -264,7 +268,10 @@ pub fn sync_forest_view(
     // changed re-reads the file but does not decide it again.
     let edited = state.seen.as_ref().is_none_or(|s| s.forest != now.forest || s.map_path != now.map_path);
     let file = crate::map_files::file_name(&project, &forest_path);
-    let text = if now.forest.is_some() { std::fs::read_to_string(&forest_path) } else { Err(std::io::ErrorKind::NotFound.into()) };
+    let text = std::fs::read_to_string(&forest_path);
+    if now.forest.is_none() && text.is_ok() {
+        warn!("forest view: {file} is not in the project index (the project's .gitignore names it?), so it is read now and later edits to it are not followed");
+    }
     let forest: Forest = match text {
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
             if edited {

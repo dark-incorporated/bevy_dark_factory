@@ -5,9 +5,11 @@
 
 use bevy::prelude::*;
 use bevy_dark_factory::forest_view::ForestView;
+use bevy_dark_factory::live::EditorReloads;
 use bevy_dark_factory::ops::{self, Ctx};
 use bevy_dark_factory::ops_forest::forest_of;
 use bevy_dark_factory::project::{OpenMap, Project};
+use bevy_dark_factory::project_index::{MIN_SWEEP, ProjectIndex};
 use bevy_flora::{PooledTree, ProceduralTree, TreeAge};
 use serde_json::json;
 
@@ -19,21 +21,33 @@ fn open(tag: &str) -> (App, Ctx, Project) {
     for _ in 0..4 {
         app.update();
     }
+    // The index's shortest sweep, so a change reaches the view within its debounce and a wait on the wall clock is a short one.
+    app.world().resource::<ProjectIndex>().set_sweep(MIN_SWEEP);
     let project = app.world().resource::<Project>().clone();
     let open = app.world().resource::<OpenMap>().clone();
     (app, Ctx { project: Some(project.clone()), open: Some(open), session: "test".to_owned(), ..Ctx::default() }, project)
 }
 
-/// Step the app until `done` holds; the view looks at its files twice a second.
+/// How long a step waits for the view to follow a file: it follows the project index, whose sweep is at its floor here.
+const WAIT_SECONDS: f64 = 20.0;
+
+/// Step the app until `done` holds, on the wall clock.
 fn until(app: &mut App, what: &str, done: impl Fn(&mut World) -> bool) {
-    for _ in 0..60 {
+    let started = std::time::Instant::now();
+    while started.elapsed().as_secs_f64() < WAIT_SECONDS {
         app.update();
         if done(app.world_mut()) {
             return;
         }
-        std::thread::sleep(std::time::Duration::from_millis(50));
+        std::thread::sleep(std::time::Duration::from_millis(10));
     }
-    panic!("never happened: {what}");
+    panic!("never happened within {WAIT_SECONDS} s: {what}");
+}
+
+/// Whether the editor's verdicts say the forest file was refused: the observable that proves the view looked at the broken file.
+fn forest_refused(world: &World) -> bool {
+    let state = world.get_resource::<EditorReloads>().expect("the editor keeps its verdicts").state_json();
+    state["kinds"].as_array().is_some_and(|k| k.iter().any(|v| v["kind"] == "forest" && v["outcome"] == "refused"))
 }
 
 fn drawn(world: &mut World) -> usize {
@@ -102,9 +116,8 @@ fn every_tree_in_the_file_is_drawn_where_it_stands_and_follows_the_files() {
 
     // A forest file broken by hand keeps the trees drawn rather than emptying the viewport.
     std::fs::write(project.blueprint_dir.join("forest/m.yaml"), "{trees: [{id: 0").unwrap();
-    for _ in 0..20 {
-        app.update();
-        std::thread::sleep(std::time::Duration::from_millis(50));
-    }
+    // **Wait for the view to have looked** (its refusal verdict), then check that it kept the drawing: a fixed number of frames could pass
+    // before the index had seen the edit, and the assertion could not fail.
+    until(&mut app, "the view refused the broken forest file", |w| forest_refused(w));
     assert_eq!(drawn(app.world_mut()), scattered, "a file that does not parse leaves the drawing as it was");
 }
