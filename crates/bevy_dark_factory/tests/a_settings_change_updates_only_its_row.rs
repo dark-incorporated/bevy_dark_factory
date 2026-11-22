@@ -284,15 +284,7 @@ fn a_change_with_a_search_active_keeps_the_search_and_its_rows() {
     let mut r = rig("settings_change_searching");
     let search = find_by_label(&mut r.app, "Search settings").expect("the screen has a search field");
     click(&mut r.app, search);
-    let field = r
-        .app
-        .world_mut()
-        .query::<(Entity, &bevy_gooey::TextInputValue)>()
-        .iter(r.app.world())
-        .filter(|(_, v)| v.0.is_empty())
-        .map(|(e, _)| e)
-        .next()
-        .expect("the search row holds no text");
+    let field = crate::settings_search_support::search_field(&mut r.app);
     r.app.world_mut().commands().trigger(ValueChange { source: field, value: "grid".to_owned(), is_final: false });
     for _ in 0..4 {
         r.app.update();

@@ -76,14 +76,7 @@ fn open(app: &mut App) {
     updates(app, 4);
     let search = find_by_label(app, "Search settings").expect("the screen has a search field");
     click(app, search);
-    let row = app
-        .world_mut()
-        .query::<(Entity, &bevy_gooey::TextInputValue)>()
-        .iter(app.world())
-        .filter(|(_, v)| v.0.is_empty())
-        .map(|(e, _)| e)
-        .next()
-        .expect("the search row holds no text");
+    let row = crate::settings_search_support::search_field(app);
     app.world_mut().commands().trigger(bevy::ui_widgets::ValueChange { source: row, value: "terminal agent".to_owned(), is_final: false });
     updates(app, 4);
 }

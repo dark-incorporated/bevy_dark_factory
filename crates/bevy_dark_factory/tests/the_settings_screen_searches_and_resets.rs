@@ -59,7 +59,7 @@ fn open(app: &mut App) {
 fn search_for(app: &mut App, words: &str) {
     let search = find_by_label(app, "Search settings").expect("the screen has a search field");
     click(app, search);
-    let row = app.world_mut().query::<(Entity, &bevy_gooey::TextInputValue)>().iter(app.world()).filter(|(_, v)| v.0.is_empty()).map(|(e, _)| e).next().expect("the search row holds no text; the number fields hold numbers");
+    let row = crate::settings_search_support::search_field(app);
     app.world_mut().commands().trigger(bevy::ui_widgets::ValueChange { source: row, value: words.to_owned(), is_final: false });
     updates(app, 3);
 }
@@ -88,7 +88,7 @@ fn searching_grid_lists_only_the_grid_settings_and_reset_takes_the_key_out_of_th
     // window, and Bevy's text editing takes its keys from one.
     let search = find_by_label(&mut r.app, "Search settings").expect("the screen has a search field");
     click(&mut r.app, search);
-    let row = r.app.world_mut().query::<(Entity, &bevy_gooey::TextInputValue)>().iter(r.app.world()).filter(|(_, v)| v.0.is_empty()).map(|(e, _)| e).next().expect("the search row holds no text; the number fields hold numbers");
+    let row = crate::settings_search_support::search_field(&mut r.app);
     r.app.world_mut().commands().trigger(bevy::ui_widgets::ValueChange { source: row, value: "grid".to_owned(), is_final: false });
     updates(&mut r.app, 3);
 

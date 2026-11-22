@@ -54,6 +54,7 @@ mod back_and_forward_across_workspaces;
 mod back_and_forward_returns_to_a_cue_and_a_file;
 mod fixtures;
 mod index_view_support;
+mod settings_search_support;
 mod new_topics_start_from_templates_in_the_design_workspace;
 mod opening_a_project_never_holds_a_frame_past_the_budget;
 mod shift_primary_j_maximises_the_terminal;

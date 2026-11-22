@@ -105,10 +105,7 @@ fn custom_options(app: &mut App) -> usize {
 fn narrow_to_the_agent_row(app: &mut App) {
     let search = find_by_label(app, "Search settings").expect("the screen has a search field");
     click(app, search);
-    let row = {
-        let world = app.world_mut();
-        world.query::<(Entity, &bevy_gooey::TextInputValue)>().iter(world).filter(|(_, v)| v.0.is_empty()).map(|(e, _)| e).next().expect("the search row holds no text")
-    };
+    let row = crate::settings_search_support::search_field(app);
     app.world_mut().commands().trigger(ValueChange { source: row, value: "terminal agent".to_owned(), is_final: false });
     for _ in 0..4 {
         app.update();
