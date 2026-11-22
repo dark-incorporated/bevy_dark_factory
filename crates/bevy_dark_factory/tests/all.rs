@@ -26,6 +26,7 @@ mod a_maps_forest_is_listed_in_the_world_workspace;
 mod a_maps_lights_are_listed_without_bevy_lights;
 mod a_maps_water_is_listed_in_the_world_workspace;
 mod a_markdown_page_wraps_and_is_drawn_in_ink;
+mod zz_w525_m2;
 mod a_markdown_pages_emphasis_is_drawn_in_colour;
 mod a_marquee_selects_what_it_covers;
 mod a_project_skin_previews_only_in_the_panel;

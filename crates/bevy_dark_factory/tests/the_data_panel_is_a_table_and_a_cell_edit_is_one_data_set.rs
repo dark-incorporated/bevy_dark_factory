@@ -100,3 +100,76 @@ fn a_cell_edited_in_place_is_one_data_set_in_the_log_and_the_file() {
     assert_eq!(sets[0].params["path"], "mob.speed");
     assert!(app.world().get_entity(row).is_err(), "the field is gone once it has written");
 }
+
+/// A node's border box, physical px.
+fn physical_box(app: &App, entity: Entity) -> Rect {
+    let world = app.world();
+    let computed = world.get::<bevy::ui::ComputedNode>(entity).expect("laid out");
+    let at = world.get::<bevy::ui::UiGlobalTransform>(entity).expect("placed").translation;
+    Rect::from_center_size(at, computed.size())
+}
+
+/// How far a cell's edge may stand past the table's visible edge, physical px: layout rounds every edge to a whole device pixel.
+const EDGE_TOLERANCE_PX: f32 = 1.0;
+
+/// **Every header cell and every cell of the DATA table, against the table's own visible edge**: the right edge of its view less the scroll gutter
+/// that sits inside it. Returns the sentences for those that stand past it or before the table's left, and the Value column's right edge and the
+/// visible edge, physical px.
+fn columns_against_the_visible_edge(app: &mut App, tag: &str) -> (Vec<String>, f32, f32) {
+    let table = tables(app)[0];
+    let (view, cells) = {
+        let world = app.world();
+        let mut stack = vec![table];
+        let (mut view, mut cells) = (None, Vec::new());
+        while let Some(entity) = stack.pop() {
+            if let Some(kids) = world.get::<Children>(entity) {
+                stack.extend(kids.iter());
+            }
+            match world.get::<bevy_gooey::Role>(entity) {
+                Some(bevy_gooey::Role::TableView) => view = Some(entity),
+                Some(bevy_gooey::Role::TableHeaderCell | bevy_gooey::Role::TableCell) => cells.push(entity),
+                _ => {}
+            }
+        }
+        (view.expect("the table has a view"), cells)
+    };
+    let view_box = physical_box(app, view);
+    let gutter = app.world().get::<bevy::ui::ComputedNode>(view).map(|c| c.content_inset().max_inset.x).unwrap_or_default();
+    let visible_right = view_box.max.x - gutter;
+    assert!(cells.len() >= 6, "{tag}: a header and at least one row of three cells are drawn ({} cells)", cells.len());
+    let mut refused = Vec::new();
+    let mut value_right = f32::MIN;
+    for cell in cells {
+        let cell_box = physical_box(app, cell);
+        value_right = value_right.max(cell_box.max.x);
+        if cell_box.max.x > visible_right + EDGE_TOLERANCE_PX || cell_box.min.x < view_box.min.x - EDGE_TOLERANCE_PX {
+            refused.push(format!("{tag}: a cell is drawn from {:.1} to {:.1}, the table shows {:.1} to {visible_right:.1}", cell_box.min.x, cell_box.max.x, view_box.min.x));
+        }
+    }
+    (refused, value_right, visible_right)
+}
+
+/// **The DATA table's three columns fit the table, at the default window and at the narrowest left pane the editor allows** (the divider taken to
+/// its leftmost position, which gooey clamps to the pane's floor): no cell's right edge stands past the table's visible edge, within one device pixel.
+/// With the old widths (5 + 8 + 9 em) the Value column ended 31 physical px past it at the default window and began past it at the narrowest.
+#[test]
+fn the_data_tables_columns_stay_inside_the_table_at_every_width_the_pane_allows() {
+    let (mut app, _) = editor(&format!("data_table_fit_{}", std::process::id()), true);
+    let table = tables(&mut app)[0];
+    let default_width = physical_box(&app, table).width();
+    let (refused, value_right, visible_right) = columns_against_the_visible_edge(&mut app, "default window");
+    assert!(refused.is_empty(), "{refused:?}");
+    assert!(visible_right - value_right <= 1.0, "at the default window the last column takes the room left: it ends at {value_right:.1}, the table shows to {visible_right:.1}");
+
+    let split = {
+        let world = app.world_mut();
+        world.query_filtered::<Entity, With<bevy_dark_factory::chrome::ShellSplit>>().single(world).expect("one shell split")
+    };
+    app.world_mut().get_mut::<bevy_gooey::SplitFraction>(split).expect("a fraction").0 = 0.0;
+    settle(&mut app);
+    let table = tables(&mut app)[0];
+    let narrow_width = physical_box(&app, table).width();
+    assert!(narrow_width < default_width - 20.0, "the divider was taken to its leftmost position and the table is narrower ({narrow_width:.1} against {default_width:.1})");
+    let (refused, _, _) = columns_against_the_visible_edge(&mut app, "narrowest pane");
+    assert!(refused.is_empty(), "{refused:?}");
+}
