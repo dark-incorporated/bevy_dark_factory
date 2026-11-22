@@ -29,7 +29,7 @@ use bevy_dark_factory::game_ui_preview::{
     GameUiPreview, GameUiPreviewItem, PreviewPlain, PreviewPrimary,
 };
 use bevy_dark_factory::ui_skin::GameSkin;
-use bevy_dark_factory::ui::{editor_skin, skin_for};
+use bevy_dark_factory::style::{compiled_default, compiled_for};
 use bevy_dark_factory::settings::Theme;
 use bevy_gooey::{GooeySkin, SkinScope, ValueChange};
 
@@ -202,17 +202,17 @@ fn a_project_skin_never_reaches_a_chrome_button() {
     let running = app.world().resource::<GooeySkin>().clone();
     assert_eq!(
         running.accent,
-        editor_skin().accent,
+        compiled_default().skin.accent,
         "the editor's own accent is the running one, not the project's"
     );
     assert_ne!(running.accent, game_accent(), "and the project's accent is not it");
     assert_eq!(
         chrome::ink().accent,
-        editor_skin().accent,
+        compiled_default().skin.accent,
         "the ink every chrome label and rail is drawn with is the editor's own"
     );
     // The theme a person chose is what the chrome is drawn from, and a project's file cannot move it.
-    assert_eq!(running, skin_for(Theme::default()), "a project's file changes no editor colour");
+    assert_eq!(running, compiled_for(Theme::default()).skin, "a project's file changes no editor colour");
 }
 
 /// **The project's skin is not the running skin even while its own file is the one on screen** — the
@@ -229,7 +229,7 @@ fn the_projects_skin_lives_outside_the_running_one() {
     );
     assert_eq!(
         app.world().resource::<GooeySkin>().accent,
-        editor_skin().accent,
+        compiled_default().skin.accent,
         "and never into the running one"
     );
 }

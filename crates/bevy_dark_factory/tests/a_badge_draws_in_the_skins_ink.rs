@@ -56,7 +56,7 @@ fn with_no_skin_a_badge_is_the_shipped_palette() {
 /// `BadgeInk` maps `dim` to `text_muted`, not to a tone.
 #[test]
 fn the_editor_skin_draws_the_shipped_palette() {
-    let ink = BadgeInk::of(Some(&bevy_dark_factory::ui::editor_skin()));
+    let ink = BadgeInk::of(Some(&bevy_dark_factory::style::compiled_default().skin));
     assert_eq!(ink.panel, chrome::ink().panel_bg, "the editor skin's `surface` is `PANEL_BG`");
     assert_eq!(ink.key, chrome::ink().key, "its `key` tone is `KEY`");
     assert_eq!(ink.dim, chrome::ink().dim, "its `text_muted` is `DIM`");

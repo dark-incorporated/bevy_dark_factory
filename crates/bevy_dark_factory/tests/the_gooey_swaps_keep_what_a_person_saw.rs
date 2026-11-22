@@ -8,7 +8,6 @@ use bevy::prelude::*;
 use bevy::ui::ComputedNode;
 use bevy_dark_factory::harness;
 use bevy_dark_factory::tiles::Mode;
-use bevy_dark_factory::chrome::GAP_TIGHT;
 use bevy_gooey::Role;
 
 use crate::fixtures;
@@ -240,7 +239,8 @@ fn the_design_workspaces_page_is_built_from_gooey_regions() {
     let top = the::<DesignTop>(&mut app);
     assert_eq!(app.world().get::<Role>(top), Some(&Role::Column), "the page's top is a gooey column");
     let node = app.world().get::<Node>(top).expect("the top has a Node");
-    assert_eq!((node.row_gap, node.flex_shrink), (Val::Px(GAP_TIGHT), 0.0), "with the tight gap, never squeezed");
+    let tight = bevy_dark_factory::chrome::space(bevy_dark_factory::chrome::STEP_TIGHT);
+    assert_eq!((node.row_gap, node.flex_shrink), (Val::Px(tight), 0.0), "with the tight gap, never squeezed");
     let body = the::<DesignBody>(&mut app);
     assert_eq!(app.world().get::<Role>(body), Some(&Role::FillRegion), "the page's body is a gooey fill region");
     let node = app.world().get::<Node>(body).expect("the body has a Node");

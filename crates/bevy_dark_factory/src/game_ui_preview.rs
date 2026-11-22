@@ -98,7 +98,7 @@ pub fn toggle_the_preview(
             // file lands, and takes it off when the project stops shipping one.
             ProjectSkinScope,
             Name::new("game_ui_preview"),
-            bevy_gooey::column(crate::chrome::GAP_TIGHT_STEPS),
+            (bevy_gooey::column(0.0), crate::chrome::Gap::Tight.class()),
         ))
         .with_children(|panel| {
             crate::chrome::list_heading(panel, "GAME UI PREVIEW");

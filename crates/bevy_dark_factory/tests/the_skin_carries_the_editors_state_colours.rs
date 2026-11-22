@@ -25,7 +25,7 @@ use bevy::prelude::*;
 use bevy_dark_factory::chrome;
 
 fn skin() -> bevy_gooey::GooeySkin {
-    bevy_dark_factory::ui::editor_skin()
+    bevy_dark_factory::style::compiled_default().skin
 }
 
 /// **Each state role carries the editor's own colour**, so the skin is a palette and not a default.
@@ -93,7 +93,7 @@ fn one_fade_serves_both_held_colours() {
     // pair. It cannot be both numbers, so what is pinned is that it sits between them: a fade outside
     // that range would dim the ground more than the gizmos or less, and either way one of the two
     // constants would no longer describe what is on screen.
-    let (ground, world) = (chrome::GROUND_HELD, chrome::WORLD_HELD);
+    let (ground, world) = (bevy_dark_factory::style::metrics().layout.ground_held, bevy_dark_factory::style::metrics().layout.world_held);
     assert!(
         (world..=ground).contains(&skin.held_fade),
         "`held_fade` is {} — the editor fades a held ground to {ground} and a held gizmo to {world}, so \

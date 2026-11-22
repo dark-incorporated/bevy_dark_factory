@@ -53,7 +53,8 @@ fn the_bottom_dock_starts_closed_at_its_height() {
     let world = app.world();
     assert!(world.get::<BottomDock>(dock).is_some());
     let n = world.get::<Node>(dock).expect("a Node");
-    assert_eq!((n.width, n.height, n.flex_shrink, n.border.top), (Val::Percent(100.0), Val::Px(chrome::BOTTOM_DOCK_H), 0.0, Val::Px(1.0)), "the window wide, 148 px tall, never shrinking, a 1 px top edge");
+    let dock_h = bevy_dark_factory::style::metrics().layout.bottom_dock_h;
+    assert_eq!((n.width, n.height, n.flex_shrink, n.border.top), (Val::Percent(100.0), Val::Px(dock_h), 0.0, Val::Px(1.0)), "the window wide, 148 px tall, never shrinking, a 1 px top edge");
     assert!(world.get::<ShownFollow>(dock).is_some(), "`give_the_bottom_dock_its_room` writes its display");
     assert_eq!(world.get::<BorderColor>(dock).map(|b| b.top), Some(chrome::ink().panel_edge), "in the editor's edge colour");
 }
@@ -74,7 +75,8 @@ fn the_pane_s_grip_bar_body_and_caret_are_gooey_nodes() {
     assert_eq!((b.height, b.column_gap, b.padding.left, b.align_items, b.flex_shrink, b.flex_direction), (Val::Px(24.0), Val::Px(3.0), Val::Px(12.0), AlignItems::Center, 0.0, FlexDirection::Row), "a 24 px bar, 3 px between parts, 12 px in");
     let d = node(body);
     assert_eq!((d.flex_grow, d.min_height, d.flex_direction, d.overflow), (1.0, Val::ZERO, FlexDirection::Column, Overflow::clip()), "the body grows, clips, and is a column");
-    assert_eq!((d.padding.left, d.padding.top), (Val::Px(bevy_dark_factory::terminal_view::BODY_INSET.x), Val::Px(bevy_dark_factory::terminal_view::BODY_INSET.y)));
+    let inset = bevy_dark_factory::terminal_view::body_inset();
+    assert_eq!((d.padding.left, d.padding.top), (Val::Px(inset.x), Val::Px(inset.y)));
     assert!(world.get::<bevy_gooey::HostGeometry>(caret).is_some(), "the caret's geometry is `draw_the_terminal`'s");
     assert_eq!(node(caret).position_type, PositionType::Absolute);
     assert_eq!(world.get::<Pickable>(caret), Some(&Pickable::IGNORE), "and it is never a target");

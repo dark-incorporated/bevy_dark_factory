@@ -56,6 +56,7 @@ pub mod build;
 pub mod build_view;
 pub mod catalog;
 pub mod checks;
+pub mod chords;
 // **The editor's own log, in the window** (#509).
 pub mod console;
 pub mod chrome;
@@ -137,6 +138,8 @@ pub mod jobs;
 pub mod live;
 pub mod loading;
 pub mod present;
+pub mod style;
+pub mod style_inspect;
 pub mod style_proposals;
 pub mod style_followed;
 pub mod ops;
@@ -200,6 +203,8 @@ pub mod problems_view;
 pub mod oplog_view;
 pub mod data_view;
 pub mod reference_view;
+// **The editor relaunches itself on a new build, for the editor development agent** (`blueprint/relaunch_editor`).
+pub mod relaunch;
 pub mod reload_files;
 pub mod report;
 pub mod report_issue;

@@ -12,7 +12,7 @@ use bevy::ui::ComputedNode;
 use bevy_dark_factory::app_verbs::LinksOff;
 use bevy_dark_factory::terminal::{Terminal, TerminalScreen};
 use bevy_dark_factory::terminal_pane::TerminalBody;
-use bevy_dark_factory::terminal_view::{BODY_INSET, CellMetrics};
+use bevy_dark_factory::terminal_view::{CellMetrics, body_inset};
 
 use crate::fixtures;
 
@@ -132,7 +132,7 @@ fn pixel_of_cell(app: &mut App, row: usize, col: usize) -> Vec2 {
         .expect("the terminal body exists");
     let to_physical = 1.0 / node.inverse_scale_factor();
     let top_left = at.translation - node.size() / 2.0;
-    top_left + (BODY_INSET + Vec2::new((col as f32 + 0.5) * metrics.width(), (row as f32 + 0.5) * metrics.height())) * to_physical
+    top_left + (body_inset() + Vec2::new((col as f32 + 0.5) * metrics.width(), (row as f32 + 0.5) * metrics.height())) * to_physical
 }
 
 fn click(app: &mut App, at: Vec2) {

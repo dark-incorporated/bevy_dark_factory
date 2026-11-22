@@ -37,7 +37,7 @@ use bevy::ecs::system::SystemParam;
 use bevy::prelude::*;
 use bevy_gooey::{FocusRegion, IconSource, IconTab, SideTab, TabsValue, Tooltip, ValueChange};
 
-use crate::chrome::{EDGE_W, Frame, ink};
+use crate::chrome::{Frame, ink};
 use crate::keys::Action;
 use crate::screen::Screen;
 use crate::workspace::Workspace;
@@ -194,7 +194,7 @@ fn keep_the_activity_bar(
             // A column of the tabs, as tall as the frame, that never gives way, with the edge it shares with the docks along its right.
             bevy_gooey::column_with(0.0, bevy_gooey::RowLayout { align: Some(AlignItems::Stretch), shrink: Some(0.0), ..default() }),
             bevy_gooey::Sizing { height: Some(bevy_gooey::Extent::Percent(100.0)), ..default() },
-            bevy_gooey::BorderPx(bevy_gooey::Sides { right: Some(EDGE_W), ..default() }),
+            bevy_gooey::BorderPx(bevy_gooey::Sides { right: Some(crate::style::metrics().layout.edge_w), ..default() }),
             bevy_gooey::InkOverride { edge: Some(ink().panel_edge), ..default() },
             BackgroundColor(ink().bar_bg),
             BorderColor::all(ink().panel_edge),

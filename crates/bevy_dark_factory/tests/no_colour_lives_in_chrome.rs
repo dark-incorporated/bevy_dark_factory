@@ -23,7 +23,7 @@ use std::path::{Path, PathBuf};
 
 use bevy::prelude::*;
 use bevy_dark_factory::chrome::{self, Ink};
-use bevy_dark_factory::ui::editor_skin;
+use bevy_dark_factory::style::compiled_default;
 
 use crate::fixtures;
 
@@ -107,11 +107,11 @@ fn the_ink_holds_the_colours_the_table_held() {
 /// agrees with the shipped file on the day it is written and drifts the first time either moves.
 #[test]
 fn the_ink_is_read_from_the_skin_it_is_given() {
-    let mut skin = editor_skin();
+    let mut skin = bevy_dark_factory::style::compiled_default().skin;
     skin.accent = Color::srgb(0.1, 0.2, 0.3);
     skin.text_muted = Color::srgb(0.4, 0.5, 0.6);
     skin.tones.insert("key".to_owned(), Color::srgb(0.7, 0.8, 0.9));
-    let ink = Ink::of(&skin);
+    let ink = Ink::of(&skin, &bevy_dark_factory::style::metrics().ink);
     assert_eq!(ink.accent, Color::srgb(0.1, 0.2, 0.3), "the accent is the skin's");
     assert_eq!(ink.dim, Color::srgb(0.4, 0.5, 0.6), "`dim` is the skin's muted ink");
     assert_eq!(ink.key, Color::srgb(0.7, 0.8, 0.9), "a tone is the skin's tone");
@@ -150,12 +150,12 @@ fn the_editor_ink_is_the_editors_skin_whatever_the_project_ships() {
     );
     assert_eq!(
         app.world().resource::<bevy_gooey::GooeySkin>().accent,
-        editor_skin().accent,
+        compiled_default().skin.accent,
         "and it is never the running skin: the chrome keeps the editor's palette"
     );
     assert_eq!(
         Ink::editor().accent,
-        editor_skin().accent,
+        compiled_default().skin.accent,
         "the editor's own ink is its own skin, not the project's accent"
     );
 }
@@ -168,5 +168,5 @@ fn the_scan_reads_the_right_file() {
         .expect("chrome.rs is where this crate's furniture lives");
     assert!(src.contains("pub fn panel_root"), "chrome.rs is the module this test scans");
     // And `chrome` is reachable under the name the chrome itself uses.
-    assert_eq!(chrome::Ink::editor().panel_bg, editor_skin().surface, "the panel's ground is the skin's surface");
+    assert_eq!(chrome::Ink::editor().panel_bg, compiled_default().skin.surface, "the panel's ground is the skin's surface");
 }

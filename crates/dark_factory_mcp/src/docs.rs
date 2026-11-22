@@ -213,6 +213,30 @@ pub const TOOLS: &[ToolDoc] = &[
         idempotent: true,
     },
     ToolDoc {
+        name: "blueprint_ui_style_inspect",
+        description: "Why the editor's own interface looks the way it does at a point: the topmost node with a \
+                      style class there, its classes and laid-out size, each style sheet rule that matches it in \
+                      cascade order (selector, layer, file, line, specificity, what it sets; the last rule that \
+                      sets a property wins it) and what they add up to. x and y are surface pixels, the \
+                      coordinates of blueprint_capture_still's picture; omit both for the editor's pointer. Edit \
+                      the named file at the named line to change the look: the editor reloads it within a \
+                      fraction of a second. Refused, saying why, where no classed node is.",
+        read_only: true,
+        destructive: false,
+        idempotent: true,
+    },
+    ToolDoc {
+        name: "blueprint_relaunch_editor",
+        description: "Relaunch the editor on the build you just made. Call only after `cargo build -p bevy_dark_factory` \
+                      succeeded. Your process is killed and this session is restored in the new editor, where you continue \
+                      by verifying with blueprint_capture_still. Refused, saying why, when there is no new build (`no new \
+                      build: ...`), when this session has not been recorded yet, or from any agent but the editor's own \
+                      development agent.",
+        read_only: false,
+        destructive: false,
+        idempotent: false,
+    },
+    ToolDoc {
         name: "blueprint_state",
         description: "What the editor is holding right now: the open map and its bounds, how many \
                        pieces it has, what is armed, what is selected, which door and tab are open, \
@@ -1008,6 +1032,22 @@ pub fn schemas() -> Value {
                     "at": {"type": "array", "default": [], "items": {"type": "array", "minItems": 3, "maxItems": 3, "items": {"type": "number"}}, "description": "Points to answer \"is this floor air?\" for, each [x, y, z] in map metres. Each answer lists, in order, the entries whose primitive contains the point, and whether the result is solid there. Empty answers none."}
                 }
             }),
+        );
+        // **The editor's own two tools** (the live style sheet), the same reason: the literal above is at the recursion limit.
+        map.insert(
+            "blueprint_ui_style_inspect".to_owned(),
+            serde_json::json!({
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                    "x": {"type": ["number", "null"], "description": "Surface pixels from the window's left edge. Omit both x and y for the editor's pointer."},
+                    "y": {"type": ["number", "null"], "description": "Surface pixels from the window's top edge."}
+                }
+            }),
+        );
+        map.insert(
+            "blueprint_relaunch_editor".to_owned(),
+            serde_json::json!({"type": "object", "additionalProperties": false, "properties": {}}),
         );
         // **`blueprint_decide`'s `hide`** (#472), for the same reason: one more property inside the literal
         // above pushes the whole table past the crate's recursion limit.

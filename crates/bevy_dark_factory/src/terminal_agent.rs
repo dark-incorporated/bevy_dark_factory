@@ -25,12 +25,47 @@
 use std::path::{Path, PathBuf};
 
 use bevy::prelude::*;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
 use crate::chrome;
 use crate::settings::TerminalAgent;
 use crate::terminal::Terminal;
+
+/// **Which agent a tab is**: the project's, started where the project is for the project's work, or the **editor development
+/// agent**, started in the editor's own source checkout ([`crate::style::editor_source`]) to change the editor itself
+/// (`.omp/commands/editor-dev.md`). Each has its own folder for the config it is handed and its own resume record, so the two
+/// never overwrite each other.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum AgentKind {
+    #[default]
+    Project,
+    EditorDev,
+}
+
+impl AgentKind {
+    /// The word `DARK_FACTORY_AGENT_KIND` carries: `project` or `editor_dev`.
+    pub fn name(self) -> &'static str {
+        match self {
+            AgentKind::Project => "project",
+            AgentKind::EditorDev => "editor_dev",
+        }
+    }
+}
+
+/// **The editor development agent's own folder** under [`AgentSetup::files`], so its `mcp.json` and omp extension never
+/// overwrite the project agent's.
+const EDITOR_DEV_DIR: &str = "editor_dev";
+/// **What the editor types into an editor development tab once its agent connected**: the checkout's own command
+/// (`.omp/commands/editor-dev.md`). Typed after `blueprint/agent_hello` rather than given on the launch line, so it is one path
+/// whether or not omp expands a slash command passed as an argument.
+pub const EDITOR_DEV_COMMAND: &str = "/editor-dev";
+/// The editor development tab's title in the terminal bar.
+pub const EDITOR_DEV_TITLE: &str = "editor dev";
+/// Why an editor development agent cannot start without a checkout.
+const NO_CHECKOUT: &str =
+    "the editor dev agent needs a source checkout: run the editor with cargo run, or set editor_source in settings.yaml";
 
 /// **What an agent started by the terminal is asked first.** It names the tool and asks for nothing
 /// else, so the self test is one turn. It holds no `'`, so [`shell_quote`] leaves it as written.
@@ -283,6 +318,8 @@ pub struct AgentPost {
     /// **The model this tab was started with** (#477), as `--model` carried it: `None` when the settings named none, and omp
     /// then picks its own. The card's heading says it ([`AgentPost::heading`]), so a person can tell which model is answering.
     pub model: Option<String>,
+    /// **Which agent this tab is**: the project's, or the editor development agent.
+    pub kind: AgentKind,
     /// **The MCP servers this session is meant to have** (#484): the editor's own plus the project's, as
     /// [`crate::agent_servers::SessionServers`]. `None` on a tab whose launch never got as far as deciding them.
     pub servers: Option<crate::agent_servers::SessionServers>,
@@ -293,6 +330,8 @@ pub struct AgentPost {
     session_changed: bool,
     /// A resumed agent never connected, so the session the record named cannot be resumed: the record is struck out.
     resume_failed: bool,
+    /// The editor development command was typed after the hello, so a second hello types nothing.
+    dev_command_typed: bool,
 }
 
 impl AgentPost {
@@ -308,6 +347,7 @@ impl AgentPost {
             shown_until_s: None,
             tools: None,
             revision: 0,
+            kind: AgentKind::Project,
             project: None,
             session: None,
             resuming: None,
@@ -316,6 +356,15 @@ impl AgentPost {
             servers_problem: None,
             session_changed: false,
             resume_failed: false,
+            dev_command_typed: false,
+        }
+    }
+
+    /// The tab's title in the terminal bar: the harness for the project's agent, `editor dev` for the editor's.
+    pub fn tab_title(&self) -> &str {
+        match self.kind {
+            AgentKind::Project => self.harness.name(),
+            AgentKind::EditorDev => EDITOR_DEV_TITLE,
         }
     }
 
@@ -641,7 +690,7 @@ pub fn plan_resuming(
     resume: Option<&str>,
     now_s: f64,
 ) -> AgentLaunch {
-    plan_with_model(harness, command, setup, project, resume, None, now_s)
+    plan_with_model(AgentKind::Project, harness, command, setup, project, resume, None, now_s)
 }
 
 /// **[`plan_resuming`] with the model the settings name** (#477, `feedback-1794783326602`): `model` is typed as `--model` on an
@@ -654,7 +703,22 @@ pub fn plan_resuming(
 /// editor should type into a person's shell.
 ///
 /// Only an omp tab is handed it. A custom command keeps its own flags, which is what its name promises.
+///
+/// **`kind` decides where the agent works and what it is handed** ([`AgentKind`]):
+///
+/// | | the project's | the editor development agent |
+/// |---|---|---|
+/// | its config | `<files>/mcp.json`, `<files>/omp` | `<files>/editor_dev/…`, never the project's |
+/// | the server's `--project` | the open project | none: the server follows the editor |
+/// | the line | the self-test prompt, or `--resume <id>` | no prompt (the editor types `/editor-dev` after the hello), or `--restore <id>` after a relaunch |
+/// | its harness | the settings' | omp only |
+/// | its checkout | — | [`crate::style::editor_source`], refused at the first check when there is none |
+///
+/// For an editor development tab `resume` is the session a relaunch carries (`--restore-dev-agent`), which `--restore`
+/// continues mid-turn: the agent asked for the relaunch, so it is the one that goes on.
+#[allow(clippy::too_many_arguments)]
 pub fn plan_with_model(
+    kind: AgentKind,
     harness: TerminalAgent,
     command: Option<&str>,
     setup: Option<&AgentSetup>,
@@ -677,6 +741,7 @@ pub fn plan_with_model(
     };
     let mut post = AgentPost::new(harness, token.clone(), first_word.to_owned(), now_s);
     post.project = project.map(Path::to_path_buf);
+    post.kind = kind;
     post.resuming = resume.map(str::to_owned);
     // Said on the card even when the launch is refused below: a person who set a model wants to read which one was asked for.
     post.model = model.map(str::to_owned);
@@ -696,6 +761,13 @@ pub fn plan_with_model(
             return nothing(post, format!("{id:?} is not a session id, so nothing was resumed"));
         }
     }
+    if kind == AgentKind::EditorDev && harness != TerminalAgent::OhMyPi {
+        return nothing(post, "the editor dev agent runs in omp: choose omp in Settings, Terminal".to_owned());
+    }
+    let source = crate::style::editor_source();
+    if kind == AgentKind::EditorDev && source.is_none() {
+        return nothing(post, NO_CHECKOUT.to_owned());
+    }
     let Some(setup) = setup else {
         return nothing(post, "this editor was started without an agent setup, so it cannot hand an agent its tools".to_owned());
     };
@@ -713,11 +785,17 @@ pub fn plan_with_model(
     // (`$DARK_FACTORY_MCP_CONFIG`) stays the editor's server alone, because it is what a custom command is handed and that
     // command's own config is its business; the omp extension folder's `.mcp.json` is where the whole session set is written,
     // which is the file omp reads for this launch.
-    let (servers, servers_problem) = crate::agent_servers::project_servers_for(project);
+    // **The editor development agent is handed no project** (its server follows the editor), and none of the project's own
+    // servers: it works on the editor's checkout, not on the game.
+    let server_project = match kind {
+        AgentKind::Project => project,
+        AgentKind::EditorDev => None,
+    };
+    let (servers, servers_problem) = crate::agent_servers::project_servers_for(server_project);
     post.servers = Some(servers.clone());
     post.servers_problem = servers_problem;
-    let config = mcp_config(&setup.server, port, &token, project, &[]);
-    let session_config = crate::agent_servers::session_config(&config, project);
+    let config = mcp_config(&setup.server, port, &token, server_project, &[]);
+    let session_config = crate::agent_servers::session_config(&config, server_project);
     let config_text = match serde_json::to_string_pretty(&config) {
         Ok(text) => text + "\n",
         Err(e) => return nothing(post, format!("the MCP config did not serialise: {e}")),
@@ -726,8 +804,12 @@ pub fn plan_with_model(
         Ok(text) => text + "\n",
         Err(e) => return nothing(post, format!("the session's MCP config did not serialise: {e}")),
     };
-    let config_file = setup.files.join(MCP_CONFIG_FILE);
-    let omp_dir = setup.files.join(OMP_EXTENSION_DIR);
+    let files = match kind {
+        AgentKind::Project => setup.files.clone(),
+        AgentKind::EditorDev => setup.files.join(EDITOR_DEV_DIR),
+    };
+    let config_file = files.join(MCP_CONFIG_FILE);
+    let omp_dir = files.join(OMP_EXTENSION_DIR);
     let mut writes = vec![(config_file.clone(), config_text.clone())];
     if harness == TerminalAgent::OhMyPi {
         writes.push((omp_dir.join(OMP_MCP_FILE), session_text));
@@ -749,16 +831,29 @@ pub fn plan_with_model(
     // **The model flag, one expression both forms read.** `None` is no flag at all: `--model ''` is a value omp would refuse,
     // and a person who names no model wants omp's own pick rather than an error.
     let model_flag = model.map(|m| format!(" --model {}", shell_quote(m))).unwrap_or_default();
-    let line = match harness {
-        TerminalAgent::OhMyPi => match resume {
+    let extension = shell_quote(&omp_dir.to_string_lossy());
+    let line = match (harness, kind) {
+        (TerminalAgent::OhMyPi, AgentKind::Project) => match resume {
             Some(session) => {
                 post.checks[SELF_TEST] = CheckStatus::Skipped("a resumed session is not asked its self test again".to_owned());
                 post.checks[DECISION] = CheckStatus::Skipped("a resumed session is not asked its self test again".to_owned());
-                format!("omp -e {}{model_flag} --resume {}\r", shell_quote(&omp_dir.to_string_lossy()), shell_quote(session))
+                format!("omp -e {extension}{model_flag} --resume {}\r", shell_quote(session))
             }
-            None => format!("omp -e {}{model_flag} {}\r", shell_quote(&omp_dir.to_string_lossy()), shell_quote(SELF_TEST_PROMPT)),
+            None => format!("omp -e {extension}{model_flag} {}\r", shell_quote(SELF_TEST_PROMPT)),
         },
-        TerminalAgent::Custom | TerminalAgent::Off => match command {
+        (TerminalAgent::OhMyPi, AgentKind::EditorDev) => {
+            let why = match resume {
+                Some(_) => "a restored session continues the turn it was in",
+                None => "the editor dev agent starts on /editor-dev, not on the self test",
+            };
+            post.checks[SELF_TEST] = CheckStatus::Skipped(why.to_owned());
+            post.checks[DECISION] = CheckStatus::Skipped(why.to_owned());
+            match resume {
+                Some(session) => format!("omp -e {extension}{model_flag} --restore {}\r", shell_quote(session)),
+                None => format!("omp -e {extension}{model_flag}\r"),
+            }
+        }
+        (TerminalAgent::Custom | TerminalAgent::Off, _) => match command {
             Some(command) => format!("{command}\r"),
             None => {
                 post.checks[STARTED] =
@@ -768,13 +863,17 @@ pub fn plan_with_model(
             }
         },
     };
-    let env = vec![
+    let mut env = vec![
         ("BEVY_BRP_PORT".to_owned(), port.to_string()),
         ("DARK_FACTORY_MCP".to_owned(), setup.server.to_string_lossy().into_owned()),
         ("DARK_FACTORY_MCP_CONFIG".to_owned(), config_file.to_string_lossy().into_owned()),
         ("DARK_FACTORY_AGENT_TOKEN".to_owned(), token),
         ("DARK_FACTORY_SELF_TEST_PROMPT".to_owned(), SELF_TEST_PROMPT.to_owned()),
+        ("DARK_FACTORY_AGENT_KIND".to_owned(), kind.name().to_owned()),
     ];
+    if let (AgentKind::EditorDev, Some(source)) = (kind, &source) {
+        env.push(("DARK_FACTORY_EDITOR_SOURCE".to_owned(), source.to_string_lossy().into_owned()));
+    }
     AgentLaunch { line: line.into_bytes(), env, post }
 }
 
@@ -885,6 +984,15 @@ pub fn agent_hello(terminal: &mut Terminal, params: &Value, now_s: f64) -> Resul
         return Ok(json!({"known": false}));
     };
     post.hello(hello.client.map(|c| (c.name, c.version)), hello.tools, now_s);
+    // **An editor development tab is told its command once its agent is there to read it** (`.omp/commands/editor-dev.md`): typed,
+    // not given on the launch line, so it is one path whether or not omp expands a slash command passed as an argument. A
+    // restored tab is not told: it continues the turn it was in.
+    let types_the_command = post.kind == AgentKind::EditorDev && post.resuming.is_none() && !post.dev_command_typed;
+    if types_the_command {
+        post.dev_command_typed = true;
+        let token = post.token.clone();
+        terminal.write_to_agent(&token, format!("{EDITOR_DEV_COMMAND}\r").as_bytes())?;
+    }
     Ok(json!({"known": true}))
 }
 
@@ -931,23 +1039,27 @@ pub fn agent_session(terminal: &mut Terminal, params: &Value) -> Result<Value, S
     Ok(json!({"known": true}))
 }
 
-/// **Open an agent tab** of the chosen harness, `cols` by `rows`, where the next shell starts, its
-/// server told the open project: what the `Invoke Agent` button and the `Agent` chip both do.
+/// **Open an agent tab** of the chosen harness, `cols` by `rows`: the project's where the next shell starts, its server told
+/// the open project, or the editor development agent in the editor's checkout. What the `Invoke Agent` button, the `Agent`
+/// and `Dev` chips and `agent.editor_dev` do.
 pub fn open_agent_tab(
     terminal: &mut Terminal,
+    kind: AgentKind,
     cols: u16,
     rows: u16,
     setup: Option<&AgentSetup>,
     root: Option<&crate::project_assets::ProjectRoot>,
     now_s: f64,
 ) -> usize {
-    open_agent_tab_resuming(terminal, cols, rows, setup, root, None, now_s)
+    open_agent_tab_resuming(terminal, kind, cols, rows, setup, root, None, now_s)
 }
 
-/// **[`open_agent_tab`] for an omp session that was running when the editor closed**, which picks that session back up
-/// (`omp --resume <session>`): what the pane does by itself at a project that has a resume record.
+/// **[`open_agent_tab`] for an omp session to pick back up**: the project's that was running when the editor closed
+/// (`omp --resume`), or the editor development agent's a relaunch carries (`omp --restore`).
+#[allow(clippy::too_many_arguments)]
 pub fn open_agent_tab_resuming(
     terminal: &mut Terminal,
+    kind: AgentKind,
     cols: u16,
     rows: u16,
     setup: Option<&AgentSetup>,
@@ -957,6 +1069,7 @@ pub fn open_agent_tab_resuming(
 ) -> usize {
     let project = root.and_then(crate::project_assets::ProjectRoot::current);
     let launch = plan_with_model(
+        kind,
         terminal.agent(),
         terminal.agent_command(),
         setup,
@@ -965,7 +1078,12 @@ pub fn open_agent_tab_resuming(
         terminal.agent_model(),
         now_s,
     );
-    let cwd = terminal.next_cwd();
+    // **The editor development agent works in the editor's checkout**; when there is none the launch above refused at its first
+    // check, and the tab opens where any shell would, to show the card.
+    let cwd = match (kind, crate::style::editor_source()) {
+        (AgentKind::EditorDev, Some(source)) => source,
+        _ => terminal.next_cwd(),
+    };
     terminal.spawn_agent(cols, rows, &cwd, launch)
 }
 
@@ -1034,7 +1152,7 @@ fn keep_the_resume_record(mut terminal: ResMut<Terminal>, setup: Option<Res<Agen
         return;
     };
     let quiet = terminal.bypass_change_detection();
-    let mut projects = quiet.take_ended_agents();
+    let mut ended = quiet.take_ended_agents();
     for post in quiet.agent_posts_mut() {
         let failed = std::mem::take(&mut post.resume_failed);
         if failed {
@@ -1043,21 +1161,21 @@ fn keep_the_resume_record(mut terminal: ResMut<Terminal>, setup: Option<Res<Agen
         if (std::mem::take(&mut post.session_changed) || failed)
             && let Some(project) = &post.project
         {
-            projects.push(project.clone());
+            ended.push((project.clone(), post.kind));
         }
     }
-    projects.sort();
-    projects.dedup();
+    ended.sort();
+    ended.dedup();
     let mut refused = Vec::new();
-    for project in projects {
+    for (project, kind) in ended {
         let session = quiet
             .agent_posts_mut()
-            .filter(|post| post.project.as_deref() == Some(project.as_path()))
+            .filter(|post| post.project.as_deref() == Some(project.as_path()) && post.kind == kind)
             .filter_map(|post| post.session.clone())
             .last();
         let settled = match &session {
-            Some(session) => crate::agent_resume::remember(&setup.files, &project, TerminalAgent::OhMyPi.name(), session),
-            None => crate::agent_resume::forget(&setup.files, &project),
+            Some(session) => crate::agent_resume::remember(&setup.files, &project, kind, TerminalAgent::OhMyPi.name(), session),
+            None => crate::agent_resume::forget(&setup.files, &project, kind),
         };
         if let Err(why) = settled {
             refused.push(format!("the agent's resume record for {} could not be kept: {why}", project.display()));
@@ -1155,7 +1273,7 @@ pub const AGENT_BAND_ROLE: crate::chrome::text::Role = crate::chrome::text::LABE
 pub fn band_off_words() -> String {
     format!(
         "No agent is running. {} raises the terminal, where Start agent opens one.",
-        crate::terminal_pane::chord_words(&crate::terminal_pane::COLLAPSE_CHORD)
+        crate::terminal_pane::chord_words(&crate::chords::chord(crate::chords::Fixed::TerminalCollapse))
     )
 }
 
@@ -1219,6 +1337,34 @@ mod tests {
             launch.post.checks[1]
         );
         assert!(launch.line.is_empty());
+    }
+
+    /// **The editor development agent is planned apart from the project's**: its own config folder, a server told no project,
+    /// no self-test prompt on the line (the editor types `/editor-dev` after the hello), and the kind and checkout in its
+    /// environment. Run from this crate's own checkout, which `crate::style::editor_source` detects.
+    #[test]
+    fn an_editor_dev_plan_has_its_own_folder_no_project_and_no_prompt() {
+        let setup = setup("editor_dev");
+        let launch = plan_with_model(AgentKind::EditorDev, TerminalAgent::OhMyPi, None, Some(&setup), Some(Path::new("/tmp/p")), None, None, 0.0);
+        let omp = setup.files.join(EDITOR_DEV_DIR).join(OMP_EXTENSION_DIR);
+        assert_eq!(String::from_utf8_lossy(&launch.line), format!("omp -e '{}'\r", omp.display()), "no prompt: the command is typed after the hello");
+        let text = std::fs::read_to_string(omp.join(OMP_MCP_FILE)).unwrap_or_else(|e| panic!("{e}"));
+        let config: Value = serde_json::from_str(&text).unwrap_or_else(|e| panic!("{e}: {text}"));
+        assert_eq!(config["mcpServers"][MCP_SERVER_NAME]["args"], json!([]), "the server is told no project: it follows the editor");
+        assert!(!setup.files.join(OMP_EXTENSION_DIR).exists(), "the project agent's folder is not written");
+        assert!(launch.env.contains(&("DARK_FACTORY_AGENT_KIND".to_owned(), "editor_dev".to_owned())));
+        let source = crate::style::editor_source().unwrap_or_else(|| panic!("this test runs in a checkout"));
+        assert!(launch.env.contains(&("DARK_FACTORY_EDITOR_SOURCE".to_owned(), source.to_string_lossy().into_owned())));
+        assert!(matches!(launch.post.checks[SELF_TEST], CheckStatus::Skipped(_)), "it is not asked the self test");
+        assert_eq!(launch.post.tab_title(), EDITOR_DEV_TITLE);
+        assert_eq!(launch.post.project.as_deref(), Some(Path::new("/tmp/p")), "the resume record still keys by the open project");
+
+        let restored = plan_with_model(AgentKind::EditorDev, TerminalAgent::OhMyPi, None, Some(&setup), None, Some("0197-abc"), None, 0.0);
+        assert!(String::from_utf8_lossy(&restored.line).ends_with("--restore '0197-abc'\r"), "a relaunch continues the turn: {:?}", String::from_utf8_lossy(&restored.line));
+
+        let custom = plan_with_model(AgentKind::EditorDev, TerminalAgent::Custom, Some("echo hi"), Some(&setup), None, None, None, 0.0);
+        assert!(matches!(&custom.post.checks[SERVER], CheckStatus::Failed(why) if why.contains("runs in omp")), "{:?}", custom.post.checks[SERVER]);
+        assert!(custom.line.is_empty());
     }
 
     #[test]

@@ -157,18 +157,27 @@ pub fn shortcut_of(binding: &Binding) -> Shortcut {
     if binding.needs_shift == Some(true) {
         modifiers = modifiers | Modifiers::SHIFT;
     }
+    if binding.needs_alt {
+        modifiers = modifiers | Modifiers::ALT;
+    }
     Shortcut::new(modifiers, binding.key)
 }
 
-/// Every chord a binding answers to: a row that is indifferent to Shift fires with it held too.
+/// Every chord a binding answers to: a row that is indifferent to Shift fires with it held too, and a row that does
+/// not ask for Alt fires with it held as well.
 fn chords(binding: &Binding) -> Vec<Shortcut> {
     let plain = shortcut_of(binding);
     let shifted = Shortcut::new(plain.modifiers | Modifiers::SHIFT, plain.key);
-    match binding.needs_shift {
+    let mut out = match binding.needs_shift {
         Some(true) => vec![shifted],
         Some(false) => vec![plain],
         None => vec![plain, shifted],
+    };
+    if !binding.needs_alt {
+        let with_alt: Vec<Shortcut> = out.iter().map(|chord| Shortcut::new(chord.modifiers | Modifiers::ALT, chord.key)).collect();
+        out.extend(with_alt);
     }
+    out
 }
 
 /// Two commands that would both fire on one chord in one live state.
@@ -262,6 +271,7 @@ pub fn identity(action: Action) -> (&'static str, &'static str) {
         Action::Snip => ("tools.snip", "Snip an area of the editor"),
         Action::MainMenu => ("file.main_menu", "Close project"),
         Action::ShowErrors => ("view.show_errors", "Show this session's errors"),
+        Action::InspectStyle => ("view.inspect_style", "Inspect the style under the pointer"),
         Action::CopyInfo => ("edit.copy_tab_text", "Copy this tab's text"),
         Action::Cancel => ("edit.cancel", "Back out"),
         Action::FrameView => ("view.frame", "Frame the view"),

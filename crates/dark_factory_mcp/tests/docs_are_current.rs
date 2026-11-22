@@ -235,12 +235,16 @@ fn the_tool_table_and_its_count_are_the_servers() {
     // **Every count word the sentence could use, past the set's own size.** The list stopped at
     // `twenty` when twenty tools was beyond imagining; the moment a twenty-first arrived the check
     // refused to read its own sentence, which is a vocabulary gap and not a count that drifted. The
-    // hyphenated twenties are the words, so they are in it.
+    // hyphenated twenties are the words, so they are in it. Assumed owner exception (2026-11-22): the
+    // vocabulary gains the thirties up to thirty-nine, an addition, so the sentence can say the
+    // thirty-two tools the editor's style inspector and relaunch bring it to.
     let words = [
         "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven",
         "twelve", "thirteen", "fourteen", "fifteen", "sixteen", "seventeen", "eighteen", "nineteen",
         "twenty", "twenty-one", "twenty-two", "twenty-three", "twenty-four", "twenty-five",
         "twenty-six", "twenty-seven", "twenty-eight", "twenty-nine", "thirty", "thirty-one",
+        "thirty-two", "thirty-three", "thirty-four", "thirty-five", "thirty-six", "thirty-seven",
+        "thirty-eight", "thirty-nine",
     ];
     let said = words
         .iter()

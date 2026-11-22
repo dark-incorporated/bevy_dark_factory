@@ -7,62 +7,15 @@
 use bevy::prelude::*;
 use bevy_gooey::{GooeyNavPlugin, GooeySkin, GooeyStylePlugin};
 
-/// The editor's own skin, as data: `src/editor_skin.yaml`.
-const EDITOR_SKIN: &str = include_str!("editor_skin.yaml");
-
-/// **The editor's look as `bevy_gooey`'s own type** (UI-02, #210): the colours and measures
-/// `chrome.rs` draws with, the elevation ladder in `surfaces` and the sizes a compact tool wants.
-/// `GooeySkin::problems()` is the check that the ladder is a ladder and the ink is readable.
-pub fn editor_skin() -> GooeySkin {
-    crate::ui_skin::from_yaml(EDITOR_SKIN).unwrap_or_else(|e| panic!("src/editor_skin.yaml does not read: {e}"))
-}
-
-/// **Parchment's colours**, as data: `src/editor_theme_parchment.yaml` (#428).
-const PARCHMENT_LOOK: &str = include_str!("editor_theme_parchment.yaml");
-
-/// **High contrast's colours**, as data: `src/editor_theme_high_contrast.yaml` (#428).
-const HIGH_CONTRAST_LOOK: &str = include_str!("editor_theme_high_contrast.yaml");
-
 /// The least contrast the editor's own ink may have against a theme's ground: WCAG 2.2, success
 /// criterion 1.4.3, the floor `bevy_gooey::problems()` holds a skin's own text to.
 const LEAST_TEXT_CONTRAST: f32 = bevy_gooey::TEXT_CONTRAST;
-
-/// **The editor's skin for a theme** (UI-73, #251; every colour of it, #428): `editor_skin.yaml` for
-/// [`Theme::ToolDark`], and for the other two that file's sizes under the theme's own colours.
-///
-/// A theme's colours are a file, like Tool dark's: its eight-step ladder, its `hover`, `pressed` and `card`
-/// fills and the editor's own tones (`key`, `label`, `muted`, `suggest`, ...). A theme that set only a
-/// preset's dozen colours would leave those tones the dark theme's, and the chrome draws with them — that
-/// was the whole of #428: near-white labels on Parchment's cream. `surface`, `text` and `accent` are still
-/// gooey's preset's own (`GooeySkin::parchment()`, `GooeySkin::high_contrast()`); the rest are set so every
-/// ink the editor draws reads on every ground it is drawn on, which [`unreadable_pairs`] asks.
-///
-/// **The sizes stay the editor's.** [`GooeySkin::with_colours_of`](bevy_gooey::GooeySkin::with_colours_of)
-/// takes a theme's colours and keeps this skin's metrics, so changing the theme never moves a layout: a
-/// person who set 200% text and then asks for high contrast has both. It does not carry the tones, which
-/// are copied here.
-///
-/// Reads and parses its file on each call: callers ask when the theme changes, never per frame.
-///
-/// [`Theme::ToolDark`]: crate::settings::Theme::ToolDark
-pub fn skin_for(theme: crate::settings::Theme) -> GooeySkin {
-    use crate::settings::Theme;
-    let (look, file) = match theme {
-        Theme::ToolDark => return editor_skin(),
-        Theme::Parchment => (PARCHMENT_LOOK, "src/editor_theme_parchment.yaml"),
-        Theme::HighContrast => (HIGH_CONTRAST_LOOK, "src/editor_theme_high_contrast.yaml"),
-    };
-    let look = crate::ui_skin::from_yaml(look).unwrap_or_else(|e| panic!("{file} does not read: {e}"));
-    let mut skin = editor_skin().with_colours_of(&look);
-    skin.tones = look.tones;
-    skin
-}
 
 /// **The inks the editor's own labels are drawn in, named** — the side a theme's ground is measured
 /// against (UI-73, #251), read from `skin` by [`chrome::Ink::of`](crate::chrome::Ink::of), the same
 /// function the chrome paints from, so what is measured is what is drawn.
 pub fn editor_inks(skin: &GooeySkin) -> Vec<(&'static str, Color)> {
-    let ink = crate::chrome::Ink::of(skin);
+    let ink = crate::chrome::Ink::of(skin, &crate::style::metrics().ink);
     vec![
         ("text", ink.text),
         ("text_muted", ink.dim),
@@ -109,62 +62,6 @@ pub fn unreadable_pairs(theme_skin: &GooeySkin) -> Vec<String> {
         }
     }
     out
-}
-
-/// **The theme and the text size reach the running skin** (UI-73, #251): the settings resolve into
-/// [`crate::settings::EditorSettings`], and this is how a choice in the settings screen — or a file a
-/// person edited — becomes the skin a widget draws from. `crate::theme_ink::follow_the_skin` then
-/// moves the editor's own ink, and everything drawn in it, onto that skin the same frame (#428).
-///
-/// **A settled editor costs one comparison.** The theme and the size last decided are kept in `Local`s,
-/// and a pass whose two inputs are the ones already answered returns before [`skin_for`] is called:
-/// parsing a theme's yaml sixty times a second, to write what is already there, is work with no answer
-/// at the end of it.
-///
-/// **The colours and the scale are written separately, and that is not tidiness.** [`skin_for`] builds
-/// the theme's colours at the editor's own sizes, so a person's 200% text would be reset by a theme
-/// change if the two were assigned together.
-///
-/// **The first pass under Tool dark writes no colours.** [`EditorUiPlugin`] has already put the
-/// editor's own skin in as the running one, so a run that has only ever seen the default leaves it
-/// exactly as it was found. A *return* to Tool dark after another theme is still an application.
-///
-/// **A project's `family/bevy_gooey.yaml` is not this system's business** (UI-03, #211). That file is a
-/// *game's* palette: it lives in [`crate::ui_skin::GameSkin`] and reaches the window only through the
-/// Game UI preview panel's `SkinScope`, so the running skin here is always the person's theme whatever
-/// a project ships.
-///
-/// **Every theme is honoured** (#428). It used to refuse Parchment, because `chrome.rs`'s labels were
-/// the dark theme's near-white whatever ran and a cream ground left them at 1.12:1. They are the
-/// running skin's now, so there is nothing to refuse.
-///
-/// It runs after the settings are read and before gooey styles, so a theme chosen this frame is the
-/// skin this frame's widgets are painted from.
-pub fn follow_the_theme(
-    settings: Option<Res<crate::settings::EditorSettings>>,
-    mut skin: ResMut<GooeySkin>,
-    // The theme this system last decided, so a settled editor returns at once — and so a run that has
-    // only ever seen the default leaves the skin exactly as `EditorUiPlugin` put it.
-    mut applied: Local<Option<crate::settings::Theme>>,
-) {
-    let Some(settings) = settings else { return };
-    let theme = settings.theme;
-    // **One comparison is the whole frame.** Nothing moved — not the theme, not the size — so nothing
-    // is measured, parsed or written.
-    if applied.as_ref() == Some(&theme) && (skin.text_scale - settings.text_scale).abs() < f32::EPSILON {
-        return;
-    }
-    let first_default = theme == crate::settings::Theme::default() && applied.is_none();
-    *applied = Some(theme);
-    // The colours `EditorUiPlugin` inserted stay for a first pass under the default; otherwise they are
-    // the theme's.
-    let mut want = if first_default { skin.clone() } else { skin_for(theme) };
-    // The theme's colours *and* the person's scale, in one value: the theme is built at the editor's
-    // own sizes, so the scale is written on top of them, never instead of them.
-    want.text_scale = settings.text_scale;
-    if *skin != want {
-        *skin = want;
-    }
 }
 
 /// **How the editor spells a chord: in words, `Cmd+Z`, never the symbol `⌘Z`** (`feedback-1794097488318`, and
@@ -220,7 +117,12 @@ impl Plugin for EditorUiPlugin {
         }
         // **The settings screen** (UI-71, #249): Cmd/Ctrl+, over any screen.
         app.add_plugins((crate::settings_screen::SettingsScreenPlugin, crate::project_config::ProjectConfigPlugin, crate::keymap_screen::KeymapScreenPlugin));
-        app.insert_resource(editor_skin());
+        // **The editor's own style sheet, live** (`crate::style`): the compiled sheet is the running skin until the
+        // first look, then the layers on disk (the checkout's sheet, its theme, the person's and the project's) are.
+        app.insert_resource(crate::style::compiled_default().skin);
+        app.add_plugins(crate::style::StylePlugin);
+        // **The style inspector** (`Cmd+Alt+I`): the classes and the style sheet rules of the node under the pointer.
+        app.add_plugins(crate::style_inspect::StyleInspectPlugin);
         // **The editor's own ink follows the running skin** (#428): the last system of every frame moves
         // everything drawn in the old ink onto the new one when a theme changes the skin's colours.
         app.add_plugins(crate::theme_ink::ThemeInkPlugin);
@@ -286,16 +188,6 @@ impl Plugin for EditorUiPlugin {
         app.add_systems(
             Update,
             follow_the_motion_setting.after(crate::settings::sync_settings).before(bevy_gooey::GooeySystems::Style),
-        );
-        // **The theme reaches the running skin** (UI-73, #251), after the settings are read. A project's
-        // `family/bevy_gooey.yaml` is not consulted: it is the *game's* palette and lives in `GameSkin`
-        // for the Game UI preview (UI-03, #211), so the running skin here is always the person's theme.
-        app.add_systems(
-            Update,
-            follow_the_theme
-                .after(crate::settings::sync_settings)
-                .after(crate::ui_skin::skin_scope)
-                .before(bevy_gooey::GooeySystems::Style),
         );
         // Before gooey's colour motion, which leads every colour to the last one written: a button this paints
         // is that colour's target, and colours it writes after the motion would be a frame ahead of it.
@@ -392,7 +284,7 @@ fn paint_marked_buttons(
                     // button tall. It has a `Role` like every gooey node, and its colour is `paint_marked_buttons`', not the skin's (`InkFollow`).
                     bevy_gooey::placed_at(0.0, 0.0),
                     bevy_gooey::Sizing {
-                        width: Some(bevy_gooey::Extent::Px(crate::chrome::SELECT_RAIL_W)),
+                        width: Some(bevy_gooey::Extent::Px(crate::style::metrics().layout.select_rail_w)),
                         height: Some(bevy_gooey::Extent::Percent(100.0)),
                         ..default()
                     },

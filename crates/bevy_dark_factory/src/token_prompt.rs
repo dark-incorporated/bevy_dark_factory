@@ -196,7 +196,7 @@ fn sync_token_prompt(
     if standing.is_empty() {
         commands
             .spawn((dialog(), TokenPromptRoot))
-            .insert(GlobalZIndex(crate::chrome::MODAL_Z))
+            .insert(GlobalZIndex(crate::style::metrics().z.modal))
             .with_children(|scrim| {
                 scrim.spawn((panel(), Hovered::default())).with_children(|card| {
                     card.spawn((heading(line_text(Line::Title, draft)), Line::Title));

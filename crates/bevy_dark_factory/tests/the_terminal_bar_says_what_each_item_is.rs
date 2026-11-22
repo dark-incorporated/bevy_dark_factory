@@ -20,7 +20,7 @@ use bevy_dark_factory::terminal::Terminal;
 use bevy_dark_factory::terminal_agent::{self, AgentSetup};
 use bevy_dark_factory::terminal_pane::{
     BAR_GIVES_UP, BarPlan, BarWants, TerminalAgentChip, TerminalAgentStatusChip, TerminalBar, TerminalCloseTab, TerminalInvokeButton, TerminalNewTab, TerminalTabChip, bar_plan,
-    chord_words, close_tab_chord, tab_names,
+    chord_words, tab_names,
 };
 use bevy_gooey::{Led, LedWord, Tooltip};
 
@@ -263,7 +263,7 @@ fn the_x_chip_carries_its_chord_and_the_plus_says_where_the_shell_starts() {
     updates(&mut app, 6);
     let world = app.world_mut();
     let close = world.query_filtered::<&Tooltip, With<TerminalCloseTab>>().iter(world).next().map(|tip| tip.text.clone()).expect("x has a tooltip");
-    let chord = chord_words(&close_tab_chord());
+    let chord = chord_words(&bevy_dark_factory::chords::chord(bevy_dark_factory::chords::Fixed::TerminalCloseTab));
     assert!(close.contains(&chord), "x names its chord {chord:?}: {close:?}");
     let plus = world.query_filtered::<&Tooltip, With<TerminalNewTab>>().iter(world).next().map(|tip| tip.text.clone()).expect("+ has a tooltip");
     assert!(plus.to_lowercase().contains("new shell"), "{plus:?}");

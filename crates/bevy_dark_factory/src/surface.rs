@@ -432,7 +432,7 @@ pub fn ui_scale_for(logical_width: f32, scale_factor: f32) -> f32 {
 pub fn ui_scale_for_a_person(logical_width: f32, scale_factor: f32, interface_scale: f32) -> f32 {
     let growth = (logical_width / REFERENCE_W).clamp(1.0, MAX_GROWTH);
     let wanted = interface_scale.clamp(crate::settings::SCALE_RANGE.0, crate::settings::SCALE_RANGE.1);
-    crate::chrome::EDITOR_UI_SCALE * growth * scale_factor * wanted
+    crate::style::metrics().layout.ui_scale * growth * scale_factor * wanted
 }
 
 /// The width the editor's pixel constants were chosen against — a 16:10 laptop's logical width, and
@@ -844,34 +844,37 @@ fn retarget_pointer(
 #[cfg(test)]
 mod scale_tests {
     use super::{ui_scale_for, MAX_GROWTH, REFERENCE_W};
-    use crate::chrome::EDITOR_UI_SCALE;
+    /// The interface scale the design is drawn at: the sheet's `metrics.layout.ui_scale`.
+    fn base() -> f32 {
+        crate::style::metrics().layout.ui_scale
+    }
 
     /// **A small window keeps the density the design was drawn at**, which is the half a larger
     /// constant broke. 1280 x 800 is the size every headless test lays out at, and the badge packer
     /// measures its stage in exactly those pixels.
     #[test]
     fn a_small_window_is_not_scaled_up() {
-        assert_eq!(ui_scale_for(1280.0, 1.0), EDITOR_UI_SCALE);
-        assert_eq!(ui_scale_for(REFERENCE_W, 1.0), EDITOR_UI_SCALE);
+        assert_eq!(ui_scale_for(1280.0, 1.0), base());
+        assert_eq!(ui_scale_for(REFERENCE_W, 1.0), base());
     }
 
     /// **A large one grows, and stops.**
     #[test]
     fn a_large_window_grows_to_the_cap() {
         let wide = ui_scale_for(3396.0, 1.0);
-        assert_eq!(wide, EDITOR_UI_SCALE * MAX_GROWTH);
+        assert_eq!(wide, base() * MAX_GROWTH);
         assert!(
             wide > ui_scale_for(REFERENCE_W, 1.0),
             "a window twice the reference width reads at a larger size, or F2 is not fixed"
         );
         // Halfway up the ramp, so the clamp is not the only thing being tested.
-        assert!((ui_scale_for(1800.0, 1.0) - EDITOR_UI_SCALE * 1.125).abs() < 1e-5);
+        assert!((ui_scale_for(1800.0, 1.0) - base() * 1.125).abs() < 1e-5);
     }
 
     /// **Density still multiplies on top**, because a 2x display is a separate question from a wide
     /// one and the target is sized in physical pixels either way.
     #[test]
     fn the_display_factor_still_multiplies() {
-        assert_eq!(ui_scale_for(1280.0, 2.0), EDITOR_UI_SCALE * 2.0);
+        assert_eq!(ui_scale_for(1280.0, 2.0), base() * 2.0);
     }
 }

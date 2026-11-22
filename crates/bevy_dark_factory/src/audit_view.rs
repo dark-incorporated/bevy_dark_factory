@@ -301,7 +301,7 @@ fn follow_the_audit(
         Why::Random => "asked at random",
     };
     commands.entity(container).with_children(|list| {
-        list.spawn((AuditRow, Name::new("audit"), bevy_gooey::column_with(crate::chrome::GAP_TIGHT_STEPS, bevy_gooey::RowLayout { shrink: Some(0.0), ..default() })))
+        list.spawn((AuditRow, Name::new("audit"), (bevy_gooey::column_with(0.0, bevy_gooey::RowLayout { shrink: Some(0.0), ..default() }), crate::chrome::Gap::Tight.class())))
             .with_children(|row| {
                 row.spawn(label(header));
                 row.spawn(label(why));
@@ -317,7 +317,7 @@ fn follow_the_audit(
                     }
                 }
                 row.spawn(label(offer.text.clone()));
-                row.spawn(bevy_gooey::row_with(crate::chrome::GAP_TIGHT_STEPS, bevy_gooey::RowLayout::default())).with_children(|buttons| {
+                row.spawn((bevy_gooey::row_with(0.0, bevy_gooey::RowLayout::default()), crate::chrome::Gap::Tight.class())).with_children(|buttons| {
                     for (kind, words) in [(AuditButton::Yes, "Yes (Y)"), (AuditButton::No, "No (N)"), (AuditButton::Skip, "Skip (S)")] {
                         buttons.spawn((button(words), kind, observe(move |_: On<Activate>, mut answers: ResMut<Answers>| answers.0.push(kind))));
                     }
@@ -350,7 +350,7 @@ fn follow_the_report_line(mut commands: Commands, mut audit: ResMut<Audit>, cont
     let Ok(container) = containers.single() else { return };
     let line = audit.line.clone();
     commands.entity(container).with_children(|list| {
-        list.spawn((ReportLine, Name::new("label report line"), bevy_gooey::column_with(crate::chrome::GAP_TIGHT_STEPS, bevy_gooey::RowLayout { shrink: Some(0.0), ..default() })))
+        list.spawn((ReportLine, Name::new("label report line"), (bevy_gooey::column_with(0.0, bevy_gooey::RowLayout { shrink: Some(0.0), ..default() }), crate::chrome::Gap::Tight.class())))
             .with_children(|row| {
                 row.spawn(label("LABELS"));
                 row.spawn((label(line), ReportText));

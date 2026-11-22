@@ -33,16 +33,6 @@ pub struct ProblemGoTo {
     pub pieces: Vec<String>,
 }
 
-/// **The chord that brings the PROBLEMS list on screen**: Command+Shift+X on a Mac, Ctrl+Shift+X elsewhere (NV-11, #397).
-///
-/// The list is a heading of the Map inspector, six wheel notches down (`docs/ui/navigation.md`), and the navigation target for it is one
-/// press. It is a chord of its own beside the shell's two (`shell_view::LEFT_PANEL_CHORD`, `zen_chord`): a letter and a modifier pair
-/// that no binding of `keys.rs` takes, so nothing else fires with it. **Assumed decision (owner may override):** a chord outside the key
-/// census, as the shell's are, rather than a census `Action`, which would move three protected pins for one key.
-pub fn show_problems_chord() -> bevy_gooey::Shortcut {
-    bevy_gooey::Shortcut::new(bevy_gooey::Modifiers::PRIMARY | bevy_gooey::Modifiers::SHIFT, KeyCode::KeyX)
-}
-
 pub struct ProblemsViewPlugin;
 
 impl Plugin for ProblemsViewPlugin {
@@ -68,7 +58,7 @@ fn show_the_problems_on_the_chord(
     mut revealing: ResMut<crate::reveal::Revealing>,
     mut inspector: ResMut<crate::reveal::InspectorReveal>,
 ) {
-    let chord = show_problems_chord();
+    let chord = crate::chords::chord(crate::chords::Fixed::ProblemsShow);
     if !chord.just_pressed(&keys) || focus.owns(&chord) || live.0 == crate::keys::Context::Typing || confirm.is_open() {
         return;
     }
@@ -236,7 +226,7 @@ fn refresh_problems_list(
             }
             Said::Rows(rows) => {
                 for row in rows {
-                    crate::chrome::rigid_row(p, crate::chrome::GAP_TIGHT_STEPS, AlignItems::Center)
+                    crate::chrome::rigid_row(p, Some(crate::chrome::Gap::Tight), AlignItems::Center)
                         .with_children(|line| {
                             line.spawn(bevy_gooey::fill_column(0.0)).with_children(|words| {
                                 let colour = if row.hard { ink.danger } else { ink.read };

@@ -275,6 +275,9 @@ const UNCHECKED: &[&str] = &[
     "family",
     "game_data",
     "editor_settings",
+    // **The editor's style-sheet layer** is a `bevy_gooey::GooeySkin`, the editor's metrics and gooey's
+    // `StyleRules`: types above this crate. `bevy_dark_factory::style::read_layer` names the file and the field.
+    "editor_style",
     // A JSON Schema is generated on write and read by an outside editor's extension; this crate's own
     // reader never opens one, so there is nothing here to check it against.
     "schema",
@@ -293,8 +296,9 @@ const UNCHECKED: &[&str] = &[
     "design",
 ];
 
-/// **A literal, not `UNCHECKED.len()`**: a number that is its own measure can never fail.
-const UNCHECKED_MAX: usize = 14;
+/// **A literal, not `UNCHECKED.len()`**: a number that is its own measure can never fail. 15 since the
+/// editor's style-sheet layer joined (`editor_style`), whose types live above this crate.
+const UNCHECKED_MAX: usize = 15;
 
 #[test]
 fn the_unchecked_list_only_shrinks() {

@@ -748,14 +748,12 @@ impl Plugin for FilesPlugin {
 /// docks leave. The Files workspace and the Design workspace both build their page host on it, so there is one such node and no second copy of it.
 pub(crate) fn page_host() -> impl Bundle {
     (
-        // A gooey fill column (it grows into what the docks leave, with no least width of its own), `GAP_ROW` px between its parts, `PAD` in all round, `MARGIN` out all round,
-        // a 1 px edge and a panel radius. Its fill and edge are the editor's (`InkFollow`: `Ground`, `PanelEdge` lit by focus, and the theme move them).
+        // A gooey fill column (it grows into what the docks leave, with no least width of its own), with a panel's gap, inset, margin and corner (the sheet's
+        // `.chrome-panel`) and a hairline edge. Its fill and edge are the editor's (`InkFollow`: `Ground`, `PanelEdge` lit by focus, and the theme move them).
         bevy_gooey::fill_column(0.0),
-        bevy_gooey::GapPx(chrome::GAP_ROW),
         bevy_gooey::Sizing { min_height: Some(bevy_gooey::Extent::Px(0.0)), ..default() },
-        bevy_gooey::Spacing { padding: bevy_gooey::Sides::all(chrome::STEP_PAD), margin: bevy_gooey::Sides::all(chrome::STEP_PAD) },
-        bevy_gooey::BorderPx(bevy_gooey::Sides::all(chrome::EDGE_W)),
-        bevy_gooey::Shape { radius: Some(bevy_gooey::Radius::Step(1)), ..default() },
+        bevy_gooey::StyleClass::of("chrome-panel chrome-page-host"),
+        bevy_gooey::BorderPx(bevy_gooey::Sides::all(crate::style::metrics().layout.edge_w)),
         bevy_gooey::InkFollow,
     )
 }

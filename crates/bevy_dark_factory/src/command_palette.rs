@@ -26,7 +26,7 @@
 
 use bevy::prelude::*;
 use bevy_gooey::{
-    CommandList, CommandPalette, Modifiers, PaletteCommand, RunCommand, Shortcut, command_palette,
+    CommandList, CommandPalette, PaletteCommand, RunCommand, Shortcut, command_palette,
 };
 
 use crate::command_run::{Chords, CommandRunPlugin};
@@ -41,12 +41,13 @@ use crate::keys::{Context, Live};
 /// swaps between them. One chord for "go somewhere", one for "run something", which is what
 /// `Cmd`+`P` means in every editor a person already uses.
 ///
-/// Each chord is paired with the source it opens the palette on.
+/// Each chord is paired with the source it opens the palette on; the chords are the person's ([`crate::chords`]).
 pub fn chords() -> [(Source, Shortcut); 3] {
+    use crate::chords::{Fixed, chord};
     [
-        (Source::Commands, Shortcut::new(Modifiers::PRIMARY | Modifiers::SHIFT, KeyCode::KeyP)),
-        (Source::Everything, Shortcut::new(Modifiers::PRIMARY, KeyCode::KeyP)),
-        (Source::Commands, Shortcut::new(Modifiers::PRIMARY, KeyCode::KeyK)),
+        (Source::Commands, chord(Fixed::PaletteOpen)),
+        (Source::Everything, chord(Fixed::GotoOpen)),
+        (Source::Commands, chord(Fixed::PaletteOpenAlt)),
     ]
 }
 

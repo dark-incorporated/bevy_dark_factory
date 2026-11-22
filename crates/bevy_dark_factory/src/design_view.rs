@@ -460,7 +460,7 @@ fn spawn_the_design_workspace(mut commands: Commands, frame: Res<Frame>) {
             AccessibleLabel::new("Design page"),
         ))
         .with_children(|host| {
-            host.spawn((DesignTop, bevy_gooey::column_with(chrome::GAP_TIGHT_STEPS, bevy_gooey::RowLayout { shrink: Some(0.0), ..default() })));
+            host.spawn((DesignTop, (bevy_gooey::column_with(0.0, bevy_gooey::RowLayout { shrink: Some(0.0), ..default() }), chrome::Gap::Tight.class())));
             host.spawn((
                 DesignBody,
                 bevy_gooey::fill_region(),
@@ -784,7 +784,7 @@ fn keep_the_top(
         top.spawn((bevy_gooey::toggle("As an agent reads it", key.as_agent), DesignAgentToggle, observe(on_agent_toggle)));
         if key.topic_menu {
             // **A wrapping row**: five topic buttons do not fit the middle column of the smallest window (1024 x 640), and a plain row squeezed each to about 23 px.
-            crate::chrome::wrapping_row(top, 1.0, crate::chrome::NO_MARGIN, AlignItems::Center).with_children(|menu| {
+            crate::chrome::wrapping_row(top, Some(crate::chrome::Gap::Row), crate::chrome::NO_MARGIN, AlignItems::Center).with_children(|menu| {
                 for topic in &key.offered {
                     // Padded with two spaces a side, so the shortest name (`ui`) is still a target at least 40 px wide; the label is compared trimmed.
                     menu.spawn((bevy_gooey::button(format!("  {topic}  ")), DesignAction::NewTopic(topic.clone()), observe(on_action)));

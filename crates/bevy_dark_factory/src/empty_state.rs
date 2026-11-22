@@ -124,7 +124,7 @@ fn spawn_prompt(commands: &mut Commands, viewport: Entity, kind: EmptyMapPrompt)
         ))
         .with_children(|p| {
             p.spawn((
-                bevy_gooey::column_with(crate::chrome::GAP_GROUP_STEPS, bevy_gooey::RowLayout { align: Some(AlignItems::Center), ..default() }),
+                (bevy_gooey::column_with(0.0, bevy_gooey::RowLayout { align: Some(AlignItems::Center), ..default() }), crate::chrome::Gap::Group.class()),
                 bevy::picking::Pickable::IGNORE,
             ))
             .with_children(|stack| {

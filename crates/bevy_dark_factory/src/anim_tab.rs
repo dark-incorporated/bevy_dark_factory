@@ -349,23 +349,28 @@ impl Plugin for AnimTabPlugin {
 ///
 /// A `cell`'s width is a multiple of **gooey's body type size**, and a cell **clips** what does not
 /// fit. So the width has to hold the longest string the column draws: `0 - clip 14` is 11 glyphs of
-/// `chrome::BODY_CHAR_W` (6.6 px at the 11 px body) over that 11 px body, about 6.6 body sizes; and
+/// `chrome::body_char_w` (6.6 px at the 11 px body) over that 11 px body, about 6.6 body sizes; and
 /// `gait` is 4 glyphs, about 2.4. The first draft wrote 3.5 and 1.3 — about 38 px and 14 px — which
 /// cut `0 - clip 14` after six glyphs and drew `ga` for `gait`: the very column this table exists to
 /// line up. The numbers are computed from the character width rather than guessed.
-const SLOT_CELL: f32 = SLOT_CHARS * crate::chrome::BODY_CHAR_W / crate::chrome::text::BODY.px();
-/// See [`SLOT_CELL`].
-const KIND_CELL: f32 = KIND_CHARS * crate::chrome::BODY_CHAR_W / crate::chrome::text::BODY.px();
+fn slot_cell() -> f32 {
+    SLOT_CHARS * crate::chrome::body_char_w() / crate::chrome::text::BODY.px()
+}
+/// See [`slot_cell`].
+fn kind_cell() -> f32 {
+    KIND_CHARS * crate::chrome::body_char_w() / crate::chrome::text::BODY.px()
+}
 /// The glyphs `0 - clip 14` takes, the widest first column a ten-slot rig draws.
 const SLOT_CHARS: f32 = 11.0;
 /// The glyphs of the widest kind word: `gait`, `free`, `once`.
 const KIND_CHARS: f32 = 4.0;
 
-
 /// **An indent one panel inset wide**, in body text sizes, for the lines that hang under a slot row:
-/// `chrome::PAD` (12 px) plus the row's gap over the body size — the 12 px the old
-/// `margin: left(PAD)` stood for (review of #244).
-const INDENT_CELL: f32 = (crate::chrome::PAD + crate::chrome::GAP_ROW) / crate::chrome::text::BODY.px();
+/// a panel's inset (`STEP_PAD`, 12 px) plus the row's gap (`STEP_ROW`) over the body size — the 12 px the
+/// old `margin: left(PAD)` stood for (review of #244).
+fn indent_cell() -> f32 {
+    (crate::chrome::space(crate::chrome::STEP_PAD) + crate::chrome::space(crate::chrome::STEP_ROW)) / crate::chrome::text::BODY.px()
+}
 
 fn spawn_panels(
     mut commands: Commands,
@@ -378,7 +383,7 @@ fn spawn_panels(
         &mut commands,
         &frame,
         crate::chrome::Side::Left,
-        crate::chrome::CONTROLS_W,
+        crate::style::metrics().layout.controls_w,
         true,
         true,
         // What a screen reader calls this panel (UI-30, #224).
@@ -440,7 +445,7 @@ fn spawn_panels(
         &mut commands,
         &frame,
         crate::chrome::Side::Right,
-        crate::chrome::LIST_W,
+        crate::style::metrics().layout.list_w,
         true,
         false,
         // What a screen reader calls this panel (UI-30, #224).
@@ -452,7 +457,9 @@ fn spawn_panels(
             RigBench,
             // **A real layout node**: a column that grows into what the panel leaves, so the list is bounded by the panel's height
             // (`chrome::scroll_list` needs a definite height to clip against). `ShownFollow` writes its `display`.
-            bevy_gooey::column(crate::chrome::GAP_ROW),
+            bevy_gooey::column(0.0),
+            // Its children's gap is the sheet's `.anim-rig-bench`.
+            bevy_gooey::StyleClass::of("anim-rig-bench"),
             bevy_gooey::TextFlow { grow: Some(1.0), ..default() },
             bevy_gooey::ShownFollow::closed(),
             bevy_gooey::Tooltip::new(format!("{}: show or hide this list", crate::keys::chord(crate::keys::Action::ToggleRigs))),
@@ -460,7 +467,7 @@ fn spawn_panels(
         .with_children(|list| {
             // The heading and the chord, then the filter and the list.
             list.spawn((
-                bevy_gooey::row_with(crate::chrome::GAP_TIGHT_STEPS, bevy_gooey::RowLayout { align: Some(AlignItems::Center), ..default() }),
+                (bevy_gooey::row_with(0.0, bevy_gooey::RowLayout { align: Some(AlignItems::Center), ..default() }), crate::chrome::Gap::Tight.class()),
                 RigHeading,
             ))
             .with_children(|row| {
@@ -1368,7 +1375,7 @@ fn rebuild_slots(
                         ),
                     )
                     .with_children(|row| {
-                        row.spawn(bevy_gooey::row(crate::chrome::GOOEY_GAP_ONE))
+                        row.spawn((bevy_gooey::row(0.0), crate::chrome::Gap::Row.class()))
                         .with_children(|head| {
                             head.spawn((
                                 Text::new((*n).to_owned()),
@@ -1447,8 +1454,8 @@ fn rebuild_slots(
                             // block steps in by the same unit the panel does. An empty `cell` is how a
                             // row begins with a gap, and it is gooey's own: a text node with a margin
                             // was the last raw `Node` in this file's provenance block (UI-58, #244).
-                            p.spawn((bevy_gooey::row(crate::chrome::GOOEY_GAP_ONE), TextColor(danger))).with_children(|row| {
-                                row.spawn(bevy_gooey::cell(INDENT_CELL));
+                            p.spawn(((bevy_gooey::row(0.0), crate::chrome::Gap::Row.class()), TextColor(danger))).with_children(|row| {
+                                row.spawn(bevy_gooey::cell(indent_cell()));
                                 row.spawn((
                                     Text::new(d.clone()),
                                     TextColor(danger),
@@ -1482,7 +1489,7 @@ fn rebuild_slots(
                         },
                     ),
                 };
-                p.spawn(bevy_gooey::row(crate::chrome::GOOEY_GAP_ONE))
+                p.spawn((bevy_gooey::row(0.0), crate::chrome::Gap::Row.class()))
                 .with_children(|row| {
                     // **A `cell` is the two fixed columns** (UI-58, #244). Its width is in body text
                     // sizes, so the column keeps its share of the row as the person enlarges the type
@@ -1490,14 +1497,14 @@ fn rebuild_slots(
                     // 52 px column wrapped "0 - clip 14" onto two lines and made a ten-slot rig
                     // unreadable. A cell cuts what does not fit rather than overlapping its
                     // neighbour, which is the `NoWrap` this used to carry.
-                    row.spawn(bevy_gooey::cell(SLOT_CELL)).with_children(|cell| {
+                    row.spawn(bevy_gooey::cell(slot_cell())).with_children(|cell| {
                         cell.spawn((
                             Text::new(format!("{i} - clip {}", slot.clip)),
                             TextColor(label),
                             crate::chrome::typed(crate::chrome::text::LABEL),
                         ));
                     });
-                    row.spawn(bevy_gooey::cell(KIND_CELL)).with_children(|cell| {
+                    row.spawn(bevy_gooey::cell(kind_cell())).with_children(|cell| {
                         cell.spawn((
                             Text::new(kind.to_owned()),
                             // A gait is the only kind carrying measured numbers, so it is the only one
@@ -1549,8 +1556,8 @@ fn rebuild_slots(
                     sub.push(format!("kept: {reason}"));
                 }
                 if !sub.is_empty() {
-                    p.spawn(bevy_gooey::row(crate::chrome::GOOEY_GAP_ONE)).with_children(|row| {
-                        row.spawn(bevy_gooey::cell(SLOT_CELL));
+                    p.spawn((bevy_gooey::row(0.0), crate::chrome::Gap::Row.class())).with_children(|row| {
+                        row.spawn(bevy_gooey::cell(slot_cell()));
                         row.spawn((
                             Text::new(sub.join(" | ")),
                             TextColor(quiet),
@@ -1569,8 +1576,8 @@ fn rebuild_slots(
                     if excluded.contains(&i) {
                         line.push_str(" | excluded from adopt");
                     }
-                    p.spawn(bevy_gooey::row(crate::chrome::GOOEY_GAP_ONE)).with_children(|row| {
-                        row.spawn(bevy_gooey::cell(SLOT_CELL));
+                    p.spawn((bevy_gooey::row(0.0), crate::chrome::Gap::Row.class())).with_children(|row| {
+                        row.spawn(bevy_gooey::cell(slot_cell()));
                         row.spawn((
                             Text::new(line),
                             TextColor(quiet),
@@ -1618,7 +1625,7 @@ fn rebuild_slots(
                 crate::chrome::section(p, "PLOTS");
                 // The legend: which color is which gait slot, labelled by the asset's clip name
                 // when it has one.
-                p.spawn(bevy_gooey::row(crate::chrome::GOOEY_GAP_ONE))
+                p.spawn((bevy_gooey::row(0.0), crate::chrome::Gap::Row.class()))
                 .with_children(|legend| {
                     // The same rank walk `render_plots` colors by: gait slots when the rig has
                     // any, else every free slot — lockstep or the legend lies.
@@ -1653,7 +1660,7 @@ fn rebuild_slots(
                 for (caption, handle) in charts {
                     // **A caption over its plot, as a column** (UI-58, #244): `column`'s gap is the
                     // spacing step, where the caption carried a top margin of its own.
-                    p.spawn(bevy_gooey::column(crate::chrome::GOOEY_GAP_ONE)).with_children(|chart| {
+                    p.spawn((bevy_gooey::column(0.0), crate::chrome::Gap::Row.class())).with_children(|chart| {
                         chart.spawn((
                             Text::new(caption),
                             TextColor(label),
@@ -1664,7 +1671,7 @@ fn rebuild_slots(
                         // the cursor's surface: `image_box` takes no pointer (every picture in the
                         // crate is `Pickable::IGNORE`), so `RelativeCursorPosition` and `Hovered` go on
                         // the host that reads them, which is the line gooey's `image_box` doc gives.
-                        let size = Vec2::new(crate::anim_plots::SHOW_W, crate::anim_plots::SHOW_PLOT_H);
+                        let size = Vec2::new(crate::anim_plots::show_w(), crate::anim_plots::SHOW_PLOT_H);
                         chart
                             .spawn((
                                 bevy_gooey::overlay(),
@@ -1686,7 +1693,7 @@ fn rebuild_slots(
                     crate::chrome::typed(crate::chrome::text::HINT),
                     crate::anim_plots::PlotReadout,
                 ));
-                p.spawn(bevy_gooey::column(crate::chrome::GOOEY_GAP_ONE)).with_children(|trace| {
+                p.spawn((bevy_gooey::column(0.0), crate::chrome::Gap::Row.class())).with_children(|trace| {
                     trace.spawn((
                         Text::new("top-down trace (fwd = up; arrow = declared cycle along measured travel; dim arrow = measured, G)"),
                         TextColor(label),
@@ -1694,7 +1701,7 @@ fn rebuild_slots(
                     ));
                     trace.spawn(bevy_gooey::image_box(
                         plots.trace.clone(),
-                        Vec2::new(crate::anim_plots::SHOW_W, crate::anim_plots::SHOW_TRACE_H),
+                        Vec2::new(crate::anim_plots::show_w(), crate::anim_plots::SHOW_TRACE_H),
                     ));
                 });
             }

@@ -625,15 +625,10 @@ pub fn reopen_tab(world: &mut World, workspace: Workspace) {
     }
 }
 
-/// The chords, built where they are read because `Modifiers` has no const `|`.
+/// The four tab chords, the person's ([`crate::chords`]): close, reopen, next and back.
 fn chords() -> [bevy_gooey::Shortcut; 4] {
-    use bevy_gooey::{Modifiers, Shortcut};
-    [
-        Shortcut::new(Modifiers::PRIMARY, KeyCode::KeyW),
-        Shortcut::new(Modifiers::PRIMARY | Modifiers::SHIFT, KeyCode::KeyT),
-        Shortcut::new(Modifiers::CTRL, KeyCode::Tab),
-        Shortcut::new(Modifiers::CTRL | Modifiers::SHIFT, KeyCode::Tab),
-    ]
+    use crate::chords::{Fixed, chord};
+    [chord(Fixed::SessionCloseTab), chord(Fixed::SessionReopenTab), chord(Fixed::SessionNextTab), chord(Fixed::SessionPreviousTab)]
 }
 
 /// **The three tab keys**, once a frame. They yield to a text field, a filter box and the journal, the
@@ -738,7 +733,7 @@ pub fn draw_the_tabs(
     let strip = commands
         .spawn((
             DocumentStrip,
-            bevy_gooey::row_with(crate::chrome::GAP_TIGHT_STEPS, bevy_gooey::RowLayout { align: Some(AlignItems::Stretch), ..default() }),
+            (bevy_gooey::row_with(0.0, bevy_gooey::RowLayout { align: Some(AlignItems::Stretch), ..default() }), crate::chrome::Gap::Tight.class()),
             bevy_gooey::Spacing { margin: crate::chrome::margin_left(crate::chrome::STEP_GROUP), ..default() },
             bevy::a11y::AccessibilityNode::from(accesskit::Node::new(accesskit::Role::TabList)),
         ))
@@ -751,7 +746,7 @@ pub fn draw_the_tabs(
                 DocumentTab(doc.clone()),
                 // A document tab: its words a row step apart, the same inset as the workspace strip's tabs (12 px across, 8 px down: not a step of the scale, so a literal)
                 // and the active-tab marker's 3 px edge along the bottom (exactly 3 px).
-                bevy_gooey::row_with(crate::chrome::GAP_ROW_STEPS, bevy_gooey::RowLayout { align: Some(AlignItems::Center), ..default() }),
+                (bevy_gooey::row_with(0.0, bevy_gooey::RowLayout { align: Some(AlignItems::Center), ..default() }), crate::chrome::Gap::Row.class()),
                 bevy_gooey::Spacing {
                     padding: bevy_gooey::Sides { top: Some(bevy_gooey::Space::Px(8.0)), right: Some(crate::chrome::STEP_PAD), bottom: Some(bevy_gooey::Space::Px(8.0)), left: Some(crate::chrome::STEP_PAD) },
                     ..default()

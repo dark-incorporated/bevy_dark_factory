@@ -232,7 +232,7 @@ fn labels_row_and_inspector_x(app: &mut App) -> ((f32, f32), (f32, f32)) {
     };
     let (panel_left, panel_right) = x_span(panel);
     let scale = 1.0 / world.get::<ComputedNode>(panel).expect("a laid-out panel").inverse_scale_factor();
-    let inset = bevy_dark_factory::chrome::PAD * scale;
+    let inset = bevy_dark_factory::chrome::space(bevy_dark_factory::chrome::STEP_PAD) * scale;
     let (left, right) = x_span(labels);
     ((left, right), (panel_left + inset, panel_right - inset))
 }

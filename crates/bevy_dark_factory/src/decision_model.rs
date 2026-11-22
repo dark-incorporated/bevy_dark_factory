@@ -263,7 +263,7 @@ pub struct DecisionLed;
 /// The LED and its hover, off (nothing has been asked), named for the shipped default until [`paint_the_led`] reads the setting.
 pub fn chip() -> impl Bundle {
     (
-        bevy_gooey::row_with(crate::chrome::GAP_TIGHT_STEPS, bevy_gooey::RowLayout { align: Some(AlignItems::Center), ..default() }),
+        (bevy_gooey::row_with(0.0, bevy_gooey::RowLayout { align: Some(AlignItems::Center), ..default() }), crate::chrome::Gap::Tight.class()),
         Pickable::default(),
         DecisionLedChip,
         Tooltip::new(String::new()),

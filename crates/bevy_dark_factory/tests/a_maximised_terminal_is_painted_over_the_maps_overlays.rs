@@ -10,7 +10,6 @@ use bevy::prelude::*;
 use bevy::ui::UiStack;
 use bevy::window::PrimaryWindow;
 
-use bevy_dark_factory::chrome::COMPASS_Z;
 use bevy_dark_factory::keymap_screen::OpenKeymap;
 use bevy_dark_factory::terminal::Terminal;
 use bevy_dark_factory::terminal_pane::TerminalPaneRoot;
@@ -42,7 +41,8 @@ fn settle(app: &mut App, frames: usize) {
 /// Every node of the map's overlay layer ([`COMPASS_Z`]: the axis gizmo, the Look chip) and everything below one, as the stack lists them.
 fn overlay_nodes(app: &mut App) -> HashSet<Entity> {
     let world = app.world_mut();
-    let layers: Vec<Entity> = world.query::<(Entity, &GlobalZIndex)>().iter(world).filter(|(_, z)| z.0 == COMPASS_Z).map(|(e, _)| e).collect();
+    let compass = bevy_dark_factory::style::metrics().z.compass;
+    let layers: Vec<Entity> = world.query::<(Entity, &GlobalZIndex)>().iter(world).filter(|(_, z)| z.0 == compass).map(|(e, _)| e).collect();
     let mut found = HashSet::new();
     let mut walk = layers;
     while let Some(entity) = walk.pop() {

@@ -319,16 +319,21 @@ pub const CHANGELOG_URL: &str = "https://github.com/dark-incorporated/bevy_dark_
 
 /// The sidebar's width, in logical pixels.
 const SIDEBAR_PX: f32 = 240.0;
-/// **The sidebar's content width**: its width less the `chrome::PAD` it pads every side by.
+/// **The sidebar's content width**: its width less the panel inset (`STEP_PAD`) it pads every side by.
 ///
 /// The splash is drawn into the sidebar's padded content box, so a width taken from [`SIDEBAR_PX`]
-/// alone ran `2 * PAD` wider than the box and pushed its right edge out of the sidebar — reported as
+/// alone ran two insets wider than the box and pushed its right edge out of the sidebar — reported as
 /// "This has no margin on the right side, but the rest of the sides do"
 /// (`feedback-1793905798698`). One number for the content width, so the splash and everything else in
 /// the sidebar that wants the full width agree.
-const SIDEBAR_CONTENT_W: f32 = SIDEBAR_PX - 2.0 * crate::chrome::PAD;
+fn sidebar_content_w() -> f32 {
+    SIDEBAR_PX - 2.0 * crate::chrome::space(crate::chrome::STEP_PAD)
+}
 /// The splash in the sidebar: the art is 256 x 80, drawn at the sidebar's content width.
-const SIDEBAR_SPLASH: Vec2 = Vec2::new(SIDEBAR_CONTENT_W, SIDEBAR_CONTENT_W * 80.0 / 256.0);
+fn sidebar_splash() -> Vec2 {
+    let width = sidebar_content_w();
+    Vec2::new(width, width * 80.0 / 256.0)
+}
 /// The least the page beside the sidebar may be.
 const PAGE_MIN_PX: f32 = 480.0;
 /// The welcome card's splash is drawn at this many logical pixels per art pixel.
@@ -545,14 +550,13 @@ pub(crate) fn card_line() -> bevy_gooey::Spacing {
     crate::chrome::spacing(crate::chrome::margin_bottom(crate::chrome::STEP_TIGHT))
 }
 
-/// A card's box on a card that is not a button (G-87): a sized column a card wide, `STEP_PAD` all round, its lines `GAP_TIGHT` px apart. A `Role::Card` writes only a colour, so the box is
-/// gooey's `sized` and the caller `.insert(Role::Card)`s over its role (a bundle cannot carry two).
+/// A card's box on a card that is not a button (G-87): a sized column a card wide, its inset and its lines' gap the sheet's `.launcher-card`. A
+/// `Role::Card` writes only a colour, so the box is gooey's `sized` and the caller `.insert(Role::Card)`s over its role (a bundle cannot carry two).
 pub(crate) fn card_layout() -> impl Bundle {
     (
         bevy_gooey::sized(bevy_gooey::Sizing { width: Some(bevy_gooey::Extent::Px(CARD_PX)), ..default() }),
         bevy_gooey::RowLayout { direction: Some(FlexDirection::Column), ..default() },
-        bevy_gooey::Spacing { padding: bevy_gooey::Sides::all(crate::chrome::STEP_PAD), ..default() },
-        bevy_gooey::GapPx(crate::chrome::GAP_TIGHT),
+        bevy_gooey::StyleClass::of("launcher-card"),
     )
 }
 
@@ -655,7 +659,7 @@ pub(crate) fn fill_sidebar(commands: &mut Commands, sidebar: Entity, launcher: &
             // **The box is the sidebar's content width**, not its outer width, and the height follows
             // the art's own 256 x 80 so the picture is never stretched (`feedback-1793905798698`).
             side.spawn((
-                bevy_gooey::image_box(handle.clone(), SIDEBAR_SPLASH),
+                bevy_gooey::image_box(handle.clone(), sidebar_splash()),
                 Name::new("sidebar splash"),
             ));
         }
@@ -805,16 +809,16 @@ fn fill_the_home(
     commands.entity(content).with_children(|content| {
         content.spawn(bevy_gooey::fill_region()).with_children(|pages| {
             pages
-                .spawn((bevy_gooey::fill_region_with(crate::chrome::GAP_GROUP_STEPS), bevy_gooey::Shown(true), HomePage(HomeTab::Projects)))
+                .spawn(((bevy_gooey::fill_region_with(0.0), crate::chrome::Gap::Group.class()), bevy_gooey::Shown(true), HomePage(HomeTab::Projects)))
                 .with_children(|page| {
-                    page.spawn((bevy_gooey::fill_region_with(crate::chrome::GAP_GROUP_STEPS), ProjectsBody))
+                    page.spawn(((bevy_gooey::fill_region_with(0.0), crate::chrome::Gap::Group.class()), ProjectsBody))
                         .with_children(|body| projects_body(body, &launcher, &mut art));
                 });
             pages
-                .spawn((bevy_gooey::column(crate::chrome::GAP_GROUP_STEPS), bevy_gooey::Shown(false), HomePage(HomeTab::Learn)))
+                .spawn(((bevy_gooey::column(0.0), crate::chrome::Gap::Group.class()), bevy_gooey::Shown(false), HomePage(HomeTab::Learn)))
                 .with_children(|page| learn_page(page, &launcher));
             pages
-                .spawn((bevy_gooey::fill_region_with(crate::chrome::GAP_ROW_STEPS), bevy_gooey::Shown(false), HomePage(HomeTab::WhatsNew)))
+                .spawn(((bevy_gooey::fill_region_with(0.0), crate::chrome::Gap::Row.class()), bevy_gooey::Shown(false), HomePage(HomeTab::WhatsNew)))
                 .with_children(|page| {
                     // FOLLOW-OK: the entries are focusable buttons in a column, not a list with a
                     // highlight of its own — gooey's focus navigation scrolls a focused entry into
@@ -829,7 +833,7 @@ fn fill_the_home(
                     // in. `scroll_list` is gooey's viewport plus its bar, and the bar shows itself
                     // only when there is somewhere to go.
                     crate::chrome::scroll_list(page, NewsScroll).with_children(|scroll| {
-                        scroll.spawn(bevy_gooey::column(crate::chrome::GAP_ROW_STEPS))
+                        scroll.spawn((bevy_gooey::column(0.0), crate::chrome::Gap::Row.class()))
                             .with_children(|body| news_page(body, &launcher, &mut art));
                     });
                 });
@@ -843,7 +847,7 @@ fn projects_body(body: &mut ChildSpawnerCommands, launcher: &Launcher, art: &mut
         welcome(body, launcher, art);
         return;
     }
-    crate::chrome::gapped_row(body, crate::chrome::GAP_GROUP_STEPS, crate::chrome::NO_MARGIN, AlignItems::Center).with_children(|header| {
+    crate::chrome::gapped_row(body, Some(crate::chrome::Gap::Group), crate::chrome::NO_MARGIN, AlignItems::Center).with_children(|header| {
         header.spawn(heading("Projects"));
         header.spawn(bevy_gooey::spacer());
         // The one accent button of the page: New project, or, with nothing else to start from, nothing.
@@ -859,7 +863,7 @@ fn projects_body(body: &mut ChildSpawnerCommands, launcher: &Launcher, art: &mut
     // scrolls a focused card into view, and the wheel scrolls the rest.
     // **Type-select (UI-R04, #334):** the cards are a group, so typing a project's first letters moves to it, as it does in a list.
     crate::chrome::scroll_list(body, (ProjectGrid, bevy_gooey::TypeSelectGroup)).with_children(|scroll| {
-        crate::chrome::wrapping_row(scroll, crate::chrome::GAP_GROUP_STEPS, crate::chrome::NO_MARGIN, AlignItems::Stretch).with_children(|grid| {
+        crate::chrome::wrapping_row(scroll, Some(crate::chrome::Gap::Group), crate::chrome::NO_MARGIN, AlignItems::Stretch).with_children(|grid| {
             for row in &launcher.rows {
                 if row.missing {
                     missing_card(grid, row);
@@ -893,7 +897,7 @@ fn projects_body(body: &mut ChildSpawnerCommands, launcher: &Launcher, art: &mut
 ///   the actual onboarding, which was two clicks away under Learn — is on the screen a first-timer lands on.
 fn welcome(body: &mut ChildSpawnerCommands, launcher: &Launcher, art: &Art) {
     body.spawn((
-        bevy_gooey::column_with(crate::chrome::GAP_GROUP_STEPS, bevy_gooey::RowLayout { align: Some(AlignItems::FlexStart), ..default() }),
+        (bevy_gooey::column_with(0.0, bevy_gooey::RowLayout { align: Some(AlignItems::FlexStart), ..default() }), crate::chrome::Gap::Group.class()),
         bevy_gooey::Sizing { max_width: Some(bevy_gooey::Extent::Px(WELCOME_COLUMN_PX)), ..default() },
     ))
     .with_children(|card| {
@@ -905,7 +909,7 @@ fn welcome(body: &mut ChildSpawnerCommands, launcher: &Launcher, art: &Art) {
         }
         card.spawn(heading("Welcome to Dark Factory"));
         card.spawn((label(WELCOME_PITCH), TextLayout::new(Justify::Left, LineBreak::WordBoundary)));
-        crate::chrome::gapped_row(card, crate::chrome::GAP_GROUP_STEPS, crate::chrome::NO_MARGIN, AlignItems::Stretch).with_children(|actions| {
+        crate::chrome::gapped_row(card, Some(crate::chrome::Gap::Group), crate::chrome::NO_MARGIN, AlignItems::Stretch).with_children(|actions| {
             let example = launcher.example.is_some();
             if example {
                 actions.spawn((submit_button("Open the example"), observe(open_the_example)));
@@ -918,7 +922,7 @@ fn welcome(body: &mut ChildSpawnerCommands, launcher: &Launcher, art: &Art) {
             }
             actions.spawn((button("Open folder…"), observe(|_: On<Activate>, mut out: MessageWriter<PickRequest>| { out.write(PickRequest(PickFor::OpenFolder)); })));
         });
-        card.spawn(bevy_gooey::column(crate::chrome::GAP_ROW_STEPS)).with_children(|steps| {
+        card.spawn((bevy_gooey::column(0.0), crate::chrome::Gap::Row.class())).with_children(|steps| {
             for (number, step) in WELCOME_STEPS.iter().enumerate() {
                 steps.spawn((
                     Text::new(format!("{}. {step}", number + 1)),
@@ -1033,13 +1037,9 @@ pub(crate) fn project_picture(root: &Path, images: &mut Assets<Image>, splash: O
 /// The scale a project card is drawn at while it is pressed: gooey's `PRESS_SCALE`, named here because the card asks for it.
 const CARD_PRESS_SCALE: f32 = 0.97;
 
-/// A page's ground (G-87): a surface step with `STEP_PAD` all round and its children `GAP_GROUP` px apart, in a column (a surface writes only a colour).
+/// A page's ground (G-87): a surface step whose inset and children's gap are the sheet's `.launcher-page`, in a column (a surface writes only a colour).
 fn page_surface(level: u8) -> impl Bundle {
-    (
-        bevy_gooey::surface(level),
-        bevy_gooey::Spacing { padding: bevy_gooey::Sides::all(crate::chrome::STEP_PAD), ..default() },
-        bevy_gooey::GapPx(crate::chrome::GAP_GROUP),
-    )
+    (bevy_gooey::surface(level), bevy_gooey::StyleClass::of("launcher-page"))
 }
 
 fn project_card(grid: &mut ChildSpawnerCommands, row: &Listed, art: &mut Art) {
@@ -1075,7 +1075,7 @@ fn missing_card(grid: &mut ChildSpawnerCommands, row: &Listed) {
         card.spawn(quiet(name_of(&path)));
         card.spawn(label("Folder not found"));
         card.spawn(quiet(shown_folder(&path)));
-        crate::chrome::gapped_row(card, crate::chrome::GAP_ROW_STEPS, crate::chrome::NO_MARGIN, AlignItems::Stretch).with_children(|actions| {
+        crate::chrome::gapped_row(card, Some(crate::chrome::Gap::Row), crate::chrome::NO_MARGIN, AlignItems::Stretch).with_children(|actions| {
             let locate = path.clone();
             actions.spawn((button("Locate…"), observe(move |_: On<Activate>, mut out: MessageWriter<PickRequest>| { out.write(PickRequest(PickFor::Locate(locate.clone()))); })));
             let gone = path.clone();
@@ -1278,7 +1278,7 @@ fn news_page(page: &mut ChildSpawnerCommands, launcher: &Launcher, art: &mut Art
             // so it is bounded to `NEWS_MEASURE_PX` and the row's leftover is margin
             // (`feedback-1793905698793`).
             entry.spawn((
-                bevy_gooey::column_with(crate::chrome::GAP_TIGHT_STEPS, bevy_gooey::RowLayout { shrink: Some(1.0), ..default() }),
+                (bevy_gooey::column_with(0.0, bevy_gooey::RowLayout { shrink: Some(1.0), ..default() }), crate::chrome::Gap::Tight.class()),
                 bevy_gooey::Sizing { width: Some(bevy_gooey::Extent::Px(NEWS_MEASURE_PX)), max_width: Some(bevy_gooey::Extent::Px(NEWS_MEASURE_PX)), ..default() },
             ))
             .with_children(|words| {

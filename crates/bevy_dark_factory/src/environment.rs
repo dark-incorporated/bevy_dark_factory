@@ -491,10 +491,10 @@ impl EnvAction {
 
 /// The ENVIRONMENT section of the controls panel.
 pub fn spawn_section(s: &mut ChildSpawnerCommands) {
-    use crate::chrome::{GAP_TIGHT_STEPS, Severity, button, section};
+    use crate::chrome::{Gap, Severity, button, section};
     section(s, "ENVIRONMENT");
     let row = |s: &mut ChildSpawnerCommands, items: &mut dyn FnMut(&mut ChildSpawnerCommands)| {
-        crate::chrome::wrapping_row(s, GAP_TIGHT_STEPS, crate::chrome::NO_MARGIN, AlignItems::Stretch).with_children(|r| items(r));
+        crate::chrome::wrapping_row(s, Some(Gap::Tight), crate::chrome::NO_MARGIN, AlignItems::Stretch).with_children(|r| items(r));
     };
     row(s, &mut |r| {
         for (hour, label) in EnvAction::HOURS {

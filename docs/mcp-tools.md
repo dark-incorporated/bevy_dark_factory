@@ -89,6 +89,8 @@ The server speaks the Model Context Protocol over **stdio**, and reaches the run
 
 **Three tools that are not part of a task.** `blueprint_open_project` opens a project folder in the running editor, from any screen including the Projects home, and is the first call when they name a project rather than a map. `blueprint_jobs_stop` asks a background job such as the palette's thumbnail bake to stop, and `blueprint_self_test` is Dark Factory's power-on self test, run once when its own terminal starts you: it reads the state, counts the operations, takes one picture and returns them.
 
+**Two tools for the editor's own interface, not the project.** `blueprint_ui_style_inspect` names, for a point of `blueprint_capture_still`'s picture, the style sheet rules that made the editor's interface look the way it does there, each with its file and line: the editor reads that sheet live, so an edit to the named line is drawn at once. `blueprint_relaunch_editor` is only the editor development agent's: after `cargo build -p bevy_dark_factory` it relaunches the editor on the new build and restores your session there; any other agent is refused.
+
 **A bug you cannot fix is filed, not described.** `blueprint_feedback_file_issue` takes the capture you already made and files it as a GitHub issue on the project's repository, with the still, the operations and the facts attached: say the title and what you saw, and it returns the issue's URL. Use it when a defect is in the editor rather than in what you were asked to build — a hand-back sentence about a bug nobody files is a bug nobody fixes.
 
 ## After a task: reflect
@@ -241,6 +243,26 @@ Ask a background job to stop, the same request the status band's popover makes: 
 | `readOnlyHint` | false |
 | `destructiveHint` | false |
 | `idempotentHint` | true |
+
+### `blueprint_ui_style_inspect`
+
+Why the editor's own interface looks the way it does at a point: the topmost node with a style class there, its classes and laid-out size, each style sheet rule that matches it in cascade order (selector, layer, file, line, specificity, what it sets; the last rule that sets a property wins it) and what they add up to. x and y are surface pixels, the coordinates of blueprint_capture_still's picture; omit both for the editor's pointer. Edit the named file at the named line to change the look: the editor reloads it within a fraction of a second. Refused, saying why, where no classed node is.
+
+| annotation | value |
+|---|---|
+| `readOnlyHint` | true |
+| `destructiveHint` | false |
+| `idempotentHint` | true |
+
+### `blueprint_relaunch_editor`
+
+Relaunch the editor on the build you just made. Call only after `cargo build -p bevy_dark_factory` succeeded. Your process is killed and this session is restored in the new editor, where you continue by verifying with blueprint_capture_still. Refused, saying why, when there is no new build (`no new build: ...`), when this session has not been recorded yet, or from any agent but the editor's own development agent.
+
+| annotation | value |
+|---|---|
+| `readOnlyHint` | false |
+| `destructiveHint` | false |
+| `idempotentHint` | false |
 
 ### `blueprint_state`
 

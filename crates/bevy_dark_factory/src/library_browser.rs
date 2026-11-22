@@ -179,12 +179,12 @@ pub fn toggle_the_library(
         return;
     }
     let Some(frame) = frame else { return };
-    let root = chrome::panel_root(&mut commands, &frame, Side::Right, chrome::LIST_W, true, false, "LIBRARY").insert(LibraryRoot).id();
+    let root = chrome::panel_root(&mut commands, &frame, Side::Right, crate::style::metrics().layout.list_w, true, false, "LIBRARY").insert(LibraryRoot).id();
     commands.entity(root).with_children(|p| {
         p.spawn((
             LibraryBrowser::default(),
             Name::new("library_browser"),
-            bevy_gooey::column(chrome::GAP_TIGHT_STEPS),
+            (bevy_gooey::column(0.0), chrome::Gap::Tight.class()),
         ))
         .with_children(|block| {
             chrome::list_heading(block, "LIBRARY");
@@ -201,7 +201,7 @@ pub fn toggle_the_library(
             ));
             // **The tag row is filled by `draw_the_tags`**, from the library's own vocabulary: a project
             // with no `kind` tags has no row, and one that grows a tag gets a toggle for it.
-            chrome::wrapping_row(block, chrome::GAP_TIGHT_STEPS, crate::chrome::NO_MARGIN, AlignItems::Stretch).insert(LibraryTags);
+            chrome::wrapping_row(block, Some(chrome::Gap::Tight), crate::chrome::NO_MARGIN, AlignItems::Stretch).insert(LibraryTags);
             block.spawn((bevy_gooey::row(0.0), LibraryGridMarker));
         });
     });

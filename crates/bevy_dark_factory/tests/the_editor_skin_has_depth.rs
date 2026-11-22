@@ -1,10 +1,10 @@
 //! **The editor's skin carries depth, and what stands above the screen casts it** (UI-R02, #332).
 //!
-//! `editor_skin.yaml` keeps the editor's measured colours and sizes (the tests beside it pin them) and
-//! adds bevy_gooey's elevation stacks, so a panel, a popover and a dialog stand at three heights.
+//! The style sheet's skin (`src/style/editor.yaml`) keeps the editor's measured colours and sizes (the tests
+//! beside it pin them) and adds bevy_gooey's elevation stacks, so a panel, a popover and a dialog stand at
+//! three heights.
 
 use bevy::prelude::*;
-use bevy_dark_factory::ui::editor_skin;
 use bevy_gooey::panel;
 
 use crate::fixtures;
@@ -16,7 +16,7 @@ fn blur(layers: &[bevy_gooey::ShadowLayer]) -> f32 {
 
 #[test]
 fn the_skin_has_three_heights_each_softer_and_longer_than_the_last_and_is_still_a_ladder() {
-    let skin = editor_skin();
+    let skin = bevy_dark_factory::style::compiled_default().skin;
     assert_eq!(skin.problems(), vec![], "depth did not break the library's own rules");
     let e = &skin.elevation;
     assert!(!e.raised.is_empty() && !e.floating.is_empty() && !e.overlay.is_empty(), "every height casts a shadow");
@@ -35,11 +35,11 @@ fn the_skin_has_three_heights_each_softer_and_longer_than_the_last_and_is_still_
 
 #[test]
 fn the_file_states_the_stacks_itself() {
-    // Not the library's default filling a gap: the file names `elevation`, so the depth is the editor's data.
-    let text = include_str!("../src/editor_skin.yaml");
-    let value = blueprint_model::yaml::to_json(text, "editor_skin.yaml").expect("the editor skin reads as YAML");
-    let serde_json::Value::Object(fields) = value else { panic!("a skin is a struct") };
-    assert!(fields.contains_key("elevation"), "src/editor_skin.yaml states its own `elevation`");
+    // Not the library's default filling a gap: the sheet's skin names `elevation`, so the depth is the editor's data.
+    let text = include_str!("../src/style/editor.yaml");
+    let value = blueprint_model::yaml::to_json(text, "style/editor.yaml").expect("the editor's style sheet reads as YAML");
+    let Some(serde_json::Value::Object(fields)) = value.get("skin") else { panic!("the sheet has a `skin` section") };
+    assert!(fields.contains_key("elevation"), "src/style/editor.yaml states its own `elevation`");
 }
 
 #[test]
@@ -51,5 +51,9 @@ fn a_panel_in_the_running_editor_casts_the_skins_raised_shadow() {
         app.update();
     }
     let shadow = app.world().get::<BoxShadow>(card).expect("a panel is given a shadow");
-    assert_eq!(shadow.0.len(), editor_skin().elevation.raised.len(), "one shadow per layer of the raised stack");
+    assert_eq!(
+        shadow.0.len(),
+        bevy_dark_factory::style::compiled_default().skin.elevation.raised.len(),
+        "one shadow per layer of the raised stack"
+    );
 }

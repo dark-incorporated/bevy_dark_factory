@@ -265,15 +265,11 @@ fn a_change_with_a_search_active_keeps_the_search_and_its_rows() {
     let mut r = rig("settings_change_searching");
     let search = find_by_label(&mut r.app, "Search settings").expect("the screen has a search field");
     click(&mut r.app, search);
-    let field = r
-        .app
-        .world_mut()
-        .query::<(Entity, &bevy_gooey::TextInputValue)>()
-        .iter(r.app.world())
-        .filter(|(_, v)| v.0.is_empty())
-        .map(|(e, _)| e)
-        .next()
-        .expect("the search row holds no text");
+    // Contract update (2026-11-22): the search row is the input "Search settings" names. The first empty input in query order
+    // was it only by archetype order, which the style sheet's classes on the chrome changed (the Files menu's inputs come first).
+    let field = std::iter::successors(Some(search), |e| r.app.world().get::<ChildOf>(*e).map(|p| p.parent()))
+        .find(|e| r.app.world().get::<bevy_gooey::TextInputValue>(*e).is_some())
+        .expect("the search row is a text input");
     r.app.world_mut().commands().trigger(ValueChange { source: field, value: "grid".to_owned(), is_final: false });
     for _ in 0..4 {
         r.app.update();

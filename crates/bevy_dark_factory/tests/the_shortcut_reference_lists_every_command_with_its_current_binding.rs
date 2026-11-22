@@ -3,6 +3,9 @@
 //! The reference is not a page somebody keeps in step: it is one row per command of `commands::all()`, in the registry's order,
 //! each showing the chord that command answers to now. A command added to the registry has a row without anyone writing it, and
 //! a command a person rebinds shows the new chord and no longer the old one.
+//!
+//! Contract update (2026-11-22): the editor's fixed chords (`chords::CHORDS`: the console, the palette, the terminal's own) are
+//! settings now and rebound on the same screen, so their rows follow the commands', in the table's order.
 
 use std::path::PathBuf;
 
@@ -15,6 +18,17 @@ use bevy_gooey::testing::find_by_label;
 use bevy_gooey::{Activate, Binding, BindingValue, Modifiers, Shortcut};
 
 use crate::fixtures;
+
+/// **The rows the reference shows with nothing rebound but `rebound`**: every command in the registry's order, then every fixed
+/// chord in its table's order, each on its default chord.
+fn every_row(rebound: Option<(&str, Shortcut)>) -> Vec<Shortcut> {
+    let moved = |id: &str, default: Shortcut| rebound.filter(|(r, _)| *r == id).map_or(default, |(_, chord)| chord);
+    commands::all()
+        .iter()
+        .map(|c| moved(c.id, c.shortcut))
+        .chain(bevy_dark_factory::chords::CHORDS.iter().map(|named| moved(named.id, (named.default)())))
+        .collect()
+}
 
 fn updates(app: &mut App, n: usize) {
     for _ in 0..n {
@@ -62,12 +76,13 @@ fn narrow_to(app: &mut App, words: &str) {
 fn the_reference_has_one_row_per_command_each_on_the_chord_it_answers_to() {
     let (mut app, _user) = editor("shortcuts_every");
     open_the_reference(&mut app);
-    // The registry's own defaults, read off each command, not through the screen's resolver.
-    let want: Vec<Shortcut> = commands::all().iter().map(|c| c.shortcut).collect();
-    assert!(want.len() > 50, "the registry is the editor's whole vocabulary of commands: {} of them", want.len());
+    // The registry's own defaults, read off each command and each fixed chord, not through the screen's resolver.
+    let commands_only = commands::all().len();
+    assert!(commands_only > 50, "the registry is the editor's whole vocabulary of commands: {commands_only} of them");
+    let want = every_row(None);
     let got = rows_shown(&mut app);
-    assert_eq!(got.len(), want.len(), "one row for every command of the registry, and no row for anything else");
-    assert_eq!(got, want, "each row, in the registry's order, shows the chord its command answers to");
+    assert_eq!(got.len(), want.len(), "one row for every command of the registry and every fixed chord, and no row for anything else");
+    assert_eq!(got, want, "each row, in the registry's order and then the chords', shows the chord it answers to");
 }
 
 #[test]
@@ -87,8 +102,8 @@ fn a_rebinding_shows_on_the_command_and_the_old_chord_is_left() {
     assert_eq!(layer.keymap.get("edit.redo"), Some(&elsewhere), "the person's file holds the rebinding");
 
     narrow_to(&mut app, "");
-    // Every command on its default, except the one the person moved.
-    let want: Vec<Shortcut> = commands::all().iter().map(|c| if c.id == "edit.redo" { elsewhere } else { c.shortcut }).collect();
+    // Every command and fixed chord on its default, except the one the person moved.
+    let want = every_row(Some(("edit.redo", elsewhere)));
     let got = rows_shown(&mut app);
     assert_eq!(got, want, "the whole reference follows the file: the one rebound command shows its new chord, every other its own");
 

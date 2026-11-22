@@ -51,7 +51,7 @@ fn with_no_skin_the_panel_is_the_shipped_palette() {
 /// harness draw the same panel. A skin retuned without its constant (or the reverse) fails here.
 #[test]
 fn the_editor_skin_draws_the_shipped_palette() {
-    let ink = PanelInk::of(Some(&bevy_dark_factory::ui::editor_skin()));
+    let ink = PanelInk::of(Some(&bevy_dark_factory::style::compiled_default().skin));
     assert_eq!(ink.read, chrome::ink().text, "the editor skin's `text` is `TEXT`");
     assert_eq!(ink.quiet, chrome::ink().dim, "its `text_muted` is `DIM`");
     assert_eq!(ink.accent, chrome::ink().accent, "its `accent` is `ACCENT`");

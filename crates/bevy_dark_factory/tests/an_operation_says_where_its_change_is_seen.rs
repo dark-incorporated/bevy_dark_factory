@@ -144,6 +144,9 @@ const PINNED_NOWHERE: &[&str] = &[
     // Assumed owner exception (2026-11-19): the list grows by the operation #522 registers, which shows
     // and hides the rig bench. A person's own view of a panel, like `view_toggle_journal` above.
     "view_toggle_rigs",
+    // Assumed owner exception (2026-11-22): the list grows by the operation the style inspector registers, which shows and
+    // hides an overlay over the editor's own chrome. A person's own view, like `view_toggle_journal` above.
+    "view_toggle_style_inspector",
 ];
 
 /// **The smallest parameter set this schema requires**, so an operation is asked in a form it
