@@ -8,6 +8,7 @@ use bevy::prelude::*;
 use bevy_dark_factory::problems_view::ProblemsList;
 use bevy_dark_factory::project::OpenMap;
 use bevy_dark_factory::project_index::MIN_SWEEP;
+use bevy_dark_factory::world_lists;
 
 use crate::fixtures;
 use crate::index_waits::*;
@@ -104,4 +105,37 @@ fn a_relations_file_the_index_does_not_list_is_refused_not_read() {
     assert!(std::fs::read_to_string(&file).unwrap_or_default().contains("Faces"), "the ignored file does hold a broken relation");
     assert_eq!(rows.len(), 1, "one line is said: {rows:?}");
     assert!(rows[0].contains(".gitignore") && rows[0].contains("not followed"), "the list says the index cannot follow the file: {rows:?}");
+}
+
+/// **While the relations file is not there, a change to any other file reads nothing and judges nothing**: the file is not in the listing,
+/// and "not there" stands until the listing's `.gitignore` or the file itself moves. Then the file arrives and is read once.
+#[test]
+fn an_unrelated_change_reads_nothing_and_judges_nothing_while_the_relations_file_is_not_there() {
+    let root = fixtures::Fixture::new(&format!("w501c_problems_absent_{}", std::process::id()))
+        .descriptor("site/chair", "alpha")
+        .descriptor("site/table", "alpha")
+        .place_as("chair", "site/chair", (2.0, 2.0))
+        .place_as("table", "site/table", (2.0, 0.0))
+        .build("m");
+    let unrelated = root.join("notes/unrelated.yaml");
+    std::fs::create_dir_all(root.join("notes")).unwrap_or_else(|e| panic!("{e}"));
+    write_in_place(&unrelated, "note: first\n");
+    let mut app = stepped(&root);
+    assert_eq!(problem_rows(&mut app), ["no problems"]);
+    sweep(&app, SWEEP_NEVER);
+    let (reads, judged) = (world_lists::reads_on_this_thread(), world_lists::verdict_lookups_on_this_thread());
+
+    let before = published(&app);
+    write_in_place(&unrelated, "note: second, and longer\n");
+    announce(&root, &unrelated);
+    assert!(pump_until(&mut app, SHOWN_WITHIN, |app| published(app) > before).is_some(), "the index did not publish the unrelated change, so a count of nothing would prove nothing");
+    pump_for(&mut app, std::time::Duration::from_millis(300));
+    assert_eq!(world_lists::reads_on_this_thread(), reads, "a change to an unrelated file made the PROBLEMS list read a file");
+    assert_eq!(world_lists::verdict_lookups_on_this_thread(), judged, "a change to an unrelated file made the PROBLEMS list judge a file that is not there again (it reads .gitignore)");
+
+    let file = root.join("assets/blueprint/maps/m.relations.yaml");
+    write_in_place(&file, &relations_text(BROKEN));
+    announce(&root, &file);
+    assert!(pump_until(&mut app, SHOWN_WITHIN, |app| problem_rows(app) == ["chair faces table"]).is_some(), "the relations file that arrived was not shown");
+    assert_eq!(world_lists::reads_on_this_thread(), reads + 1, "the arrival of the file is one read");
 }

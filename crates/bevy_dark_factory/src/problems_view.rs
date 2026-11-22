@@ -189,6 +189,7 @@ enum RelationsFile {
 /// by name, never taken for an empty one.
 fn read_relations(path: &Path) -> RelationsFile {
     let name = path.file_name().map_or_else(|| path.display().to_string(), |n| n.to_string_lossy().into_owned());
+    crate::world_lists::counted_read();
     match std::fs::read_to_string(path) {
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => RelationsFile::Absent,
         Err(e) => {
