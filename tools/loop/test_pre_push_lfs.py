@@ -1,12 +1,16 @@
 #!/usr/bin/env python3
-"""A push through `tools/loop/hooks/pre-push` uploads the commit's new LFS objects (owner, 2026-11-01).
+"""**A push that is not to main still uploads its Git LFS objects** (measured 2026-11-21).
 
-`core.hooksPath=tools/loop/hooks` replaces git-lfs's own `pre-push`, so a clip's pointer reached main and its
-file stayed on the clone (eight changelog media files, GH008). The hook now runs `git lfs pre-push` with the
-pushed refs. The remote here is a bare repository on disk, where git-lfs keeps the objects under `lfs/objects`.
+`core.hooksPath=tools/loop/hooks` replaces git-lfs's own `pre-push`, and the repo's hook returned early for any push
+that was not to main, before its `git lfs pre-push` step. A branch that carried a new changelog clip was then refused
+by GitHub with GH008 ("2 unknown Git LFS objects") and needed a hand-run `git lfs push` first.
 
-    python3 tools/loop/test_pre_push_lfs.py
+The check is behavioural: the real hook runs in a scratch repository against a scratch remote, with a `git-lfs` that
+records how it was called, so a comment that merely names the step cannot satisfy it.
+
+Run: `python3 -m unittest tools/loop/test_pre_push_lfs.py`.
 """
+
 import os
 import shutil
 import subprocess
@@ -14,87 +18,68 @@ import tempfile
 import unittest
 from pathlib import Path
 
-HOOK = Path(__file__).resolve().parent / "hooks" / "pre-push"
+ROOT = Path(__file__).resolve().parents[2]
+HOOK = ROOT / "tools" / "loop" / "hooks" / "pre-push"
+
+# What the stand-in git-lfs does: log the call and the refs it was fed, and fail on request.
+STUB = """#!/usr/bin/env bash
+echo "git-lfs $*" >> "$LFS_LOG"
+if [ "${1:-}" = pre-push ]; then
+  cat >> "$LFS_LOG"
+  [ -z "${LFS_FAIL:-}" ] || exit 1
+fi
+"""
+IDENTITY = ["-c", "user.name=test", "-c", "user.email=test@example.invalid"]
 
 
-def git(cwd, *args, check=True, input=None):
-    env = dict(os.environ, GIT_CONFIG_GLOBAL="/dev/null", GIT_CONFIG_SYSTEM="/dev/null",
-               GIT_AUTHOR_NAME="t", GIT_AUTHOR_EMAIL="t@t", GIT_COMMITTER_NAME="t", GIT_COMMITTER_EMAIL="t@t")
-    r = subprocess.run(["git", *args], cwd=cwd, env=env, text=True, capture_output=True, input=input)
-    if check and r.returncode != 0:
-        raise AssertionError(f"git {' '.join(args)}: {r.stdout}{r.stderr}")
-    return r
+def git(cwd, *args, env=None, check=True):
+    return subprocess.run(["git", *args], cwd=cwd, env=env, check=check, capture_output=True, text=True)
 
 
-def lfs_objects(bare):
-    root = Path(bare) / "lfs" / "objects"
-    return sorted(p.name for p in root.rglob("*") if p.is_file()) if root.exists() else []
-
-
-class PrePushUploadsLfsObjects(unittest.TestCase):
+class TestABranchPushUploadsItsLfsObjects(unittest.TestCase):
     def setUp(self):
-        if shutil.which("git-lfs") is None:
-            self.skipTest("git-lfs is not installed")
-        self.tmp = Path(tempfile.mkdtemp(prefix="pre_push_lfs"))
-        self.addCleanup(shutil.rmtree, self.tmp, True)
-        self.bare = self.tmp / "remote.git"
-        self.work = self.tmp / "work"
-        git(self.tmp, "init", "-q", "--bare", "-b", "main", str(self.bare))
-        git(self.tmp, "init", "-q", "-b", "main", str(self.work))
-        git(self.work, "remote", "add", "origin", str(self.bare))
-        git(self.work, "lfs", "install", "--local")
-        # The three checks the hook runs on a docs-only push, as stand-ins that pass: this test is about LFS.
-        for name in ("tools/loop/backlog.py", "tools/changelog/changelog.py", "tools/loop/version.py"):
-            path = self.work / name
-            path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_text("import sys\nsys.exit(0)\n")
-        hooks = self.work / "tools" / "loop" / "hooks"
-        hooks.mkdir(parents=True, exist_ok=True)
+        self.dir = Path(tempfile.mkdtemp(prefix="pre-push-lfs-"))
+        self.addCleanup(shutil.rmtree, self.dir, ignore_errors=True)
+        remote = self.dir / "remote.git"
+        git(self.dir, "init", "-q", "--bare", str(remote))
+        self.work = self.dir / "work"
+        git(self.dir, "clone", "-q", str(remote), str(self.work))
+        git(self.work, *IDENTITY, "commit", "-q", "--allow-empty", "-m", "base")
+        git(self.work, "push", "-q", "origin", "HEAD:main")
+        hooks = self.dir / "hooks"
+        hooks.mkdir()
         shutil.copy(HOOK, hooks / "pre-push")
-        (self.work / ".gitattributes").write_text("docs/changelog/media/*.png filter=lfs diff=lfs merge=lfs -text\n")
-        (self.work / "docs" / "changelog" / "media").mkdir(parents=True)
-        (self.work / "README.md").write_text("start\n")
-        git(self.work, "add", "-A")
-        git(self.work, "commit", "-qm", "start")
-        # The first push of a branch runs the full gate (a cargo build this temp repository has none of);
-        # it carries no LFS object, so it goes without the hook.
-        git(self.work, "-c", "core.hooksPath=/dev/null", "push", "-q", "origin", "main")
-        git(self.work, "config", "core.hooksPath", "tools/loop/hooks")
+        (hooks / "pre-push").chmod(0o755)
+        git(self.work, "config", "core.hooksPath", str(hooks))
+        bin_dir = self.dir / "bin"
+        bin_dir.mkdir()
+        (bin_dir / "git-lfs").write_text(STUB)
+        (bin_dir / "git-lfs").chmod(0o755)
+        self.log = self.dir / "lfs.log"
+        self.env = {**os.environ, "PATH": f"{bin_dir}{os.pathsep}{os.environ['PATH']}", "LFS_LOG": str(self.log)}
+        git(self.work, "checkout", "-q", "-b", "feature")
+        (self.work / "clip.txt").write_text("a changelog clip would be here\n")
+        git(self.work, "add", "clip.txt")
+        git(self.work, *IDENTITY, "commit", "-q", "-m", "feature")
 
-    def commit_clip(self, content):
-        (self.work / "docs" / "changelog" / "media" / "clip.png").write_bytes(content)
-        git(self.work, "add", "-A")
-        git(self.work, "commit", "-qm", "docs: a clip")
+    def push(self, extra_env=None):
+        env = {**self.env, **(extra_env or {})}
+        return git(self.work, "push", "origin", "feature:feature", env=env, check=False)
 
-    def test_a_pushed_clip_reaches_the_remote_with_its_pointer(self):
-        self.assertEqual(lfs_objects(self.bare), [], "the remote starts with no LFS object")
-        self.commit_clip(b"\x89PNG not really, but long enough to be a file " * 20)
-        pointer = git(self.work, "show", "HEAD:docs/changelog/media/clip.png").stdout
-        self.assertIn("oid sha256:", pointer, "the clip is stored as an LFS pointer")
-        oid = pointer.split("oid sha256:")[1].split()[0]
+    def test_the_lfs_step_runs_with_the_pushed_refs(self):
+        result = self.push()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        calls = self.log.read_text().splitlines()
+        self.assertTrue(any(line.startswith("git-lfs pre-push") for line in calls), f"git lfs pre-push was not called: {calls}")
+        sha = git(self.work, "rev-parse", "HEAD").stdout.strip()
+        self.assertIn(f"refs/heads/feature {sha} refs/heads/feature", self.log.read_text(), "the hook must feed git-lfs the refs it was given")
 
-        pushed = git(self.work, "push", "origin", "main", check=False)
-
-        self.assertEqual(pushed.returncode, 0, pushed.stderr)
-        self.assertEqual(lfs_objects(self.bare), [oid], "the file never reached the remote, only its pointer did")
-
-    def test_a_push_whose_lfs_upload_fails_is_refused(self):
-        self.commit_clip(b"another clip, long enough to matter " * 20)
-        # Take the object away from the clone, so git-lfs has nothing to upload: the upload fails and the push must too.
-        pointer = git(self.work, "show", "HEAD:docs/changelog/media/clip.png").stdout
-        oid = pointer.split("oid sha256:")[1].split()[0]
-        # **Make the upload fail for real.** Deleting `.git/lfs/objects` does not: git-lfs re-hashes the
-        # working-tree file and uploads that (measured 2026-11-02), so the push succeeds and the object
-        # reaches the remote - which is the hook working, not failing. An LFS endpoint that cannot
-        # answer is a failure git-lfs reports and the hook must turn into a refused push.
-        git(self.work, "config", "lfs.url", str(self.tmp / "no-such-endpoint.git" / "info" / "lfs"))
-
-        pushed = git(self.work, "push", "origin", "main", check=False)
-
-        self.assertNotEqual(pushed.returncode, 0, "a push whose clip could not be uploaded went through")
-        self.assertIn("git lfs pre-push failed", pushed.stderr)
-        self.assertEqual(lfs_objects(self.bare), [], f"object {oid} should not be on the remote")
-        self.assertNotEqual(git(self.bare, "rev-parse", "main").stdout, git(self.work, "rev-parse", "HEAD").stdout)
+    def test_a_failed_upload_refuses_the_push(self):
+        result = self.push({"LFS_FAIL": "1"})
+        self.assertNotEqual(result.returncode, 0, "a push whose LFS objects did not upload must not go through")
+        self.assertIn("GH008", result.stderr)
+        remote_branches = git(self.dir, "--git-dir", str(self.dir / "remote.git"), "branch", "--list", "feature").stdout
+        self.assertEqual(remote_branches.strip(), "", "the branch must not have reached the remote")
 
 
 if __name__ == "__main__":
