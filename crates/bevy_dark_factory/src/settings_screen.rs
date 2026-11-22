@@ -372,12 +372,15 @@ impl Plugin for SettingsScreenPlugin {
     }
 }
 
+/// The ledger's collecting flag, the reason it stopped, its folder and its budget: what the readout's first sentence is made from.
+type LedgerState = (bool, Option<String>, Option<PathBuf>, Option<u64>);
+
 /// **What the collection readout last said it for**: the ledger's state and folder (what [`crate::turn_ledger::collection_sentence`] says first),
 /// its budget, and the index generation of the folder it follows, so a frame where none of them moved reads nothing.
 #[derive(Default)]
 struct ReadoutSeen {
     shown: bool,
-    state: Option<(bool, Option<String>, Option<PathBuf>, Option<u64>)>,
+    state: Option<LedgerState>,
     generation: u64,
 }
 

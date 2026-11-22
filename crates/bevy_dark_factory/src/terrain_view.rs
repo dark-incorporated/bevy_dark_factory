@@ -192,6 +192,10 @@ pub struct Good {
     volume: Option<Volume>,
 }
 
+/// What [`sync_terrain_view`] remembers between frames: the index generation it last looked at, what it last built, the entities drawn, the last
+/// good value of each file, and the index failure it last said.
+type DrawnState = (u64, Option<Built>, Vec<Entity>, Good, Option<String>);
+
 /// **Draw the open map's terrain and water**, and redraw when any of its files changes.
 ///
 /// **A file that does not read is refused, and the last good value of it stays** (#187, #200). Each
@@ -215,7 +219,7 @@ pub fn sync_terrain_view(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
-    mut drawn_state: Local<(u64, Option<Built>, Vec<Entity>, Good, Option<String>)>,
+    mut drawn_state: Local<DrawnState>,
     mut extent: ResMut<crate::view::DrawnExtent>,
 ) {
     let (seen_generation, built, drawn, good, said) = &mut *drawn_state;
