@@ -1,6 +1,6 @@
 //! **The editor's state colours are gooey's own roles now, and `problems()` checks them** (UI-02, #210).
 //!
-//! G-33 (bevy-coven/bevy_gooey#37) added the interaction-state roles this editor had ten colours and no
+//! G-33 (dark-incorporated/bevy_gooey#37) added the interaction-state roles this editor had ten colours and no
 //! field for: `hover`, `pressed`, `held`, `held_ground`, `unchecked`, `card`, `preview_edge` — plus
 //! `held_fade`, one fade for both held colours. Before it, `chrome.rs` had to draw those states from its
 //! own constants, and the theme could not be a skin.

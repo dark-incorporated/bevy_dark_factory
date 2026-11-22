@@ -170,4 +170,4 @@ The owner measured the cost of waiting, not of writing: "we are slowed the hell 
 - Tests run under `cargo nextest`, not `cargo test`: `cargo nextest run -p bevy_dark_factory --test editor -E 'test(<module>::)'` for one module, `cargo nextest run --workspace` for all of them, and `cargo test --workspace --doc` for doctests, which nextest does not run.
 - Close any Bevy app you launch for a test.
 
-README and docs follow https://github.com/bevy-coven/.github/blob/main/DOCUMENTATION.md; a feature is not done until its README line and, if visible, its GIF exist.
+README and docs follow https://github.com/dark-incorporated/.github/blob/main/DOCUMENTATION.md; a feature is not done until its README line and, if visible, its GIF exist.

@@ -1,6 +1,6 @@
 //! **A dock tab that is reordered glides to its place in the editor's own dock, and what does not glide, measured** (UI-R06, #336).
 //!
-//! gooey carries the motion (G-63, bevy-coven/bevy_gooey#70: a dock's rebuilt strip starts each tab of the same panel from where the old
+//! gooey carries the motion (G-63, dark-incorporated/bevy_gooey#70: a dock's rebuilt strip starts each tab of the same panel from where the old
 //! one was drawn). What is the editor's is that its dock gets it. The claim was left unmeasured because "two tabs of a group land at one
 //! point in the headless editor". That is true only of the **arrangement** dock, whose body is `Display::None` on purpose
 //! (`chrome::spawn_frame`: the shell's own panels are still drawn by `chrome`, so that dock's tabs are never laid out). The **bottom dock**

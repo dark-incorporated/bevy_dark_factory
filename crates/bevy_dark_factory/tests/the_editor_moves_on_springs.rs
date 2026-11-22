@@ -1,4 +1,4 @@
-//! **The editor's dialogs leave on gooey's springs, and Reduced motion is gooey's** (UI-R01, bevy-coven/bevy_blueprint#331).
+//! **The editor's dialogs leave on gooey's springs, and Reduced motion is gooey's** (UI-R01, dark-incorporated/bevy_dark_factory#331).
 //!
 //! The headless editor runs with `MotionSettings::off()` so every other test reads a result in the frame
 //! it is made. These put the motion back and step a clock the test sets, so a frame is a known length.

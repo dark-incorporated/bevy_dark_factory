@@ -38,7 +38,7 @@ An `--out` ending in `.mp4` writes a changelog clip instead: H.264 capped at 20 
 ## Notes
 
 - Capture rate: the storyboard's `fps` is sent to `blueprint_capture_sequence`, which accepts 2 to 15 fps. The storyboards use 15.
-- A fresh editor used to exit with code 101 on its first capture sequence while it was still baking palette thumbnails (bevy-coven/bevy_blueprint#264, fixed in `thumbs.rs`: a portrait given up is no longer despawned while its readback is in flight). A storyboard that edits the map still needs an editor no earlier storyboard has edited, started from a fresh copy of `assets/`.
+- A fresh editor used to exit with code 101 on its first capture sequence while it was still baking palette thumbnails (dark-incorporated/bevy_dark_factory#264, fixed in `thumbs.rs`: a portrait given up is no longer despawned while its readback is in flight). A storyboard that edits the map still needs an editor no earlier storyboard has edited, started from a fresh copy of `assets/`.
 - An agent operation can only start a sequence (frame 0 is the state before it), so each operation is its own chunk. The render holds one frame across the gap between chunks.
 - **Aim at a widget by its words, not a pixel.** `{"click_label": "sofa"}` asks the running editor where
   the visible `Text` saying `sofa` is drawn (BRP's `world.query`, so nothing new is added to the editor's

@@ -1,7 +1,7 @@
 //! **The shell asks gooey's split to collapse, and synthesises no key to do it** (UI-R06, #336).
 //!
 //! Cmd+B (View ▸ Show left panel) used to collapse the shell's gooey split by sending Enter to its divider, because gooey
-//! offered no call that collapses a split from code. gooey's `CollapseSplit` (G-77, bevy-coven/bevy_gooey#88) is that call,
+//! offered no call that collapses a split from code. gooey's `CollapseSplit` (G-77, dark-incorporated/bevy_gooey#88) is that call,
 //! and it is the same path as the divider's own Enter, South button and double press. This file holds what moved:
 //!
 //! - **the shell's source asks with `CollapseSplit`** and holds no keyboard event of its own to send, so the shell is not

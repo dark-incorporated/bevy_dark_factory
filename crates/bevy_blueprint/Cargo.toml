@@ -6,7 +6,7 @@ rust-version = "1.97.1"
 description = "The runtime half of blueprint: load a library and a map, and put it in a Bevy world."
 # Relicensed MIT OR Apache-2.0 on extraction from foundation_vs_slop (owner decision, Sanctuary decision 0087).
 license = "MIT OR Apache-2.0"
-repository = "https://github.com/bevy-coven/bevy_blueprint"
+repository = "https://github.com/dark-incorporated/bevy_dark_factory"
 
 # **The only crate in the set that knows what a renderer is on purpose.** `blueprint_model` is the schema
 # and the solvers and has no engine (`crates/blueprint_model/tests/engine_free.rs` fails the build if that

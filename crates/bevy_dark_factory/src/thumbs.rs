@@ -254,7 +254,7 @@ struct Capture {
 impl Capture {
     /// **Give the portrait up without despawning its screenshot.** A readback in flight is still owned by
     /// `bevy_render`: when it lands it inserts `Captured` on the entity, and a despawned entity makes that
-    /// command an error that Bevy's default handler turns into a panic (bevy-coven/bevy_blueprint#264: a fresh
+    /// command an error that Bevy's default handler turns into a panic (dark-incorporated/bevy_dark_factory#264: a fresh
     /// editor, still baking palette thumbnails, exited on the first capture sequence the moment the PLACE
     /// list was filtered and the booth's subject changed). The entity is left for `bevy_render` to despawn
     /// once it has landed, and the flag keeps the late image out of the cache.

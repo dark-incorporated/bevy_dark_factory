@@ -7,7 +7,7 @@
 //!
 //! # What it is
 //!
-//! An MCP server for the [bevy_blueprint](https://github.com/bevy-coven/bevy_blueprint) world editor. It
+//! An MCP server for the [bevy_blueprint](https://github.com/dark-incorporated/bevy_dark_factory) world editor. It
 //! speaks the Model Context Protocol over **stdio** and reaches the running editor over the Bevy
 //! Remote Protocol, so an agent can drive the editor through typed operations instead of
 //! synthesising keystrokes.

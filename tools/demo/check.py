@@ -85,7 +85,7 @@ def change_moments(rec):
             elif "Home" in keys:
                 moments.append(("home", e["t"]))
             # **A held reveal is a change.** The editor's shortcut overlay is shown while a key is
-            # held (`keys::Action::Shortcuts`, `K`; bevy-coven/bevy_gooey#36), so the picture gains a
+            # held (`keys::Action::Shortcuts`, `K`; dark-incorporated/bevy_gooey#36), so the picture gains a
             # dozen chord chips and then loses them — two changes, at the press and at the release.
             # Nothing else in this list describes that: it is a key, not a click, an agent op or a
             # settle, so a storyboard of the overlay reported `change_moments` as empty and failed

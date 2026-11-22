@@ -1,4 +1,4 @@
-//! **The shell's `Dock` holds the arrangement; it does not paint over the world** (bevy-coven/bevy_gooey#85).
+//! **The shell's `Dock` holds the arrangement; it does not paint over the world** (dark-incorporated/bevy_gooey#85).
 //!
 //! UI-30 (#224) made the shell's outer layout a `bevy_gooey::Dock`, and its layout is what
 //! `ui::save_the_layout` saves and `ui::follow_the_saved_layout` restores. But the *panels* are still

@@ -1,6 +1,6 @@
 //! **`K` reveals the shortcuts through gooey's own overlay** (UI-41, #235).
 //!
-//! `ShortcutBadges` is ExposeHK's overlay, and until bevy-coven/bevy_gooey#36 (G-32) it could only be
+//! `ShortcutBadges` is ExposeHK's overlay, and until dark-incorporated/bevy_gooey#36 (G-32) it could only be
 //! shown while a *modifier* was held exactly — `Modifiers::held(keys) == hold` — so this editor's own
 //! key, `K`, could never reveal it, and `badges.rs` polled `keys::pressed` by hand. G-32 added
 //! `Reveal::Key` and `BadgesShown`.

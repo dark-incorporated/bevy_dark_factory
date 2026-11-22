@@ -108,25 +108,25 @@
           "id": "S3.5",
           "title": "The game's verdict reaches the editor",
           "status": "fixed",
-          "issue": "https://github.com/bevy-coven/bevy_blueprint/issues/84"
+          "issue": "https://github.com/dark-incorporated/bevy_dark_factory/issues/84"
         },
         {
           "id": "S3.6",
           "title": "core data_files: a registry of game data files and type-keeping leaf edits",
           "status": "fixed",
-          "issue": "https://github.com/bevy-coven/bevy_blueprint/issues/85"
+          "issue": "https://github.com/dark-incorporated/bevy_dark_factory/issues/85"
         },
         {
           "id": "S3.7",
           "title": "The data_set operation and the Data panel",
           "status": "fixed",
-          "issue": "https://github.com/bevy-coven/bevy_blueprint/issues/86"
+          "issue": "https://github.com/dark-incorporated/bevy_dark_factory/issues/86"
         },
         {
           "id": "S3.8",
           "title": "bevy_blueprint::live: the runtime reloads and respawns what changed",
           "status": "fixed",
-          "issue": "https://github.com/bevy-coven/bevy_blueprint/issues/87",
+          "issue": "https://github.com/dark-incorporated/bevy_dark_factory/issues/87",
           "evidence": "crates/bevy_blueprint/tests/live_reload.rs (4 tests) and live.rs unit tests (10) green on bmb; clippy -D warnings clean for bevy_blueprint, mapper, mcp"
         }
       ]
@@ -205,43 +205,43 @@
           "id": "H1",
           "title": "One reload contract for every file the editor writes, and a ratchet test",
           "status": "fixed",
-          "issue": "https://github.com/bevy-coven/bevy_blueprint/issues/198"
+          "issue": "https://github.com/dark-incorporated/bevy_dark_factory/issues/198"
         },
         {
           "id": "H2",
           "title": "Every editor write is atomic",
           "status": "fixed",
-          "issue": "https://github.com/bevy-coven/bevy_blueprint/issues/199"
+          "issue": "https://github.com/dark-incorporated/bevy_dark_factory/issues/199"
         },
         {
           "id": "H3",
           "title": "Last good wins on every kind, and every reload reports a verdict",
           "status": "fixed",
-          "issue": "https://github.com/bevy-coven/bevy_blueprint/issues/200"
+          "issue": "https://github.com/dark-incorporated/bevy_dark_factory/issues/200"
         },
         {
           "id": "H4",
           "title": "Runtime state keeps its identity across a reload",
           "status": "open",
-          "issue": "https://github.com/bevy-coven/bevy_blueprint/issues/201"
+          "issue": "https://github.com/dark-incorporated/bevy_dark_factory/issues/201"
         },
         {
           "id": "H5",
           "title": "Move gameplay behaviour into data and scripts, so the restart list shrinks",
           "status": "open",
-          "issue": "https://github.com/bevy-coven/bevy_blueprint/issues/202"
+          "issue": "https://github.com/dark-incorporated/bevy_dark_factory/issues/202"
         },
         {
           "id": "H6",
           "title": "The editor shows each file's reload state",
           "status": "fixed",
-          "issue": "https://github.com/bevy-coven/bevy_blueprint/issues/203"
+          "issue": "https://github.com/dark-incorporated/bevy_dark_factory/issues/203"
         },
         {
           "id": "H7",
           "title": "A spike: Bevy's asset system against the custom watcher, for one file kind",
           "status": "open",
-          "issue": "https://github.com/bevy-coven/bevy_blueprint/issues/204"
+          "issue": "https://github.com/dark-incorporated/bevy_dark_factory/issues/204"
         }
       ]
     },

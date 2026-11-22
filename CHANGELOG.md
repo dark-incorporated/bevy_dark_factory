@@ -4,6 +4,7 @@ What each change added, newest first. A visible change has a clip: click the sti
 
 ## 2026-11-21
 
+- **org-refs** `f649c9e8` The repository's own addresses name its real organization, dark-incorporated *For you: The Report, Guide and Changelog links in the app open the right pages again.* *No clip: a rename of the repository's own addresses; proved by cargo metadata --locked resolving every git dependency at its new URL*
 - **wiggum-refused-start** `3dcd9659` a start the driver refuses for low disk no longer spends a pass number, so a full disk cannot use up WIGGUM_MAX *No clip: a loop driver; proved by tools/loop/test_wiggum_refused_start.py, which fails on the old driver (10 refusals spent 10 numbers)*
 - **pre-push-lfs** `b7b294bd` a branch push uploads its changelog clips too, instead of being refused with GH008 *No clip: a gate hook; proved by tools/loop/test_pre_push_lfs.py, which fails on the old hook*
 - **dark-factory-folders** `89362ecf` the folders the app makes in Documents are Dark Factory Projects and Dark Factory Example *For you: New projects go in a Dark Factory Projects folder in your Documents, and the example in Dark Factory Example.* *No clip: a folder name; proved by a_new_project_opens_something_to_edit*

@@ -4,7 +4,7 @@ One deterministic RNG for a whole simulation: a seeded ChaCha8 stream plus the u
 
 ## Source of truth
 
-The source of truth for this crate is [`bevy-coven/bevy_blueprint`](https://github.com/bevy-coven/bevy_blueprint) at `crates/blueprint_rng/` (MIT OR Apache-2.0, Bevy 0.20). It began as `crates/det_rng/` in [`Ladvien/foundation_vs_slop`](https://github.com/Ladvien/foundation_vs_slop), history kept; foundation_vs_slop still carries the GPL Bevy 0.19 original until it ports. Make changes here, in their own commits with tests here; a consumer game never vendors or patches a copy.
+The source of truth for this crate is [`dark-incorporated/bevy_dark_factory`](https://github.com/dark-incorporated/bevy_dark_factory) at `crates/blueprint_rng/` (MIT OR Apache-2.0, Bevy 0.20). It began as `crates/det_rng/` in [`Ladvien/foundation_vs_slop`](https://github.com/Ladvien/foundation_vs_slop), history kept; foundation_vs_slop still carries the GPL Bevy 0.19 original until it ports. Make changes here, in their own commits with tests here; a consumer game never vendors or patches a copy.
 
 ## Build and test
 
