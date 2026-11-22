@@ -38,6 +38,8 @@ fn ctrl_enter_in_the_panels_text_area_saves_the_note_on_two_lines_as_one_note_ed
     for _ in 0..4 {
         app.update();
     }
+    // The index's shortest sweep: the notes view follows the project index, and this test writes the file from outside and waits under a second.
+    app.world().resource::<bevy_dark_factory::project_index::ProjectIndex>().set_sweep(bevy_dark_factory::project_index::MIN_SWEEP);
     let path = notes::path_for_map(&app.world().resource::<OpenMap>().map_path);
     let mut n = Notes::default();
     n.add(vec![Target::Cell(0, 0)], "first draft").unwrap();
