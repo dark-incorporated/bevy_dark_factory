@@ -51,7 +51,8 @@ const SETTLE_FRAMES: usize = 14;
 
 /// **The most gooey table-cell texts one pane may hold**: the history list is single-column, and its
 /// visible rows are the only cells here. See the exemption in [`outside_the_pane`].
-const MOST_GOOEY_CELLS: usize = 12;
+// One, measured (the history list, a gooey `tree`, which has no wrap option). Was 12.
+const MOST_GOOEY_CELLS: usize = 1;
 
 /// How many texts must be drawn under the pane before the measurement means anything.
 const LEAST_TEXTS: usize = 4;

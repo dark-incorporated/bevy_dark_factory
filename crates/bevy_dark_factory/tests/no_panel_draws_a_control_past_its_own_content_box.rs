@@ -114,7 +114,8 @@ const REPORT_LIMIT: usize = 8;
 /// are the only cells there. gooey spawns every cell's text `NoWrap` (`widgets::ONE_LINE`), which no `TextLayout`
 /// written here can override — `bevy_gooey#109`, the exemption #482's test states. Counted rather than silently
 /// skipped, so it cannot quietly grow to cover a second widget.
-const MOST_GOOEY_CELLS: usize = 14;
+// One, measured (the history list, a gooey `tree`, which has no wrap option). Was 14.
+const MOST_GOOEY_CELLS: usize = 1;
 
 fn settle(app: &mut App) {
     for _ in 0..SETTLE_FRAMES {

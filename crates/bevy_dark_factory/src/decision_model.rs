@@ -268,7 +268,9 @@ pub fn chip() -> impl Bundle {
         DecisionLedChip,
         Tooltip::new(String::new()),
         Name::new("decision model"),
-        children![(bevy_gooey::led(DecisionModel::default().name(), LedState::Off), DecisionLed)],
+        // **`LedSize(0)`, the smallest step of the type scale** (bevy_gooey#110): a status light is a readout, drawn a step under the menu titles beside it, not at
+        // the body size gooey draws an LED at without it.
+        children![(bevy_gooey::led(DecisionModel::default().name(), LedState::Off), DecisionLed, bevy_gooey::LedSize(0))],
     )
 }
 

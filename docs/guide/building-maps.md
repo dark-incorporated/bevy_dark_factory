@@ -75,7 +75,7 @@ Or right-click the piece's row in the palette: its menu opens with Place, Mount 
 **Goal:** Change one number of a game's own tuning file, and see what you changed.
 
 1. List the file in `assets/blueprint/data.yaml`, as the game's guide describes. Without that file the DATA section says `no data files registered (data.yaml)` and shows no table.
-2. In the INSPECTOR, find **DATA**. Each leaf of each registered file is a row of the table: file, path and value. Click a column's title to sort by it.
+2. In the INSPECTOR, find **DATA**. Each leaf of each registered file is a row of the table: file, path and value. Click a column's title to sort by it. A long id, path or value wraps inside its column, so the row grows taller instead of the words running out of the table.
 3. Open a row with Enter or a double click. A text field opens over the value. Type the new value and press Enter.
 
 **What you see:** The table shows the new value, the file holds it, and the log has one `data_set` line, which Cmd+Z takes back. A value the file's bounds refuse is not written; the status line says why.
