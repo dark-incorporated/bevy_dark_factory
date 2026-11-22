@@ -534,6 +534,7 @@ pub struct AfterEditPlugin;
 
 impl Plugin for AfterEditPlugin {
     fn build(&self, app: &mut App) {
+        crate::project_index::ensure(app);
         app.add_observer(on_check_view)
             .init_resource::<AfterEditQueue>()
             .init_resource::<Reports>()

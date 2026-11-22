@@ -8,6 +8,11 @@
 //! `refused` with the file and the header field, or `applied` once it is a picture again.
 //!
 //! Owner exception (2026-11-13): this file listed pictures through `reference_set` and read `references.yaml`; every check is kept, on the board.
+//!
+//! Owner exception (2026-11-14): `reference_view::RECHECK_SECS` is retired (#501): the view reads the project index, which sees a write within
+//! its debounce and one sweep, so a fixed 0.4 s of frames is no longer a valid wait for a change. Each positive wait (`project`'s baseline,
+//! the refusal after a bad write) waits for the condition with a wall-clock timeout, and the same-size negative waits for the view to have
+//! read the picture before it asserts that nothing was decided; no assertion is loosened.
 
 use std::time::{Duration, Instant};
 
@@ -15,6 +20,7 @@ use bevy::prelude::*;
 use bevy_dark_factory::editor::EditorState;
 use bevy_dark_factory::ops::{self, Ctx};
 use bevy_dark_factory::project::{OpenMap, Project};
+use bevy_dark_factory::reference_view::ReferenceView;
 use serde_json::{Value, json};
 
 use crate::fixtures;
@@ -115,7 +121,7 @@ fn project(tag: &str) -> (App, Ctx) {
     let (mut app, mut ctx) = editor(tag);
     write(&ctx, FILE, &png(8, 8));
     ops::dispatch(&mut ctx, "board_set", &json!({"action": "add", "path": FILE, "caption": "the court"})).unwrap_or_else(|e| panic!("{e:?}"));
-    pump(&mut app, 0.4);
+    until(&mut app, "the listed picture is the baseline", |a| a.world().resource::<ReferenceView>().header_of(FILE).is_some());
     (app, ctx)
 }
 
@@ -140,7 +146,7 @@ fn a_picture_that_is_not_a_picture_is_named_once_per_edit_and_a_repair_is_applie
         let before = seq(&mut app);
         let raised_before = app.world().resource::<EditorState>().status.raised();
         write(&ctx, FILE, &bytes);
-        pump(&mut app, 0.4);
+        until(&mut app, "the edit is decided", |a| verdict(a, FILE)["outcome"] == json!("refused"));
 
         let v = verdict(&mut app, FILE);
         assert_eq!(v["outcome"], json!("refused"), "{what}: {v}");
@@ -182,8 +188,9 @@ fn a_picture_that_still_reads_as_another_size_is_applied_and_the_same_size_is_no
     let applied = seq(&mut app);
     let mut same = png(16, 8);
     same.extend([1, 2, 3]);
+    let read_before = app.world().resource::<ReferenceView>().pictures_read();
     write(&ctx, FILE, &same);
-    pump(&mut app, 0.4);
+    until(&mut app, "the picture saved again is looked at", |a| a.world().resource::<ReferenceView>().pictures_read() > read_before);
     assert_eq!(seq(&mut app), applied, "a picture saved again at the same size says nothing");
 }
 
