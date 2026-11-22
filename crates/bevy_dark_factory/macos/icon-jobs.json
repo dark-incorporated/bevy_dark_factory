@@ -1,20 +1,14 @@
 [
   {
-    "name": "dark_factory_default",
-    "prompt": "A bubbling black iron dark_factory with glowing violet and green potion and rising magic smoke, a small black raven perched on its rim, in front of a huge glowing yellow full moon ringed in purple and orange, dark magic, 1980s airbrushed custom van mural, bold clean silhouette, centered, deep purple night sky background, no text",
-    "prompt_style": "rd_pro__default",
+    "id": "dark_factory_icon",
+    "prompt_style": "rd_pro__scifi",
     "width": 256,
     "height": 256,
-    "num_images": 4,
-    "seed": 401
-  },
-  {
-    "name": "dark_factory_fantasy",
-    "prompt": "A bubbling black iron dark_factory with glowing violet and green potion and rising magic smoke, a small black raven perched on its rim, in front of a huge glowing yellow full moon ringed in purple and orange, dark magic, 1980s airbrushed custom van mural, bold clean silhouette, centered, deep purple night sky background, no text",
-    "prompt_style": "rd_pro__fantasy",
-    "width": 256,
-    "height": 256,
-    "num_images": 4,
-    "seed": 502
+    "upscale": 1,
+    "subset": "house",
+    "seed": 5201,
+    "candidates": 1,
+    "prompt": "a gothic dark factory seen from the front, two tall smokestacks venting violet smoke, rows of glowing amber furnace windows and a gear-shaped rose window, in front of a huge glowing magenta moon, app icon, one centred subject filling the frame, bold clean silhouette, readable when small, a deep purple and navy night sky background filling the whole frame, no white background, 1980s pixel art adventure game, gothic industrial machine cathedral meets neon cyberpunk night city, rain, grime, CRT glow, no text, no letters, no logos, no gore",
+    "out": "crates/bevy_dark_factory/macos/icon-256.png"
   }
 ]

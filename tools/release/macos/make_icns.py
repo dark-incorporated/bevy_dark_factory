@@ -6,6 +6,11 @@ rounded rectangle, centred on a transparent 1024 px canvas (the macOS icon grid
 leaves a margin around the artwork), then every iconset size is resized from
 that canvas and packed by `iconutil`.
 
+The art is the job recorded in `icon-jobs.json`: Retro Diffusion through the org's `dark_inc_art.py` (the `house`
+palette). To redo it, run that job, take a candidate that fills the whole 256 px square (a white frame or a
+transparent edge would show inside the rounded mask, which is the icon's only edge), put it at `icon-256.png`, and run
+this script. `build_app.sh` refuses a bundle whose plist names an icon that is not in it.
+
 Runs on macOS only: `iconutil` ships with it. Needs Pillow.
 
     python3 make_icns.py crates/bevy_dark_factory/macos/icon-256.png --out AppIcon.icns
