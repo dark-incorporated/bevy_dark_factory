@@ -4,6 +4,7 @@ What each change added, newest first. A visible change has a clip: click the sti
 
 ## 2026-11-22
 
+- **497** `bdb26784` At text scale 3.0 the terminal bar clips instead of pushing the pane past the window, so the Start agent button can be clicked *For you: With very large text, the terminal no longer pushes its Start agent button off the window.* *No clip: no visible clip needed; proved by the_leds_word_is_the_size_of_a_chip_in_the_bar_and_of_a_row_on_the_card_at_every_text_size*
 - **501-index** `bd52f181` one watcher publishes what changed and the finder's scan and the file tree read it, so two of the 22 poll constants (crosslinks::SCAN_POLL_S and files::TREE_POLL_S) are gone and the project is walked once *No clip: no visible surface; stage 1 of #501, proved by crates/bevy_dark_factory/tests/the_project_index_is_the_one_watcher.rs and the_frame_a_change_lands_on_stays_inside_two_milliseconds.rs*
 
 ## 2026-11-21
