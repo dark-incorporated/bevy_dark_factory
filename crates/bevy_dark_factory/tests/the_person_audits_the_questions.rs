@@ -8,19 +8,29 @@
 //! 2. **The sample is stratified**: what the assessor was unsure of comes first, the rest is random, and a question is offered once.
 //! 3. **The holdout is one place**: `Read::holdout` names the audit's lines and not the hand-back's own verdicts.
 //! 4. **Off is off**: with collection off there is nothing to audit and no row.
+//! 5. **A line another process appends reaches the row**, with the clock stopped: the project index's second root follows the ledger, and no timer does.
 //!
 //! (DL-06's export of the holdout into its own file is not built yet; `Read::holdout` is the one place it will ask.)
+
+use std::time::{Duration, Instant};
 
 use bevy::input::ButtonState;
 use bevy::input::keyboard::{Key, KeyboardInput};
 use bevy::prelude::*;
+use bevy::time::TimeUpdateStrategy;
 use bevy::window::PrimaryWindow;
 
 use bevy_dark_factory::audit_view::{Audit, AuditButton, AuditRow, Why, pick};
+use bevy_dark_factory::project_index::{MIN_SWEEP, OutsideFiles};
 use bevy_dark_factory::turn_store::{AssessedQuestion, Assessment, AssessorRef, Line, Store};
 use bevy_dark_factory::workspace::Workspace;
 
 use crate::a_turn_is_recorded_for_learning::{editor, ledger_of, place, present, until_written};
+
+/// How long a test waits for the row to follow a write.
+const WAIT: Duration = Duration::from_secs(30);
+/// The wall-clock pause between frames while waiting.
+const PAUSE: Duration = Duration::from_millis(10);
 
 /// An editor with one turn recorded, pictures and all, and the Agent workspace open.
 fn recorded(tag: &str) -> (App, std::path::PathBuf) {
@@ -197,4 +207,44 @@ fn with_collection_off_there_is_nothing_to_audit() {
     assert!(app.world().resource::<Audit>().offers.is_empty());
     assert_eq!(app.world_mut().query_filtered::<Entity, With<AuditRow>>().iter(app.world()).count(), 0);
     assert!(!labels.exists(), "something was written with collection off");
+}
+
+/// **5. A line another process appends to the ledger reaches the row, and no timer brings it** (#501; `audit_view::LOOK_EVERY_S` retired).
+///
+/// The assessor is another process: it appends an assessment to the ledger file. Here that is a `Store` that appends one saying the assessor
+/// refused the vote on the third question offered, which makes it the least sure and so the first the sample takes after the one on screen. The
+/// clock is frozen (a manual time step of nothing), so a row that still waited for five seconds of `Time` could not pass, and the index's sweep is at
+/// its floor. The expectation is what the test chose, not anything the audit computes: the third offer must become the second.
+#[test]
+fn a_line_another_process_appends_reaches_the_row_with_the_clock_stopped() {
+    let (mut app, labels) = recorded("audit_external");
+    open_the_agent_workspace(&mut app);
+    app.insert_resource(TimeUpdateStrategy::ManualDuration(Duration::ZERO));
+    app.world().resource::<OutsideFiles>().set_sweep(&labels, MIN_SWEEP);
+    let offered: Vec<(String, String)> = app.world().resource::<Audit>().offers.iter().map(|o| (o.turn.clone(), o.question.clone())).collect();
+    assert!(offered.len() >= 4, "the record's questions were not offered: {offered:?}");
+    let (turn, target) = offered[2].clone();
+
+    // The assessor was unsure of that one: its vote was refused.
+    let refused = AssessedQuestion { id: target.clone(), votes: Vec::new(), yes_fraction: Some(1.0), tally: Default::default(), refused: 1 };
+    let assessment = Assessment {
+        turn,
+        assessor: AssessorRef { version: 1, endpoint: "http://localhost/".to_owned(), site: "local".to_owned() },
+        at_unix_ms: 1,
+        answers: vec![refused],
+        skipped: None,
+    };
+    Store::new(labels.clone()).append(&Line::assessment(assessment)).expect("the assessment is appended");
+
+    let started = Instant::now();
+    loop {
+        app.update();
+        let second = app.world().resource::<Audit>().offers.get(1).map(|o| o.question.clone());
+        if second.as_deref() == Some(target.as_str()) {
+            break;
+        }
+        assert!(started.elapsed() < WAIT, "the assessment reached the row within {WAIT:?}: the second offer is {second:?}, not {target}");
+        std::thread::sleep(PAUSE);
+    }
+    assert_eq!(app.world().resource::<Audit>().offers[0].question, offered[0].1, "the question on screen stays under the person's hand");
 }
