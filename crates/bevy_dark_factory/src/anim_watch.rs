@@ -482,7 +482,6 @@ pub(crate) fn sync_rigs_reload(
             // Neither taken nor called gone: said at each look, and a look is one the index's stamp asked for, so a file that
             // stays unreadable is read again when the index next moves and not on every frame (`looked` is set above).
             warn!("animation tab: {} cannot be read: {e}; the rigs it holds stay", path.display());
-            seen.looked = None;
             return;
         }
     };
