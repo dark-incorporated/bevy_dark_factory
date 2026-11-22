@@ -231,6 +231,52 @@ fn a_root_that_goes_after_it_was_listed_is_refused_until_it_is_back() {
     assert!(pump(&mut app, 10.0, |app| notice(app).iter().all(String::is_empty)), "and the tree stops saying so");
 }
 
+/// **A change that is still held when the root goes does not end the refusal.** A file is written every 10 ms, so the index holds a
+/// change to it (the debounce never settles) when the root is moved away; a listing asked for then flushes what is held, which folds to
+/// a removal and publishes, and that publish must not clear the failure the sweep has just found.
+#[test]
+fn a_change_held_when_the_root_goes_does_not_end_the_refusal() {
+    use std::sync::Arc;
+    use std::sync::atomic::{AtomicBool, Ordering};
+    let root = project("held_then_gone");
+    write(&root, "data/a.yaml", "n: 0\n");
+    let mut app = stepped(&root);
+    app.world().resource::<ProjectIndex>().set_sweep(Duration::from_millis(25));
+
+    let stop = Arc::new(AtomicBool::new(false));
+    let writer = {
+        let (stop, path) = (stop.clone(), root.join("data/a.yaml"));
+        std::thread::spawn(move || {
+            let mut n = 0;
+            while !stop.load(Ordering::Relaxed) {
+                n += 1;
+                if let Ok(mut file) = std::fs::OpenOptions::new().append(true).open(&path) {
+                    let _ = writeln!(file, "n: {n}");
+                }
+                std::thread::sleep(Duration::from_millis(10));
+            }
+        })
+    };
+    pump_for(&mut app, 0.4);
+    assert!(heard_of(&app, "data/a.yaml").is_empty(), "the file kept moving, so its change is held and not yet published");
+
+    let aside = PathBuf::from(format!("{}.aside", root.display()));
+    std::fs::rename(&root, &aside).unwrap_or_else(|e| panic!("{e}"));
+    let refused = files::listed_files(&root).expect_err("a root that has gone is refused even when a held change is flushed against it");
+    assert!(refused.contains("project root"), "{refused}");
+    assert!(files::listed_files(&root).is_err(), "and it stays refused");
+
+    std::fs::rename(&aside, &root).unwrap_or_else(|e| panic!("{e}"));
+    let mut back = false;
+    pump(&mut app, 10.0, |_| {
+        back = files::listed_files(&root).is_ok();
+        back
+    });
+    stop.store(true, Ordering::Relaxed);
+    writer.join().unwrap_or_else(|_| panic!("the writer thread"));
+    assert!(back, "the root is back, so the listing is answered again");
+}
+
 /// **No caller can make the thread spin, and one slow sweep cannot park it**: a sweep time of nothing is raised to the floor, and the
 /// back-off after a slow sweep stops at its ceiling.
 #[test]

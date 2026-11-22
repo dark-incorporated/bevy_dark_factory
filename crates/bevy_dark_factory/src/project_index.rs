@@ -59,6 +59,9 @@
 //! every 2.7 s rather than every second); publishing a change rebuilds the listing in 7-17 ms and 34-45 ms, on the thread; a `Snapshot`
 //! clone is under a microsecond. On the UI thread the finder's scan with a previous scan to reuse costs 4 ms at 10,000 files and 43 ms at
 //! 100,000, and it runs only when a text file came, went or changed ([`Snapshot::text_generation`]); that 43 ms is **not** reduced here.
+//! **The worst case for a change going unseen is about [`MAX_SWEEP_EVERY`] plus [`MAX_HOLD`]**, when a sweep took long enough to reach
+//! the ceiling; [`ProjectIndex::failure`] and the tree's notice can lag by up to one sweep time, while `listed` is not affected because it
+//! settles first.
 //!
 //! # What this does not touch
 //!
@@ -118,7 +121,8 @@ const FIRST_LISTING_WAIT: Duration = Duration::from_secs(60);
 const READY_POLL: Duration = Duration::from_millis(1);
 
 /// **How many times its own length a sweep is left alone for**: a sweep that took 266 ms (measured at 100,000 files on big) is followed by
-/// at least 2.66 s of other work, so the thread spends at most a tenth of itself sweeping however large the project is.
+/// at least 2.66 s of other work, so up to a sweep of 3 s the thread spends at most a tenth of itself sweeping. Above that
+/// [`MAX_SWEEP_EVERY`] caps the gap, and a sweep that long takes more than a tenth (a 5 s sweep is 5 s of every 30 s).
 const SWEEP_DUTY: u32 = 10;
 
 /// **A file's size and modification time**: what "it changed" is decided by, never a hash (nothing here reads a file's bytes).
@@ -486,8 +490,10 @@ impl Sweeper {
 
     /// The root can be looked at again: the failure is over, and may be said again if it comes back.
     fn clear_failure(&mut self) {
-        if self.shared.failed.swap(false, Ordering::AcqRel) {
+        // The reverse of `fail`, so a reader that sees `failed` unset never finds the failure still held.
+        if self.shared.failed.load(Ordering::Acquire) {
             self.shared.lock().failure = None;
+            self.shared.failed.store(false, Ordering::Release);
             self.warned.retain(|key| !key.starts_with("failure:"));
         }
     }
@@ -516,6 +522,7 @@ impl Sweeper {
         self.ignore = ignore;
         self.entries = entries;
         self.publish(true, &[]);
+        self.clear_failure();
         true
     }
 
@@ -540,8 +547,8 @@ impl Sweeper {
         let snapshot = Arc::new(Snapshot { generation, text_generation, files, tree });
         let mut st = self.shared.lock();
         st.snapshot = Some(snapshot);
-        st.failure = None;
-        self.shared.failed.store(false, Ordering::Release);
+        // **The failure is not cleared here.** A publish can follow a root that has gone (a held change ripens against it and folds to a
+        // removal); only a look that found the root, or a listing that read it, ends the failure (`clear_failure`).
         if !events.is_empty() {
             st.outbox.extend_from_slice(events);
             self.shared.news.store(true, Ordering::Release);
@@ -768,6 +775,7 @@ impl Sweeper {
             return;
         }
         self.shared.walks.fetch_add(1, Ordering::Relaxed);
+        self.clear_failure();
         self.ignore = ignore;
         let mut diff: Vec<(String, Seen)> = Vec::new();
         for (rel, e) in &fresh {
@@ -871,7 +879,8 @@ fn run(shared: Arc<Shared>) {
     let mut last_full = Instant::now();
     let mut last_full_took = Duration::ZERO;
     loop {
-        // **A sweep never takes more than one `SWEEP_DUTY`th of the thread**: a project whose sweep takes longer than that is swept less often.
+        // **A sweep is left alone for `SWEEP_DUTY` times its own length, at most `MAX_SWEEP_EVERY`** (see `sweep_interval`): above a sweep of
+        // 3 s the ceiling wins, and the thread spends more than a tenth of itself sweeping (a 5 s sweep is 5 s of every 30 s).
         let sweep_every = sweep_interval(shared.sweep(), last_full_took);
         let (noted, syncs) = {
             let mut st = shared.lock();
