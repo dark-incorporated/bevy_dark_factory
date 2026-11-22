@@ -203,6 +203,21 @@ pub struct Snapshot {
     pub tree: Arc<TreeBuild>,
 }
 
+impl Snapshot {
+    /// **The listed files whose path starts with `prefix`** (a folder with its trailing `/`), as one slice of the sorted list: two binary
+    /// searches and no copy, so a reader of one folder pays for that folder and not for the project.
+    pub fn under(&self, prefix: &str) -> &[(String, FileStamp)] {
+        let from = self.files.partition_point(|(rel, _)| rel.as_str() < prefix);
+        let len = self.files[from..].partition_point(|(rel, _)| rel.starts_with(prefix));
+        &self.files[from..from + len]
+    }
+
+    /// The stamp the listing holds for `rel`, `None` when it lists no such file.
+    pub fn stamp(&self, rel: &str) -> Option<FileStamp> {
+        self.files.binary_search_by(|(path, _)| path.as_str().cmp(rel)).ok().map(|at| self.files[at].1)
+    }
+}
+
 // ── The seam every lookup goes through ───────────────────────────────────────
 
 thread_local! {
@@ -1412,6 +1427,18 @@ impl OutsideFiles {
         }
         wanted.sort();
         let mut follow = Follow { shape: Shape::Files(wanted), ..Follow::default() };
+        follow.retarget(Some(dir), false);
+        self.follows.insert(dir.to_path_buf(), follow);
+    }
+
+    /// **Follow every file below `dir`, as the open project is followed** (a [`Shape::Tree`]), for a folder that is a project's own and that no
+    /// project index follows: the Project page is shown before a project is open. Idempotent for a folder already followed as a tree. The
+    /// listing's paths are relative to `dir`, and `dir` must exist: a root that cannot be read is a [`OutsideFiles::failure`].
+    pub fn follow_tree(&mut self, dir: &Path) {
+        if self.follows.get(dir).is_some_and(|f| f.shape == Shape::Tree) {
+            return;
+        }
+        let mut follow = Follow { shape: Shape::Tree, ..Follow::default() };
         follow.retarget(Some(dir), false);
         self.follows.insert(dir.to_path_buf(), follow);
     }

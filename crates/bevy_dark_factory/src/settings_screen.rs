@@ -372,21 +372,47 @@ impl Plugin for SettingsScreenPlugin {
     }
 }
 
-/// **How long the readout waits between looks at the disk**, seconds: it walks the labels folder, and nobody reads it faster.
-const COLLECTION_READOUT_EVERY: f32 = 2.0;
+/// The ledger's collecting flag, the reason it stopped, its folder and its budget: what the readout's first sentence is made from.
+type LedgerState = (bool, Option<String>, Option<PathBuf>, Option<u64>);
+
+/// **What the collection readout last said it for**: the ledger's state and folder (what [`crate::turn_ledger::collection_sentence`] says first),
+/// its budget, and the index generation of the folder it follows, so a frame where none of them moved reads nothing.
+#[derive(Default)]
+struct ReadoutSeen {
+    shown: bool,
+    state: Option<LedgerState>,
+    generation: u64,
+}
 
 /// **Keep the readout under the collection row true**: the turns written, the disk they take and the budget, or why nothing is kept. Only
-/// runs while the Settings screen has the row on screen.
-fn say_the_collection(time: Res<Time>, ledger: Option<Res<crate::turn_ledger::TurnLedger>>, mut texts: Query<&mut Text, With<CollectionReadout>>, mut since: Local<f32>) {
+/// runs while the Settings screen has the row on screen. **It is recomputed when the ledger file's stamp moves** (#538; `COLLECTION_READOUT_EVERY`
+/// retired): the labels folder is outside the project, so `OutsideFiles` follows `turns.jsonl` there, and the readout is made again (a read of
+/// the ledger and a sum of the bytes under the folder, which `TurnLedger::usage` says is not for a frame) when that stamp, the ledger's state or its
+/// budget changes, and when the row first appears. **A picture written without a ledger line is not seen until the ledger moves, so the byte count can
+/// lag it.** That the ledger's stamp is enough was assumed, not measured, and the readout can lag the ledger by the index's sweep and debounce.
+fn say_the_collection(
+    ledger: Option<Res<crate::turn_ledger::TurnLedger>>,
+    mut outside: ResMut<crate::project_index::OutsideFiles>,
+    mut texts: Query<&mut Text, With<CollectionReadout>>,
+    mut seen: Local<ReadoutSeen>,
+) {
     if texts.is_empty() {
-        *since = COLLECTION_READOUT_EVERY;
+        seen.shown = false;
         return;
     }
-    *since += time.delta_secs();
-    if *since < COLLECTION_READOUT_EVERY {
+    let dir = ledger.as_deref().and_then(crate::turn_ledger::TurnLedger::dir).map(std::path::Path::to_path_buf);
+    // Idempotent: the audit row follows the same folder and unfollows it when collection goes off, so the readout asks again while it shows.
+    if let Some(dir) = &dir {
+        outside.follow(dir, &[crate::turn_store::LEDGER_FILE]);
+    }
+    let generation = dir.as_deref().map_or(0, |d| outside.generation(d));
+    let state = ledger.as_deref().map(|l| (l.collecting(), l.stopped().map(str::to_owned), dir.clone(), l.budget()));
+    if seen.shown && seen.state == state && seen.generation == generation {
         return;
     }
-    *since = 0.0;
+    seen.shown = true;
+    seen.state = state;
+    seen.generation = generation;
     let said = crate::turn_ledger::collection_sentence(ledger.as_deref());
     for mut text in &mut texts {
         if text.0 != said {

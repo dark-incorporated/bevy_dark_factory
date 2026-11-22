@@ -30,7 +30,6 @@
 //! presses to leave a dialog.
 
 use std::path::{Path, PathBuf};
-use std::time::SystemTime;
 
 use bevy::prelude::*;
 use bevy::ecs::hierarchy::ChildSpawner;
@@ -42,7 +41,7 @@ use crate::catalog::{self, Catalog, Kit, MapEntry, MapSummary, Pending, PolicyEn
 use crate::confirm::{Asked, Confirm};
 use crate::launcher::{self, HomeContent, Launcher, ProjectPictures, SidebarRoot, SplashArt};
 use crate::project_assets::{self, ProjectRoot};
-use crate::project_index::OutsideFiles;
+use crate::project_index::{FileStamp, OutsideFiles, ProjectIndex, Snapshot as Listing};
 use crate::screen::Screen;
 use crate::ui::submit_button;
 use crate::workspace::Workspace;
@@ -109,10 +108,11 @@ pub struct ProjectPage {
     asking_policy: Option<(String, PolicyEntry)>,
     /// The cards are out of date: the next frame draws them again.
     pub dirty: bool,
-    /// The project's files as they were when the catalog was read ([`fingerprint`]).
-    seen: Vec<(PathBuf, SystemTime)>,
-    /// Seconds until the files are looked at again.
-    since: f32,
+    /// The project's files the page was last drawn from, as an index lists them ([`page_files`]), with `None` before the first listing: the
+    /// catalog was read before that listing, so the first one asks for a read once more.
+    seen: Option<Vec<(String, FileStamp)>>,
+    /// The generation of the index that listing came from, so a frame where nothing moved looks at nothing.
+    generation: u64,
     /// **The Agent guide section's held text** (AG-05, #350): the file as it last read, the person's
     /// unsaved edit, and whether somebody else changed the file under it. On the page rather than as a
     /// resource of its own, so a redraw and an action cannot read two different values.
@@ -130,23 +130,23 @@ impl ProjectPage {
     }
 }
 
-/// How often, in seconds, the page looks at the project's files to see whether a map or a kit was made, renamed or deleted elsewhere (an
-/// agent, the editor, a person's file manager). A listing that follows its directory is what the chooser's `follow_the_maps_directory` did.
-const WATCH_SECS: f32 = 1.0;
-
-/// The files whose change makes the page out of date: the maps folder's entries, `kits.yaml`, and each kit's library.
-pub fn fingerprint(root: &Path) -> Vec<(PathBuf, SystemTime)> {
-    let base = root.join(catalog::BLUEPRINT_DIR);
-    let mut watched = vec![base.join(catalog::MAPS_DIR), base.join(blueprint_model::kits::KITS_FILE)];
-    for dir in std::fs::read_dir(&base).into_iter().flatten().flatten().map(|e| e.path()) {
-        watched.push(dir.join(blueprint_model::policy::LIBRARY_FILE));
-    }
-    for map in std::fs::read_dir(base.join(catalog::MAPS_DIR)).into_iter().flatten().flatten() {
-        watched.push(map.path());
-    }
-    let mut out: Vec<_> = watched.into_iter().filter_map(|p| Some((p.clone(), std::fs::metadata(&p).ok()?.modified().ok()?))).collect();
-    out.sort();
-    out
+/// **The files whose change makes the page out of date, as the index lists them**: the maps folder's entries, `kits.yaml`, and each kit's
+/// library. `prefix` is where the blueprint folder starts in the listing (`assets/blueprint/` in the open project's index, nothing in the
+/// listing of the blueprint folder itself); the paths come back without it, so the two listings compare.
+fn page_files(listing: &Listing, prefix: &str) -> Vec<(String, FileStamp)> {
+    let from = listing.files.partition_point(|(rel, _)| rel.as_str() < prefix);
+    listing.files[from..]
+        .iter()
+        .take_while(|(rel, _)| rel.starts_with(prefix))
+        .filter_map(|(rel, stamp)| {
+            let inner = &rel[prefix.len()..];
+            let watched = match inner.split_once('/') {
+                None => inner == blueprint_model::kits::KITS_FILE,
+                Some((dir, rest)) => (dir == catalog::MAPS_DIR && !rest.contains('/')) || rest == blueprint_model::policy::LIBRARY_FILE,
+            };
+            watched.then(|| (inner.to_owned(), *stamp))
+        })
+        .collect()
 }
 
 /// A dialog's fields. Observers write it; Create reads it.
@@ -364,11 +364,10 @@ fn read_the_page(root: PathBuf, state: Option<&crate::editor::EditorState>, stor
         Ok(c) => (c, None),
         Err(e) => (Catalog { kits: Vec::new(), maps: Vec::new(), authoring: None, bashes: Vec::new() }, Some(e)),
     };
-    let seen = fingerprint(&root);
     // **The guide is read as the page is built**, not a frame later: the section's first draw is what a
     // person sees, and a first draw that said "allowed" about a project with no guide would be a line that
     // is wrong until something else moved.
-    let mut page = ProjectPage { root, catalog, asking: None, asking_policy: None, dirty: false, seen, since: 0.0, guide: GuidePage::default(), in_workspace };
+    let mut page = ProjectPage { root, catalog, asking: None, asking_policy: None, dirty: false, seen: None, generation: 0, guide: GuidePage::default(), in_workspace };
     let view = agent_guide_view(&page, store_root, state.and_then(|s| s.trust.file.clone()).as_deref());
     page.guide.on_disk = view.text.clone();
     page.guide.view = view;
@@ -1532,16 +1531,33 @@ fn toast_failed(commands: &mut Commands, text: impl Into<String>) {
     commands.spawn(toast_alert(text.into()).sticky());
 }
 
-/// Looks at the project's files once a second: a map or a kit made, renamed or deleted elsewhere draws.
-fn follow_the_files(time: Res<Time<Real>>, mut page: ResMut<ProjectPage>) {
-    page.since += time.delta_secs();
-    if page.since < WATCH_SECS {
+/// **Follows the project's files through the index, with no clock**: a map or a kit made, renamed or deleted elsewhere (an agent, the
+/// editor, a person's file manager) draws. The open project's index follows them when it follows this page's project; the page is also shown
+/// before a project is open, and then the blueprint folder is followed as a second root ([`OutsideFiles::follow_tree`]). A frame where the
+/// index's generation did not move looks at nothing. **A change reaches the page after the index's sweep and debounce, up to about a second
+/// [INFERENCE: the index's own numbers, not measured on the page].** An index that cannot answer is said once.
+fn follow_the_files(project_index: Res<ProjectIndex>, mut outside: ResMut<OutsideFiles>, mut page: ResMut<ProjectPage>, mut said: Local<Option<String>>) {
+    let blueprint = page.root.join(catalog::BLUEPRINT_DIR);
+    let (generation, listing, prefix, failure) = if project_index.root() == Some(page.root.as_path()) {
+        (project_index.generation(), project_index.snapshot(), format!("{}/", catalog::BLUEPRINT_DIR), project_index.failure())
+    } else {
+        outside.follow_tree(&blueprint);
+        (outside.generation(&blueprint), outside.snapshot(&blueprint), String::new(), outside.failure(&blueprint))
+    };
+    if let Some(why) = failure
+        && said.as_deref() != Some(why.as_str())
+    {
+        warn!("project page: the index cannot follow {}: {why}; the page is not redrawn when its files change", blueprint.display());
+        *said = Some(why);
+    }
+    if page.seen.is_some() && page.generation == generation {
         return;
     }
-    page.since = 0.0;
-    let now = fingerprint(&page.root);
-    if now != page.seen {
-        page.seen = now;
+    let Some(listing) = listing else { return };
+    page.generation = generation;
+    let now = page_files(&listing, &prefix);
+    if page.seen.as_ref() != Some(&now) {
+        page.seen = Some(now);
         page.dirty = true;
     }
 }
@@ -1571,7 +1587,6 @@ fn redraw(
             return;
         }
     }
-    page.seen = fingerprint(&page.root);
     commands.entity(body).despawn_children();
     let mut own_pictures = ProjectPictures::default();
     let mut pictures = pictures;

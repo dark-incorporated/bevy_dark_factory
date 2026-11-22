@@ -1,25 +1,27 @@
 //! **A family settings file edited while the editor runs is reloaded within a second** (#96).
 //!
-//! The loops below step `Time<Real>` with `TimeUpdateStrategy::ManualDuration` instead of sleeping
-//! (#279). `FamilyWatch` measures its 0.1 s poll and 0.1 s settle on that clock
-//! (`family_host::reload_settings`), so the reload lands after a fixed number of updates whatever the
-//! machine's load. The sleeps this replaced were 50 ms per update, and a loaded machine stretched them
-//! past the 3 s bound (#121, #195). The bound stays, and the second promise, a reload within one second
-//! of the edit, is now asserted on the clock the editor actually measures it on.
+//! The host follows the family folder through the project index (#538; `blueprint_model::family::SETTINGS_POLL_SECS` retired), so these tests
+//! wait on the wall clock, with the index's sweep at its floor, for the host to hold the text the test wrote. **Owner exception
+//! (2026-11-14)**, for the test here (`family_settings_reload.rs::an_edited_settings_file_reaches_the_editor_and_a_bad_one_is_a_problem`): it
+//! stepped `Time<Real>` with `TimeUpdateStrategy::ManualDuration` because `FamilyWatch` measured a 0.1 s poll and a 0.1 s settle on that clock
+//! (#279), and measured the one-second promise on it. The watch has no clock now, so a step of the clock moves nothing; the 3 s wall-clock
+//! bound is unchanged, and the promise is measured on the wall clock, where the index's sweep and debounce actually run.
+
+use std::time::{Duration, Instant};
 
 use bevy::prelude::*;
-use bevy::time::TimeUpdateStrategy;
 use bevy_dark_factory::editor::EditorState;
 use bevy_dark_factory::family_host::{reload_settings, FamilySettings};
+use bevy_dark_factory::project_index::{MIN_SWEEP, ProjectIndex};
 
 use crate::fixtures;
 
-/// One update of the test's clock, in seconds: the 50 ms the loops used to sleep, now stepped.
-const STEP_SECS: f32 = 0.05;
-/// The editor's promise (#96): an edit is in force within this much clock time.
-const PROMISE_SECS: f32 = 1.0;
-/// Updates a loop may run before it gives up: five seconds of clock time, as the wall-clock loop allowed.
-const MAX_STEPS: u32 = 100;
+/// The editor's promise (#96): an edit is in force within this much wall-clock time.
+const PROMISE: Duration = Duration::from_secs(1);
+/// The bound the owner set (2026-10-29, #121) on the whole wait, so a loaded machine cannot stretch it past three seconds unnoticed.
+const BOUND: Duration = Duration::from_secs(3);
+/// The wall-clock pause between frames while waiting.
+const PAUSE: Duration = Duration::from_millis(10);
 
 /// **A real `ElementsSettings`, as `bevy_elements` writes one**, and the same file an hour later.
 ///
@@ -39,38 +41,30 @@ fn an_edited_settings_file_reaches_the_editor_and_a_bad_one_is_a_problem() {
     std::fs::write(&file, SETTINGS).unwrap();
     let mut app = bevy_dark_factory::harness::build_headless(&root, "m", None).unwrap_or_else(|e| panic!("{e}"));
     app.init_resource::<EditorState>().init_resource::<FamilySettings>().add_systems(Update, reload_settings);
-    app.insert_resource(TimeUpdateStrategy::ManualDuration(std::time::Duration::from_secs_f32(STEP_SECS)));
     app.update();
-    std::thread::sleep(std::time::Duration::from_millis(50));
+    app.world().resource::<ProjectIndex>().set_sweep(MIN_SWEEP);
+    std::thread::sleep(Duration::from_millis(50));
     std::fs::write(&file, SETTINGS_LATER).unwrap();
-    let start = std::time::Instant::now();
-    let mut steps = 0;
-    while steps < MAX_STEPS && app.world().resource::<FamilySettings>().text["bevy_elements"] != SETTINGS_LATER {
+    let start = Instant::now();
+    while start.elapsed() < BOUND && app.world().resource::<FamilySettings>().text["bevy_elements"] != SETTINGS_LATER {
         app.update();
-        steps += 1;
+        std::thread::sleep(PAUSE);
     }
-    // **3 s of wall clock, and the 1 s promise on the editor's clock** (owner, 2026-10-29, #121;
-    // 2026-11-06, #279). The wall-clock bound is unchanged. Without the sleeps it is only the few
-    // `app.update()` calls the stepped clock needs, so load can no longer stretch it past the bound
-    // (1.81 s on bmb with 50 ms sleeps, which failed the push gate three times). The promise is
-    // measured on `Time<Real>`, the clock `FamilyWatch` polls on, so it holds on a busy machine too.
-    assert!(start.elapsed().as_secs_f64() < 3.0, "took {:?}", start.elapsed());
-    assert!(
-        steps as f32 * STEP_SECS <= PROMISE_SECS,
-        "the edit took {steps} updates of {STEP_SECS} s on the editor's clock, past the {PROMISE_SECS} s it promises"
-    );
+    let took = start.elapsed();
+    assert!(took < BOUND, "took {took:?}");
+    assert!(took <= PROMISE, "the edit took {took:?} on the wall clock, past the {PROMISE:?} it promises");
     assert_eq!(
         app.world().resource::<FamilySettings>().text["bevy_elements"],
         SETTINGS_LATER,
         "the edit must be the settings the host holds, verbatim"
     );
 
-    std::thread::sleep(std::time::Duration::from_millis(50));
+    std::thread::sleep(Duration::from_millis(50));
     std::fs::write(&file, "{sun: {hour: ").unwrap();
-    let mut steps = 0;
-    while steps < MAX_STEPS && app.world().resource::<EditorState>().status.problems().is_empty() {
+    let start = Instant::now();
+    while start.elapsed() < BOUND && app.world().resource::<EditorState>().status.problems().is_empty() {
         app.update();
-        steps += 1;
+        std::thread::sleep(PAUSE);
     }
     let probs = app.world().resource::<EditorState>().status.problems().iter().map(|p| p.text.clone()).collect::<Vec<_>>();
     assert!(probs.iter().any(|p| p.contains("bevy_elements") && p.contains("not valid YAML")), "{probs:?}");
