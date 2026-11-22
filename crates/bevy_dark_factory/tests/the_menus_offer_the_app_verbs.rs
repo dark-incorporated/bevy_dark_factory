@@ -386,7 +386,7 @@ fn report_a_problem_opens_a_new_issue_that_names_the_version() {
     let opened = app.world().resource::<LinksOff>().0.clone();
     assert_eq!(opened.len(), 1, "one address is opened");
     assert!(opened[0].starts_with("https://github.com/bevy-coven/bevy_blueprint/issues/new?body="), "{}", opened[0]);
-    assert!(opened[0].contains(&format!("Dark Factory%20{}", env!("CARGO_PKG_VERSION"))), "the version is in the body: {}", opened[0]);
+    assert!(opened[0].contains(&format!("Dark%20Factory%20{}", env!("CARGO_PKG_VERSION"))), "the version is in the body: {}", opened[0]);
 }
 
 #[test]
