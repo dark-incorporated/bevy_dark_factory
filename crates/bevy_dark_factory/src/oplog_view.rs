@@ -25,7 +25,8 @@
 //! length and the modification time moved, not where): a rewrite that keeps the prefix cannot be told from an append without reading
 //! the prefix, so the verdict needs every line. Measured on `big` by `tests/the_oplog_view_follows_the_project_index.rs`: one
 //! dispatched operation appended 544 bytes to a log of 5,000 lines (2.5 MB) and was one `Modified` event and one read, and the frame
-//! that read took 36.7 ms; at 50,000 lines (24.8 MB) 552 bytes, one event, one read, 426.9 ms. The frame time is the whole frame, on the
+//! that read took 45.2 ms; at 50,000 lines (24.8 MB) 552 bytes, one event, one read, 430.8 ms (the byte counts were the same in an earlier
+//! run, whose frames took 36.7 ms and 426.9 ms; these are the final run's). The frame time is the whole frame, on the
 //! UI thread; the retired view read the whole file on every change of its stamp as well, which is read from the old code and was not
 //! measured.
 

@@ -11,7 +11,7 @@
 //! true` in the project's give both; the same key in both gives the project's.
 //!
 //! **Live.** [`sync_settings`] looks at both files while the editor runs (size and modification time
-//! each frame, the text once a second regardless, as `oplog_view` does) and re-resolves
+//! each frame, the text once a second regardless; `oplog_view` no longer does, it follows the project index) and re-resolves
 //! [`EditorSettings`]. Deleting a key, or the file, falls back to the layer below at once. A file that
 //! does not read (not YAML, an unknown key, a key of the wrong type, a value out of range, another
 //! version) **keeps that layer's last good content**, is refused in `blueprint_state.reloads` with the
