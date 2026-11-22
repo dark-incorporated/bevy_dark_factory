@@ -258,7 +258,7 @@ These are written but are not project data, so they have no class. None is read 
 - [ ] 11. `reference_view` `RECHECK_SECS` (1.0)
 - [ ] 12. `forest_view` `POLL_S` (0.5)
 - [ ] 13. `game_view` `FIELD_FILES_POLL_S` (1.5) and `STATE_POLL_S` (1.0)
-- [ ] 14. `night_shift` `PLAN_READ_SECS` (0.5)
+- [x] 14. `night_shift` `PLAN_READ_SECS` (0.5): the PLAN row reads the plan file when its stamp in the index moves; a plan that does not read is said by its reason, not shown as `no plan` (`the_plan_row_follows_the_project_index`)
 - [ ] 15. `anim_watch` `POLL_SECS` (1.0) and `RIGS_RECHECK_SECS` (1.0)
 - [ ] 16. `audit_view` `LOOK_EVERY_S` (5.0)
 - [ ] 17. `game_view` `LOG_POLL_S` (0.25): a growing log is a tail, not a listing; decide whether it stays a read loop

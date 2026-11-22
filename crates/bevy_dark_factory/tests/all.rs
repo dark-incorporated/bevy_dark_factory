@@ -763,3 +763,4 @@ mod the_after_picture_has_no_question_on_it;
 mod index_waits;
 mod the_world_lists_follow_the_project_index;
 mod the_problems_list_follows_the_project_index;
+mod the_plan_row_follows_the_project_index;
