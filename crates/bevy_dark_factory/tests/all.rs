@@ -78,6 +78,7 @@ mod capture_feedback_1793928006124_switch;
 mod capture_feedback_1793927671762;
 mod a_terminal_runs_a_shell_inside_the_editor;
 mod a_page_line_draws_in_the_skins_ink;
+mod a_panel_census_at_five_scales_over_populated_content;
 mod a_panel_control_stays_inside_its_content_box;
 mod a_panel_headings_glyph_sits_on_the_titles_line;
 mod a_filter_box_draws_in_the_skins_ink;
