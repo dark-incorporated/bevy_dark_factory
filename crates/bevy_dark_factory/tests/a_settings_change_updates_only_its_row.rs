@@ -33,6 +33,23 @@ const MARK_NODES: usize = 6;
 /// The most the changed row's height may move: the Reset button is taller than the text beside it (measured: 12 px).
 const MARK_GROWTH_PX: f32 = 24.0;
 
+/// How long a test waits, on the wall clock, for the editor to see a settings file an edit made by hand changed: the file is followed by
+/// an index (#501 item 18), so the edit is seen after the index's sweep and debounce, which a number of frames does not wait for.
+const WATCH_PATIENCE_S: f64 = 10.0;
+
+/// Step frames until `done`, for at most [`WATCH_PATIENCE_S`] on the wall clock.
+fn until(app: &mut App, what: &str, mut done: impl FnMut(&mut App) -> bool) {
+    let started = std::time::Instant::now();
+    while started.elapsed().as_secs_f64() < WATCH_PATIENCE_S {
+        app.update();
+        if done(app) {
+            return;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(15));
+    }
+    panic!("never saw: {what}");
+}
+
 struct Rig {
     app: App,
     user: PathBuf,
@@ -204,6 +221,7 @@ fn stepping_the_last_row_keeps_the_scroll_the_focus_and_every_row() {
 fn a_reset_puts_the_control_back_without_building_the_list_again() {
     let mut r = rig("settings_change_reset");
     std::fs::write(&r.user, "{version: 1, terminal_agent: OhMyPi, show_grid: false}").unwrap();
+    until(&mut r.app, "the hand-edited terminal agent on the screen", |a| find_by_label(a, "Reset Terminal agent").is_ok());
     for _ in 0..30 {
         r.app.update();
         std::thread::sleep(std::time::Duration::from_millis(15));
@@ -246,6 +264,7 @@ fn a_switch_and_a_slider_follow_the_file_in_place() {
 
     // An edit made by hand, as the screen reads the file a few times a second.
     std::fs::write(&r.user, "{version: 1, show_grid: false, text_scale: 1.5}").unwrap();
+    until(&mut r.app, "the hand-edited grid switch off", |a| find_by_label(a, "Grid lines").ok().is_some_and(|e| a.world().get::<Checked>(e).is_none()));
     for _ in 0..30 {
         r.app.update();
         std::thread::sleep(std::time::Duration::from_millis(15));
@@ -296,6 +315,7 @@ fn a_change_with_a_search_active_keeps_the_search_and_its_rows() {
 fn switching_whose_file_is_edited_changes_values_in_place() {
     let mut r = rig("settings_change_scope");
     std::fs::write(&r.user, "{version: 1, show_grid: false}").unwrap();
+    until(&mut r.app, "the hand-edited grid switch off", |a| find_by_label(a, "Grid lines").ok().is_some_and(|e| a.world().get::<Checked>(e).is_none()));
     for _ in 0..30 {
         r.app.update();
         std::thread::sleep(std::time::Duration::from_millis(15));
@@ -327,6 +347,7 @@ fn no_setting_is_built_as_an_unreadable_row_in_either_scope_so_a_change_never_bu
     // has its control, with a file that sets some keys and with one that sets none, in the user's scope and the project's.
     let mut r = rig("settings_change_no_unreadable");
     std::fs::write(&r.user, "{version: 1, theme: Parchment, show_grid: false, text_scale: 1.5, terminal_cursor: Bar}").unwrap();
+    until(&mut r.app, "the hand-edited theme on the screen", |a| find_by_label(a, "Reset Theme").is_ok());
     for scope in [Scope::User, Scope::Project] {
         {
             let world = r.app.world_mut();
@@ -394,6 +415,7 @@ fn a_tabs_scroll_is_kept_while_another_tab_is_shown() {
 fn a_keyboard_reset_on_a_category_tab_puts_the_focus_on_that_tabs_own_control() {
     let mut r = rig("settings_change_tab_focus");
     std::fs::write(&r.user, "{version: 1, terminal_agent: OhMyPi}").unwrap();
+    until(&mut r.app, "the hand-edited terminal agent on the screen", |a| find_by_label(a, "Reset Terminal agent").is_ok());
     for _ in 0..30 {
         r.app.update();
         std::thread::sleep(std::time::Duration::from_millis(15));

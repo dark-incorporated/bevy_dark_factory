@@ -10,9 +10,11 @@
 //! below. `version: 1` and `text_scale: 1.5` in the user's file and `version: 1` and `reduced_motion:
 //! true` in the project's give both; the same key in both gives the project's.
 //!
-//! **Live.** [`sync_settings`] looks at both files while the editor runs (size and modification time
-//! each frame, the text once a second regardless; `oplog_view` no longer does, it follows the project index) and re-resolves
-//! [`EditorSettings`]. Deleting a key, or the file, falls back to the layer below at once. A file that
+//! **Live.** [`sync_settings`] follows both files while the editor runs and re-resolves [`EditorSettings`] when one moved. It
+//! reads a file when it first sees its path, once more when the file's index has its first listing, and then only when that index
+//! says the file changed ([`FileNews`]): the person's file through [`crate::project_index::OutsideFiles`] (it lives outside the
+//! project), the project's through the project's [`crate::project_index::ProjectIndex`]. **Nothing is polled** (#501 item 18).
+//! Deleting a key, or the file, falls back to the layer below at once. A file that
 //! does not read (not YAML, an unknown key, a key of the wrong type, a value out of range, another
 //! version) **keeps that layer's last good content**, is refused in `blueprint_state.reloads` with the
 //! file and the field, and is a problem on the status line, once per distinct fault.
@@ -26,7 +28,7 @@
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
-use std::time::SystemTime;
+use bevy::ecs::system::SystemParam;
 
 use bevy::prelude::*;
 use blueprint_model::live::{KindVerdict, Outcome};
@@ -38,6 +40,7 @@ use bevy_oracle::DecisionModel;
 use crate::editor::EditorState;
 use crate::live::EditorReloads;
 use crate::project::Project;
+use crate::project_index::{self, OutsideFileChanged, OutsideFiles, ProjectFileChanged, ProjectIndex};
 
 pub const SETTINGS_VERSION: u32 = 1;
 
@@ -48,9 +51,6 @@ pub const KIND: &str = "editor_settings";
 const USER_FILE: &str = blueprint_model::user_dirs::SETTINGS_FILE;
 /// The project's file, under the project directory (`assets/blueprint`).
 pub const PROJECT_FILE: &str = blueprint_model::reload_check::PROJECT_SETTINGS_FILE;
-
-/// How long a file whose size and modification time did not move goes unread.
-const RECHECK_SECS: f32 = 1.0;
 
 /// The smallest and largest a scale may be: below the first nothing is legible, above the second no
 /// panel fits.
@@ -753,13 +753,13 @@ enum Look {
 #[derive(Default)]
 struct Watch {
     path: Option<PathBuf>,
-    stat: Option<(SystemTime, u64)>,
-    since: f32,
     /// A hash of the text last parsed, so the same text is not parsed again.
     hash: Option<u64>,
     /// **The last content that read.** Kept across a refusal.
     good: Option<SettingsLayer>,
     last: Option<Look>,
+    /// That the project's file is not listed by the project's index has been said, so it is said once.
+    unfollowed_said: bool,
 }
 
 fn hash_of(text: &str) -> u64 {
@@ -769,21 +769,41 @@ fn hash_of(text: &str) -> u64 {
     hasher.finish()
 }
 
+thread_local! {
+    static FILE_READS: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
+}
+
+/// **How many times a settings file has been read on this thread** by the editor's readers (`sync_settings` and the two screens). A test
+/// reads it across frames to say that a file no one changed was not read: it counts what goes through [`read_settings_file`] and
+/// nothing else.
+pub fn file_reads_on_this_thread() -> u64 {
+    FILE_READS.with(std::cell::Cell::get)
+}
+
+/// **The one read of a settings file** the editor's readers make, counted per thread.
+pub(crate) fn read_settings_file(path: &Path) -> std::io::Result<String> {
+    FILE_READS.with(|c| c.set(c.get() + 1));
+    std::fs::read_to_string(path)
+}
+
+/// Whether a read failed because the file is not there: `NotFound` (the file, or its folder), or `NotADirectory` (a component of the path
+/// is a file). The index says both are absent, so a reader treats both as no file.
+pub(crate) fn is_absent(e: &std::io::Error) -> bool {
+    matches!(e.kind(), std::io::ErrorKind::NotFound | std::io::ErrorKind::NotADirectory)
+}
+
 impl Watch {
-    /// Looks at `path` when it changed; the look it decided, or `None` when there is nothing new to say.
-    fn look(&mut self, path: &Path, file: &str, dt: f32) -> Option<Look> {
-        self.since += dt;
-        let stat = std::fs::metadata(path).ok().and_then(|m| Some((m.modified().ok()?, m.len())));
+    /// **Reads `path` when it is a new path, or when `moved` says its index heard of it**; the look it decided, or `None` when there is
+    /// nothing new to say. No `stat` and no timer: whether to look is the index's to say.
+    fn look(&mut self, path: &Path, file: &str, moved: bool) -> Option<Look> {
         let same_file = self.path.as_deref() == Some(path);
-        if same_file && self.stat == stat && self.since < RECHECK_SECS && self.last.is_some() {
+        if same_file && !moved && self.last.is_some() {
             return None;
         }
-        self.since = 0.0;
         if !same_file {
             *self = Watch { path: Some(path.to_owned()), ..Watch::default() };
         }
-        self.stat = stat;
-        let look = match std::fs::read_to_string(path) {
+        let look = match read_settings_file(path) {
             Ok(text) => {
                 let hash = hash_of(&text);
                 match self.last.clone().filter(|_| self.hash == Some(hash)) {
@@ -800,7 +820,7 @@ impl Watch {
                     }
                 }
             }
-            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+            Err(e) if is_absent(&e) => {
                 self.hash = None;
                 self.good = None;
                 Look::Gone
@@ -823,6 +843,7 @@ impl Watch {
 pub struct SettingsView {
     user: Watch,
     project: Watch,
+    heard: Heard,
 }
 
 impl SettingsView {
@@ -833,18 +854,156 @@ impl SettingsView {
     }
 }
 
+/// **What one reader of the settings files has heard of their indexes**, kept by that reader (a `Local`, or a resource of its own).
+#[derive(Default)]
+pub struct Heard {
+    user: Feed,
+    project: Feed,
+}
+
+/// One file as a reader follows it.
+#[derive(Default)]
+struct Feed {
+    path: Option<PathBuf>,
+    /// The file's index has had its first listing since this path was first seen: the one read that catches a change made between the
+    /// reader's first read and that listing (the first listing publishes no event).
+    armed: bool,
+    failure: Option<String>,
+}
+
+impl Feed {
+    /// Whether the file must be read now: the index said it changed, or this is the first frame its index has a listing, or the index
+    /// started or stopped failing (the read then says why, as it always did). `None` for no file.
+    fn moved(&mut self, path: Option<&Path>, listing_in: bool, failure: Option<String>, changed: bool) -> bool {
+        let Some(path) = path else {
+            *self = Feed::default();
+            return false;
+        };
+        if self.path.as_deref() != Some(path) {
+            *self = Feed { path: Some(path.to_owned()), ..Feed::default() };
+        }
+        let mut moved = changed;
+        if listing_in && !self.armed {
+            self.armed = true;
+            moved = true;
+        }
+        if failure != self.failure {
+            self.failure = failure;
+            moved = true;
+        }
+        moved
+    }
+}
+
+/// Which of the two settings files moved this frame.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct Moved {
+    pub user: bool,
+    pub project: bool,
+}
+
+impl Moved {
+    /// Whether either file moved.
+    pub fn any(self) -> bool {
+        self.user || self.project
+    }
+}
+
+/// **The two settings files' news, for any system that reads them** (#501 item 18): the project's file moved when the project's index
+/// published a [`ProjectFileChanged`] for its path, the person's when [`OutsideFiles`] published an [`OutsideFileChanged`] for its
+/// folder and name. Each system that takes it has its own cursor over the messages and its own [`Heard`].
+#[derive(SystemParam)]
+pub struct FileNews<'w, 's> {
+    project_changed: MessageReader<'w, 's, ProjectFileChanged>,
+    outside_changed: MessageReader<'w, 's, OutsideFileChanged>,
+    project_index: Res<'w, ProjectIndex>,
+    outside: Res<'w, OutsideFiles>,
+}
+
+impl FileNews<'_, '_> {
+    /// **Which files must be read now**, given where they are (`None` for no file). Cheap enough to run every frame: two message
+    /// readers and a few atomic loads, with no filesystem in it.
+    pub fn moved(&mut self, heard: &mut Heard, user: Option<&Path>, project: Option<&Path>) -> Moved {
+        let user_at = user.and_then(project_index::split_file);
+        let user_hit = {
+            let mut hit = false;
+            for e in self.outside_changed.read() {
+                hit |= user_at.as_ref().is_some_and(|(dir, name)| &e.root == dir && &e.rel == name);
+            }
+            hit
+        };
+        let (user_listing, user_failure) = match &user_at {
+            Some((dir, _)) => (self.outside.generation(dir) != 0, self.outside.failure(dir)),
+            None => (false, None),
+        };
+        // A project file is followed by the index only when the index follows the root it is under.
+        let root = self.project_index.root();
+        let project = project.filter(|p| root.is_some_and(|r| p.starts_with(r)));
+        let project_hit = if self.project_changed.is_empty() {
+            false
+        } else {
+            let rel = project.zip(root).and_then(|(p, r)| p.strip_prefix(r).ok()).and_then(|r| r.to_str()).map(|r| r.replace('\\', "/"));
+            let mut hit = false;
+            for e in self.project_changed.read() {
+                hit |= rel.as_deref() == Some(e.rel.as_str());
+            }
+            hit
+        };
+        Moved {
+            user: heard.user.moved(user, user_listing, user_failure, user_hit),
+            project: heard.project.moved(project, self.project_index.generation() != 0, self.project_index.failure(), project_hit),
+        }
+    }
+
+    /// **Whether the project's index lists `path`**: `None` until it has a listing (or when `path` is not under its root). A file the
+    /// index does not list (a `.gitignore`d one, or one in a skipped folder) is read when it is first seen and its edits are not
+    /// followed.
+    fn project_file_listed(&self, path: &Path) -> Option<bool> {
+        let snapshot = self.project_index.snapshot()?;
+        let rel = path.strip_prefix(self.project_index.root()?).ok()?.to_str()?.replace('\\', "/");
+        Some(snapshot.files.binary_search_by(|(listed, _)| listed.as_str().cmp(&rel)).is_ok())
+    }
+}
+
+/// **Follow the folder the person's settings file is in**, for that file's name and no other file in it. A person who has never saved a
+/// setting has no such folder, and that is not an error: the file is then a `Created` event when it comes.
+pub fn follow_the_user_file(user: Option<Res<UserSettingsFile>>, mut outside: ResMut<OutsideFiles>, mut followed: Local<Option<(PathBuf, String)>>) {
+    let Some(user) = user else {
+        if let Some((dir, _)) = followed.take() {
+            outside.unfollow(&dir);
+        }
+        return;
+    };
+    if !user.is_changed() {
+        return;
+    }
+    let want = project_index::split_file(&user.0);
+    if *followed == want {
+        return;
+    }
+    if let Some((dir, _)) = followed.take() {
+        outside.unfollow(&dir);
+    }
+    if let Some((dir, name)) = &want {
+        outside.follow(dir, &[name.as_str()]);
+    }
+    *followed = want;
+}
+
 /// **Everything [`sync_settings`] resolves from**, grouped so its argument list stays readable and
 /// under clippy's limit as a source is added.
 #[derive(bevy::ecs::system::SystemParam)]
-pub struct SettingsSources<'w> {
+pub struct SettingsSources<'w, 's> {
     project: Option<Res<'w, Project>>,
     user_file: Option<Res<'w, UserSettingsFile>>,
     /// **What this machine has** (#341), asked once at start-up by the binary. Absent in a test, whose
     /// editor resolves from the built-in default alone and so opens the shell it always did.
     machine: Option<Res<'w, MachineAgent>>,
+    /// Which of the two files moved ([`FileNews`]).
+    news: FileNews<'w, 's>,
 }
 
-impl SettingsSources<'_> {
+impl SettingsSources<'_, '_> {
     /// The agent this machine's terminal starts with when no file states one.
     fn machine_agent(&self) -> TerminalAgent {
         MachineAgent::resolved(self.machine.as_deref())
@@ -897,31 +1056,40 @@ fn agent_verdict(file: String, source: AgentFile, culprit: Option<AgentFile>, pr
 /// A file that does not read is refused and its layer stays as it last read; a file that is gone has no
 /// layer. A verdict is said once per distinct finding, so a frame in between decides nothing.
 pub fn sync_settings(
-    time: Res<Time>,
-    sources: SettingsSources,
+    mut sources: SettingsSources,
     mut view: ResMut<SettingsView>,
     mut settings: ResMut<EditorSettings>,
     mut reloads: Option<ResMut<EditorReloads>>,
     mut state: Option<ResMut<EditorState>>,
     mut last_culprit: Local<Option<AgentFile>>,
 ) {
-    let dt = time.delta_secs();
+    let user_path = sources.user_file.as_deref().map(|f| f.0.clone());
+    let project_path = sources.project.as_deref().map(|p| p.project_dir.join(PROJECT_FILE));
+    let moved = sources.news.moved(&mut view.heard, user_path.as_deref(), project_path.as_deref());
     let mut looks: Vec<(String, Look, AgentFile)> = Vec::new();
     // Every file this frame can name, looked at or not, so a verdict that depends on the *other* file can be said again.
     let mut named: Vec<(String, AgentFile)> = Vec::new();
-    if let Some(file) = &sources.user_file {
-        let name = file.0.to_string_lossy().replace('\\', "/");
+    if let Some(file) = &user_path {
+        let name = file.to_string_lossy().replace('\\', "/");
         named.push((name.clone(), AgentFile::User));
-        if let Some(look) = view.user.look(&file.0, &name, dt) {
+        if let Some(look) = view.user.look(file, &name, moved.user) {
             looks.push((name, look, AgentFile::User));
         }
     }
-    if let Some(project) = &sources.project {
-        let path = project.project_dir.join(PROJECT_FILE);
-        let name = crate::map_files::file_name(project, &path);
+    if let (Some(project), Some(path)) = (&sources.project, &project_path) {
+        let name = crate::map_files::file_name(project, path);
         named.push((name.clone(), AgentFile::Project));
-        if let Some(look) = view.project.look(&path, &name, dt) {
+        if let Some(look) = view.project.look(path, &name, moved.project) {
             looks.push((name, look, AgentFile::Project));
+        }
+        // **A project file the index does not list cannot be followed**: it is read now, and an edit to it is not seen. Said once.
+        if moved.project
+            && !view.project.unfollowed_said
+            && matches!(view.project.last, Some(Look::Applied | Look::Refused { .. }))
+            && sources.news.project_file_listed(path) == Some(false)
+        {
+            warn!("{} is not listed by the project index (a .gitignore rule or a skipped folder hides it), so an edit to it is not followed until the project is opened again", path.display());
+            view.project.unfollowed_said = true;
         }
     } else if view.project.path.is_some() {
         view.project = Watch::default();

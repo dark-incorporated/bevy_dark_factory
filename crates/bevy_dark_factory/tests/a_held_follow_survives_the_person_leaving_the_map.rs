@@ -59,6 +59,17 @@ fn updates(app: &mut App, frames: usize) {
     }
 }
 
+/// **Wait on the wall clock until the editor has taken a settings edit made by hand** (#501 item 18: the settings files are followed by an
+/// index, not polled, so an edit is seen after the index's sweep and debounce, which a fixed number of frames does not wait for). The
+/// assertions after it are unchanged.
+fn until_the_editor_has(app: &mut App, done: impl Fn(&EditorSettings) -> bool) {
+    let began = std::time::Instant::now();
+    while !done(app.world().resource::<EditorSettings>()) && began.elapsed() < Duration::from_secs(10) {
+        app.update();
+        std::thread::sleep(Duration::from_millis(15));
+    }
+}
+
 fn editor(tag: &str) -> App {
     let root = fixtures::Fixture::new(&format!("{tag}_{}", std::process::id())).side(32.0).descriptor("wall", "alpha").place("wall", (1.5, 1.5)).build("m");
     let mut app = harness::build_headless(&root, "m", None).unwrap_or_else(|e| panic!("{e}"));
@@ -157,6 +168,7 @@ fn a_pending_look_survives_a_held_request() {
     // The person turns the follow off (the setting, written where the editor reads it) and asks to look. The request is held, so the queue reads empty; the Look is still theirs.
     let settings = app.world().resource::<Project>().project_dir.join("editor.yaml");
     std::fs::write(&settings, "{version: 1, follow_agent: false}").expect("editor.yaml");
+    until_the_editor_has(&mut app, |s| !s.follow_agent);
     updates(&mut app, 120);
     assert!(!app.world().resource::<EditorSettings>().follow_agent, "the setting did not reach the running editor, so the test would prove nothing about it");
     app.world_mut().resource_mut::<Following>().look_now();

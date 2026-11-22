@@ -578,5 +578,9 @@ pub fn edit_layer(path: &Path, change: impl FnOnce(&mut SettingsLayer) -> Result
     if let Some(dir) = path.parent() {
         std::fs::create_dir_all(dir).map_err(|e| format!("{}: {e}", dir.display()))?;
     }
-    blueprint_model::atomic_file::write(path, text).map_err(|e| format!("{file}: {e}"))
+    blueprint_model::atomic_file::write(path, text).map_err(|e| format!("{file}: {e}"))?;
+    // **The write is done, so the editor's own indexes are told and have published** before this returns: the next frame sees the
+    // change, as it did when the file was stat-ed every frame (#501 item 18).
+    crate::project_index::note_path_written(path);
+    Ok(())
 }

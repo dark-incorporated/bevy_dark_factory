@@ -53,6 +53,17 @@ fn frames_of(seconds: f32) -> usize {
     (seconds / FRAME).ceil() as usize + 2
 }
 
+/// **Wait on the wall clock until the editor has taken a settings edit made by hand** (#501 item 18: the settings files are followed by an
+/// index, not polled, so an edit is seen after the index's sweep and debounce, which a fixed number of frames on a manual clock does not
+/// wait for). The assertions after it are unchanged.
+fn until_the_editor_has(app: &mut App, done: impl Fn(&EditorSettings) -> bool) {
+    let began = std::time::Instant::now();
+    while !done(app.world().resource::<EditorSettings>()) && began.elapsed() < Duration::from_secs(10) {
+        app.update();
+        std::thread::sleep(Duration::from_millis(15));
+    }
+}
+
 fn room(tag: &str) -> std::path::PathBuf {
     fixtures::Fixture::new(&format!("{tag}_{}", std::process::id()))
         .side(64.0)
@@ -194,6 +205,7 @@ fn running_look_frames_the_change_the_follow_is_holding_back() {
     // **The person's setting**, written where the editor reads it: the follow never moves on its own.
     let settings = app.world().resource::<Project>().project_dir.join("editor.yaml");
     std::fs::write(&settings, "{version: 1, follow_agent: false}").expect("editor.yaml");
+    until_the_editor_has(&mut app, |s| !s.follow_agent);
     for _ in 0..frames_of(1.5) {
         app.update();
     }
@@ -278,6 +290,7 @@ fn holding_the_look_chord_is_one_look_and_is_not_read_as_a_gesture() {
     let mut app = editor(&root);
     let settings = app.world().resource::<Project>().project_dir.join("editor.yaml");
     std::fs::write(&settings, "{version: 1, follow_agent: false}").expect("editor.yaml");
+    until_the_editor_has(&mut app, |s| !s.follow_agent);
     for _ in 0..frames_of(1.5) {
         app.update();
     }
