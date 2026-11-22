@@ -8,10 +8,11 @@
 //! with the file and the field, and the checks the editor asks keep running as the last good ones
 //! define them until the file reads again.
 //!
-//! The file is looked at every frame by its size and modification time, and read again when either
-//! moved, or once a second regardless, because two writes inside one coarse timestamp tick look
-//! alike. A read that finds the same text as the last one decides nothing, so one edit is one verdict
-//! however many frames pass.
+//! **The file is read again when the project index says it moved** ([`crate::project_index`], #501): the stamp the
+//! index holds for the path is not the one the last look was made at. A frame in which the index's generation did not
+//! move makes no filesystem call (one atomic load, after the path is built), and a change to another file reads nothing. A read that finds the same text as the last
+//! one decides nothing, so one edit is one verdict however many frames pass. A file the index cannot follow (outside the
+//! project, under a skipped folder, named by `.gitignore`) is refused and not read; see [`crate::followed_files`].
 //!
 //! The type is the decision crate's, above core, so [`blueprint_model::reload_check::check`] cannot
 //! read it; [`blueprint_model::reload_check::read`] names the field of a file that does not parse,
@@ -19,7 +20,6 @@
 //! threshold outside 0..=1), which has no one field.
 
 use std::path::{Path, PathBuf};
-use std::time::SystemTime;
 
 use bevy::prelude::*;
 use blueprint_model::live::KindVerdict;
@@ -27,11 +27,10 @@ use blueprint_model::reload_check;
 use bevy_oracle::{Checks, Error as DecideError, PROJECT_CHECKS_FILE};
 
 use crate::editor::EditorState;
+use crate::followed_files::{self, Asked, Looked};
 use crate::live::EditorReloads;
 use crate::project::Project;
-
-/// How long a file whose size and modification time did not move goes unread.
-const RECHECK_SECS: f32 = 1.0;
+use crate::project_index::ProjectIndex;
 
 /// **What a look at the file found.**
 #[derive(Clone, PartialEq)]
@@ -39,7 +38,7 @@ enum Seen {
     /// No file: the editor's own checks alone.
     Missing,
     Text(String),
-    /// There, and cannot be read; the reason.
+    /// There, and cannot be read, or the project index cannot follow it; the reason.
     Unreadable(String),
 }
 
@@ -48,14 +47,26 @@ enum Seen {
 pub struct ChecksView {
     /// The `checks.yaml` this holds the checks of; another project's file starts the view afresh.
     path: PathBuf,
-    stat: Option<(SystemTime, u64)>,
+    /// What the last look was made at: the index's stamp of the file.
+    followed: Option<Looked>,
+    /// Why the index could not be asked, said once.
+    unanswered: Option<String>,
+    /// **How many times the view has looked at the filesystem**: the file read, and the `.gitignore` read and symbolic-link check a
+    /// path the index does not list needs. A test says a change to another file did not make the view look.
+    reads: u64,
     /// What the last look found, good or refused, so the same bytes are decided once.
     seen: Option<Seen>,
-    since: f32,
     /// The editor's checks with the project's over them, as of the last read that was good (no file is
     /// the editor's alone). `None` until one: a file that was broken from the first look has no earlier
     /// good state, so [`checks_for`] falls back to the reader, which says why.
     good: Option<Checks>,
+}
+
+impl ChecksView {
+    /// **How many filesystem looks the view has made** (see the field).
+    pub fn reads(&self) -> u64 {
+        self.reads
+    }
 }
 
 /// `<project root>/assets/blueprint/checks.yaml`, the path `Checks::for_project` reads.
@@ -92,14 +103,14 @@ fn read(file: &str, text: &str) -> Result<Checks, (Option<String>, String)> {
     }
 }
 
-/// **Read the project's `checks.yaml` when it changed, and decide it once.**
+/// **Read the project's `checks.yaml` when the index says it moved, and decide it once.**
 ///
 /// A file that reads replaces the held checks; one that is refused (not YAML, a wrong type, a missing
 /// field, two checks of one name, a threshold outside 0..=1) leaves them; a file that is gone is the
 /// editor's checks alone and clears its verdict. A refusal names the file as the project's directory
 /// sees it and the field it is wrong at.
 pub fn sync_checks_view(
-    time: Res<Time>,
+    index: Res<ProjectIndex>,
     project: Option<Res<Project>>,
     mut view: ResMut<ChecksView>,
     mut reloads: Option<ResMut<EditorReloads>>,
@@ -107,22 +118,43 @@ pub fn sync_checks_view(
 ) {
     let Some(project) = project else { return };
     let path = path_in(&project.root);
-    view.since += time.delta_secs();
-    let stat = std::fs::metadata(&path).ok().and_then(|m| Some((m.modified().ok()?, m.len())));
     let same_file = view.path == path;
-    if same_file && view.stat == stat && view.since < RECHECK_SECS {
+    if same_file && view.followed.as_ref().is_some_and(|f| f.generation == index.generation()) {
         return;
     }
-    view.since = 0.0;
-    let seen = match std::fs::read_to_string(&path) {
-        Ok(text) => Seen::Text(text),
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Seen::Missing,
-        // A file that is there and cannot be read (not UTF-8, no permission) is not a file that is gone:
-        // it is refused, as `Checks::for_project` refused it by naming the path.
-        Err(e) => Seen::Unreadable(e.to_string()),
+    let snapshot = match followed_files::ask(&index, &project.root) {
+        Asked::Wait => return,
+        Asked::Refuse(why) => {
+            followed_files::say_once(&mut view.unanswered, "the checks file", Some(why), state.as_deref_mut());
+            return;
+        }
+        Asked::Ready(snapshot) => snapshot,
+    };
+    followed_files::say_once(&mut view.unanswered, "the checks file", None, None);
+    if same_file && let Some(followed) = view.followed.as_mut() && !followed.moved(&project.root, &snapshot) {
+        followed.generation = snapshot.generation;
+        return;
+    }
+    let mut looks = 0u64;
+    let reach = followed_files::reach(&project.root, &snapshot, &path, &mut looks);
+    view.reads += looks;
+    let followed = Looked::new(&snapshot, &project.root, vec![(path.clone(), reach.clone().unwrap_or(None))]);
+    let seen = match reach {
+        // **No event will ever say this file moved**, so it is not read: refused, with the reason.
+        Err(why) => Seen::Unreadable(why),
+        Ok(_) => {
+            view.reads += 1;
+            match std::fs::read_to_string(&path) {
+                Ok(text) => Seen::Text(text),
+                Err(e) if e.kind() == std::io::ErrorKind::NotFound => Seen::Missing,
+                // A file that is there and cannot be read (not UTF-8, no permission) is not a file that is gone:
+                // it is refused, as `Checks::for_project` refused it by naming the path.
+                Err(e) => Seen::Unreadable(e.to_string()),
+            }
+        }
     };
     if same_file && view.seen.as_ref() == Some(&seen) {
-        view.stat = stat;
+        view.followed = Some(followed);
         return;
     }
     if !same_file {
@@ -133,7 +165,7 @@ pub fn sync_checks_view(
         }
     }
     view.path = path.clone();
-    view.stat = stat;
+    view.followed = Some(followed);
     view.seen = Some(seen.clone());
     let file = path.strip_prefix(&project.project_dir).unwrap_or(&path).to_string_lossy().replace('\\', "/");
     let decided = match &seen {
