@@ -43,7 +43,6 @@ use crate::editor::{DoorRequest, EditorState, TargetLock};
 use crate::files_lang::{self, Lang};
 use crate::inspector_view::PoseBlock;
 use crate::project::{OpenMap, Project};
-use crate::screen::Screen;
 use crate::workspace::Workspace;
 
 /// **The largest YAML file the scan reads**, in bytes: the Files workspace's own limit, so the scan never reads what the editor will not open.
@@ -55,9 +54,6 @@ pub const PLACEMENTS_KEY: &str = "placements";
 /// **The library file's list of descriptors** (`library.yaml`'s `descriptors:`), for the same reason: a stamp or a note can
 /// carry a piece's word too.
 pub const PIECES_KEY: &str = "descriptors";
-
-/// How often the inspector's `Used by` line reads the project's maps again, in seconds. A selection change is read at once.
-pub const USED_BY_POLL_S: f32 = 1.0;
 
 /// **One value in a project file that names another thing**: its kind (`cue`, `library`), the name it holds, the file (relative to the
 /// project) and the line, counted from 1 as an editor shows it.
@@ -318,11 +314,32 @@ pub struct OpenFileButton;
 #[derive(Component)]
 pub struct OpenPieceFileButton;
 
+/// **How a map file's name ends**: what [`Project::maps_that_place`] reads.
+const MAP_FILE_SUFFIX: &str = ".map.yaml";
+
 /// What the inspector's line last said, and for what.
 #[derive(Default)]
 struct Shown {
     key: Option<(String, String)>,
-    since: f32,
+    /// **A map file moved** (the project index said so) since the line was last read.
+    stale: bool,
+    /// Whether the line has said the project index does not follow the project, so it is said once.
+    refused: bool,
+}
+
+/// **Whether `rel` (under the project, `/`-separated) is a file the `Used by` line depends on**: a map file directly in the project's maps
+/// folder, the files [`Project::maps_that_place`] reads from disk. (It also asks the in-memory compositions, which no file event changes.)
+fn moves_the_used_by_line(project: &Project, rel: &str) -> bool {
+    project.maps_dir.strip_prefix(&project.root).is_ok_and(|maps| Path::new(rel).parent() == Some(maps)) && rel.ends_with(MAP_FILE_SUFFIX)
+}
+
+/// How many times the `Used by` line has asked [`Project::maps_that_place`] (so read `maps/`), in this process: a test reads it across a
+/// change to say that an unrelated one caused no read.
+static USED_BY_READS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
+/// **How many times the `Used by` line has read `maps/`** in this process.
+pub fn used_by_reads() -> u64 {
+    USED_BY_READS.load(std::sync::atomic::Ordering::Relaxed)
 }
 
 /// **What the references block reads**: the project, the open map and the editor's one lock, as one fact ("what is selected").
@@ -334,11 +351,22 @@ pub struct Selected<'w, 's> {
     poses: Query<'w, 's, (Entity, Option<&'static Children>), With<PoseBlock>>,
     blocks: Query<'w, 's, Entity, With<LinksBlock>>,
     lines: Query<'w, 's, &'static mut Text, With<UsedByLine>>,
+    index: Res<'w, crate::project_index::ProjectIndex>,
+    moved: MessageReader<'w, 's, crate::project_index::ProjectFileChanged>,
 }
 
 /// **Put the references block under the pose block while a piece is selected**, and keep its `Used by` line true. Spawned with the pose
 /// block (and gone with it), never kept hidden.
-fn draw_the_links(mut commands: Commands, time: Res<Time<Real>>, mut selected: Selected, mut shown: Local<Shown>) {
+///
+/// **The line is read again when the project index says a map file moved** (#501), or the selection changed: no timer and no `read_dir` of its own. The system runs in every state, so the index's messages (which live two frames) are
+/// read whether or not the map is open; it does nothing while there is no pose block.
+fn draw_the_links(mut commands: Commands, mut selected: Selected, mut shown: Local<Shown>) {
+    let moved: Vec<String> = selected.moved.read().map(|event| event.rel.clone()).collect();
+    if let Some(project) = selected.project.as_deref()
+        && moved.iter().any(|rel| moves_the_used_by_line(project, rel))
+    {
+        shown.stale = true;
+    }
     let Some(block) = selected.poses.iter().map(|(entity, _)| entity).next() else {
         shown.key = None;
         return;
@@ -362,14 +390,25 @@ fn draw_the_links(mut commands: Commands, time: Res<Time<Real>>, mut selected: S
     let (Some(project), Some(open), Some(lock)) = (selected.project.as_deref(), selected.open.as_deref(), selected.lock.as_deref()) else { return };
     let Some(id) = lock.placement_id() else { return };
     let Some(piece) = open.map.placements.iter().find(|p| p.id == id).map(|p| p.descriptor.clone()) else { return };
-    shown.since += time.delta_secs();
     let key = (id.to_owned(), piece.clone());
-    if shown.key.as_ref() == Some(&key) && shown.since < USED_BY_POLL_S {
+    if shown.key.as_ref() == Some(&key) && !shown.stale {
         return;
     }
-    shown.since = 0.0;
+    shown.stale = false;
     shown.key = Some(key);
-    let words = used_by_line(project, &piece).unwrap_or_else(|why| why);
+    // **A project the index does not follow is refused, not read another way**: the line says so.
+    let words = if selected.index.root() == Some(project.root.as_path()) {
+        shown.refused = false;
+        USED_BY_READS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        used_by_line(project, &piece).unwrap_or_else(|why| why)
+    } else {
+        let why = format!("the project index does not follow {}, so the maps cannot be asked", project.root.display());
+        if !shown.refused {
+            shown.refused = true;
+            warn!("{why}");
+        }
+        why
+    };
     for mut line in &mut selected.lines {
         if line.0 != words {
             line.0 = words.clone();
@@ -417,6 +456,8 @@ pub struct CrossLinksPlugin;
 
 impl Plugin for CrossLinksPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Update, draw_the_links.run_if(in_state(Screen::Editor)).run_if(Workspace::map_is_open)).add_observer(on_open_file);
+        // **The links block reads the project index**, so the plugin that has the dependency adds it.
+        crate::project_index::ensure(app);
+        app.add_systems(Update, draw_the_links).add_observer(on_open_file);
     }
 }
