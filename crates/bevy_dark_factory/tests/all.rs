@@ -629,6 +629,7 @@ mod a_click_on_the_other_door_crosses_to_it;
 mod each_map_card_wears_its_own_picture;
 mod the_project_page;
 mod the_project_index_is_the_one_watcher;
+mod the_settings_files_are_followed_and_not_polled;
 mod the_mount_and_front_row_says_both_values_inside_the_panel;
 mod the_menus_offer_the_app_verbs;
 mod a_new_project_form_opens_ready_to_type_in;

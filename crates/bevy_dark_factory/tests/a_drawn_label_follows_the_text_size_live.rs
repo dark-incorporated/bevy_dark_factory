@@ -69,6 +69,14 @@ fn a_label_already_drawn_follows_the_text_size_when_it_changes() {
 
     // **After the build**, the person asks for larger text.
     std::fs::write(&settings_file, "{version: 1, text_scale: 1.75}").expect("a settings file");
+    // **The edit is followed by an index, not polled** (#501 item 18): it is seen after the index's sweep and debounce on the wall clock,
+    // which a fixed number of frames does not wait for (Owner exception 2026-11-14: the wait is for the condition).
+    let began = std::time::Instant::now();
+    while app.world().resource::<bevy_dark_factory::settings::EditorSettings>().text_scale != 1.75 {
+        assert!(began.elapsed().as_secs_f64() < 10.0, "the editor never took the hand-edited text size");
+        app.update();
+        std::thread::sleep(std::time::Duration::from_millis(15));
+    }
     for _ in 0..12 {
         app.update();
     }

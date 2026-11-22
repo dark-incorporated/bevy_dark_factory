@@ -534,6 +534,9 @@ pub struct AfterEditPlugin;
 
 impl Plugin for AfterEditPlugin {
     fn build(&self, app: &mut App) {
+        // **The two settings files are followed, not polled** (#501 item 18): the project's by its index, the person's by a folder outside the project.
+        crate::project_index::ensure(app);
+        crate::project_index::ensure_outside(app);
         app.add_observer(on_check_view)
             .init_resource::<AfterEditQueue>()
             .init_resource::<Reports>()
@@ -550,7 +553,7 @@ impl Plugin for AfterEditPlugin {
             .init_resource::<crate::settings::EditorSettings>()
             .add_systems(
                 Update,
-                (crate::checks_view::sync_checks_view, crate::oplog_view::sync_oplog_view, crate::data_view::sync_data_view, crate::reference_view::sync_reference_view, crate::settings::sync_settings, crate::agent_guide::sync_guide_reload, queue_after_edit, start_checks, launch_shot_checks, collect_reports).chain(),
+                (crate::checks_view::sync_checks_view, crate::oplog_view::sync_oplog_view, crate::data_view::sync_data_view, crate::reference_view::sync_reference_view, crate::settings::follow_the_user_file, crate::settings::sync_settings, crate::agent_guide::sync_guide_reload, queue_after_edit, start_checks, launch_shot_checks, collect_reports).chain(),
             );
     }
 }
