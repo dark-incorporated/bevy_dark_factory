@@ -435,6 +435,100 @@ pub fn ui_scale_for_a_person(logical_width: f32, scale_factor: f32, interface_sc
     crate::chrome::EDITOR_UI_SCALE * growth * scale_factor * wanted
 }
 
+/// **What the interface size takes of a window, and what the window leaves it** (#537): the person's choice, and the choice as the
+/// window can hold it.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct InterfaceFit {
+    /// The interface size the editor is drawn at: the person's choice, or less when the window cannot hold it. At most the choice, at least
+    /// [`crate::settings::SCALE_RANGE`]'s floor.
+    pub effective: f32,
+    /// Whether the window cut the person's choice down. The choice itself is never rewritten: a bigger window gives it back.
+    pub limited: bool,
+}
+
+/// **The layout the limit is read from, measured** (#537), one row per text size, in layout units (physical pixels over `UiScale`, so they do
+/// not move with the interface size): `(text size, chrome, need)`.
+///
+/// - **chrome**: the height of the frame that is not the body: the bars, the door strip and what stands between them (`frame - body` of the
+///   laid-out frame, with the bottom dock hidden).
+/// - **need**: the height of the whole frame at which the tallest panel's scroll viewport is exactly one text row tall: everything above the
+///   viewport (the chrome, the panel's margin, title and fixed lines) plus the row, taken from the panel that needs most (TILES) and the
+///   largest reading over the interface sizes 1.0 to 2.5 where the dock was hidden, rounded up.
+///
+/// Measured by running the census's own floors on the capture's window height (802 logical) at each text size, and checked in
+/// `the_layout_table_behind_the_limit_is_what_the_layout_measures` (the census file), which re-measures both columns from the layout and fails when
+/// they drift. The text-size rows are a quarter step apart.
+/// A row is not linear in the text size (wrapping and snapping to whole pixels: the last quarter step adds 151 units), so the table is not fitted:
+/// between two rows the need of the row above and the chrome of the row below are used, the safe side of each.
+pub const LAYOUT_BY_TEXT_SIZE: [(f32, f32, f32); 11] = [
+    (0.5, 143.0, 276.0),
+    (0.75, 146.0, 301.0),
+    (1.0, 153.0, 334.0),
+    (1.25, 160.0, 378.0),
+    (1.5, 170.0, 413.0),
+    (1.75, 179.0, 484.0),
+    (2.0, 188.0, 550.0),
+    (2.25, 200.0, 620.0),
+    (2.5, 214.0, 669.0),
+    (2.75, 226.0, 739.0),
+    (3.0, 239.0, 888.0),
+];
+
+/// One layout unit of slack on every edge read off the table: layout rounds to whole device pixels, and the measured readings of one cell
+/// differ by up to this much from one interface size to the next.
+const LAYOUT_SLACK: f32 = 1.0;
+
+/// `(chrome, need)` at a text size: the need of the first measured row at or above it, the chrome of the last at or below it. A text size beyond
+/// the table's ends is held at the end.
+fn layout_at(text_scale: f32) -> (f32, f32) {
+    let rows = LAYOUT_BY_TEXT_SIZE;
+    let chrome = rows.iter().rev().find(|row| row.0 <= text_scale).map_or(rows[0].1, |row| row.1);
+    let need = rows.iter().find(|row| row.0 >= text_scale).map_or(rows[rows.len() - 1].2, |row| row.2);
+    (chrome, need)
+}
+
+/// **The interface size a window can hold** (#537): the person's choice, cut down where the window's height leaves a panel no room to be read.
+///
+/// The frame is `logical_height / (EDITOR_UI_SCALE * growth * size)` layout units tall. A panel is readable when that is at least its *need*
+/// ([`LAYOUT_BY_TEXT_SIZE`]); below it the chrome and the panel's own heading fill the window and its list has no row. The bottom dock is the
+/// second edge: the shell shows it once the body keeps [`crate::chrome::WORKBENCH_FLOOR_H`] beside it, and where a panel needs more than that
+/// (large text) the dock takes the room the panel's list needed, so the heights from there to `need + BOTTOM_DOCK_H` are not held either (and
+/// at the largest text sizes nothing below `need + BOTTOM_DOCK_H` is), and a choice that falls in them is given the size at the far end.
+///
+/// **Never below the setting's own floor.** A window too short for even that is not helped (a reading of the table: at text 300% under about 460
+/// logical px tall); `limited` stays false for a person who asked for the floor.
+pub fn fit_interface_scale(logical_width: f32, logical_height: f32, text_scale: f32, interface_scale: f32) -> InterfaceFit {
+    let (floor, ceiling) = crate::settings::SCALE_RANGE;
+    let wanted = interface_scale.clamp(floor, ceiling);
+    let growth = (logical_width / REFERENCE_W).clamp(1.0, MAX_GROWTH);
+    let per_size = crate::chrome::EDITOR_UI_SCALE * growth;
+    let (chrome, need) = layout_at(text_scale);
+    let frame_at = |size: f32| logical_height / (per_size * size);
+    let size_at = |frame: f32| logical_height / (per_size * frame);
+    let frame = frame_at(wanted);
+    // The heights a panel's list can be read at: from `need` up to where the dock is shown, and from `need` plus the dock's row up. Where a panel
+    // needs more than the dock's threshold (large text) the first range is empty.
+    let dock_comes = chrome + crate::chrome::WORKBENCH_FLOOR_H + crate::chrome::BOTTOM_DOCK_H - LAYOUT_SLACK;
+    let readable_with_the_dock = need + crate::chrome::BOTTOM_DOCK_H + LAYOUT_SLACK;
+    let held = if (frame >= need && frame < dock_comes) || frame >= readable_with_the_dock {
+        frame
+    } else if frame < need && need < dock_comes {
+        need
+    } else {
+        readable_with_the_dock
+    };
+    let effective = if held == frame { wanted } else { size_at(held).clamp(floor, wanted) };
+    InterfaceFit { effective, limited: effective < wanted - f32::EPSILON }
+}
+
+/// **`UiScale`, for a person's choices in a window of this size**: the fit of [`ui_scale_for_a_person`] at the interface size the window can
+/// hold ([`fit_interface_scale`]), with what was held. The one place a window limits the choice; the fit system and the settings screen's note
+/// both read it.
+pub fn ui_scale_in_a_window(logical_width: f32, logical_height: f32, scale_factor: f32, text_scale: f32, interface_scale: f32) -> (f32, InterfaceFit) {
+    let fit = fit_interface_scale(logical_width, logical_height, text_scale, interface_scale);
+    (ui_scale_for_a_person(logical_width, scale_factor, fit.effective), fit)
+}
+
 /// The width the editor's pixel constants were chosen against — a 16:10 laptop's logical width, and
 /// the size below which growth stops.
 const REFERENCE_W: f32 = 1600.0;
@@ -482,7 +576,9 @@ fn fit_surface_to_window(
     // interface's scale, so 125% enlarges the panels and the type together, in the units `UiScale`
     // already scales.
     let interface_scale = settings.as_deref().map_or(1.0, |s| s.interface_scale);
-    let want_ui = ui_scale_for_a_person(window.resolution.width(), sf, interface_scale);
+    let text_scale = settings.as_deref().map_or(1.0, |s| s.text_scale);
+    // **Limited to what the window can hold** (#537), live: this runs every frame, so a resize moves it, and the stored choice is read, never written.
+    let (want_ui, _) = ui_scale_in_a_window(window.resolution.width(), window.resolution.height(), sf, text_scale, interface_scale);
     if ui_scale.0 != want_ui {
         ui_scale.0 = want_ui;
     }

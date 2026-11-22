@@ -188,6 +188,11 @@ struct ProblemLine;
 #[derive(Component)]
 struct DecisionNote;
 
+/// **The line under the Interface size row that says the window limits it** (#537): *Limited to 190% by this window.* Empty when the window holds
+/// the choice. The choice itself is the stored one and is never rewritten; a bigger window gives it back.
+#[derive(Component)]
+struct InterfaceNote;
+
 /// The text of the dialog's problem line, which is neither a row's default nor the Decision model's note.
 type ProblemText = (With<ProblemLine>, Without<LineDefault>, Without<DecisionNote>);
 /// The text of the Decision model row's note.
@@ -363,12 +368,36 @@ impl Plugin for SettingsScreenPlugin {
         crate::project_index::ensure_outside(app);
         app.add_message::<OpenSettings>()
             .add_systems(Update, (chord, open, refresh, land_the_focus, clamp_the_scroll).chain())
-            .add_systems(Update, say_the_collection)
+            .add_systems(Update, (say_the_collection, say_the_interface_limit))
             .add_systems(
                 Update,
                 // After gooey has written its own readout (the number), so the percentage is the last word.
                 say_the_percentage.after(bevy_gooey::GooeySystems::Style),
             );
+    }
+}
+
+/// **What the Interface size row says when the window cuts the choice down** (#537). A literal sentence, in the quiet label role like the rest of the row's lines.
+pub fn interface_limit_sentence(effective: f32) -> String {
+    // Rounded down, so the line never promises more than the window holds.
+    format!("Limited to {}% by this window.", (effective * 100.0 + 0.001).floor())
+}
+
+/// **Keep the line under the Interface size row true**: the sentence while the window limits the choice, and nothing once it does not (a taller
+/// window, a smaller text size, a smaller choice). It reads the window and the settings the fit system reads, through the same function, and
+/// writes only when the words change.
+fn say_the_interface_limit(
+    windows: Query<&Window, With<bevy::window::PrimaryWindow>>,
+    settings: Option<Res<crate::settings::EditorSettings>>,
+    mut notes: Query<&mut Text, With<InterfaceNote>>,
+) {
+    let (Ok(window), Some(settings)) = (windows.single(), settings) else { return };
+    let fit = crate::surface::fit_interface_scale(window.width(), window.height(), settings.text_scale, settings.interface_scale);
+    let said = if fit.limited { interface_limit_sentence(fit.effective) } else { String::new() };
+    for mut text in &mut notes {
+        if text.0 != said {
+            text.0.clone_from(&said);
+        }
     }
 }
 
@@ -1090,6 +1119,9 @@ fn setting_row(
             }
             if key == "decision_model" {
                 row.spawn((label(note), DecisionNote));
+            }
+            if key == "interface_scale" {
+                row.spawn((label(String::new()), InterfaceNote));
             }
             row.spawn((
                 bevy_gooey::row_with(crate::chrome::GAP_GROUP_STEPS, bevy_gooey::RowLayout { align: Some(AlignItems::Center), wrap: Some(FlexWrap::Wrap), ..default() }),
