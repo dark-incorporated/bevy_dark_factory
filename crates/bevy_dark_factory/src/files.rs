@@ -19,7 +19,8 @@
 //!
 //! # A file that changes under unsaved edits is reported, never overwritten
 //!
-//! [`poll_the_disk`] looks at each open file every [`POLL_S`]. A file nobody has typed in simply reloads. A
+//! [`poll_the_disk`] reads an open file when the project index says it moved ([`crate::project_index::ProjectFileChanged`], #501):
+//! there is no timer and no `stat` of its own. A file nobody has typed in simply reloads. A
 //! file with unsaved edits keeps them, and the editor says so with two buttons, **Reload** (take the disk's)
 //! and **Keep mine** (the person's text stays, and a save is then their own decision to overwrite). Saving
 //! while the question is open is refused, so nothing is ever written over a change the person has not seen.
@@ -67,10 +68,6 @@ use crate::workspace::Workspace;
 /// **How long the editor waits after the last key before it reads the text again** for errors, in seconds:
 /// 150 ms (the issue's number). The colours and folds do not wait; a wave under a half-typed word would.
 pub const DIAGNOSE_IDLE_S: f64 = 0.15;
-
-/// How often the open files are looked at for a change made from outside, in seconds: the watcher's own
-/// quarter of a second.
-pub const POLL_S: f64 = 0.25;
 
 /// **The largest file the editor opens**, in bytes: two mebibytes. A text file a person edits by hand is
 /// kilobytes; past this it is data a program wrote, and a 2 MB buffer in a UI thread is a stall, not an edit.
@@ -165,6 +162,9 @@ pub struct Files {
     root: Option<PathBuf>,
     open: BTreeMap<String, OpenFile>,
     schemas: HashMap<&'static str, Option<Arc<Value>>>,
+    /// **What the project index said moved among the open files** since [`poll_the_disk`] last looked: the stamp the entry ended with
+    /// (`None` for one that is gone). Only open files are kept, so it is no larger than the tabs.
+    heard: BTreeMap<String, Option<Stamp>>,
 }
 
 impl Files {
@@ -337,6 +337,12 @@ pub fn open_file(world: &mut World, rel: &str) -> Result<(), String> {
             let file = OpenFile::from_disk(&root, rel)?;
             files.open.insert(rel.to_owned(), file);
         }
+    }
+    // **A file the index does not list is not followed**: it opens, but a change made to it from outside is not seen.
+    if let Some(snapshot) = world.get_resource::<crate::project_index::ProjectIndex>().and_then(|index| index.snapshot())
+        && !snapshot.files.iter().any(|(listed, _)| listed == rel)
+    {
+        warn!("{rel} is not in the project index's listing (ignored by .gitignore, in a skipped folder, or made a moment ago), so a change made to it from outside is not seen while it is open");
     }
     let mut session = world.get_resource_mut::<Session>().ok_or("there is no session to hold the tab")?;
     session.open(Workspace::Files, Doc::new(Kind::File, rel))?;
@@ -709,12 +715,13 @@ impl Plugin for FilesPlugin {
         crate::project_index::ensure(app);
         app.init_resource::<PointerAt>();
         app.init_resource::<Files>()
+            .add_systems(Update, hear_the_project)
             .add_systems(OnEnter(Screen::Editor), spawn_the_files_workspace.after(FrameSystems).run_if(in_files))
             .add_systems(
                 Update,
                 (
                     keep_the_open_files,
-                    poll_the_disk,
+                    poll_the_disk.after(hear_the_project),
                     keep_the_editor,
                     decorate_the_editor,
                     track_the_pointer,
@@ -734,7 +741,7 @@ impl Plugin for FilesPlugin {
             // coloured, in the Design workspace's page instead of the Files workspace's.
             .add_systems(
                 Update,
-                (keep_the_open_files, poll_the_disk, keep_the_design_editor, decorate_the_editor)
+                (keep_the_open_files, poll_the_disk.after(hear_the_project), keep_the_design_editor, decorate_the_editor)
                     .chain()
                     .run_if(in_state(Screen::Editor))
                     .run_if(Workspace::design_is_open),
@@ -935,16 +942,43 @@ fn keep_the_open_files(
     publish_unsaved(&project.root, dirty);
 }
 
-fn poll_the_disk(mut files: ResMut<Files>, time: Res<Time<Real>>, mut last: Local<f64>) {
-    let now = time.elapsed_secs_f64();
-    if now - *last < POLL_S {
+/// How many times an open file has been read because the index said it moved, in this process: a test reads it across a change to say that
+/// an unrelated one caused no read.
+static EVENT_READS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
+/// **How many times an open file was read because the project index said it moved**, in this process.
+pub fn reads_after_an_event() -> u64 {
+    EVENT_READS.load(std::sync::atomic::Ordering::Relaxed)
+}
+
+/// **Note which open files the project index says moved** (#501). It runs in every state, so a change that arrives while another workspace
+/// is showing is still there when the editor looks, and it keeps only what is open: a file opened later is read whole when it opens.
+fn hear_the_project(mut changed: MessageReader<crate::project_index::ProjectFileChanged>, mut files: ResMut<Files>) {
+    for event in changed.read() {
+        if event.dir || !files.open.contains_key(&event.rel) {
+            continue;
+        }
+        let stamp = event.stamp.map(|s| Stamp { len: s.len, modified: s.modified });
+        files.heard.insert(event.rel.clone(), stamp);
+    }
+}
+
+/// **Read the open files the index said moved.** A file the index does not follow is refused, said once, and not looked at any other way.
+fn poll_the_disk(mut files: ResMut<Files>, index: Res<crate::project_index::ProjectIndex>, mut refused: Local<bool>) {
+    let Some(root) = files.root.clone() else { return };
+    if index.root() != Some(root.as_path()) {
+        if !*refused {
+            *refused = true;
+            warn!("the project index does not follow {}, so a change made to an open file from outside is not seen", root.display());
+        }
         return;
     }
-    *last = now;
-    let Some(root) = files.root.clone() else { return };
-    for (rel, file) in files.open.iter_mut() {
-        let Ok(full) = inside(&root, rel) else { continue };
-        let stamp = Stamp::of(&full);
+    *refused = false;
+    let heard = std::mem::take(&mut files.heard);
+    for (rel, stamp) in heard {
+        let Some(file) = files.open.get_mut(&rel) else { continue };
+        let Ok(full) = inside(&root, &rel) else { continue };
+        let rel = &rel;
         if stamp == file.stamp {
             continue;
         }
@@ -956,6 +990,7 @@ fn poll_the_disk(mut files: ResMut<Files>, time: Res<Time<Real>>, mut last: Loca
         }
         // **Read the way an open reads** (a size and a UTF-8 check), so a file that grew past the limit or stopped being
         // text is refused here too, and the tab says why.
+        EVENT_READS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         let text = match read_text(&full, rel) {
             Ok((text, _)) => text,
             Err(why) => {

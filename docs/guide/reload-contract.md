@@ -249,8 +249,8 @@ These are written but are not project data, so they have no class. None is read 
 
 - [x] 1. `crosslinks` `SCAN_POLL_S` (1.5): the finder's scan reads the index's listing and re-reads only the YAML files whose stamp moved (`bd52f181`, review fixes `1607592a`, `9e1ea118`, `3dfb5c19`)
 - [x] 2. `files` `TREE_POLL_S` (1.5): the tree and `listed_files` are one answer from the index (`bd52f181`, review fixes `1607592a`, `9e1ea118`, `3dfb5c19`)
-- [ ] 3. `crosslinks` `USED_BY_POLL_S` (1.0): re-read `maps/` when a `maps/*.yaml` event arrives
-- [ ] 4. `files` `POLL_S` (0.25): an open file reloads on its own `Modified` event
+- [x] 3. `crosslinks` `USED_BY_POLL_S` (1.0): the inspector's `Used by` line reads `maps/` again when a `*.map.yaml` event arrives in the maps folder, or the selection changes (an unrelated file moving causes no read) (`tests/an_open_file_and_the_used_by_line_follow_the_project_index.rs`)
+- [x] 4. `files` `POLL_S` (0.25): an open file reloads on its own event, and a file with unsaved edits still asks and is not overwritten (`tests/an_open_file_and_the_used_by_line_follow_the_project_index.rs`)
 - [x] 5. `data_view` `RECHECK_SECS` (1.0): reads its file when the index's stamp for it moved, and looks at nothing when a neighbour moves (`tests/the_data_view_follows_the_project_index.rs`)
 - [x] 6. `notes_view` `RECHECK_SECS` (1.0): reads its file when the index's stamp for it moved, and looks at nothing when a neighbour moves (`tests/the_notes_view_follows_the_project_index.rs`)
 - [x] 7. `oplog_view` `RECHECK_SECS` (1.0): reads its file when the index's stamp for it moved, and looks at nothing when a neighbour moves (`tests/the_oplog_view_follows_the_project_index.rs`)
@@ -266,4 +266,4 @@ These are written but are not project data, so they have no class. None is read 
 - [ ] 17. `game_view` `LOG_POLL_S` (0.25): a growing log is a tail, not a listing; decide whether it stays a read loop
 - [ ] 18. `settings` `RECHECK_SECS` (1.0), `settings_screen` `LOOK_EVERY` (0.25) and `keymap_screen` `LOOK_EVERY` (0.25): these read the user's own settings and keymap files, outside the project root, so the index needs a second watched root first
 
-Items 1 and 2 are two of the 22 constants; the 20 that remain are items 3 to 18. `watch.rs`'s own 250 ms `POLL` is not one of the 22, and `project_index::SWEEP` is the one clock that stays. #501 closes when the last constant is retired.
+Items 1 to 4 are four of the 22 constants; the 18 that remain are items 5 to 18. `tests/no_module_polls_the_project_on_its_own_clock.rs` is a one-way ratchet on them: it fails when a poll constant of these shapes appears that is not on its list (it also names `project_page::GUIDE_READ_SECS`, a half-second poll of the agent guide that is not on this checklist). `watch.rs`'s own 250 ms `POLL` is not one of the 22, and `project_index::SWEEP` is the one clock that stays. #501 closes when the last constant is retired.
