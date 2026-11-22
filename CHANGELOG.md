@@ -4,7 +4,7 @@ What each change added, newest first. A visible change has a clip: click the sti
 
 ## 2026-11-22
 
-- **501-index** `1607592a` one background thread now walks the project once and publishes each changed file once, and the finder's scan and the file tree read what it holds, so two of the 22 poll constants (crosslinks::SCAN_POLL_S and files::TREE_POLL_S) are gone; 20 modules still stat on their own clocks, and the listing is an error rather than a second walk when no index can answer *No clip: no visible surface; stage 1 of #501, proved by crates/bevy_dark_factory/tests/the_project_index_is_the_one_watcher.rs and the_frame_a_change_lands_on_stays_inside_two_milliseconds.rs*
+- **501-index** `9e1ea118` one background thread now walks the project once and publishes each changed file once, and the finder's scan and the file tree read what it holds, so two of the 22 poll constants (crosslinks::SCAN_POLL_S and files::TREE_POLL_S) are gone; 20 modules still stat on their own clocks, the listing is an error rather than a second walk when no index can answer, and the finder's scan still runs on the UI thread (4 ms at 10,000 files, 43 ms at 100,000) whenever a text file comes, goes or changes *No clip: no visible surface; stage 1 of #501, proved by crates/bevy_dark_factory/tests/the_project_index_is_the_one_watcher.rs and the_frame_a_change_lands_on_stays_inside_two_milliseconds.rs*
 
 ## 2026-11-21
 
