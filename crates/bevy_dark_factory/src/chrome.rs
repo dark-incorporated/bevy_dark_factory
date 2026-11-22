@@ -1009,7 +1009,7 @@ pub const COL_WIDE: f32 = 96.0;
 ///
 /// **A word longer than the panel breaks at a letter** (`LineBreak::WordOrCharacter`, #535): a heading can carry a name, as COMPOSE's
 /// `MEMBERS OF <group id>` does, and with Bevy's word-boundary break a 50-character id stayed one word and was laid out 500 px past the panel's
-/// content box at the capture's scale, where a clip hid it and a larger interface scale drew the panel empty. The break alone, and no zero
+/// content box at the capture's scale, where a clip hid it and nothing could be read of it. The break alone, and no zero
 /// minimum width, is [`body`]'s and [`row_value`]'s: the box keeps reserving its own line.
 pub fn section<'a>(parent: &'a mut ChildSpawnerCommands, label: &str) -> EntityCommands<'a> {
     parent.spawn((

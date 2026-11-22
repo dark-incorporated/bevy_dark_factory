@@ -1584,22 +1584,20 @@ fn rebuild_slots(
                 // pane was the 2026-08-17 audit's clearest type drift.
                 crate::chrome::section(p, "MEASURED");
                 let ok = findings.iter().filter(|f| f.level == Level::Ok).count();
+                // **Each line wraps in a row of its own and breaks a long word at a letter** (#535), as the slot sub-lines above do.
                 if ok > 0 {
-                    p.spawn((
-                        Text::new(format!("{ok} measurement(s) agree with the manifest")),
-                        TextColor(quiet),
-                        crate::chrome::typed(crate::chrome::text::HINT),
-                    ));
+                    p.spawn(bevy_gooey::row(crate::chrome::GOOEY_GAP_ONE)).with_children(|row| {
+                        crate::chrome::fill_text(row, format!("{ok} measurement(s) agree with the manifest"), quiet, crate::chrome::text::HINT);
+                    });
                 }
                 for f in findings.iter().filter(|f| f.level != Level::Ok) {
-                    p.spawn((
-                        Text::new(f.text.clone()),
-                        TextColor(match f.level {
-                            Level::Note => label,
-                            _ => danger,
-                        }),
-                        crate::chrome::typed(crate::chrome::text::HINT),
-                    ));
+                    let ink = match f.level {
+                        Level::Note => label,
+                        _ => danger,
+                    };
+                    p.spawn(bevy_gooey::row(crate::chrome::GOOEY_GAP_ONE)).with_children(|row| {
+                        crate::chrome::fill_text(row, f.text.clone(), ink, crate::chrome::text::HINT);
+                    });
                 }
             }
 

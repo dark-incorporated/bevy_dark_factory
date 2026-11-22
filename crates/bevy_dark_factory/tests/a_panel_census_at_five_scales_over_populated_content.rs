@@ -29,11 +29,25 @@
 //!
 //! **Two more checks hold the part a clip hides** (#535), in every case:
 //!
-//! - **(a) a panel that holds texts shows some of them.** At interface scales 2.4 and 3.0 a clip cut every text of
-//!   INSPECTOR, COMPOSE and ANIMATION away and the panels drew empty; a cell fails when `texts > 0` and no text is visible.
+//! - **(a) a collapsed body is a failure.** It is a layout check, not a wrap check: it guards a panel whose body has no room
+//!   to be read in. Three measured conditions, none a restated constant: a panel that holds texts shows at least one;
+//!   the panel's content box is at least one text row tall; and a scroll viewport under it is at least one text row tall. "One
+//!   text row" is the height of the shortest text box laid out in that panel, read from the layout. The floors are
+//!   [`Measured::body_px`] and [`Measured::viewport_px`], each the smallest reading over the modes a panel is shown in.
+//!   **What (a) cannot catch:** a panel that shows only its heading passes the first condition (one visible text is enough);
+//!   content scrolled out of view, or cut by an ancestor's clip while a heading shows, is not seen; and it says nothing of
+//!   widths, which is (b). **It did not reproduce a wrap defect**: the "panels draw empty at interface 2.4 and 3.0" of #535
+//!   was the half-size window (see below), and in the capture's real window no text was hidden on `origin/main`.
+//!   **Where it is asserted:** the body and viewport floors are asserted at interface 1.6 and below ([`COLLAPSE_HELD_UP_TO`]),
+//!   where they hold. At 2.4 and 3.0 they do not hold on the capture's window (measured: the door strip ends at y 733 of 1604
+//!   at 2.4 / text 100%, some lists' viewports are 0 px, and at 3.0 / text 150% a panel's content box is 16 px tall), and no
+//!   row's wrap changes that; those cells are printed as `COLLAPSE (not asserted)` and are an open layout limit of the
+//!   interface-scale range on a 1280 x 802 logical window. The "texts but none visible" condition is asserted in every cell.
 //! - **(b) no text is laid out wider than the panel's content box**, visible or not ([`Measured::laid_out_text`], at most
 //!   [`OVERHANG_PX`]). A text a pane clips is not an overhang on the screen, but a row that cannot wrap has only been
-//!   cut, and the part cut off cannot be read.
+//!   cut, and the part cut off cannot be read. A box with no width or no height is still measured by the glyphs it paints
+//!   (a text squeezed to nothing whose glyphs overflow is the shape of the defect). **gooey's table-cell texts are exempt
+//!   from (b)**: `measure` skips them, counting them only.
 //!
 //! gooey's table-cell text is one line by construction (`bevy_gooey#109`) and is exempted exactly as
 //! `no_panel_draws_a_control_past_its_own_content_box` exempts it: counted, and capped.
@@ -48,12 +62,17 @@
 //!
 //! # What this file does not count, said plainly
 //!
+//! **Not covered: the rig report's lines.** The census project has no rig report (no asset), so the findings and the
+//! `agree with the manifest` line of the ANIMATION slot pane (now wrapped) and its provenance lines (the `diff` lines and the
+//! one above them, still bare texts) are never laid out here.
+//!
 //! **A clipped text is not an overhang** (the visible-overhang check): a text a clip hides is not on the screen. It is held by
 //! check (b) instead, which asserts the laid-out width of every text; the `laid out` figure in the printed
 //! table also holds boxes that are not texts, and is not asserted.
 //!
 //! **A 1.0 px tolerance also hides a real 1 px overhang.** The cells that read exactly 1.0 are layout rounding
-//! (`ANIMATION` at scale 0.5 / text 100% and `PLACE` at scale 1.6 / text 150% both read exactly 1.0), and none reads between 0 and 1;
+//! (the `ROUNDING` lines this prints: `ANIMATION` at scale 0.5 / text 100% reads exactly 1.0 on `INSPECTOR [59.0..335.0] in
+//! content [60.0..336.0]`, and `PLACE` on `PLACE [2347.0..2387.0] in content [2348.0..2530.0]`), and none reads between 0 and 1;
 //! a genuine 1 px spill would be indistinguishable from them.
 //!
 //! # That this census can see the defect
@@ -104,6 +123,12 @@ const TEXT_SCALES: [f32; 2] = [1.0, 1.5];
 /// the pixel. No cell reads between 0 and 1, so the rounding step is the tolerance, as in
 /// `no_panel_draws_a_control_past_its_own_content_box`'s `SLACK_PX`. The defects start at 30 px.
 const OVERHANG_PX: f32 = 1.0;
+
+/// **The highest interface scale at which the collapse floors are asserted.** Measured on the capture's window: at 1.6 and
+/// below the smallest panel body is 761 px and no viewport is shorter than the shortest text row of its panel (the table prints
+/// the figures); at 2.4 the lists' viewports are 0 to 239 px and at 3.0 / text 150% the frame's body is 375 px tall and the
+/// panel's content box inside it 16 px. Above 1.6 the floors are printed, not asserted.
+const COLLAPSE_HELD_UP_TO: f32 = 1.6;
 
 /// How many culprits a failing cell names.
 const CULPRITS: usize = 4;
@@ -340,18 +365,19 @@ fn border_box(world: &World, entity: Entity) -> Option<Rect> {
 /// would have had on one line, which would be a spill that paints nothing.
 fn drawn(world: &World, entity: Entity) -> Option<Rect> {
     let rect = border_box(world, entity)?;
-    if rect.width() <= 0.0 || rect.height() <= 0.0 {
-        return None;
-    }
+    // **A box with no width or no height is not skipped when it holds glyphs** (#535 review): a text squeezed to zero width
+    // whose glyphs still overflow is the very shape of the defect, and a `None` here made it invisible to every check.
+    let flat = rect.width() <= 0.0 || rect.height() <= 0.0;
+    let box_only = || (!flat).then_some(rect);
     let (Some(text), Some(info), Some(computed)) =
         (world.get::<Text>(entity), world.get::<TextLayoutInfo>(entity), world.get::<ComputedNode>(entity))
     else {
-        return Some(rect);
+        return box_only();
     };
     if text.0.trim().is_empty() {
-        return Some(rect);
+        return box_only();
     }
-    let Some(first) = info.glyphs.first() else { return Some(rect) };
+    let Some(first) = info.glyphs.first() else { return box_only() };
     let start = rect.min + computed.content_inset().min_inset;
     // **A `PositionedGlyph::position` is the glyph's centre**, not its corner (`bevy_text::pipeline`: `size / 2. +
     // glyph_pos + atlas_info.offset`): the box a glyph paints is `from_center_size(position, atlas rect size)`.
@@ -360,7 +386,7 @@ fn drawn(world: &World, entity: Entity) -> Option<Rect> {
     for glyph in &info.glyphs {
         painted = painted.union(ink(glyph));
     }
-    Some(rect.union(painted))
+    Some(if flat { painted } else { rect.union(painted) })
 }
 
 /// **What of that is actually seen**: [`drawn`] cut to the clip rectangle Bevy computed from every ancestor
@@ -440,6 +466,16 @@ struct Measured {
     /// The first text laid out under the region that a clip cut away entirely, with its box and the clip: what to read when
     /// a panel holds texts and none is visible.
     hidden: Option<String>,
+    /// The region's own content-box height, physical px: its border box less its insets. **Asserted** (the collapse floor).
+    body_px: Option<f32>,
+    /// The shortest text box laid out under the region, physical px: what "one text row" is here, read from the layout.
+    row_px: Option<f32>,
+    /// The tallest scroll viewport under the region, physical px, when it has one. **Asserted** against [`Measured::row_px`].
+    viewport_px: Option<f32>,
+    /// The interface scale this cell was drawn at (set by [`census`]).
+    interface_scale: f32,
+    /// The visible edge that stood farthest out even when it was within [`OVERHANG_PX`]: the evidence for the tolerance.
+    worst: Option<(f32, String)>,
     /// How many texts were laid out under the region: how *full* it was.
     texts: usize,
     /// How many of those survive the clip cut: the texts a person can see.
@@ -455,6 +491,11 @@ impl Measured {
     fn absorb(&mut self, other: Measured) {
         let (texts, cells, laid_out) = (self.texts.max(other.texts), self.cells.max(other.cells), self.laid_out.max(other.laid_out));
         self.laid_out_text = self.laid_out_text.max(other.laid_out_text);
+        // The floor is the **smallest** reading over the modes a panel is shown in, so one collapsed mode is not hidden by a tall one.
+        self.body_px = self.body_px.into_iter().chain(other.body_px).reduce(f32::min);
+        self.row_px = self.row_px.into_iter().chain(other.row_px).reduce(f32::min);
+        self.viewport_px = self.viewport_px.into_iter().chain(other.viewport_px).reduce(f32::min);
+        self.worst = [self.worst.take(), other.worst].into_iter().flatten().max_by(|a, b| a.0.total_cmp(&b.0));
         self.hidden = self.hidden.take().or(other.hidden);
         self.wide_texts.extend(other.wide_texts);
         self.wide_texts.sort_by(|a, b| b.0.total_cmp(&a.0));
@@ -528,15 +569,25 @@ fn measure(world: &World, region: Entity) -> Option<Measured> {
     let inset = world.get::<ComputedNode>(region).map(ComputedNode::content_inset).unwrap_or_default();
     let right = region_box.max.x - inset.max_inset.x;
     let left = region_box.min.x + inset.min_inset.x;
-    let mut out = Measured::default();
+    let mut out = Measured { body_px: Some(region_box.height() - inset.min_inset.y - inset.max_inset.y), ..default() };
     for entity in under(world, region) {
         if matches!(world.get::<bevy_gooey::Role>(entity), Some(bevy_gooey::Role::TableCellText)) {
             out.cells += 1;
             continue;
         }
+        if matches!(world.get::<bevy_gooey::Role>(entity), Some(bevy_gooey::Role::ScrollViewport))
+            && let Some(computed) = world.get::<ComputedNode>(entity)
+        {
+            out.viewport_px = Some(out.viewport_px.map_or(computed.size().y, |v| v.max(computed.size().y)));
+        }
         let Some(rect) = drawn(world, entity) else { continue };
         if world.get::<Text>(entity).is_some() {
             out.texts += 1;
+            if let Some(computed) = world.get::<ComputedNode>(entity)
+                && computed.size().y > 0.0
+            {
+                out.row_px = Some(out.row_px.map_or(computed.size().y, |r| r.min(computed.size().y)));
+            }
         }
         let laid = (rect.max.x - right).max(left - rect.min.x);
         out.laid_out = out.laid_out.max(laid);
@@ -583,6 +634,17 @@ fn measure(world: &World, region: Entity) -> Option<Measured> {
             out.signatures.extend(signature(&text.0));
         }
         let past = (rect.max.x - right).max(left - rect.min.x);
+        if past > 0.0 && out.worst.as_ref().is_none_or(|(w, _)| past > *w) {
+            out.worst = Some((
+                past,
+                format!(
+                    "{} [{:.1}..{:.1}] in content [{left:.1}..{right:.1}]",
+                    name_of(world, entity),
+                    rect.min.x,
+                    rect.max.x
+                ),
+            ));
+        }
         if past > OVERHANG_PX {
             out.culprits.push((
                 past,
@@ -661,7 +723,8 @@ fn census() -> BTreeMap<(String, String), Measured> {
                     seen_here.entry(name).or_default().absorb(measured);
                 }
             }
-            for (name, measured) in seen_here {
+            for (name, mut measured) in seen_here {
+                measured.interface_scale = interface_scale;
                 table.insert((case.clone(), name), measured);
             }
         }
@@ -685,7 +748,7 @@ fn every_panel_stays_inside_its_content_box_when_it_is_full() {
         let row: Vec<String> = panels
             .iter()
             .filter_map(|p| {
-                table.get(&(case.clone(), p.clone())).map(|m| format!("{p}={:.1} (laid out {:.1}, text laid out {:.1}, {} texts, {} visible)", m.overhang, m.laid_out, m.laid_out_text, m.texts, m.visible_texts))
+                table.get(&(case.clone(), p.clone())).map(|m| format!("{p}={:.1} (laid out {:.1}, text laid out {:.1}, {} texts, {} visible, body {:.0} px, viewport {:.0} px, row {:.0} px)", m.overhang, m.laid_out, m.laid_out_text, m.texts, m.visible_texts, m.body_px.unwrap_or_default(), m.viewport_px.unwrap_or_default(), m.row_px.unwrap_or_default()))
             })
             .collect();
         println!("  [{case}] {}", row.join("  "));
@@ -696,6 +759,12 @@ fn every_panel_stays_inside_its_content_box_when_it_is_full() {
         if m.overhang > OVERHANG_PX {
             let who: Vec<String> = m.culprits.iter().map(|(past, what)| format!("{past:.1} px: {what}")).collect();
             failures.push(format!("[{case}] `{panel}` draws {:.1} px outside its content box:\n      {}", m.overhang, who.join("\n      ")));
+        }
+        if m.overhang > 0.0
+            && m.overhang <= OVERHANG_PX
+            && let Some((past, what)) = &m.worst
+        {
+            println!("ROUNDING [{case}] `{panel}` reads {:.1} px: {past:.1} px: {what}", m.overhang);
         }
         if case == CAPTURE_CASE && !m.wide_texts.is_empty() {
             println!("TOO WIDE [{case}] `{panel}`:");
@@ -714,6 +783,29 @@ fn every_panel_stays_inside_its_content_box_when_it_is_full() {
         }
         // **(a) A panel that holds texts shows some of them** (#535): at a large interface scale a clip cut every text away
         // and the panel drew empty.
+        let held = m.interface_scale <= COLLAPSE_HELD_UP_TO;
+        if let Some(row) = m.row_px {
+            let collapsed = m.body_px.is_some_and(|body| body < row) || m.viewport_px.is_some_and(|view| view < row);
+            if collapsed && !held {
+                println!(
+                    "COLLAPSE (not asserted) [{case}] `{panel}`: body {:.0} px, viewport {:.0} px, one text row {row:.0} px",
+                    m.body_px.unwrap_or_default(),
+                    m.viewport_px.unwrap_or_default()
+                );
+            }
+            if held && m.body_px.is_some_and(|body| body < row) {
+                failures.push(format!(
+                    "[{case}] `{panel}` is laid out {:.1} px tall inside, less than one text row ({row:.1} px, the shortest of its own texts): the body collapsed",
+                    m.body_px.unwrap_or_default()
+                ));
+            }
+            if held && m.viewport_px.is_some_and(|view| view < row) {
+                failures.push(format!(
+                    "[{case}] `{panel}`'s scroll viewport is {:.1} px tall, less than one text row ({row:.1} px): nothing can be read in it",
+                    m.viewport_px.unwrap_or_default()
+                ));
+            }
+        }
         if m.texts > 0 && m.visible_texts == 0 {
             failures.push(format!(
                 "[{case}] `{panel}` holds {} texts and none of them is visible: the panel draws empty (first hidden: {})",
