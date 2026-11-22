@@ -52,7 +52,6 @@
 //! the group is visibly there with its name one action away (Furnas 2006, on explicit elision
 //! markers; Shneiderman 1996, on details-on-demand).
 
-use crate::chrome::BODY_CHAR_W;
 
 /// **Where a label would go, and how wide it is.**
 ///
@@ -88,7 +87,7 @@ impl LabelBox {
     /// below it. **A vertical slack would make that impossible**, because a box pushed down by its
     /// own height plus a gap would still be "overlapping" the one it cleared.
     pub fn overlaps(&self, other: &LabelBox) -> bool {
-        let slack = BODY_CHAR_W;
+        let slack = crate::chrome::body_char_w();
         let x = self.left < other.left + other.width + slack
             && other.left < self.left + self.width + slack;
         let y = self.top < other.top + other.height && other.top < self.top + self.height;

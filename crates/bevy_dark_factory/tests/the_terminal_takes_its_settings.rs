@@ -10,7 +10,7 @@ use bevy::window::PrimaryWindow;
 
 use bevy_dark_factory::terminal::{CaretShape, Terminal};
 use bevy_dark_factory::terminal_pane::TerminalCaret;
-use bevy_dark_factory::terminal_view::{CellMetrics, TERMINAL_CELL_H};
+use bevy_dark_factory::terminal_view::{CellMetrics, terminal_cell_h};
 
 use crate::fixtures;
 
@@ -76,12 +76,13 @@ fn the_projects_terminal_settings_give_the_caret_its_shape_its_blink_and_the_tex
     });
     until(&mut app, "the terminal never measured its cell at the set text size", |app| {
         let metrics = app.world().resource::<CellMetrics>();
-        metrics.is_measured() && metrics.height() > TERMINAL_CELL_H * (1.0 + SCALE) / 2.0
+        metrics.is_measured() && metrics.height() > terminal_cell_h() * (1.0 + SCALE) / 2.0
     });
     let height = app.world().resource::<CellMetrics>().height();
+    let shipped = terminal_cell_h();
     assert!(
-        (height / TERMINAL_CELL_H - SCALE).abs() < 0.15,
-        "a {SCALE}x terminal text size draws {SCALE}x cells, not {height} px against {TERMINAL_CELL_H}"
+        (height / shipped - SCALE).abs() < 0.15,
+        "a {SCALE}x terminal text size draws {SCALE}x cells, not {height} px against {shipped}"
     );
 
     // **A caret that does not blink is lit on every frame**, across more than one blink period.

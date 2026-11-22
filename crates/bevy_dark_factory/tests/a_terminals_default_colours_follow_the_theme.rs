@@ -35,7 +35,7 @@ fn same(a: Color, b: Color) -> bool {
 }
 
 fn ink_of(theme: Theme) -> Ink {
-    Ink::of(&bevy_dark_factory::ui::skin_for(theme))
+    Ink::of(&bevy_dark_factory::style::compiled_for(theme).skin, &bevy_dark_factory::style::metrics().ink)
 }
 
 fn editor(tag: &str, theme: Theme) -> (App, std::path::PathBuf) {
@@ -54,7 +54,7 @@ fn editor(tag: &str, theme: Theme) -> (App, std::path::PathBuf) {
 
 fn choose(app: &mut App, file: &std::path::Path, theme: Theme) {
     std::fs::write(file, format!("{{version: 1, theme: {}}}", named(theme))).expect("a settings file");
-    let want = bevy_dark_factory::ui::skin_for(theme).surface;
+    let want = bevy_dark_factory::style::compiled_for(theme).skin.surface;
     let deadline = std::time::Instant::now() + std::time::Duration::from_secs(WATCH_PATIENCE_S);
     while app.world().resource::<GooeySkin>().surface != want && std::time::Instant::now() < deadline {
         app.update();

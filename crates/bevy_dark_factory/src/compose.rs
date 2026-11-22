@@ -619,7 +619,7 @@ fn spawn_compose_panel(mut commands: Commands, frame: Res<crate::chrome::Frame>)
         // The wider of the two panel widths. Measured, not guessed: at `CONTROLS_W` a member line
         // (`chair_north: dining_chair (0.0, -1.0) yaw 180`) wrapped, and a wrapped continuation
         // starts at column zero, which breaks the indentation the list reads by.
-        crate::chrome::CONTROLS_W,
+        crate::style::metrics().layout.controls_w,
         true,
         // Starts hidden: the editor opens in map mode.
         true,
@@ -1493,7 +1493,7 @@ pub fn slot_at(carousel: &Carousel, origin: Vec3, dir: Vec3) -> Option<usize> {
 /// wide subject off the sides of that hole. Pass [`SQUARE`] to keep the old conservative assumption.
 ///
 /// Returned unclamped **at both ends**: the caller decides what to do when it exceeds
-/// [`crate::view::MAX_ZOOM`], and the caller supplies its own floor. The floor used to be
+/// the camera's `zoom_max_m` ([`crate::view::tunables`]), and the caller supplies its own floor. The floor used to be
 /// `TILE_VIEW_HEIGHT` inside here, which was right for a sheet of tiles and wrong the moment the
 /// mesh stage wanted to frame a 12 cm mug — it could never zoom closer than three metres.
 pub fn framing_height(extent: (f32, f32), tallest: f32, usable_aspect: f32) -> f32 {
@@ -1530,12 +1530,12 @@ pub const SQUARE: f32 = 1.0;
 ///
 /// [`framing_height`] returns unclamped at both ends and the floor is the caller's; this is that
 /// caller, and it was written twice. [`restage_group`] computed it to decide whether to report a crop
-/// and `tiles::stage_camera` computed it again to apply it — with a `.min(MAX_ZOOM)` the report did
+/// and `tiles::stage_camera` computed it again to apply it — with a `.min(zoom_max_m)` the report did
 /// not have — so the sentence an author read named a height the rig had never been set to.
 ///
 /// The ceiling deliberately stays out of here: the report is *about* wanting more than
-/// [`crate::view::MAX_ZOOM`], and a value already clipped to it cannot say so. The camera applies
-/// `.min(crate::view::MAX_ZOOM)` on top; the report compares against it.
+/// the camera's `zoom_max_m`, and a value already clipped to it cannot say so. The camera applies
+/// `.min(zoom_max_m)` on top; the report compares against it.
 pub fn carousel_height(carousel: &Carousel) -> f32 {
     framing_height(carousel.extent, carousel.tallest, SQUARE).max(crate::tiles::TILE_VIEW_HEIGHT)
 }
@@ -1590,8 +1590,10 @@ const LABEL_PX: (crate::chrome::text::Role, crate::chrome::text::Role) =
     (crate::chrome::text::BODY, crate::chrome::text::HINT);
 
 /// Advance of one glyph at `LABEL_PX.0` — the one measurement, stated beside the size it
-/// belongs to. See [`crate::chrome::BODY_CHAR_W`] for why it lives there.
-const LABEL_CHAR_W: f32 = crate::chrome::BODY_CHAR_W;
+/// belongs to. See [`crate::chrome::body_char_w`] for why it lives there.
+fn label_char_w() -> f32 {
+    crate::chrome::body_char_w()
+}
 
 
 /// **Stand the focal group up, with its neighbours either side, each through `composition::expand`.**
@@ -1762,16 +1764,16 @@ fn restage_group(
             }
         }
     }
-    // **A strip too big to be seen whole says so.** The rig stops at `MAX_ZOOM`, so past that the
+    // **A strip too big to be seen whole says so.** The rig stops at `zoom_max_m`, so past that the
     // outer miniatures are cropped — and cropped read as complete is exactly the silent truncation
     // `fill::box_fill` grew its `truncated` flag to avoid.
     let want = carousel_height(&carousel);
-    if want > crate::view::MAX_ZOOM {
+    let furthest = crate::view::tunables().zoom_max_m;
+    if want > furthest {
         state.status.problem(format!(
             "this composition and its neighbours need a {want:.0} m view and the camera stops at \
-             {:.0} m \
+             {furthest:.0} m \
              — the outer miniatures are cropped.",
-            crate::view::MAX_ZOOM,
         ));
     }
     if !refused.is_empty() {
@@ -2177,7 +2179,7 @@ fn place_labels(
 
     for (label, mut text, mut shown, mut placed_at, _, _) in &mut labels {
         let placed = carousel.0.slots.get(label.0).and_then(|slot| {
-            let advance = LABEL_CHAR_W
+            let advance = label_char_w()
                 * if slot.offset == 0 { 1.0 } else { LABEL_PX.1.px() / LABEL_PX.0.px() };
             label_anchor(cam, cam_tf, slot).map(|p| (p, advance))
         });
@@ -2582,9 +2584,9 @@ fn rebuild(input: ComposeInput<'_, '_>) {
                 Line::Face { name, band } => {
                     // **A gooey row** (UI-59, #245): the label column and its value, with the skin's
                     // own spacing step between them.
-                    p.spawn((bevy_gooey::row(crate::chrome::GOOEY_GAP_ONE), ComposeLine))
+                    p.spawn(((bevy_gooey::row(0.0), crate::chrome::Gap::Row.class()), ComposeLine))
                     .with_children(|row| {
-                        crate::chrome::row_label(row, crate::chrome::COL_LABEL, name);
+                        crate::chrome::row_label(row, crate::chrome::Col::Label.name(), name);
                         crate::chrome::row_value(row, band, ink.read, ());
                     });
                 }
@@ -2722,7 +2724,7 @@ fn spawn_line(p: &mut ChildSpawnerCommands, text: &str, colour: Color) {
             // row and grows with the person's text size rather than falling short of it.
             // **The indent, as a cell** (review of #245): the character advance over the row's own
             // type size is the ratio the old expression reduced to (0.6), written as what it is.
-            row.spawn(bevy_gooey::cell(indent as f32 * LABEL_CHAR_W / ROW_PX.px()));
+            row.spawn(bevy_gooey::cell(indent as f32 * label_char_w() / ROW_PX.px()));
         }
         // **The line itself, through the one helper that gives a text its flex measure** (UI-59, #245). `flex_grow` hands the text
         // the row's remaining width as a DEFINITE size and a zero minimum lets it shrink below its longest line — the pair that was
@@ -3322,11 +3324,11 @@ fn detail(lines: &mut Vec<Line>, c: &Composition, comps: &[Composition], project
         Err(e) => lines.push(Line::Prose(format!("cannot check staleness: {e}"), ink.danger)),
     }
 
-    // The blank `Text` row that used to stand here is gone. Five of them stood in for `GAP_GROUP`
+    // The blank `Text` row that used to stand here is gone. Five of them stood in for `STEP_GROUP`
     // in this pane, which is why the crowding rule could do nothing for it: `chrome`'s spacing
     // header is explicit that what makes a group read as a group is its members sitting closer to
     // each other than to anything else, and a pane whose only separator is one empty line has no
-    // ratios at all. `Line::Section` already carries `GAP_GROUP` above it.
+    // ratios at all. `Line::Section` already carries `STEP_GROUP` above it.
     match composition::interface(c, comps, &project.library, project.lattice.face_bands) {
         Ok(None) => lines.push(Line::Prose(
             "ANCHORED — claims no tile, so it has no boundary for anything to abut".to_owned(),
@@ -4149,7 +4151,7 @@ mod carousel_tests {
         );
         // … and a big enough strip outruns the rig, which is the condition `restage_group` reports.
         assert!(
-            framing_height((80.0, 50.0), 2.4, SQUARE) > crate::view::MAX_ZOOM,
+            framing_height((80.0, 50.0), 2.4, SQUARE) > crate::view::tunables().zoom_max_m,
             "a strip this size is exactly what the crop report is for"
         );
     }

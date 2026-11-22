@@ -24,7 +24,6 @@
 //! `the_light_maps_two_inks_are_the_shipped_pair` below rather than left unpinned.
 
 use bevy::prelude::*;
-use bevy_dark_factory::ui::editor_skin;
 
 /// **The twelve tones as the old `chrome.rs` table held them**, written as literals on purpose.
 ///
@@ -51,7 +50,7 @@ fn colours() -> [(&'static str, Color); 12] {
 
 #[test]
 fn each_tone_is_the_colour_chrome_draws_with() {
-    let skin = editor_skin();
+    let skin = bevy_dark_factory::style::compiled_default().skin;
     for (name, constant) in colours() {
         let tone = skin.tone(name).unwrap_or_else(|| panic!("the editor skin has no tone `{name}`"));
         assert_eq!(tone.to_srgba(), constant.to_srgba(), "tone `{name}` is not the constant of that name in chrome.rs");
@@ -78,7 +77,7 @@ const LIGHT_MAP_TONES: [(&str, Color); 2] = [
 
 #[test]
 fn the_light_maps_two_inks_are_the_shipped_pair() {
-    let skin = editor_skin();
+    let skin = bevy_dark_factory::style::compiled_default().skin;
     for (name, want) in LIGHT_MAP_TONES {
         let got = skin.tone(name).unwrap_or_else(|| panic!("the editor skin has no tone `{name}`"));
         assert_eq!(got, want, "the skin's `{name}` is the pair the overlay falls back to, in sRGB");
@@ -89,7 +88,7 @@ fn the_light_maps_two_inks_are_the_shipped_pair() {
 /// tone that loses contrast fails here with the pair named.
 #[test]
 fn the_text_tones_read_on_the_panel() {
-    let skin = editor_skin();
+    let skin = bevy_dark_factory::style::compiled_default().skin;
     let pairs: [(&'static str, &str, &str, f32); 5] = [
         ("key on surface", "key", "surface", 4.5),
         ("label on surface", "label", "surface", 4.5),

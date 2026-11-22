@@ -70,6 +70,10 @@ pub struct View {
     /// a person put away on purpose should not meet them again next launch.
     #[serde(default)]
     pub rigs_open: bool,
+    /// **Whether the style inspector is up** (`Cmd`/`Ctrl`+`Alt`+`I`, `crate::style_inspect`): the overlay naming the style
+    /// sheet rules under the pointer. Session state like the journal's.
+    #[serde(default)]
+    pub style_inspector_open: bool,
     /// **What the outliner's eye has hidden** (UI-51, #237): pieces and whole layers, out of the viewport for this
     /// session. Not serialised while empty, so a view that hides nothing is the view it always was.
     #[serde(default, skip_serializing_if = "Eyes::is_empty")]
@@ -784,6 +788,13 @@ impl View {
         self.rigs_open = !self.rigs_open;
         self.rigs_open
     }
+
+    /// **The style inspector, up or away**, and the answer is what it is now. A toggle, because its chord is the way in and
+    /// the way out, and the operation decides what "toggle" means so the chord and an agent's call cannot disagree.
+    pub fn toggle_style_inspector(&mut self) -> bool {
+        self.style_inspector_open = !self.style_inspector_open;
+        self.style_inspector_open
+    }
 }
 
 #[cfg(test)]
@@ -813,6 +824,9 @@ mod tests {
             ghost: true,
             // Assumed owner exception (2026-11-19): the literal names the field #522 adds (its default); the round trip is unchanged.
             rigs_open: false,
+            // Assumed owner exception (2026-11-22): the literal names the field the style inspector adds (its default); the round trip
+            // is unchanged.
+            style_inspector_open: false,
             // Assumed owner exception (2026-11-11): the literal names the two fields #237 adds (empty); the round trip is unchanged.
             eyes: Default::default(),
             locks: Default::default(),

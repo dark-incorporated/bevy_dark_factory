@@ -1,0 +1,182 @@
+# **The editor's style sheet** (`crate::style`): every value of taste the editor draws with, in one file.
+#
+# Edit it while the editor runs from this checkout and the window changes within a fifth of a second, with no
+# rebuild. A theme (`theme_parchment.yaml`, `theme_high_contrast.yaml`) is laid over it, then the person's
+# `<config_dir>/Blueprint/style.yaml`, then a project's `assets/blueprint/editor_style.yaml`; a later layer wins
+# key by key. A file that does not read keeps the last good one and is refused in `blueprint_state.reloads`.
+#
+# - `skin`: bevy_gooey's `GooeySkin`, the colours, the spacing/radius/type scales and the surface ladder.
+# - `metrics`: the editor's own measures — type sizes (`type`), panel widths and docks (`layout`), stacking
+#   order (`z`) and how the chrome's derived inks are stepped from the skin (`ink`).
+# - `rules`: class rules, `".selector": {property: value}`, like CSS. `blueprint_style_inspect` (or
+#   View ▸ Inspect the style under the pointer) says which rule and which line styled a node.
+version: 1
+skin:
+  background: !Srgba {red: 0.075, green: 0.07, blue: 0.061, alpha: 1.0}
+  surface: !Srgba {red: 0.115, green: 0.107, blue: 0.093, alpha: 1.0}
+  surface_raised: !Srgba {red: 0.165, green: 0.153, blue: 0.134, alpha: 1.0}
+  text: !Srgba {red: 0.88, green: 0.865, blue: 0.835, alpha: 1.0}
+  text_muted: !Srgba {red: 0.7, green: 0.685, blue: 0.655, alpha: 1.0}
+  accent: !Srgba {red: 0.95, green: 0.71, blue: 0.3, alpha: 1.0}
+  accent_text: !Srgba {red: 0.075, green: 0.07, blue: 0.061, alpha: 1.0}
+  danger: !Srgba {red: 0.98, green: 0.52, blue: 0.46, alpha: 1.0}
+  focus_ring: !Srgba {red: 0.95, green: 0.71, blue: 0.3, alpha: 1.0}
+  outline: !Srgba {red: 0.44, green: 0.409, blue: 0.356, alpha: 1.0}
+  surface_edge: null
+  scrim: !Srgba {red: 0.0, green: 0.0, blue: 0.0, alpha: 0.55}
+  text_size: 11.0
+  heading_size: 15.0
+  gap: 5.0
+  padding: 12.0
+  radius: 4.0
+  border: 1.0
+  meter_height: 10.0
+  min_target: 24.0
+  density: Compact
+  text_scale: 1.0
+  spacing: [3.0, 5.0, 12.0, 16.0, 20.0, 24.0]
+  radii: [3.0, 4.0, 8.0]
+  type_scale: [9.0, 10.0, 11.0, 13.0, 15.0]
+  # The elevation ladder, lowest first: background, surface, header, raised, slot, hover, selected, edge
+  # (`metrics.ink` names the steps the chrome reads).
+  surfaces:
+  - !Srgba {red: 0.075, green: 0.07, blue: 0.061, alpha: 1.0}
+  - !Srgba {red: 0.115, green: 0.107, blue: 0.093, alpha: 1.0}
+  - !Srgba {red: 0.14, green: 0.13, blue: 0.113, alpha: 1.0}
+  - !Srgba {red: 0.165, green: 0.153, blue: 0.134, alpha: 1.0}
+  - !Srgba {red: 0.185, green: 0.172, blue: 0.15, alpha: 1.0}
+  - !Srgba {red: 0.212, green: 0.197, blue: 0.172, alpha: 1.0}
+  - !Srgba {red: 0.248, green: 0.231, blue: 0.201, alpha: 1.0}
+  - !Srgba {red: 0.325, green: 0.302, blue: 0.263, alpha: 1.0}
+  tones:
+    bounds_line: !Srgba {red: 0.52, green: 0.47, blue: 0.37, alpha: 1.0}
+    focus_bg: !Srgba {red: 0.088, green: 0.082, blue: 0.071, alpha: 1.0}
+    grid_line: !Srgba {red: 0.3, green: 0.279, blue: 0.243, alpha: 1.0}
+    key: !Srgba {red: 0.79, green: 0.77, blue: 0.735, alpha: 1.0}
+    label: !Srgba {red: 0.615, green: 0.6, blue: 0.575, alpha: 1.0}
+    labeled: !Srgba {red: 0.55, green: 0.83, blue: 0.5, alpha: 1.0}
+    muted: !Srgba {red: 0.575, green: 0.56, blue: 0.54, alpha: 1.0}
+    overlay_bg: !Srgba {red: 0.195, green: 0.181, blue: 0.158, alpha: 1.0}
+    overlay_dark: !LinearRgba {red: 0.05, green: 0.12, blue: 0.45, alpha: 0.35}
+    overlay_lit: !LinearRgba {red: 1.0, green: 0.62, blue: 0.12, alpha: 0.85}
+    row_pressed: !Srgba {red: 0.11, green: 0.102, blue: 0.089, alpha: 1.0}
+    snip_wash: !Srgba {red: 0.95, green: 0.71, blue: 0.3, alpha: 0.28}
+    suggest: !Srgba {red: 0.53, green: 0.71, blue: 0.81, alpha: 1.0}
+    veil: !Srgba {red: 0.0, green: 0.0, blue: 0.0, alpha: 0.35}
+  hover: !Srgba {red: 0.212, green: 0.197, blue: 0.172, alpha: 1.0}
+  pressed: !Srgba {red: 0.11, green: 0.102, blue: 0.089, alpha: 1.0}
+  held: !Srgba {red: 0.115, green: 0.107, blue: 0.093, alpha: 1.0}
+  held_ground: !Srgba {red: 0.95, green: 0.71, blue: 0.3, alpha: 1.0}
+  held_fade: 0.55
+  motion:
+    snappy: {duration: 0.25, bounce: 0.0}
+    default: {duration: 0.3, bounce: 0.0}
+    calm: {duration: 0.4, bounce: 0.0}
+    lead: {duration: 0.2, bounce: 0.0}
+    fade_seconds: 0.15
+  unchecked: !Srgba {red: 0.7685, green: 1.0295, blue: 1.1745, alpha: 1.0}
+  card: !Srgba {red: 0.195, green: 0.181, blue: 0.158, alpha: 1.0}
+  preview_edge: !Srgba {red: 0.44, green: 0.409, blue: 0.356, alpha: 1.0}
+  elevation:
+    raised:
+    - {x: 0.0, y: 1.0, blur: 2.0, spread: 0.0, color: !Srgba {red: 0.0, green: 0.0, blue: 0.0, alpha: 0.42}}
+    - {x: 0.0, y: 0.0, blur: 0.0, spread: 0.5, color: !Srgba {red: 1.0, green: 1.0, blue: 1.0, alpha: 0.05}}
+    floating:
+    - {x: 0.0, y: 4.0, blur: 8.0, spread: 0.0, color: !Srgba {red: 0.0, green: 0.0, blue: 0.0, alpha: 0.42}}
+    - {x: 0.0, y: 0.0, blur: 0.0, spread: 0.5, color: !Srgba {red: 1.0, green: 1.0, blue: 1.0, alpha: 0.05}}
+    overlay:
+    - {x: 0.0, y: 8.0, blur: 16.0, spread: 0.0, color: !Srgba {red: 0.0, green: 0.0, blue: 0.0, alpha: 0.42}}
+    - {x: 0.0, y: 0.0, blur: 0.0, spread: 0.5, color: !Srgba {red: 1.0, green: 1.0, blue: 1.0, alpha: 0.05}}
+# The editor's own measures. Every field is here so a person sees every knob; a layer may set any one alone.
+metrics:
+  # Each role's size at 100% text (`chrome::text`). A heading outranks the label it heads (#518).
+  type: {title: 15.0, tab: 13.0, body: 11.0, heading: 11.0, label: 10.0, control: 10.0, hint: 9.0, line_height_factor: 1.2, body_char_w: 6.6}
+  layout:
+    ui_scale: 1.2              # the density the design is drawn at; a bigger window grows from it
+    tab_strip_bottom: 46.0
+    controls_w: 380.0          # one width for every left dock (B-014's preferred width)
+    list_w: 264.0
+    dock_min_share: 0.6        # a dock is never squeezed below this share of `list_w`
+    viewport_min_w: 420.0      # what the map is owed before either dock gets more than its floor
+    viewport_share: 0.52       # and its share of a wide window (#282)
+    divider_w: 12.0            # the owner's half-thickness divider (#476)
+    bottom_dock_h: 148.0
+    workbench_floor_h: 420.0
+    thumb_slot: 30.0
+    bar_h: 26.0
+    scroll_bar_w: 5.0
+    scroll_bar_inset: 1.0
+    context_rows: 2.0
+    select_rail_w: 2.0
+    snip_edge_w: 3.0
+    edge_w: 1.0
+    ground_held: 0.55          # a ground's alpha while the shortcut key is held
+    world_held: 0.25           # the world's wireframe's alpha while it is held
+    window_min_w: 1024.0
+    window_min_h: 640.0
+    window_max_fit_w: 1600.0
+    window_max_fit_h: 1000.0
+    window_fit_fraction: 0.85
+  # Stacking order, lowest first: see `chrome.rs`, "the overlay stack".
+  z: {balloon: 50, compass: 60, terminal_maximised: 80, toast: 150, notice: 300, menu_overlay: 400, badge: 500, modal: 900, report: 1000}
+  # Which step of the skin's `surfaces` ladder a row, a slot, a heading band and an edge stand on, and how the
+  # chrome's two derived inks are stepped (`chrome::Ink::of`).
+  ink: {bar_step_back: 0.78, unchecked_lift: 1.45, row_selected_step: 6, slot_step: 4, header_step: 2, edge_step: 7}
+
+# Class rules, like CSS: `".selector": {property: value}`. A step (`!Step n`) is the skin's `spacing` scale
+# (`[3, 5, 12, 16, 20, 24]`), so a theme or an interface size moves it; `!Px` is a literal off the scale.
+# Specificity is classes plus states; a tie goes to the later rule.
+rules:
+  # A panel: a row step between its parts, a pad in and out all round, a panel's corner.
+  ".chrome-panel": {gap: !Step 1, padding: !Step 2, margin: !Step 2, radius: !Step 1}
+  # The chrome bar and the status band: their parts a group apart, a pad in from each end.
+  ".chrome-bar": {gap: !Step 3, padding: {x: !Step 2}}
+  # The journal, the console and the profile: overlays over the viewport.
+  ".chrome-overlay": {gap: !Step 1, padding: !Step 2}
+  ".chrome-scroll": {gap: !Step 0}
+  # A chip's (and a compact list row's) inset: 6 across and a tight step down, so its padding and the gap to its
+  # neighbour read as one rhythm. Most of a chip's click target is this padding (Fitts): do not shrink it.
+  ".chrome-chip": {padding: {x: !Px 6, y: !Step 0}, radius: !Step 0}
+  ".chrome-row": {padding: {x: !Px 6, y: !Step 0}, radius: !Step 0}
+  # A command button is heavier than a chip on purpose: shape carries kind (2026-09-03).
+  ".chrome-button": {padding: {x: !Px 10, y: !Step 1}, radius: !Step 0}
+  ".chrome-button-apart": {margin: {left: !Step 3}}
+  # A text field: tighter than a chip (its box is drawn by its fill, and the caret needs the width), never
+  # under 18 px tall (an empty field lays out at 7 px otherwise).
+  ".chrome-field": {padding: {x: !Px 4, y: !Px 2}, min_height: !Px 18}
+  ".chrome-field-fill": {width: !Percent 100}
+  # The box a number is typed into: `12.34` and a caret at the body size.
+  ".chrome-field-number": {width: !Px 62}
+  ".chrome-dialog-card": {gap: !Px 10, padding: !Px 18, min_width: !Px 360}
+  ".chrome-back": {gap: !Step 1, padding: {x: !Px 6, y: !Step 0}}
+  ".chrome-agent-band": {gap: !Step 0}
+  ".chrome-agent-band-half": {gap: !Step 0}
+  # A container's rhythm (`chrome::Gap`): tight between things that belong together, a row step between the
+  # rows of a block, a group step between blocks — several times the tight one, which is the whole point.
+  ".chrome-gap-tight": {gap: !Step 0}
+  ".chrome-gap-row": {gap: !Step 1}
+  ".chrome-gap-group": {gap: !Step 3}
+  # A `LABEL  value` row's label: a row step off its value however wide the label turned out.
+  ".chrome-row-label": {margin: {right: !Step 1}}
+  # The label columns (`chrome::Col`): a glyph, a word, a phrase. A column is a floor, not a cap (F5).
+  ".chrome-col-tight": {min_width: !Px 16}
+  ".chrome-col-label": {min_width: !Px 52}
+  ".chrome-col-wide": {min_width: !Px 96}
+  # The Map's readout: `RELATIONS` (9 glyphs of the label face) and 4 px of air.
+  ".editor-readout-label": {min_width: !Px 58}
+  ".chrome-col-wrapping.editor-readout-label": {width: !Px 58}
+  ".tiles-placement-label": {min_width: !Px 48}
+  ".editor-category-header": {gap: !Step 1, margin: {top: !Step 1}, padding: {x: !Px 6, y: !Step 0}}
+  ".editor-fold-mark": {width: !Px 16}
+  ".anim-rig-bench": {gap: !Px 25}
+  ".console-pills": {gap: !Px 25}
+  ".badge-cluster": {gap: !Step 0}
+  ".badge-cluster-labelled": {padding: {x: !Px 6, y: !Step 0}}
+  ".badge-row": {gap: !Step 1, padding: {x: !Px 6, y: !Step 0}}
+  ".launcher-card": {padding: !Step 2, gap: !Step 0}
+  ".launcher-page": {padding: !Step 2, gap: !Step 3}
+  ".terminal-bar": {gap: !Step 0, padding: {x: !Step 2}}
+  ".terminal-float": {gap: !Step 0, padding: !Step 0}
+  ".tiles-note-field": {margin: {bottom: !Step 1}}
+  # The style inspector (`Cmd+Alt+I`): its lines a tight step apart, a pad in, never wider than a reading column.
+  ".style-inspect-panel": {gap: !Step 0, padding: !Step 2, max_width: !Px 520}

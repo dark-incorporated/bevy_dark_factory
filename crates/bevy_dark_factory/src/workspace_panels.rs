@@ -65,7 +65,7 @@ impl Plugin for WorkspacePanelsPlugin {
 /// **One section's column**: the block every section is spawned into, so the rows of one belong to each other. The terrain section is
 /// spawned as its own column.
 fn block<'a>(p: &'a mut ChildSpawnerCommands) -> EntityCommands<'a> {
-    p.spawn(bevy_gooey::column(chrome::GAP_TIGHT_STEPS))
+    p.spawn((bevy_gooey::column(0.0), chrome::Gap::Tight.class()))
 }
 
 /// **The World workspace's panel**, in the left dock like every inspector, scrolling like the Map's.
@@ -74,7 +74,7 @@ fn spawn_world_panel(mut commands: Commands, frame: Res<Frame>) {
         &mut commands,
         &frame,
         Side::Left,
-        chrome::CONTROLS_W,
+        crate::style::metrics().layout.controls_w,
         true,
         false,
         // What a screen reader calls this panel (UI-30, #224): the heading it draws.
@@ -123,7 +123,7 @@ fn spawn_sound_panel(mut commands: Commands, frame: Res<Frame>) {
         &mut commands,
         &frame,
         Side::Left,
-        chrome::CONTROLS_W,
+        crate::style::metrics().layout.controls_w,
         true,
         false,
         "INSPECTOR",

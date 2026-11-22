@@ -75,7 +75,7 @@ pub fn toggle_the_outline(change: On<ValueChange<bool>>, panels: Query<Entity, W
     }
     let Ok(panel) = panels.single() else { return };
     let block = commands
-        .spawn((OutlineBlock::default(), Name::new("file_outline"), bevy_gooey::column(crate::chrome::GAP_TIGHT_STEPS)))
+        .spawn((OutlineBlock::default(), Name::new("file_outline"), (bevy_gooey::column(0.0), crate::chrome::Gap::Tight.class())))
         .with_children(|block| {
             crate::chrome::list_heading(block, "OUTLINE");
             block.spawn(bevy_gooey::sized(bevy_gooey::Sizing { height: Some(bevy_gooey::Extent::Px(OUTLINE_HEIGHT_PX)), ..default() })).with_children(|column| {

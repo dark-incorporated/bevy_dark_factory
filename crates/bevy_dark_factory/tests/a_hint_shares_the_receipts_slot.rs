@@ -15,7 +15,6 @@ use bevy::input::keyboard::{Key, KeyboardInput};
 use bevy::prelude::*;
 use bevy::ui::{ComputedNode, UiGlobalTransform};
 use bevy_dark_factory::editor::EditorState;
-use bevy_dark_factory::chrome::BODY_LINE_H;
 use bevy_dark_factory::project::{OpenMap, Project};
 
 use crate::fixtures;
@@ -285,7 +284,7 @@ fn a_surface_hint_fits_the_two_lines_the_slot_holds() {
         .iter()
         .find(|(t, _, _)| *t == hint)
         .unwrap_or_else(|| panic!("the hint is not drawn; drawn: {drawn:?}"));
-    let lines = height / BODY_LINE_H;
+    let lines = height / bevy_dark_factory::chrome::body_line();
     assert!(
         lines <= 2.01,
         "the hint is {lines:.2} body lines tall ({height} px); the LAST slot holds two; hint: {hint:?}"

@@ -157,7 +157,7 @@ fn mark_the_panel_headings(
         let row = commands
             .spawn((
                 PanelHeading,
-                bevy_gooey::row_with(crate::chrome::GAP_TIGHT_STEPS, bevy_gooey::RowLayout { align: Some(AlignItems::Center), ..default() }),
+                (bevy_gooey::row_with(0.0, bevy_gooey::RowLayout { align: Some(AlignItems::Center), ..default() }), crate::chrome::Gap::Tight.class()),
                 bevy::picking::Pickable::IGNORE,
                 // **`Spacing` alone, not `chrome::spaced`**: `spaced` also inserts `Role::Sized`, and
                 // the row already carries `Role::Row` from `row_with` — two roles in one bundle is a

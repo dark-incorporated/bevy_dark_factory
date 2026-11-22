@@ -485,7 +485,7 @@ fn spawn_a_row(
         WishRow { id: id.clone(), kind: RowKind::Wish },
         WishOf(id.clone()),
         Name::new(format!("wish {}", queued.wish.id)),
-        bevy_gooey::column_with(crate::chrome::GAP_TIGHT_STEPS, bevy_gooey::RowLayout { shrink: Some(0.0), ..default() }),
+        (bevy_gooey::column_with(0.0, bevy_gooey::RowLayout { shrink: Some(0.0), ..default() }), crate::chrome::Gap::Tight.class()),
     ))
     .with_children(|row| {
         // **The header is the row's own unfold**, which is what a person expects of a list row and
@@ -496,11 +496,11 @@ fn spawn_a_row(
             // CHROME-OK: the row is a fold, not a chip or a list row: its own header is the whole unfold target and wears no rest/hover/selected states of its own.
             bevy::ui_widgets::Button,
             Hovered::default(),
-            bevy_gooey::column_with(crate::chrome::GAP_TIGHT_STEPS, bevy_gooey::RowLayout { shrink: Some(0.0), ..default() }),
+            (bevy_gooey::column_with(0.0, bevy_gooey::RowLayout { shrink: Some(0.0), ..default() }), crate::chrome::Gap::Tight.class()),
         ))
         .observe(unfold_this_row)
         .with_children(|header| {
-            crate::chrome::rigid_row(header, crate::chrome::GAP_TIGHT_STEPS, AlignItems::Center)
+            crate::chrome::rigid_row(header, Some(crate::chrome::Gap::Tight), AlignItems::Center)
                 .with_children(|line| {
                     line.spawn((
                         Text::new(RowKind::Wish.label()),
@@ -536,7 +536,7 @@ fn spawn_a_row(
         row.spawn((
             WishBody,
             WishOf(id.clone()),
-            bevy_gooey::column_with(crate::chrome::GAP_TIGHT_STEPS, bevy_gooey::RowLayout { shrink: Some(0.0), ..default() }),
+            (bevy_gooey::column_with(0.0, bevy_gooey::RowLayout { shrink: Some(0.0), ..default() }), crate::chrome::Gap::Tight.class()),
         ))
         .with_children(|body| {
             for (name, words) in fields_of(queued) {
@@ -568,7 +568,7 @@ fn spawn_a_row(
             if queued.state != WishState::Waiting {
                 return;
             }
-            crate::chrome::rigid_row(body, crate::chrome::GAP_TIGHT_STEPS, AlignItems::Stretch)
+            crate::chrome::rigid_row(body, Some(crate::chrome::Gap::Tight), AlignItems::Stretch)
             .with_children(|answers| {
                 crate::chrome::button(answers, (WishOpen, WishOf(id.clone())), "Open on GitHub", crate::chrome::Severity::Plain)
                     .observe(open_this_wish);
@@ -594,7 +594,7 @@ fn spawn_a_lesson_row(list: &mut ChildSpawnerCommands, queued: &crate::present::
         WishRow { id: id.clone(), kind: RowKind::Lesson },
         WishOf(id.clone()),
         Name::new(format!("lesson {}", queued.lesson.id)),
-        bevy_gooey::column_with(crate::chrome::GAP_TIGHT_STEPS, bevy_gooey::RowLayout { shrink: Some(0.0), ..default() }),
+        (bevy_gooey::column_with(0.0, bevy_gooey::RowLayout { shrink: Some(0.0), ..default() }), crate::chrome::Gap::Tight.class()),
     ))
     .with_children(|row| {
         row.spawn((
@@ -603,11 +603,11 @@ fn spawn_a_lesson_row(list: &mut ChildSpawnerCommands, queued: &crate::present::
             // CHROME-OK: the row is a fold, not a chip or a list row: its own header is the whole unfold target and wears no rest/hover/selected states of its own.
             bevy::ui_widgets::Button,
             Hovered::default(),
-            bevy_gooey::column_with(crate::chrome::GAP_TIGHT_STEPS, bevy_gooey::RowLayout { shrink: Some(0.0), ..default() }),
+            (bevy_gooey::column_with(0.0, bevy_gooey::RowLayout { shrink: Some(0.0), ..default() }), crate::chrome::Gap::Tight.class()),
         ))
         .observe(unfold_this_row)
         .with_children(|header| {
-            crate::chrome::rigid_row(header, crate::chrome::GAP_TIGHT_STEPS, AlignItems::Center)
+            crate::chrome::rigid_row(header, Some(crate::chrome::Gap::Tight), AlignItems::Center)
                 .with_children(|line| {
                     line.spawn((
                         Text::new(RowKind::Lesson.label()),
@@ -643,7 +643,7 @@ fn spawn_a_lesson_row(list: &mut ChildSpawnerCommands, queued: &crate::present::
         row.spawn((
             WishBody,
             WishOf(id.clone()),
-            bevy_gooey::column_with(crate::chrome::GAP_TIGHT_STEPS, bevy_gooey::RowLayout { shrink: Some(0.0), ..default() }),
+            (bevy_gooey::column_with(0.0, bevy_gooey::RowLayout { shrink: Some(0.0), ..default() }), crate::chrome::Gap::Tight.class()),
         ))
         .with_children(|body| {
             lesson_line_of(body, "WHY", &id, &queued.lesson.why);
@@ -659,7 +659,7 @@ fn spawn_a_lesson_row(list: &mut ChildSpawnerCommands, queued: &crate::present::
             if queued.state != crate::present::LessonState::Waiting {
                 return;
             }
-            crate::chrome::rigid_row(body, crate::chrome::GAP_TIGHT_STEPS, AlignItems::Stretch)
+            crate::chrome::rigid_row(body, Some(crate::chrome::Gap::Tight), AlignItems::Stretch)
             .with_children(|answers| {
                 crate::chrome::button(answers, (LessonKeep, WishOf(id.clone())), "Keep", crate::chrome::Severity::Plain)
                     .observe(keep_this_lesson);
@@ -689,9 +689,9 @@ pub fn lesson_answer_says(state: crate::present::LessonState) -> String {
 
 /// One `NAME  words` line of a lesson row, its own name on it so a test can ask for it.
 fn lesson_line_of(parent: &mut ChildSpawnerCommands, name: &'static str, id: &str, words: &str) {
-    crate::chrome::rigid_row(parent, 0.0, AlignItems::FlexStart)
+    crate::chrome::rigid_row(parent, None, AlignItems::FlexStart)
         .with_children(|line| {
-            crate::chrome::row_label(line, crate::editor::READOUT_LABEL_W, name);
+            crate::chrome::row_label(line, crate::editor::READOUT_LABEL, name);
             line.spawn(bevy_gooey::fill_column(0.0))
                 .with_children(|col| {
                     col.spawn((
@@ -720,7 +720,7 @@ fn spawn_a_style_row(list: &mut ChildSpawnerCommands, queued: &crate::style_prop
         WishRow { id: id.clone(), kind: RowKind::Style },
         WishOf(id.clone()),
         Name::new(format!("style {}", queued.id)),
-        bevy_gooey::column_with(crate::chrome::GAP_TIGHT_STEPS, bevy_gooey::RowLayout { shrink: Some(0.0), ..default() }),
+        (bevy_gooey::column_with(0.0, bevy_gooey::RowLayout { shrink: Some(0.0), ..default() }), crate::chrome::Gap::Tight.class()),
     ))
     .with_children(|row| {
         row.spawn((
@@ -729,11 +729,11 @@ fn spawn_a_style_row(list: &mut ChildSpawnerCommands, queued: &crate::style_prop
             // CHROME-OK: the row is a fold, not a chip or a list row: its own header is the whole unfold target and wears no rest/hover/selected states of its own.
             bevy::ui_widgets::Button,
             Hovered::default(),
-            bevy_gooey::column_with(crate::chrome::GAP_TIGHT_STEPS, bevy_gooey::RowLayout { shrink: Some(0.0), ..default() }),
+            (bevy_gooey::column_with(0.0, bevy_gooey::RowLayout { shrink: Some(0.0), ..default() }), crate::chrome::Gap::Tight.class()),
         ))
         .observe(unfold_this_row)
         .with_children(|header| {
-            crate::chrome::rigid_row(header, crate::chrome::GAP_TIGHT_STEPS, AlignItems::Center)
+            crate::chrome::rigid_row(header, Some(crate::chrome::Gap::Tight), AlignItems::Center)
                 .with_children(|line| {
                     line.spawn((Text::new(RowKind::Style.label()), TextColor(crate::chrome::ink().dim), crate::chrome::typed(crate::chrome::text::LABEL)));
                     crate::chrome::fill_text(line, style_title(queued), crate::chrome::ink().text, crate::chrome::text::BODY).insert((StyleTitle, WishOf(id.clone())));
@@ -751,7 +751,7 @@ fn spawn_a_style_row(list: &mut ChildSpawnerCommands, queued: &crate::style_prop
         if !unfolded {
             return;
         }
-        row.spawn((WishBody, WishOf(id.clone()), bevy_gooey::column_with(crate::chrome::GAP_TIGHT_STEPS, bevy_gooey::RowLayout { shrink: Some(0.0), ..default() })))
+        row.spawn((WishBody, WishOf(id.clone()), (bevy_gooey::column_with(0.0, bevy_gooey::RowLayout { shrink: Some(0.0), ..default() }), crate::chrome::Gap::Tight.class())))
             .with_children(|body| {
                 style_line_of(body, "WHY", &id, &queued.why);
                 style_line_of(body, "PAGE", &id, &style_page_says(queued));
@@ -762,7 +762,7 @@ fn spawn_a_style_row(list: &mut ChildSpawnerCommands, queued: &crate::style_prop
                 if let Some(note) = &queued.note {
                     crate::chrome::fill_text(body, note.clone(), crate::chrome::ink().danger, crate::chrome::text::LABEL);
                 }
-                crate::chrome::rigid_row(body, crate::chrome::GAP_TIGHT_STEPS, AlignItems::Stretch)
+                crate::chrome::rigid_row(body, Some(crate::chrome::Gap::Tight), AlignItems::Stretch)
                     .with_children(|answers| {
                         crate::chrome::button(answers, (StyleShow, WishOf(id.clone())), "Show the page", crate::chrome::Severity::Plain).observe(show_this_style_page);
                         if queued.state != StyleState::Waiting {
@@ -801,8 +801,8 @@ fn style_page_says(queued: &crate::style_proposals::QueuedStyle) -> String {
 
 /// One `NAME  words` line of a style row, its own name on it so a test can ask for it.
 fn style_line_of(parent: &mut ChildSpawnerCommands, name: &'static str, id: &str, words: &str) {
-    crate::chrome::rigid_row(parent, 0.0, AlignItems::FlexStart).with_children(|line| {
-        crate::chrome::row_label(line, crate::editor::READOUT_LABEL_W, name);
+    crate::chrome::rigid_row(parent, None, AlignItems::FlexStart).with_children(|line| {
+        crate::chrome::row_label(line, crate::editor::READOUT_LABEL, name);
         line.spawn(bevy_gooey::fill_column(0.0)).with_children(|col| {
             col.spawn((
                 Text::new(words.to_owned()),
@@ -818,9 +818,9 @@ fn style_line_of(parent: &mut ChildSpawnerCommands, name: &'static str, id: &str
 
 /// One `NAME  words` line of a row, carrying the field's own name so a test can ask for it.
 fn line_of(parent: &mut ChildSpawnerCommands, name: &'static str, id: &str, words: &str) {
-    crate::chrome::rigid_row(parent, 0.0, AlignItems::FlexStart)
+    crate::chrome::rigid_row(parent, None, AlignItems::FlexStart)
         .with_children(|line| {
-            crate::chrome::row_label(line, crate::editor::READOUT_LABEL_W, name);
+            crate::chrome::row_label(line, crate::editor::READOUT_LABEL, name);
             line.spawn(bevy_gooey::fill_column(0.0))
                 .with_children(|col| {
                     col.spawn((

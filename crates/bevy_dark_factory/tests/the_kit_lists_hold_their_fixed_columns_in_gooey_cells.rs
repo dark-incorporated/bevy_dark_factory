@@ -11,7 +11,6 @@
 
 use bevy::prelude::*;
 use bevy::ui::ComputedNode;
-use bevy_dark_factory::chrome::GAP_GROUP;
 use bevy_dark_factory::harness;
 use bevy_dark_factory::tiles::{ImportState, Mode};
 use bevy_gooey::Role;
@@ -41,8 +40,9 @@ fn the_detail_lines_gap_is_an_empty_gooey_cell_as_wide_as_a_group_gap() {
         .filter(|(role, _, kids)| **role == Role::Cell && kids.is_none_or(|k| k.is_empty()))
         .map(|(_, node, _)| node.size().x * node.inverse_scale_factor())
         .collect();
+    let group = bevy_dark_factory::chrome::space(bevy_dark_factory::chrome::STEP_GROUP);
     assert!(
-        empty.iter().any(|w| (w - GAP_GROUP).abs() <= WIDTH_SLACK_PX),
-        "no empty gooey cell as wide as a group gap ({GAP_GROUP} px) is drawn in the detail line: the empty cells are {empty:?} px wide"
+        empty.iter().any(|w| (w - group).abs() <= WIDTH_SLACK_PX),
+        "no empty gooey cell as wide as a group gap ({group} px) is drawn in the detail line: the empty cells are {empty:?} px wide"
     );
 }

@@ -174,7 +174,7 @@ fn zen_mode_gives_the_terminals_keyboard_back_and_a_shell_keeps_its_own_ctrl_cho
     use bevy_dark_factory::terminal_pane::TerminalFocus;
     let mut app = editor("shell_view_focus");
     app.world_mut().resource_mut::<TerminalFocus>().take();
-    let shells = app.world().resource::<TerminalFocus>().owns(&bevy_dark_factory::shell_view::zen_chord());
+    let shells = app.world().resource::<TerminalFocus>().owns(&bevy_dark_factory::chords::chord(bevy_dark_factory::chords::Fixed::ShellZen));
 
     chord(&mut app, &[primary(), KeyCode::ShiftLeft, KeyCode::KeyM]);
     let zen = app.world().resource::<ShellView>().zen;

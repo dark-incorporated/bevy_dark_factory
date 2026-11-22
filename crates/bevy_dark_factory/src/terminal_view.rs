@@ -34,29 +34,38 @@ use bevy::ui::ComputedNode;
 use crate::chrome;
 use crate::terminal::{CaretShape, Terminal, SCROLLBACK};
 use crate::terminal_pane::{
-    TerminalBody, TerminalCaret, TerminalFind, TerminalFocus, TerminalPane, TerminalRow, FIND_CHORD,
+    TerminalBody, TerminalCaret, TerminalFind, TerminalFocus, TerminalPane, TerminalRow,
 };
 
 /// **One cell's advance**, logical px: the shipped face is `FiraMono`, whose advance is `0.6 em` — the
 /// ratio `capture_feedback_1793905698793`'s test measured independently, stated once here for the
 /// terminal. [`measure_the_cell`] replaces it with a real measurement on the first frame that has a
 /// laid-out glyph, so a project's own face is honoured.
-pub const TERMINAL_CELL_W: f32 = chrome::text::LABEL.px() * 0.6;
+pub fn terminal_cell_w() -> f32 {
+    chrome::text::LABEL.px() * 0.6
+}
 
 /// **One cell's height**, logical px: Bevy 0.20's default `LineHeight` is `RelativeToFont(1.2)`, the
-/// same rule [`chrome::BODY_LINE_H`] states.
-pub const TERMINAL_CELL_H: f32 = chrome::text::LABEL.px() * 1.2;
+/// same rule [`chrome::body_line`] states.
+pub fn terminal_cell_h() -> f32 {
+    chrome::text::LABEL.px() * crate::style::metrics().r#type.line_height_factor
+}
 
 /// **Where the rows begin inside the body, logical px, and one number for every side of the boundary:**
-/// the window's panel margin across, a small inset down.
+/// the window's panel inset across (`STEP_PAD`), a small inset down.
 ///
 /// The pane writes it as the body's padding; [`resize_the_terminal`] subtracts it before dividing by a cell,
 /// the caret adds it before multiplying by one, and `terminal_pane::cell_under` subtracts it from a press. It
-/// was a single 2 px written on both axes here while the pane padded its sides by `chrome::MARGIN`, and that
+/// was a single 2 px written on both axes here while the pane padded its sides by the panel inset, and that
 /// cost three things on mac_air (feedback-1794011769640): the shell was told of 4 more columns than a row
 /// holds, so omp's full-width rule widened the pane without end; the caret stood 1.7 cells left of the
 /// cursor; and a press selected the character two cells right of the one under it.
-pub const BODY_INSET: Vec2 = Vec2::new(chrome::MARGIN, 2.0);
+pub fn body_inset() -> Vec2 {
+    Vec2::new(chrome::space(chrome::STEP_PAD), BODY_INSET_Y)
+}
+
+/// The rows' small inset down from the body's top, logical px.
+const BODY_INSET_Y: f32 = 2.0;
 
 /// **The terminal's face** (#323): FiraMono Nerd Font Mono, the Nerd Fonts patch of the face the editor
 /// ships (SIL OFL 1.1; the licence and the release note sit beside it in `assets/fonts/`). Prompts
@@ -150,8 +159,8 @@ pub struct CellMetrics {
 impl Default for CellMetrics {
     fn default() -> Self {
         Self {
-            width: TERMINAL_CELL_W,
-            height: TERMINAL_CELL_H,
+            width: terminal_cell_w(),
+            height: terminal_cell_h(),
             scale: 1.0,
             measured: false,
             text_scale: 1.0,
@@ -324,7 +333,7 @@ fn resize_the_terminal(
         return;
     };
     let inner = body.size() * body.inverse_scale_factor();
-    let usable = (inner - BODY_INSET * 2.0).max(Vec2::ZERO);
+    let usable = (inner - body_inset() * 2.0).max(Vec2::ZERO);
     // **One column minimum, one row minimum**, because a zero in either is a division by zero inside
     // the grid. The pane's own `TERMINAL_MIN_H` makes a zero unreachable from a drag; a test that
     // resizes the surface to something absurd is where it is reachable, and clamping is right there.
@@ -599,8 +608,9 @@ fn draw_the_terminal(
         if *visibility != want {
             *visibility = want;
         }
-        let left = Val::Px(BODY_INSET.x + caret.column as f32 * cell_w);
-        let top = Val::Px(BODY_INSET.y + caret.row as f32 * cell_h + drop);
+        let inset = body_inset();
+        let left = Val::Px(inset.x + caret.column as f32 * cell_w);
+        let top = Val::Px(inset.y + caret.row as f32 * cell_h + drop);
         if node.left != left {
             node.left = left;
         }
@@ -717,7 +727,7 @@ pub enum ClipboardChord {
 
 /// **The chords for each gesture** (feedback-1794024642593). Command+V, Command+C and Command+A first,
 /// which is what every Mac terminal answers to; Command is `bevy_gooey::Modifiers::META`, the Super key off
-/// a Mac, which a desktop rarely gives an app (the precedent is `terminal_pane::CLEAR_CHORD`). Then the
+/// a Mac, which a desktop rarely gives an app (the precedent is the terminal's clear chord, `chords::Fixed::TerminalClear`). Then the
 /// primary modifier with Shift, the Linux terminals' Ctrl+Shift+V, Ctrl+Shift+C and (GNOME's)
 /// Ctrl+Shift+A, because Ctrl+V, Ctrl+C and Ctrl+A are the shell's own.
 const CLIPBOARD_CHORDS: [(ClipboardChord, KeyCode); 3] = [
@@ -828,10 +838,11 @@ fn type_keys(
             }
         }
         if closes.just_pressed(&keys)
-            || crate::terminal_pane::COLLAPSE_CHORD.just_pressed(&keys)
-            || crate::terminal_pane::maximise_chord().just_pressed(&keys)
-            || FIND_CHORD.just_pressed(&keys)
-            || crate::terminal_pane::CLEAR_CHORD.just_pressed(&keys)
+            || crate::chords::chord(crate::chords::Fixed::TerminalCollapse).just_pressed(&keys)
+            || crate::chords::chord(crate::chords::Fixed::TerminalMaximise).just_pressed(&keys)
+            || crate::chords::chord(crate::chords::Fixed::TerminalFind).just_pressed(&keys)
+            || crate::chords::chord(crate::chords::Fixed::TerminalClear).just_pressed(&keys)
+            || crate::chords::chord(crate::chords::Fixed::EditorDevAgent).just_pressed(&keys)
         {
             // The pane's own chords: `toggle_on_the_chord` and `collapse_on_the_chord` read the same
             // `ButtonInput` this frame, so this system's job is only to **not** forward them to the

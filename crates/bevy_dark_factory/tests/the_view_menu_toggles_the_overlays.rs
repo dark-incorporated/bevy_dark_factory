@@ -154,7 +154,7 @@ fn the_overlay_colours_come_from_the_skin() {
 /// the same numbers in the same space and a change to either fails here on the value itself.
 #[test]
 fn the_editor_skin_draws_the_shipped_overlay() {
-    let ink = LightOverlayInk::of(Some(&bevy_dark_factory::ui::editor_skin()));
+    let ink = LightOverlayInk::of(Some(&bevy_dark_factory::style::compiled_default().skin));
     assert_eq!(ink.colour(0.0), Drawn::colour_for(0.0), "a dark cell is unchanged");
     assert_eq!(ink.colour(1.0), Drawn::colour_for(1.0), "and a lit one");
 }
@@ -242,7 +242,7 @@ fn the_grid_is_drawn_in_the_running_skins_ink() {
         chrome::ink().grid_line,
         "with no skin, the shipped tone — a harness's answer"
     );
-    let mut skin = bevy_dark_factory::ui::editor_skin();
+    let mut skin = bevy_dark_factory::style::compiled_default().skin;
     assert_eq!(
         chrome::grid_ink(Some(&skin)),
         chrome::ink().grid_line,

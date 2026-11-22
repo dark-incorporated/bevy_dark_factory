@@ -78,14 +78,24 @@ fn a_label_carries_its_own_gap() {
 ///
 /// **One number, from the tokens.** A gap that is not one of the system's is a new constant, and
 /// a new constant in a design system is how a panel ends up with its own idea of space.
+///
+/// Contract update (2026-11-22, the live style sheet): the gap is no longer a `GAP_ROW` constant in the builder but the
+/// `.chrome-row-label` rule of the shipped sheet, so the builder must carry that class and the rule's right margin must be
+/// `chrome::STEP_ROW`, the row step of the spacing scale.
 #[test]
 fn the_labels_gap_is_the_design_systems_row_gap() {
     let src = std::fs::read_to_string("src/chrome.rs").expect("chrome.rs is there");
     let body = row_label_body(&src);
     assert!(
-        body.contains("GAP_ROW"),
-        "the label's own gap is not `GAP_ROW`, so it is a new number rather than the design \
-         system's. The label's body:\n{body}"
+        body.contains("chrome-row-label"),
+        "the label does not carry `chrome-row-label`, so no rule of the sheet gives it the row gap. The label's body:\n{body}"
+    );
+    let rule = bevy_dark_factory::style::shipped_rule(".chrome-row-label").expect("the sheet styles a row's label");
+    let right = rule.margin.and_then(|sides| sides.right);
+    assert_eq!(
+        right,
+        Some(bevy_dark_factory::chrome::STEP_ROW),
+        "the label's own gap is not the row step, so it is a new number rather than the design system's"
     );
 }
 
@@ -122,14 +132,17 @@ fn the_long_label_is_wider_than_its_column() {
     let label = "new work lands here";
     // **The mark the inspector puts in front of every label**, and the space after it.
     let glyphs = label.chars().count() + 2;
-    let advance = bevy_dark_factory::chrome::BODY_CHAR_W
+    let advance = bevy_dark_factory::chrome::body_char_w()
         * bevy_dark_factory::chrome::text::LABEL.px()
         / bevy_dark_factory::chrome::text::BODY.px();
     let width = glyphs as f32 * advance;
+    let column = match bevy_dark_factory::style::shipped_rule(".chrome-col-wide").and_then(|rule| rule.min_width) {
+        Some(bevy_gooey::Extent::Px(px)) => px,
+        other => panic!("the sheet's wide column is a floor in px, not {other:?}"),
+    };
     assert!(
-        width > bevy_dark_factory::chrome::COL_WIDE,
-        "the long label is {width:.1} px and its column is {:.1} px, so it is NOT wider than its \
-         column — and the defect it caused cannot happen. The label is {glyphs} glyphs.",
-        bevy_dark_factory::chrome::COL_WIDE
+        width > column,
+        "the long label is {width:.1} px and its column is {column:.1} px, so it is NOT wider than its \
+         column — and the defect it caused cannot happen. The label is {glyphs} glyphs."
     );
 }

@@ -21,7 +21,7 @@
 //! # The chords are outside the census, and that is deliberate
 //!
 //! `keys::BINDINGS` is a static table with a hand-kept action list beside it and a collision test
-//! over the whole thing; `report::developers_chord` is the precedent for a chord that belongs to no
+//! over the whole thing; the report's `Cmd+D` is the precedent for a chord that belongs to no
 //! tab and no `Action` (it must work on the Projects home, where no door is open). A zoom chord is
 //! the same shape: it acts on the editor's frame, not on a panel, and it must work on every screen.
 //! So these are `bevy_gooey::Shortcut`s read directly, [`crate::keymap_screen`] lists them as
@@ -38,35 +38,8 @@
 
 use bevy::input::ButtonInput;
 use bevy::prelude::*;
-use bevy_gooey::{Modifiers, Shortcut};
 
 use crate::setting_catalogue;
-
-/// **`Cmd+=`** (`Cmd`+`+` is the same key held with Shift on most layouts, so the unshifted `Equal`
-/// is what a browser binds and what this reads).
-pub fn step_up_chord() -> Shortcut {
-    Shortcut::new(Modifiers::PRIMARY, KeyCode::Equal)
-}
-
-/// **`Cmd+-`**.
-pub fn step_down_chord() -> Shortcut {
-    Shortcut::new(Modifiers::PRIMARY, KeyCode::Minus)
-}
-
-/// **`Cmd+Shift+0`**: the interface size back to 100%.
-pub fn reset_chord() -> Shortcut {
-    Shortcut::new(Modifiers::PRIMARY | Modifiers::SHIFT, KeyCode::Digit0)
-}
-
-/// **The three chords, as [`crate::keymap_screen`] lists them among the reserved ones**: a chord live
-/// on every screen that no command may be rebound onto, because it answers first.
-pub fn reserved_chords() -> [(&'static str, &'static str, Shortcut); 3] {
-    [
-        ("interface_scale.up", "Make the whole interface larger", step_up_chord()),
-        ("interface_scale.down", "Make the whole interface smaller", step_down_chord()),
-        ("interface_scale.reset", "Put the interface size back to 100%", reset_chord()),
-    ]
-}
 
 pub struct ScaleChordsPlugin;
 
@@ -104,11 +77,11 @@ fn the_scale_chords(
         return;
     }
     let now = settings.as_deref().map_or(1.0, |s| s.interface_scale);
-    let (value, what) = if reset_chord().just_pressed(&keys) {
+    let (value, what) = if crate::chords::chord(crate::chords::Fixed::ScaleReset).just_pressed(&keys) {
         (1.0, "the interface size is back at")
-    } else if step_up_chord().just_pressed(&keys) {
+    } else if crate::chords::chord(crate::chords::Fixed::ScaleUp).just_pressed(&keys) {
         (setting_catalogue::interface_step_up(now), "the interface size is")
-    } else if step_down_chord().just_pressed(&keys) {
+    } else if crate::chords::chord(crate::chords::Fixed::ScaleDown).just_pressed(&keys) {
         (setting_catalogue::interface_step_down(now), "the interface size is")
     } else {
         return;
@@ -154,12 +127,14 @@ mod tests {
     /// **The three chords are three different chords, and the reset's does not satisfy the workspace's.**
     #[test]
     fn the_reset_is_not_the_design_workspace_chord() {
-        assert_ne!(reset_chord(), step_up_chord());
-        assert_ne!(reset_chord(), step_down_chord());
-        assert_ne!(step_up_chord(), step_down_chord());
+        use crate::chords::{Fixed, default_of};
+        let (up, down, reset) = (default_of(Fixed::ScaleUp), default_of(Fixed::ScaleDown), default_of(Fixed::ScaleReset));
+        assert_ne!(reset, up);
+        assert_ne!(reset, down);
+        assert_ne!(up, down);
         // `Cmd+0` is the Design workspace (`keys::Action::WorkspaceDesign`); the reset adds Shift.
-        assert!(reset_chord().modifiers.shift, "the reset holds Shift, which is what keeps it off Cmd+0");
-        assert!(!step_up_chord().modifiers.shift && !step_down_chord().modifiers.shift);
+        assert!(reset.modifiers.shift, "the reset holds Shift, which is what keeps it off Cmd+0");
+        assert!(!up.modifiers.shift && !down.modifiers.shift);
     }
 
     /// **A step walks the ladder in the direction asked and clamps at both ends**, and a size a person

@@ -23,7 +23,6 @@ use bevy::ui_widgets::{Activate, Button as UiButton};
 use blueprint_model::map::Placed;
 use blueprint_model::stack::{descriptor_of, descriptor_with};
 
-use crate::chrome::LIST_W;
 use crate::keys::{self, Action};
 use crate::project::{OpenMap, Project};
 use crate::view::{MainCamera, cursor_ground};
@@ -36,8 +35,6 @@ use crate::view::{MainCamera, cursor_ground};
 /// exactly one of it."* It had already drifted from a third statement of the same fact — the drawn
 /// grid, which `view.rs` set to 1.0 m under a comment insisting it was the snap.
 use blueprint_model::grid::{self, SnapLevel};
-/// Yaw snap, degrees.
-const YAW_STEP: f32 = 15.0;
 
 /// Where a descriptor with no `kind` goes. Named rather than hidden: an untagged piece is work to do,
 /// and a palette that quietly omitted it would be a palette missing pieces.
@@ -173,7 +170,9 @@ pub const COST_PAD_X: f32 = 8.0;
 /// to hold: the column is never shorter than the widest string the format produces at the size the bar's text is
 /// measured in.
 const COST_CHARS: f32 = 26.0 + 11.0;
-pub const COST_COL: f32 = COST_CHARS * crate::chrome::BODY_CHAR_W + 2.0 * COST_PAD_X;
+pub fn cost_col() -> f32 {
+    COST_CHARS * crate::chrome::body_char_w() + 2.0 * COST_PAD_X
+}
 
 #[derive(Resource)]
 pub struct EditorState {
@@ -2037,11 +2036,11 @@ struct ReceiptLabel;
 #[derive(Component)]
 pub struct TriangleTotal;
 
-/// **The label column of the readout block, in logical px**: `RELATIONS`, its longest single word, is
-/// 9 glyphs of the 10 px label face (6 px each, 54 px), and the column is that and 4 px of air. Wider
-/// than `COL_LABEL` by exactly what that word needs: a column the width of `COL_WIDE` costs the value
-/// column the room the two-line receipt and hint slots are measured against.
-pub(crate) const READOUT_LABEL_W: f32 = 58.0;
+/// **The label column of the readout block, as the style-sheet class that sizes it** (`.editor-readout-label`):
+/// `RELATIONS`, its longest single word, is 9 glyphs of the 10 px label face (6 px each, 54 px), and the column is
+/// that and 4 px of air. Wider than the `Label` column by exactly what that word needs: a column the width of `Wide`
+/// costs the value column the room the two-line receipt and hint slots are measured against.
+pub(crate) const READOUT_LABEL: &str = "editor-readout-label";
 
 /// One labelled row of the readout. A field per line, rather than one string with separators in it,
 /// because a separator is a thing the reader has to parse and a column is not.
@@ -3210,7 +3209,7 @@ fn spawn_cost_readout(mut commands: Commands, frame: Res<crate::chrome::Frame>) 
             // **A reserved column, and the number grows leftwards into it** (see `COST_COL`): at least that wide, the digits flush right so `tris drawn` holds still, and
             // the bar's inset either side. A literal 8 px (not a step of the scale), and a tight step above and below.
             bevy_gooey::row_with(0.0, bevy_gooey::RowLayout { justify: Some(JustifyContent::FlexEnd), ..default() }),
-            bevy_gooey::Sizing { min_width: Some(bevy_gooey::Extent::Px(COST_COL)), ..default() },
+            bevy_gooey::Sizing { min_width: Some(bevy_gooey::Extent::Px(cost_col())), ..default() },
             bevy_gooey::Spacing {
                 padding: bevy_gooey::Sides { top: Some(crate::chrome::STEP_TIGHT), right: Some(bevy_gooey::Space::Px(COST_PAD_X)), bottom: Some(crate::chrome::STEP_TIGHT), left: Some(bevy_gooey::Space::Px(COST_PAD_X)) },
                 ..default()
@@ -3809,7 +3808,7 @@ fn spawn_panel(mut commands: Commands, frame: Res<crate::chrome::Frame>) {
         &mut commands,
         &frame,
         crate::chrome::Side::Left,
-        crate::chrome::CONTROLS_W,
+        crate::style::metrics().layout.controls_w,
         // **`true`, where the Map alone passed `false`.** It was the only content-sized panel in
         // the editor, which is half of why it could not scroll — a `max_height` inside a panel that
         // is not pinned to the bottom is never reached, the same failure the palette was fixed out
@@ -3853,8 +3852,8 @@ fn spawn_panel(mut commands: Commands, frame: Res<crate::chrome::Frame>) {
             // The readout, in the same two columns as the keys so the whole panel shares one left
             // edge.
             p.spawn((
-                // The rows of one block belong to each other: `GAP_TIGHT` between them, and `chrome::title` carries the gap below itself.
-                    bevy_gooey::column(crate::chrome::GAP_TIGHT_STEPS),
+                // The rows of one block belong to each other: `STEP_TIGHT` between them, and `chrome::title` carries the gap below itself.
+                    (bevy_gooey::column(0.0), crate::chrome::Gap::Tight.class()),
                 StatusBlock,
                 crate::notice::CopyPane(&[crate::tiles::Mode::Map]),
                 // The Map's own text pane — where `Cmd+C` copies from, and so where its badge goes.
@@ -3916,7 +3915,7 @@ fn spawn_panel(mut commands: Commands, frame: Res<crate::chrome::Frame>) {
                             // is the one that changes with it: `LAST` for a receipt, `HINT` for a hint.
                             crate::chrome::row_label_with(
                                 row,
-                                READOUT_LABEL_W,
+                                READOUT_LABEL,
                                 field.label(),
                                 ReceiptLabel,
                             );
@@ -3925,13 +3924,13 @@ fn spawn_panel(mut commands: Commands, frame: Res<crate::chrome::Frame>) {
                                 crate::chrome::row_value(col, "", crate::chrome::ink().text, Field::Last);
                             });
                         } else {
-                            // `READOUT_LABEL_W` holds the longest single word here (`RELATIONS`), and
+                            // `READOUT_LABEL`'s column holds the longest single word here (`RELATIONS`), and
                             // `UNDER CURSOR` stands on two lines inside it, so every value starts at
                             // the same place and none touches its label (#302).
                             if field == Field::Under {
-                                crate::chrome::row_label_wrapping(row, READOUT_LABEL_W, field.label());
+                                crate::chrome::row_label_wrapping(row, READOUT_LABEL, field.label());
                             } else {
-                                crate::chrome::row_label(row, READOUT_LABEL_W, field.label());
+                                crate::chrome::row_label(row, READOUT_LABEL, field.label());
                             }
                             crate::chrome::row_value(row, "", crate::chrome::ink().text, field);
                         }
@@ -3941,17 +3940,17 @@ fn spawn_panel(mut commands: Commands, frame: Res<crate::chrome::Frame>) {
 
             // **Map size.** Stated, adjustable, and drawn in the world — an edge nothing shows is an
             // edge nobody believes. It is also what gives the flood fill somewhere to stop.
-            p.spawn(bevy_gooey::column(crate::chrome::GAP_TIGHT_STEPS))
+            p.spawn((bevy_gooey::column(0.0), crate::chrome::Gap::Tight.class()))
             .with_children(|s| {
                 // A real `section`, not a hand-rolled 10 px twin — the block's separation now comes
                 // from the heading's own margins (the 2026-08-17 type-role decision).
                 crate::chrome::section(s, "MAP SIZE  (m)");
                 for axis in [Axis::X, Axis::Y, Axis::Z] {
-                    crate::chrome::gapped_row(s, crate::chrome::GAP_TIGHT_STEPS, crate::chrome::NO_MARGIN, AlignItems::Center)
+                    crate::chrome::gapped_row(s, Some(crate::chrome::Gap::Tight), crate::chrome::NO_MARGIN, AlignItems::Center)
                     .with_children(|row| {
                         // `COL_TIGHT`: the label is a single axis letter, which is exactly what that
                         // column is for. It was a bare 14.
-                        crate::chrome::row_label(row, crate::chrome::COL_TIGHT, axis.label());
+                        crate::chrome::row_label(row, crate::chrome::Col::Tight.name(), axis.label());
                         // **A field, not a pair of nudges.** Stepping to 48 m from 32 was four
                         // clicks and no way to say the number; the author knows the size they want,
                         // so the control should let them state it. Click to focus, type digits,
@@ -3961,7 +3960,7 @@ fn spawn_panel(mut commands: Commands, frame: Res<crate::chrome::Frame>) {
                         // bare 62 — one idea, two numbers, one per file.
                         crate::chrome::text_field(
                             row,
-                            Val::Px(crate::chrome::NUM_FIELD_W),
+                            crate::chrome::FieldWidth::Number,
                             SizeField(axis),
                             crate::chrome::text::BODY,
                             (String::new(), crate::chrome::ink().text),
@@ -3973,13 +3972,13 @@ fn spawn_panel(mut commands: Commands, frame: Res<crate::chrome::Frame>) {
 
             // **Family settings (#96).** One line: `<crate> <field> <value>`, e.g.
             // `bevy_elements sun.hour 6.5`. Enter writes it through `family_set`.
-            p.spawn(bevy_gooey::column(crate::chrome::GAP_TIGHT_STEPS))
+            p.spawn((bevy_gooey::column(0.0), crate::chrome::Gap::Tight.class()))
             .with_children(|s| {
                 crate::chrome::section(s, "FAMILY SETTINGS")
                     .insert(crate::reveal::Section(crate::reveal::InspectorSection::Family));
                 crate::chrome::text_field(
                     s,
-                    Val::Percent(100.0),
+                    crate::chrome::FieldWidth::Fill,
                     FamilyField,
                     crate::chrome::text::BODY,
                     ("crate field value".to_owned(), crate::chrome::ink().text),
@@ -3993,12 +3992,12 @@ fn spawn_panel(mut commands: Commands, frame: Res<crate::chrome::Frame>) {
             // **Crowd (#107).** One line: `<from_x> <from_z> <to_x> <to_z> <walkers>`, e.g. `-8 -8 8 8 40`.
             // Enter walks that many people between two 2 m squares round the open map's solid pieces.
             #[cfg(all(feature = "bevy_orca", feature = "bevy_stigmergy"))]
-            p.spawn(bevy_gooey::column(crate::chrome::GAP_TIGHT_STEPS))
+            p.spawn((bevy_gooey::column(0.0), crate::chrome::Gap::Tight.class()))
             .with_children(|s| {
                 crate::chrome::section(s, "CROWD");
                 crate::chrome::text_field(
                     s,
-                    Val::Percent(100.0),
+                    crate::chrome::FieldWidth::Fill,
                     CrowdField,
                     crate::chrome::text::BODY,
                     ("from_x from_z to_x to_z walkers".to_owned(), crate::chrome::ink().text),
@@ -4008,13 +4007,13 @@ fn spawn_panel(mut commands: Commands, frame: Res<crate::chrome::Frame>) {
 
             // **Data files (#86).** One line: `<file> <path> <value>`, e.g. `tuning/mob speed 2.5`.
             // Enter writes it through `data_set`.
-            p.spawn(bevy_gooey::column(crate::chrome::GAP_TIGHT_STEPS))
+            p.spawn((bevy_gooey::column(0.0), crate::chrome::Gap::Tight.class()))
             .with_children(|s| {
                 crate::chrome::section(s, "DATA")
                     .insert(crate::reveal::Section(crate::reveal::InspectorSection::Data));
                 crate::chrome::text_field(
                     s,
-                    Val::Percent(100.0),
+                    crate::chrome::FieldWidth::Fill,
                     DataField,
                     crate::chrome::text::BODY,
                     ("file path value".to_owned(), crate::chrome::ink().text),
@@ -4022,29 +4021,29 @@ fn spawn_panel(mut commands: Commands, frame: Res<crate::chrome::Frame>) {
                 );
                 s.spawn((
                     DataList,
-                    bevy_gooey::column(crate::chrome::GAP_TIGHT_STEPS),
+                    (bevy_gooey::column(0.0), crate::chrome::Gap::Tight.class()),
                 ));
                 s.spawn((DataCellEditor, bevy_gooey::column(0.0)));
             });
 
             // **Scripts (#105).** Every trigger of the open map; a row opens the terrain line to edit it.
-            p.spawn(bevy_gooey::column(crate::chrome::GAP_TIGHT_STEPS))
+            p.spawn((bevy_gooey::column(0.0), crate::chrome::Gap::Tight.class()))
             .with_children(|s| {
                 crate::chrome::section(s, "SCRIPTS");
                 s.spawn((
                     ScriptsList,
-                    bevy_gooey::column(crate::chrome::GAP_TIGHT_STEPS),
+                    (bevy_gooey::column(0.0), crate::chrome::Gap::Tight.class()),
                 ));
             });
 
             // **Notes (#90).** Every note of the open map, newest first; a row flies to it.
-            p.spawn(bevy_gooey::column(crate::chrome::GAP_TIGHT_STEPS))
+            p.spawn((bevy_gooey::column(0.0), crate::chrome::Gap::Tight.class()))
             .with_children(|s| {
                 crate::chrome::section(s, "NOTES")
                     .insert(crate::reveal::Section(crate::reveal::InspectorSection::Notes));
                 s.spawn((
                     NotesList,
-                    bevy_gooey::column(crate::chrome::GAP_TIGHT_STEPS),
+                    (bevy_gooey::column(0.0), crate::chrome::Gap::Tight.class()),
                 ));
                 s.spawn((NotesEditor, bevy_gooey::column(0.0)));
             });
@@ -4056,24 +4055,24 @@ fn spawn_panel(mut commands: Commands, frame: Res<crate::chrome::Frame>) {
 
             // **Plan (E-069).** What the agent means to do on this map and how far it has got: the
             // `.plan.yaml` that `plan_set` writes, read like the notes are.
-            p.spawn(bevy_gooey::column(crate::chrome::GAP_TIGHT_STEPS))
+            p.spawn((bevy_gooey::column(0.0), crate::chrome::Gap::Tight.class()))
             .with_children(|s| {
                 crate::chrome::section(s, "PLAN");
                 s.spawn((
                     PlanList,
-                    bevy_gooey::column(crate::chrome::GAP_TIGHT_STEPS),
+                    (bevy_gooey::column(0.0), crate::chrome::Gap::Tight.class()),
                 ));
             });
 
             // **Problems (UI-54).** Each relation the open map breaks, from `<map>.relations.yaml`, with a Go to that selects the
             // pieces it names.
-            p.spawn(bevy_gooey::column(crate::chrome::GAP_TIGHT_STEPS))
+            p.spawn((bevy_gooey::column(0.0), crate::chrome::Gap::Tight.class()))
             .with_children(|s| {
                 // **Named for the reveal** (NV-11, #397): the show-problems chord scrolls this heading on screen, where it was six wheel notches down.
                 crate::chrome::section(s, "PROBLEMS").insert(crate::reveal::Section(crate::reveal::InspectorSection::Problems));
                 s.spawn((
                     crate::problems_view::ProblemsList,
-                    bevy_gooey::column(crate::chrome::GAP_TIGHT_STEPS),
+                    (bevy_gooey::column(0.0), crate::chrome::Gap::Tight.class()),
                 ));
             });
 
@@ -4084,7 +4083,7 @@ fn spawn_panel(mut commands: Commands, frame: Res<crate::chrome::Frame>) {
             // exactly that: what the next click will put down. Before this, the arm was reachable
             // only from the COMPOSE tab, which is on the Kit door, while the click that stamps is
             // on the Map door; the two never met. See `compose::picker` for the measurement.
-            p.spawn(bevy_gooey::column(crate::chrome::GAP_TIGHT_STEPS))
+            p.spawn((bevy_gooey::column(0.0), crate::chrome::Gap::Tight.class()))
             .with_children(|s| {
                 crate::chrome::section(s, "COMPOSITIONS");
                 // **No scroll list of its own.** The panel's own body is already a scroll area, and
@@ -4099,7 +4098,7 @@ fn spawn_panel(mut commands: Commands, frame: Res<crate::chrome::Frame>) {
                 // the block that has it. The picker's verbs are the panel's verbs; one control, one
                 // badge, one answer to "what can I do here".
                 s.spawn((
-                    bevy_gooey::column(crate::chrome::GAP_TIGHT_STEPS),
+                    (bevy_gooey::column(0.0), crate::chrome::Gap::Tight.class()),
                     crate::compose::picker::PickerBody,
                 ));
             });
@@ -4115,12 +4114,12 @@ fn spawn_panel(mut commands: Commands, frame: Res<crate::chrome::Frame>) {
 /// only where it is spawned moved. Its function is here because [`TerrainField`] and [`TerrainReadout`] are
 /// this module's.
 pub(crate) fn spawn_terrain_section(p: &mut ChildSpawnerCommands) {
-    p.spawn(bevy_gooey::column(crate::chrome::GAP_TIGHT_STEPS))
+    p.spawn((bevy_gooey::column(0.0), crate::chrome::Gap::Tight.class()))
     .with_children(|s| {
         crate::chrome::section(s, "TERRAIN");
         crate::chrome::text_field(
             s,
-            Val::Percent(100.0),
+            crate::chrome::FieldWidth::Fill,
             TerrainField,
             crate::chrome::text::BODY,
             ("brush x z radius strength".to_owned(), crate::chrome::ink().text),
@@ -4155,7 +4154,7 @@ fn spawn_palette_panel(
         &mut commands,
         &frame,
         crate::chrome::Side::Right,
-        LIST_W,
+        crate::style::metrics().layout.list_w,
         // Pinned top AND bottom — the whole point of this panel.
         true,
         false,
@@ -4281,9 +4280,10 @@ fn rebuild_palette(
                     // five states every row and chip has. It sensed `Hovered` and nothing repainted
                     // it.
                     crate::chrome::RowRest(crate::chrome::ink().header_bg),
-                    bevy_gooey::row(crate::chrome::GAP_ROW_STEPS),
+                    // Its gap, its margin above and its chip-like inset are the sheet's `.editor-category-header`.
+                    bevy_gooey::row(0.0),
+                    bevy_gooey::StyleClass::of("editor-category-header"),
                     bevy_gooey::Sizing { width: Some(bevy_gooey::Extent::Percent(100.0)), ..default() },
-                    bevy_gooey::Spacing { margin: crate::chrome::margin_top(crate::chrome::STEP_ROW), ..crate::chrome::CHIP_SPACING },
                     BackgroundColor(crate::chrome::ink().header_bg),
                 ))
                 .with_children(|row| {
@@ -4295,7 +4295,8 @@ fn rebuild_palette(
                     // of #493 that gooey's code editor lacks (G-82).
                     row.spawn((
                         crate::chrome::text_keeps_its_width(),
-                        bevy_gooey::Sizing { width: Some(bevy_gooey::Extent::Px(crate::chrome::COL_TIGHT)), ..default() },
+                        // The mark's lane is the sheet's `.editor-fold-mark`.
+                        bevy_gooey::StyleClass::of("editor-fold-mark"),
                         crate::marks::fold_mark(folded),
                         TextColor(crate::chrome::ink().label),
                         crate::chrome::typed(crate::chrome::text::LABEL),
@@ -4351,8 +4352,8 @@ fn rebuild_palette(
                                 // A row that never shrinks.
                                 bevy_gooey::row_with(0.0, bevy_gooey::RowLayout { shrink: Some(0.0), ..default() }),
                                 bevy_gooey::Sizing {
-                                    width: Some(bevy_gooey::Extent::Px(crate::chrome::THUMB_SLOT)),
-                                    height: Some(bevy_gooey::Extent::Px(crate::chrome::THUMB_SLOT)),
+                                    width: Some(bevy_gooey::Extent::Px(crate::style::metrics().layout.thumb_slot)),
+                                    height: Some(bevy_gooey::Extent::Px(crate::style::metrics().layout.thumb_slot)),
                                     ..default()
                                 },
                                 crate::chrome::spacing(crate::chrome::margin_right(crate::chrome::STEP_ROW)),
@@ -4386,7 +4387,7 @@ fn rebuild_palette(
                                 // shape), so the lane grows with the person's reading size instead of
                                 // clipping the mark at 200% — a fixed px lane would cut it back over
                                 // the name it stands beside.
-                                bevy_gooey::cell(crate::chrome::COL_TIGHT / crate::chrome::text::BODY.px()),
+                                bevy_gooey::cell(crate::chrome::MARK_LANE_PX / crate::chrome::text::BODY.px()),
                                 // **The marker is on the column, not on the words.** An unarmed row draws
                                 // nothing, and a `Text` holding nothing has no width — so a mark measured on the
                                 // text would be zero wide on every row but the armed one, which is exactly the
@@ -7261,10 +7262,7 @@ fn refresh_notes_list(
             // button's label is `LineBreak::NoWrap` on purpose — a command that split across two lines
             // would be hard to read — so a row of two of them cannot squeeze to a narrow pane, and at
             // the divider's leftmost position it drew `Send all drafts` 32 px past the pane's edge.
-            p.spawn(bevy_gooey::row_with(
-                crate::chrome::GAP_TIGHT_STEPS,
-                bevy_gooey::RowLayout { wrap: Some(FlexWrap::Wrap), ..default() },
-            ))
+            p.spawn((bevy_gooey::row_with(0.0, bevy_gooey::RowLayout { wrap: Some(FlexWrap::Wrap), ..default() }), crate::chrome::Gap::Tight.class()))
             .with_children(|h| {
                 crate::chrome::button(
                     h,
@@ -7300,7 +7298,7 @@ fn refresh_notes_list(
                     if *auto {
                         row.spawn((
                             // A chip's box (a label here, not a button): its inset, a 1 px edge and a row radius.
-                            crate::chrome::small_box(crate::chrome::CHIP_SPACING, bevy_gooey::Sides::all(crate::chrome::EDGE_W), crate::chrome::ink().suggest, Some(0.0)),
+                            crate::chrome::small_box("chrome-chip", bevy_gooey::Sides::all(crate::style::metrics().layout.edge_w), crate::chrome::ink().suggest, Some(0.0)),
                             BorderColor::all(crate::chrome::ink().suggest),
                         ))
                         .with_children(|chip| {
@@ -7333,7 +7331,7 @@ fn refresh_notes_list(
                     })
                     .collect();
                 if !loaded.is_empty() {
-                    p.spawn(bevy_gooey::row(crate::chrome::GAP_TIGHT_STEPS)).with_children(|h| {
+                    p.spawn((bevy_gooey::row(0.0), crate::chrome::Gap::Tight.class())).with_children(|h| {
                         for handle in loaded {
                             // A fixed 4:3 review thumbnail: a `sized` box that keeps `ImageNode`'s own mode (gooey's `image_box` would also force no-shrink, a clip and a stretch).
                             h.spawn((
@@ -7344,7 +7342,7 @@ fn refresh_notes_list(
                     });
                 }
                 if !review.ops.is_empty() {
-                    crate::chrome::wrapping_row(p, crate::chrome::GAP_TIGHT_STEPS, crate::chrome::NO_MARGIN, AlignItems::Stretch).with_children(|h| {
+                    crate::chrome::wrapping_row(p, Some(crate::chrome::Gap::Tight), crate::chrome::NO_MARGIN, AlignItems::Stretch).with_children(|h| {
                         for op in &review.ops {
                             crate::chrome::button(h, NoteOpButton { op: op.clone() }, op, crate::chrome::Severity::Plain);
                         }
@@ -7363,7 +7361,7 @@ fn refresh_notes_list(
                     _ => &[],
                 };
                 // **Edit is on every note**, whatever its status: the text is the person's to correct.
-                p.spawn(bevy_gooey::row(crate::chrome::GAP_TIGHT_STEPS)).with_children(|h| {
+                p.spawn((bevy_gooey::row(0.0), crate::chrome::Gap::Tight.class())).with_children(|h| {
                     crate::chrome::button(h, NoteEditButton { id: id.clone() }, "Edit", crate::chrome::Severity::Plain);
                     for (op, label, text) in ops {
                         crate::chrome::button(h, NoteLeaseButton { id: id.clone(), op, text }, label, crate::chrome::Severity::Plain);
@@ -13334,13 +13332,14 @@ fn keys(
     // brush's facing before a piece exists, and these fix one that is already down — three chairs
     // round a table were three chairs facing the same way until this existed.
     //
-    // **Held, like the aim keys.** `YAW_STEP` is 15 degrees, so squaring a piece that arrived at 240
+    // **Held, like the aim keys.** A turn is 15 degrees by default (`view.yaw_step_deg`), so squaring a piece that arrived at 240
     // was sixteen presses. `keys::repeating` fires the press at once and then every
     // `keys::REPEAT_SECS`, so tapping is unchanged and only holding is new — the same treatment
     // `AimLeft`/`AimRight` got, for the same reason, through the same function.
+    let yaw_step = crate::view::tunables().yaw_step_deg;
     for (action, step) in [
-        (Action::TurnPieceLeft, -YAW_STEP),
-        (Action::TurnPieceRight, YAW_STEP),
+        (Action::TurnPieceLeft, -yaw_step),
+        (Action::TurnPieceRight, yaw_step),
     ] {
         if !keys::repeating(&keyboard, *live, action, &mut repeat, dt) {
             continue;
@@ -15850,9 +15849,10 @@ pub(crate) fn piece_verb(
         state.status.note(format!("{id} is no longer on the map"));
         return;
     };
+    let yaw_step = crate::view::tunables().yaw_step_deg;
     match verb {
-        PieceVerb::TurnLeft => turn_at(commands, assets, project, open, state, placed, index, -YAW_STEP),
-        PieceVerb::TurnRight => turn_at(commands, assets, project, open, state, placed, index, YAW_STEP),
+        PieceVerb::TurnLeft => turn_at(commands, assets, project, open, state, placed, index, -yaw_step),
+        PieceVerb::TurnRight => turn_at(commands, assets, project, open, state, placed, index, yaw_step),
         PieceVerb::TipX => tip_at(commands, assets, project, open, state, placed, index, true),
         PieceVerb::TipZ => tip_at(commands, assets, project, open, state, placed, index, false),
         PieceVerb::Lift => {

@@ -27,7 +27,7 @@ use bevy::text::TextLayoutInfo;
 use bevy::ui::{ComputedNode, UiGlobalTransform, UiScale};
 
 use bevy_dark_factory::agent_view::AgentPane;
-use bevy_dark_factory::chrome::{self, PanelWidth, Side};
+use bevy_dark_factory::chrome::{PanelWidth, Side};
 use bevy_dark_factory::harness;
 use bevy_dark_factory::tiles::Mode;
 
@@ -274,7 +274,7 @@ fn drag_the_divider_left(app: &mut App, panel: Entity) {
         .world_mut()
         .get_mut::<bevy_gooey::Sizing>(panel)
         .expect("a panel is a sized box");
-    sizing.width = Some(bevy_gooey::Extent::Px(chrome::DOCK_MIN_W));
+    sizing.width = Some(bevy_gooey::Extent::Px(bevy_dark_factory::style::metrics().layout.dock_min_w()));
     settle(app);
 }
 
@@ -331,11 +331,11 @@ fn no_control_in_the_agent_panel_is_drawn_past_its_column() {
         // **The panel is at the divider's floor, not at its preferred width.** The capture's fault is the panel being
         // as narrow as a person can drag it; a panel still at `CONTROLS_W` would pass this file on a layout nobody
         // complained about.
+        let narrowest = bevy_dark_factory::style::metrics().layout.dock_min_w();
         assert!(
-            (width - chrome::DOCK_MIN_W).abs() <= 1.0,
-            "at interface scale {scale} the AGENT panel is {width:.1} px, not the {:.1} px the divider's leftmost \
-             position gives it — this layout is not the one #481 was filed about",
-            chrome::DOCK_MIN_W
+            (width - narrowest).abs() <= 1.0,
+            "at interface scale {scale} the AGENT panel is {width:.1} px, not the {narrowest:.1} px the divider's leftmost \
+             position gives it — this layout is not the one #481 was filed about"
         );
         assert!(
             !switches_in(&mut app, panel).is_empty(),

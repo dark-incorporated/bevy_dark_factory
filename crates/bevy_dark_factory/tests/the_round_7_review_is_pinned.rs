@@ -102,7 +102,7 @@ fn the_palette_thumbnail_slot_never_shrinks() {
     let world = app.world_mut();
     let mut slots = 0;
     for (sizing, node, role) in world.query::<(&bevy_gooey::Sizing, &Node, &Role)>().iter(world) {
-        if sizing.width == Some(bevy_gooey::Extent::Px(bevy_dark_factory::chrome::THUMB_SLOT)) && sizing.height == sizing.width {
+        if sizing.width == Some(bevy_gooey::Extent::Px(bevy_dark_factory::style::metrics().layout.thumb_slot)) && sizing.height == sizing.width {
             slots += 1;
             assert_eq!(*role, Role::Row, "the slot is a gooey row, the role that writes `shrink`");
             assert_eq!(node.flex_shrink, 0.0, "a thumbnail slot never shrinks");
@@ -123,7 +123,7 @@ fn a_severity_rail_and_a_chip_box_do_not_shrink() {
     let mut commands = app.world_mut().commands();
     commands.entity(holder).with_children(|p| {
         rail = chrome::severity_rail(p, Color::WHITE, ()).id();
-        chip = p.spawn(chrome::small_box(chrome::CHIP_SPACING, bevy_gooey::Sides::all(chrome::EDGE_W), Color::WHITE, Some(0.0))).id();
+        chip = p.spawn(chrome::small_box("chrome-chip", bevy_gooey::Sides::all(bevy_dark_factory::style::metrics().layout.edge_w), Color::WHITE, Some(0.0))).id();
     });
     for _ in 0..4 {
         app.update();

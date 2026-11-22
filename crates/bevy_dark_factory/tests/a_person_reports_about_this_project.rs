@@ -354,8 +354,8 @@ fn the_report_chord_is_outside_the_census() {
             row.action
         );
     }
-    let developers = bevy_dark_factory::report::developers_chord();
-    let project = bevy_dark_factory::report::project_chord();
+    let developers = bevy_dark_factory::chords::chord(bevy_dark_factory::chords::Fixed::ReportDevelopers);
+    let project = bevy_dark_factory::chords::chord(bevy_dark_factory::chords::Fixed::ReportProject);
     assert_eq!(developers.key, KeyCode::KeyD);
     assert_eq!(project.key, KeyCode::KeyD);
     assert_ne!(developers, project, "and they are different chords");

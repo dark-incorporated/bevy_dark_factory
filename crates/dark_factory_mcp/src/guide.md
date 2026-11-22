@@ -83,6 +83,8 @@
 
 **Three tools that are not part of a task.** `blueprint_open_project` opens a project folder in the running editor, from any screen including the Projects home, and is the first call when they name a project rather than a map. `blueprint_jobs_stop` asks a background job such as the palette's thumbnail bake to stop, and `blueprint_self_test` is Dark Factory's power-on self test, run once when its own terminal starts you: it reads the state, counts the operations, takes one picture and returns them.
 
+**Two tools for the editor's own interface, not the project.** `blueprint_ui_style_inspect` names, for a point of `blueprint_capture_still`'s picture, the style sheet rules that made the editor's interface look the way it does there, each with its file and line: the editor reads that sheet live, so an edit to the named line is drawn at once. `blueprint_relaunch_editor` is only the editor development agent's: after `cargo build -p bevy_dark_factory` it relaunches the editor on the new build and restores your session there; any other agent is refused.
+
 **A bug you cannot fix is filed, not described.** `blueprint_feedback_file_issue` takes the capture you already made and files it as a GitHub issue on the project's repository, with the still, the operations and the facts attached: say the title and what you saw, and it returns the issue's URL. Use it when a defect is in the editor rather than in what you were asked to build — a hand-back sentence about a bug nobody files is a bug nobody fixes.
 
 ## After a task: reflect

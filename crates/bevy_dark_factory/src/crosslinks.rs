@@ -374,11 +374,11 @@ fn draw_the_links(mut commands: Commands, mut selected: Selected, mut shown: Loc
     if selected.blocks.is_empty() {
         let dim = chrome::ink().dim;
         commands.entity(block).with_children(|b| {
-            b.spawn((LinksBlock, Name::new("references block"), bevy_gooey::column(chrome::GAP_TIGHT_STEPS)))
+            b.spawn((LinksBlock, Name::new("references block"), (bevy_gooey::column(0.0), chrome::Gap::Tight.class())))
                 .with_children(|l| {
                     chrome::list_heading(l, "USED BY");
                     l.spawn((UsedByLine, Text::new(""), TextColor(dim), chrome::typed(chrome::text::BODY)));
-                    chrome::wrapping_row(l, chrome::GAP_TIGHT_STEPS, crate::chrome::NO_MARGIN, AlignItems::Stretch).with_children(|r| {
+                    chrome::wrapping_row(l, Some(chrome::Gap::Tight), crate::chrome::NO_MARGIN, AlignItems::Stretch).with_children(|r| {
                         chrome::button(r, OpenFileButton, "Open file", Severity::Plain);
                         chrome::button(r, OpenPieceFileButton, "Open piece file", Severity::Plain);
                     });

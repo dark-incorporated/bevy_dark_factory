@@ -101,21 +101,21 @@ fn a_chip_is_a_row_the_editor_paints_by_state() {
     assert!(app.world().get::<RowRest>(chip).is_some());
 }
 
-/// **A text field is a row with its inset, its floor and its width.**
+/// **A text field is a row with its inset, its floor and its width** — the number field's class, `.chrome-field-number`.
 #[test]
 fn a_text_field_keeps_its_inset_its_floor_and_its_width() {
     let mut app = editor("field");
     let holder = app.world_mut().spawn(Node::default()).id();
     let mut field = Entity::PLACEHOLDER;
     app.world_mut().commands().entity(holder).with_children(|p| {
-        field = chrome::text_field(p, Val::Px(56.0), (), chrome::text::BODY, ("1".to_owned(), Color::WHITE), ()).id();
+        field = chrome::text_field(p, chrome::FieldWidth::Number, (), chrome::text::BODY, ("1".to_owned(), Color::WHITE), ()).id();
     });
     for _ in 0..4 {
         app.update();
     }
     assert_eq!(app.world().get::<Role>(field), Some(&Role::Sized));
     let n = app.world().get::<Node>(field).expect("a Node");
-    assert_eq!((n.width, n.min_height, n.flex_shrink), (Val::Px(56.0), Val::Px(18.0), 0.0), "56 px wide, 18 px at least, never shrinking");
+    assert_eq!((n.width, n.min_height, n.flex_shrink), (Val::Px(62.0), Val::Px(18.0), 0.0), "62 px wide, 18 px at least, never shrinking");
     assert_eq!((px(n.padding.left), px(n.padding.top)), (4.0, 2.0), "4 x 2 px in");
     assert_eq!(app.world().get::<BackgroundColor>(field).map(|b| b.0), Some(chrome::ink().row_bg), "in the editor's field colour");
 }
@@ -237,7 +237,7 @@ fn the_back_button_is_a_row_and_the_bars_spacers_are_gooeys() {
 #[test]
 fn the_receipt_row_reserves_its_two_lines_rounded_up() {
     let mut app = editor("receipt");
-    let want = (2.0 * chrome::BODY_LINE_H * chrome::text_scale()).ceil();
+    let want = (2.0 * bevy_dark_factory::chrome::body_line() * chrome::text_scale()).ceil();
     let world = app.world_mut();
     let mut found = Vec::new();
     for (sizing, node) in world.query::<(&bevy_gooey::Sizing, &Node)>().iter(world) {

@@ -46,7 +46,7 @@ fn box_at(left: f32, width: f32) -> LabelBox {
 
 /// **The width of a 22-character id at the body size** — the real thing, from the shipped face.
 fn id_width(chars: usize) -> f32 {
-    chars as f32 * bevy_dark_factory::chrome::BODY_CHAR_W
+    chars as f32 * bevy_dark_factory::chrome::body_char_w()
 }
 
 /// **No two drawn labels overlap.**

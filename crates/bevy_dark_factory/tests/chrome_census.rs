@@ -179,11 +179,10 @@ fn the_type_scale_stays_short() {
         roles.join("\n")
     );
 
-    let mut values: Vec<String> = roles
-        .iter()
-        .filter_map(|l| l.rsplit_once("Role(").map(|(_, v)| v.trim_end_matches(");").to_owned()))
-        .collect();
-    values.sort();
+    // **The sizes are the style sheet's** (`metrics.type`), so they are counted there: a role is a name, its size a metric.
+    let sizes = bevy_dark_factory::style::EditorMetrics::default().r#type;
+    let mut values: Vec<f32> = [sizes.title, sizes.tab, sizes.body, sizes.heading, sizes.label, sizes.control, sizes.hint].to_vec();
+    values.sort_by(f32::total_cmp);
     values.dedup();
     assert!(
         values.len() <= 5,
@@ -353,7 +352,7 @@ fn ratio(a: [f32; 3], b: [f32; 3]) -> f32 {
 fn the_ladder_is_a_ladder() {
     // The library's own ladder check, on the skin the chrome paints from.
     assert_eq!(
-        bevy_dark_factory::ui::editor_skin().problems(),
+        bevy_dark_factory::style::compiled_default().skin.problems(),
         vec![],
         "the editor's skin must pass `GooeySkin::problems()`: the elevation ladder, the pressed-against-hovered \
          step and every ink/ground pair are the library's to measure now"

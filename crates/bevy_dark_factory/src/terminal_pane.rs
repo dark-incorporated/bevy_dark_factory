@@ -42,6 +42,7 @@ use bevy::ui::ComputedNode;
 
 use crate::chrome;
 use crate::terminal::Terminal;
+use crate::terminal_agent::AgentKind;
 use crate::terminal_view::CellMetrics;
 
 /// **The pane's resting height**, logical px — about twenty rows, which is a compiler error and the
@@ -239,16 +240,6 @@ impl TerminalFind {
     }
 }
 
-/// **The chord that opens find in the terminal**: the platform's primary modifier and F, Command+F on
-/// a mac and Ctrl+F elsewhere, as in VS Code's terminal. It is the pane's chord while the shell has the
-/// keys, so a shell never sees Ctrl+F (forward a character, in readline) from this pane.
-pub const FIND_CHORD: bevy_gooey::Shortcut = bevy_gooey::Shortcut::new(bevy_gooey::Modifiers::PRIMARY, KeyCode::KeyF);
-
-/// **The chord that clears the terminal** (#326): Command+K, VS Code's `workbench.action.terminal.clear`
-/// on a mac. On the Command key rather than the primary one, so off a mac Ctrl+K stays the shell's
-/// kill-line, as VS Code leaves it; there the chord is Super+K, which a desktop rarely gives an app.
-pub const CLEAR_CHORD: bevy_gooey::Shortcut = bevy_gooey::Shortcut::new(bevy_gooey::Modifiers::META, KeyCode::KeyK);
-
 /// **A screen root the terminal docks across the bottom of** (#314): the projects home, the project
 /// page and the loading screen put this on their root, and the pane is built as its last child the
 /// moment the root is spawned. The editor's frame is not one: it docks the pane above its status band
@@ -292,7 +283,7 @@ pub struct TerminalStatusLabel;
 
 /// **What the status bar's terminal label says**: `Terminal`, and the chord that raises and lowers the pane on this platform.
 pub fn status_label_words() -> String {
-    format!("Terminal {}", chord_words(&COLLAPSE_CHORD))
+    format!("Terminal {}", chord_words(&crate::chords::chord(crate::chords::Fixed::TerminalCollapse)))
 }
 
 /// **A chord as the editor spells it on screen**: in words, `Cmd+J` on a mac and `Ctrl+J` elsewhere, as the status band's hint does
@@ -303,7 +294,7 @@ pub fn chord_words(chord: &bevy_gooey::Shortcut) -> String {
 
 /// **What the label's tooltip says** (#492): a cycle has no state to see, so the tooltip names what the next press will do.
 pub fn status_tooltip_words(placement: TerminalPlacement) -> String {
-    format!("{} — {}", placement.next_press_words(), chord_words(&COLLAPSE_CHORD))
+    format!("{} — {}", placement.next_press_words(), chord_words(&crate::chords::chord(crate::chords::Fixed::TerminalCollapse)))
 }
 
 /// **The label's tooltip follows the pane's position** (#492): the chord cycles, so the one place a person can read what the next
@@ -565,6 +556,8 @@ impl Plugin for TerminalPanePlugin {
             // **The pane's geometry is the host's once gooey has styled it** (see [`host_the_pane_geometry`]).
             .add_systems(Update, host_the_pane_geometry.after(bevy_gooey::GooeySystems::Style))
             .add_systems(Update, resume_the_agent_that_was_running)
+            // **The editor development agent**: its chord, and the tab a relaunch asks to be restored (`--restore-dev-agent`).
+            .add_systems(Update, (the_chord_opens_the_editor_dev_agent, restore_the_editor_dev_agent))
             // **The status bar carries the terminal's label, and the choice a person makes is kept** (#424).
             .add_systems(
                 OnEnter(crate::screen::Screen::Editor),
@@ -692,7 +685,7 @@ fn build_the_pane(
                 ..default()
             }),
             bevy_gooey::RowLayout { shrink: Some(0.0), ..default() },
-            bevy_gooey::BorderPx(bevy_gooey::Sides { top: Some(chrome::EDGE_W), ..default() }),
+            bevy_gooey::BorderPx(bevy_gooey::Sides { top: Some(crate::style::metrics().layout.edge_w), ..default() }),
             bevy_gooey::InkFollow,
             BackgroundColor(chrome::ink().panel_bg),
             BorderColor::all(chrome::ink().panel_edge),
@@ -727,11 +720,11 @@ fn build_the_pane(
 
     let bar = commands
         .spawn((
-            // The bar: a gooey row the pane wide and `TERMINAL_BAR_H` tall, its parts centred and a tight step apart, `MARGIN` in from each end, never shrinking, and clipping what does not fit (#497: the window wins; the Invoke button stays inside it).
+            // The bar: a gooey row the pane wide and `TERMINAL_BAR_H` tall, its parts centred, its gap and its inset from each end the sheet's `.terminal-bar`, never shrinking,
+            // and clipping what does not fit (#497: the window wins; the Invoke button stays inside it).
             bevy_gooey::row_with(0.0, bevy_gooey::RowLayout { align: Some(AlignItems::Center), shrink: Some(0.0), ..default() }),
-            bevy_gooey::GapPx(chrome::GAP_TIGHT),
+            bevy_gooey::StyleClass::of("terminal-bar"),
             bevy_gooey::Sizing { width: Some(bevy_gooey::Extent::Percent(100.0)), height: Some(bevy_gooey::Extent::Px(TERMINAL_BAR_H)), clip: Some(true), ..default() },
-            bevy_gooey::Spacing { padding: bevy_gooey::Sides::x(chrome::STEP_PAD), ..default() },
             BackgroundColor(chrome::ink().bar_bg),
             TerminalBar,
             Pickable::default(),
@@ -750,10 +743,10 @@ fn build_the_pane(
             bevy_gooey::TextFlow { grow: Some(1.0), ..default() },
             bevy_gooey::Spacing {
                 padding: bevy_gooey::Sides {
-                    top: Some(bevy_gooey::Space::Px(crate::terminal_view::BODY_INSET.y)),
-                    right: Some(bevy_gooey::Space::Px(crate::terminal_view::BODY_INSET.x)),
-                    bottom: Some(bevy_gooey::Space::Px(crate::terminal_view::BODY_INSET.y)),
-                    left: Some(bevy_gooey::Space::Px(crate::terminal_view::BODY_INSET.x)),
+                    top: Some(bevy_gooey::Space::Px(crate::terminal_view::body_inset().y)),
+                    right: Some(bevy_gooey::Space::Px(crate::terminal_view::body_inset().x)),
+                    bottom: Some(bevy_gooey::Space::Px(crate::terminal_view::body_inset().y)),
+                    left: Some(bevy_gooey::Space::Px(crate::terminal_view::body_inset().x)),
                 },
                 ..default()
             },
@@ -896,11 +889,6 @@ fn clear_the_scrollback(_click: On<bevy_gooey::Activate>, mut terminal: ResMut<T
 /// What the `x` chip's tooltip says, before its chord.
 const TIP_CLOSE_TAB: &str = "Close this session and end its shell";
 
-/// **The chord that closes the tab being drawn**: Primary+Shift+Backquote, the pane's own.
-pub fn close_tab_chord() -> bevy_gooey::Shortcut {
-    bevy_gooey::Shortcut::new(bevy_gooey::Modifiers::PRIMARY | bevy_gooey::Modifiers::SHIFT, KeyCode::Backquote)
-}
-
 /// **The folder a new session starts in, by name**: what the bar's tooltips and the move chip call the open project.
 fn project_folder(terminal: &Terminal) -> String {
     terminal
@@ -971,13 +959,13 @@ fn word_width(chars: usize) -> f32 {
     chars as f32 * GLYPH_ADVANCE * chrome::text::CONTROL.px() * chrome::text_scale()
 }
 
-/// One chip's width: its word, [`chrome::CHIP_PAD`] and the edge on both sides, and the bar's gap after it.
+/// **A chip's inset across, logical px** — the `.chrome-chip` rule's, as the bar's plan estimates it. The plan is an estimate from the face's
+/// advance in any case; a sheet edit that moves the chip's inset moves the drawn chips at once and this estimate with the next build.
+const CHIP_INSET_X: f32 = 6.0;
+
+/// One chip's width: its word, its inset and the edge on both sides, and the bar's gap after it.
 fn chip_width(chars: usize) -> f32 {
-    let pad = match chrome::CHIP_PAD.left {
-        Val::Px(px) => px,
-        _ => 0.0,
-    };
-    word_width(chars) + 2.0 * (pad + chrome::EDGE_W) + chrome::GAP_TIGHT
+    word_width(chars) + 2.0 * (CHIP_INSET_X + crate::style::metrics().layout.edge_w) + chrome::space(chrome::STEP_TIGHT)
 }
 
 /// **Decide what a bar of `room` logical px holds** (#423); `None` is a bar not yet laid out, which holds everything. The widths are
@@ -988,9 +976,10 @@ pub fn bar_plan(room: Option<f32>, wants: &BarWants) -> BarPlan {
         return plan;
     };
     let width = |plan: &BarPlan| -> f32 {
-        let always = 2.0 * chrome::MARGIN + word_width("Terminal".len()) + chrome::GAP_TIGHT + chip_width(1) * 2.0;
+        let tight = chrome::space(chrome::STEP_TIGHT);
+        let always = 2.0 * chrome::space(chrome::STEP_PAD) + word_width("Terminal".len()) + tight + chip_width(1) * 2.0;
         let led = if wants.led {
-            chrome::GAP_TIGHT + word_width(LED_WORD_CHARS) + word_width(1) * 2.0 + if plan.led_name { word_width(AGENT_LED_LABEL.len()) } else { 0.0 }
+            tight + word_width(LED_WORD_CHARS) + word_width(1) * 2.0 + if plan.led_name { word_width(AGENT_LED_LABEL.len()) } else { 0.0 }
         } else {
             0.0
         };
@@ -1099,7 +1088,7 @@ fn fill_the_bar(commands: &mut Commands, bar: Entity, terminal: &Terminal) {
             match post {
                 Some(post) => {
                     bar.spawn((
-                        bevy_gooey::row_with(chrome::GAP_TIGHT_STEPS, bevy_gooey::RowLayout { align: Some(AlignItems::Center), ..default() }),
+                        (bevy_gooey::row_with(0.0, bevy_gooey::RowLayout { align: Some(AlignItems::Center), ..default() }), chrome::Gap::Tight.class()),
                         Pickable::default(),
                         TerminalAgentStatusChip,
                         bevy_gooey::Tooltip::new(post.led_tooltip()),
@@ -1145,7 +1134,7 @@ fn fill_the_bar(commands: &mut Commands, bar: Entity, terminal: &Terminal) {
             chrome::ink().bar_bg,
             chrome::ink().panel_edge,
         )
-        .insert(bevy_gooey::Tooltip::new(format!("{TIP_CLOSE_TAB}: {}", chord_words(&close_tab_chord()))));
+        .insert(bevy_gooey::Tooltip::new(format!("{TIP_CLOSE_TAB}: {}", chord_words(&crate::chords::chord(crate::chords::Fixed::TerminalCloseTab)))));
     });
 }
 
@@ -1189,22 +1178,10 @@ fn toggle_on_the_chord(
     focus.take();
 }
 
-/// **The chord that collapses the terminal**: the platform's primary modifier and J — Command+J on a
-/// mac, Ctrl+J elsewhere — the owner's chord (2026-11-06) and VS Code's Toggle Panel (#315).
-pub const COLLAPSE_CHORD: bevy_gooey::Shortcut =
-    bevy_gooey::Shortcut::new(bevy_gooey::Modifiers::PRIMARY, KeyCode::KeyJ);
-
-
-/// **The chord that maximises the terminal** (#426): Shift+Command+J on a mac, Shift+Ctrl+J elsewhere, beside [`COLLAPSE_CHORD`]. The owner
-/// (2026-11-09): it makes the terminal cover the whole window below the menu bar, and again returns the pane to the height it had.
-pub fn maximise_chord() -> bevy_gooey::Shortcut {
-    bevy_gooey::Shortcut::new(bevy_gooey::Modifiers::PRIMARY | bevy_gooey::Modifiers::SHIFT, KeyCode::KeyJ)
-}
-
-/// **`Terminal.maximise`**: the chord's own system. It is read here, before the shell sees anything, as [`COLLAPSE_CHORD`] is, so a shell
+/// **`Terminal.maximise`**: the chord's own system. It is read here, before the shell sees anything, as the collapse chord is, so a shell
 /// that holds the keys never hears it ([`crate::terminal_view`] swallows it).
 fn maximise_on_the_chord(keys: Res<ButtonInput<KeyCode>>, mut focus: ResMut<TerminalFocus>, mut terminal: ResMut<Terminal>) {
-    if maximise_chord().just_pressed(&keys) {
+    if crate::chords::chord(crate::chords::Fixed::TerminalMaximise).just_pressed(&keys) {
         toggle_maximised(&mut terminal, &mut focus);
     }
 }
@@ -1269,9 +1246,9 @@ fn apply_the_maximise(
             node.height = Val::Px(terminal.height());
         }
         match (maximised, layer) {
-            (true, Some(GlobalZIndex(z))) if *z == chrome::TERMINAL_MAXIMISED_Z => {}
+            (true, Some(GlobalZIndex(z))) if *z == crate::style::metrics().z.terminal_maximised => {}
             (true, _) => {
-                commands.entity(pane).insert(GlobalZIndex(chrome::TERMINAL_MAXIMISED_Z));
+                commands.entity(pane).insert(GlobalZIndex(crate::style::metrics().z.terminal_maximised));
             }
             (false, Some(_)) => {
                 commands.entity(pane).remove::<GlobalZIndex>();
@@ -1305,7 +1282,7 @@ fn collapse_on_the_chord(
     mut focus: ResMut<TerminalFocus>,
     mut terminal: ResMut<Terminal>,
 ) {
-    if !COLLAPSE_CHORD.just_pressed(&keys) {
+    if !crate::chords::chord(crate::chords::Fixed::TerminalCollapse).just_pressed(&keys) {
         return;
     }
     cycle_the_pane(&mut panes, &mut focus, &mut terminal);
@@ -1409,7 +1386,7 @@ fn close_the_tab_on_its_chord(
     bar: Query<Entity, With<TerminalBar>>,
     mut commands: Commands,
 ) {
-    let chord = close_tab_chord();
+    let chord = crate::chords::chord(crate::chords::Fixed::TerminalCloseTab);
     if !chord.just_pressed(&keys) {
         return;
     }
@@ -1423,7 +1400,7 @@ fn close_the_tab_on_its_chord(
 /// ([`crate::terminal::TerminalScreen::clear_keeping_prompt`]). Nothing reaches the shell, neither the
 /// chord (`terminal_view::type_keys` never forwards it) nor a request to clear.
 fn clear_on_its_chord(keys: Res<ButtonInput<KeyCode>>, focus: Res<TerminalFocus>, mut terminal: ResMut<Terminal>) {
-    if !focus.holds() || !CLEAR_CHORD.just_pressed(&keys) {
+    if !focus.holds() || !crate::chords::chord(crate::chords::Fixed::TerminalClear).just_pressed(&keys) {
         return;
     }
     if let Some(tab) = terminal.tab_mut() {
@@ -1440,7 +1417,7 @@ fn open_find_on_its_chord(
     bodies: Query<Entity, With<TerminalBody>>,
     mut commands: Commands,
 ) {
-    if !focus.holds() || !FIND_CHORD.just_pressed(&keys) {
+    if !focus.holds() || !crate::chords::chord(crate::chords::Fixed::TerminalFind).just_pressed(&keys) {
         return;
     }
     let Some(body) = bodies.iter().next() else {
@@ -1460,13 +1437,12 @@ fn spawn_the_find_box(commands: &mut Commands, body: Entity) {
     let frame = commands
         .spawn((
             // The find box floats over the scrollback it searches, as VS Code's terminal find does; it is not a panel `chrome::Frame` places: placed in the body's top right
-            // (`BODY_INSET.y` down, a margin in), `FIND_BOX_W` wide, its parts a tight step apart and a tight step in, a 1 px edge, in the editor's own colours (`InkFollow`).
-            bevy_gooey::placed(UiRect { top: Val::Px(crate::terminal_view::BODY_INSET.y), right: Val::Px(chrome::MARGIN), ..UiRect::all(Val::Auto) }),
+            // (`BODY_INSET.y` down, a panel's inset in), `FIND_BOX_W` wide, its parts' gap and its inset the sheet's `.terminal-float`, a hairline edge, in the editor's own colours (`InkFollow`).
+            bevy_gooey::placed(UiRect { top: Val::Px(crate::terminal_view::body_inset().y), right: Val::Px(chrome::space(chrome::STEP_PAD)), ..UiRect::all(Val::Auto) }),
             bevy_gooey::Sizing { width: Some(bevy_gooey::Extent::Px(FIND_BOX_W)), ..default() },
             bevy_gooey::RowLayout { direction: Some(FlexDirection::Row), align: Some(AlignItems::Center), ..default() },
-            bevy_gooey::GapPx(chrome::GAP_TIGHT),
-            bevy_gooey::Spacing { padding: bevy_gooey::Sides::all(chrome::STEP_TIGHT), ..default() },
-            bevy_gooey::BorderPx(bevy_gooey::Sides::all(chrome::EDGE_W)),
+            bevy_gooey::StyleClass::of("terminal-float"),
+            bevy_gooey::BorderPx(bevy_gooey::Sides::all(crate::style::metrics().layout.edge_w)),
             bevy_gooey::InkFollow,
             BackgroundColor(chrome::ink().bar_bg),
             BorderColor::all(chrome::ink().panel_edge),
@@ -1518,13 +1494,12 @@ fn spawn_the_agent_card(commands: &mut Commands, body: Entity, post: &crate::ter
     let card = commands
         .spawn((
             // The self-test card floats over the terminal it reports on, as the find box does; it is not a panel `chrome::Frame` places: placed at the body's top right
-            // (`BODY_INSET.y` down, a margin in), as wide as its content from `AGENT_CARD_MIN_W` up to the terminal's own width, its rows a tight step apart and a tight
-            // step in, a 1 px edge, in the editor's own colours (`InkFollow`). **`placed` is `Pickable::IGNORE`, which the card is**: the pointer goes through it to the shell.
-            bevy_gooey::placed(UiRect { top: Val::Px(crate::terminal_view::BODY_INSET.y), right: Val::Px(chrome::MARGIN), ..UiRect::all(Val::Auto) }),
+            // (`BODY_INSET.y` down, a panel's inset in), as wide as its content from `AGENT_CARD_MIN_W` up to the terminal's own width, its rows' gap and its inset the sheet's
+            // `.terminal-float`, a hairline edge, in the editor's own colours (`InkFollow`). **`placed` is `Pickable::IGNORE`, which the card is**: the pointer goes through it to the shell.
+            bevy_gooey::placed(UiRect { top: Val::Px(crate::terminal_view::body_inset().y), right: Val::Px(chrome::space(chrome::STEP_PAD)), ..UiRect::all(Val::Auto) }),
             bevy_gooey::Sizing { min_width: Some(bevy_gooey::Extent::Px(AGENT_CARD_MIN_W)), max_width: Some(bevy_gooey::Extent::Percent(100.0)), ..default() },
-            bevy_gooey::GapPx(chrome::GAP_TIGHT),
-            bevy_gooey::Spacing { padding: bevy_gooey::Sides::all(chrome::STEP_TIGHT), ..default() },
-            bevy_gooey::BorderPx(bevy_gooey::Sides::all(chrome::EDGE_W)),
+            bevy_gooey::StyleClass::of("terminal-float"),
+            bevy_gooey::BorderPx(bevy_gooey::Sides::all(crate::style::metrics().layout.edge_w)),
             bevy_gooey::InkFollow,
             BackgroundColor(chrome::ink().bar_bg),
             BorderColor::all(chrome::ink().panel_edge),
@@ -1537,7 +1512,7 @@ fn spawn_the_agent_card(commands: &mut Commands, body: Entity, post: &crate::ter
             card.spawn(sentence(post.heading(), ink.read, TerminalAgentCardRow(None)));
             for (index, (label, check)) in crate::terminal_agent::CHECK_LABELS.iter().zip(&post.checks).enumerate() {
                 card.spawn((
-                    bevy_gooey::row_with(chrome::GAP_TIGHT_STEPS, bevy_gooey::RowLayout { align: Some(AlignItems::Center), ..default() }),
+                    (bevy_gooey::row_with(0.0, bevy_gooey::RowLayout { align: Some(AlignItems::Center), ..default() }), chrome::Gap::Tight.class()),
                     Pickable::IGNORE,
                 ))
                 .with_children(|row| {
@@ -2274,7 +2249,7 @@ fn cell_under(
 ) -> Option<(usize, usize)> {
     let normalized = hit.position?;
     let size = node.size() * node.inverse_scale_factor();
-    let local = Vec2::new(normalized.x + 0.5, normalized.y + 0.5) * size - crate::terminal_view::BODY_INSET;
+    let local = Vec2::new(normalized.x + 0.5, normalized.y + 0.5) * size - crate::terminal_view::body_inset();
     Some((
         (local.y / metrics.height()).max(0.0) as usize,
         (local.x / metrics.width()).max(0.0) as usize,
@@ -2500,7 +2475,7 @@ fn a_chip_opens_an_agent(
     }
     click.propagate(false);
     let (cols, rows) = measured_cells(&pane);
-    crate::terminal_agent::open_agent_tab(&mut terminal, cols, rows, setup.as_deref(), root.as_deref(), time.elapsed_secs_f64());
+    crate::terminal_agent::open_agent_tab(&mut terminal, AgentKind::Project, cols, rows, setup.as_deref(), root.as_deref(), time.elapsed_secs_f64());
     redraw_the_bar(&mut commands, &bar, &terminal);
 }
 
@@ -2523,7 +2498,7 @@ fn the_button_invokes_the_agent(
     }
     click.propagate(false);
     let (cols, rows) = measured_cells(&pane);
-    crate::terminal_agent::open_agent_tab(&mut terminal, cols, rows, setup.as_deref(), root.as_deref(), time.elapsed_secs_f64());
+    crate::terminal_agent::open_agent_tab(&mut terminal, AgentKind::Project, cols, rows, setup.as_deref(), root.as_deref(), time.elapsed_secs_f64());
     redraw_the_bar(&mut commands, &bar, &terminal);
 }
 
@@ -2551,7 +2526,7 @@ fn enter_invokes_the_agent(
         return;
     }
     let (cols, rows) = measured_cells(&pane);
-    crate::terminal_agent::open_agent_tab(&mut terminal, cols, rows, setup.as_deref(), root.as_deref(), time.elapsed_secs_f64());
+    crate::terminal_agent::open_agent_tab(&mut terminal, AgentKind::Project, cols, rows, setup.as_deref(), root.as_deref(), time.elapsed_secs_f64());
     redraw_the_bar(&mut commands, &bar, &terminal);
 }
 
@@ -2586,11 +2561,12 @@ fn resume_the_agent_that_was_running(
         return;
     }
     *tried = Some(project.clone());
-    match crate::agent_resume::recall(&setup.files, &project) {
+    match crate::agent_resume::recall(&setup.files, &project, AgentKind::Project) {
         Ok(Some(entry)) if entry.harness == crate::settings::TerminalAgent::OhMyPi.name() => {
             let (cols, rows) = measured_cells(&pane);
             crate::terminal_agent::open_agent_tab_resuming(
                 &mut terminal,
+                AgentKind::Project,
                 cols,
                 rows,
                 Some(setup),
@@ -2603,6 +2579,80 @@ fn resume_the_agent_that_was_running(
         Ok(_) => {}
         Err(why) => terminal.refuse(format!("the agent that was running here could not be looked up, so none was resumed: {why}")),
     }
+}
+
+/// **The session a relaunch asks the new editor to restore** (`--restore-dev-agent <id>`, inserted by `main`): the editor development
+/// agent that asked for the relaunch continues in this editor's terminal. Taken by [`restore_the_editor_dev_agent`], once.
+#[derive(Resource, Clone, Debug, PartialEq, Eq)]
+pub struct RestoreDevAgent(pub String);
+
+/// **`agent.editor_dev` (`Cmd`/`Ctrl`+`Alt`+`D`) raises the terminal and opens the editor development agent** in the editor's own
+/// checkout. The chord is the terminal's own, read here as its others are ([`crate::chords::Fixed::EditorDevAgent`]).
+#[allow(clippy::too_many_arguments)]
+fn the_chord_opens_the_editor_dev_agent(
+    keys: Res<ButtonInput<KeyCode>>,
+    mut panes: Query<&mut Node, With<TerminalPaneRoot>>,
+    mut focus: ResMut<TerminalFocus>,
+    pane: Res<TerminalPane>,
+    setup: Option<Res<crate::terminal_agent::AgentSetup>>,
+    root: Option<Res<crate::project_assets::ProjectRoot>>,
+    time: Res<Time<Real>>,
+    mut terminal: ResMut<Terminal>,
+    bar: Query<Entity, With<TerminalBar>>,
+    mut commands: Commands,
+) {
+    if !crate::chords::chord(crate::chords::Fixed::EditorDevAgent).just_pressed(&keys) {
+        return;
+    }
+    open_the_editor_dev_agent(&mut panes, &mut focus, &pane, setup.as_deref(), root.as_deref(), time.elapsed_secs_f64(), &mut terminal, None);
+    redraw_the_bar(&mut commands, &bar, &terminal);
+}
+
+/// **The editor development agent a relaunch carried is opened again**, once the person's settings are in (no shell opens before
+/// them): `omp --restore <id>` continues the turn that asked for the relaunch.
+#[allow(clippy::too_many_arguments)]
+fn restore_the_editor_dev_agent(
+    restore: Option<Res<RestoreDevAgent>>,
+    mut panes: Query<&mut Node, With<TerminalPaneRoot>>,
+    mut focus: ResMut<TerminalFocus>,
+    pane: Res<TerminalPane>,
+    setup: Option<Res<crate::terminal_agent::AgentSetup>>,
+    root: Option<Res<crate::project_assets::ProjectRoot>>,
+    time: Res<Time<Real>>,
+    mut terminal: ResMut<Terminal>,
+    bar: Query<Entity, With<TerminalBar>>,
+    mut commands: Commands,
+) {
+    let Some(restore) = restore else { return };
+    if !terminal.settings_taken() || panes.is_empty() {
+        return;
+    }
+    let session = restore.0.clone();
+    commands.remove_resource::<RestoreDevAgent>();
+    open_the_editor_dev_agent(&mut panes, &mut focus, &pane, setup.as_deref(), root.as_deref(), time.elapsed_secs_f64(), &mut terminal, Some(&session));
+    redraw_the_bar(&mut commands, &bar, &terminal);
+}
+
+/// Raise the pane, give it the keys, and open the editor development agent's tab (restoring `session` when one is carried).
+#[allow(clippy::too_many_arguments)]
+fn open_the_editor_dev_agent(
+    panes: &mut Query<&mut Node, With<TerminalPaneRoot>>,
+    focus: &mut TerminalFocus,
+    pane: &TerminalPane,
+    setup: Option<&crate::terminal_agent::AgentSetup>,
+    root: Option<&crate::project_assets::ProjectRoot>,
+    now_s: f64,
+    terminal: &mut Terminal,
+    session: Option<&str>,
+) {
+    for mut node in panes.iter_mut() {
+        if node.display == Display::None {
+            show(&mut node, terminal, false);
+        }
+    }
+    focus.take();
+    let (cols, rows) = measured_cells(pane);
+    crate::terminal_agent::open_agent_tab_resuming(terminal, AgentKind::EditorDev, cols, rows, setup, root, session, now_s);
 }
 
 /// **The status chip brings the self-test card back**, and types the self-test prompt into omp again
@@ -2728,7 +2778,7 @@ mod tests {
         let size = Vec2::new(1066.0, 200.0);
         let node = ComputedNode { size: size * SCALE, inverse_scale_factor: 1.0 / SCALE, ..default() };
         // Where the rows draw row 2, column 4: past the body's padding, then whole cells.
-        let rows_begin = crate::terminal_view::BODY_INSET;
+        let rows_begin = crate::terminal_view::body_inset();
         let (row, column) = (2usize, 4usize);
         let middle = rows_begin + Vec2::new((column as f32 + 0.5) * metrics.width(), (row as f32 + 0.5) * metrics.height());
         let normalized = middle / size - Vec2::splat(0.5);

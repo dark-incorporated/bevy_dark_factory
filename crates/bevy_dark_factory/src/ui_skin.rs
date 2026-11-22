@@ -59,7 +59,7 @@ impl GameSkin {
     /// a project that ships no game UI still has an editor, and the preview shows what the game would
     /// look like on the palette the person is already looking at.
     pub fn previewed(&self) -> GooeySkin {
-        self.0.clone().unwrap_or_else(crate::ui::editor_skin)
+        self.0.clone().unwrap_or_else(|| crate::style::compiled_default().skin)
     }
 }
 

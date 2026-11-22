@@ -2530,6 +2530,69 @@ pub mod view_toggle_rigs {
     }
 }
 
+/// **The style inspector, up or away** (`crate::style_inspect`): the overlay naming the style sheet rules of the node under
+/// the pointer. View state, the journal's shape: the chord and an agent's call dispatch this one thing, it writes no project
+/// data and takes no undo step.
+pub mod view_toggle_style_inspector {
+    use super::*;
+    use serde_json::json;
+
+    #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+    #[serde(deny_unknown_fields)]
+    pub struct Params {}
+
+    pub struct ViewToggleStyleInspector;
+
+    impl Operation for ViewToggleStyleInspector {
+        fn name(&self) -> &'static str {
+            "view_toggle_style_inspector"
+        }
+        fn changes_view(&self) -> bool {
+            true
+        }
+        fn shows(&self, _ctx: &Ctx, _params: &serde_json::Value) -> Shown {
+            Shown::Nowhere
+        }
+        fn writes(&self) -> &'static [&'static str] {
+            // An overlay being up is not project data: no map, no file, no undo step.
+            &[]
+        }
+
+        fn undo(&self) -> Undo {
+            // **Not an edit.** `Cmd+Z` after `Cmd+Alt+I` must take back the last change to the blueprint, not close an overlay.
+            Undo::None
+        }
+
+        fn schema(&self) -> serde_json::Value {
+            json!({"type": "object", "additionalProperties": false, "properties": {}})
+        }
+
+        fn plan(&self, ctx: &Ctx, _params: &serde_json::Value) -> Result<serde_json::Value, Refusal> {
+            let Some(view) = ctx.view.as_ref() else {
+                return Err(Refusal::new(
+                    "no view is in hand, so there is no style inspector to toggle. An editor front end carries one in `Ctx::view`.",
+                ));
+            };
+            Ok(json!({ "now": if view.style_inspector_open { "down" } else { "up" } }))
+        }
+
+        fn commit(&self, ctx: &mut Ctx, params: &serde_json::Value) -> Result<Outcome, Refusal> {
+            self.plan(ctx, params)?;
+            let Some(view) = ctx.view.as_mut() else {
+                return Err(Refusal::new("no view is in hand, so there is no style inspector to toggle."));
+            };
+            let open = view.toggle_style_inspector();
+            Ok(Outcome {
+                summary: if open { "style inspector up".to_owned() } else { "style inspector away".to_owned() },
+                affected: 0,
+                saved: false,
+                inverse: None,
+                after: Some(json!({ "style_inspector": if open { "up" } else { "away" } })),
+            })
+        }
+    }
+}
+
 /// **The rig bench's ghost, up or down** (E-002, #129): the translucent second figure that plays the
 /// *measured* gait over the declared one, which `G` and the ghost chip toggle.
 ///
@@ -4336,7 +4399,7 @@ pub mod camera {
     use super::list_walk::need_view;
     use super::*;
     use crate::ops_view::CameraCursor;
-    use crate::view::{PAN_SPEED, PANS, ROTATION_STEPS};
+    use crate::view::{PANS, ROTATION_STEPS};
     use serde_json::json;
 
     /// **The longest pan one call may make**, in seconds of the key being held: far past any frame, so a request is a sweep
@@ -4409,7 +4472,7 @@ pub mod camera {
                 }
                 let now = camera_in(ctx, "pan")?;
                 // **A fraction of what is on screen, not a fixed number of metres**: the rule the keys always had.
-                let moved = crate::view::pan_direction(wish, now.yaw) * PAN_SPEED * now.height * p.seconds;
+                let moved = crate::view::pan_direction(wish, now.yaw) * crate::view::tunables().pan_speed * now.height * p.seconds;
                 Ok(CameraCursor { focus: (Vec3::from(now.focus) + moved).to_array(), ..*now })
             }
         }
@@ -8022,6 +8085,7 @@ pub fn registry() -> Vec<Box<dyn Operation>> {
         Box::new(view_cycle_grid::ViewCycleGrid),
         Box::new(view_toggle_journal::ViewToggleJournal),
         Box::new(view_toggle_rigs::ViewToggleRigs),
+        Box::new(view_toggle_style_inspector::ViewToggleStyleInspector),
         Box::new(view_toggle_ghost::ViewToggleGhost),
         Box::new(sight::placement_set_hidden::PlacementSetHidden),
         Box::new(sight::layer_set_visible::LayerSetVisible),
@@ -8329,6 +8393,9 @@ pub const UI_ENTRY_POINTS: &[(&str, &str)] = &[
     // **The rig list's key**, `Cmd`/`Ctrl`+`R`, which dispatches `view_toggle_rigs` (#522). The bench's column is what changes; the
     // operation decides up or away and the front end applies it.
     ("view_toggle_rigs", "\"view_toggle_rigs\", &serde_json"),
+    // **The style inspector's chord**, `Cmd`/`Ctrl`+`Alt`+`I`, which dispatches `view_toggle_style_inspector`. The overlay is what
+    // changes; the operation decides up or away and the front end applies it.
+    ("view_toggle_style_inspector", "\"view_toggle_style_inspector\", &serde_json"),
     // **The ghost key and chip**, `G`, which dispatch `view_toggle_ghost` (E-002, #129). The bench's overlay is what
     // changes; the operation decides on or off and the front end applies it.
     ("view_toggle_ghost", "\"view_toggle_ghost\""),

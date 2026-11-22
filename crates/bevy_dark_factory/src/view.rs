@@ -54,23 +54,39 @@ const ISO_DISTANCE: f32 = 20.784_609; // |(12, 12, 12)| = 12 * sqrt 3
 /// Quarter turns, so the grid stays square to the screen at every detent.
 pub(crate) const ROTATION_STEPS: u32 = 4;
 
-/// **The closest the rig goes.** Was 4.0 — the same as `tiles::TILE_VIEW_HEIGHT` — which made the
-/// floor of the wheel equal to the whole framing of the mesh stage: a 12 cm mug could not be zoomed
-/// in on by any means, and the stage that exists to look at one mesh could never fill itself with it.
-/// `pub(crate)` because `tiles::stage_camera` clamps its computed framing to the same limit; a stage
-/// that framed closer than the wheel allows would spring back on the first scroll.
-pub(crate) const MIN_ZOOM: f32 = 0.25;
-/// The furthest out the rig goes. `pub(crate)` because the Compose sheet has to know it: a gallery
-/// that needs more than this to be seen whole is cropped, and cropped silently reads as complete.
-pub(crate) const MAX_ZOOM: f32 = 80.0;
-/// **Viewport height per wheel line, as a RATIO.** One detent of a notched mouse wheel.
+/// **The Map camera's tunables now** (`view:` in a settings file, [`crate::settings::ViewSettings`]), by value.
 ///
-/// It was an absolute 2.0 m. That is a sane detent across a 4 m..80 m range and a two-position switch
-/// below 2.25 m: with [`MIN_ZOOM`] at 0.25 the wheel had exactly one stop between the floor and 2 m,
-/// so the tab that exists to look at one 12 cm mesh could not be scrolled around it. A ratio is the
-/// same gesture at every scale — 1.2 puts about thirty-two detents across the whole
-/// [`MIN_ZOOM`]..[`MAX_ZOOM`] range, wherever in it the author is standing.
-const ZOOM_STEP: f32 = 1.2;
+/// - **`zoom_min_m`, the closest the rig goes**, 0.25 m by default. It was 4.0 — the same as `tiles::TILE_VIEW_HEIGHT` —
+///   which made the floor of the wheel equal to the whole framing of the mesh stage: a 12 cm mug could not be zoomed in
+///   on by any means. `tiles::stage_camera` clamps its computed framing to the same limit; a stage that framed closer
+///   than the wheel allows would spring back on the first scroll.
+/// - **`zoom_max_m`, the furthest out it goes**, 80 m. The Compose sheet has to know it: a gallery that needs more than
+///   this to be seen whole is cropped, and cropped silently reads as complete.
+/// - **`zoom_step`, viewport height per wheel line as a RATIO**, 1.2: one detent of a notched mouse wheel. It was an
+///   absolute 2.0 m, a two-position switch below 2.25 m. A ratio is the same gesture at every scale — 1.2 puts about
+///   thirty-two detents across the whole default range, wherever in it the author is standing.
+/// - **`pan_speed`, viewport heights a second a held pan key crosses**, not metres a second: 16 m/s over the 18 m map
+///   view it was tuned at, so the Map tab is unchanged to the metre and every closer framing scales with what is on
+///   screen. An absolute 16 m/s at the 0.25 m floor moved the subject off the screen in one frame.
+///
+/// A process-wide value, published by `settings::sync_settings` whenever the settings change, because the rig's maths
+/// runs in pure functions (`frame_box`, `max_zoom`, the Compose sheet's framing) that no system parameter reaches —
+/// the reason [`crate::chrome::ink`] is one too.
+pub fn tunables() -> crate::settings::ViewSettings {
+    // A poisoned lock still holds a whole value: it is only ever replaced, never edited in place.
+    *LIVE_TUNABLES.read().unwrap_or_else(std::sync::PoisonError::into_inner)
+}
+
+static LIVE_TUNABLES: std::sync::LazyLock<std::sync::RwLock<crate::settings::ViewSettings>> =
+    std::sync::LazyLock::new(|| std::sync::RwLock::new(crate::settings::ViewSettings::default()));
+
+/// Replaces the running tunables. Only `settings::sync_settings` calls it.
+pub(crate) fn publish_tunables(next: crate::settings::ViewSettings) {
+    let mut held = LIVE_TUNABLES.write().unwrap_or_else(std::sync::PoisonError::into_inner);
+    if *held != next {
+        *held = next;
+    }
+}
 
 /// **A wheel notch and a trackpad swipe are not the same number, and the wheel is the one this
 /// editor was tuned for.**
@@ -80,16 +96,16 @@ const ZOOM_STEP: f32 = 1.2;
 /// That *is* the device check: the platform already knows, so nothing here has to guess from the
 /// shape of the numbers.
 ///
-/// Multiplying a pixel delta by [`ZOOM_STEP`] treated every pixel as a detent. A gentle two-finger
+/// Multiplying a pixel delta by the zoom step treated every pixel as a detent. A gentle two-finger
 /// swipe accumulates on the order of thirty pixels in a frame, so one frame asked for thirty detents
-/// — the whole [`MIN_ZOOM`]..[`MAX_ZOOM`] range, which is about thirty-two, in a flick. Reported from
+/// — the whole default zoom range, which is about thirty-two, in a flick. Reported from
 /// the keyboard: *"way too sensitive for a touchpad."*
 ///
 /// [`MouseScrollPixelsPerLine`] is the engine's own answer to how many pixels make a line (a
 /// resource since Bevy 0.20; it was the constant `MouseScrollUnit::SCROLL_UNIT_CONVERSION_FACTOR`),
 /// so the conversion is Bevy's number rather than one invented here — and both devices end up asking
 /// for the same zoom per unit of intent. `src/camera.rs` does the same, for the same reason; the two
-/// are kept in step by hand, like `PAN_SPEED`.
+/// are kept in step by hand, like the pan speed.
 fn wheel_lines(scroll: &AccumulatedMouseScroll, per_line: MouseScrollPixelsPerLine) -> f32 {
     match scroll.unit {
         MouseScrollUnit::Line => scroll.delta.y,
@@ -131,20 +147,6 @@ fn the_pane_has_the_wheel(pointer: Option<Vec2>, panes: impl IntoIterator<Item =
     };
     panes.into_iter().any(|pane| pane.contains(at))
 }
-
-/// **Viewport heights a second a held pan key crosses**, not metres a second.
-///
-/// It was an absolute 16.0 m/s matched to the game's `src/camera.rs`, on the argument that the same
-/// key should feel the same in both applications. That held while the floor of the wheel was 4 m.
-/// [`MIN_ZOOM`] is 0.25 m now so that a 12 cm mug can be looked at, and at the floor one 60 Hz frame
-/// of 16 m/s moves the focus 0.267 m — further than the whole viewport is tall, so the subject leaves
-/// the screen on the first frame the key is held. Pan is `Context::Global` and
-/// `tiles::stage_camera` frames a small mesh straight down to the floor, so that is the ordinary case
-/// rather than a corner of it.
-///
-/// The number is the old one over the height it was tuned at — 16 m/s at an 18 m map view — so the
-/// Map tab is unchanged to the metre and every closer framing scales with what is on screen.
-pub(crate) const PAN_SPEED: f32 = 16.0 / 18.0;
 
 /// **The four pans**: the key, the name an agent says, and which way it wishes the view to go in screen terms (`+x` is right and
 /// `-y` is up the screen, away from the viewer, as [`pan_direction`] reads them). The key loop below and `ops::camera::camera_pan`
@@ -376,7 +378,7 @@ fn setup(
     ));
 }
 
-/// **The furthest out the rig goes on this map.** [`MAX_ZOOM`] for an ordinary room, and for a larger
+/// **The furthest out the rig goes on this map.** The tunables' `zoom_max_m` for an ordinary room, and for a larger
 /// map enough to see all of it, with a quarter to spare, at any yaw and viewport shape.
 ///
 /// It was `1.25 x` the longer side, which assumed the map lies square to the screen. Under the iso
@@ -391,8 +393,9 @@ pub(crate) fn max_zoom(open: Option<&crate::project::OpenMap>, aspect: f32) -> f
     } else {
         1.0
     };
-    open.map_or(MAX_ZOOM, |o| {
-        MAX_ZOOM.max(1.25 * o.map.bounds.0.hypot(o.map.bounds.2) / aspect)
+    let furthest = tunables().zoom_max_m;
+    open.map_or(furthest, |o| {
+        furthest.max(1.25 * o.map.bounds.0.hypot(o.map.bounds.2) / aspect)
     })
 }
 
@@ -547,7 +550,7 @@ pub fn frame_box_with_margin(
         }
     }
     let needed = (2.0 * down).max(2.0 * across / aspect) * margin;
-    (centre, needed.clamp(MIN_ZOOM, ceiling))
+    (centre, needed.clamp(tunables().zoom_min_m, ceiling))
 }
 
 /// **The Map camera's projection**: the rig's zoom, and a depth range that holds the whole map.
@@ -624,8 +627,9 @@ pub(crate) fn drive(
     if lines != 0.0 && !over_ui && !over_the_pane && wheel_is_the_maps(pointer.0, viewport) {
         // **A ratio, so a detent is the same gesture at every scale.** Subtracting metres put one
         // wheel stop between the floor and 2 m.
-        rig.height = (rig.height * ZOOM_STEP.powf(-lines))
-            .clamp(MIN_ZOOM, max_zoom(open.as_deref(), aspect));
+        let view = tunables();
+        rig.height = (rig.height * view.zoom_step.powf(-lines))
+            .clamp(view.zoom_min_m, max_zoom(open.as_deref(), aspect));
     }
 
     // **A quarter turn is `camera_turn`, the operation an agent calls** (E-002, #129 slice 31). Compared before writing: a write
@@ -939,7 +943,7 @@ mod tests {
     ///
     /// The device is not guessed: winit reports a notched wheel as `Line` and anything with precise
     /// deltas — a trackpad, a Magic Mouse — as `Pixel`, and this is only the conversion between
-    /// them. A pixel delta used to be multiplied by `ZOOM_STEP` as if every pixel were a detent,
+    /// them. A pixel delta used to be multiplied by the zoom step as if every pixel were a detent,
     /// which asked for more viewport height in one frame than the whole zoom range holds.
     #[test]
     fn a_trackpad_swipe_is_read_in_lines_not_pixels() {
@@ -1201,10 +1205,11 @@ mod tests {
                 std::path::PathBuf::from("m.map.yaml"),
             )
         };
-        assert_eq!(max_zoom(None, 1.0), MAX_ZOOM);
+        let furthest = super::tunables().zoom_max_m;
+        assert_eq!(max_zoom(None, 1.0), furthest);
         assert_eq!(
             max_zoom(Some(&open((20.0, 5.0, 12.0))), 1.0),
-            MAX_ZOOM,
+            furthest,
             "a room keeps the constant"
         );
         // The ground diagonal decides, because a projected map is never wider than it at any yaw.
@@ -1234,7 +1239,7 @@ mod tests {
             ..Rig::default()
         };
         let centre = Vec3::new(120.0, 3.0, -75.0);
-        let (focus, _) = super::frame_box(&rig, centre, Vec3::new(60.0, 4.0, 30.0), 1.5, MAX_ZOOM);
+        let (focus, _) = super::frame_box(&rig, centre, Vec3::new(60.0, 4.0, 30.0), 1.5, super::tunables().zoom_max_m);
         assert_eq!(focus, centre);
     }
 
@@ -1294,7 +1299,7 @@ mod tests {
     fn the_framed_height_stays_between_the_floor_and_the_ceiling() {
         let rig = Rig::default();
         let (_, speck) = super::frame_box(&rig, Vec3::ZERO, Vec3::splat(0.01), 1.0, 375.0);
-        assert_eq!(speck, MIN_ZOOM);
+        assert_eq!(speck, super::tunables().zoom_min_m);
         let (_, vast) = super::frame_box(&rig, Vec3::ZERO, Vec3::splat(5000.0), 1.0, 375.0);
         assert_eq!(vast, 375.0);
     }

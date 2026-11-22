@@ -470,7 +470,7 @@ pub fn snip_overlay(
                 height: Some(bevy_gooey::Extent::Px(chrome::overlay_px(rect[3] - rect[1], ui_scale.0))),
                 ..default()
             },
-            bevy_gooey::BorderPx(bevy_gooey::Sides::all(chrome::SNIP_EDGE_W)),
+            bevy_gooey::BorderPx(bevy_gooey::Sides::all(crate::style::metrics().layout.snip_edge_w)),
             bevy_gooey::InkOverride { edge: Some(chrome::ink().accent), ..default() },
             BorderColor::all(chrome::ink().accent),
             BackgroundColor(chrome::ink().snip_wash),

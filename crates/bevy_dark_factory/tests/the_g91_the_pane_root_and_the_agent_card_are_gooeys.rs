@@ -161,8 +161,8 @@ fn the_self_test_card_is_a_placed_column_as_wide_as_its_content() {
     let world = app.world_mut();
     let n = world.get::<Node>(card).expect("a Node").clone();
     assert_eq!(n.position_type, PositionType::Absolute, "it floats over the terminal");
-    assert_eq!(n.top, Val::Px(bevy_dark_factory::terminal_view::BODY_INSET.y));
-    assert_eq!(n.right, Val::Px(bevy_dark_factory::chrome::MARGIN));
+    assert_eq!(n.top, Val::Px(bevy_dark_factory::terminal_view::body_inset().y));
+    assert_eq!(n.right, Val::Px(bevy_dark_factory::chrome::space(bevy_dark_factory::chrome::STEP_PAD)));
     assert_eq!(n.width, Val::Auto, "its width is its content's, not a constant");
     assert_eq!(n.min_width, Val::Px(320.0), "and never less than the first row needs");
     assert_eq!(n.max_width, Val::Percent(100.0), "and never more than the terminal's body");

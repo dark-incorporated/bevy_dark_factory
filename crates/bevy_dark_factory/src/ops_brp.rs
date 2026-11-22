@@ -548,6 +548,49 @@ fn pointer(
     ))
 }
 
+/// **The parameters of `blueprint/ui_style_inspect`**: a point in surface pixels, or neither coordinate for the
+/// pointer's own.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct UiStyleInspectParams {
+    /// Surface pixels from the window's left edge.
+    #[serde(default)]
+    pub x: Option<f32>,
+    /// Surface pixels from the window's top edge.
+    #[serde(default)]
+    pub y: Option<f32>,
+}
+
+/// **`blueprint/ui_style_inspect` — why the editor's chrome looks the way it does at a point** (the style
+/// inspector's answer, `crate::style_inspect`): the topmost classed node there, its classes, each style sheet
+/// rule that matches it with the layer and line that wrote it, and what they add up to. A read.
+fn ui_style_inspect(In(p): In<UiStyleInspectParams>, world: &mut World) -> Result<Value, String> {
+    let at = match (p.x, p.y) {
+        (Some(x), Some(y)) => Vec2::new(x, y),
+        (None, None) => world
+            .get_resource::<crate::view::Pointer>()
+            .and_then(|pointer| pointer.0)
+            .ok_or("the pointer is not over the window: pass x and y in surface pixels")?,
+        _ => return Err("pass both x and y in surface pixels, or neither for the pointer's own point".to_owned()),
+    };
+    let inspection = crate::style_inspect::inspect_at(world, at)?;
+    serde_json::to_value(&inspection).map_err(|e| format!("the answer did not serialise: {e}"))
+}
+
+/// **The parameters of `blueprint/relaunch_editor`**: the asking agent's tab token (`DARK_FACTORY_AGENT_TOKEN`).
+#[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct RelaunchParams {
+    /// The token the editor minted for the tab the asking agent runs in.
+    pub token: String,
+}
+
+/// **`blueprint/relaunch_editor` — start the build the editor development agent just made, and restore the agent in it**
+/// (`crate::relaunch`). Refused, saying why, for any other tab, an agent with no session yet, or no new build.
+fn relaunch_editor(In(p): In<RelaunchParams>, world: &mut World) -> Result<Value, String> {
+    crate::relaunch::request(world, &p.token)
+}
+
 /// **`blueprint/project_root` — which project the editor has open.**
 ///
 /// **A read, and the one fact the MCP server cannot know for itself.** The server is told a
@@ -3557,6 +3600,19 @@ impl Plugin for OpsBridgePlugin {
 
         app.add_debug_command(
             DebugCommandInfo::new(
+                "blueprint/ui_style_inspect",
+                "Why the editor's own chrome looks the way it does at a point: the topmost node with a style \
+                 class there, its classes and laid-out size, each style sheet rule that matches it in cascade \
+                 order (selector, layer, file, line, specificity, what it sets) and what they add up to. The \
+                 style inspector's answer (Cmd+Alt+I). Refused, saying why, where no classed node is. A read.",
+            )
+            .params("x, y: surface pixels; omit both for the pointer's own point.")
+            .example(json!({"x": 40.0, "y": 120.0})),
+            ui_style_inspect,
+        );
+
+        app.add_debug_command(
+            DebugCommandInfo::new(
                 "blueprint/agent_guide",
                 "The person's and the open project's layers of an agent's guide, in that order, and \
                  what was refused: layers [{source, path, text}], problems [{what, where, why, fix}]. \
@@ -3593,6 +3649,19 @@ impl Plugin for OpsBridgePlugin {
             )
             .example(json!({"token": "1a2b", "client": {"name": "omp", "version": "18.16.0"}, "tools": 22})),
             agent_hello,
+        );
+
+        app.add_debug_command(
+            DebugCommandInfo::new(
+                "blueprint/relaunch_editor",
+                "The editor development agent's relaunch: save as Cmd+S does, start the binary just built on the same \
+                 arguments with --restore-dev-agent <its omp session>, and quit; the new editor restores that session \
+                 in its terminal. Only from an editor development tab's token, once it has said its session, and only \
+                 when the binary on disk is newer than this editor ('no new build: ...' otherwise).",
+            )
+            .params("token: the asking agent's tab token, DARK_FACTORY_AGENT_TOKEN.")
+            .example(json!({"token": "1a2b"})),
+            relaunch_editor,
         );
 
         app.add_debug_command(

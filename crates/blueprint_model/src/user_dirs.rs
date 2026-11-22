@@ -20,6 +20,11 @@ pub const LOG_FILE: &str = "dark_factory.log";
 /// the same file.
 pub const SETTINGS_FILE: &str = "settings.yaml";
 
+/// **The person's layer of the editor's style sheet**, inside [`config_dir`] beside [`SETTINGS_FILE`]: skin tokens,
+/// metrics and class rules laid over the editor's own sheet and its theme, and under a project's
+/// `assets/blueprint/editor_style.yaml`. The editor watches it and applies an edit live.
+pub const STYLE_FILE: &str = "style.yaml";
+
 /// The folder under [`data_dir`] a capture goes to when no project is named.
 const CAPTURES_DIR: &str = "captures";
 
@@ -45,6 +50,11 @@ pub fn config_dir() -> Option<PathBuf> {
 /// `<config_dir>/Blueprint/settings.yaml`: the person's settings, for every project.
 pub fn settings_file() -> Option<PathBuf> {
     config_dir().map(|d| d.join(SETTINGS_FILE))
+}
+
+/// `<config_dir>/Blueprint/style.yaml`: the person's style layer, for every project.
+pub fn style_file() -> Option<PathBuf> {
+    config_dir().map(|d| d.join(STYLE_FILE))
 }
 
 /// `<data_dir>/Blueprint/dark_factory.log`: the file the editor logs to and the MCP server reads.

@@ -275,7 +275,7 @@ fn name_the_areas(
                     TextColor(OUTLINE),
                     crate::chrome::typed(crate::chrome::text::LABEL),
                     bevy_gooey::placed_at(at.x, at.y),
-                    GlobalZIndex(crate::chrome::BALLOON_Z),
+                    GlobalZIndex(crate::style::metrics().z.balloon),
                 ));
             }
             (None, None) => {}
@@ -312,7 +312,7 @@ fn mirror_the_link(
     if blocks.is_empty() {
         let Ok(pane) = panes.single() else { return };
         let block = commands
-            .spawn((StyleBlock, Name::new("style block"), bevy_gooey::column(crate::chrome::GAP_TIGHT_STEPS)))
+            .spawn((StyleBlock, Name::new("style block"), (bevy_gooey::column(0.0), crate::chrome::Gap::Tight.class())))
             .with_children(|block| {
                 crate::chrome::list_heading(block, "STYLE");
                 crate::chrome::button(block, StyleLink(page), &label, crate::chrome::Severity::Plain);

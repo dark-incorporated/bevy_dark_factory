@@ -487,7 +487,7 @@ fn chord(
     mut asks: MessageWriter<OpenSettings>,
     mut commands: Commands,
 ) {
-    if !bevy_gooey::Shortcut::primary(KeyCode::Comma).just_pressed(&keys) {
+    if !crate::chords::chord(crate::chords::Fixed::SettingsOpen).just_pressed(&keys) {
         return;
     }
     if let Some(dialog) = open_now.iter().next() {
@@ -1124,7 +1124,7 @@ fn setting_row(
                 row.spawn((label(String::new()), InterfaceNote));
             }
             row.spawn((
-                bevy_gooey::row_with(crate::chrome::GAP_GROUP_STEPS, bevy_gooey::RowLayout { align: Some(AlignItems::Center), wrap: Some(FlexWrap::Wrap), ..default() }),
+                (bevy_gooey::row_with(0.0, bevy_gooey::RowLayout { align: Some(AlignItems::Center), wrap: Some(FlexWrap::Wrap), ..default() }), crate::chrome::Gap::Group.class()),
                 SettingLine { key, own: has_own, overridden, default: default_value },
                 line_children(setting, has_own, overridden, default_value),
             ));

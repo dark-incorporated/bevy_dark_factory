@@ -173,7 +173,7 @@ fn the_tree_steps_two_advances() {
         );
         // **And the step is the editor's own**: two advances of the body face, the file editor's
         // YAML indent.
-        let want = chrome::TREE_STEP;
+        let want = bevy_dark_factory::chrome::tree_step();
         assert!(
             ((deeper - folder) - want).abs() <= SLACK_PX,
             "at scale {scale}: folder {folder:.2}, file {file:.2}, deeper {deeper:.2}; one level deeper stands {:.2} further in, and the editor's step is {want:.2}",
@@ -182,10 +182,10 @@ fn the_tree_steps_two_advances() {
     }
 }
 
-/// **The step is the file editor's own, named once** (#523): `TREE_STEP` is `YAML_INDENT_SPACES`
+/// **The step is the file editor's own, named once** (#523): `tree_step()` is `YAML_INDENT_SPACES`
 /// advances of the body face, so a tree and the YAML in the editor beside it indent by one rule.
 #[test]
 fn the_tree_step_is_the_file_editors_two_spaces() {
-    assert_eq!(chrome::TREE_STEP, files::YAML_INDENT_SPACES as f32 * chrome::BODY_CHAR_W);
+    assert_eq!(chrome::tree_step(), files::YAML_INDENT_SPACES as f32 * chrome::body_char_w());
     assert_eq!(files::YAML_INDENT_SPACES, 2, "the file editor indents YAML and Markdown by two spaces");
 }

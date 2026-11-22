@@ -63,17 +63,17 @@ use bevy::prelude::*;
 use bevy::ui::widget::ImageNode;
 use bevy::ui::{ComputedNode, UiGlobalTransform};
 
-use crate::chrome::{self, GAP_TIGHT};
+use crate::chrome;
 use crate::keys::{self, Home};
 
 /// **How far a badge stands off the interface** — the gap to its anchor, the corridor its leader
 /// runs down, and the clearance the legend keeps from everything.
 ///
-/// [`chrome::GAP_GROUP`], the scale's **between-blocks** step, because a badge and the panel it is
+/// The skin's [`chrome::STEP_GROUP`], the scale's **between-blocks** step, because a badge and the panel it is
 /// pointing at are two blocks. `chrome`'s spacing note states the rule this obeys (van den Berg,
 /// Cornelissen & Roerdink 2009, `10.1167/9.4.24`): clutter is *crowding*, and a group reads as a
 /// group when its members sit closer to each other than to anything else. So the gap out to the
-/// interface has to be the larger one, and [`STACK`] — badge to badge inside one column — the
+/// interface has to be the larger one, and [`stack`] — badge to badge inside one column — the
 /// smaller.
 ///
 /// **It was 4 px, and that was one gap doing both jobs.** Every part of a leader was then four
@@ -84,7 +84,9 @@ use crate::keys::{self, Home};
 /// Four was the right number when adjacency was the **only** thing tying a badge to its control.
 /// It is not any more — [`Lead`] draws the tie — so the association survives a gap that proximity
 /// alone could not have afforded.
-const REACH: f32 = chrome::GAP_GROUP;
+fn reach() -> f32 {
+    chrome::space(chrome::STEP_GROUP)
+}
 
 /// **How far apart two leaders' corridors stand.**
 ///
@@ -98,14 +100,18 @@ const REACH: f32 = chrome::GAP_GROUP;
 /// So every leader gets a **lane of its own**, and the rail steps out far enough to clear the widest
 /// band a side can need. Bekos et al. call this a multi-track boundary labeling; the tracks are what
 /// buy the separation, and [`lanes_for`] is what keeps them from buying crossings with it.
-const LANE: f32 = chrome::GAP_ROW;
+fn lane() -> f32 {
+    chrome::space(chrome::STEP_ROW)
+}
 
 /// **How far one badge sits from the badge above it**, in a column that shares a corridor.
 ///
-/// [`chrome::GAP_ROW`] — the gap *within* a block, deliberately much smaller than [`REACH`]. Boxes
+/// The skin's [`chrome::STEP_ROW`] — the gap *within* a block, deliberately much smaller than [`reach`]. Boxes
 /// on one rail are one object; widening this with the reach would have pulled a rail apart into
 /// unrelated boxes at exactly the moment the reach was making it stand clear of the panel.
-const STACK: f32 = chrome::GAP_ROW;
+fn stack() -> f32 {
+    chrome::space(chrome::STEP_ROW)
+}
 
 /// How wide a legend's descriptions may run before they wrap — a **cap**, not a width.
 ///
@@ -136,13 +142,13 @@ const LEAD_THICK: f32 = 1.0;
 /// rather than by scanning two hundred rects, and a cell **any** ink touches is occupied — so a
 /// rectangle this says is free is genuinely free, and the exact ratchet
 /// (`no_badge_cluster_draws_through_another`) still means what it says. The rounding costs at most
-/// one cell of usable ground at each edge, which is why it is smaller than [`REACH`] is large.
+/// one cell of usable ground at each edge, which is why it is smaller than [`reach`] is large.
 ///
 /// Eight rather than one: at 2560×1406 this is 320 × 176 cells, which is a grid that can be rebuilt
 /// from scratch every frame the key is held without anybody noticing.
 const CELL: f32 = 8.0;
 
-/// One glyph's advance at [`chrome::text::BODY`] — [`chrome::BODY_CHAR_W`], the one
+/// One glyph's advance at [`chrome::text::BODY`] — [`chrome::body_char_w`], the one
 /// measurement, stated beside the size it belongs to.
 ///
 /// It sizes the legend's chord column to the longest chord *this* legend actually holds, so the
@@ -150,7 +156,9 @@ const CELL: f32 = 8.0;
 /// constant wide enough for the fattest chord the census has ever had — which is the difference
 /// between a legend that fits the populated Meshes tab's free ground and one that measured wider
 /// than any of it.
-const BODY_CHAR_W: f32 = chrome::BODY_CHAR_W;
+fn body_char_w() -> f32 {
+    crate::chrome::body_char_w()
+}
 
 /// **How many characters a box's chord column holds before a chord wraps** (#291): the longest single
 /// chord the census has, `Shift+Ctrl+Z`. A row's chords are joined with ` · `, so wrapping at its spaces
@@ -453,10 +461,12 @@ impl Plugin for BadgePlugin {
             )
             // Chained: a cluster spawned this frame is placed this frame and lit this frame, rather
             // than two frames later — which for a tap is the difference between a readout and a
-            // flicker.
+            // flicker. **Before gooey's cascade**, so a cluster spawned this frame wears its
+            // `.badge-row` box this frame: one laid out bare first is placed by the bare size, and a
+            // banded box sits off its control's middle until the next frame corrects it.
             .add_systems(
                 Update,
-                (rebuild_badges.before(bevy_gooey::GooeySystems::Style), place_badges, flash_live_badges)
+                (rebuild_badges.before(bevy_gooey::GooeySystems::Cascade), place_badges, flash_live_badges)
                     .chain()
                     .in_set(keys::Phase::Act)
                     .run_if(in_state(crate::screen::Screen::Editor)),
@@ -489,7 +499,7 @@ fn spawn_layer(
             // Above the panels (0), the compass (100), the tab strip (101) and the name box (400).
             // Below `confirm`'s 900, deliberately: a question you have to answer outranks a hint
             // about keys.
-            GlobalZIndex(chrome::BADGE_Z),
+            GlobalZIndex(crate::style::metrics().z.badge),
             BackgroundColor(ink.veil),
         ))
         .id();
@@ -761,7 +771,7 @@ fn rebuild_badges(
     // **The chord column a box's rows share: the longest chord in *that box*.**
     //
     // Measured exactly rather than estimated — FiraMono is the only face in the build, so
-    // `chars * BODY_CHAR_W` is the width, not a guess at it.
+    // `chars * body_char_w()` is the width, not a guess at it.
     //
     // It used to read only the legend's badges, on the note that "computing it per home was the same
     // answer per home" — which was true precisely while the legend was the only home drawn as a box.
@@ -774,7 +784,7 @@ fn rebuild_badges(
             .map(|b| b.chord.chars().count().min(CHORD_WRAP_CHARS))
             .max()
             .unwrap_or(0) as f32
-            * BODY_CHAR_W
+            * body_char_w()
             + 1.0
     };
 
@@ -835,9 +845,9 @@ fn rebuild_badges(
                         wrap: Some(FlexWrap::NoWrap),
                         ..default()
                     },
-                    bevy_gooey::GapPx(GAP_TIGHT),
-                    if labelled { chrome::CHIP_SPACING } else { bevy_gooey::Spacing::default() },
-                    bevy_gooey::BorderPx(if labelled { bevy_gooey::Sides::all(chrome::EDGE_W) } else { bevy_gooey::Sides::default() }),
+                    // The cluster's gap and, for a labelled one, the chip's inset: the sheet's `.badge-cluster` and `.badge-cluster-labelled`.
+                    bevy_gooey::StyleClass::of(if labelled { "badge-cluster badge-cluster-labelled" } else { "badge-cluster" }),
+                    bevy_gooey::BorderPx(if labelled { bevy_gooey::Sides::all(crate::style::metrics().layout.edge_w) } else { bevy_gooey::Sides::default() }),
                     bevy_gooey::InkFollow,
                     BackgroundColor(if labelled { ink.panel } else { Color::NONE }),
                     BorderColor::all(if labelled { ink.key } else { Color::NONE }),
@@ -1080,7 +1090,7 @@ impl Tie {
 /// Two right-angle leaders sharing one corridor cannot cross *provided* their boxes keep their
 /// anchors' order — that is the whole reason [`place_badges`] sorts a rail by anchor `y`. What one
 /// corridor cannot do is let a reader tell them apart, so every leader gets a lane
-/// ([`LANE`]) — and lanes reintroduce the crossing the single corridor had ruled out, because a
+/// ([`lane`]) — and lanes reintroduce the crossing the single corridor had ruled out, because a
 /// reach now has to pass every lane inside its own.
 ///
 /// **The order lanes are tried in** is the one that makes the assignment safe analytically: the
@@ -1352,7 +1362,7 @@ fn settle_legend(
     inset: f32,
 ) -> Vec2 {
     // **The corner is inset by the frame's own margin, not by a multiple of the gap.** It was
-    // `gap * 3`, which arrived at exactly [`chrome::MARGIN`] while [`REACH`] was 4 — an arithmetic
+    // `gap * 3`, which arrived at exactly a panel's inset while [`reach`] was 4 — an arithmetic
     // coincidence, and widening the reach would have walked the legend a further 36 px in from the
     // corner it exists to be learnable at. The distance from a window edge and the distance from a
     // badge are different questions; this is the first one.
@@ -1487,9 +1497,9 @@ fn place_badges(
     // drew landed 20% further from the corner than the point it named. A zero or negative scale is a
     // host misconfiguration rather than a state to render around; guarded so it cannot make a NaN.
     let scale = if ui_scale.0 > 0.0 { ui_scale.0 } else { 1.0 };
-    let reach = REACH * scale;
-    let stack = STACK * scale;
-    let lane = LANE * scale;
+    let reach = reach() * scale;
+    let stack = stack() * scale;
+    let lane = lane() * scale;
     let thick = (LEAD_THICK * scale).max(1.0);
 
     // **The stage: the hole the world is drawn through**, intersected with the window because the
@@ -1730,7 +1740,7 @@ fn place_badges(
                 continue;
             }
             let mut floor = stage.min.y;
-            // **The corridor is a band now, one [`LANE`] per leader on this side.** Reserved whole
+            // **The corridor is a band now, one [`lane`] per leader on this side.** Reserved whole
             // and up front, so a box can never stand where a lane might later run — which is what
             // lets the lanes be chosen *after* every box is placed, from the geometry they all end
             // up with, rather than guessed at one at a time.
@@ -2117,7 +2127,7 @@ fn place_badges(
             }
             let size = items[i].1.size();
             // **`reach`, not `stack`.** The legend is its own block and stands clear of the rails
-            // the way it stands clear of a panel; `chrome::MARGIN` is how far it sits off the
+            // the way it stands clear of a panel; a panel's inset (`STEP_PAD`) is how far it sits off the
             // window's own edge, which is a different measurement and always was.
             plans[i].pos = Some(settle_legend(
                 size,
@@ -2125,7 +2135,7 @@ fn place_badges(
                 &ground,
                 &taken,
                 reach,
-                chrome::MARGIN * scale,
+                chrome::space(chrome::STEP_PAD) * scale,
             ));
         }
         (plans, taken)
@@ -2370,9 +2380,9 @@ fn one_badge(
         // chord in the middle of the pair, so a column of chords stopped being a column). **A row inside a box needs no box of its own**: a labelled cluster draws one box, so its
         // rows have no edge; a bare chord in a band is its own object and carries its own. The colours are the editor's (`InkFollow`): `BadgeRest` and `flash_live_badges`.
         bevy_gooey::row_with(0.0, bevy_gooey::RowLayout { align: Some(AlignItems::Start), ..default() }),
-        bevy_gooey::GapPx(chrome::GAP_ROW),
-        chrome::CHIP_SPACING,
-        bevy_gooey::BorderPx(if boxed { bevy_gooey::Sides::default() } else { bevy_gooey::Sides::all(chrome::EDGE_W) }),
+        // The row's gap and inset are the sheet's `.badge-row`.
+        bevy_gooey::StyleClass::of("badge-row"),
+        bevy_gooey::BorderPx(if boxed { bevy_gooey::Sides::default() } else { bevy_gooey::Sides::all(crate::style::metrics().layout.edge_w) }),
         bevy_gooey::InkFollow,
         // Opaque, and that is what makes a standalone badge legible over both
         // grounds: against the bright viewport the near-black fill is maximum

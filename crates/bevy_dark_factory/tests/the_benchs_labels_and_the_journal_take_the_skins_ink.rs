@@ -62,7 +62,7 @@ fn with_no_skin_the_new_fields_are_the_shipped_table() {
 /// tone it names and the rung it reads are the two constants the call sites used.
 #[test]
 fn the_editor_skin_carries_both() {
-    let skin = bevy_dark_factory::ui::editor_skin();
+    let skin = bevy_dark_factory::style::compiled_default().skin;
     let ink = BenchInk::of(Some(&skin));
     assert_eq!(ink.label, BenchInk::of(None).label, "the editor skin's `label` tone is the shipped one");
     assert_eq!(ink.on, BenchInk::of(None).on, "and its seventh rung is the shipped ground");

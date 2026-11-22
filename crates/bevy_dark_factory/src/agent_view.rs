@@ -185,7 +185,7 @@ pub fn agent_changes(root: &std::path::Path, count: usize) -> Vec<Change> {
 
 /// **The Agent workspace's panel**: the block, and under it the history.
 fn spawn_agent_panel(mut commands: Commands, frame: Res<Frame>, pause: Res<AgentPause>, here: Res<HandBackHere>) {
-    let root = chrome::panel_root(&mut commands, &frame, Side::Left, chrome::CONTROLS_W, true, false, "AGENT").insert(AgentRoot).id();
+    let root = chrome::panel_root(&mut commands, &frame, Side::Left, crate::style::metrics().layout.controls_w, true, false, "AGENT").insert(AgentRoot).id();
     let mut pane = Entity::PLACEHOLDER;
     commands.entity(root).with_children(|p| {
         chrome::title(p, "FAMILIAR");
@@ -196,10 +196,10 @@ fn spawn_agent_panel(mut commands: Commands, frame: Res<Frame>, pause: Res<Agent
     commands.entity(pane).add_child(block);
     commands.entity(pane).with_children(|s| {
         // The history keeps its height when the pane is short.
-        s.spawn(bevy_gooey::column_with(chrome::GAP_TIGHT_STEPS, bevy_gooey::RowLayout { shrink: Some(0.0), ..default() }))
+        s.spawn((bevy_gooey::column_with(0.0, bevy_gooey::RowLayout { shrink: Some(0.0), ..default() }), chrome::Gap::Tight.class()))
             .with_children(|h| {
                 chrome::section(h, "HISTORY");
-                h.spawn((AgentHistory, bevy_gooey::column(chrome::GAP_TIGHT_STEPS)));
+                h.spawn((AgentHistory, (bevy_gooey::column(0.0), chrome::Gap::Tight.class())));
             });
     });
 }
@@ -281,7 +281,7 @@ fn draw_the_history(
             chrome::row_value(c, "The agent has made no changes yet", chrome::ink().dim, AgentChangeRow);
         }
         for row in &rows {
-            chrome::gapped_row(c, chrome::GAP_TIGHT_STEPS, crate::chrome::NO_MARGIN, AlignItems::FlexStart)
+            chrome::gapped_row(c, Some(chrome::Gap::Tight), crate::chrome::NO_MARGIN, AlignItems::FlexStart)
                 .with_children(|r| {
                     r.spawn(bevy_gooey::fill_column(0.0)).with_children(|col| {
                         chrome::row_value(col, row.text.clone(), chrome::ink().text, AgentChangeRow);
@@ -298,7 +298,7 @@ fn draw_the_history(
         // **The hand-backs the person kept** (BM-07, #417): a result is a benchmark task once somebody accepted it. Drawn only when there is
         // one, so a workspace that has kept nothing holds no extra button.
         for hand in &hands {
-            chrome::gapped_row(c, chrome::GAP_TIGHT_STEPS, crate::chrome::NO_MARGIN, AlignItems::FlexStart)
+            chrome::gapped_row(c, Some(chrome::Gap::Tight), crate::chrome::NO_MARGIN, AlignItems::FlexStart)
                 .with_children(|r| {
                     r.spawn(bevy_gooey::fill_column(0.0)).with_children(|col| {
                         chrome::row_value(col, format!("kept: {}", hand.title), chrome::ink().text, AgentHandBackRow);

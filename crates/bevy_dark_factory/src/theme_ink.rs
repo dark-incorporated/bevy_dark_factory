@@ -45,7 +45,7 @@
 
 use bevy::prelude::*;
 use bevy::ecs::system::SystemParam;
-use bevy_gooey::{GooeySkin, InkOverride};
+use bevy_gooey::{CascadeBase, GooeySkin, InkOverride};
 
 use crate::badges::BadgeRest;
 use crate::chrome::{self, Ground, Ink, RowRest};
@@ -57,7 +57,9 @@ pub struct Painted<'w, 's> {
     borders: Query<'w, 's, &'static mut BorderColor>,
     texts: Query<'w, 's, &'static mut TextColor>,
     outlines: Query<'w, 's, &'static mut Outline>,
-    overrides: Query<'w, 's, &'static mut InkOverride>,
+    /// An `InkOverride` a style sheet rule decides is not here: the cascade repaints it from the new skin and
+    /// `HostPaints` itself, and moving it as well would be code fighting the sheet (`CascadeBase::decides`).
+    overrides: Query<'w, 's, (&'static mut InkOverride, Option<&'static CascadeBase>)>,
     grounds: Query<'w, 's, &'static mut Ground>,
     rests: Query<'w, 's, &'static mut RowRest>,
     badges: Query<'w, 's, &'static mut BadgeRest>,
@@ -99,7 +101,10 @@ impl Painted<'_, '_> {
                 outline.color = next;
             }
         }
-        for mut ink in &mut self.overrides {
+        for (mut ink, base) in &mut self.overrides {
+            if base.is_some_and(CascadeBase::decides::<InkOverride>) {
+                continue;
+            }
             let [fill, text, edge] = [ink.fill, ink.ink, ink.edge].map(|c| c.and_then(&on));
             if fill.is_some() || text.is_some() || edge.is_some() {
                 ink.fill = fill.or(ink.fill);
@@ -136,18 +141,21 @@ impl Painted<'_, '_> {
 
 /// **The running skin's colours are the editor's ink, and what was drawn in the old one moves** (#428).
 ///
-/// A pass whose skin did not change costs one flag read; one whose skin changed but not its colours (a
-/// text size) builds the ink, finds it equal to the one running and returns.
+/// A pass whose skin and style-sheet metrics did not change costs two flag reads; one whose skin changed but
+/// not its colours (a text size) builds the ink, finds it equal to the one running and returns. The sheet's
+/// `metrics.ink` (which ladder step a selected row stands on, how far the bar steps back) is part of the ink,
+/// so a change to it moves everything drawn the same way a theme does.
 pub fn follow_the_skin(
     skin: Res<GooeySkin>,
+    revision: Option<Res<crate::style::StyleRevision>>,
     mut painted: Painted,
     clear: Option<ResMut<ClearColor>>,
     feathers: Option<ResMut<bevy::feathers::theme::UiTheme>>,
 ) {
-    if !skin.is_changed() {
+    if !skin.is_changed() && !revision.is_some_and(|r| r.is_changed()) {
         return;
     }
-    let next = Ink::of(&skin);
+    let next = Ink::of(&skin, &crate::style::metrics().ink);
     let previous = chrome::ink();
     if previous == next {
         return;
