@@ -499,3 +499,52 @@ fn a_guide_shown_in_part_is_read_only() {
     assert_eq!(shown, 1, "the prefix is shown as read-only prose instead");
     assert!(!press::<AgentGuideKeepMine>(&mut app), "and nothing that could write an edit over it");
 }
+
+/// **A guide written outside the editor reaches the section with no clock, and the page does not need to redraw** (#501;
+/// `project_page::GUIDE_READ_SECS` retired). The clock is frozen (a manual time step of nothing) and the index's sweep is at its floor for the
+/// guide's folder and the store's, so only the index's own debounce stands between a plain `std::fs` write and the text area. The expected text
+/// is the file read back with `std::fs`, never anything the section derives, and the page is never marked dirty by the test.
+#[test]
+fn a_guide_written_outside_the_editor_reaches_the_section_with_the_clock_stopped() {
+    use bevy::time::TimeUpdateStrategy;
+    use bevy_dark_factory::project_index::{MIN_SWEEP, OutsideFiles};
+    use std::time::{Duration, Instant};
+
+    /// How long a test waits for the section to follow a file.
+    const WAIT_SECONDS: f64 = 30.0;
+
+    let (root, store, mut app) = on_the_page("follows");
+    app.insert_resource(TimeUpdateStrategy::ManualDuration(Duration::ZERO));
+    {
+        let outside = app.world().resource::<OutsideFiles>();
+        outside.set_sweep(guide_path(&root).parent().expect("it has a folder"), MIN_SWEEP);
+        outside.set_sweep(store.parent().expect("it has a folder"), MIN_SWEEP);
+    }
+    let shown = |app: &mut App| {
+        app.world_mut().query_filtered::<&TextInputValue, With<AgentGuideText>>().iter(app.world()).map(|v| v.0.clone()).next()
+    };
+    let until = |app: &mut App, what: &str, done: &dyn Fn(&mut App, &str) -> bool| {
+        let started = Instant::now();
+        let on_disk = || std::fs::read_to_string(guide_path(&root)).unwrap_or_default();
+        while started.elapsed().as_secs_f64() < WAIT_SECONDS {
+            app.update();
+            if done(app, &on_disk()) {
+                return;
+            }
+            std::thread::sleep(Duration::from_millis(10));
+        }
+        panic!("never happened within {WAIT_SECONDS} s: {what}");
+    };
+
+    // A guide appears where there was none: the section goes from `missing` to `waiting for you`, showing what the file says.
+    write_guide(&root, "Do not run anything without asking.");
+    until(&mut app, "the section shows the new guide", &|app, disk| status(app).starts_with("waiting for you") && shown(app).as_deref() == Some(disk));
+
+    // The person's editor saves it again, with other words.
+    write_guide(&root, "Ask before every command, and say why.");
+    until(&mut app, "the section shows the edited guide", &|app, disk| disk.starts_with("Ask before") && shown(app).as_deref() == Some(disk));
+
+    // And a guide that goes away is `missing` again.
+    std::fs::remove_file(guide_path(&root)).expect("the guide is removed");
+    until(&mut app, "the section says the guide is gone", &|app, _| status(app).starts_with("missing"));
+}
