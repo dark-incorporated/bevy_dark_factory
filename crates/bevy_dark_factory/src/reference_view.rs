@@ -32,9 +32,11 @@
 //! no file's bytes), and so is not seen. The poll this replaces re-read every picture once a second and caught that case; whether any
 //! filesystem the editor runs on can produce it with a real save was not measured. [INFERENCE]
 //!
-//! **What the index does not list is said, not read**: a board or picture under `.git`, `target`, `.live`, `node_modules` or a folder the
-//! project's `.gitignore` names, or outside the project, is not followed, so it is warned about once and decides nothing, rather than
-//! read from disk behind the index's back.
+//! **What the index does not list is not read from disk behind its back.** A *picture* a board lists that lies under `.git`, `target`,
+//! `.live`, `node_modules` or a folder the project's `.gitignore` names, or outside the project, is warned about once and decides
+//! nothing. A *board* inside such a folder is **never discovered**: the boards are found in the listing, and the listing does not hold it,
+//! so it is dropped without a word (the walk this replaces found it). Whether a file is "not there" or "not followed" is judged by reading
+//! the project's `.gitignore`, which is done once per file and again only when the listing's `.gitignore` stamp moves.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Component, Path, PathBuf};
@@ -48,7 +50,7 @@ use crate::editor::EditorState;
 use crate::live::EditorReloads;
 use crate::project::{OpenMap, Project};
 use crate::project_index::{FileStamp, ProjectIndex, Snapshot};
-use crate::world_lists::stamp_of;
+use crate::world_lists::{rules_of, stamp_of};
 
 /// The kind this view decides.
 const KIND: &str = "reference_images";
@@ -88,6 +90,8 @@ pub struct ReferenceView {
     unfollowed: BTreeSet<String>,
     /// Why the index had no listing, when it did not, so it is said once.
     failure: Option<String>,
+    /// The listing's `.gitignore` stamp the stamps above were judged under (see [`stamp_of`]).
+    rules: Option<FileStamp>,
     /// How many pictures have been opened to read a header.
     pictures_read: u64,
 }
@@ -255,6 +259,7 @@ pub fn sync_reference_view(
         view.boards.clear();
         view.stamps.clear();
         view.unfollowed.clear();
+        view.rules = None;
         view.looked = false;
         if let Some(reloads) = reloads.as_deref_mut() {
             reloads.forget(&[KIND]);
@@ -269,7 +274,7 @@ pub fn sync_reference_view(
     for file in board_files_in(&snapshot, &level_file) {
         let path = root.join(&file);
         // **The stamp is the listing's, taken before the read**: a write that lands during it moves the stamp again.
-        let stamp = stamp_of(&snapshot, &root, &path);
+        let stamp = stamp_of(&snapshot, &root, &path, view.boards.get(&file).map(|(seen, _)| (seen, view.rules)));
         let pictures = match (view.boards.get(&file), &stamp) {
             (Some((seen, pictures)), _) if *seen == stamp => pictures.clone(),
             (_, Ok(Some(_))) => pictures_of(&path),
@@ -284,7 +289,7 @@ pub fn sync_reference_view(
                 continue;
             }
             let path = root.join(picture);
-            let stamp = stamp_of(&snapshot, &root, &path);
+            let stamp = stamp_of(&snapshot, &root, &path, view.stamps.get(picture).map(|seen| (seen, view.rules)));
             let look = match (view.stamps.get(picture), &stamp) {
                 (Some(seen), _) if *seen == stamp => view.last.get(picture).cloned(),
                 (_, Ok(Some(_))) => {
@@ -306,6 +311,7 @@ pub fn sync_reference_view(
     }
     view.boards = boards;
     view.stamps = stamps;
+    view.rules = rules_of(&snapshot);
     view.looked = true;
 
     let mut verdicts = Vec::new();

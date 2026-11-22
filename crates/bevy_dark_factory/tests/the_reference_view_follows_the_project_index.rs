@@ -12,6 +12,7 @@ use bevy_dark_factory::ops::{self, Ctx};
 use bevy_dark_factory::project::{OpenMap, Project};
 use bevy_dark_factory::project_index::MIN_SWEEP;
 use bevy_dark_factory::reference_view::ReferenceView;
+use bevy_dark_factory::world_lists;
 use blueprint_model::live::Outcome;
 use serde_json::json;
 
@@ -21,6 +22,8 @@ use crate::index_waits::*;
 
 const COURT: &str = "references/court.png";
 const YARD: &str = "references/yard.png";
+/// Listed on the board and never made.
+const LATER: &str = "references/later.png";
 
 /// A PNG header of this size: **always 29 bytes**, so two pictures of different dimensions are the same length.
 fn png(w: u32, h: u32) -> Vec<u8> {
@@ -52,6 +55,8 @@ fn reference_project(tag: &str) -> (App, Ctx) {
         write_in_place_bytes(&root.join(file), &bytes);
         ops::dispatch(&mut ctx, "board_set", &json!({"action": "add", "path": file, "caption": "a picture"})).unwrap_or_else(|e| panic!("{e:?}"));
     }
+    // **A picture the board lists that is not there**: the listing does not hold it, so each look has a verdict to reach for it.
+    ops::dispatch(&mut ctx, "board_set", &json!({"action": "add", "path": LATER, "caption": "not made yet"})).unwrap_or_else(|e| panic!("{e:?}"));
     // **The baseline**: both pictures looked at once, by the index's own (fast) sweep.
     let baseline = pump_until(&mut app, Duration::from_secs(10), |app| {
         let view = app.world().resource::<ReferenceView>();
@@ -88,6 +93,7 @@ fn a_picture_replaced_in_place_is_read_again_when_the_index_says_so_and_a_change
     assert_eq!(dims(&app, COURT), Some((8, 8)));
     assert_eq!(dims(&app, YARD), Some((4, 4)));
     let read_for_the_baseline = pictures_read(&app);
+    let judged = world_lists::verdict_lookups_on_this_thread();
 
     // **A change to a file no board lists moves the index and reads no picture.**
     let unrelated = root.join("notes/unrelated.yaml");
@@ -97,6 +103,11 @@ fn a_picture_replaced_in_place_is_read_again_when_the_index_says_so_and_a_change
     assert!(pump_until(&mut app, SHOWN_WITHIN, |app| published(app) > before).is_some(), "the index did not publish the unrelated change");
     pump_for(&mut app, Duration::from_millis(300));
     assert_eq!(pictures_read(&app), read_for_the_baseline, "a change to a file no board lists made the view read a picture");
+    assert_eq!(
+        world_lists::verdict_lookups_on_this_thread(),
+        judged,
+        "a change to a file no board lists made the view judge the picture that is not there again (it reads .gitignore)"
+    );
 
     // **The replacement**: other bytes, the same length, the same name, in place.
     let old_bytes = std::fs::read(&court).unwrap_or_else(|e| panic!("{e}"));

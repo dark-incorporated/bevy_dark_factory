@@ -308,17 +308,27 @@ pub fn cue_use_rows(selected: Option<&str>, index: &crate::goto::GotoIndex) -> V
 
 thread_local! {
     static READS: Cell<u64> = const { Cell::new(0) };
+    static VERDICTS: Cell<u64> = const { Cell::new(0) };
 }
 
-/// **How many files the lists have read on this thread** (the water plan, the forest, the sound file). A test reads it across frames to
-/// say that a change to a file none of the lists shows made none of them read anything. It counts only these lists' own reads: another
-/// module that reads the same file (the finder reads the sound file for its rows) is not counted.
+/// **How many files the panels that follow the index through [`Follow`] have read on this thread**: the water plan, the forest and the
+/// sound file of these lists, the relations file of the PROBLEMS list and the plan of the AGENT block's PLAN row. A test reads it across
+/// frames to say that a change to a file none of them shows made none of them read anything. It counts only those reads: another module
+/// that reads the same file (the finder reads the sound file for its rows) is not counted.
 pub fn reads_on_this_thread() -> u64 {
     READS.with(Cell::get)
 }
 
-fn counted_read() {
+/// **Call this where a followed panel opens its file**, so [`reads_on_this_thread`] counts it.
+pub(crate) fn counted_read() {
     READS.with(|c| c.set(c.get() + 1));
+}
+
+/// **How many times a followed file the index does not list was judged on this thread** (`files::project_path`, which reads the
+/// project's `.gitignore` and canonicalises the root). A test reads it across an unrelated change to say that a file that is not
+/// there is not judged again until the rules or the file moved.
+pub fn verdict_lookups_on_this_thread() -> u64 {
+    VERDICTS.with(Cell::get)
 }
 
 /// **One file followed through the project index** (#501): what a panel keeps in a `Local` so that it reads its file when the index says
@@ -332,6 +342,8 @@ fn counted_read() {
 pub(crate) struct Follow {
     generation: u64,
     seen: Option<(PathBuf, Result<Option<FileStamp>, String>)>,
+    /// The listing's `.gitignore` stamp `seen` was judged under; `None` when `seen` is not a verdict of a listing (the index had failed).
+    rules: Option<Option<FileStamp>>,
 }
 
 impl Follow {
@@ -370,15 +382,17 @@ impl Follow {
             *self = Self::default();
             return None;
         };
-        let stamp = match failure {
-            Some(why) => Err(format!("the project index cannot list {}: {why}", project.root.display())),
+        let (stamp, rules) = match failure {
+            Some(why) => (Err(format!("the project index cannot list {}: {why}", project.root.display())), None),
             None if generation == 0 => return None,
             None => {
                 let snapshot = index.snapshot()?;
-                stamp_of(&snapshot, &project.root, &path)
+                let earlier = self.seen.as_ref().zip(self.rules).filter(|((seen, _), _)| *seen == path).map(|((_, last), rules)| (last, rules));
+                (stamp_of(&snapshot, &project.root, &path, earlier), Some(rules_of(&snapshot)))
             }
         };
         self.generation = generation;
+        self.rules = rules;
         if self.seen.as_ref().is_some_and(|(seen, last)| *seen == path && *last == stamp) {
             return None;
         }
@@ -391,15 +405,40 @@ impl Follow {
     }
 }
 
+/// **What the index said of one file**: its stamp, `None` when it lists none, or why it cannot answer.
+pub(crate) type Verdict = Result<Option<FileStamp>, String>;
+
+/// **The listing's stamp of the project's `.gitignore`**: what a verdict that a file is not followed was reached under. A rule that
+/// changed moves it (the index lists the file), so a verdict is judged again then and not before.
+pub(crate) fn rules_of(snapshot: &Snapshot) -> Option<FileStamp> {
+    snapshot.files.binary_search_by(|(listed, _)| listed.as_str().cmp(".gitignore")).ok().map(|at| snapshot.files[at].1)
+}
+
 /// **What the index says of one file**: its stamp, `None` when the index lists no such file (it is not there), or why the index cannot
 /// answer for it. A file the listing does not hold is "not there" only when the index would have listed it if it were; a file inside
 /// a folder the project's `.gitignore` names, or inside `.git`, `target`, `.live` or `node_modules`, is not followed, and that is an
 /// error to say, not an absence. (A link is never listed either; the listing is not asked about links, so a link reads as absent.)
-pub(crate) fn stamp_of(snapshot: &Snapshot, root: &Path, path: &Path) -> Result<Option<FileStamp>, String> {
+///
+/// **`earlier` is what the caller found for this same file and the [`rules_of`] it found it under.** Judging a file the listing does not
+/// hold reads the project's `.gitignore` from disk, which a change to any other file must not make a panel do, so an earlier verdict of
+/// "not there" or "not followed" stands while the rules' stamp is the same.
+pub(crate) fn stamp_of(
+    snapshot: &Snapshot,
+    root: &Path,
+    path: &Path,
+    earlier: Option<(&Verdict, Option<FileStamp>)>,
+) -> Verdict {
     let rel = rel_of(root, path)?;
     if let Ok(at) = snapshot.files.binary_search_by(|(listed, _)| listed.as_str().cmp(rel.as_str())) {
         return Ok(Some(snapshot.files[at].1));
     }
+    if let Some((verdict, rules)) = earlier
+        && !matches!(verdict, Ok(Some(_)))
+        && rules == rules_of(snapshot)
+    {
+        return verdict.clone();
+    }
+    VERDICTS.with(|c| c.set(c.get() + 1));
     crate::files::project_path(root, &rel)
         .map(|_| None)
         .map_err(|why| format!("{why}; the project index does not list it, so it is not followed"))
@@ -490,7 +529,11 @@ fn refresh_cues(
     match file.moved(&index, project.as_deref(), changed(&project), |p| Some(cue_file(p))) {
         Some(Ok(path)) => {
             counted_read();
-            *names = Some(cue_names_at(&path));
+            let read = cue_names_at(&path);
+            if let Err(why) = &read {
+                warn!("{why}");
+            }
+            *names = Some(read);
             stale = true;
         }
         Some(Err(why)) => {
@@ -543,7 +586,10 @@ fn refresh_water(
             match read_file::<WaterPlan>(&path, &shown_as) {
                 Read::Value(plan) => water_rows(&plan),
                 Read::Absent => vec![NO_WATER.to_owned()],
-                Read::Broken(why) => vec![why],
+                Read::Broken(why) => {
+                    warn!("{why}");
+                    vec![why]
+                }
             }
         }
         Err(why) => {
@@ -574,7 +620,10 @@ fn refresh_forest(
             match read_file::<Forest>(&path, &shown_as) {
                 Read::Value(forest) => forest_rows(&forest),
                 Read::Absent => vec![NO_TREES.to_owned()],
-                Read::Broken(why) => vec![why],
+                Read::Broken(why) => {
+                    warn!("{why}");
+                    vec![why]
+                }
             }
         }
         Err(why) => {
