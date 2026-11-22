@@ -56,8 +56,9 @@
 //! The person's `settings.yaml` and the turn ledger live in folders that are not under the project's root, so the project's tree cannot
 //! follow them. [`OutsideFiles`] follows a folder **for the names it is asked for and nothing else in it** (one `stat` each per sweep, no
 //! walk: the folder may hold a thousand other files, or be a temp folder), on a thread of its own with the project's [`DEBOUNCE`],
-//! [`MAX_HOLD`] and [`SWEEP`]. It is **one path**: the registry is keyed by root, [`note_written`] tells every index that follows the
-//! root it is given (so the one `edit_layer` call that saves a settings file also tells this index), and [`listed`] stays the project
+//! [`MAX_HOLD`] and [`SWEEP`]. It is **one path**: the registry is keyed by root; [`note_written`] tells the newest index of each shape that
+//! follows the root it is given and does not wait; [`note_path_written`] is the one `edit_layer` calls when it saves a settings file (it tells
+//! the project's tree without waiting, and this folder's index, for which it waits at most [`NOTE_ACK_WAIT`]); and [`listed`] stays the project
 //! tree's answer; an outside folder is read through [`OutsideFiles::snapshot`]. Its changes are [`OutsideFileChanged`], a message of
 //! its own so a subscriber of the project's files never hears a file of the person's folder.
 //!

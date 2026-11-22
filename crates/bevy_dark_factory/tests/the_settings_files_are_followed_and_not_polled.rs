@@ -8,7 +8,9 @@
 //! - **a hand edit is seen** (the plain `std::fs` write a person's editor makes) by `sync_settings`, the settings screen and the keymap
 //!   screen, and what they show is compared with what an independent read of the file says;
 //! - **a frame is not a poll**: with the sweep set to a minute and no one told, a hand edit is not seen by a frame that looks;
-//! - **the editor's own write is in the next frame**, without a sweep: `edit_layer` tells the indexes the write is done;
+//! - **the editor's own write of the person's file is in the next frame**, without a sweep: `edit_layer` tells the folder's index and waits (at
+//!   most 250 ms) for it to publish; the project's `editor.yaml` is told too but not waited for, so a save of it can reach the editor a frame or
+//!   more later;
 //! - **absent is not unreadable**: a person who never saved a setting has no settings folder and is shown nothing wrong; a folder that
 //!   cannot be looked at is a refusal that names the file and ends when it can be looked at again;
 //! - **an outside folder is followed for its names only**, a link to the file is followed, and `note_written` and `listed` stay the one
@@ -175,8 +177,8 @@ fn a_frame_that_looks_at_nothing_does_not_see_an_edit_no_one_told_of() {
     assert_eq!(text_scale(&r.app), 2.0, "told, the next frame shows it");
 }
 
-/// **The editor's own write is in the next frame**, with the sweep out of the picture: `edit_layer` tells the indexes the write is done
-/// and they have published before it returns.
+/// **The editor's own write of the person's file is in the next frame**, with the sweep out of the picture: `edit_layer` tells the person's
+/// folder's index the write is done and the index has published before `edit_layer` returns.
 #[test]
 fn the_editors_own_write_is_seen_in_the_next_frame_without_a_sweep() {
     let mut r = rig("outside_own_write");
