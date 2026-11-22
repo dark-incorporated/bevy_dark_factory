@@ -18,13 +18,20 @@
 //! - **The report's line rides on the same read** (DL-08, #467): one line above the question, saying what the ledger holds — turns, answers, the
 //!   labels per tier, the holdout, and the assessor's agreement against the bar — so the count a person acts on and the report they read are made
 //!   from one reading of one file. [`crate::label_report::line`] is the words.
+//! - **The ledger is read when the project index says it moved** (#501), not on a five-second clock. The ledger lives in the user's labels folder, not
+//!   in the project, so it is followed through the index's second root (`crate::project_index::OutsideFiles`): the index stamps the one file (its size
+//!   and modification time) and the row reads the ledger again only when that stamp moved. **The index's first listing publishes no message**, so the
+//!   row's first read of a folder is direct and the first listing after it reads once more; **an answer asks for a read at once**, so a key is never one
+//!   that did nothing. A line another process appends (the assessor) reaches the row after the index's sweep and debounce, which is up to about a
+//!   second, and one appended without a pause for longer than the index's hold reaches it every `MAX_HOLD`. When the index cannot follow the folder
+//!   the failure is said once and the ledger is read only when the row asks.
 //!
 //! The keys are read raw, as the hand-back's own `Y`/`N` are ([`crate::confirm`]): the row is not a tab's verb, and the Agent tab has no keys of
 //! its own. They answer only while the Agent workspace is open, no question card is up, no text field has the keyboard and no modifier is held (so
 //! Ctrl/Cmd+S still saves).
 
 use std::collections::BTreeSet;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use bevy::asset::RenderAssetUsages;
 use bevy::image::{Image, ImageSampler};
@@ -32,17 +39,15 @@ use bevy::input::ButtonInput;
 use bevy::prelude::*;
 use bevy_gooey::{Activate, button, label, observe};
 
+use crate::project_index::{FileStamp, OutsideFiles};
 use crate::turn_ledger::TurnLedger;
-use crate::turn_store::{ImageRef, Read, Store};
+use crate::turn_store::{ImageRef, LEDGER_FILE, Read, Store};
 
 /// **The week's target**, shown with the count and never enforced (#466).
 pub const WEEKLY_TARGET: usize = 20;
 
 /// **The share of what is offered that comes from disagreement**: the assessor's votes split or were refused. The rest is random.
 pub const SPLIT_SHARE: f32 = 0.7;
-
-/// **How often the ledger is looked at for new questions**, in seconds, while the block is on screen.
-pub const LOOK_EVERY_S: f32 = 5.0;
 
 /// How big a picture is drawn in the row, in logical pixels.
 const PICTURE: Vec2 = Vec2::new(240.0, 150.0);
@@ -162,10 +167,19 @@ pub struct Audit {
     pub offers: Vec<Offer>,
     /// How many were answered in the week, as of the last read.
     pub this_week: usize,
-    /// The seconds on the clock when the ledger was last looked at.
-    looked_at: Option<f32>,
-    /// The ledger's size when it was last read: it is read again only when it grew.
-    read_len: Option<u64>,
+    /// **The folder the project index is following for the ledger** (`OutsideFiles`): the labels folder, which is the user's and not the
+    /// project's, so the project's own index does not list it.
+    followed: Option<PathBuf>,
+    /// The index generation of that folder last looked at.
+    generation: u64,
+    /// The index's stamp of the ledger when it was last read: it is read again only when the index says it moved.
+    read_stamp: Option<FileStamp>,
+    /// Whether the ledger has been read since this folder was followed (or since an answer asked for the next question at once). **The one read
+    /// that does not wait for the index**: the index's first listing publishes no message, so the row's first read is direct, and the first
+    /// listing after it reads once more for a line written in between.
+    direct_done: bool,
+    /// Why the ledger could not be read, or the index could not answer, as last said, so one failure is one line and not one a frame.
+    refused: Option<String>,
     /// What the row on screen shows, so it is rebuilt only when this moves.
     shown: Option<(String, String, usize, usize)>,
     /// **The report's line** (DL-08, #467), from the same read: what the ledger holds, in the words `report.md` uses.
@@ -217,31 +231,99 @@ fn now_ms() -> u64 {
     std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_millis() as u64).unwrap_or(0)
 }
 
-/// **Read the ledger for what to offer**, now and then, while the AGENT block is on screen, and only when the file grew.
-fn look_at_the_ledger(time: Res<Time<Real>>, ledger: Option<Res<TurnLedger>>, mut audit: ResMut<Audit>, containers: Query<(), With<AuditRows>>) {
+/// **Read the ledger at `path`**: `Ok(None)` when there is none (a ledger nobody has written is not an empty one to count), an error naming
+/// the file when it cannot be read.
+fn read_ledger(path: &Path) -> Result<Option<Read>, String> {
+    match std::fs::read_to_string(path) {
+        Ok(text) => Ok(Some(crate::turn_store::read_text(&text))),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(None),
+        Err(e) => Err(format!("{}: {e}", path.display())),
+    }
+}
+
+/// **Say once that the audit could not look**, so a failure that lasts is one line and not one a frame.
+fn refuse(audit: &mut Audit, why: String) {
+    if audit.refused.as_deref() != Some(why.as_str()) {
+        warn!("audit: {why}");
+        audit.refused = Some(why);
+    }
+}
+
+/// **Read the ledger for what to offer**, while the AGENT block is on screen, and **only when the project index says it moved** (a stamp
+/// of its size and modification time, from `OutsideFiles`: the ledger is in the user's labels folder, not the project). There is no clock.
+/// The first read of a folder is direct, then once more when the index's first listing is in; an answer asks for a read at once.
+fn look_at_the_ledger(
+    ledger: Option<Res<TurnLedger>>,
+    mut outside: ResMut<OutsideFiles>,
+    mut audit: ResMut<Audit>,
+    containers: Query<(), With<AuditRows>>,
+) {
     if containers.is_empty() {
-        audit.looked_at = None;
         return;
     }
-    let now = time.elapsed_secs();
-    if audit.looked_at.is_some_and(|at| now - at < LOOK_EVERY_S) {
-        return;
-    }
-    audit.looked_at = Some(now);
     let Some(folder) = ledger.as_deref().and_then(TurnLedger::folder) else {
         // Off is off: nothing to audit, and no report line either — a count of a ledger nobody is collecting is not a report of anything.
-        audit.offers.clear();
-        audit.read_len = None;
-        audit.line.clear();
+        if audit.followed.is_some() || !audit.offers.is_empty() || !audit.line.is_empty() {
+            if let Some(old) = audit.followed.take() {
+                outside.unfollow(&old);
+            }
+            audit.offers.clear();
+            audit.line.clear();
+            audit.direct_done = false;
+            audit.read_stamp = None;
+            audit.generation = 0;
+        }
         return;
     };
-    let path = Store::new(folder.to_path_buf()).ledger_path();
-    let len = std::fs::metadata(&path).map(|m| m.len()).ok();
-    if len.is_none() || len == audit.read_len {
+    if audit.followed.as_deref() != Some(folder) {
+        if let Some(old) = audit.followed.take() {
+            outside.unfollow(&old);
+        }
+        outside.follow(folder, &[LEDGER_FILE]);
+        audit.followed = Some(folder.to_path_buf());
+        audit.direct_done = false;
+        audit.read_stamp = None;
+        audit.generation = 0;
+    }
+    let generation = outside.generation(folder);
+    if generation == 0
+        && let Some(why) = outside.failure(folder)
+    {
+        refuse(&mut audit, format!("the project index cannot follow {}: {why}; the ledger is read only when the row asks", folder.display()));
+    }
+    if audit.direct_done && (generation == 0 || generation == audit.generation) {
         return;
     }
-    let Ok(read) = crate::turn_store::read_file(&path) else { return };
-    audit.read_len = len;
+    let stamp = outside
+        .snapshot(folder)
+        .and_then(|listing| listing.files.iter().find(|(name, _)| name == LEDGER_FILE).map(|(_, stamp)| *stamp))
+        .filter(|_| generation != 0);
+    if audit.direct_done && stamp == audit.read_stamp {
+        audit.generation = generation;
+        return;
+    }
+    let path = Store::new(folder.to_path_buf()).ledger_path();
+    let read = match read_ledger(&path) {
+        Ok(Some(read)) => read,
+        Ok(None) => {
+            audit.direct_done = true;
+            audit.generation = generation;
+            audit.read_stamp = stamp;
+            return;
+        }
+        Err(why) => {
+            refuse(&mut audit, why);
+            // Not recorded as read, so the next move of the index reads it again.
+            audit.direct_done = true;
+            audit.generation = generation;
+            audit.read_stamp = None;
+            return;
+        }
+    };
+    audit.refused = None;
+    audit.direct_done = true;
+    audit.generation = generation;
+    audit.read_stamp = stamp;
     audit.this_week = answered_this_week(&read, now_ms());
     // **The same reading makes the report's line** (DL-08, #467), so the count on screen and the count in `report.md` cannot differ.
     audit.line = crate::label_report::line(&crate::label_report::summary(&read));
@@ -404,12 +486,10 @@ fn write_the_answers(mut answers: ResMut<Answers>, mut audit: ResMut<Audit>, mut
             ledger.audit_answered(&offer.turn, &offer.question, kind.word(), offer.why.word());
         }
         audit.this_week += 1;
-        // **The next question follows the answer, not the five-second clock** (#466). Clearing `read_len` alone made the
-        // file look changed but left `looked_at` set, so `look_at_the_ledger` still waited out `LOOK_EVERY_S` before reading
-        // it: measured at 15 fps, answering three questions in a row left the row on each question for up to five seconds,
-        // which reads as a key that did nothing. The clock is cleared with the length, so the read happens next frame.
-        audit.read_len = None;
-        audit.looked_at = None;
+        // **The next question follows the answer** (#466), not the index's next listing of the ledger: the read is owed at once, so the
+        // person's key is never a key that did nothing. (Measured at 15 fps under the old five-second clock: answering three questions in a
+        // row left the row on each question for up to five seconds.) The index then reads the ledger once more when it has seen the line.
+        audit.direct_done = false;
     }
 }
 
@@ -418,6 +498,7 @@ pub struct AuditPlugin;
 
 impl Plugin for AuditPlugin {
     fn build(&self, app: &mut App) {
+        crate::project_index::ensure_outside(app);
         app.init_resource::<Audit>().init_resource::<Answers>().add_systems(
             Update,
             (
