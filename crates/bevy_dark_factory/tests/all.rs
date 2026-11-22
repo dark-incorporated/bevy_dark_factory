@@ -63,6 +63,7 @@ mod the_data_view_follows_the_project_index;
 mod the_documents_state_the_codes_own_counts;
 mod the_finder_goes_to_cues_scripts_and_files;
 mod the_leds_word_is_the_size_of_the_text_beside_it;
+mod the_oplog_view_follows_the_project_index;
 mod the_world_sections_text_is_at_the_type_scales_sizes;
 mod the_self_test_cards_rows_each_carry_an_led;
 mod the_terminal_agent_row_follows_its_state_in_place;
