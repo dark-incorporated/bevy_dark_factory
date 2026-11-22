@@ -77,7 +77,7 @@ pub struct Named {
 pub struct Scan {
     pub files: Vec<String>,
     pub refs: Vec<Named>,
-    /// The [`crate::project_index::Snapshot::generation`] this was read from.
+    /// The [`crate::project_index::Snapshot::text_generation`] this was read from.
     pub stamp: u64,
     /// The stamp each YAML file had when it was read, so a later scan reads only the files whose stamp moved.
     read: HashMap<String, crate::project_index::FileStamp>,
@@ -118,7 +118,8 @@ pub fn scan(snapshot: &crate::project_index::Snapshot, root: &Path, previous: Op
         }
         read.insert(rel.clone(), *stamp);
     }
-    Scan { files: files.into_iter().map(|(rel, _)| rel.clone()).collect(), refs, stamp: snapshot.generation, read }
+    let files: Vec<String> = files.into_iter().map(|(rel, _)| rel.clone()).collect();
+    Scan { files, refs, stamp: snapshot.text_generation, read }
 }
 
 /// **The maps that place `id`**, by name, from `Project::maps_that_place` — the one reader of the

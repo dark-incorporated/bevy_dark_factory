@@ -5,7 +5,7 @@
 //! person and for an agent:
 //!
 //! 1. **Create**: `notes/new.yaml` is made (its folder too), is in the oplog with an id, and one `Cmd+Z` removes it; the
-//!    Files tree shows the row without waiting for its 1.5 s poll.
+//!    Files tree shows the row without waiting for the index's next sweep.
 //! 2. **Duplicate** is a create whose text is another file's, byte for byte.
 //! 3. **Rename keeps the extension it was not asked about** (`a.map.yaml` given `b` is `b.map.yaml`), and a rename of a
 //!    file another file names is **refused naming that file** — one rule, tested for both directions.
@@ -98,8 +98,9 @@ fn a_created_file_is_logged_undone_byte_for_byte_and_shows_in_the_tree_without_w
     let root = project("create");
     write(&root, "notes/old.md", "# a note\n");
     let mut app = editor(&root);
-    // **The Files workspace, with its tree listed once**: the next sweep is then up to a full `SWEEP` away, so the only thing
-    // that can make the new row visible inside that window is the operation's own note of the path it wrote.
+    // **The Files workspace, with its tree listed once**, and the index's sweeps set a minute apart: a sweep of the free-running
+    // clock cannot reveal the new row inside the window below, so only the operation's own note of the path it wrote can.
+    app.world().resource::<bevy_dark_factory::project_index::ProjectIndex>().set_sweep(std::time::Duration::from_secs(60));
     open_the_files_workspace(&mut app);
     assert!(tree_has(&mut app, "notes/old.md"), "the tree listed the project before the create");
 
@@ -111,10 +112,11 @@ fn a_created_file_is_logged_undone_byte_for_byte_and_shows_in_the_tree_without_w
     let line = log.iter().find(|e| e.op == "file_create" && e.outcome == "applied").unwrap_or_else(|| panic!("the create is in the oplog: {log:?}"));
     assert!(!line.operation_id.is_empty(), "the line has an id an agent cites");
 
-    // **The tree shows it without waiting out the index's sweep** (`SWEEP`, 1 s): the operation said which path it had written.
+    // **The tree shows it without a sweep**: the index's sweeps are set a minute apart above, so the only thing that can reveal the
+    // row inside this window (the 1.0 s the test always allowed) is the operation's own note of the path it wrote.
     let started = std::time::Instant::now();
     let mut seen = false;
-    while started.elapsed().as_secs_f64() < bevy_dark_factory::project_index::SWEEP.as_secs_f64() - 0.5 {
+    while started.elapsed().as_secs_f64() < 1.0 {
         app.update();
         if tree_has(&mut app, "notes/new.yaml") {
             seen = true;
@@ -122,7 +124,7 @@ fn a_created_file_is_logged_undone_byte_for_byte_and_shows_in_the_tree_without_w
         }
         std::thread::sleep(std::time::Duration::from_millis(10));
     }
-    assert!(seen, "the created file's row is in the tree before the tree's own poll could have found it");
+    assert!(seen, "the created file's row is in the tree within a second, with the sweeps a minute apart: only the operation's own note can have put it there");
 
     // **One undo takes it away**, byte for byte: there was nothing before, so nothing is left.
     let mut c = ctx(&app, Source::Human);

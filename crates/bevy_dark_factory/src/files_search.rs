@@ -163,11 +163,11 @@ pub fn search(
     cancel: &AtomicBool,
     mut on_file: impl FnMut(FileHits),
     mut on_progress: impl FnMut(usize, usize),
-) -> Result<(), FindError> {
+) -> Result<(), SearchError> {
     if query.text.is_empty() {
         return Ok(());
     }
-    let candidates: Vec<String> = crate::files::listed_files(root).into_iter().filter(|rel| query.admits(rel)).collect();
+    let candidates: Vec<String> = crate::files::listed_files(root).map_err(SearchError::Listing)?.into_iter().filter(|rel| query.admits(rel)).collect();
     let total = candidates.len();
     for (n, rel) in candidates.into_iter().enumerate() {
         if cancel.load(Ordering::Acquire) {
@@ -230,6 +230,8 @@ pub enum Refused {
     NothingToReplace,
     /// The pattern does not compile or took too much work.
     Pattern(String),
+    /// The project index could not list the project's files.
+    Listing(String),
     /// The replace would leave a file that reads not reading: the file, the line, and the reader's sentence.
     Breaks { rel: String, line: usize, message: String },
 }
@@ -238,12 +240,36 @@ impl std::fmt::Display for Refused {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Refused::NothingToReplace => write!(f, "nothing matches, so nothing was replaced"),
+            Refused::Listing(why) => write!(f, "the project's files could not be listed ({why}), so nothing was replaced"),
             Refused::Pattern(why) => write!(f, "the pattern is not usable ({why}), so nothing was replaced"),
             Refused::Breaks { rel, line, message } => write!(
                 f,
                 "this replace would leave {rel} unreadable (line {}: {message}), so nothing was written to any file; narrow the paths or the pattern",
                 line + 1
             ),
+        }
+    }
+}
+
+/// **Why a search did not run**: the pattern does not compile, or the project's files could not be listed.
+#[derive(Debug)]
+pub enum SearchError {
+    Pattern(FindError),
+    /// The project index could not list the project's files (none follows the root, it did not settle, or the root cannot be read).
+    Listing(String),
+}
+
+impl From<FindError> for SearchError {
+    fn from(e: FindError) -> SearchError {
+        SearchError::Pattern(e)
+    }
+}
+
+impl std::fmt::Display for SearchError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            SearchError::Pattern(e) => write!(f, "{e}"),
+            SearchError::Listing(why) => write!(f, "the project's files could not be listed: {why}"),
         }
     }
 }
@@ -272,7 +298,7 @@ pub fn plan(root: &Path, query: &Query, replacement: &str, only: Option<&[String
         return Err(Refused::NothingToReplace);
     }
     let mut out = Plan::default();
-    let mut candidates: Vec<String> = crate::files::listed_files(root).into_iter().filter(|rel| query.admits(rel)).collect();
+    let mut candidates: Vec<String> = crate::files::listed_files(root).map_err(Refused::Listing)?.into_iter().filter(|rel| query.admits(rel)).collect();
     if let Some(only) = only {
         candidates.retain(|rel| only.contains(rel));
     }

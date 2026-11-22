@@ -76,10 +76,11 @@ pub fn keep_extension(old: &str, new: &str, is_dir: bool) -> String {
 ///
 /// One reader for both verbs, so they cannot disagree. A file names another by its **path under the project**, written
 /// anywhere in its text (`See notes/keep.yaml`), which is the only spelling a project file can carry that the editor can
-/// follow without guessing. A file's own name is not a reference to itself.
-pub fn named_elsewhere(root: &Path, rel: &str) -> Vec<String> {
+/// follow without guessing. A file's own name is not a reference to itself. **An error, said, when the project's files cannot be
+/// listed** (the project index could not answer): a refusal that did not look is not a refusal.
+pub fn named_elsewhere(root: &Path, rel: &str) -> Result<Vec<String>, String> {
     let mut out = Vec::new();
-    for file in crate::files::listed_files(root) {
+    for file in crate::files::listed_files(root)? {
         if file == rel || crate::files::project_path(root, &file).is_err() {
             continue;
         }
@@ -94,7 +95,7 @@ pub fn named_elsewhere(root: &Path, rel: &str) -> Vec<String> {
             out.push(file);
         }
     }
-    out
+    Ok(out)
 }
 
 /// **The pieces a map's own file places**, read from the map so the refusal can name them: `Ok(None)` when `rel` is not a
@@ -365,7 +366,7 @@ impl FileRename {
         }
         let text = std::fs::read_to_string(&old_full).map_err(|e| Refusal::new(format!("{was} was not read ({e}), so nothing was renamed.")))?;
         // **The reference rule**: a file another file names is refused, naming it, or the move leaves a dead name behind.
-        let named = named_elsewhere(&root, &was);
+        let named = named_elsewhere(&root, &was).map_err(|why| Refusal::new(format!("{why}. Nothing was changed.")))?;
         if !named.is_empty() {
             let list = named.join(", ");
             return Err(Refusal::new(format!("{was} is named by {list}, so renaming it would leave that name pointing at nothing. Change {list} first, or move the file and leave a copy under the old name. Nothing was changed.")));
@@ -499,7 +500,7 @@ impl FileDelete {
             return Err(Refusal::new(format!("{} is a map that places {}, so taking it away would orphan them. Remove them from the map first, or delete a map that places nothing. Nothing was changed.", p.path, pieces.join(", "))));
         }
         // **The reference rule, the rename's own**: one function, so the two verbs cannot disagree.
-        let named = named_elsewhere(&root, &p.path);
+        let named = named_elsewhere(&root, &p.path).map_err(|why| Refusal::new(format!("{why}. Nothing was changed.")))?;
         if !named.is_empty() {
             let list = named.join(", ");
             return Err(Refusal::new(format!("{} is named by {list}, so deleting it would leave that name pointing at nothing. Change {list} first. Nothing was changed.", p.path)));

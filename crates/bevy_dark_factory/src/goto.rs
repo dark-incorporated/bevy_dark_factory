@@ -224,6 +224,8 @@ pub struct GotoIndex {
     /// finder's rows and by every `Used by` list, so they cannot disagree. Kept with the project it was of, and the index generation
     /// it was read at, so a settled project costs a comparison.
     scan: Option<(std::path::PathBuf, crate::crosslinks::Scan)>,
+    /// The index generation last looked at, so a quiet frame costs one comparison.
+    looked_at: u64,
 }
 
 /// **The facts an index depends on.** Compared, not hashed.
@@ -392,7 +394,7 @@ fn rebuild_the_index(
     due: Option<Res<crate::watch::Due>>,
     notes: Option<Res<crate::notes_view::NotesView>>,
     bench: Option<Res<crate::anim_tab::BenchState>>,
-    project_index: Option<Res<crate::project_index::ProjectIndex>>,
+    project_index: Res<crate::project_index::ProjectIndex>,
 ) {
     let Some(project) = project.as_deref() else {
         if !index.entries.is_empty() {
@@ -407,18 +409,20 @@ fn rebuild_the_index(
     if index.scan.as_ref().is_some_and(|(root, _)| *root != project.root) {
         index.scan = None;
     }
-    // **The project's files come from the project index** ([`crate::project_index`], #501): a file made, removed or changed moves
-    // its generation, and a generation that did not move costs one atomic load: no timer, no listing, no `stat`. A scan reads only
-    // the YAML files whose stamp moved.
-    if let Some(files) = project_index.as_deref()
-        && files.root() == Some(project.root.as_path())
-        && files.generation() != 0
-        && Some(files.generation()) != index.scan.as_ref().map(|(_, scan)| scan.stamp)
-        && let Some(snapshot) = files.snapshot()
+    // **The project's files come from the project index** ([`crate::project_index`], #501): a generation that did not move costs one
+    // atomic load (no timer, no listing, no `stat`), and a generation that moved without a text file coming, going or changing (a
+    // picture, a folder, the operation log) costs one `Arc` clone. A scan reads only the YAML files whose stamp moved.
+    if project_index.root() == Some(project.root.as_path())
+        && project_index.generation() != 0
+        && project_index.generation() != index.looked_at
+        && let Some(snapshot) = project_index.snapshot()
     {
-        let previous = index.scan.as_ref().map(|(_, scan)| scan);
-        let read = crate::crosslinks::scan(&snapshot, &project.root, previous);
-        index.scan = Some((project.root.clone(), read));
+        index.looked_at = snapshot.generation;
+        if Some(snapshot.text_generation) != index.scan.as_ref().map(|(_, scan)| scan.stamp) {
+            let previous = index.scan.as_ref().map(|(_, scan)| scan);
+            let read = crate::crosslinks::scan(&snapshot, &project.root, previous);
+            index.scan = Some((project.root.clone(), read));
+        }
     }
     let built = Built {
         project: project.root.clone(),
@@ -814,6 +818,8 @@ pub struct GotoPlugin;
 
 impl Plugin for GotoPlugin {
     fn build(&self, app: &mut App) {
+        // **The finder's files come from the project index**, so the plugin that reads it adds it.
+        crate::project_index::ensure(app);
         app.init_resource::<GotoIndex>()
             .init_resource::<Finder>()
             .add_systems(

@@ -1,48 +1,68 @@
-//! **The one watcher, and the index that follows it** (#501, stage 1).
+//! **One watcher walks the project, and the index that follows it is what the panels read** (#501, stage 1).
 //!
 //! # The gap this closes
 //!
-//! Twenty-two poll constants in seventeen modules each re-stat the project on their own clock, so the same file is read by
-//! several panels at several rhythms, and two lists that should agree ([`crate::files::listed_files`] and what the finder's
-//! scan walked) were two walks. **Nothing in the editor owned the answer to "did a file change?"** This module does: one
-//! background thread is the only code that looks at the project's directory tree, and everything else subscribes.
+//! #501 lists twenty-two poll constants in seventeen modules, each re-statting the project on its own clock, so the same file was
+//! read by several panels at several rhythms, and two lists that should agree ([`crate::files::listed_files`] and what the finder's
+//! scan walked) were two walks. This module is the answer to "what files exist, and which moved": **one background thread is the
+//! only code that walks the project's tree after its first listing**, and the panels it has been migrated to subscribe.
+//!
+//! **That is not "the only code that looks at the project".** Stage 1 moves two consumers (the Files tree and `listed_files`, and the
+//! finder's scan in `crosslinks`); twenty poll constants in the other modules still `stat` their own files on their own clocks, and
+//! `docs/guide/reload-contract.md` has the checklist that retires them.
 //!
 //! # What is published
 //!
 //! [`ProjectFileChanged`], a Bevy [`Message`], **once per changed entry** (not once per subscriber: each subscriber has its own
-//! `MessageReader` cursor over the one message). It carries `(rel, kind, stamp)` — [`watch::Due`](crate::watch::Due)'s shape
-//! with the kind said — and `dir`, because a folder appearing is a change a tree wants too.
+//! `MessageReader` cursor over the one message). It carries `(rel, kind, stamp)` — [`watch::Due`](crate::watch::Due)'s shape with the
+//! kind said — and `dir`, because a folder appearing is a change a tree wants too.
 //!
-//! **Debounced by [`DEBOUNCE`].** One Ctrl+S arrives as a create, several writes and a close (or, for an editor that saves
-//! atomically, a remove and a rename). A change is held until its stamp has been steady for [`DEBOUNCE`], then diffed against
-//! what the index holds, so a save is one event, and a file that ends where it began is none. **An operation that has just
-//! finished writing** (`file_create`, `file_rename`, `file_delete`) says so with [`note_written`] and is published at once: it
-//! knows the write is done, and the row it made must be on screen in the next frame.
+//! **Debounced by [`DEBOUNCE`]** (#501 cites Renzora's `renzora_project_watch` for the number and the reason). One Ctrl+S arrives as a
+//! create, several writes and a close (or, for an editor that saves atomically, a remove and a rename). A change is held until its
+//! stamp has been steady for [`DEBOUNCE`] (or for [`MAX_HOLD`], so a file written more often than that still publishes), then diffed
+//! against what the index holds: a save is one event, and a file that ends where it began is none. **An operation that has just
+//! finished writing** (`file_create`, `file_rename`, `file_delete`) says so with [`note_written`] and is published at once: it knows
+//! the write is done, and the row it made must be on screen in the next frame.
 //!
 //! # How the thread finds changes, with no new dependency
 //!
-//! The crate has no `notify` (it is behind the off-by-default `asset_spike` feature), so the thread **sweeps**, on the one clock
-//! that stays ([`SWEEP`]): it stats each folder it knows (a folder's mtime moves when an entry is added, removed or renamed) and
-//! re-reads only the folders that moved, and it stats each file it knows. **It never walks the project again**: the first listing
-//! is one walk, whose `symlink_metadata` calls already give every stamp, and from then on the index is the fold of the events. The
-//! two exceptions are named: a `.gitignore` change re-walks (it changes what is listed), and a folder written in the last
-//! [`RACY`] is re-read on the next sweep as well (git's racy-clean rule), so two changes inside one clock tick are not lost.
-//! A sweep runs on the thread, so the UI thread's frame makes no lookup at all.
+//! The crate has no `notify` (it is behind the off-by-default `asset_spike` feature), so the thread **sweeps**, every [`SWEEP`] by
+//! default: it stats each folder it knows (a folder's mtime moves when an entry is added, removed or renamed) and re-reads only the
+//! folders that moved, and it stats each file it knows. The first listing is one walk, whose `symlink_metadata` calls already give
+//! every stamp; after it the index is the fold of the events. Two things walk again, and both are named: a `.gitignore` change (it
+//! changes what is listed), and a folder written in the last [`RACY`] is re-read on the next sweep as well (git's racy-clean rule), so
+//! two changes inside one clock tick are not lost.
+//!
+//! # No second path, and no silent failure
+//!
+//! The index is the only listing there is. [`crate::files::listed_files`] asks the index that follows the root and **returns an error**
+//! when none does, when it cannot settle, or when the project root cannot be read: there is no fallback walk on the caller's thread.
+//! An unreadable folder is listed empty, **warned about once**, and read again on every sweep until it can be read (its stamp is not
+//! advanced meanwhile, so what is inside is not lost). A name that is not UTF-8 is skipped with a warning.
 //!
 //! # How a subscriber reads it
 //!
-//! `Res<ProjectIndex>`: [`ProjectIndex::generation`] says whether anything moved (an atomic load), [`ProjectIndex::snapshot`]
-//! is an `Arc` clone of the listing (no filesystem), and a `MessageReader<ProjectFileChanged>` says which path moved. A caller
-//! with no world (`files_search`, `ops_files_verbs`) calls [`crate::files::listed_files`], which asks the registered index for its
-//! root to settle and answers from it, and walks cold only when no index exists for that root.
+//! `Res<ProjectIndex>`: [`ProjectIndex::generation`] says whether anything moved (an atomic load), [`ProjectIndex::snapshot`] is an
+//! `Arc` clone of the listing, and a `MessageReader<ProjectFileChanged>` says which path moved. A plugin that reads the index adds
+//! [`ProjectIndexPlugin`] itself with [`ensure`].
+//!
+//! # What it costs
+//!
+//! Measured on `big` (a throwaway test, the `test` profile, one project of 10,000 and one of 100,000 files in 100 folders): building a
+//! stepped editor, which waits for the first listing, takes 0.26 s and 1.6 s; **a sweep that looks at every file takes 36 ms at 10,000
+//! files and 266 ms at 100,000**, so the thread leaves a sweep alone for [`SWEEP_DUTY`] times its own length (at 100,000 files a sweep
+//! every 2.7 s rather than every second); publishing a change rebuilds the listing in 7-17 ms and 34-45 ms, on the thread; a `Snapshot`
+//! clone is under a microsecond. On the UI thread the finder's scan with a previous scan to reuse costs 4 ms at 10,000 files and 43 ms at
+//! 100,000, and it runs only when a text file came, went or changed ([`Snapshot::text_generation`]); that 43 ms is **not** reduced here.
 //!
 //! # What this does not touch
 //!
-//! `watch.rs` keeps deciding what the editor adopts: its `adopt_map` refusal is a correctness rule about unsaved work, not a poll,
-//! and this module only says that a path moved.
+//! `watch.rs` keeps deciding what the editor adopts: its `adopt_map` refusal is a correctness rule about unsaved work, not a poll, and
+//! this module only says that a path moved.
 
 use std::cell::Cell;
 use std::collections::{BTreeMap, HashMap, HashSet};
+use std::io;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Condvar, LazyLock, Mutex, MutexGuard, Weak, mpsc};
@@ -53,22 +73,35 @@ use bevy::prelude::*;
 use crate::files::{Ignore, SKIPPED_DIRS, TreeBuild};
 use crate::project::Project;
 
-/// **How often the thread looks at what it knows**: the one poll clock that stays when the per-module ones retire into it.
+/// **How often the thread looks at every file it knows** unless [`ProjectIndex::set_sweep`] says otherwise: the one poll clock that
+/// stays when the per-module ones retire into it.
 pub const SWEEP: Duration = Duration::from_secs(1);
 
-/// **How long a change must be steady before it is published**: Renzora's number, for the same reason (one save is a create,
-/// several writes and a close).
+/// **How long a change must be steady before it is published**, so one save (a create, several writes and a close) is one event.
 pub const DEBOUNCE: Duration = Duration::from_millis(100);
+
+/// **The longest a change is held**, however often it moves: a log appended more often than [`DEBOUNCE`] still publishes.
+pub const MAX_HOLD: Duration = Duration::from_secs(2);
 
 /// How often a held change is looked at again while it is settling.
 const TICK: Duration = Duration::from_millis(25);
 
-/// **A folder written this recently is read again on the next sweep**: a second change in the same clock tick would leave its
-/// mtime where the first read saw it.
+/// **A folder written this recently is read again on the next sweep**: a second change in the same clock tick would leave its mtime
+/// where the first read saw it.
 const RACY: Duration = Duration::from_secs(2);
 
-/// How long a caller with no world waits for the thread to settle before it walks for itself.
+/// How long a caller with no world waits for the thread to settle before it is refused.
 const SETTLE_WAIT: Duration = Duration::from_secs(10);
+
+/// How long a stepped editor waits for the first listing when it starts following a project.
+const FIRST_LISTING_WAIT: Duration = Duration::from_secs(60);
+
+/// How often [`ProjectIndex::wait_ready`] looks.
+const READY_POLL: Duration = Duration::from_millis(1);
+
+/// **How many times its own length a sweep is left alone for**: a sweep that took 266 ms (measured at 100,000 files on big) is followed by
+/// at least 2.66 s of other work, so the thread spends at most a tenth of itself sweeping however large the project is.
+const SWEEP_DUTY: u32 = 10;
 
 /// **A file's size and modification time**: what "it changed" is decided by, never a hash (nothing here reads a file's bytes).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -97,7 +130,8 @@ pub struct ProjectFileChanged {
     pub dir: bool,
 }
 
-/// What the index holds of one entry. A folder's `settled` says its mtime is old enough to be trusted (see [`RACY`]).
+/// What the index holds of one entry. A folder's `settled` says its mtime is old enough to be trusted (see [`RACY`]), and a folder
+/// that could not be read is never settled, so it is read again.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 struct Entry {
     dir: bool,
@@ -105,11 +139,18 @@ struct Entry {
     settled: bool,
 }
 
+/// What one look at one path found: a folder or a file with its stamp, or `None` for a path that is gone (or a link, which is never
+/// followed and never listed).
+type Seen = Option<(bool, FileStamp)>;
+
 /// **The listing as of one generation**, immutable and shared: readers clone the `Arc`, never the listing.
 #[derive(Debug)]
 pub struct Snapshot {
     /// Unique across every index in the process, and larger after every applied change.
     pub generation: u64,
+    /// **The generation of the last listing in which a text file ([`crate::crosslinks::is_text_file`]) was created, removed or changed.**
+    /// A reader of the text files (the finder's scan) has nothing to do when only this stays the same.
+    pub text_generation: u64,
     /// Every file (not folder), sorted by path, with its stamp: no cap.
     pub files: Vec<(String, FileStamp)>,
     /// The tree the Files workspace draws, with its caps; rebuilt only when the structure moved.
@@ -122,8 +163,9 @@ thread_local! {
     static LOOKUPS: Cell<u64> = const { Cell::new(0) };
 }
 
-/// **How many `stat` and `read_dir` calls the index's seam has made on this thread.** A test reads it across a frame to say the
-/// UI thread looked at nothing.
+/// **How many `stat`, `read_dir` and `.gitignore` reads this module has made on this thread.** A test reads it across a frame to say
+/// the index's own seam made none on the UI thread. It counts what goes through this module and nothing else: another module's
+/// `std::fs` call is invisible to it.
 pub fn lookups_on_this_thread() -> u64 {
     LOOKUPS.with(Cell::get)
 }
@@ -132,17 +174,28 @@ fn counted() {
     LOOKUPS.with(|c| c.set(c.get() + 1));
 }
 
-fn look_stat(path: &Path) -> std::io::Result<std::fs::Metadata> {
+fn look_stat(path: &Path) -> io::Result<std::fs::Metadata> {
     counted();
     std::fs::symlink_metadata(path)
 }
 
-fn look_dir(path: &Path) -> std::io::Result<std::fs::ReadDir> {
+fn look_dir(path: &Path) -> io::Result<std::fs::ReadDir> {
     counted();
     std::fs::read_dir(path)
 }
 
 // ── Reading the disk ─────────────────────────────────────────────────────────
+
+fn is_gone(e: &io::Error) -> bool {
+    matches!(e.kind(), io::ErrorKind::NotFound | io::ErrorKind::NotADirectory)
+}
+
+/// Say something once per `key`, so a folder that stays unreadable is one line and not one a second.
+fn warn_once(warned: &mut HashSet<String>, key: String, message: impl FnOnce() -> String) {
+    if warned.insert(key) {
+        warn!("project index: {}", message());
+    }
+}
 
 fn stamp_of(meta: &std::fs::Metadata) -> FileStamp {
     FileStamp { len: if meta.is_dir() { 0 } else { meta.len() }, modified: meta.modified().ok() }
@@ -161,74 +214,106 @@ fn admitted(rel: &str, name: &str, is_dir: bool, ignore: &Ignore) -> bool {
     !((is_dir && SKIPPED_DIRS.contains(&name)) || name == ".DS_Store" || ignore.matches(rel, is_dir))
 }
 
-fn ignore_of(root: &Path) -> Ignore {
-    std::fs::read_to_string(root.join(".gitignore")).map(|t| Ignore::parse(&t)).unwrap_or_default()
+/// **The root's `.gitignore`**: none is no rule, and a file that cannot be read is an error (a wrong listing is worse than none).
+fn ignore_of(root: &Path) -> Result<Ignore, String> {
+    counted();
+    match std::fs::read_to_string(root.join(".gitignore")) {
+        Ok(text) => Ok(Ignore::parse(&text)),
+        Err(e) if e.kind() == io::ErrorKind::NotFound => Ok(Ignore::default()),
+        Err(e) => Err(format!("{} cannot be read: {e}", root.join(".gitignore").display())),
+    }
 }
 
-/// **One look at one path**: `None` for a path that is not there or is a link (a link is never followed and never listed).
-fn observe(root: &Path, rel: &str) -> Option<(bool, FileStamp)> {
+/// **One look at one path.** `Ok(None)` for a path that is not there or is a link; an error for anything else (a permission, say),
+/// which the caller says and does not take for a removal.
+fn observe(root: &Path, rel: &str) -> io::Result<Seen> {
     let path = full_path(root, rel);
     let meta = if rel.is_empty() {
         counted();
-        std::fs::metadata(&path).ok()?
+        std::fs::metadata(&path)
     } else {
-        look_stat(&path).ok()?
+        look_stat(&path)
     };
-    if meta.file_type().is_symlink() {
-        return None;
+    match meta {
+        Ok(meta) if meta.file_type().is_symlink() => Ok(None),
+        Ok(meta) => Ok(Some((meta.is_dir(), stamp_of(&meta)))),
+        Err(e) if is_gone(&e) => Ok(None),
+        Err(e) => Err(e),
     }
-    Some((meta.is_dir(), stamp_of(&meta)))
 }
 
-/// **The entries directly inside one folder**, with their stamps, filtered the way the tree filters.
-fn read_children(root: &Path, dir: &str, ignore: &Ignore) -> Option<Vec<(String, Entry)>> {
-    let read = look_dir(&full_path(root, dir)).ok()?;
+/// **The entries directly inside one folder**, with their stamps, filtered the way the tree filters. An error when the folder (or an
+/// entry in it that is still there) cannot be read: a half-read folder is not returned as a whole one.
+fn read_children(root: &Path, dir: &str, ignore: &Ignore, warned: &mut HashSet<String>) -> io::Result<Vec<(String, Entry)>> {
+    let read = look_dir(&full_path(root, dir))?;
     let read_at = SystemTime::now();
     let mut out = Vec::new();
-    for entry in read.filter_map(Result::ok) {
-        let Ok(meta) = look_stat(&entry.path()) else { continue };
+    for entry in read {
+        let entry = entry?;
+        let meta = match look_stat(&entry.path()) {
+            Ok(meta) => meta,
+            // Gone between the listing and the look: it is not there.
+            Err(e) if is_gone(&e) => continue,
+            Err(e) => return Err(e),
+        };
         if meta.file_type().is_symlink() {
             continue;
         }
-        let name = entry.file_name().to_string_lossy().into_owned();
+        let file_name = entry.file_name();
+        let Some(name) = file_name.to_str() else {
+            warn_once(warned, format!("name:{dir}/{file_name:?}"), || format!("`{}` has a name that is not UTF-8, so it is not listed", entry.path().display()));
+            continue;
+        };
         let is_dir = meta.is_dir();
-        let rel = if dir.is_empty() { name.clone() } else { format!("{dir}/{name}") };
-        if !admitted(&rel, &name, is_dir, ignore) {
+        let rel = if dir.is_empty() { name.to_owned() } else { format!("{dir}/{name}") };
+        if !admitted(&rel, name, is_dir, ignore) {
             continue;
         }
         let stamp = stamp_of(&meta);
         out.push((rel, Entry { dir: is_dir, stamp, settled: is_dir && settled(stamp.modified, read_at) }));
     }
-    Some(out)
+    Ok(out)
 }
 
-fn walk_into(root: &Path, dir: &str, ignore: &Ignore, stop: &AtomicBool, out: &mut BTreeMap<String, Entry>) {
+/// **Walk below `dir`** into `out`. An error only for `dir` itself; a folder below it that cannot be read is warned about once and
+/// left in `out` unsettled and empty, so every sweep reads it again.
+fn walk_into(
+    root: &Path,
+    dir: &str,
+    ignore: &Ignore,
+    stop: &AtomicBool,
+    warned: &mut HashSet<String>,
+    out: &mut BTreeMap<String, Entry>,
+) -> io::Result<()> {
     if stop.load(Ordering::Relaxed) {
-        return;
+        return Ok(());
     }
-    for (rel, entry) in read_children(root, dir, ignore).unwrap_or_default() {
+    for (rel, entry) in read_children(root, dir, ignore, warned)? {
         let is_dir = entry.dir;
         out.insert(rel.clone(), entry);
-        if is_dir {
-            walk_into(root, &rel, ignore, stop, out);
+        if is_dir && let Err(e) = walk_into(root, &rel, ignore, stop, warned, out) {
+            warn_once(warned, format!("dir:{rel}"), || format!("`{rel}` cannot be read ({e}): it is listed empty and read again on every sweep"));
+            if let Some(held) = out.get_mut(&rel) {
+                held.settled = false;
+            }
         }
     }
+    Ok(())
 }
 
-/// **The one walk**: every entry under the root, uncapped, with the root itself kept under `""` so its own mtime is followed.
-fn walk(root: &Path, ignore: &Ignore, stop: &AtomicBool) -> BTreeMap<String, Entry> {
+/// **The one walk**: every entry under the root, uncapped, with the root itself kept under `""` so its own mtime is followed. An
+/// error when the root is not a readable folder.
+fn walk(root: &Path, ignore: &Ignore, stop: &AtomicBool, warned: &mut HashSet<String>) -> io::Result<BTreeMap<String, Entry>> {
     let mut out = BTreeMap::new();
-    if let Some((_, stamp)) = observe(root, "") {
-        out.insert(String::new(), Entry { dir: true, stamp, settled: settled(stamp.modified, SystemTime::now()) });
-        walk_into(root, "", ignore, stop, &mut out);
+    match observe(root, "")? {
+        Some((true, stamp)) => {
+            out.insert(String::new(), Entry { dir: true, stamp, settled: settled(stamp.modified, SystemTime::now()) });
+        }
+        Some((false, _)) => return Err(io::Error::new(io::ErrorKind::InvalidInput, "it is not a folder")),
+        None => return Err(io::Error::new(io::ErrorKind::NotFound, "it is not there")),
     }
-    out
-}
-
-/// **The files the project lists when no index is following it**: one walk, on the caller's thread.
-fn cold_listing(root: &Path) -> Vec<String> {
-    let stop = AtomicBool::new(false);
-    walk(root, &ignore_of(root), &stop).into_iter().filter(|(rel, e)| !e.dir && !rel.is_empty()).map(|(rel, _)| rel).collect()
+    walk_into(root, "", ignore, stop, warned, &mut out)?;
+    Ok(out)
 }
 
 fn parent_of(rel: &str) -> &str {
@@ -239,19 +324,24 @@ fn parent_of(rel: &str) -> &str {
 
 /// Handed out to every applied change, from every index in the process, so a generation never repeats across projects.
 static GENERATION: AtomicU64 = AtomicU64::new(0);
+static NEXT_ID: AtomicU64 = AtomicU64::new(1);
 
+/// What the thread hands the rest of the editor. **Every field is replaced whole by a short assignment** under the lock, so a panic
+/// elsewhere cannot leave it torn; the index's own entries live on the thread and are never behind this lock.
 #[derive(Default)]
 struct State {
-    entries: BTreeMap<String, Entry>,
     snapshot: Option<Arc<Snapshot>>,
     outbox: Vec<ProjectFileChanged>,
     /// Paths an operation has finished writing.
     noted: Vec<String>,
     /// Callers waiting for the thread to settle.
     syncs: Vec<mpsc::Sender<()>>,
+    /// Why there is no listing, when there is none (the root cannot be read).
+    failure: Option<String>,
 }
 
 struct Shared {
+    id: u64,
     root: PathBuf,
     state: Mutex<State>,
     wake: Condvar,
@@ -260,73 +350,99 @@ struct Shared {
     news: AtomicBool,
     generation: AtomicU64,
     walks: AtomicU64,
+    sweep_millis: AtomicU64,
+    last_sweep_micros: AtomicU64,
 }
 
 impl Shared {
     fn lock(&self) -> MutexGuard<'_, State> {
-        // A panic with the lock held cannot leave the state half-applied: an apply is built first and swapped in whole.
         self.state.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
+    }
+
+    fn sweep(&self) -> Duration {
+        Duration::from_millis(self.sweep_millis.load(Ordering::Relaxed))
     }
 }
 
-static REGISTRY: LazyLock<Mutex<HashMap<PathBuf, Weak<Shared>>>> = LazyLock::new(Default::default);
+/// One running index: its id, the root it follows, and a weak handle to it.
+type Running = (u64, PathBuf, Weak<Shared>);
 
-fn registry() -> MutexGuard<'static, HashMap<PathBuf, Weak<Shared>>> {
+/// Every running index by `(id, root)`, so a later app on the same root does not hide an earlier one: [`registered`] answers with the
+/// newest that still runs.
+static REGISTRY: LazyLock<Mutex<Vec<Running>>> = LazyLock::new(Default::default);
+
+fn registry() -> MutexGuard<'static, Vec<Running>> {
     REGISTRY.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
 }
 
 fn registered(root: &Path) -> Option<Arc<Shared>> {
-    registry().get(root).and_then(Weak::upgrade).filter(|s| !s.stop.load(Ordering::Relaxed))
+    registry().iter().rev().filter(|(_, r, _)| r == root).find_map(|(_, _, weak)| weak.upgrade().filter(|s| !s.stop.load(Ordering::Relaxed)))
 }
 
-/// **An operation has finished writing `rel`** (made, renamed away, deleted): the index looks at that path at once and publishes
-/// what it finds, with no debounce, because the writer knows the write is done. A no-op when no index follows `root`.
+/// **An operation has finished writing `rel`** (made, renamed away, deleted): the index looks at that path at once and publishes what
+/// it finds, with no debounce, because the writer knows the write is done. A hint, not an answer: with no index following `root` there
+/// is no one to tell, and the call does nothing.
 pub fn note_written(root: &Path, rel: &str) {
     let Some(shared) = registered(root) else { return };
     shared.lock().noted.push(rel.to_owned());
     shared.wake.notify_all();
 }
 
-/// **The listing as of now, for a caller with no world**: the registered index for `root` settles (one sweep, on its thread) and
-/// answers; `None` when no index follows `root`.
-fn settled_snapshot(root: &Path) -> Option<Arc<Snapshot>> {
-    let shared = registered(root)?;
+/// **The listing as of now, for a caller with no world**: the index that follows `root` settles (a sweep of its folders and what
+/// was held, on its own thread) and answers. An error, said, when no index follows `root`, when it does not settle in time, or when it
+/// has no listing because the root cannot be read.
+fn settled_snapshot(root: &Path) -> Result<Arc<Snapshot>, String> {
+    let shared = registered(root).ok_or_else(|| {
+        format!(
+            "no project index follows {}; the Files workspace and the finder start one for the open project, so there is no listing to read",
+            root.display()
+        )
+    })?;
     let (tx, rx) = mpsc::channel();
     shared.lock().syncs.push(tx);
     shared.wake.notify_all();
-    rx.recv_timeout(SETTLE_WAIT).ok()?;
-    shared.lock().snapshot.clone()
+    if let Err(e) = rx.recv_timeout(SETTLE_WAIT) {
+        let why = format!("the project index of {} did not settle within {SETTLE_WAIT:?} ({e})", root.display());
+        warn!("{why}");
+        return Err(why);
+    }
+    let state = shared.lock();
+    state.snapshot.clone().ok_or_else(|| state.failure.clone().unwrap_or_else(|| format!("the project index of {} has no listing yet", root.display())))
 }
 
-/// **Every file of the project, sorted, with no cap**: from the index that follows `root` when there is one, and from one cold
-/// walk when there is not. [`crate::files::listed_files`] is this.
-pub fn listed(root: &Path) -> Vec<String> {
-    match settled_snapshot(root) {
-        Some(snapshot) => snapshot.files.iter().map(|(rel, _)| rel.clone()).collect(),
-        None => {
-            let mut files = cold_listing(root);
-            files.sort();
-            files
-        }
-    }
+/// **Every file of the project, sorted, with no cap**: the index's answer, or the reason there is none. [`crate::files::listed_files`]
+/// is this.
+pub fn listed(root: &Path) -> Result<Vec<String>, String> {
+    Ok(settled_snapshot(root)?.files.iter().map(|(rel, _)| rel.clone()).collect())
 }
 
 // ── The thread ───────────────────────────────────────────────────────────────
 
-/// A change seen and not yet published: what it looked like last, and since when it has looked like that.
+/// A change seen and not yet published: what it looked like last, since when it has looked like that, and since when it has been held.
 struct Pending {
-    seen: Option<(bool, FileStamp)>,
+    seen: Seen,
     since: Instant,
+    held_since: Instant,
     immediate: bool,
 }
 
 struct Sweeper {
     shared: Arc<Shared>,
     ignore: Ignore,
+    /// **Everything the index holds**, on this thread and nowhere else: a reader sees only what [`Sweeper::publish`] hands over.
+    entries: BTreeMap<String, Entry>,
     pending: HashMap<String, Pending>,
+    warned: HashSet<String>,
+    tree: Option<Arc<TreeBuild>>,
+    /// The generation of the last listing in which a text file came, went or changed.
+    text_generation: u64,
 }
 
 impl Sweeper {
+    fn new(shared: Arc<Shared>) -> Sweeper {
+        Sweeper { shared, ignore: Ignore::default(), entries: BTreeMap::new(), pending: HashMap::new(), warned: HashSet::new(), tree: None, text_generation: 0 }
+    }
+
     fn root(&self) -> &Path {
         &self.shared.root
     }
@@ -335,45 +451,80 @@ impl Sweeper {
         self.shared.stop.load(Ordering::Relaxed)
     }
 
-    /// **The first listing**: the one walk. It publishes no events (a first sighting is not a change).
-    fn first_listing(&mut self) {
-        self.ignore = ignore_of(self.root());
-        let entries = walk(self.root(), &self.ignore, &self.shared.stop);
-        self.shared.walks.fetch_add(1, Ordering::Relaxed);
-        let mut st = self.shared.lock();
-        st.entries = entries;
-        self.publish(&mut st, true, &[]);
+    /// There is no listing, and this says why: warned once, and kept for the callers who ask.
+    fn fail(&mut self, why: String) {
+        warn_once(&mut self.warned, format!("failure:{why}"), || why.clone());
+        self.shared.lock().failure = Some(why);
     }
 
-    /// Rebuild the snapshot and queue `events`, under the lock.
-    fn publish(&self, st: &mut State, structural: bool, events: &[ProjectFileChanged]) {
-        let generation = GENERATION.fetch_add(1, Ordering::Relaxed) + 1;
-        let files = st.entries.iter().filter(|(rel, e)| !e.dir && !rel.is_empty()).map(|(rel, e)| (rel.clone(), e.stamp)).collect();
-        let previous = st.snapshot.as_ref().map(|s| s.tree.clone());
-        let tree = match previous {
-            Some(tree) if !structural => tree,
-            _ => Arc::new(crate::files::build_tree(st.entries.iter().filter(|(rel, _)| !rel.is_empty()).map(|(rel, e)| (rel.as_str(), e.dir)))),
+    /// **The first listing**: the one walk. It publishes no events (a first sighting is not a change). `false` when the root cannot be
+    /// read, which is a failure said and tried again on the next sweep.
+    fn first_listing(&mut self) -> bool {
+        let ignore = match ignore_of(self.root()) {
+            Ok(ignore) => ignore,
+            Err(why) => {
+                self.fail(why);
+                return false;
+            }
         };
-        st.snapshot = Some(Arc::new(Snapshot { generation, files, tree }));
-        self.shared.generation.store(generation, Ordering::Release);
+        let entries = match walk(&self.shared.root, &ignore, &self.shared.stop, &mut self.warned) {
+            Ok(entries) => entries,
+            Err(e) => {
+                self.fail(format!("the project root {} cannot be listed: {e}", self.root().display()));
+                return false;
+            }
+        };
+        if self.stopped() {
+            return false;
+        }
+        self.shared.walks.fetch_add(1, Ordering::Relaxed);
+        self.ignore = ignore;
+        self.entries = entries;
+        self.publish(true, &[]);
+        true
+    }
+
+    /// **Hand the listing to the rest of the editor**: the snapshot is built here, off the lock, and swapped in with the events.
+    fn publish(&mut self, structural: bool, events: &[ProjectFileChanged]) {
+        let generation = GENERATION.fetch_add(1, Ordering::Relaxed) + 1;
+        let files = self.entries.iter().filter(|(rel, e)| !e.dir && !rel.is_empty()).map(|(rel, e)| (rel.clone(), e.stamp)).collect();
+        let tree = match &self.tree {
+            Some(tree) if !structural => tree.clone(),
+            _ => {
+                let built = Arc::new(crate::files::build_tree(self.entries.iter().filter(|(rel, _)| !rel.is_empty()).map(|(rel, e)| (rel.as_str(), e.dir))));
+                self.tree = Some(built.clone());
+                built
+            }
+        };
+        let text_generation = if self.text_generation == 0 || events.iter().any(|e| !e.dir && crate::crosslinks::is_text_file(&e.rel)) {
+            generation
+        } else {
+            self.text_generation
+        };
+        self.text_generation = text_generation;
+        let snapshot = Arc::new(Snapshot { generation, text_generation, files, tree });
+        let mut st = self.shared.lock();
+        st.snapshot = Some(snapshot);
+        st.failure = None;
         if !events.is_empty() {
             st.outbox.extend_from_slice(events);
             self.shared.news.store(true, Ordering::Release);
         }
+        self.shared.generation.store(generation, Ordering::Release);
     }
 
-    /// Hold `rel` as a change that has been seen.
-    fn suspect(&mut self, rel: &str, seen: Option<(bool, FileStamp)>) {
-        self.pending.entry(rel.to_owned()).or_insert_with(|| Pending { seen, since: Instant::now(), immediate: false });
-    }
-
-    /// **An operation's finished write**: looked at now and published at once.
+    /// An operation's finished write: looked at now and published at once.
     fn note(&mut self, rel: &str) {
         if rel.is_empty() || !self.listed(rel) {
             return;
         }
-        let seen = observe(self.root(), rel);
-        self.pending.insert(rel.to_owned(), Pending { seen, since: Instant::now(), immediate: true });
+        match observe(self.root(), rel) {
+            Ok(seen) => {
+                let now = Instant::now();
+                self.pending.insert(rel.to_owned(), Pending { seen, since: now, held_since: now, immediate: true });
+            }
+            Err(e) => warn_once(&mut self.warned, format!("stat:{rel}"), || format!("`{rel}` cannot be looked at ({e})")),
+        }
     }
 
     /// Whether the tree would list `rel`: no part of it is skipped or ignored.
@@ -385,94 +536,127 @@ impl Sweeper {
                 at.push('/');
             }
             at.push_str(part);
-            let is_dir = n + 1 < parts.len();
-            if !admitted(&at, part, is_dir, &self.ignore) {
+            if !admitted(&at, part, n + 1 < parts.len(), &self.ignore) {
                 return false;
             }
         }
         true
     }
 
-    /// **Look at everything the index knows.** Folders first (their mtime says an entry came or went, and only a folder that
-    /// moved is read), then each file's own stamp. Whatever differs is held as a pending change.
-    fn sweep(&mut self) {
-        let known: Vec<(String, Entry)> = self.shared.lock().entries.iter().map(|(rel, e)| (rel.clone(), *e)).collect();
-        let mut children_of: HashMap<&str, Vec<&str>> = HashMap::new();
-        let mut is_known: HashSet<&str> = HashSet::with_capacity(known.len());
-        for (rel, _) in &known {
-            is_known.insert(rel.as_str());
-            if !rel.is_empty() {
-                children_of.entry(parent_of(rel)).or_default().push(rel.as_str());
+    /// **Look at what the index knows.** Folders first (their mtime says an entry came or went, and only a folder that moved is read),
+    /// then, when `with_files`, each file's own stamp. Whatever differs is held as a pending change. A caller that only wants the
+    /// listing fresh passes `false` and costs one `stat` per folder, not per file.
+    fn sweep(&mut self, with_files: bool) {
+        match observe(&self.shared.root, "") {
+            Ok(Some((true, _))) => {}
+            Ok(_) => {
+                let why = format!("the project root {} is not there", self.root().display());
+                self.fail(why);
+                return;
             }
+            Err(e) => {
+                let why = format!("the project root {} cannot be looked at: {e}", self.root().display());
+                self.fail(why);
+                return;
+            }
+        }
+        let Sweeper { shared, ignore, entries, pending, warned, .. } = self;
+        let root = shared.root.as_path();
+        let mut children_of: HashMap<&str, Vec<&str>> = HashMap::new();
+        for rel in entries.keys().filter(|rel| !rel.is_empty()) {
+            children_of.entry(parent_of(rel)).or_default().push(rel.as_str());
         }
         let mut folder_updates: Vec<(String, Entry)> = Vec::new();
         let now = SystemTime::now();
-        for (rel, entry) in &known {
-            if self.stopped() {
+        for (rel, entry) in entries.iter() {
+            if shared.stop.load(Ordering::Relaxed) {
                 return;
             }
-            let Some((is_dir, stamp)) = observe(self.root(), rel) else {
-                self.suspect(rel, None);
+            if !with_files && !entry.dir {
                 continue;
+            }
+            let (is_dir, stamp) = match observe(root, rel) {
+                Ok(Some(seen)) => seen,
+                Ok(None) => {
+                    suspect(pending, rel, None);
+                    continue;
+                }
+                Err(e) => {
+                    warn_once(warned, format!("stat:{rel}"), || format!("`{rel}` cannot be looked at ({e}); it is left as it was"));
+                    continue;
+                }
             };
             if is_dir != entry.dir {
-                self.suspect(rel, Some((is_dir, stamp)));
+                suspect(pending, rel, Some((is_dir, stamp)));
                 continue;
             }
             if !entry.dir {
                 if stamp != entry.stamp {
-                    self.suspect(rel, Some((false, stamp)));
+                    suspect(pending, rel, Some((false, stamp)));
                 }
                 continue;
             }
             if stamp.modified == entry.stamp.modified && entry.settled {
                 continue;
             }
-            // **A folder that moved (or is too fresh to trust) is read, and only that folder.**
-            if let Some(children) = read_children(self.root(), rel, &self.ignore) {
-                let listed: HashSet<&str> = children.iter().map(|(c, _)| c.as_str()).collect();
-                for (child, e) in &children {
-                    if is_known.contains(child.as_str()) {
-                        continue;
+            // **A folder that moved (or is too fresh to trust, or could not be read) is read, and only that folder.** Its stamp moves
+            // on only when the read worked: a failed read leaves it as it was, so the next sweep reads it again.
+            let children = match read_children(root, rel, ignore, warned) {
+                Ok(children) => children,
+                Err(e) => {
+                    warn_once(warned, format!("dir:{rel}"), || format!("`{rel}` cannot be read ({e}): it is listed empty and read again on every sweep"));
+                    continue;
+                }
+            };
+            let listed: HashSet<&str> = children.iter().map(|(c, _)| c.as_str()).collect();
+            for (child, e) in &children {
+                if entries.contains_key(child) {
+                    continue;
+                }
+                suspect(pending, child, Some((e.dir, e.stamp)));
+                if e.dir {
+                    // A folder that arrived with things in it: they are new too.
+                    let mut inside = BTreeMap::new();
+                    if let Err(err) = walk_into(root, child, ignore, &shared.stop, warned, &mut inside) {
+                        warn_once(warned, format!("dir:{child}"), || format!("`{child}` cannot be read ({err}): it is listed empty and read again on every sweep"));
                     }
-                    self.suspect(child, Some((e.dir, e.stamp)));
-                    if e.dir {
-                        // A folder that arrived with things in it: they are new too.
-                        let mut inside = BTreeMap::new();
-                        walk_into(self.root(), child, &self.ignore, &self.shared.stop, &mut inside);
-                        for (r, en) in inside {
-                            self.suspect(&r, Some((en.dir, en.stamp)));
-                        }
+                    for (r, en) in inside {
+                        suspect(pending, &r, Some((en.dir, en.stamp)));
                     }
                 }
-                for child in children_of.get(rel.as_str()).into_iter().flatten() {
-                    if !listed.contains(child) {
-                        self.suspect(child, None);
-                    }
+            }
+            for child in children_of.get(rel.as_str()).into_iter().flatten() {
+                if !listed.contains(child) {
+                    suspect(pending, child, None);
                 }
             }
             folder_updates.push((rel.clone(), Entry { dir: true, stamp, settled: settled(stamp.modified, now) }));
         }
-        let mut st = self.shared.lock();
         for (rel, entry) in folder_updates {
-            if let Some(held) = st.entries.get_mut(&rel) {
+            if let Some(held) = entries.get_mut(&rel) {
                 *held = entry;
             }
         }
     }
 
     /// **Re-look at what is held, and take out what has been steady long enough** (all of it when `force`).
-    fn ripen(&mut self, force: bool) -> Vec<(String, Option<(bool, FileStamp)>)> {
+    fn ripen(&mut self, force: bool) -> Vec<(String, Seen)> {
         let now = Instant::now();
-        let root = self.shared.root.clone();
+        let Sweeper { shared, pending, warned, .. } = self;
         let mut ripe = Vec::new();
-        self.pending.retain(|rel, held| {
-            let seen = observe(&root, rel);
+        pending.retain(|rel, held| {
+            let seen = match observe(&shared.root, rel) {
+                Ok(seen) => seen,
+                Err(e) => {
+                    warn_once(warned, format!("stat:{rel}"), || format!("`{rel}` cannot be looked at ({e}); it is left as it was"));
+                    return false;
+                }
+            };
             if seen != held.seen {
                 held.seen = seen;
                 held.since = now;
             }
-            if force || held.immediate || now.duration_since(held.since) >= DEBOUNCE {
+            if force || held.immediate || now.duration_since(held.since) >= DEBOUNCE || now.duration_since(held.held_since) >= MAX_HOLD {
                 ripe.push((rel.clone(), held.seen));
                 false
             } else {
@@ -483,23 +667,39 @@ impl Sweeper {
         ripe
     }
 
-    /// **Fold what settled into the index**, queue one event for each entry that really changed, and rebuild the snapshot once.
-    fn apply(&mut self, ripe: Vec<(String, Option<(bool, FileStamp)>)>) {
+    /// **Fold what settled into the index**, queue one event for each entry that really changed, and publish once.
+    fn apply(&mut self, ripe: Vec<(String, Seen)>) {
+        if ripe.is_empty() {
+            return;
+        }
+        // **The folders above a new path are looked at before anything is folded**, so folding is memory only.
+        let mut above: HashMap<String, Seen> = HashMap::new();
+        for (rel, seen) in &ripe {
+            if seen.is_none() {
+                continue;
+            }
+            let mut at = parent_of(rel);
+            while !at.is_empty() && !self.entries.contains_key(at) && !above.contains_key(at) {
+                let looked = observe(self.root(), at).unwrap_or_else(|e| {
+                    warn_once(&mut self.warned, format!("stat:{at}"), || format!("`{at}` cannot be looked at ({e})"));
+                    None
+                });
+                above.insert(at.to_owned(), looked);
+                at = parent_of(at);
+            }
+        }
         let mut events = Vec::new();
         let mut structural = false;
         let mut gitignore = false;
-        {
-            let mut st = self.shared.lock();
-            for (rel, seen) in ripe {
-                if rel.is_empty() {
-                    continue;
-                }
-                gitignore |= rel == ".gitignore";
-                fold(&mut st.entries, self.shared.root.as_path(), &rel, seen, &mut events, &mut structural);
+        for (rel, seen) in ripe {
+            if rel.is_empty() {
+                continue;
             }
-            if !events.is_empty() {
-                self.publish(&mut st, structural, &events);
-            }
+            gitignore |= rel == ".gitignore";
+            fold(&mut self.entries, &above, &rel, seen, &mut events, &mut structural);
+        }
+        if !events.is_empty() {
+            self.publish(structural, &events);
         }
         if gitignore {
             self.rewalk();
@@ -508,43 +708,63 @@ impl Sweeper {
 
     /// **`.gitignore` changed, so what is listed changed**: the one event that walks again.
     fn rewalk(&mut self) {
-        self.ignore = ignore_of(self.root());
-        let fresh = walk(self.root(), &self.ignore, &self.shared.stop);
-        self.shared.walks.fetch_add(1, Ordering::Relaxed);
-        let mut diff: Vec<(String, Option<(bool, FileStamp)>)> = Vec::new();
-        {
-            let st = self.shared.lock();
-            for (rel, e) in &fresh {
-                if !rel.is_empty() && !st.entries.contains_key(rel) {
-                    diff.push((rel.clone(), Some((e.dir, e.stamp))));
-                }
+        let ignore = match ignore_of(self.root()) {
+            Ok(ignore) => ignore,
+            Err(why) => {
+                warn_once(&mut self.warned, format!("gitignore:{why}"), || format!("{why}; the listing keeps the rules it had"));
+                return;
             }
-            for rel in st.entries.keys() {
-                if !rel.is_empty() && !fresh.contains_key(rel) {
-                    diff.push((rel.clone(), None));
-                }
+        };
+        let fresh = match walk(&self.shared.root, &ignore, &self.shared.stop, &mut self.warned) {
+            Ok(fresh) => fresh,
+            Err(e) => {
+                warn_once(&mut self.warned, format!("rewalk:{e}"), || format!("the project cannot be listed again after `.gitignore` changed ({e}); the listing keeps the rules it had"));
+                return;
+            }
+        };
+        if self.stopped() {
+            return;
+        }
+        self.shared.walks.fetch_add(1, Ordering::Relaxed);
+        self.ignore = ignore;
+        let mut diff: Vec<(String, Seen)> = Vec::new();
+        for (rel, e) in &fresh {
+            if !rel.is_empty() && !self.entries.contains_key(rel) {
+                diff.push((rel.clone(), Some((e.dir, e.stamp))));
+            }
+        }
+        for rel in self.entries.keys() {
+            if !rel.is_empty() && !fresh.contains_key(rel) {
+                diff.push((rel.clone(), None));
             }
         }
         diff.sort_by(|a, b| a.0.cmp(&b.0));
         let mut events = Vec::new();
         let mut structural = false;
-        let mut st = self.shared.lock();
+        let none = HashMap::new();
         for (rel, seen) in diff {
-            fold(&mut st.entries, self.shared.root.as_path(), &rel, seen, &mut events, &mut structural);
+            fold(&mut self.entries, &none, &rel, seen, &mut events, &mut structural);
         }
         if !events.is_empty() {
-            self.publish(&mut st, structural, &events);
+            self.publish(structural, &events);
         }
     }
 }
 
-/// **One settled observation against what the index holds.** A path that appears gets its missing folders first; a folder that
-/// goes takes everything under it; a file whose stamp moved is `Modified`; anything that ends where it began is nothing.
+/// Hold `rel` as a change that has been seen.
+fn suspect(pending: &mut HashMap<String, Pending>, rel: &str, seen: Seen) {
+    let now = Instant::now();
+    pending.entry(rel.to_owned()).or_insert_with(|| Pending { seen, since: now, held_since: now, immediate: false });
+}
+
+/// **One settled observation against what the index holds**, in memory only. A path that appears gets its missing folders first (their
+/// looks are in `above`); a folder that goes takes everything under it; a file whose stamp moved is `Modified`; anything that ends
+/// where it began is nothing.
 fn fold(
     entries: &mut BTreeMap<String, Entry>,
-    root: &Path,
+    above: &HashMap<String, Seen>,
     rel: &str,
-    seen: Option<(bool, FileStamp)>,
+    seen: Seen,
     events: &mut Vec<ProjectFileChanged>,
     structural: &mut bool,
 ) {
@@ -564,16 +784,16 @@ fn fold(
     };
     let create = |entries: &mut BTreeMap<String, Entry>, events: &mut Vec<ProjectFileChanged>, dir: bool, stamp: FileStamp| {
         // **The folders above it come first**, so a subscriber never hears of a file in a folder it has not heard of.
-        let mut above = Vec::new();
+        let mut missing = Vec::new();
         let mut at = parent_of(rel);
         while !at.is_empty() && !entries.contains_key(at) {
-            above.push(at.to_owned());
+            missing.push(at.to_owned());
             at = parent_of(at);
         }
-        for folder in above.into_iter().rev() {
-            if let Some((true, folder_stamp)) = observe(root, &folder) {
-                entries.insert(folder.clone(), Entry { dir: true, stamp: folder_stamp, settled: false });
-                events.push(ProjectFileChanged { rel: folder, kind: ChangeKind::Created, stamp: Some(folder_stamp), dir: true });
+        for folder in missing.into_iter().rev() {
+            if let Some(Some((true, folder_stamp))) = above.get(&folder) {
+                entries.insert(folder.clone(), Entry { dir: true, stamp: *folder_stamp, settled: false });
+                events.push(ProjectFileChanged { rel: folder, kind: ChangeKind::Created, stamp: Some(*folder_stamp), dir: true });
             }
         }
         entries.insert(rel.to_owned(), Entry { dir, stamp, settled: false });
@@ -603,17 +823,21 @@ fn fold(
 
 /// **The thread's life**: the first listing, then wait, sweep, settle, apply.
 fn run(shared: Arc<Shared>) {
-    let mut sweeper = Sweeper { shared: shared.clone(), ignore: Ignore::default(), pending: HashMap::new() };
-    sweeper.first_listing();
-    let mut last_sweep = Instant::now();
+    let mut sweeper = Sweeper::new(shared.clone());
+    let mut ready = sweeper.first_listing();
+    // The last sweep that looked at files too. A caller's settle looks at folders only, so it does not move this clock.
+    let mut last_full = Instant::now();
+    let mut last_full_took = Duration::ZERO;
     loop {
+        // **A sweep never takes more than one `SWEEP_DUTY`th of the thread**: a project whose sweep takes longer than that is swept less often.
+        let sweep_every = shared.sweep().max(last_full_took * SWEEP_DUTY);
         let (noted, syncs) = {
             let mut st = shared.lock();
             if shared.stop.load(Ordering::Relaxed) {
                 return;
             }
-            if st.noted.is_empty() && st.syncs.is_empty() && last_sweep.elapsed() < SWEEP {
-                let wait = if sweeper.pending.is_empty() { SWEEP.saturating_sub(last_sweep.elapsed()) } else { TICK };
+            if st.noted.is_empty() && st.syncs.is_empty() && last_full.elapsed() < sweep_every {
+                let wait = if sweeper.pending.is_empty() { sweep_every.saturating_sub(last_full.elapsed()) } else { TICK };
                 st = shared.wake.wait_timeout(st, wait).unwrap_or_else(std::sync::PoisonError::into_inner).0;
                 if shared.stop.load(Ordering::Relaxed) {
                     return;
@@ -622,15 +846,29 @@ fn run(shared: Arc<Shared>) {
             (std::mem::take(&mut st.noted), std::mem::take(&mut st.syncs))
         };
         let sync = !syncs.is_empty();
-        if sync || last_sweep.elapsed() >= SWEEP {
-            sweeper.sweep();
-            last_sweep = Instant::now();
+        let due = last_full.elapsed() >= sweep_every;
+        if !ready {
+            if sync || due {
+                ready = sweeper.first_listing();
+                last_full = Instant::now();
+            }
+        } else {
+            if sync || due {
+                let began = Instant::now();
+                sweeper.sweep(due);
+                if due {
+                    // **Only a sweep that looked at files says how long a sweep takes**, and it is what the back-off reads.
+                    last_full_took = began.elapsed();
+                    shared.last_sweep_micros.store(u64::try_from(last_full_took.as_micros()).unwrap_or(u64::MAX), Ordering::Relaxed);
+                    last_full = Instant::now();
+                }
+            }
+            for rel in noted {
+                sweeper.note(&rel);
+            }
+            let ripe = sweeper.ripen(sync);
+            sweeper.apply(ripe);
         }
-        for rel in noted {
-            sweeper.note(&rel);
-        }
-        let ripe = sweeper.ripen(sync);
-        sweeper.apply(ripe);
         for waiting in syncs {
             let _ = waiting.send(());
         }
@@ -646,23 +884,26 @@ struct Handle {
 
 impl Drop for Handle {
     fn drop(&mut self) {
-        self.shared.stop.store(true, Ordering::Relaxed);
-        self.shared.wake.notify_all();
-        let mut registry = registry();
-        if registry.get(&self.shared.root).is_some_and(|w| w.ptr_eq(&Arc::downgrade(&self.shared))) {
-            registry.remove(&self.shared.root);
+        // The flag is set and the thread woken under the lock, so a thread between its check and its wait cannot miss the wakeup.
+        {
+            let _held = self.shared.lock();
+            self.shared.stop.store(true, Ordering::Relaxed);
+            self.shared.wake.notify_all();
         }
+        registry().retain(|(id, _, _)| *id != self.shared.id);
     }
 }
 
 /// **What the open project holds, following the changes** — the one listing the editor's panels read.
 ///
-/// Started on the first frame a [`Project`] is present and restarted when its root changes; there is no second walk after the
-/// first listing. See the module note for how to read it.
+/// Started on the first frame a [`Project`] is present (or when the plugin is built, if one already is) and restarted when its root
+/// changes. See the module note for how to read it.
 #[derive(Resource, Default)]
 pub struct ProjectIndex {
     handle: Option<Handle>,
     published: u64,
+    /// A root whose thread could not be started: said once, and not tried again every frame.
+    failed_root: Option<PathBuf>,
 }
 
 impl ProjectIndex {
@@ -682,6 +923,11 @@ impl ProjectIndex {
         self.handle.as_ref().and_then(|h| h.shared.lock().snapshot.clone())
     }
 
+    /// Why there is no listing, when the project root cannot be read.
+    pub fn failure(&self) -> Option<String> {
+        self.handle.as_ref().and_then(|h| h.shared.lock().failure.clone())
+    }
+
     /// **How many full walks the project has had**: one, and one more for each `.gitignore` change.
     pub fn walks(&self) -> u64 {
         self.handle.as_ref().map_or(0, |h| h.shared.walks.load(Ordering::Relaxed))
@@ -692,20 +938,35 @@ impl ProjectIndex {
         self.published
     }
 
-    /// Wait for the first listing (a test's, and a stepped editor's: its first frame reads a listing, as it always did).
+    /// **How often the thread looks at every file it knows** (default [`SWEEP`]). A test that wants only an operation's own note to
+    /// reveal a change sets this long; one that wants to see a debounce sets it short.
+    pub fn set_sweep(&self, every: Duration) {
+        if let Some(handle) = &self.handle {
+            handle.shared.sweep_millis.store(u64::try_from(every.as_millis()).unwrap_or(u64::MAX), Ordering::Relaxed);
+            handle.shared.wake.notify_all();
+        }
+    }
+
+    /// How long the thread's last sweep took.
+    pub fn last_sweep(&self) -> Duration {
+        self.handle.as_ref().map_or(Duration::ZERO, |h| Duration::from_micros(h.shared.last_sweep_micros.load(Ordering::Relaxed)))
+    }
+
+    /// Wait for the first listing. `false` when `timeout` passes first or the root cannot be read (see [`ProjectIndex::failure`]).
     pub fn wait_ready(&self, timeout: Duration) -> bool {
         let start = Instant::now();
         while self.generation() == 0 {
-            if start.elapsed() >= timeout {
+            if self.failure().is_some() || start.elapsed() >= timeout {
                 return false;
             }
-            std::thread::sleep(Duration::from_millis(1));
+            std::thread::sleep(READY_POLL);
         }
         true
     }
 
     fn start(&mut self, root: &Path) {
         let shared = Arc::new(Shared {
+            id: NEXT_ID.fetch_add(1, Ordering::Relaxed),
             root: root.to_path_buf(),
             state: Mutex::new(State::default()),
             wake: Condvar::new(),
@@ -713,16 +974,42 @@ impl ProjectIndex {
             news: AtomicBool::new(false),
             generation: AtomicU64::new(0),
             walks: AtomicU64::new(0),
+            sweep_millis: AtomicU64::new(u64::try_from(SWEEP.as_millis()).unwrap_or(u64::MAX)),
+            last_sweep_micros: AtomicU64::new(0),
         });
-        registry().insert(root.to_path_buf(), Arc::downgrade(&shared));
-        let thread_shared = shared.clone();
-        match std::thread::Builder::new().name("project-index".into()).spawn(move || run(thread_shared)) {
-            Ok(_) => self.handle = Some(Handle { shared }),
+        registry().push((shared.id, root.to_path_buf(), Arc::downgrade(&shared)));
+        let handle = Handle { shared: shared.clone() };
+        match std::thread::Builder::new().name("project-index".into()).spawn(move || run(shared)) {
+            Ok(_) => self.handle = Some(handle),
+            // The handle's drop takes the entry back out of the registry.
             Err(e) => {
-                registry().remove(root);
-                error!("the project index could not start its thread: {e}");
-                self.handle = None;
+                error!("the project index of {} could not start its thread: {e}", root.display());
+                self.failed_root = Some(root.to_path_buf());
             }
+        }
+    }
+
+    /// Follow `want` (or nothing). `wait` blocks for the first listing, which a stepped editor does so its first frame reads one.
+    fn retarget(&mut self, want: Option<&Path>, wait: bool) {
+        if self.root() == want {
+            return;
+        }
+        self.handle = None;
+        let Some(root) = want else {
+            self.failed_root = None;
+            return;
+        };
+        if self.failed_root.as_deref() == Some(root) {
+            return;
+        }
+        self.failed_root = None;
+        self.start(root);
+        if wait && self.handle.is_some() && !self.wait_ready(FIRST_LISTING_WAIT) {
+            warn!(
+                "the project index of {} had no listing after {FIRST_LISTING_WAIT:?}: {}",
+                root.display(),
+                self.failure().unwrap_or_else(|| "it was still walking".to_owned())
+            );
         }
     }
 
@@ -756,16 +1043,9 @@ fn follow_the_project(
     mut changed: MessageWriter<ProjectFileChanged>,
 ) {
     let want = project.as_deref().map(|p| p.root.as_path());
-    if index.root() != want {
-        match want {
-            Some(root) => {
-                index.start(root);
-                if waits.is_some() {
-                    index.wait_ready(Duration::from_secs(60));
-                }
-            }
-            None => index.handle = None,
-        }
+    let tried = want.is_some() && index.failed_root.as_deref() == want;
+    if index.root() != want && !tried {
+        index.retarget(want, waits.is_some());
     }
     if index.has_news() {
         index.deliver(&mut changed);
@@ -778,5 +1058,19 @@ pub struct ProjectIndexPlugin;
 impl Plugin for ProjectIndexPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<ProjectIndex>().add_message::<ProjectFileChanged>().add_systems(PreUpdate, follow_the_project);
+        // **A project that is already open is followed from here**, so an operation that runs before the first frame has an index to ask.
+        let root = app.world().get_resource::<Project>().map(|p| p.root.clone());
+        if let Some(root) = root {
+            let wait = app.world().contains_resource::<WaitsForFirstListing>();
+            app.world_mut().resource_mut::<ProjectIndex>().retarget(Some(&root), wait);
+        }
+    }
+}
+
+/// **Add [`ProjectIndexPlugin`] unless it is there**: what a plugin that reads the index calls, so the dependency belongs to the
+/// plugin that has it and an app cannot be built with a reader and no index.
+pub fn ensure(app: &mut App) {
+    if !app.is_plugin_added::<ProjectIndexPlugin>() {
+        app.add_plugins(ProjectIndexPlugin);
     }
 }

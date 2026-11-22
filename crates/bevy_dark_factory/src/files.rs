@@ -558,7 +558,7 @@ pub struct TreeBuild {
 
 /// **The tree of a project's entries**, each given as its path under the project and whether it is a folder: a folder's children
 /// are folders first and then by name, case-folded.
-pub(crate) fn build_tree<'a>(entries: impl Iterator<Item = (&'a str, bool)>) -> TreeBuild {
+pub fn build_tree<'a>(entries: impl Iterator<Item = (&'a str, bool)>) -> TreeBuild {
     let mut children: HashMap<&str, Vec<(&str, bool)>> = HashMap::new();
     for (rel, is_dir) in entries {
         let (parent, name) = rel.rsplit_once('/').unwrap_or(("", rel));
@@ -601,9 +601,9 @@ fn tree_level(dir: &str, children: &HashMap<&str, Vec<(&str, bool)>>, built: &mu
 }
 
 /// **The paths the tree lists**, files only, sorted, with no cap: what a test, the search and a replace read. **The project
-/// index's answer** ([`crate::project_index`], #501) when one follows `root`, so it is the same list the finder's scan reads;
-/// one cold walk when none does.
-pub fn listed_files(root: &Path) -> Vec<String> {
+/// index's answer** ([`crate::project_index`], #501), so it is the same list the finder's scan and the tree read. **An error, said,
+/// when no index can answer** (none follows `root`, it did not settle, or the root cannot be read): there is no second walk.
+pub fn listed_files(root: &Path) -> Result<Vec<String>, String> {
     crate::project_index::listed(root)
 }
 
@@ -705,6 +705,8 @@ pub struct FilesPlugin;
 
 impl Plugin for FilesPlugin {
     fn build(&self, app: &mut App) {
+        // **The tree reads the project index**, so the plugin that has the dependency adds it (an app cannot be built with a tree and no index).
+        crate::project_index::ensure(app);
         app.init_resource::<PointerAt>();
         app.init_resource::<Files>()
             .add_systems(OnEnter(Screen::Editor), spawn_the_files_workspace.after(FrameSystems).run_if(in_files))
@@ -1493,7 +1495,7 @@ fn on_hover_request(request: On<CodeHoverRequested>, mut files: ResMut<Files>, e
 fn keep_the_tree(
     mut commands: Commands,
     project: Option<Res<Project>>,
-    index: Option<Res<crate::project_index::ProjectIndex>>,
+    index: Res<crate::project_index::ProjectIndex>,
     session: Res<Session>,
     mut trees: Query<(Entity, &mut bevy_gooey::Table, Option<&mut TreeNames>), With<FilesTree>>,
     mut notices: Query<&mut Text, With<TreeNotice>>,
@@ -1507,8 +1509,7 @@ fn keep_the_tree(
     // **The listing is the project index's** ([`crate::project_index`], #501): nothing here walks, and a frame in which nothing
     // moved costs one atomic load. The index publishes a new generation for every change it folds in (an operation's own write
     // at once, an outside one within a sweep), and only a listing whose structure moved replaces the nodes.
-    if let Some(index) = index.as_deref()
-        && index.root() == Some(project.root.as_path())
+    if index.root() == Some(project.root.as_path())
         && index.generation() != names.seen
         && let Some(snapshot) = index.snapshot()
     {
@@ -1527,7 +1528,13 @@ fn keep_the_tree(
             names.fingerprint = walked.fingerprint;
         }
     }
-    let want_notice = if names.truncated { TREE_TRUNCATED } else { "" };
+    // **A project that cannot be listed says so where the tree is**, rather than showing an empty tree as if it were the project.
+    let failure = if index.generation() == 0 { index.failure() } else { None };
+    let want_notice = match (&failure, names.truncated) {
+        (Some(why), _) => why.as_str(),
+        (None, true) => TREE_TRUNCATED,
+        (None, false) => "",
+    };
     for mut notice in &mut notices {
         if notice.0 != want_notice {
             notice.0 = want_notice.to_owned();

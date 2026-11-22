@@ -121,9 +121,6 @@ pub fn add_editor_plugins(app: &mut App) -> &mut App {
             // about debugging: the editor holds a parsed copy of the project's files, and without
             // this a developer who edited one saw nothing happen until they restarted.
             crate::watch::WatchPlugin,
-            // **The one watcher and the index that follows it** (#501): every panel's "what files exist, and which moved"
-            // comes from here, and nothing else walks the project after its first listing.
-            crate::project_index::ProjectIndexPlugin,
             // **The capture sequencer** -- the editor takes the frames, so frame 0 is the state
             // before the operation and the operation is applied after it.
             crate::sequencer::SequencerPlugin,

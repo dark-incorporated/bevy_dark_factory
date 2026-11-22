@@ -390,14 +390,15 @@ fn the_tree_lists_the_projects_files_and_a_click_opens_one() {
     std::fs::write(root.join("cache/blob.bin"), "x").unwrap_or_else(|e| panic!("{e}"));
     std::fs::write(root.join(".gitignore"), "# build\n*.log\n/cache/\n").unwrap_or_else(|e| panic!("{e}"));
 
-    let listed = files::listed_files(&root);
+    // The listing is the project index's, and the editor is what starts it: the editor is built first.
+    let mut app = harness::build_headless(&root, "m", None).unwrap_or_else(|e| panic!("{e}"));
+    let listed = files::listed_files(&root).unwrap_or_else(|e| panic!("{e}"));
     assert!(listed.contains(&"notes.md".to_owned()) && listed.contains(&"scripts/door.rhai".to_owned()), "{listed:?}");
     assert!(listed.contains(&MAP.to_owned()), "the map's file is a file: {listed:?}");
     assert!(!listed.iter().any(|f| f.starts_with("target/")), "target/ is not listed: {listed:?}");
     assert!(!listed.contains(&"secret.log".to_owned()), "a glob in .gitignore hides a file: {listed:?}");
     assert!(!listed.iter().any(|f| f.starts_with("cache/")), "an anchored folder in .gitignore hides it: {listed:?}");
 
-    let mut app = harness::build_headless(&root, "m", None).unwrap_or_else(|e| panic!("{e}"));
     settle(&mut app);
     run_command(&mut app, "workspace.files");
     settle(&mut app);
@@ -743,7 +744,9 @@ fn only_the_roots_gitignore_is_read() {
     std::fs::create_dir_all(root.join("sub")).unwrap_or_else(|e| panic!("{e}"));
     std::fs::write(root.join("sub/.gitignore"), "*.txt\n").unwrap_or_else(|e| panic!("{e}"));
     std::fs::write(root.join("sub/a.txt"), "x").unwrap_or_else(|e| panic!("{e}"));
-    assert!(files::listed_files(&root).contains(&"sub/a.txt".to_owned()), "a nested .gitignore hides nothing");
+    // The listing is the project index's, and the editor is what starts it.
+    let _app = harness::build_headless(&root, "m", None).unwrap_or_else(|e| panic!("{e}"));
+    assert!(files::listed_files(&root).unwrap_or_else(|e| panic!("{e}")).contains(&"sub/a.txt".to_owned()), "a nested .gitignore hides nothing");
 }
 
 /// **A YAML map the loader refuses is an error in the editor** (review M6): the file reads as YAML, and the map's own
