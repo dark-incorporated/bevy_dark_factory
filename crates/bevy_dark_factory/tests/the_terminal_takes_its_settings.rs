@@ -1,6 +1,6 @@
 //! **The terminal takes the person's settings, and takes an edit of them while it runs** (#324).
 //!
-//! VS Code's terminal has a font size, a cursor style and a cursor blink in its settings. DarkFactory's
+//! VS Code's terminal has a font size, a cursor style and a cursor blink in its settings. Dark Factory's
 //! settings are files (`settings.yaml` for the person, `<project>/assets/blueprint/editor.yaml` for the
 //! project) read while the editor runs, and the terminal's three keys are `terminal_text_scale`,
 //! `terminal_cursor` and `terminal_cursor_blink`.

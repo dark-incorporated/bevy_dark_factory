@@ -2,7 +2,7 @@
 
 > ⚠️ **Vibe Coded.** Written by AI agents working from a human's direction, covered by tests rather than a line-by-line human review. Read the code before you rely on it for something you care about.
 
-The DarkFactory, a standalone world-building editor for Bevy games, for developers who build levels with an AI agent working beside them: open a project folder, author maps from a library of pieces, and save plain YAML that your game loads.
+The Dark Factory, a standalone world-building editor for Bevy games, for developers who build levels with an AI agent working beside them: open a project folder, author maps from a library of pieces, and save plain YAML that your game loads.
 
 ![The editor's 3D view of the bedroom map that ships in this repository: a snip box is dragged round the bed and the dresser beside it, "remove the bed" is typed, the agent reads the snip and removes the bed through an MCP call, and the person presses Ctrl+Z to put it back](https://raw.githubusercontent.com/dark-incorporated/bevy_dark_factory/main/docs/media/hero.gif)
 
@@ -24,7 +24,7 @@ cargo run -p bevy_dark_factory -- <project-root>
 
 `<project-root>` is your game's root, the folder that holds `assets/blueprint`. The repository's own example project is its root, so `cargo run -p bevy_dark_factory -- .` opens it, and `cargo run -p bevy_dark_factory -- . bedroom` goes straight to its one-room map.
 
-**On a Mac with Apple Silicon**, the [releases](https://github.com/dark-incorporated/bevy_dark_factory/releases) carry `DarkFactory-<version>-macos-arm64.dmg`: the same editor with every family crate built in, signed with a Developer ID and notarized. The installed app checks the releases feed for a newer version and can update itself. The release workflow is [`release-macos.yml`](https://github.com/dark-incorporated/bevy_dark_factory/blob/main/.github/workflows/release-macos.yml).
+**On a Mac with Apple Silicon**, the [releases](https://github.com/dark-incorporated/bevy_dark_factory/releases) carry `Dark-Factory-<version>-macos-arm64.dmg`: the same editor with every family crate built in, signed with a Developer ID and notarized. The installed app checks the releases feed for a newer version and can update itself. The release workflow is [`release-macos.yml`](https://github.com/dark-incorporated/bevy_dark_factory/blob/main/.github/workflows/release-macos.yml).
 
 With no argument the editor opens on the launcher. Its sidebar holds Projects, Learn and What's new, Settings, the version and the updater. Projects lists the projects you opened before, most recent first, as cards with a filter, and offers **New project** and **Open folder…**; on a first run it is a welcome with an **Open the example** button, which the Learn page also has. Opening a project starts the editor on it, in the same window.
 

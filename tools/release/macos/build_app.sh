@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-# Builds DarkFactory.app (bevy_dark_factory with every family crate, and its MCP server dark_factory_mcp beside it), signs it,
+# Builds "Dark Factory.app" (bevy_dark_factory with every family crate, and its MCP server dark_factory_mcp beside it), signs it,
 # wraps it in a DMG, optionally notarizes and staples both, and writes the update zip and SHA256SUMS. Run from the repo
 # root on macOS.
 #
 #   DARK_FACTORY_SIGN_IDENTITY  codesign identity; default `-` (ad-hoc, no timestamp, no notarization)
 #   DARK_FACTORY_NOTARIZE       1 to notarize (needs APPLE_NOTARY_KEY_PATH, APPLE_NOTARY_KEY_ID, APPLE_NOTARY_ISSUER_ID)
 #
-# Output in dist/: DarkFactory.app, DarkFactory-<V>-macos-arm64.dmg, DarkFactory-<V>-macos-arm64.zip, SHA256SUMS.
+# Output in dist/: "Dark Factory.app", Dark-Factory-<V>-macos-arm64.dmg, Dark-Factory-<V>-macos-arm64.zip, SHA256SUMS.
 # The asset names are what the in-app updater looks for (crates/bevy_dark_factory/src/update.rs, zip_name).
 set -euo pipefail
 
@@ -28,22 +28,36 @@ read -r V T < <(cargo metadata --format-version 1 --no-deps | python3 -c '
 import json, sys
 m = json.load(sys.stdin)
 print(next(p["version"] for p in m["packages"] if p["name"] == "bevy_dark_factory"), m["target_directory"])')
-NAME="DarkFactory-$V-macos-arm64"
-echo "build_app.sh: DarkFactory $V, identity $IDENTITY, notarize $NOTARIZE"
+NAME="Dark-Factory-$V-macos-arm64"
+echo "build_app.sh: Dark Factory $V, identity $IDENTITY, notarize $NOTARIZE"
 
 cargo build --release -p bevy_dark_factory --features family_all
 # The editor's own MCP server ships inside the app (#306), so an agent can drive an installed copy:
-# `ssh <mac> /Applications/DarkFactory.app/Contents/MacOS/dark_factory_mcp`.
+# `ssh <mac> "'/Applications/Dark Factory.app/Contents/MacOS/dark_factory_mcp'"`.
 cargo build --release -p dark_factory_mcp
 
 rm -rf dist
-APP=dist/DarkFactory.app
+APP="dist/Dark Factory.app"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources/example"
 cp "$T/release/bevy_dark_factory" "$APP/Contents/MacOS/bevy_dark_factory"
 cp "$T/release/dark_factory_mcp" "$APP/Contents/MacOS/dark_factory_mcp"
 sed "s/@VERSION@/$V/g" "$MACOS_DIR/Info.plist.in" > "$APP/Contents/Info.plist"
 plutil -lint "$APP/Contents/Info.plist"
-cp "$MACOS_DIR/DarkFactory.icns" "$APP/Contents/Resources/DarkFactory.icns"
+cp "$MACOS_DIR/AppIcon.icns" "$APP/Contents/Resources/AppIcon.icns"
+# **The bundle must name itself and carry the icon it names** (0.7.1-0.7.3 shipped `CFBundleIconFile` = Cauldron beside
+# an icon file of another name, so the app had no icon and called itself Cauldron). Both are read back from the plist that was just
+# written, and the build stops here, before anything is signed, notarized or uploaded.
+PLIST="$APP/Contents/Info.plist"
+BUNDLE_NAME="$(plutil -extract CFBundleName raw -o - "$PLIST")"
+if [ "$BUNDLE_NAME" != "Dark Factory" ]; then
+  echo "build_app.sh: CFBundleName is '$BUNDLE_NAME' in $PLIST, not 'Dark Factory'; fix $MACOS_DIR/Info.plist.in" >&2
+  exit 1
+fi
+ICON_FILE="$(plutil -extract CFBundleIconFile raw -o - "$PLIST")"
+if [ ! -f "$APP/Contents/Resources/$ICON_FILE.icns" ]; then
+  echo "build_app.sh: CFBundleIconFile is '$ICON_FILE' but $APP/Contents/Resources/$ICON_FILE.icns does not exist; the app would ship with no icon" >&2
+  exit 1
+fi
 # The example project: tracked files only, copied to ~/Documents on first open (launcher::example_to_open).
 git archive HEAD assets | tar -x -C "$APP/Contents/Resources/example"
 # The What's new page's stills, where launcher::still_image looks: Contents/Resources/<the path the changelog gives>.
@@ -127,9 +141,9 @@ STAGE=dist/dmg-staging
 mkdir -p "$STAGE"
 # `ditto`, not `cp -R`: the notarization ticket lives in the bundle's metadata, and `cp -R` is not guaranteed to carry it
 # into the staging folder (the DMG is built from that copy, so a dropped ticket is a DMG whose app cannot open offline).
-ditto "$APP" "$STAGE/DarkFactory.app"
+ditto "$APP" "$STAGE/Dark Factory.app"
 ln -s /Applications "$STAGE/Applications"
-hdiutil create -volname DarkFactory -srcfolder "$STAGE" -ov -format UDZO "dist/$NAME.dmg"
+hdiutil create -volname "Dark Factory" -srcfolder "$STAGE" -ov -format UDZO "dist/$NAME.dmg"
 rm -rf "$STAGE"
 if [ "$IDENTITY" != - ]; then
   stamped_codesign --timestamp --sign "$IDENTITY" "dist/$NAME.dmg"

@@ -1,4 +1,4 @@
-//! **`Cmd+D` anywhere in DarkFactory: point at what is wrong, say so, and the people who make it get a
+//! **`Cmd+D` anywhere in Dark Factory: point at what is wrong, say so, and the people who make it get a
 //! report.**
 //!
 //! The chord works on the Projects home as well as in the editor — that is the whole point of this
@@ -214,7 +214,7 @@ fn cmd_d_opens_a_report_on_the_projects_home() {
     assert_eq!(
         report.audience(),
         Some(Audience::Developers),
-        "Cmd+D reports to the people who make DarkFactory"
+        "Cmd+D reports to the people who make Dark Factory"
     );
     assert_eq!(
         report.phase(),

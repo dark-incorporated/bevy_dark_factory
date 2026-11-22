@@ -249,7 +249,7 @@ A `Fire` standing on a placement draws the crate's flame and the light the pool 
 | | |
 |---|---|
 | Where | `<data_dir>/Blueprint/feedback/`, the same four files under the same names. `~/.local/share/Blueprint/feedback/` on Linux, `~/Library/Application Support/Blueprint/feedback/` on macOS. |
-| What it holds | Every thing a person pointed at, the relation between each two of them, and what they said was wrong about DarkFactory itself, taken with Cmd+D. |
+| What it holds | Every thing a person pointed at, the relation between each two of them, and what they said was wrong about Dark Factory itself, taken with Cmd+D. |
 | Written by | The editor, `create_new`, never overwritten. |
 | Live reload | No. |
 | Read by | `blueprint_feedback_list`, which needs no `--project`. |

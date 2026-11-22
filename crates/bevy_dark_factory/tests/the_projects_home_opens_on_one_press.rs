@@ -2,7 +2,7 @@
 //!
 //! From a person's capture: *"I have to click on this twice, why?"*, pointing at a card that already
 //! wore the accent rail that says it is chosen, with nothing opened. Measured on the installed
-//! DarkFactory 0.5.0: one left press left `blueprint/state.screen` at `launcher`, a second made it
+//! Dark Factory 0.5.0: one left press left `blueprint/state.screen` at `launcher`, a second made it
 //! `project`.
 //!
 //! Every other control on the home — `New project`, `Open folder…`, `Open the example`, `Take the

@@ -30,7 +30,7 @@ A pass that stops early and cleanly costs one cycle. A pass that leaves a half-d
 |name|what it is|use it for|
 |---|---|---|
 |`big`|the Linux loop host; the clone you are in|builds, tests, pushes, Linux reproduction, any changelog clip|
-|`mac_air`|macOS, over `ssh`|reproducing macOS captures against the installed `/Applications/DarkFactory.app`; PNG stills|
+|`mac_air`|macOS, over `ssh`|reproducing macOS captures against the installed `/Applications/Dark Factory.app`; PNG stills|
 |`big_mac`|old macOS machine, nearly full|**never**|
 
 mac_air has no bevy_blueprint checkout of its own, no `ffmpeg`, `git-lfs` or `gh`, and Python 3.9. Anything that needs those runs on big.
@@ -146,7 +146,7 @@ Reproduce the bug where it was recorded:
 
 |`os` in the log|host|backend|
 |---|---|---|
-|macOS|mac_air, against `/Applications/DarkFactory.app`|`metal`|
+|macOS|mac_air, against `/Applications/Dark Factory.app`|`metal`|
 |Linux|big|`vulkan`. Use `lavapipe` only if big has no native Vulkan: `VK_ICD_FILENAMES` → `/tmp/lvp/lvp_icd.json`, `LD_LIBRARY_PATH` → its `libvulkan_lvp.so` and `libLLVM`|
 |unreadable|big, then mac_air|as above|
 
@@ -368,7 +368,7 @@ In this order:
    - Never put a capture under `docs/changelog/media/`.
 2. **Close the case** as `fixed`, with the fix's sha (see "Closing a case"). This comes after the fix commit, because `check` refuses a `fixed` row whose commit is not an ancestor of `HEAD`.
 3. **The first push.** This is the full gate (`tools/loop/hooks/pre-push`): clippy over every target, `cargo nextest run --workspace`, `cargo test --workspace --doc`, and the backlog, changelog and version checks. It usually takes 3–5 minutes, up to about 9 on a cold build; use a 15-minute timeout. If the gate is red, fix the cause and push again. **Never use `--no-verify`.**
-4. **Proof on the capture's platform.** For a macOS capture, re-check on mac_air with a still of the fixed screen, but only if a build containing `<sha>` exists there. mac_air normally has only the released `/Applications/DarkFactory.app`. When no such build exists, or mac_air is unreachable, the report says `mac_air proof: pending — <reason>` and the whole-application test stands as the proof.
+4. **Proof on the capture's platform.** For a macOS capture, re-check on mac_air with a still of the fixed screen, but only if a build containing `<sha>` exists there. mac_air normally has only the released `/Applications/Dark Factory.app`. When no such build exists, or mac_air is unreachable, the report says `mac_air proof: pending — <reason>` and the whole-application test stands as the proof.
 
 ## 10. Report, log, push
 

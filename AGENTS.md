@@ -1,6 +1,6 @@
 # bevy_dark_factory
 
-The Dark Factory, the world editor (the editor's binary, window and crates are still named for its earlier name, the DarkFactory: `bevy_dark_factory`), learned grammar and WFC for Bevy games. A blueprint is the book the editor writes and a game loads (`bevy_blueprint`, `blueprint_model`, `assets/blueprint/`). Workspace of crates under `crates/`; fixtures under `assets/`.
+The Dark Factory, the world editor (its binary and crates are named for it in snake_case, `bevy_dark_factory` and `dark_factory_mcp`; its earlier name was the Cauldron), learned grammar and WFC for Bevy games. A blueprint is the book the editor writes and a game loads (`bevy_blueprint`, `blueprint_model`, `assets/blueprint/`). Workspace of crates under `crates/`; fixtures under `assets/`.
 
 ## Force pushes and deletions need the user's express permission
 

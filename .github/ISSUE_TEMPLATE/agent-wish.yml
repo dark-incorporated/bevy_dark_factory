@@ -1,12 +1,12 @@
 name: Agent wish
-description: The one tool that would most have helped with the task just done. Written by the DarkFactory agent at the end of a turn; one per hand-back.
+description: The one tool that would most have helped with the task just done. Written by the Dark Factory agent at the end of a turn; one per hand-back.
 title: "Agent wish: "
 labels: [agent-wish, enhancement]
 body:
   - type: markdown
     attributes:
       value: |
-        A wish is written by an agent that has just finished a task in DarkFactory, an editor built on
+        A wish is written by an agent that has just finished a task in Dark Factory, an editor built on
         this repository. It is not a complaint about the task: it names **the one tool that would
         most have helped**, so the next agent spends fewer steps on the same work.
 

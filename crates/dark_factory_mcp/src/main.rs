@@ -14,7 +14,7 @@
 //!
 //! | tool | what it does |
 //! |---|---|
-//! | `blueprint_guide` | how to work in DarkFactory: which tools in what order, and what the person expects |
+//! | `blueprint_guide` | how to work in Dark Factory: which tools in what order, and what the person expects |
 //! | `blueprint_list_operations` | every operation, its parameters' schema, and how it is undone; `query` searches them |
 //! | `blueprint_preview_operation` | what an operation would change; nothing changes |
 //! | `blueprint_apply_operation` | run one, and record it in the operation log |
@@ -33,7 +33,7 @@
 //! | `blueprint_schema` | one kind of project file's JSON Schema, generated from the type the reader reads |
 //! | `blueprint_list_pieces` | the library's pieces, a page at a time, with their label provenance |
 //! | `blueprint_list_snips` | the snips the person took, newest first, with the newest picture |
-//! | `blueprint_feedback_list` | the reports the person filed about DarkFactory itself, newest first |
+//! | `blueprint_feedback_list` | the reports the person filed about Dark Factory itself, newest first |
 //! | `blueprint_project_feedback_list` | the reports the person filed about the open project, newest first |
 //! | `blueprint_feedback_file_issue` | one report as the GitHub issue the loop reads: title, seven-section body, picture URLs |
 //! | `blueprint_style` | the style of one place, game to area, behind the person's trust, with the pictures it cites |
@@ -43,7 +43,7 @@
 //! | `blueprint_jobs_stop` | ask a background job, such as the palette's thumbnail bake, to stop |
 //! | `blueprint_read_log` | the editor's own log file, read from disk, so it answers when the editor does not |
 //! | `blueprint_open_project` | open a project folder in the running editor, from any screen including the Projects home |
-//! | `blueprint_self_test` | the power-on self test an agent runs when DarkFactory's terminal starts it |
+//! | `blueprint_self_test` | the power-on self test an agent runs when Dark Factory's terminal starts it |
 //!
 //! **Thirty tools, and the set is small on purpose.** An agent's context is spent on the tools it
 //! is offered, and a catalogue of ninety-six verbs is a catalogue of ninety-six things to choose
@@ -827,7 +827,7 @@ impl Blueprint {
         Ok(())
     }
 
-    /// **`blueprint_guide` — how to work in DarkFactory, in the person's and the project's own words**
+    /// **`blueprint_guide` — how to work in Dark Factory, in the person's and the project's own words**
     /// (#346, AG-01; #347, AG-02).
     ///
     /// **Three layers, in order.** The shipped guide is `guide.md`, compiled into the binary, so this
@@ -851,7 +851,7 @@ impl Blueprint {
     /// disagree.
     #[tool(
         name = "blueprint_guide",
-        description = "How to work in DarkFactory, in the order a task goes: orient, change, what to do \
+        description = "How to work in Dark Factory, in the order a task goes: orient, change, what to do \
                        when a person pauses the agent's writes, how to show your work, and how to \
                        hand a result back. Call this before any other tool on your first task in a \
                        project: the other tools say what one tool does, and this says which of them \
@@ -862,7 +862,7 @@ impl Blueprint {
                        unread one arrives as one line saying they have not allowed it, never as its \
                        text. It takes no parameters and changes nothing.",
         annotations(
-            title = "Read the guide to working in DarkFactory",
+            title = "Read the guide to working in Dark Factory",
             read_only_hint = true,
             destructive_hint = false,
             idempotent_hint = true,
@@ -1950,7 +1950,7 @@ impl Blueprint {
         Ok(CallToolResult::success(content))
     }
 
-    /// **`blueprint_feedback_list` -- the reports the person filed about DarkFactory itself.**
+    /// **`blueprint_feedback_list` -- the reports the person filed about Dark Factory itself.**
     ///
     /// **A read of files the editor wrote**, in the per-user data folder, so it needs **no
     /// `--project`**: a report about the editor is not about the project that happened to be open
@@ -1958,7 +1958,7 @@ impl Blueprint {
     /// to file one.
     #[tool(
         name = "blueprint_feedback_list",
-        description = "The reports the person filed about DarkFactory itself, newest first: each \
+        description = "The reports the person filed about Dark Factory itself, newest first: each \
                        one's name, when it was taken, which screen and which project were up, \
                        the window's shape, each thing that was pointed at (a node of the \
                        interface with its chain of roles and text, a dragged area, the whole \
@@ -1973,7 +1973,7 @@ impl Blueprint {
                        each .json file in the folder that is not a report or has no picture, with \
                        the reason.",
         annotations(
-            title = "List the reports the person filed about DarkFactory",
+            title = "List the reports the person filed about Dark Factory",
             read_only_hint = true,
             destructive_hint = false,
             idempotent_hint = true,
@@ -2677,7 +2677,7 @@ impl Blueprint {
             Ok(bytes) => bytes,
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
                 return Ok(refusal(&format!(
-                    "no editor log at {}: this DarkFactory has not run as this user since it began \
+                    "no editor log at {}: this Dark Factory has not run as this user since it began \
                      logging (0.2.2)",
                     path.display()
                 )));
@@ -2744,15 +2744,15 @@ impl Blueprint {
         }
     }
 
-    /// **`blueprint_self_test` — DarkFactory's power-on self test.**
+    /// **`blueprint_self_test` — Dark Factory's power-on self test.**
     ///
-    /// An agent that DarkFactory's terminal started is asked to call this once. It reads the state,
+    /// An agent that Dark Factory's terminal started is asked to call this once. It reads the state,
     /// counts the operations and takes one picture, then tells the editor how each went so the
     /// terminal's self-test card can show it. **A failed check is part of the answer, not a
     /// refusal**: the agent then says what broke, and the card already shows it.
     #[tool(
         name = "blueprint_self_test",
-        description = "DarkFactory's power-on self test, for an agent started in DarkFactory's terminal: \
+        description = "Dark Factory's power-on self test, for an agent started in Dark Factory's terminal: \
                        reads the editor's state, counts its operations, takes one picture of the \
                        editor and asks the decision model one text-only question (which model \
                        answered, where it ran and how long it took, or why it did not answer), tells \
@@ -2760,7 +2760,7 @@ impl Blueprint {
                        returns the picture and the results. Call it once when asked to run the self \
                        test; it changes nothing.",
         annotations(
-            title = "Run DarkFactory's power-on self test",
+            title = "Run Dark Factory's power-on self test",
             read_only_hint = true,
             destructive_hint = false,
             idempotent_hint = true,
@@ -2872,7 +2872,7 @@ fn is_capture_label(label: &str) -> bool {
         })
 }
 
-/// **The token DarkFactory's terminal gave this server's agent**, from `DARK_FACTORY_AGENT_TOKEN`, or
+/// **The token Dark Factory's terminal gave this server's agent**, from `DARK_FACTORY_AGENT_TOKEN`, or
 /// `None` for a server nobody started from a terminal tab. The editor matches it to the tab whose
 /// self-test card it belongs to.
 fn agent_token() -> Option<String> {

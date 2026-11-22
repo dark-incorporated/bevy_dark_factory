@@ -7,7 +7,7 @@
 //!
 //! # The editor's chrome never takes it
 //!
-//! A project's skin is a **game**'s palette, and the editor is not the game: the DarkFactory's panels,
+//! A project's skin is a **game**'s palette, and the editor is not the game: the Dark Factory's panels,
 //! menus and status band are the editor's own measured darks (UI-02, #210), which is why a light game
 //! skin cannot make the editor unreadable. The preview is the one place a game's palette is shown, and
 //! it shows it the way the library means it to be shown — a [`SkinScope`] on a subtree, so every

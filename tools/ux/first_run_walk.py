@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """The first-run walk (#304): the 2026-11-04 audit, as a standing check.
 
-Starts DarkFactory under its own Xvfb with a scratch HOME and a copy of the example project, walks a
+Starts Dark Factory under its own Xvfb with a scratch HOME and a copy of the example project, walks a
 newcomer's first minutes, screenshots every step and asserts by BRP text and state, never by pixels:
 
   1. the first-run home (a welcome with Open the example)

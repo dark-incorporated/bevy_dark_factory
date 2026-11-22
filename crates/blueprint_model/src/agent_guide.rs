@@ -1,6 +1,6 @@
 //! **The agent's guide, in the layers a person writes it in** (#347, agent guidance AG-02).
 //!
-//! The shipped guide (`dark_factory_mcp/src/guide.md`) says how to work in DarkFactory; it knows nothing
+//! The shipped guide (`dark_factory_mcp/src/guide.md`) says how to work in Dark Factory; it knows nothing
 //! about one person's habits or one project's conventions. Those are two more layers, each a file:
 //!
 //! - **the person's**, `<config_dir>/Blueprint/AGENTS.md` — `~/Library/Application Support/Blueprint/AGENTS.md`

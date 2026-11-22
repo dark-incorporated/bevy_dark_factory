@@ -1,6 +1,6 @@
 //! **`Cmd+Shift+D` in the editor: a report about the project you have open, stored inside it.**
 //!
-//! The other channel (`a_person_reports_to_the_developers.rs`) reports on DarkFactory itself and works on
+//! The other channel (`a_person_reports_to_the_developers.rs`) reports on Dark Factory itself and works on
 //! every screen. This one needs a project, is written under the project's own `target/feedback/`, and
 //! is for the agent working that project — so `--project` on the MCP server is what reads it.
 //!

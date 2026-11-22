@@ -55,7 +55,7 @@ touch screenshot.request
 
 Opens a window with a spinning cube and writes `screenshot.png` once the sentinel file appears. It is the only example here, and it needs a GPU and a display.
 
-The DarkFactory editor uses this plugin for its whole-frame capture; see [`bevy_dark_factory`](https://github.com/dark-incorporated/bevy_dark_factory/blob/main/crates/bevy_dark_factory/README.md).
+The Dark Factory editor uses this plugin for its whole-frame capture; see [`bevy_dark_factory`](https://github.com/dark-incorporated/bevy_dark_factory/blob/main/crates/bevy_dark_factory/README.md).
 
 ## Learn more
 

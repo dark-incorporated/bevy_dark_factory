@@ -199,7 +199,7 @@ fn a_first_run_is_a_welcome_with_one_accent_button_that_opens_the_example() {
     let label = found[0].0.iter().find_map(|k| texts_q.get(app.world(), *k).ok().map(|(_, t)| t.0.clone()));
     assert_eq!(label.as_deref(), Some("Open the example"));
     let said = all_text(&mut app).join("\n");
-    assert!(said.contains("Welcome to DarkFactory"), "{said:?}");
+    assert!(said.contains("Welcome to Dark Factory"), "{said:?}");
     // **The first run says what this thing is, and how it works** (design review, 2026-11-05). The old
     // sentence named a blueprint and defined nothing, the screen never said *Bevy*, and the tour that
     // would teach a first-timer lived two clicks away under `Learn`.
@@ -266,7 +266,7 @@ fn a_chosen_folder_that_is_not_a_project_offers_to_make_it_one_and_keeps_what_it
     assert_eq!(screen_of(&app), Screen::Launcher);
     let up = toasts(&mut app);
     let (toast, text, _, actions) = up.first().cloned().expect("the refusal is a toast");
-    assert_eq!(text, "That folder is not a DarkFactory project. Make it one?");
+    assert_eq!(text, "That folder is not a Dark Factory project. Make it one?");
     assert_eq!(actions, ["Make it a project"]);
     assert!(!text.contains("assets/blueprint"), "no internal word");
 

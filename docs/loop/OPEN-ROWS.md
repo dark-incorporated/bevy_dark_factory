@@ -1,6 +1,6 @@
 # The feedback rows the old loop could not finish: re-checked 2026-11-15
 
-Written by fleet worker `Rows9` against the shipped **DarkFactory 0.6.8** (main `c21f8ff3`), driven over BRP on bmb
+Written by fleet worker `Rows9` against the shipped **Dark Factory 0.6.8** (main `c21f8ff3`), driven over BRP on bmb
 (macOS arm64, window 2560 x 1440 physical, scale factor 2, UI scale 2.4, i.e. the captures' own scales).
 This replaces the pass-399 note, which is stale: bevy_gooey#44, #45, #79 and the editor's #344 are all CLOSED.
 Evidence pictures are on bmb under `~/fleetscratch/rows9/shots/`.

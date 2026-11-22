@@ -1,5 +1,5 @@
-name: Release DarkFactory (macOS)
-# **The downloadable app** (`tools/release/macos/build_app.sh`): a tag `bevy_dark_factory-vX.Y.Z` builds DarkFactory.app
+name: Release Dark Factory (macOS)
+# **The downloadable app** (`tools/release/macos/build_app.sh`): a tag `bevy_dark_factory-vX.Y.Z` builds "Dark Factory.app"
 # with every family crate, signs it with the Developer ID, notarizes and staples it, and publishes the DMG, the
 # update zip and SHA256SUMS as a GitHub Release, which is what the in-app updater reads (`src/update.rs`).
 # **Runs on mac_air, a self-hosted runner** (owner, 2026-11-04): a hosted macOS job waited minutes for a machine and
@@ -112,13 +112,13 @@ jobs:
           APPLE_NOTARY_KEY_ID: ${{ secrets.APPLE_NOTARY_KEY_ID }}
           APPLE_NOTARY_ISSUER_ID: ${{ secrets.APPLE_NOTARY_ISSUER_ID }}
         run: tools/release/macos/build_app.sh
-      # **A release is the app that an agent can drive and that shows a window** (#306, #307): the fresh DarkFactory.app is
+      # **A release is the app that an agent can drive and that shows a window** (#306, #307): the fresh "Dark Factory.app" is
       # launched on mac_air with a scratch HOME, driven through its own bundled MCP server, and refused when its window
       # self-check reads black. Publishing below runs only when every step before it passed.
       - name: Drive the fresh app through its own MCP
         # A tag push always drives it. A dispatch may switch it off, and only for the reason in the input's description.
         if: github.event_name == 'push' || inputs.smoke
-        run: python3 tools/release/macos/smoke_app.py --app dist/DarkFactory.app --out dist/smoke
+        run: python3 tools/release/macos/smoke_app.py --app "dist/Dark Factory.app" --out dist/smoke
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -140,8 +140,8 @@ jobs:
             echo "an ad-hoc build is never published: it does not open on another Mac" >&2
             exit 1
           fi
-          gh release create "bevy_dark_factory-v$V" dist/DarkFactory-*.dmg dist/DarkFactory-*.zip dist/SHA256SUMS \
-            --target "$GITHUB_SHA" --title "DarkFactory $V" --generate-notes
+          gh release create "bevy_dark_factory-v$V" dist/Dark-Factory-*.dmg dist/Dark-Factory-*.zip dist/SHA256SUMS \
+            --target "$GITHUB_SHA" --title "Dark Factory $V" --generate-notes
       - name: Remove the signing keychain and the notary key
         if: always()
         run: |

@@ -2,7 +2,7 @@
 
 An outside-in description of the project, measured on 2026-11-15 at commit `198b82ae` (2,055 commits). Everything here is checkable against the repository: the numbers were counted with the commands named beside them, and where a sentence is a judgement and not a count it says so. It is the one page that lists what does not work.
 
-The names: the editor is the Dark Factory (this repository, `bevy_dark_factory`). Its binary, window and crates are still named for its earlier name, the DarkFactory (`bevy_dark_factory`), and what it writes and a game loads is still a blueprint (`bevy_blueprint*`, `assets/blueprint/`).
+The names: the editor is the Dark Factory (this repository, `bevy_dark_factory`). Its binary and crates are named for it in snake_case (`bevy_dark_factory`, `dark_factory_mcp`); its earlier name was the Cauldron. What it writes and a game loads is still a blueprint (`bevy_blueprint*`, `assets/blueprint/`).
 
 ---
 

@@ -95,7 +95,7 @@ impl AppVerb {
             AppVerb::GettingStarted => "Getting started guide".to_owned(),
             AppVerb::WhatsNew => "What's new".to_owned(),
             AppVerb::ReportProblem => "Report a problem".to_owned(),
-            AppVerb::About => "About DarkFactory".to_owned(),
+            AppVerb::About => "About Dark Factory".to_owned(),
             AppVerb::ResetLayout => "Reset layout".to_owned(),
             AppVerb::ShowProblems => "Show problems".to_owned(),
             AppVerb::MaximiseTerminal => "Maximise terminal".to_owned(),
@@ -306,7 +306,7 @@ pub fn open_in_this_run(world: &mut World, url: &str) -> Result<(), String> {
 
 /// The address "Report a problem" opens: a new issue whose text already says which build and system it came from.
 pub fn report_url() -> String {
-    let body = format!("DarkFactory {} on {}\n\nWhat happened:\n", env!("CARGO_PKG_VERSION"), std::env::consts::OS);
+    let body = format!("Dark Factory {} on {}\n\nWhat happened:\n", env!("CARGO_PKG_VERSION"), std::env::consts::OS);
     format!("{REPORT_URL}?body={}", percent_encode(&body))
 }
 
@@ -352,7 +352,7 @@ fn quit_requested(
         state.leaving = true;
         confirm.ask_three(
             Asked::QuitApp,
-            "Quit DarkFactory?",
+            "Quit Dark Factory?",
             "It has unsaved edits. Quitting saves them first, unless you discard them.",
             "Save and quit",
             "Discard changes",
@@ -438,7 +438,7 @@ fn open_about(
                         Name::new("about splash"),
                     ));
                 }
-                card.spawn(heading("DarkFactory"));
+                card.spawn(heading("Dark Factory"));
                 card.spawn(label(format!("Version {}", env!("CARGO_PKG_VERSION"))));
                 card.spawn(label("Build levels from your own pieces, and hand your game a blueprint it can load."));
                 card.spawn(label(format!("Licence: {}", env!("CARGO_PKG_LICENSE"))));

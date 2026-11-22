@@ -1,6 +1,6 @@
 //! **The installed macOS app updates itself from this repository's GitHub Releases.**
 //!
-//! A release tagged `bevy_dark_factory-vX.Y.Z` carries `DarkFactory-X.Y.Z-macos-arm64.dmg`, the same app as a
+//! A release tagged `bevy_dark_factory-vX.Y.Z` carries `Dark-Factory-X.Y.Z-macos-arm64.dmg`, the same app as a
 //! zip, and `SHA256SUMS` (`tools/release/macos/build_app.sh`, `.github/workflows/release-macos.yml`). At
 //! launch the app asks the releases feed for a newer tag ([`newest`]); the launcher always shows the
 //! button, and the editor's chrome bar shows it only once there is something to say ([`Updater::in_chrome`]).
@@ -25,7 +25,7 @@ use sha2::{Digest, Sha256};
 /// The releases this app looks for a newer version among, newest first.
 pub const FEED: &str = "https://api.github.com/repos/dark-incorporated/bevy_dark_factory/releases?per_page=30";
 
-/// The tag of a DarkFactory release, before its version: tags of the workspace's other crates share the feed.
+/// The tag of a Dark Factory release, before its version: tags of the workspace's other crates share the feed.
 pub const TAG_PREFIX: &str = "bevy_dark_factory-v";
 
 /// The asset holding `shasum -a 256` lines for the release's DMG and zip.
@@ -34,8 +34,8 @@ pub const SUMS: &str = "SHA256SUMS";
 /// Names a feed to read instead of [`FEED`]: a local server, for the update smoke.
 pub const FEED_ENV: &str = "DARK_FACTORY_UPDATE_FEED";
 
-/// The app's folder name inside the update zip (`ditto -c -k --keepParent dist/DarkFactory.app`).
-pub const APP: &str = "DarkFactory.app";
+/// The app's folder name inside the update zip (`ditto -c -k --keepParent dist/Dark Factory.app`).
+pub const APP: &str = "Dark Factory.app";
 
 /// How long a connection may take to open. There is no limit on the whole transfer: the zip is ~100 MB.
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(30);
@@ -44,11 +44,15 @@ const CONNECT_TIMEOUT: Duration = Duration::from_secs(30);
 const DOWNLOAD_CHUNK_BYTES: usize = 64 * 1024;
 
 /// The refusal while a map has unsaved edits.
-pub const SAVE_FIRST: &str = "Save the map first: updating restarts DarkFactory";
+pub const SAVE_FIRST: &str = "Save the map first: updating restarts Dark Factory";
 
 /// The zip a release carries for `v`. The DMG is the same name with `.dmg`.
+///
+/// **The name is looked up exactly, with no fallback to an earlier spelling.** Releases up to 0.7.3 carried the name written as one word;
+/// from the rename to two words they carry `Dark-Factory-<v>-macos-arm64.zip`, so an install up to 0.7.3 does not find the zip of a
+/// newer release and cannot update itself across the rename: it is reinstalled once from the DMG.
 pub fn zip_name(v: &semver::Version) -> String {
-    format!("DarkFactory-{v}-macos-arm64.zip")
+    format!("Dark-Factory-{v}-macos-arm64.zip")
 }
 
 /// A newer release, and where its zip and its sums are.
@@ -59,7 +63,7 @@ pub struct Offer {
     pub sums_url: String,
 }
 
-/// **The newest published DarkFactory release above `current`**, from the GitHub releases JSON.
+/// **The newest published Dark Factory release above `current`**, from the GitHub releases JSON.
 ///
 /// A release counts when its tag is [`TAG_PREFIX`] and a semver version with no pre-release part, it is
 /// neither a draft nor a pre-release, and it carries both its [`zip_name`] and [`SUMS`]. `Err` when the
@@ -261,7 +265,7 @@ pub struct Updater {
     ///
     /// The launch check runs on its own ([`start_the_first_check`]). It used to answer into the
     /// launcher's problem line exactly as a pressed one does, so every launch opened with a sticky
-    /// *"DarkFactory v0.2.4 is the newest release"* in the danger skin — measured in the shipped 0.2.4
+    /// *"Dark Factory v0.2.4 is the newest release"* in the danger skin — measured in the shipped 0.2.4
     /// screenshot on 2026-11-05, and it was the first thing on a first-run screen. **A check nobody
     /// asked for has nothing to report when it finds nothing**: the button's own label already says
     /// `Up to date — v…`. An update that *is* available, and a failure, speak either way.
@@ -479,7 +483,7 @@ fn stage(offer: &Offer, running: &Path, progress: &dyn Fn(u64, Option<u64>)) -> 
     let parent = running.parent().ok_or_else(|| format!("{} has no folder", running.display()))?;
     let probe = parent.join(".dark_factory-update-probe");
     blueprint_model::atomic_file::write_cache(&probe, b"").and_then(|()| std::fs::remove_file(&probe)).map_err(|_| {
-        format!("{} is not writable: install DarkFactory in a folder you own, or download the DMG", parent.display())
+        format!("{} is not writable: install Dark Factory in a folder you own, or download the DMG", parent.display())
     })?;
     Ok(new)
 }
@@ -788,7 +792,7 @@ fn on_check(
 
 /// What a translocated app says instead of updating.
 pub const MOVE_IT_FIRST: &str =
-    "DarkFactory is running from the disk image or a quarantined folder: drag it into Applications, open it from there, then update";
+    "Dark Factory is running from the disk image or a quarantined folder: drag it into Applications, open it from there, then update";
 
 /// **Inserts the [`Updater`] when this process is an installed macOS app.** Called by the binary only: the
 /// feed is [`FEED_ENV`]'s value or [`FEED`]; a [`Bundle::Translocated`] app gets one that says
@@ -907,7 +911,7 @@ fn poll(
             updater.state = UpdateState::UpToDate;
             asked.then(|| {
                 format!(
-                    "DarkFactory v{} is the newest release.",
+                    "Dark Factory v{} is the newest release.",
                     env!("CARGO_PKG_VERSION")
                 )
             })
@@ -1016,7 +1020,7 @@ mod tests {
     use super::*;
 
     fn updater_in(state: UpdateState) -> Updater {
-        let mut updater = Updater::new("http://127.0.0.1:9/none".to_owned(), PathBuf::from("/nonexistent/DarkFactory.app"));
+        let mut updater = Updater::new("http://127.0.0.1:9/none".to_owned(), PathBuf::from("/nonexistent/Dark Factory.app"));
         updater.state = state;
         updater
     }

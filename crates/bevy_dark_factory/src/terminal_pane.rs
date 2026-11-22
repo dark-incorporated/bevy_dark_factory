@@ -2555,7 +2555,7 @@ fn enter_invokes_the_agent(
     redraw_the_bar(&mut commands, &bar, &terminal);
 }
 
-/// **An agent that was running when DarkFactory last closed is started again, where it left off** (`feedback-1794148425925`).
+/// **An agent that was running when Dark Factory last closed is started again, where it left off** (`feedback-1794148425925`).
 ///
 /// Once per project per run: the first frame the terminal would offer `Invoke Agent` (the settings choose omp and nothing
 /// is open) at a project whose resume record names an omp session ([`crate::agent_resume`]), the tab opens by itself and

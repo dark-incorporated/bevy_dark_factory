@@ -2,7 +2,7 @@
 name = "bevy_dark_factory_bench"
 version = "0.1.0"
 edition = "2024"
-description = "A benchmark task for the DarkFactory: its prompt, its fixture, its checks, and the grader that measures a run from the files it left."
+description = "A benchmark task for the Dark Factory: its prompt, its fixture, its checks, and the grader that measures a run from the files it left."
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/bevy-coven/bevy_blueprint"
 keywords = ["bevy", "gamedev", "level-design", "benchmark"]

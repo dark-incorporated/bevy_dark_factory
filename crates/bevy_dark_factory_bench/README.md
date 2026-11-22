@@ -2,7 +2,7 @@
 
 > ⚠️ **Vibe Coded.** Written by AI agents working from a human's direction, covered by tests rather than a line-by-line human review. Read the code before you rely on it for something you care about.
 
-A benchmark for AI agents that drive the DarkFactory editor, for the people who build the editor and want to know whether a change helped an agent: a task is a prompt, a starting project, a known answer and a list of checks, and `dark_factory-bench` grades what a real agent leaves in a real editor, from the saved files.
+A benchmark for AI agents that drive the Dark Factory editor, for the people who build the editor and want to know whether a change helped an agent: a task is a prompt, a starting project, a known answer and a list of checks, and `dark_factory-bench` grades what a real agent leaves in a real editor, from the saved files.
 
 **Status:** experimental · MSRV 1.88
 

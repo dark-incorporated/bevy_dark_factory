@@ -70,7 +70,7 @@ impl Audience {
     /// How a person says which channel a report went to.
     pub fn channel(self) -> &'static str {
         match self {
-            Audience::Developers => "the people who make DarkFactory",
+            Audience::Developers => "the people who make Dark Factory",
             Audience::Project => "this project",
         }
     }
@@ -571,7 +571,7 @@ pub mod issue {
             .unwrap_or("no project");
         let map = report.map.as_deref().unwrap_or("no map");
         format!(
-            "**From the owner's capture, `{}`** — DarkFactory {}, {}, {}, {} at `ui_scale` {}, {screen} {project} / {map}, {}.",
+            "**From the owner's capture, `{}`** — Dark Factory {}, {}, {}, {} at `ui_scale` {}, {screen} {project} / {map}, {}.",
             report.stem,
             report.app_version,
             audience_word(report.audience),

@@ -34,7 +34,7 @@ use crate::terminal::Terminal;
 
 /// **What an agent started by the terminal is asked first.** It names the tool and asks for nothing
 /// else, so the self test is one turn. It holds no `'`, so [`shell_quote`] leaves it as written.
-pub const SELF_TEST_PROMPT: &str = "You are running in the terminal of DarkFactory, a world editor. Run the DarkFactory power-on self test: call the MCP tool named blueprint_self_test (your harness may prefix it with the server name dark_factory) exactly once, look at the picture it returns, and reply in one short paragraph saying what you see on the screen and that you are ready. Do not call any other tool.";
+pub const SELF_TEST_PROMPT: &str = "You are running in the terminal of Dark Factory, a world editor. Run the Dark Factory power-on self test: call the MCP tool named blueprint_self_test (your harness may prefix it with the server name dark_factory) exactly once, look at the picture it returns, and reply in one short paragraph saying what you see on the screen and that you are ready. Do not call any other tool.";
 
 /// The name the editor's MCP server has in every config written here.
 pub const MCP_SERVER_NAME: &str = "dark_factory";
@@ -75,7 +75,7 @@ const OMP_EXTENSION_ENTRY: &str = "index.ts";
 /// inside omp, and that the agent left its session when omp shuts down. That is how the editor can resume the session the
 /// next time it opens the project ([`crate::agent_resume`]); omp has no flag that prints its session id, and the id is the
 /// extension's to read (`ctx.sessionManager.getSessionId()`). A report the editor cannot take is said in omp's own UI.
-pub const OMP_EXTENSION_SOURCE: &str = r#"// Written by DarkFactory on every agent launch. An omp extension whose folder carries the editor's MCP server (.mcp.json), and which tells the editor which omp session its tab is in, so the editor can resume that session the next time it opens this project.
+pub const OMP_EXTENSION_SOURCE: &str = r#"// Written by Dark Factory on every agent launch. An omp extension whose folder carries the editor's MCP server (.mcp.json), and which tells the editor which omp session its tab is in, so the editor can resume that session the next time it opens this project.
 const port = process.env.BEVY_BRP_PORT;
 const token = process.env.DARK_FACTORY_AGENT_TOKEN;
 
@@ -98,7 +98,7 @@ async function tell(session: string | null): Promise<string | null> {
 export default function (pi: any) {
 	const report = async (_event: unknown, ctx: any) => {
 		const failed = await tell(ctx.sessionManager.getSessionId());
-		if (failed) ctx.ui?.notify?.(`DarkFactory was not told this session's id, so it cannot resume it: ${failed}`, "warning");
+		if (failed) ctx.ui?.notify?.(`Dark Factory was not told this session's id, so it cannot resume it: ${failed}`, "warning");
 	};
 	pi.on("session_start", report);
 	pi.on("session_switch", report);
@@ -875,7 +875,7 @@ struct SelfTestCheck {
     detail: String,
 }
 
-/// **An MCP server DarkFactory's terminal started says its agent connected.** `{"known": true}` when
+/// **An MCP server Dark Factory's terminal started says its agent connected.** `{"known": true}` when
 /// the token is a tab's, `false` for any other token or none.
 pub fn agent_hello(terminal: &mut Terminal, params: &Value, now_s: f64) -> Result<Value, String> {
     let hello: Hello = serde_json::from_value(params.clone())

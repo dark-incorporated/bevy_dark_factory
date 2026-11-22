@@ -1,4 +1,4 @@
-//! **The Projects home: the first screen of a DarkFactory started with no project** (UI-10, #216; #295).
+//! **The Projects home: the first screen of a Dark Factory started with no project** (UI-10, #216; #295).
 //!
 //! `bevy_dark_factory` with no argument (and `--live`, which names no project) fills the window with a sidebar and a
 //! page. The sidebar holds the splash, the three destinations (Projects, Learn, What's new), Settings, the version and the
@@ -231,7 +231,7 @@ pub fn command_line(root: &Path, kit: Option<&str>, door: Option<&str>) -> Strin
     format!("{PROGRAM} {}", words.join(" "))
 }
 
-/// Whether `root` is a project the DarkFactory can open: a folder holding `assets/blueprint`.
+/// Whether `root` is a project the Dark Factory can open: a folder holding `assets/blueprint`.
 pub fn check_project(root: &Path) -> Result<PathBuf, String> {
     if !root.is_dir() {
         return Err(format!("{} is not a folder", root.display()));
@@ -884,7 +884,7 @@ fn projects_body(body: &mut ChildSpawnerCommands, launcher: &Launcher, art: &mut
 ///   title and the prose look identical; a single glyph against a known baseline (`editor_skin.yaml`'s
 ///   `text_size: 11.0`) measures them at 15 and 11, and the sidebar at 11. So the title and prose stay on
 ///   gooey's own `heading`/`label` builders, and the claim is withdrawn rather than "fixed" by a no-op.
-/// - **The copy says what DarkFactory is for.** The old sentence named a blueprint without defining it, and the
+/// - **The copy says what Dark Factory is for.** The old sentence named a blueprint without defining it, and the
 ///   screen never said *Bevy* — the one fact that tells a person whether their engine is supported.
 /// - **The column is a column**: 560 px, top-aligned rather than centred in 1160, so the space above the
 ///   splash is a margin rather than 102 logical px of void, and the prose has a measure instead of one
@@ -903,7 +903,7 @@ fn welcome(body: &mut ChildSpawnerCommands, launcher: &Launcher, art: &Art) {
                 Name::new("welcome splash"),
             ));
         }
-        card.spawn(heading("Welcome to DarkFactory"));
+        card.spawn(heading("Welcome to Dark Factory"));
         card.spawn((label(WELCOME_PITCH), TextLayout::new(Justify::Left, LineBreak::WordBoundary)));
         crate::chrome::gapped_row(card, crate::chrome::GAP_GROUP_STEPS, crate::chrome::NO_MARGIN, AlignItems::Stretch).with_children(|actions| {
             let example = launcher.example.is_some();
@@ -938,7 +938,7 @@ fn welcome(body: &mut ChildSpawnerCommands, launcher: &Launcher, art: &Art) {
     });
 }
 
-/// **What DarkFactory is, in the sentence a first run has room for.**
+/// **What Dark Factory is, in the sentence a first run has room for.**
 ///
 /// Named: the engine and its version, the two nouns this editor actually works in (pieces, maps), the
 /// engine, and the one capability that is not in Unity, Tiled or an art tool — an agent that edits the same
@@ -949,7 +949,7 @@ fn welcome(body: &mut ChildSpawnerCommands, launcher: &Launcher, art: &Art) {
 /// and `no_internal_words_on_screen` refused it: a path under `assets/` is a word only the editor's makers
 /// know, and a person never types it. What they need to know is that there is **no export step**, which is
 /// the property; where the file lands is the editor's business.
-const WELCOME_PITCH: &str = "A level editor for Bevy 0.20. Put your own meshes on a map and DarkFactory \
+const WELCOME_PITCH: &str = "A level editor for Bevy 0.20. Put your own meshes on a map and Dark Factory \
 saves it in a form your game reads directly — no export step. An AI agent can edit the same map beside you.";
 
 /// **What happens after the first click**, which the old screen never said. Three steps, in order.
@@ -1333,7 +1333,7 @@ fn open_requested(
         }
         // A folder that is not a project can become one in place; anything else is only said.
         Err(_) if root.is_dir() => {
-            commands.spawn(toast_alert("That folder is not a DarkFactory project. Make it one?").action("Make it a project", format!("{MAKE_PROJECT}{}", root.display())).sticky());
+            commands.spawn(toast_alert("That folder is not a Dark Factory project. Make it one?").action("Make it a project", format!("{MAKE_PROJECT}{}", root.display())).sticky());
         }
         Err(e) => {
             commands.spawn(toast_alert(e).sticky());

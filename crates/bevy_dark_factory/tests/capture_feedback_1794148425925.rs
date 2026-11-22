@@ -1,11 +1,11 @@
-//! **An agent that was running when DarkFactory closed is started again, resuming its session** (`feedback-1794148425925`;
+//! **An agent that was running when Dark Factory closed is started again, resuming its session** (`feedback-1794148425925`;
 //! oracle `spec`).
 //!
 //! The note, from the editor reopened on a project with `omp` chosen and the terminal offering *Invoke Agent*: *"If there was
-//! an agent in process, DarkFactory should remember it and restart there. For example, capturing omp's resume ID on exit and
+//! an agent in process, Dark Factory should remember it and restart there. For example, capturing omp's resume ID on exit and
 //! automaticaly resuming with that id on restart."*
 //!
-//! The omp extension DarkFactory writes tells the editor which session its tab is in (`blueprint/agent_session`, here the body
+//! The omp extension Dark Factory writes tells the editor which session its tab is in (`blueprint/agent_session`, here the body
 //! of that method called with the tab's token); the editor keeps one record per project; the next time the project is open and
 //! the terminal would offer *Invoke Agent*, the tab opens by itself and types `omp --resume <session>`. `omp` is a shell
 //! function from the file `$ENV` names, so the line the editor typed is the line that ran, and the screen says what it was.

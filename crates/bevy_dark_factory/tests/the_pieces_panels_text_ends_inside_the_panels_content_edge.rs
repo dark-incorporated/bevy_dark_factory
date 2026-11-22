@@ -1,5 +1,5 @@
 //! **The Pieces panel's text stays inside the panel** (#468, the part that is the editor's own). Found in a person's capture of the Kit workspace's
-//! MESHES tab (`feedback-1793928048623`, DarkFactory 0.2.7: *"text running off of it, and looks squished and jumbled"*), then measured on the shipped
+//! MESHES tab (`feedback-1793928048623`, Dark Factory 0.2.7: *"text running off of it, and looks squished and jumbled"*), then measured on the shipped
 //! 0.6.8 at the capture's own scales: a window of 2560 x 1440 physical px, UI scale 2.4, the right panel at its drag-resized minimum.
 //!
 //! - the hint `right: meshes / left: tiles` was `NoWrap` and ended 32 px past the panel's content edge;

@@ -679,7 +679,7 @@ fn self_test_result(In(params): In<Value>, mut terminal: ResMut<crate::terminal:
     crate::terminal_agent::self_test_result(&mut terminal, &params)
 }
 
-/// **`blueprint/agent_session` — the omp session an agent tab is in**, from the extension DarkFactory writes beside the tools
+/// **`blueprint/agent_session` — the omp session an agent tab is in**, from the extension Dark Factory writes beside the tools
 /// config (`terminal_agent::OMP_EXTENSION_SOURCE`), so the next launch can resume it (`agent_resume`).
 fn agent_session(In(params): In<Value>, mut terminal: ResMut<crate::terminal::Terminal>) -> Result<Value, String> {
     crate::terminal_agent::agent_session(&mut terminal, &params)
@@ -3587,7 +3587,7 @@ impl Plugin for OpsBridgePlugin {
         app.add_debug_command(
             DebugCommandInfo::new(
                 "blueprint/agent_hello",
-                "An MCP server started by DarkFactory's terminal says its agent connected: token from \
+                "An MCP server started by Dark Factory's terminal says its agent connected: token from \
                  DARK_FACTORY_AGENT_TOKEN, the client's name and version, and how many tools it offers. The \
                  terminal's self-test card shows it.",
             )
@@ -3622,7 +3622,7 @@ impl Plugin for OpsBridgePlugin {
         app.add_debug_command(
             DebugCommandInfo::new(
                 "blueprint/agent_session",
-                "The omp extension DarkFactory's terminal started says which session its agent is in (or null once \
+                "The omp extension Dark Factory's terminal started says which session its agent is in (or null once \
                  it left the session), with the tab's token, so the editor can resume that session the next time \
                  it opens the project.",
             )

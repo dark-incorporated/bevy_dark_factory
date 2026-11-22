@@ -33,7 +33,7 @@ fn an_update_found_after_the_home_opened_is_offered_on_it() {
     app.add_plugins(LauncherPlugin);
     // **The launch check in flight**: a feed nobody answers and no job to poll, so the state stays where the
     // test puts it. This is the updater as the home finds it at launch.
-    let mut updater = Updater::new("http://127.0.0.1:9/none".into(), "/nonexistent/DarkFactory.app".into());
+    let mut updater = Updater::new("http://127.0.0.1:9/none".into(), "/nonexistent/Dark Factory.app".into());
     updater.state = UpdateState::Checking;
     app.insert_resource(updater);
     app.world_mut().resource_mut::<NextState<Screen>>().set(Screen::Launcher);

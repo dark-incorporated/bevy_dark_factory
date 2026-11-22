@@ -33,7 +33,7 @@ use bevy_dark_factory_bench::run::{self, Agent, Options};
 
 /// **What `--help` prints.**
 const USAGE: &str = "\
-dark_factory-bench: run the DarkFactory's benchmark suite against a real editor and a real agent.
+dark_factory-bench: run the Dark Factory's benchmark suite against a real editor and a real agent.
 
 usage: dark_factory-bench run [options]
        dark_factory-bench report <run directory> [--label <name>] [--publish <docs/bench>]

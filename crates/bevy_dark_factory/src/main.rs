@@ -117,7 +117,7 @@ fn main() -> AppExit {
                 primary_window: Some(Window {
                     // **One window for both screens**, so the title is state rather than a build-time
                     // decision — see [`name_the_window`].
-                    title: "DarkFactory".to_owned(),
+                    title: "Dark Factory".to_owned(),
                     // **Never smaller than the layout is built for**; where it opens, and where it goes back
                     // to, is `window_frame`'s decision (#292).
                     resize_constraints: bevy::window::WindowResizeConstraints {
@@ -282,9 +282,9 @@ fn name_the_window(
     mut windows: Query<&mut Window>,
 ) {
     let want = match (screen.get(), door.as_deref()) {
-        (Screen::Launcher, _) => "DarkFactory".to_owned(),
-        (Screen::Loading, _) => "DarkFactory — opening a project".to_owned(),
-        (Screen::Project, _) => "DarkFactory — a project".to_owned(),
+        (Screen::Launcher, _) => "Dark Factory".to_owned(),
+        (Screen::Loading, _) => "Dark Factory — opening a project".to_owned(),
+        (Screen::Project, _) => "Dark Factory — a project".to_owned(),
         (Screen::Editor, Some(d)) => {
             let door = d.label().to_lowercase();
             // **Which name to show is `chrome::subject`'s decision, not a second copy of it.** The
@@ -292,11 +292,11 @@ fn name_the_window(
             // saying the kit while the bar said the map is the drift this shares one function to
             // avoid.
             match bevy_dark_factory::chrome::subject(open_map.as_deref(), project.as_deref()) {
-                Some(name) => format!("DarkFactory — {door} — {name}"),
-                None => format!("DarkFactory — {door}"),
+                Some(name) => format!("Dark Factory — {door} — {name}"),
+                None => format!("Dark Factory — {door}"),
             }
         }
-        (Screen::Editor, None) => "DarkFactory".to_owned(),
+        (Screen::Editor, None) => "Dark Factory".to_owned(),
     };
     for mut w in &mut windows {
         if w.title != want {

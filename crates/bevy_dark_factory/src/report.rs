@@ -18,7 +18,7 @@
 //!
 //! # Two channels, one path
 //!
-//! `Cmd+D` reports to **the people who make DarkFactory**; it works on every screen, the Projects home
+//! `Cmd+D` reports to **the people who make Dark Factory**; it works on every screen, the Projects home
 //! included, and needs no project open. `Cmd+Shift+D` reports about **the project you have open**,
 //! and is refused with a sentence where there is none. [`Audience`] is the only difference: it picks
 //! the folder and it is written into the record. A second copy of the gesture in a second module is
@@ -65,7 +65,7 @@ use crate::chrome;
 use crate::screen::Screen;
 use crate::view::Pointer;
 
-/// **`Cmd+D`: report to the people who make DarkFactory.** Every screen, no project needed.
+/// **`Cmd+D`: report to the people who make Dark Factory.** Every screen, no project needed.
 pub fn developers_chord() -> Shortcut {
     Shortcut::new(Modifiers::PRIMARY, KeyCode::KeyD)
 }
@@ -120,7 +120,7 @@ const NOTE_HINT: &str = "Type what is wrong, then Save · Esc cancels";
 const PICKS_LINE_CAP: usize = 160;
 
 /// Refusals and receipts, as sentences a person can act on.
-const NO_PROJECT: &str = "no project is open, so nothing was saved. Cmd+D reports to the people who make DarkFactory; Cmd+Shift+D reports on the project you have open.";
+const NO_PROJECT: &str = "no project is open, so nothing was saved. Cmd+D reports to the people who make Dark Factory; Cmd+Shift+D reports on the project you have open.";
 const NO_RENDER: &str =
     "this editor has no render world, so no picture could be taken; nothing was saved.";
 const NO_DATA_DIR: &str =
@@ -728,7 +728,7 @@ impl ReportWorld<'_, '_> {
     /// **Only a step that is a control has this**, and only its own children are searched one level
     /// of nesting down — never the whole subtree. Searching every subtree gave a container the words
     /// of whatever it happened to contain: measured live on 2026-11-05, every unnamed step of the
-    /// chain from the home's `Screen` to the `Button` reported `Welcome to DarkFactory`, so a path of
+    /// chain from the home's `Screen` to the `Button` reported `Welcome to Dark Factory`, so a path of
     /// eleven steps said the same sentence seven times and named nothing.
     fn labels_of(&self, children: Option<&Children>) -> Option<String> {
         // The child of a button is its words; the child of a row is another row.
@@ -1335,7 +1335,7 @@ fn report_box(
     }
     let relations = report.relations();
     let heading = match audience {
-        Audience::Developers => "Report to those who make DarkFactory",
+        Audience::Developers => "Report to those who make Dark Factory",
         Audience::Project => "Report about this project",
     };
     let line = picks_line(picks);

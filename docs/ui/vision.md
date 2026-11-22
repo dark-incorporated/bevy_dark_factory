@@ -4,7 +4,7 @@ Status: owner-directed series, 2026-11-01. The work is tracked by the issue labe
 
 ## 1. What the UI is for
 
-The DarkFactory is a **mixed-initiative authoring tool**: a person and the NightShift (the agent) edit one project through the same commands. Horvitz (1999, "Principles of mixed-initiative user interfaces", [10.1145/302979.303030](https://doi.org/10.1145/302979.303030)) asks that an agent add genuine value over direct manipulation, reason about the uncertainty of the user's goal, and time its interruptions to the user's attention. *Procedural Content Generation in Games*, chapter 11, makes the same case for content creation: the human steers, the generator proposes, and both see the same artefact.
+The Dark Factory is a **mixed-initiative authoring tool**: a person and the NightShift (the agent) edit one project through the same commands. Horvitz (1999, "Principles of mixed-initiative user interfaces", [10.1145/302979.303030](https://doi.org/10.1145/302979.303030)) asks that an agent add genuine value over direct manipulation, reason about the uncertainty of the user's goal, and time its interruptions to the user's attention. *Procedural Content Generation in Games*, chapter 11, makes the same case for content creation: the human steers, the generator proposes, and both see the same artefact.
 
 So the UI has three jobs:
 

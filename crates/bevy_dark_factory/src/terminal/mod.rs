@@ -1,6 +1,6 @@
 //! **A shell in the editor's window.**
 //!
-//! `Ctrl+\`` opens a dock across the bottom of the DarkFactory: a real login shell (`$SHELL`, so `fish`,
+//! `Ctrl+\`` opens a dock across the bottom of the Dark Factory: a real login shell (`$SHELL`, so `fish`,
 //! `zsh` or `bash` as the person configured it), in a real PTY, parsed by a real VTE parser, drawn in
 //! the editor's own ink. `cargo`, `git`, `hs`, the Wiggum driver — everything the person would
 //! otherwise alt-tab for — runs in it, against the open project's directory.

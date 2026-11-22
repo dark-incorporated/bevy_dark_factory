@@ -30,12 +30,12 @@ What you see: ask the agent to call `blueprint_state`. It answers with the open 
 
 If it goes wrong: a refusal that says no editor answered means the editor is not running, or it is on another port. Check that both sides use the same `BEVY_BRP_PORT`.
 
-## Start an agent in DarkFactory's terminal
+## Start an agent in Dark Factory's terminal
 
 Goal: have the terminal start your agent already connected to the editor, and see that the whole chain works before you ask it anything.
 
 1. Open Settings (Terminal tab) and set **Terminal agent** to **Oh My Pi**. `omp` must be on your login shell's `PATH`. On a machine that has `omp` installed the terminal already starts with it chosen, and on one that does not it starts with a plain shell; a `terminal_agent` in your settings file or the project's `editor.yaml` wins either way.
-2. **Nothing starts by itself, except an agent that was running when you closed DarkFactory** (see "Quit and come back" below): a session costs tokens to warm up, so with an agent chosen the terminal opens empty and shows a **Start agent** button in the middle of its area, and a person who is only looking around the game pays nothing. The terminal itself starts collapsed on every screen: raise it with `Cmd+J` (`Ctrl+J` elsewhere) or the **Terminal Cmd+J** label in the status band. Pressing **Start agent** (or Enter while the terminal has the keyboard) opens an agent tab, which types `omp -e <folder> '<prompt>'` at the shell's prompt. Closing the last tab brings the button back (the `+` chip still opens a plain shell, and so does a terminal with no agent chosen). The folder is an omp extension whose `.mcp.json` names the editor's MCP server (the `dark_factory_mcp` beside the editor binary) on the editor's port, and which tells the editor which omp session the tab is in; the prompt asks omp to call `blueprint_self_test` once.
+2. **Nothing starts by itself, except an agent that was running when you closed Dark Factory** (see "Quit and come back" below): a session costs tokens to warm up, so with an agent chosen the terminal opens empty and shows a **Start agent** button in the middle of its area, and a person who is only looking around the game pays nothing. The terminal itself starts collapsed on every screen: raise it with `Cmd+J` (`Ctrl+J` elsewhere) or the **Terminal Cmd+J** label in the status band. Pressing **Start agent** (or Enter while the terminal has the keyboard) opens an agent tab, which types `omp -e <folder> '<prompt>'` at the shell's prompt. Closing the last tab brings the button back (the `+` chip still opens a plain shell, and so does a terminal with no agent chosen). The folder is an omp extension whose `.mcp.json` names the editor's MCP server (the `dark_factory_mcp` beside the editor binary) on the editor's port, and which tells the editor which omp session the tab is in; the prompt asks omp to call `blueprint_self_test` once.
 
    **Which MCP servers that session has** is the editor's own (`dark_factory`) plus whatever your project declares in its own config, and nothing else is written for it. A project declares servers in any of the four files omp reads: `.omp/mcp.json`, `.omp/.mcp.json`, `mcp.json` and `.mcp.json`, at the project root, with `.omp/mcp.json` winning a name that appears in two of them. The self-test card has a row naming the servers this session was given, so you can read the set rather than guess at it. omp also loads the machine's own `~/.omp/agent/mcp.json` servers beside them; scoping that list is an omp feature that does not exist yet (can1357/oh-my-pi#19573), so a machine-level `dark_factory` entry will shadow the editor's.
 3. For any other harness choose **Custom command** and set the line in `settings.yaml`, which the Settings screen has no text field for: `terminal_agent_command: claude --mcp-config $DARK_FACTORY_MCP_CONFIG "$DARK_FACTORY_SELF_TEST_PROMPT"`. The tab's shell has `DARK_FACTORY_MCP` (the server binary), `DARK_FACTORY_MCP_CONFIG` (a `mcpServers` file for it), `DARK_FACTORY_AGENT_TOKEN`, `DARK_FACTORY_SELF_TEST_PROMPT` and `BEVY_BRP_PORT`.
@@ -46,20 +46,22 @@ If it goes wrong: the check that failed says why, in red, and the chip reads `om
 
 **What the chips in the terminal's bar are for**: rest the pointer on any chip and it says what it does. The status chip (`omp connected · N tools`) is the agent's self-test, and a click shows its card again; a tab is named for the program running in it (`omp`, or a shell's name, cut with an ellipsis when it is a long path) and shows that session; **Start agent** starts another agent session in the open project; `+` opens a new shell there; `x` closes the session you are looking at. A shell that started somewhere else also gets **Go to \<folder\>**, which types `cd` into it to move it to the open project (its tooltip shows the command); an agent's tab is never offered it, because what is typed there is a message to the agent. When the bar is too narrow it gives items up in a fixed order: the Go to chip, then Start agent, then the LED's name (its state word stays), then the tabs that are not drawn.
 
-**Quit and come back**: the editor keeps one record per project of the omp session its agent was in (`<data folder>/agents/resume.json`, written when the extension reports the session). If you close DarkFactory while an agent is running, the next time that project is open and the terminal would offer **Start agent**, the tab opens by itself and types `omp -e <folder> --resume <session>`, so the agent is back in the same conversation; no self-test prompt is typed, because the session already has its history. Ending the agent yourself clears the record: closing its tab, typing `exit` at its shell, or leaving omp (`/exit`, Ctrl+D). A resumed omp that never connects clears it too, so a session that cannot be resumed is not tried at every launch. Pressing **Start agent** or `+` first starts what you asked for instead. Only omp is resumed: a custom command has no resume syntax the editor knows.
+**Quit and come back**: the editor keeps one record per project of the omp session its agent was in (`<data folder>/agents/resume.json`, written when the extension reports the session). If you close Dark Factory while an agent is running, the next time that project is open and the terminal would offer **Start agent**, the tab opens by itself and types `omp -e <folder> --resume <session>`, so the agent is back in the same conversation; no self-test prompt is typed, because the session already has its history. Ending the agent yourself clears the record: closing its tab, typing `exit` at its shell, or leaving omp (`/exit`, Ctrl+D). A resumed omp that never connects clears it too, so a session that cannot be resumed is not tried at every launch. Pressing **Start agent** or `+` first starts what you asked for instead. Only omp is resumed: a custom command has no resume syntax the editor knows.
 
-## Attach to an installed DarkFactory
+## Attach to an installed Dark Factory
 
-Goal: drive the DarkFactory app installed on a Mac, from any machine that can ssh to it, from the moment it opens.
+Goal: drive the Dark Factory app installed on a Mac, from any machine that can ssh to it, from the moment it opens.
 
-The app carries its own MCP server, `DarkFactory.app/Contents/MacOS/dark_factory_mcp`. Run it over ssh with no `--project`, and it follows whatever the app has open, the Projects home included:
+The app carries its own MCP server, `Dark Factory.app/Contents/MacOS/dark_factory_mcp`. Run it over ssh with no `--project`, and it follows whatever the app has open, the Projects home included:
+
+The path carries its own single quotes because ssh hands the command to the remote shell, which would split `Dark Factory.app` at the space.
 
 ```json
 {
   "mcpServers": {
     "dark_factory-mac": {
       "command": "ssh",
-      "args": ["-o", "BatchMode=yes", "<mac>", "/Applications/DarkFactory.app/Contents/MacOS/dark_factory_mcp"]
+      "args": ["-o", "BatchMode=yes", "<mac>", "'/Applications/Dark Factory.app/Contents/MacOS/dark_factory_mcp'"]
     }
   }
 }
@@ -240,9 +242,9 @@ Goal: know what an agent leaves for you at the end of a task, and answer it.
 
 Goal: read what the person pointed at and said was wrong, without asking them to describe it again.
 
-A person presses a key while using DarkFactory, points at **anything on screen** — a panel, a button, a field, a tooltip, a placed piece, a cell, the empty viewport — and types what is wrong. The frame is the one that was on screen when the key was pressed, so what the agent reads is what the person saw.
+A person presses a key while using Dark Factory, points at **anything on screen** — a panel, a button, a field, a tooltip, a placed piece, a cell, the empty viewport — and types what is wrong. The frame is the one that was on screen when the key was pressed, so what the agent reads is what the person saw.
 
-There are two channels and they do not mix. **Cmd+D** reports on DarkFactory itself, for the people who write the editor: it works on every screen, including the Projects home, and needs no project open. **Cmd+Shift+D** reports on the project you have open, for whoever works that project, and is refused with a sentence where there is none.
+There are two channels and they do not mix. **Cmd+D** reports on Dark Factory itself, for the people who write the editor: it works on every screen, including the Projects home, and needs no project open. **Cmd+Shift+D** reports on the project you have open, for whoever works that project, and is refused with a sentence where there is none.
 
 | | Developers | Project |
 |---|---|---|
