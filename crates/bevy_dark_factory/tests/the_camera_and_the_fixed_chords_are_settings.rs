@@ -3,25 +3,29 @@
 //! The Map camera's nearest and furthest, its wheel step, its pan and a piece's turn were constants in `view.rs` and
 //! `editor.rs`; the chords read outside the key census (the console's, the terminal's, the palette's) were constants in
 //! a dozen modules. A person sets each in their settings file now, the editor takes it while running, and a value no
-//! camera can use is refused naming its field.
-
-use std::time::Duration;
+//! camera can use is refused naming its field. The settings file is followed by the file index (#501), so each wait is
+//! on the wall clock, bounded by [`crate::index_waits::SHOWN_WITHIN`].
 
 use bevy::prelude::*;
-use bevy::time::TimeUpdateStrategy;
 use bevy_dark_factory::chords::{Fixed, chord, default_of};
 use bevy_dark_factory::settings::SettingsLayer;
 use bevy_gooey::{Modifiers, Shortcut};
 
 use crate::fixtures;
+use crate::index_waits::{SHOWN_WITHIN, pump_until};
 
-/// More than the settings watch's own look interval, so every update looks.
-const STEP: Duration = Duration::from_millis(300);
+/// Updates for the editor to open its project and read its settings.
+const SETTLE_UPDATES: usize = 6;
 
 fn settle(app: &mut App) {
-    for _ in 0..6 {
+    for _ in 0..SETTLE_UPDATES {
         app.update();
     }
+}
+
+/// Steps frames until `done`, failing with `what` when the index has not shown it within [`SHOWN_WITHIN`].
+fn until(app: &mut App, what: &str, done: impl FnMut(&mut App) -> bool) {
+    assert!(pump_until(app, SHOWN_WITHIN, done).is_some(), "never saw: {what}");
 }
 
 /// An editor reading its user settings from `settings.yaml` in a temp folder, which the test writes.
@@ -31,7 +35,6 @@ fn editor(tag: &str) -> (App, std::path::PathBuf) {
     std::fs::create_dir_all(&config).expect("a config folder");
     let settings = config.join("settings.yaml");
     let mut app = bevy_dark_factory::harness::build_headless(&root, "m", None).unwrap_or_else(|e| panic!("{e}"));
-    app.insert_resource(TimeUpdateStrategy::ManualDuration(STEP));
     app.insert_resource(bevy_dark_factory::settings::UserSettingsFile(settings.clone()));
     settle(&mut app);
     (app, settings)
@@ -42,7 +45,7 @@ fn a_settings_file_sets_the_cameras_range_while_the_editor_runs() {
     let (mut app, settings) = editor("view_settings");
     assert_eq!(bevy_dark_factory::view::tunables().zoom_max_m, 80.0, "the shipped furthest");
     std::fs::write(&settings, "version: 1\nview: {zoom_max: 10.0, yaw_step_deg: 45.0}\n").expect("a settings file");
-    settle(&mut app);
+    until(&mut app, "the file's furthest as the camera's", |_| bevy_dark_factory::view::tunables().zoom_max_m == 10.0);
     let view = bevy_dark_factory::view::tunables();
     assert_eq!(view.zoom_max_m, 10.0, "the file's furthest is the camera's");
     assert_eq!(view.yaw_step_deg, 45.0, "and its turn of a piece");
@@ -70,7 +73,7 @@ fn a_fixed_chord_is_rebound_by_its_id_while_the_editor_runs() {
     let moved = Shortcut::new(Modifiers::PRIMARY | Modifiers::SHIFT, KeyCode::KeyL);
     assert_eq!(chord(Fixed::ConsoleToggle), default_of(Fixed::ConsoleToggle), "the console answers to its default");
     std::fs::write(&settings, format!("version: 1\nkeymap:\n  console.open: {}\n", serde_json::to_string(&moved).expect("a chord"))).expect("a settings file");
-    settle(&mut app);
+    until(&mut app, "the console answering to the chord the file gives it", |_| chord(Fixed::ConsoleToggle) == moved);
     assert_eq!(chord(Fixed::ConsoleToggle), moved, "the console answers to the chord the file gives it");
     assert!(SettingsLayer::read("settings.yaml", "version: 1\nkeymap:\n  console.opne: {key: KeyL}\n").is_err(), "an id nothing has is refused");
 }

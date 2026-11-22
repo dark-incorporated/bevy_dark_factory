@@ -21,7 +21,7 @@ loop repo is the loop's, and an edit made under a running pass is lost or mixed 
 ## 2. Taste first: the style sheet, live
 
 A change of look — colour, spacing, size, type size, corner, stacking order, a dock's width — is made in the style sheet,
-not in Rust. The editor reads it live and applies an edit within a fraction of a second, with no build.
+not in Rust. The editor follows the file and applies an edit about a second after you save it, with no build.
 
 - **The base sheet** is `crates/bevy_dark_factory/src/style/editor.yaml`; the themes' colours are
   `crates/bevy_dark_factory/src/style/theme_parchment.yaml` and `theme_high_contrast.yaml`.

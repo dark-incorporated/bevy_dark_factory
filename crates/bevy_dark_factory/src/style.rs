@@ -12,8 +12,13 @@
 //! 4. **project** — the open project's `assets/blueprint/editor_style.yaml` ([`PROJECT_FILE`]).
 //!
 //! **Base and theme are read from the checkout when the editor runs from one** ([`editor_source`]): edit the
-//! shipped file and the running editor changes within a fifth of a second. Without a checkout they are the
-//! compiled copies. Both feed the same read, the same check and the same merge, so there is one path.
+//! shipped file and the running editor changes as soon as the file index sees the save (about a second at its
+//! default sweep). Without a checkout they are the compiled copies. Both feed the same read, the same check and
+//! the same merge, so there is one path.
+//!
+//! **Nothing is polled** (#501): the checkout's style folder and the person's config folder are followed by
+//! [`crate::project_index::OutsideFiles`] for the layer files' names, the project's layer by the project's
+//! [`crate::project_index::ProjectIndex`], and a layer is read when its index says it moved.
 //!
 //! # The merge
 //!
@@ -34,8 +39,8 @@
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::sync::{LazyLock, PoisonError, RwLock};
-use std::time::SystemTime;
 
+use bevy::ecs::system::SystemParam;
 use bevy::prelude::*;
 use blueprint_model::live::KindVerdict;
 use blueprint_model::reload_check::{self, Refusal};
@@ -43,7 +48,8 @@ use bevy_gooey::{GooeySkin, StyleRules, StyleSheet, StyleSheetProblems};
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 
-use crate::settings::Theme;
+use crate::project_index::{self, OutsideFileChanged, OutsideFiles, ProjectFileChanged, ProjectIndex};
+use crate::settings::{Feed, Theme};
 
 /// The one version of a style layer this build reads.
 pub const STYLE_VERSION: u32 = 1;
@@ -63,8 +69,13 @@ const BASE_FILE: &str = "editor.yaml";
 /// The file a checkout must hold to be the editor's source ([`editor_source`]).
 const SOURCE_MARK: &str = "crates/bevy_dark_factory/src/style/editor.yaml";
 
-/// How often the layers are looked at, seconds of real time: the family host's poll.
-const POLL_SECS: f64 = 0.1;
+/// Every layer file a checkout's [`STYLE_DIR`] is followed for: the base and each theme's.
+const CHECKOUT_FILES: [&str; 3] = [BASE_FILE, PARCHMENT_FILE, HIGH_CONTRAST_FILE];
+
+/// The Parchment layer's file name in [`STYLE_DIR`].
+const PARCHMENT_FILE: &str = "theme_parchment.yaml";
+/// The High contrast layer's file name in [`STYLE_DIR`].
+const HIGH_CONTRAST_FILE: &str = "theme_high_contrast.yaml";
 
 /// The compiled base sheet.
 const BASE_TEXT: &str = include_str!("style/editor.yaml");
@@ -78,8 +89,8 @@ const HIGH_CONTRAST_TEXT: &str = include_str!("style/theme_high_contrast.yaml");
 fn theme_layer(theme: Theme) -> Option<(&'static str, &'static str)> {
     match theme {
         Theme::ToolDark => None,
-        Theme::Parchment => Some(("theme_parchment.yaml", PARCHMENT_TEXT)),
-        Theme::HighContrast => Some(("theme_high_contrast.yaml", HIGH_CONTRAST_TEXT)),
+        Theme::Parchment => Some((PARCHMENT_FILE, PARCHMENT_TEXT)),
+        Theme::HighContrast => Some((HIGH_CONTRAST_FILE, HIGH_CONTRAST_TEXT)),
     }
 }
 
@@ -548,8 +559,8 @@ struct Look {
     path: Option<PathBuf>,
     /// The name its verdicts and rules carry.
     name: String,
-    /// The modification time and length last seen, so an unchanged file is not read.
-    stamp: Option<(SystemTime, u64)>,
+    /// What this layer has heard of its file's index: when it must be read again.
+    feed: Feed,
     /// The text last decided, so the same bytes are decided once.
     text: Option<String>,
     /// The layer as it last read.
@@ -567,38 +578,30 @@ enum Found {
 }
 
 impl Look {
-    /// A look at a file, or at a compiled text when `path` is `None`; reset whenever either changes.
+    /// Aim at a file, or at a compiled text when `path` is `None`; reset whenever either changes, and decided at once then: a
+    /// file is read when it is first aimed at, and again only when its index says it moved.
     fn aim(&mut self, path: Option<PathBuf>, name: String, compiled: Option<&str>) -> Option<Found> {
-        if self.path != path || self.name != name {
-            *self = Look { path, name, ..Look::default() };
-            if self.path.is_none() {
-                return compiled.map(|text| self.decide(text.to_owned()));
-            }
+        if self.path == path && self.name == name {
+            return None;
         }
-        None
+        *self = Look { path, name, ..Look::default() };
+        match &self.path {
+            None => compiled.map(|text| self.decide(text.to_owned())),
+            Some(_) => self.look(),
+        }
     }
 
-    /// Looks at the file; `None` when nothing changed since the last look.
+    /// Reads the file; `None` when its text is the one last decided, or it is still absent.
     fn look(&mut self) -> Option<Found> {
         let path = self.path.clone()?;
-        let meta = match std::fs::metadata(&path) {
-            Ok(meta) => meta,
+        let text = match std::fs::read_to_string(&path) {
+            Ok(text) => text,
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
                 let had = self.text.is_some() || self.good.is_some();
-                self.stamp = None;
                 self.text = None;
                 self.good = None;
                 return had.then_some(Found::Gone);
             }
-            Err(e) => return Some(Found::Refused(Refusal { kind: KIND, file: self.name.clone(), field: None, reason: e.to_string() })),
-        };
-        let stamp = meta.modified().ok().map(|at| (at, meta.len()));
-        if stamp.is_some() && stamp == self.stamp {
-            return None;
-        }
-        self.stamp = stamp;
-        let text = match std::fs::read_to_string(&path) {
-            Ok(text) => text,
             Err(e) => return Some(Found::Refused(Refusal { kind: KIND, file: self.name.clone(), field: None, reason: e.to_string() })),
         };
         if self.text.as_ref() == Some(&text) {
@@ -620,14 +623,86 @@ impl Look {
     }
 }
 
-/// **The four layers' looks**, the clock of the last poll and what the sheet last applied.
+/// **What the file indexes said this frame about the layers' files** (#501): the project's layer moves with the project's index, the
+/// others with the folders [`follow_the_style_files`] follows. Two message readers and a few atomic loads; no filesystem.
+#[derive(SystemParam)]
+pub struct StyleNews<'w, 's> {
+    project_changed: MessageReader<'w, 's, ProjectFileChanged>,
+    outside_changed: MessageReader<'w, 's, OutsideFileChanged>,
+    project_index: Res<'w, ProjectIndex>,
+    outside: Res<'w, OutsideFiles>,
+}
+
+/// This frame's news, read once and asked per layer.
+struct Heard {
+    /// Project-relative paths the project's index said changed.
+    project: Vec<String>,
+    /// `(folder, name)` pairs an outside folder's index said changed.
+    outside: Vec<(PathBuf, String)>,
+}
+
+impl StyleNews<'_, '_> {
+    fn heard(&mut self) -> Heard {
+        Heard {
+            project: self.project_changed.read().map(|e| e.rel.clone()).collect(),
+            outside: self.outside_changed.read().map(|e| (e.root.clone(), e.rel.clone())).collect(),
+        }
+    }
+
+    /// **Whether `look`'s file must be read now**: its index said it changed, had its first listing, or started or stopped failing.
+    fn moved(&self, heard: &Heard, look: &mut Look) -> bool {
+        let Some(path) = look.path.clone() else { return false };
+        let under_project = self.project_index.root().and_then(|root| path.strip_prefix(root).ok()).map(|rel| rel.to_string_lossy().replace('\\', "/"));
+        let (listing_in, failure, changed) = match under_project {
+            Some(rel) => (self.project_index.generation() != 0, self.project_index.failure(), heard.project.contains(&rel)),
+            None => match project_index::split_file(&path) {
+                Some((dir, name)) => (
+                    self.outside.generation(&dir) != 0,
+                    self.outside.failure(&dir),
+                    heard.outside.iter().any(|(root, rel)| *root == dir && *rel == name),
+                ),
+                None => (false, None, false),
+            },
+        };
+        look.feed.moved(Some(&path), listing_in, failure, changed)
+    }
+}
+
+/// **Follow the folders outside the project that hold style layers**, for those files' names and no others: the checkout's style folder
+/// for the base and theme sheets, and the person's config folder for `style.yaml`. A checkout no longer named is unfollowed; the
+/// person's folder never is, because it is also the folder `settings::follow_the_user_file` follows for `settings.yaml`, and an
+/// unfollow ends the folder's thread for every name in it.
+pub fn follow_the_style_files(
+    settings: Option<Res<crate::settings::EditorSettings>>,
+    user_file: Option<Res<UserStyleFile>>,
+    mut outside: ResMut<OutsideFiles>,
+    mut followed: Local<Option<PathBuf>>,
+) {
+    let checkout = settings.as_ref().and_then(|s| s.editor_source.clone()).or_else(detected_checkout).map(|root| root.join(STYLE_DIR));
+    if *followed != checkout {
+        if let Some(old) = followed.take() {
+            outside.unfollow(&old);
+        }
+        if let Some(dir) = &checkout {
+            outside.follow(dir, &CHECKOUT_FILES);
+        }
+        *followed = checkout;
+    }
+    if let Some(user) = user_file
+        && user.is_changed()
+        && let Some((dir, name)) = project_index::split_file(&user.0)
+    {
+        outside.follow(&dir, &[name.as_str()]);
+    }
+}
+
+/// **The four layers' looks** and what the sheet last applied.
 #[derive(Resource, Default)]
 pub struct StyleWatch {
     base: Look,
     theme: Look,
     user: Look,
     project: Look,
-    last_poll: Option<f64>,
     /// The theme the layers were last aimed for.
     theme_now: Option<Theme>,
     /// The merged style last applied, so an unchanged sum writes nothing.
@@ -637,7 +712,7 @@ pub struct StyleWatch {
 }
 
 /// **Everything [`apply_style`] writes**, grouped so its argument list stays readable.
-#[derive(bevy::ecs::system::SystemParam)]
+#[derive(SystemParam)]
 pub struct StyleTargets<'w> {
     skin: ResMut<'w, GooeySkin>,
     sheet: Option<ResMut<'w, StyleSheet>>,
@@ -653,12 +728,12 @@ pub struct StyleTargets<'w> {
 #[derive(Message, Clone, Copy, Debug)]
 pub struct RebuildPanels;
 
-/// **Look at the layers, decide what changed, and keep the skin, the metrics and the rules the layers'
-/// sum.** A file that does not read is refused and its layer stays as it last read; a file that is gone has
-/// no layer. The person's `text_scale` is the skin's whatever the sheet says.
+/// **Read the layers their indexes say moved, decide what changed, and keep the skin, the metrics and the rules
+/// the layers' sum.** A file that does not read is refused and its layer stays as it last read; a file that is
+/// gone has no layer. The person's `text_scale` is the skin's whatever the sheet says.
 #[allow(clippy::too_many_arguments)]
 pub fn apply_style(
-    real: Res<Time<Real>>,
+    mut news: StyleNews,
     settings: Option<Res<crate::settings::EditorSettings>>,
     project: Option<Res<crate::project::Project>>,
     user_file: Option<Res<UserStyleFile>>,
@@ -696,29 +771,26 @@ pub fn apply_style(
         (&mut watch.user, user_path, user_name, None),
         (&mut watch.project, project_path, project_name, None),
     ];
-    let mut aimed = false;
     for (look, path, name, compiled) in aims {
         let was_named = !look.name.is_empty();
         let old_name = look.name.clone();
         if let Some(f) = look.aim(path, name, compiled) {
             found.push((look.name.clone(), f));
         }
-        if look.name != old_name {
-            aimed = true;
-            // A layer that names another file now: the old one's verdict is not this file's.
-            if was_named && let Some(reloads) = reloads.as_deref_mut() {
-                reloads.forget_file(KIND, &old_name);
-            }
+        // A layer that names another file now: the old one's verdict is not this file's.
+        if look.name != old_name
+            && was_named
+            && let Some(reloads) = reloads.as_deref_mut()
+        {
+            reloads.forget_file(KIND, &old_name);
         }
     }
-    let now = real.elapsed_secs_f64();
-    let due = aimed || watch.last_poll.is_none_or(|last| now - last >= POLL_SECS);
-    if due {
-        watch.last_poll = Some(now);
-        for look in [&mut watch.base, &mut watch.theme, &mut watch.user, &mut watch.project] {
-            if let Some(f) = look.look() {
-                found.push((look.name.clone(), f));
-            }
+    let heard = news.heard();
+    for look in [&mut watch.base, &mut watch.theme, &mut watch.user, &mut watch.project] {
+        if news.moved(&heard, look)
+            && let Some(f) = look.look()
+        {
+            found.push((look.name.clone(), f));
         }
     }
     let theme_moved = watch.theme_now != Some(theme);
@@ -872,11 +944,14 @@ pub fn publish_host_paints(skin: Option<Res<GooeySkin>>, revision: Res<StyleRevi
     }
 }
 
-/// **The live style sheet**: watches the layers and applies their sum before gooey's cascade.
+/// **The live style sheet**: follows the layers' files through the file indexes and applies their sum before
+/// gooey's cascade.
 pub struct StylePlugin;
 
 impl Plugin for StylePlugin {
     fn build(&self, app: &mut App) {
+        project_index::ensure(app);
+        project_index::ensure_outside(app);
         let style = compiled_default();
         app.add_message::<RebuildPanels>()
             .init_resource::<StyleWatch>()
@@ -886,7 +961,7 @@ impl Plugin for StylePlugin {
             .insert_resource(StyleSheet { rules: style.rules, revision: 0 })
             .add_systems(
                 Update,
-                (apply_style, publish_host_paints, report_rule_problems)
+                (follow_the_style_files, apply_style, publish_host_paints, report_rule_problems)
                     .chain()
                     .after(crate::settings::sync_settings)
                     .after(crate::ui_skin::skin_scope)

@@ -979,9 +979,9 @@ pub struct Heard {
     project: Feed,
 }
 
-/// One file as a reader follows it.
+/// One file as a reader follows it. The style sheet's layers are followed the same way (`crate::style`).
 #[derive(Default)]
-struct Feed {
+pub(crate) struct Feed {
     path: Option<PathBuf>,
     /// The file's index has had its first listing since this path was first seen: the one read that catches a change made between the
     /// reader's first read and that listing (the first listing publishes no event).
@@ -992,7 +992,7 @@ struct Feed {
 impl Feed {
     /// Whether the file must be read now: the index said it changed, or this is the first frame its index has a listing, or the index
     /// started or stopped failing (the read then says why, as it always did). `None` for no file.
-    fn moved(&mut self, path: Option<&Path>, listing_in: bool, failure: Option<String>, changed: bool) -> bool {
+    pub(crate) fn moved(&mut self, path: Option<&Path>, listing_in: bool, failure: Option<String>, changed: bool) -> bool {
         let Some(path) = path else {
             *self = Feed::default();
             return false;

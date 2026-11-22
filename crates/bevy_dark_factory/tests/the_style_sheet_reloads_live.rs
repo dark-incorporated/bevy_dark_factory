@@ -1,34 +1,35 @@
 //! **The editor's style sheet is live** (`crate::style`): an edit to any of its layers — the checkout's own
 //! sheet, the person's `style.yaml`, the project's `editor_style.yaml` — reaches the running skin, the metrics
-//! and the class rules within a few polls, with no rebuild; a file that does not read is refused naming the
-//! field and the last good style stays; a file that is gone takes its layer with it.
+//! and the class rules as soon as the file index sees it, with no rebuild; a file that does not read is refused
+//! naming the field and the last good style stays; a file that is gone takes its layer with it.
 //!
 //! **Through the files, not the resources**, the way a person (or the editor-development agent) works: the
 //! editor is built first, the files are written afterwards, and only what the editor shows is read back. The
-//! clock is stepped (`TimeUpdateStrategy::ManualDuration`), so a poll is due on every update and nothing
-//! waits on the wall clock.
+//! layers are followed by the file indexes' own threads (#501), so each wait is on the wall clock, bounded by
+//! [`crate::index_waits::SHOWN_WITHIN`].
 
 use std::path::{Path, PathBuf};
-use std::time::Duration;
 
 use bevy::prelude::*;
-use bevy::time::TimeUpdateStrategy;
 use bevy_dark_factory::live::EditorReloads;
 use bevy_gooey::GooeySkin;
 use blueprint_model::live::Outcome;
 
 use crate::fixtures;
+use crate::index_waits::{SHOWN_WITHIN, pump_until};
 
-/// One update's worth of real time: more than the style sheet's 0.1 s poll.
-const STEP: Duration = Duration::from_millis(150);
-
-/// Enough updates for a write to be seen, read, merged and cascaded.
+/// Updates for the editor to open its project and aim its layers.
 const SETTLE_UPDATES: usize = 4;
 
 fn settle(app: &mut App) {
     for _ in 0..SETTLE_UPDATES {
         app.update();
     }
+}
+
+/// Steps frames until `done`, failing with `what` when the index has not shown it within [`SHOWN_WITHIN`].
+fn until(app: &mut App, what: &str, done: impl FnMut(&mut App) -> bool) {
+    assert!(pump_until(app, SHOWN_WITHIN, done).is_some(), "never saw: {what}");
 }
 
 /// A checkout as `editor_source` must name one: the crate's manifest and the shipped sheet, in a temp folder,
@@ -58,7 +59,6 @@ fn editor(name: &str) -> Editor {
     std::fs::write(&settings, format!("version: 1\neditor_source: {}\n", checkout.display())).expect("a settings file");
     let user_style = config.join("style.yaml");
     let mut app = bevy_dark_factory::harness::build_headless(&root, "m", None).unwrap_or_else(|e| panic!("{e}"));
-    app.insert_resource(TimeUpdateStrategy::ManualDuration(STEP));
     app.insert_resource(bevy_dark_factory::settings::UserSettingsFile(settings));
     app.insert_resource(bevy_dark_factory::style::UserStyleFile(user_style.clone()));
     settle(&mut app);
@@ -87,12 +87,11 @@ fn a_users_style_layer_reaches_the_skin_is_refused_when_broken_and_goes_when_del
     assert_eq!(gap(&editor.app), base, "the running skin starts as the editor's own sheet");
 
     std::fs::write(&editor.user_style, "version: 1\nskin: {gap: 9.0}\n").expect("a style layer");
-    settle(&mut editor.app);
-    assert_eq!(gap(&editor.app), 9.0, "the person's layer is laid over the editor's sheet");
+    until(&mut editor.app, "the person's layer laid over the editor's sheet", |app| gap(app) == 9.0);
     assert_eq!(verdict(&editor.app, "style.yaml").map(|v| v.0), Some(Outcome::Applied));
 
     std::fs::write(&editor.user_style, "version: 1\nskin: {gapp: 1}\n").expect("a broken layer");
-    settle(&mut editor.app);
+    until(&mut editor.app, "the broken layer refused", |app| verdict(app, "style.yaml").is_some_and(|v| v.0 == Outcome::Refused));
     let (outcome, field, reason) = verdict(&editor.app, "style.yaml").expect("a verdict on the user's layer");
     assert_eq!(outcome, Outcome::Refused, "a key the skin does not have is refused: {reason}");
     assert!(
@@ -102,8 +101,7 @@ fn a_users_style_layer_reaches_the_skin_is_refused_when_broken_and_goes_when_del
     assert_eq!(gap(&editor.app), 9.0, "the last good layer stays");
 
     std::fs::remove_file(&editor.user_style).expect("the layer deleted");
-    settle(&mut editor.app);
-    assert_eq!(gap(&editor.app), base, "with the layer gone, the editor's own sheet is the skin again");
+    until(&mut editor.app, "the editor's own sheet as the skin again, with the layer gone", |app| gap(app) == base);
     assert_eq!(verdict(&editor.app, "style.yaml"), None, "a file that is gone is no longer refused");
 }
 
@@ -126,12 +124,10 @@ fn an_edit_to_the_checkouts_own_sheet_reaches_the_running_editor() {
     let sheet = editor.checkout.join("crates/bevy_dark_factory/src/style/editor.yaml");
     let text = std::fs::read_to_string(&sheet).expect("the sheet");
     std::fs::write(&sheet, text.replace("  gap: 5.0\n", "  gap: 7.0\n")).expect("an edited sheet");
-    settle(&mut editor.app);
-    assert_eq!(gap(&editor.app), 7.0, "the checkout's sheet is read live: no rebuild");
+    until(&mut editor.app, "the checkout's sheet read live, with no rebuild", |app| gap(app) == 7.0);
 
     std::fs::write(&sheet, text.replace("body: 11.0, heading", "body: 14.0, heading")).expect("a metric edited");
-    settle(&mut editor.app);
-    assert_eq!(bevy_dark_factory::style::metrics().r#type.body, 14.0, "a metric edited in the sheet is the running metric");
+    until(&mut editor.app, "a metric edited in the sheet as the running metric", |_| bevy_dark_factory::style::metrics().r#type.body == 14.0);
     assert_eq!(gap(&editor.app), 5.0, "and the gap is the file's again");
 }
 
@@ -142,9 +138,9 @@ fn a_projects_rule_styles_a_classed_node_live() {
     editor.app.world_mut().spawn(bevy_gooey::screen()).add_child(card);
     settle(&mut editor.app);
     std::fs::write(&editor.project_style, "version: 1\nrules:\n  \".test-card\": {padding: !Px 13}\n").expect("a project layer");
-    settle(&mut editor.app);
-    let padding = editor.app.world().get::<Node>(card).expect("a node").padding;
-    assert_eq!(padding.left, Val::Px(13.0), "the project's rule pads the classed node");
+    until(&mut editor.app, "the project's rule padding the classed node", |app| {
+        app.world().get::<Node>(card).is_some_and(|node| node.padding.left == Val::Px(13.0))
+    });
     assert_eq!(verdict(&editor.app, "editor_style.yaml").map(|v| v.0), Some(Outcome::Applied));
 
     let lines = editor.app.world().resource::<bevy_dark_factory::style::StyleLines>();
@@ -165,8 +161,8 @@ fn a_type_size_in_a_users_layer_resizes_a_label_where_it_stands() {
     assert_eq!(shipped, body(), "the shipped body size");
 
     std::fs::write(&editor.user_style, "version: 1\nmetrics: {type: {body: 14.0}}\n").expect("a user layer");
+    until(&mut editor.app, "the layer's body size as the running one", |_| bevy_dark_factory::style::metrics().r#type.body == 14.0);
     settle(&mut editor.app);
-    assert_eq!(bevy_dark_factory::style::metrics().r#type.body, 14.0, "the layer's body size is the running one");
     assert_eq!(size(&editor.app), body(), "the same label, at the layer's body size");
     assert_ne!(size(&editor.app), shipped, "which is not the size it was spawned at");
 }
@@ -189,11 +185,11 @@ fn a_layout_measure_asks_for_a_rebuild_and_a_type_size_does_not() {
     settle(&mut editor.app);
 
     std::fs::write(&editor.user_style, "version: 1\nmetrics: {type: {body: 14.0}}\n").expect("a type size");
-    settle(&mut editor.app);
+    until(&mut editor.app, "the type size applied", |_| bevy_dark_factory::style::metrics().r#type.body == 14.0);
     assert_eq!(editor.app.world().resource::<Rebuilds>().0, 0, "a type size resizes labels where they stand");
 
     std::fs::write(&editor.user_style, "version: 1\nmetrics: {type: {body: 14.0}, layout: {bottom_dock_h: 200.0}}\n").expect("a dock height");
+    until(&mut editor.app, "the layer's dock height as the running measure", |_| bevy_dark_factory::style::metrics().layout.bottom_dock_h == 200.0);
     settle(&mut editor.app);
-    assert_eq!(bevy_dark_factory::style::metrics().layout.bottom_dock_h, 200.0, "the running measure is the layer's");
     assert_eq!(editor.app.world().resource::<Rebuilds>().0, 1, "and the door is rebuilt once to show it");
 }

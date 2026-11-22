@@ -2579,8 +2579,8 @@ impl Blueprint {
                        cascade order (selector, layer, file, line, specificity, what it sets; the last rule that \
                        sets a property wins it) and what they add up to. x and y are surface pixels, the \
                        coordinates of blueprint_capture_still's picture; omit both for the editor's pointer. Edit \
-                       the named file at the named line to change the look: the editor reloads it within a \
-                       fraction of a second. Refused, saying why, where no classed node is.",
+                       the named file at the named line to change the look: the editor applies the edit about a \
+                       second after the save. Refused, saying why, where no classed node is.",
         annotations(
             title = "Inspect the editor's style at a point",
             read_only_hint = true,
