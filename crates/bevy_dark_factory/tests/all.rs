@@ -139,6 +139,7 @@ mod forest_place;
 mod forest_season;
 mod forest_stroke_is_an_operation;
 mod forest_view;
+mod the_forest_follows_the_project_index;
 mod a_hint_shares_the_receipts_slot;
 mod a_history_jump_is_one_undo_group;
 mod a_key_set_in_both_settings_layers_takes_the_projects;
