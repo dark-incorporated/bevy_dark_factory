@@ -47,9 +47,33 @@
 //!
 //! # How a subscriber reads it
 //!
-//! `Res<ProjectIndex>`: [`ProjectIndex::generation`] says whether anything moved (an atomic load), [`ProjectIndex::snapshot`] is an
+//! `Res<ProjectIndex>`: [`Follow::generation`] says whether anything moved (an atomic load), [`Follow::snapshot`] is an
 //! `Arc` clone of the listing, and a `MessageReader<ProjectFileChanged>` says which path moved. A plugin that reads the index adds
 //! [`ProjectIndexPlugin`] itself with [`ensure`].
+//!
+//! # A folder outside the project (stage 2, #501 item 18)
+//!
+//! The person's `settings.yaml` and the turn ledger live in folders that are not under the project's root, so the project's tree cannot
+//! follow them. [`OutsideFiles`] follows a folder **for the names it is asked for and nothing else in it** (one `stat` each per sweep, no
+//! walk: the folder may hold a thousand other files, or be a temp folder), on a thread of its own with the project's [`DEBOUNCE`],
+//! [`MAX_HOLD`] and [`SWEEP`]. It is **one path**: the registry is keyed by root; [`note_written`] tells the newest index of each shape that
+//! follows the root it is given and does not wait; [`note_path_written`] is the one `edit_layer` calls when it saves a settings file (it tells
+//! the project's tree without waiting, and this folder's index, for which it waits at most [`NOTE_ACK_WAIT`]); and [`listed`] stays the project
+//! tree's answer; an outside folder is read through [`OutsideFiles::snapshot`]. Its changes are [`OutsideFileChanged`], a message of
+//! its own so a subscriber of the project's files never hears a file of the person's folder.
+//!
+//! **Absent is not an error; unreadable is.** A name that is not there is simply not listed, with no failure and no warning, and is a
+//! `Created` event when it comes: `NotFound` (the file, or the whole folder, does not exist: a person who never saved a setting has no
+//! settings folder) and `NotADirectory` (a component of the path is a file) are both absent. Any other error from the `stat` (a
+//! permission, say) is a failure, warned about once, kept for [`Follow::failure`], and the file is left as it was: it is never taken
+//! for a removal. A named file that is a link is followed (a settings file kept under a dotfile manager is one); the project's tree
+//! never follows links. **A thread that cannot be started is a failure too** ([`Follow::failure`] says so after one `error!`): the
+//! reader reads the file when it first sees it and it is not followed.
+//!
+//! **What the second thread costs**, measured on `big` with a throwaway test that is not kept (it reads `/proc`): one idle `outside-index`
+//! thread following one file at the default sweep used 0 clock ticks of CPU (under 10 ms) in 30 s, woke 29 times (once a sweep), and
+//! reserved 2 MB of address space (its stack). The test process's resident size went from 136,856 kB to 142,272 kB over the same
+//! 30 s and the follow, which that test cannot attribute to the thread, so no resident-memory figure is claimed for it.
 //!
 //! # What it costs
 //!
@@ -60,7 +84,7 @@
 //! clone is under a microsecond. On the UI thread the finder's scan with a previous scan to reuse costs 4 ms at 10,000 files and 43 ms at
 //! 100,000, and it runs only when a text file came, went or changed ([`Snapshot::text_generation`]); that 43 ms is **not** reduced here.
 //! **The worst case for a change going unseen is about [`MAX_SWEEP_EVERY`] plus [`MAX_HOLD`]**, when a sweep took long enough to reach
-//! the ceiling; [`ProjectIndex::failure`] and the tree's notice can lag by up to one sweep time, while `listed` is not affected because it
+//! the ceiling; [`Follow::failure`] and the tree's notice can lag by up to one sweep time, while `listed` is not affected because it
 //! settles first.
 //!
 //! # What this does not touch
@@ -81,7 +105,7 @@ use bevy::prelude::*;
 use crate::files::{Ignore, SKIPPED_DIRS, TreeBuild};
 use crate::project::Project;
 
-/// **How often the thread looks at every file it knows** unless [`ProjectIndex::set_sweep`] says otherwise: the one poll clock that
+/// **How often the thread looks at every file it knows** unless [`Follow::set_sweep`] says otherwise: the one poll clock that
 /// stays when the per-module ones retire into it.
 pub const SWEEP: Duration = Duration::from_secs(1);
 
@@ -94,7 +118,7 @@ pub const MAX_HOLD: Duration = Duration::from_secs(2);
 /// How often a held change is looked at again while it is settling.
 const TICK: Duration = Duration::from_millis(25);
 
-/// **The shortest time [`ProjectIndex::set_sweep`] accepts**: a sweep time of nothing would make the thread sweep without rest.
+/// **The shortest time [`Follow::set_sweep`] accepts**: a sweep time of nothing would make the thread sweep without rest.
 pub const MIN_SWEEP: Duration = TICK;
 
 /// **The longest the back-off leaves a sweep alone** (unless a caller set a longer time): a sweep that took 266 ms at 100,000 files
@@ -117,7 +141,7 @@ const SETTLE_WAIT: Duration = Duration::from_secs(10);
 /// How long a stepped editor waits for the first listing when it starts following a project.
 const FIRST_LISTING_WAIT: Duration = Duration::from_secs(60);
 
-/// How often [`ProjectIndex::wait_ready`] looks.
+/// How often [`Follow::wait_ready`] looks.
 const READY_POLL: Duration = Duration::from_millis(1);
 
 /// **How many times its own length a sweep is left alone for**: a sweep that took 266 ms (measured at 100,000 files on big) is followed by
@@ -264,6 +288,17 @@ fn observe(root: &Path, rel: &str) -> io::Result<Seen> {
     }
 }
 
+/// **One look at a named file**, following a link: `Ok(None)` for a name that is not there (or a link to nothing); an error for anything
+/// else, which the caller says and does not take for a removal.
+fn observe_followed(root: &Path, rel: &str) -> io::Result<Seen> {
+    counted();
+    match std::fs::metadata(full_path(root, rel)) {
+        Ok(meta) => Ok(Some((meta.is_dir(), stamp_of(&meta)))),
+        Err(e) if is_gone(&e) => Ok(None),
+        Err(e) => Err(e),
+    }
+}
+
 /// **The entries directly inside one folder**, with their stamps, filtered the way the tree filters. An error when the folder (or an
 /// entry in it that is still there) cannot be read: a half-read folder is not returned as a whole one.
 fn read_children(root: &Path, dir: &str, ignore: &Ignore, warned: &mut HashSet<String>) -> io::Result<Vec<(String, Entry)>> {
@@ -348,6 +383,19 @@ fn parent_of(rel: &str) -> &str {
 static GENERATION: AtomicU64 = AtomicU64::new(0);
 static NEXT_ID: AtomicU64 = AtomicU64::new(1);
 
+/// **What a root is followed as.** The project is a [`Shape::Tree`]; a folder outside it (the person's settings folder, the turn
+/// ledger's) is [`Shape::Files`]: [`OutsideFiles`].
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+enum Shape {
+    /// Every entry below the root, walked once and then followed (the project).
+    #[default]
+    Tree,
+    /// **Only these direct children of the root**, one `stat` each per sweep and no walk: a folder that holds a thousand other files
+    /// (a temp folder, a ledger's pictures) costs the same as one that holds none. The root may not exist: that is an absent file, not
+    /// an error (see [`Sweeper::first_look_at_files`]).
+    Files(Vec<String>),
+}
+
 /// What the thread hands the rest of the editor, replaced under the lock: the snapshot and the failure by assignment, the outbox by
 /// appending a batch and by being taken whole. A panic elsewhere cannot tear it; the index's own entries live on the thread and are
 /// never behind this lock.
@@ -366,6 +414,7 @@ struct State {
 struct Shared {
     id: u64,
     root: PathBuf,
+    shape: Shape,
     state: Mutex<State>,
     wake: Condvar,
     stop: AtomicBool,
@@ -384,6 +433,15 @@ impl Shared {
         self.state.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
     }
 
+    /// **One look at one path of this index.** A tree never follows a link; a named file does (a settings file kept under a dotfile
+    /// manager is a link, and `metadata` is what the editor read it with before).
+    fn observe(&self, rel: &str) -> io::Result<Seen> {
+        match self.shape {
+            Shape::Tree => observe(&self.root, rel),
+            Shape::Files(_) => observe_followed(&self.root, rel),
+        }
+    }
+
     fn sweep(&self) -> Duration {
         Duration::from_millis(self.sweep_millis.load(Ordering::Relaxed))
     }
@@ -392,26 +450,91 @@ impl Shared {
 /// One running index: its id, the root it follows, and a weak handle to it.
 type Running = (u64, PathBuf, Weak<Shared>);
 
-/// Every running index by `(id, root)`, so a later app on the same root does not hide an earlier one in the registry. [`registered`] (so
-/// [`note_written`] and [`listed`]) answers with the **newest** that still runs: with two apps on one root the older one is not
-/// reached by them and falls back on its own sweep, which is acceptable for tests and is not a case the editor has.
+/// Every running index by `(id, root)`, so a later app on the same root does not hide an earlier one in the registry. [`registered`]
+/// (so [`listed`]) answers with the **newest** tree that still runs, and [`note_written`] tells the newest of each shape: with two apps
+/// on one root the older one is not reached by them and falls back on its own sweep, which is acceptable for tests and is not a case
+/// the editor has.
 static REGISTRY: LazyLock<Mutex<Vec<Running>>> = LazyLock::new(Default::default);
 
 fn registry() -> MutexGuard<'static, Vec<Running>> {
     REGISTRY.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
 }
 
-fn registered(root: &Path) -> Option<Arc<Shared>> {
-    registry().iter().rev().filter(|(_, r, _)| r == root).find_map(|(_, _, weak)| weak.upgrade().filter(|s| !s.stop.load(Ordering::Relaxed)))
+fn newest(root: &Path, want_tree: bool) -> Option<Arc<Shared>> {
+    registry().iter().rev().filter(|(_, r, _)| r == root).find_map(|(_, _, weak)| {
+        weak.upgrade().filter(|s| !s.stop.load(Ordering::Relaxed) && matches!(s.shape, Shape::Tree) == want_tree)
+    })
 }
 
-/// **An operation has finished writing `rel`** (made, renamed away, deleted): the index looks at that path at once and publishes what
-/// it finds, with no debounce, because the writer knows the write is done. A hint, not an answer: with no index following `root` there
-/// is no one to tell, and the call does nothing.
-pub fn note_written(root: &Path, rel: &str) {
-    let Some(shared) = registered(root) else { return };
-    shared.lock().noted.push(rel.to_owned());
+/// The project index that follows `root`: the one [`listed`] answers from. A folder followed as [`OutsideFiles`] is not a project and
+/// is never listed as one.
+fn registered(root: &Path) -> Option<Arc<Shared>> {
+    newest(root, true)
+}
+
+/// Tell one index that `rel` is written; with `want_ack` the receiver of its answer, sent once the index has published what it found.
+fn tell(shared: &Shared, rel: &str, want_ack: bool) -> Option<mpsc::Receiver<()>> {
+    let mut st = shared.lock();
+    st.noted.push(rel.to_owned());
+    let ack = want_ack.then(|| {
+        let (tx, rx) = mpsc::channel();
+        st.syncs.push(tx);
+        rx
+    });
+    drop(st);
     shared.wake.notify_all();
+    ack
+}
+
+/// **An operation has finished writing `rel`** (made, renamed away, deleted, or a settings file saved): the newest index of each shape
+/// that follows `root` (the project's tree, or an [`OutsideFiles`] folder) looks at that path at once and publishes what it finds, with
+/// no debounce, because the writer knows the write is done. **It does not wait**, and a noted file publishes a `Modified` even when its
+/// size and time did not move (two saves of one length inside one clock tick are two writes). A hint, not an answer: with no index
+/// following `root` there is no one to tell, and the call does nothing.
+pub fn note_written(root: &Path, rel: &str) {
+    for shared in [newest(root, true), newest(root, false)].into_iter().flatten() {
+        tell(&shared, rel, false);
+    }
+}
+
+/// **A file's folder and name, as [`OutsideFiles`] follows it**: the folder (`.` for a bare name) and the name, `None` when the path has
+/// no name or it is not UTF-8.
+pub fn split_file(path: &Path) -> Option<(PathBuf, String)> {
+    let name = path.file_name()?.to_str()?.to_owned();
+    let dir = match path.parent() {
+        Some(parent) if !parent.as_os_str().is_empty() => parent.to_path_buf(),
+        _ => PathBuf::from("."),
+    };
+    Some((dir, name))
+}
+
+/// How long [`note_path_written`] waits for an [`OutsideFiles`] index to have published what it was told, so a caller on the UI thread
+/// is never held for more than this by a thread that is busy.
+const NOTE_ACK_WAIT: Duration = Duration::from_millis(250);
+
+/// **A writer that has finished writing the file at `path` says so**, without knowing which index follows it: it is [`note_written`] for
+/// every running project tree whose root `path` is under (no wait: its sweep may be running, and a wait would force the debounce of
+/// everything else it holds) and for the [`OutsideFiles`] folder `path` is in, **and for that one it returns once the index has
+/// published** (at most [`NOTE_ACK_WAIT`]), because a folder's thread has nothing else to do, so the next frame sees the change as it did
+/// when the file was `stat`-ed every frame. A hint: with no index that follows `path` the call does nothing.
+pub fn note_path_written(path: &Path) {
+    let trees: Vec<Arc<Shared>> = registry()
+        .iter()
+        .filter_map(|(_, _, weak)| weak.upgrade())
+        .filter(|s| matches!(s.shape, Shape::Tree) && !s.stop.load(Ordering::Relaxed) && path.starts_with(&s.root))
+        .collect();
+    for tree in trees {
+        if let Some(rel) = path.strip_prefix(&tree.root).ok().and_then(|r| r.to_str()) {
+            tell(&tree, &rel.replace('\\', "/"), false);
+        }
+    }
+    let Some((dir, name)) = split_file(path) else { return };
+    let Some(folder) = newest(&dir, false) else { return };
+    if let Some(ack) = tell(&folder, &name, true)
+        && let Err(e) = ack.recv_timeout(NOTE_ACK_WAIT)
+    {
+        warn!("the index of {} had not published {} within {NOTE_ACK_WAIT:?} ({e}); it will", dir.display(), path.display());
+    }
 }
 
 /// **The listing as of now, for a caller with no world**: the index that follows `root` settles (a sweep of its folders and what
@@ -501,6 +624,10 @@ impl Sweeper {
     /// **The first listing**: the one walk. It publishes no events (a first sighting is not a change). `false` when the root cannot be
     /// read, which is a failure said and tried again on the next sweep.
     fn first_listing(&mut self) -> bool {
+        let shared = self.shared.clone();
+        if let Shape::Files(names) = &shared.shape {
+            return self.first_look_at_files(names);
+        }
         let ignore = match ignore_of(self.root()) {
             Ok(ignore) => ignore,
             Err(why) => {
@@ -524,6 +651,64 @@ impl Sweeper {
         self.publish(true, &[]);
         self.clear_failure();
         true
+    }
+
+    /// **The first look at a folder followed as [`Shape::Files`]**: one `stat` for each named file, no walk, and it publishes no events.
+    ///
+    /// **A file that is not there is absent, and that is not an error**: `NotFound` and `NotADirectory` (the folder itself does not
+    /// exist yet, as a person who never saved a setting has no settings folder; or a component of the path is a file) leave the name out of the listing, quietly, and the
+    /// sweep finds it when it comes. **Any other error** (a permission, say) is a failure that is said once and kept for whoever asks
+    /// ([`Follow::failure`]), and the first look is tried again on the next sweep. `false` when it failed.
+    fn first_look_at_files(&mut self, names: &[String]) -> bool {
+        let mut entries = BTreeMap::new();
+        let mut unreadable = Vec::new();
+        for name in names {
+            match self.shared.observe(name) {
+                Ok(Some((dir, stamp))) => {
+                    entries.insert(name.clone(), Entry { dir, stamp, settled: false });
+                }
+                Ok(None) => {}
+                Err(e) => unreadable.push(format!("{} cannot be looked at ({e})", full_path(self.root(), name).display())),
+            }
+        }
+        if !unreadable.is_empty() {
+            self.fail(unreadable.join("; "));
+            return false;
+        }
+        if self.stopped() {
+            return false;
+        }
+        self.shared.walks.fetch_add(1, Ordering::Relaxed);
+        self.entries = entries;
+        self.publish(true, &[]);
+        self.clear_failure();
+        true
+    }
+
+    /// **One sweep of a folder followed as [`Shape::Files`]**: each named file is looked at, and what differs from what is held is a
+    /// pending change. A look that fails is not a removal: the file is left as it was and the failure is said (and ends with the next
+    /// look that works).
+    fn sweep_files(&mut self, names: &[String]) {
+        let mut unreadable = Vec::new();
+        for name in names {
+            if self.stopped() {
+                return;
+            }
+            match self.shared.observe(name) {
+                Ok(seen) => {
+                    let held = self.entries.get(name).map(|e| (e.dir, e.stamp));
+                    if seen != held {
+                        suspect(&mut self.pending, name, seen);
+                    }
+                }
+                Err(e) => unreadable.push(format!("{} cannot be looked at ({e}); it is left as it was", full_path(self.root(), name).display())),
+            }
+        }
+        if unreadable.is_empty() {
+            self.clear_failure();
+        } else {
+            self.fail(unreadable.join("; "));
+        }
     }
 
     /// **Hand the listing to the rest of the editor**: the snapshot is built here, off the lock, and swapped in with the events.
@@ -561,7 +746,7 @@ impl Sweeper {
         if rel.is_empty() || !self.listed(rel) {
             return;
         }
-        match observe(self.root(), rel) {
+        match self.shared.observe(rel) {
             Ok(seen) => {
                 let now = Instant::now();
                 self.pending.insert(rel.to_owned(), Pending { seen, since: now, held_since: now, immediate: true });
@@ -572,6 +757,9 @@ impl Sweeper {
 
     /// Whether the tree would list `rel`: no part of it is skipped or ignored.
     fn listed(&self, rel: &str) -> bool {
+        if let Shape::Files(names) = &self.shared.shape {
+            return names.iter().any(|name| name == rel);
+        }
         let parts: Vec<&str> = rel.split('/').collect();
         let mut at = String::new();
         for (n, part) in parts.iter().enumerate() {
@@ -590,6 +778,11 @@ impl Sweeper {
     /// then, when `with_files`, each file's own stamp. Whatever differs is held as a pending change. A caller that only wants the
     /// listing fresh passes `false` and costs one `stat` per folder, not per file.
     fn sweep(&mut self, with_files: bool) {
+        let shared = self.shared.clone();
+        if let Shape::Files(names) = &shared.shape {
+            self.sweep_files(names);
+            return;
+        }
         match observe(&self.shared.root, "") {
             Ok(Some((true, _))) => self.clear_failure(),
             Ok(_) => {
@@ -689,12 +882,12 @@ impl Sweeper {
     }
 
     /// **Re-look at what is held, and take out what has been steady long enough** (all of it when `force`).
-    fn ripen(&mut self, force: bool) -> Vec<(String, Seen)> {
+    fn ripen(&mut self, force: bool) -> Vec<(String, Seen, bool)> {
         let now = Instant::now();
         let Sweeper { shared, pending, warned, .. } = self;
         let mut ripe = Vec::new();
         pending.retain(|rel, held| {
-            let seen = match observe(&shared.root, rel) {
+            let seen = match shared.observe(rel) {
                 Ok(seen) => seen,
                 Err(e) => {
                     warn_once(warned, format!("stat:{rel}"), || format!("`{rel}` cannot be looked at ({e}); it is left as it was"));
@@ -706,7 +899,7 @@ impl Sweeper {
                 held.since = now;
             }
             if force || held.immediate || now.duration_since(held.since) >= DEBOUNCE || now.duration_since(held.held_since) >= MAX_HOLD {
-                ripe.push((rel.clone(), held.seen));
+                ripe.push((rel.clone(), held.seen, held.immediate));
                 false
             } else {
                 true
@@ -717,13 +910,13 @@ impl Sweeper {
     }
 
     /// **Fold what settled into the index**, queue one event for each entry that really changed, and publish once.
-    fn apply(&mut self, ripe: Vec<(String, Seen)>) {
+    fn apply(&mut self, ripe: Vec<(String, Seen, bool)>) {
         if ripe.is_empty() {
             return;
         }
         // **The folders above a new path are looked at before anything is folded**, so folding is memory only.
         let mut above: HashMap<String, Seen> = HashMap::new();
-        for (rel, seen) in &ripe {
+        for (rel, seen, _) in &ripe {
             if seen.is_none() {
                 continue;
             }
@@ -740,12 +933,12 @@ impl Sweeper {
         let mut events = Vec::new();
         let mut structural = false;
         let mut gitignore = false;
-        for (rel, seen) in ripe {
+        for (rel, seen, noted) in ripe {
             if rel.is_empty() {
                 continue;
             }
-            gitignore |= rel == ".gitignore";
-            fold(&mut self.entries, &above, &rel, seen, &mut events, &mut structural);
+            gitignore |= matches!(self.shared.shape, Shape::Tree) && rel == ".gitignore";
+            fold(&mut self.entries, &above, &rel, seen, noted, &mut events, &mut structural);
         }
         if !events.is_empty() {
             self.publish(structural, &events);
@@ -793,7 +986,7 @@ impl Sweeper {
         let mut structural = false;
         let none = HashMap::new();
         for (rel, seen) in diff {
-            fold(&mut self.entries, &none, &rel, seen, &mut events, &mut structural);
+            fold(&mut self.entries, &none, &rel, seen, false, &mut events, &mut structural);
         }
         if !events.is_empty() {
             self.publish(structural, &events);
@@ -808,13 +1001,15 @@ fn suspect(pending: &mut HashMap<String, Pending>, rel: &str, seen: Seen) {
 }
 
 /// **One settled observation against what the index holds**, in memory only. A path that appears gets its missing folders first (their
-/// looks are in `above`); a folder that goes takes everything under it; a file whose stamp moved is `Modified`; anything that ends
-/// where it began is nothing.
+/// looks are in `above`); a folder that goes takes everything under it; a file whose stamp moved is `Modified`, and so is a file a writer
+/// said it wrote (`noted`) whose stamp did not move (two saves of one length inside one clock tick); anything else that ends where it
+/// began is nothing.
 fn fold(
     entries: &mut BTreeMap<String, Entry>,
     above: &HashMap<String, Seen>,
     rel: &str,
     seen: Seen,
+    noted: bool,
     events: &mut Vec<ProjectFileChanged>,
     structural: &mut bool,
 ) {
@@ -863,7 +1058,7 @@ fn fold(
             create(entries, events, dir, stamp);
             *structural = true;
         }
-        (Some(held), Some((false, stamp))) if held.stamp != stamp => {
+        (Some(held), Some((false, stamp))) if held.stamp != stamp || noted => {
             entries.insert(rel.to_owned(), Entry { dir: false, stamp, settled: false });
             events.push(ProjectFileChanged { rel: rel.to_owned(), kind: ChangeKind::Modified, stamp: Some(stamp), dir: false });
         }
@@ -945,19 +1140,39 @@ impl Drop for Handle {
     }
 }
 
-/// **What the open project holds, following the changes** — the one listing the editor's panels read.
-///
-/// Started on the first frame a [`Project`] is present (or when the plugin is built, if one already is) and restarted when its root
-/// changes. See the module note for how to read it.
-#[derive(Resource, Default)]
-pub struct ProjectIndex {
+/// **What one index holds on the UI thread's side**: the handle to its thread, how many events it has published, and the root whose
+/// thread could not be started. [`ProjectIndex`] is one (the project's tree); [`OutsideFiles`] holds one per folder it follows.
+#[derive(Default)]
+pub struct Follow {
     handle: Option<Handle>,
     published: u64,
     /// A root whose thread could not be started: said once, and not tried again every frame.
     failed_root: Option<PathBuf>,
+    shape: Shape,
 }
 
-impl ProjectIndex {
+/// **What the open project holds, following the changes** — the one listing the editor's panels read.
+///
+/// Started on the first frame a [`Project`] is present (or when the plugin is built, if one already is) and restarted when its root
+/// changes. See the module note for how to read it. Its methods are [`Follow`]'s.
+#[derive(Resource, Default)]
+pub struct ProjectIndex(Follow);
+
+impl std::ops::Deref for ProjectIndex {
+    type Target = Follow;
+
+    fn deref(&self) -> &Follow {
+        &self.0
+    }
+}
+
+impl std::ops::DerefMut for ProjectIndex {
+    fn deref_mut(&mut self) -> &mut Follow {
+        &mut self.0
+    }
+}
+
+impl Follow {
     /// The root being followed.
     pub fn root(&self) -> Option<&Path> {
         self.handle.as_ref().map(|h| h.shared.root.as_path())
@@ -974,8 +1189,11 @@ impl ProjectIndex {
         self.handle.as_ref().and_then(|h| h.shared.lock().snapshot.clone())
     }
 
-    /// Why there is no listing, when the project root cannot be read.
+    /// Why there is no listing, when the project root cannot be read, or that its thread could not be started.
     pub fn failure(&self) -> Option<String> {
+        if let Some(root) = &self.failed_root {
+            return Some(format!("the index of {} could not start its thread, so it is not followed", root.display()));
+        }
         let handle = self.handle.as_ref().filter(|h| h.shared.failed.load(Ordering::Acquire))?;
         handle.shared.lock().failure.clone()
     }
@@ -1011,7 +1229,7 @@ impl ProjectIndex {
         self.handle.as_ref().map_or(Duration::ZERO, |h| Duration::from_micros(h.shared.last_sweep_micros.load(Ordering::Relaxed)))
     }
 
-    /// Wait for the first listing. `false` when `timeout` passes first or the root cannot be read (see [`ProjectIndex::failure`]).
+    /// Wait for the first listing. `false` when `timeout` passes first or the root cannot be read (see [`Follow::failure`]).
     pub fn wait_ready(&self, timeout: Duration) -> bool {
         let start = Instant::now();
         while self.generation() == 0 {
@@ -1027,6 +1245,7 @@ impl ProjectIndex {
         let shared = Arc::new(Shared {
             id: NEXT_ID.fetch_add(1, Ordering::Relaxed),
             root: root.to_path_buf(),
+            shape: self.shape.clone(),
             state: Mutex::new(State::default()),
             wake: Condvar::new(),
             stop: AtomicBool::new(false),
@@ -1039,7 +1258,11 @@ impl ProjectIndex {
         });
         registry().push((shared.id, root.to_path_buf(), Arc::downgrade(&shared)));
         let handle = Handle { shared: shared.clone() };
-        match std::thread::Builder::new().name("project-index".into()).spawn(move || run(shared)) {
+        let thread_name = match self.shape {
+            Shape::Tree => "project-index",
+            Shape::Files(_) => "outside-index",
+        };
+        match std::thread::Builder::new().name(thread_name.into()).spawn(move || run(shared)) {
             Ok(_) => self.handle = Some(handle),
             // The handle's drop takes the entry back out of the registry.
             Err(e) => {
@@ -1077,15 +1300,16 @@ impl ProjectIndex {
         self.handle.as_ref().is_some_and(|h| h.shared.news.load(Ordering::Acquire))
     }
 
-    fn deliver(&mut self, out: &mut MessageWriter<ProjectFileChanged>) {
-        let Some(handle) = &self.handle else { return };
+    /// What the thread found since the last call, for the system that publishes it.
+    fn take_events(&mut self) -> Vec<ProjectFileChanged> {
+        let Some(handle) = &self.handle else { return Vec::new() };
         let events = {
             let mut st = handle.shared.lock();
             handle.shared.news.store(false, Ordering::Release);
             std::mem::take(&mut st.outbox)
         };
         self.published += events.len() as u64;
-        out.write_batch(events);
+        events
     }
 }
 
@@ -1108,7 +1332,7 @@ fn follow_the_project(
         index.retarget(want, waits.is_some());
     }
     if index.has_news() {
-        index.deliver(&mut changed);
+        changed.write_batch(index.take_events());
     }
 }
 
@@ -1132,5 +1356,121 @@ impl Plugin for ProjectIndexPlugin {
 pub fn ensure(app: &mut App) {
     if !app.is_plugin_added::<ProjectIndexPlugin>() {
         app.add_plugins(ProjectIndexPlugin);
+    }
+}
+
+// ── A folder outside the project ─────────────────────────────────────────────
+
+/// **A named file of a folder outside the project changed**, published once for the whole editor, as [`ProjectFileChanged`] is for the
+/// project's. **A different message on purpose**: a subscriber of the project's files must never hear `settings.yaml` of the person's
+/// config folder as if it were a file of the project that happens to share the name.
+#[derive(Message, Clone, Debug, PartialEq, Eq)]
+pub struct OutsideFileChanged {
+    /// The folder that was followed (the one given to [`OutsideFiles::follow`]).
+    pub root: PathBuf,
+    /// The file's name.
+    pub rel: String,
+    pub kind: ChangeKind,
+    /// The stamp after the change; `None` for a removal.
+    pub stamp: Option<FileStamp>,
+    /// Whether the entry is a folder (a folder where the file should be); the reader meets it as a read that fails.
+    pub dir: bool,
+}
+
+/// **The folders outside the project that panels read, each followed for the files it was asked for and no others** (#501 item 18: the
+/// person's `settings.yaml`, the turn ledger's `turns.jsonl`). One thread for each folder, the same debounce and sweep as the project's
+/// index, and the same [`note_written`] to tell it a write is done.
+///
+/// **Absent is not an error.** A folder that does not exist yet (a person who never saved a setting has no settings folder) lists
+/// as empty, with no failure and no warning; the file is a [`ChangeKind::Created`] event when it comes. A stat that fails for any other
+/// reason ([`Follow::failure`]) is warned about once and kept, and the file is left as it was.
+///
+/// **The first listing publishes no event**, so a reader reads the file itself when it starts, and once more the first frame
+/// [`OutsideFiles::generation`] is not `0`: a change between its read and the listing is then not lost.
+#[derive(Resource, Default)]
+pub struct OutsideFiles {
+    follows: std::collections::HashMap<PathBuf, Follow>,
+}
+
+impl OutsideFiles {
+    /// **Follow the named direct children of `dir`**, and nothing else in it. Idempotent; a second call for a folder that is already
+    /// followed adds the names it lacks, which restarts that folder's thread (its first listing then publishes no event, so ask for every
+    /// name before the first read).
+    pub fn follow(&mut self, dir: &Path, names: &[&str]) {
+        let mut wanted: Vec<String> = match self.follows.get(dir).map(|f| &f.shape) {
+            Some(Shape::Files(held)) => held.clone(),
+            _ => Vec::new(),
+        };
+        let before = wanted.len();
+        for name in names {
+            if !wanted.iter().any(|w| w == name) {
+                wanted.push((*name).to_owned());
+            }
+        }
+        if wanted.len() == before && self.follows.contains_key(dir) {
+            return;
+        }
+        wanted.sort();
+        let mut follow = Follow { shape: Shape::Files(wanted), ..Follow::default() };
+        follow.retarget(Some(dir), false);
+        self.follows.insert(dir.to_path_buf(), follow);
+    }
+
+    /// Stop following `dir`: its thread ends.
+    pub fn unfollow(&mut self, dir: &Path) {
+        self.follows.remove(dir);
+    }
+
+    /// `0` until the first listing of `dir` is in, then a number larger after every applied change. An atomic load.
+    pub fn generation(&self, dir: &Path) -> u64 {
+        self.follows.get(dir).map_or(0, Follow::generation)
+    }
+
+    /// The listing of the watched names that exist, or `None` before the first listing is in.
+    pub fn snapshot(&self, dir: &Path) -> Option<Arc<Snapshot>> {
+        self.follows.get(dir).and_then(Follow::snapshot)
+    }
+
+    /// Why `dir` cannot be looked at, when a stat of a watched name failed for a reason other than the name not being there.
+    pub fn failure(&self, dir: &Path) -> Option<String> {
+        self.follows.get(dir).and_then(Follow::failure)
+    }
+
+    /// How often the thread of `dir` looks at its files (default [`SWEEP`], never less than [`MIN_SWEEP`]).
+    pub fn set_sweep(&self, dir: &Path, every: Duration) {
+        if let Some(follow) = self.follows.get(dir) {
+            follow.set_sweep(every);
+        }
+    }
+
+    /// Wait for the first listing of `dir`; `false` when `timeout` passes first or it cannot be looked at.
+    pub fn wait_ready(&self, dir: &Path, timeout: Duration) -> bool {
+        self.follows.get(dir).is_some_and(|f| f.wait_ready(timeout))
+    }
+}
+
+/// **Publish what the threads of the outside folders found.** In `PreUpdate`, with the project's.
+fn deliver_outside(mut outside: ResMut<OutsideFiles>, mut changed: MessageWriter<OutsideFileChanged>) {
+    for (root, follow) in &mut outside.follows {
+        if follow.has_news() {
+            let events = follow.take_events().into_iter().map(|e| OutsideFileChanged { root: root.clone(), rel: e.rel, kind: e.kind, stamp: e.stamp, dir: e.dir });
+            changed.write_batch(events);
+        }
+    }
+}
+
+/// The plugin: the message, the resource, and the system that publishes the outside folders' changes.
+pub struct OutsideFilesPlugin;
+
+impl Plugin for OutsideFilesPlugin {
+    fn build(&self, app: &mut App) {
+        app.init_resource::<OutsideFiles>().add_message::<OutsideFileChanged>().add_systems(PreUpdate, deliver_outside);
+    }
+}
+
+/// **Add [`OutsideFilesPlugin`] unless it is there**: what a plugin that follows a folder outside the project calls.
+pub fn ensure_outside(app: &mut App) {
+    if !app.is_plugin_added::<OutsideFilesPlugin>() {
+        app.add_plugins(OutsideFilesPlugin);
     }
 }

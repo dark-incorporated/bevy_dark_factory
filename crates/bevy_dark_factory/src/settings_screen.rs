@@ -21,8 +21,8 @@
 //! A change is one key written into `settings.yaml` or `editor.yaml` ([`setting_catalogue::write_key`],
 //! atomic, and a file that does not read is refused and left as it is). The editor's watcher
 //! ([`crate::settings::sync_settings`]) reads the file back as it reads an edit made by hand, so the screen
-//! has no second path to the running settings. The screen reads the two files itself, a few times a
-//! second while it is open, so an edit made elsewhere shows here too.
+//! has no second path to the running settings. The screen reads the two files when it is built, when one of its own
+//! controls writes, and when the file's index says it changed (an edit made elsewhere shows here too): it polls nothing.
 
 use std::path::PathBuf;
 
@@ -41,10 +41,7 @@ use bevy_gooey::{
 
 use crate::project::Project;
 use crate::setting_catalogue::{self, CATEGORIES, Kind, SCALE_STEP, Setting, Value};
-use crate::settings::{AgentFile, PROJECT_FILE, SettingsLayer, TerminalAgent, UserSettingsFile};
-
-/// How often the open screen looks at the two files, in seconds.
-const LOOK_EVERY: f32 = 0.25;
+use crate::settings::{AgentFile, FileNews, Heard, PROJECT_FILE, SettingsLayer, TerminalAgent, UserSettingsFile};
 
 /// How many button-heights of settings the list shows before it scrolls.
 const LIST_ROWS: f32 = 9.5;
@@ -113,13 +110,22 @@ impl Layer {
     pub(crate) fn of(path: Option<&PathBuf>) -> Layer {
         let Some(path) = path else { return Layer::Unavailable };
         let file = path.to_string_lossy().replace('\\', "/");
-        match std::fs::read_to_string(path) {
+        match crate::settings::read_settings_file(path) {
             Ok(text) => match SettingsLayer::read(&file, &text) {
                 Ok(layer) => Layer::Read(Box::new(layer)),
                 Err(r) => Layer::Unreadable(format!("{file} does not read ({}): {}", r.field.as_deref().unwrap_or("file"), r.reason)),
             },
-            Err(e) if e.kind() == std::io::ErrorKind::NotFound => Layer::Missing,
+            Err(e) if crate::settings::is_absent(&e) => Layer::Missing,
             Err(e) => Layer::Unreadable(format!("{file}: {e}")),
+        }
+    }
+
+    /// **The file as the screen last saw it, read again only when its index said it moved** (or when there is nothing to reuse: the
+    /// screen's own build or write, which asks for both files). A file no one changed is not read.
+    pub(crate) fn follow(path: Option<&PathBuf>, previous: Option<&Layer>, moved: bool) -> Layer {
+        match previous {
+            Some(previous) if !moved => previous.clone(),
+            _ => Layer::of(path),
         }
     }
 
@@ -353,6 +359,8 @@ pub struct SettingsScreenPlugin;
 
 impl Plugin for SettingsScreenPlugin {
     fn build(&self, app: &mut App) {
+        crate::project_index::ensure(app);
+        crate::project_index::ensure_outside(app);
         app.add_message::<OpenSettings>()
             .add_systems(Update, (chord, open, refresh, land_the_focus, clamp_the_scroll).chain())
             .add_systems(Update, say_the_collection)
@@ -563,7 +571,7 @@ type ControlState = (Entity, &'static mut SettingControl, Option<&'static mut Ch
 /// the list keeps its scroll offset, its focus and its layout (#429).
 #[allow(clippy::too_many_arguments)]
 fn refresh(
-    time: Res<Time>,
+    mut news: FileNews,
     files: Files,
     mut dialogs: Query<(Ref<SettingsDialog>, &mut Built)>,
     pages: Query<(Entity, &Rows)>,
@@ -573,21 +581,25 @@ fn refresh(
     mut defaults: Query<&mut Text, (With<LineDefault>, Without<ProblemLine>)>,
     marks: Query<(), With<LineMark>>,
     unreadable: Query<(), With<SettingUnreadable>>,
-    mut since: Local<f32>,
+    mut heard: Local<Heard>,
     mut focus: Option<ResMut<InputFocus>>,
     parents: Query<&ChildOf>,
     mut slots: Query<(Entity, &mut AgentSlot, &ChildOf)>,
     children: Query<&Children>,
     mut commands: Commands,
 ) {
+    // **Read before the dialog is looked for**, so the cursor over the messages moves on while the screen is closed.
+    let moved = news.moved(&mut heard, files.user().as_deref(), files.project().as_deref());
     let Ok((dialog, mut built)) = dialogs.single_mut() else { return };
-    *since += time.delta_secs();
-    if *since < LOOK_EVERY && !dialog.is_changed() && built.snapshot.is_some() {
+    if !moved.any() && !dialog.is_changed() && built.snapshot.is_some() {
         return;
     }
-    *since = 0.0;
     // The tab is not part of what the rows are built from (every tab's page is built), so turning one rebuilds nothing.
-    let snapshot = Snapshot { dialog: SettingsDialog { tab: 0, ..(*dialog).clone() }, user: Layer::of(files.user().as_ref()), project: Layer::of(files.project().as_ref()) };
+    // **Only the file that moved is read again**; the screen's own build and write (`dialog.is_changed()`) read both.
+    let previous = built.snapshot.as_ref().filter(|_| !dialog.is_changed());
+    let user = Layer::follow(files.user().as_ref(), previous.map(|s| &s.user), moved.user);
+    let project = Layer::follow(files.project().as_ref(), previous.map(|s| &s.project), moved.project);
+    let snapshot = Snapshot { dialog: SettingsDialog { tab: 0, ..(*dialog).clone() }, user, project };
     if built.snapshot.as_ref() == Some(&snapshot) {
         return;
     }

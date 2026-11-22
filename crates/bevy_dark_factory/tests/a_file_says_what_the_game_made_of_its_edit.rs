@@ -30,6 +30,8 @@ fn editor(tag: &str, live: bool) -> App {
     for _ in 0..4 {
         app.update();
     }
+    // The index's shortest sweep: the notes view follows the project index, and these tests write files from outside and wait under a second.
+    app.world().resource::<bevy_dark_factory::project_index::ProjectIndex>().set_sweep(bevy_dark_factory::project_index::MIN_SWEEP);
     // **A window with room for the bottom dock** (UI-61, #247). The Reload panel is gooey's bottom
     // dock now, and the dock is shown only where the workbench can spare it (`chrome::WORKBENCH_FLOOR_H`):
     // at the 1280 x 720 reference window with the terminal open it is not, or it would leave the

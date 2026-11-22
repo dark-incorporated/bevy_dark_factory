@@ -64,7 +64,7 @@ pub const IMAGE_EXTS: [&str; 5] = ["png", "jpg", "jpeg", "webp", "gif"];
 
 /// **The deepest the design folder is walked for boards**, in folders: `design/regions/<r>/levels/<m>/areas/<a>`
 /// is six below the root, and a board is one more. A walk with no bound would follow a symlink loop forever.
-const WALK_DEPTH_MAX: usize = 8;
+pub const WALK_DEPTH_MAX: usize = 8;
 
 /// **One picture on a board.**
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]

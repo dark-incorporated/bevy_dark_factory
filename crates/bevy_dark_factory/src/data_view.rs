@@ -7,8 +7,9 @@
 //! no longer reads (a cut-off save, a bounded leaf that became a word) left the panel with no rows and
 //! nothing to say why, and whether an edit which does read is one the game can take.
 //!
-//! One system looks at the registry and every file it lists when one of them moved, or once a second,
-//! and decides into `blueprint_state.reloads`:
+//! One system looks at the registry and every file it lists when **the project index** ([`crate::project_index`],
+//! #501) says one of them moved (the stamp it holds for the path is not the one the last look was made at), and
+//! decides into `blueprint_state.reloads`:
 //!
 //! - kind `game_data`, per file: `refused` with the file, the leaf and why when it does not pass
 //!   [`data_files::check`] (or is registered and gone), and `applied` when an edit leaves a file that
@@ -19,10 +20,13 @@
 //! **A file seen reading for the first time is no news**: opening a project, or registering a file, is
 //! not an edit, so nothing is decided until a file changes or fails. **One edit is one verdict**: a look
 //! decides only what differs from the look before, and everything one look finds is one `seq`.
+//!
+//! **A file the project index cannot follow is refused, not read**: a registered path outside the project, under
+//! a skipped folder or named by `.gitignore` is `refused` with that reason, because no event would ever say it moved
+//! (see [`crate::followed_files`]).
 
 use std::collections::BTreeMap;
 use std::path::PathBuf;
-use std::time::SystemTime;
 
 use bevy::prelude::*;
 use blueprint_model::data_files::{self, DataFiles};
@@ -30,11 +34,10 @@ use blueprint_model::live::{KindVerdict, Outcome};
 use blueprint_model::{reload, reload_check};
 
 use crate::editor::EditorState;
+use crate::followed_files::{self, Asked, Looked};
 use crate::live::EditorReloads;
 use crate::project::Project;
-
-/// How long files whose size and modification time did not move go unread.
-const RECHECK_SECS: f32 = 1.0;
+use crate::project_index::ProjectIndex;
 
 /// What a look at one file found.
 #[derive(Clone, PartialEq)]
@@ -45,23 +48,31 @@ enum Look {
     Refused { field: Option<String>, reason: String },
 }
 
-type Stat = Option<(SystemTime, u64)>;
-
 /// **What the editor last made of the open project's data registry and the files it lists.**
 #[derive(Resource, Default)]
 pub struct DataView {
     /// The blueprint directory this describes; another project starts the view afresh.
     dir: PathBuf,
-    /// Every file looked at (the registry first) and its size and modification time then.
-    stats: Vec<(PathBuf, Stat)>,
-    /// Seconds since the files were last read.
-    since: f32,
-    looked: bool,
+    /// What the last look was made at: the index's stamp of the registry first, then of every file it listed.
+    followed: Option<Looked>,
+    /// Why the index could not be asked, said once.
+    unanswered: Option<String>,
+    /// **How many times this view has looked at the filesystem**: each file read (the registry, and each file it lists), the
+    /// `.gitignore` read and the symbolic-link check a path the index does not list needs. A test says a change to another file
+    /// did not make it look.
+    reads: u64,
     /// By the file as a verdict names it: its kind and what the last look found.
     last: BTreeMap<String, (&'static str, Look)>,
     /// By the file: the hash of the text first seen reading, kept while the project stays open even when a
     /// refused registry takes the file out of `last`.
     baseline: BTreeMap<String, u64>,
+}
+
+impl DataView {
+    /// **How many filesystem looks this view has made** (see the field).
+    pub fn reads(&self) -> u64 {
+        self.reads
+    }
 }
 
 fn hash_of(text: &str) -> u64 {
@@ -71,17 +82,13 @@ fn hash_of(text: &str) -> u64 {
     hasher.finish()
 }
 
-fn stat_of(path: &std::path::Path) -> Stat {
-    std::fs::metadata(path).ok().and_then(|m| Some((m.modified().ok()?, m.len())))
-}
-
 /// **Look at the registry and the files it lists, and decide what differs from the look before.**
 ///
-/// Looked at every frame by size and modification time, and read again when one moved or once a second
-/// regardless (two writes inside one coarse timestamp tick look alike). A registry that is gone clears
-/// every verdict this view made.
+/// A frame in which the project index's generation did not move makes no filesystem call (one atomic load, after the path is built). When it did, the
+/// registry and the files the last look listed are compared by the stamp the index holds for each, and they
+/// are read only when one differs. A registry that is gone clears every verdict this view made.
 pub fn sync_data_view(
-    time: Res<Time>,
+    index: Res<ProjectIndex>,
     project: Option<Res<Project>>,
     mut view: ResMut<DataView>,
     mut reloads: Option<ResMut<EditorReloads>>,
@@ -89,39 +96,63 @@ pub fn sync_data_view(
 ) {
     let Some(project) = project else { return };
     let dir = project.blueprint_dir.clone();
-    view.since += time.delta_secs();
-    let stats: Vec<(PathBuf, Stat)> = if view.dir == dir && view.looked {
-        view.stats.iter().map(|(p, _)| (p.clone(), stat_of(p))).collect()
-    } else {
-        vec![(dir.join(data_files::REGISTRY_FILE), None)]
-    };
-    if view.dir == dir && view.looked && view.stats == stats && view.since < RECHECK_SECS {
+    let same_dir = view.dir == dir;
+    if same_dir && view.followed.as_ref().is_some_and(|f| f.generation == index.generation()) {
         return;
     }
-    view.since = 0.0;
-    if view.dir != dir {
+    let snapshot = match followed_files::ask(&index, &project.root) {
+        Asked::Wait => return,
+        Asked::Refuse(why) => {
+            followed_files::say_once(&mut view.unanswered, "the data files", Some(why), state.as_deref_mut());
+            return;
+        }
+        Asked::Ready(snapshot) => snapshot,
+    };
+    followed_files::say_once(&mut view.unanswered, "the data files", None, None);
+    if same_dir && let Some(followed) = view.followed.as_mut() && !followed.moved(&project.root, &snapshot) {
+        followed.generation = snapshot.generation;
+        return;
+    }
+    if !same_dir {
         view.dir = dir.clone();
         view.last.clear();
         view.baseline.clear();
-        view.looked = false;
+        view.followed = None;
         if let Some(reloads) = reloads.as_deref_mut() {
             reloads.forget(&["data_registry", "game_data"]);
         }
     }
 
     let registry = dir.join(data_files::REGISTRY_FILE);
-    let mut paths = vec![registry.clone()];
+    let mut stamps = Vec::new();
+    // Every file read and every filesystem look `reach` made.
+    let mut reads = 0u64;
     let mut now: BTreeMap<String, (&'static str, Look)> = BTreeMap::new();
     let reg_name = crate::map_files::file_name(&project, &registry);
-    match std::fs::read_to_string(&registry) {
-        // No registry is no data files to say anything about.
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
-        Err(e) => {
-            now.insert(reg_name.clone(), ("data_registry", Look::Refused { field: None, reason: e.to_string() }));
+    let registry_reach = followed_files::reach(&project.root, &snapshot, &registry, &mut reads);
+    stamps.push((registry.clone(), registry_reach.clone().unwrap_or(None)));
+    let registry_text = match registry_reach {
+        Err(why) => Err(why),
+        Ok(_) => {
+            reads += 1;
+            match std::fs::read_to_string(&registry) {
+                Ok(text) => Ok(Some(text)),
+                // No registry is no data files to say anything about.
+                Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(None),
+                Err(e) => Err(e.to_string()),
+            }
         }
-        Ok(text) => {
-            let kind = reload::kind_by_id("data_registry").expect("the registry kind is in KINDS");
-            match reload_check::check(kind, &reg_name, &text) {
+    };
+    match registry_text {
+        Err(reason) => {
+            now.insert(reg_name.clone(), ("data_registry", Look::Refused { field: None, reason }));
+        }
+        Ok(None) => {}
+        Ok(Some(text)) => match reload::kind_by_id("data_registry") {
+            None => {
+                now.insert(reg_name.clone(), ("data_registry", Look::Refused { field: None, reason: "the editor has no `data_registry` kind of reload".to_owned() }));
+            }
+            Some(kind) => match reload_check::check(kind, &reg_name, &text) {
                 reload_check::Check::Refused(r) => {
                     now.insert(reg_name.clone(), ("data_registry", Look::Refused { field: r.field, reason: r.reason }));
                 }
@@ -130,27 +161,34 @@ pub fn sync_data_view(
                     if let Ok(registered) = DataFiles::parse(&text) {
                         for f in &registered.files {
                             let path = dir.join(&f.path);
-                            paths.push(path.clone());
                             let name = crate::map_files::file_name(&project, &path);
-                            let look = match std::fs::read_to_string(&path) {
-                                Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
-                                    Look::Refused { field: None, reason: format!("`{}` is registered in data.yaml and is not there", f.path) }
+                            let file_reach = followed_files::reach(&project.root, &snapshot, &path, &mut reads);
+                            stamps.push((path.clone(), file_reach.clone().unwrap_or(None)));
+                            let look = match file_reach {
+                                Err(why) => Look::Refused { field: None, reason: why },
+                                Ok(_) => {
+                                    reads += 1;
+                                    match std::fs::read_to_string(&path) {
+                                        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+                                            Look::Refused { field: None, reason: format!("`{}` is registered in data.yaml and is not there", f.path) }
+                                        }
+                                        Err(e) => Look::Refused { field: None, reason: e.to_string() },
+                                        Ok(text) => match data_files::check(&name, f, &text) {
+                                            Ok(()) => Look::Reads(hash_of(&text)),
+                                            Err(r) => Look::Refused { field: r.field, reason: r.reason },
+                                        },
+                                    }
                                 }
-                                Err(e) => Look::Refused { field: None, reason: e.to_string() },
-                                Ok(text) => match data_files::check(&name, f, &text) {
-                                    Ok(()) => Look::Reads(hash_of(&text)),
-                                    Err(r) => Look::Refused { field: r.field, reason: r.reason },
-                                },
                             };
                             now.insert(name, ("game_data", look));
                         }
                     }
                 }
-            }
-        }
+            },
+        },
     }
-    view.stats = paths.iter().map(|p| (p.clone(), stat_of(p))).collect();
-    view.looked = true;
+    view.followed = Some(Looked::new(&snapshot, &project.root, stamps));
+    view.reads += reads;
 
     let view = &mut *view;
     let mut verdicts = Vec::new();

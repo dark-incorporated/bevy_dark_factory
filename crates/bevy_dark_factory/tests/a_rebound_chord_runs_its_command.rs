@@ -43,6 +43,17 @@ fn updates(app: &mut App, n: usize) {
     }
 }
 
+/// **Wait on the wall clock until the editor has taken a keymap edit made by hand** (#501 item 18: the settings files are followed by an
+/// index, not polled, so an edit is seen after the index's sweep and debounce, which a fixed number of frames does not wait for). The
+/// assertions after it are unchanged.
+fn until_the_keymap_is_empty(app: &mut App) {
+    let began = std::time::Instant::now();
+    while !app.world().resource::<bevy_dark_factory::settings::EditorSettings>().keymap.is_empty() && began.elapsed() < std::time::Duration::from_secs(10) {
+        app.update();
+        std::thread::sleep(std::time::Duration::from_millis(15));
+    }
+}
+
 /// How many times the map has been saved: one `map_save` line per save in the project's op log.
 fn saves(root: &Path) -> usize {
     std::fs::read_to_string(bevy_dark_factory::ops::oplog_path_at(root))
@@ -112,6 +123,7 @@ fn deleting_the_entry_gives_the_default_chord_back() {
     let (mut app, root, user) = rig("rebound_removed", &[("file.save", ctrl_shift_y())]);
     let primary = keys::MOD_KEYS[0];
     write_keymap(&user, &[]);
+    until_the_keymap_is_empty(&mut app);
     updates(&mut app, 4);
 
     let before = saves(&root);

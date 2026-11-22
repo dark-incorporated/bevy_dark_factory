@@ -25,7 +25,7 @@ use bevy::prelude::*;
 use bevy::window::PrimaryWindow;
 use bevy_dark_factory::command_run::Chords;
 use bevy_dark_factory::commands;
-use bevy_dark_factory::files::{self, ConflictAnswer, Files, DIAGNOSE_IDLE_S, POLL_S};
+use bevy_dark_factory::files::{self, ConflictAnswer, Files, DIAGNOSE_IDLE_S};
 use bevy_dark_factory::files_lang::{self, Lang};
 use bevy_dark_factory::harness;
 use bevy_dark_factory::keys::Live;
@@ -67,6 +67,34 @@ fn settle(app: &mut App) {
     for _ in 0..SETTLE {
         app.update();
     }
+}
+
+/// **How long a change made from outside may take to reach an open file**, in seconds: the project index's sweep and debounce are about a
+/// second and a tenth, so this is many times that and a failure is a change never heard, not a slow one.
+const HEARD_WITHIN_S: f64 = 20.0;
+
+/// **Step frames until `done`, for at most [`HEARD_WITHIN_S`] of wall time.** The open file now reads when the project index says it moved
+/// (#501), on the index's own thread and clock, so a fixed sleep or a fixed number of frames is not a wait for it.
+/// Re-pointed from the sleeps of the retired `files::POLL_S` (the commit body lists each test).
+fn settle_until(app: &mut App, what: &str, mut done: impl FnMut(&mut App) -> bool) {
+    let started = std::time::Instant::now();
+    while started.elapsed().as_secs_f64() < HEARD_WITHIN_S {
+        settle(app);
+        if done(app) {
+            return;
+        }
+        std::thread::sleep(Duration::from_millis(20));
+    }
+    panic!("{what}: not seen within {HEARD_WITHIN_S} s");
+}
+
+/// **Step until the project index lists `rel`.** A file made and taken away again inside one sweep of the index is never heard of, so a
+/// test that deletes a file it only just made waits for the index to know it first.
+/// Re-pointed from the sleeps of the retired `files::POLL_S` (the commit body lists each test).
+fn settle_until_indexed(app: &mut App, rel: &str) {
+    settle_until(app, "the index lists the file", |app| {
+        app.world().resource::<bevy_dark_factory::project_index::ProjectIndex>().snapshot().is_some_and(|s| s.files.iter().any(|(f, _)| f == rel))
+    });
 }
 
 fn run_command(app: &mut App, id: &str) {
@@ -283,8 +311,7 @@ fn a_change_from_outside_under_unsaved_edits_asks_and_overwrites_nothing() {
 
     let outside = MAP_TEXT.replace("yaw: 0.0", "yaw: 45.0");
     blueprint_model::atomic_file::write(&root.join(MAP), &outside).unwrap_or_else(|e| panic!("{e}"));
-    std::thread::sleep(Duration::from_secs_f64(POLL_S + 0.1));
-    settle(&mut app);
+    settle_until(&mut app, "the disk's text waits for an answer", |app| app.world().resource::<Files>().get(MAP).is_some_and(|f| f.external.is_some()));
 
     let waiting = app.world().resource::<Files>().get(MAP).and_then(|f| f.external.clone());
     assert_eq!(waiting.as_deref(), Some(outside.as_str()), "the disk's text waits for an answer");
@@ -318,15 +345,13 @@ fn reload_takes_the_disks_text_and_a_file_nobody_edited_reloads_by_itself() {
     // Nobody has typed: an outside change is simply what the editor shows.
     let first = MAP_TEXT.replace("yaw: 0.0", "yaw: 10.0");
     blueprint_model::atomic_file::write(&root.join(MAP), &first).unwrap_or_else(|e| panic!("{e}"));
-    std::thread::sleep(Duration::from_secs_f64(POLL_S + 0.1));
-    settle(&mut app);
+    settle_until(&mut app, "an unedited file reloads", |app| text(app) == first);
     assert_eq!(text(&mut app), first, "a file with no unsaved edits reloads without asking");
 
     type_a_key(&mut app, "lift: 0.5");
     let second = MAP_TEXT.replace("yaw: 0.0", "yaw: 20.0");
     blueprint_model::atomic_file::write(&root.join(MAP), &second).unwrap_or_else(|e| panic!("{e}"));
-    std::thread::sleep(Duration::from_secs_f64(POLL_S + 0.1));
-    settle(&mut app);
+    settle_until(&mut app, "the disk's text waits for an answer", |app| app.world().resource::<Files>().get(MAP).is_some_and(|f| f.external.as_deref() == Some(second.as_str())));
     click_answer(&mut app, ConflictAnswer::Reload);
     assert_eq!(text(&mut app), second, "Reload takes what the disk holds");
     assert!(!app.world().resource::<Files>().is_dirty(MAP), "and the tab is clean");
@@ -469,12 +494,10 @@ fn the_languages_are_coloured_by_role_and_references_are_links() {
     assert_eq!(role_of(&s, rhai, "open"), Some(SyntaxRole::Function));
     assert_eq!(role_of(&s, rhai, "\"hi\""), Some(SyntaxRole::String));
     assert_eq!(role_of(&s, rhai, "// count"), Some(SyntaxRole::Comment));
+    // Markdown: the host colours nothing. ONE path: a Markdown page's ink is gooey's `CodeMarkdown` (#525), proved from the rendered runs in
+    // `a_markdown_page_wraps_and_is_drawn_in_ink`. This is a tombstone: if a host tokenizer for Markdown is ever added back, this fails.
     let md = "# Title\n\nSome `code` and [a link](x.md).\n\n```\nfenced\n```\n";
-    let s = spans(Lang::Markdown, md, None);
-    assert_eq!(role_of(&s, md, "# Title"), Some(SyntaxRole::Keyword));
-    assert_eq!(role_of(&s, md, "`code`"), Some(SyntaxRole::String));
-    assert_eq!(role_of(&s, md, "[a link](x.md)"), Some(SyntaxRole::Reference));
-    assert_eq!(role_of(&s, md, "fenced"), Some(SyntaxRole::String));
+    assert!(spans(Lang::Markdown, md, None).is_empty(), "a Markdown page is coloured by gooey's `CodeMarkdown`, not by a host tokenizer");
 }
 
 /// **Errors are the loader's**: a duplicate key, a tab and a second document are named by the event walk; a
@@ -661,10 +684,9 @@ fn a_path_out_of_the_project_a_non_text_file_a_huge_one_and_a_vanished_one_are_r
     // A file that grows past the limit while it is open is not loaded by the poll: the tab says why.
     std::fs::write(root.join("grows.txt"), "small\n").unwrap_or_else(|e| panic!("{e}"));
     open(&mut app, "grows.txt").unwrap_or_else(|e| panic!("{e}"));
-    settle(&mut app);
+    settle_until_indexed(&mut app, "grows.txt");
     std::fs::write(root.join("grows.txt"), &big).unwrap_or_else(|e| panic!("{e}"));
-    std::thread::sleep(Duration::from_secs_f64(POLL_S + 0.1));
-    settle(&mut app);
+    settle_until(&mut app, "the tab says the file is too big", |app| app.world().resource::<Files>().get("grows.txt").is_some_and(|f| f.problem.is_some()));
     let file = app.world().resource::<Files>().get("grows.txt").cloned().unwrap_or_else(|| panic!("open"));
     assert!(file.problem.as_deref().is_some_and(|p| p.contains("KiB")), "the tab says it is too big: {:?}", file.problem);
     assert_eq!(file.text, "small\n", "and the 2 MB+ file was not read into the editor");
@@ -673,11 +695,10 @@ fn a_path_out_of_the_project_a_non_text_file_a_huge_one_and_a_vanished_one_are_r
     std::fs::create_dir_all(root.join("scripts")).unwrap_or_else(|e| panic!("{e}"));
     std::fs::write(root.join("scripts/a.rhai"), "let a = 1;\n").unwrap_or_else(|e| panic!("{e}"));
     open(&mut app, "scripts/a.rhai").unwrap_or_else(|e| panic!("{e}"));
-    settle(&mut app);
+    settle_until_indexed(&mut app, "scripts/a.rhai");
     app.world_mut().resource_mut::<Files>().get_mut("scripts/a.rhai").map(|f| f.text.push_str("let b = 2;\n")).unwrap_or_default();
     std::fs::remove_dir_all(root.join("scripts")).unwrap_or_else(|e| panic!("{e}"));
-    std::thread::sleep(Duration::from_secs_f64(POLL_S + 0.1));
-    settle(&mut app);
+    settle_until(&mut app, "the tab says the file was deleted", |app| app.world().resource::<Files>().get("scripts/a.rhai").is_some_and(|f| f.problem.is_some()));
     assert!(app.world().resource::<Files>().get("scripts/a.rhai").is_some_and(|f| f.problem.as_deref().is_some_and(|p| p.contains("deleted"))), "the tab says the file was deleted");
     let mut files_res = app.world_mut().resource_mut::<Files>();
     let refused = files::save_file(&mut files_res, &root, "scripts/a.rhai").expect_err("a save of a deleted file refuses");

@@ -28,6 +28,23 @@
 //!
 //! BRP is read on a thread that answers through a mutex, one poll in flight at a time; the log is a file tail read when
 //! its length changes.
+//!
+//! # What follows the project index, and what does not (#501)
+//!
+//! - **The Open file column follows it.** The entity files are read again when the index's stamp (size and modification time) of one of them moved, or
+//!   the chosen entity or its components changed; there is no clock (`draw_the_field_files`). A change reaches the column after the index's sweep and
+//!   debounce, which is about 0.1 to 1.1 s ([INFERENCE]: the index's own numbers, not measured on this column), and a file the project's `.gitignore` names is not followed.
+//! - **The BRP read stays on its clock ([`STATE_POLL_S`])**: it asks the running game over a socket for entities, resources and frame time, which are
+//!   in another process's memory and in no file, so there is nothing for the index to say moved. This is one of the two deliberate exceptions to #501;
+//!   the owner decides whether its 22 constants include it.
+//! - **The log tail stays on its clock ([`LOG_POLL_S`])**, decided with a measurement (big, 2026-11-22, a throwaway test that is not committed, on **a file under a
+//!   project root, not on the log in the temporary directory**). The log is in the temporary directory
+//!   ([`crate::ops_play::log_path`]), outside the project root the index follows, so it is not on the index at all. And the index would not keep it
+//!   live: a file appended once showed 108 to 127 ms later with the index's sweep at its floor and 149 to 1008 ms later at its default 1 s; a file
+//!   appended every 50 ms for 8 s was published every 2.0 s (the index's `MAX_HOLD`) at the floor and every 2.2 to 3.0 s at the default, where the tail
+//!   is read every 0.25 s. A game that prints continuously would show its log every two or three seconds. The tail costs one `metadata` call per
+//!   [`LOG_POLL_S`] while the Game workspace is open, and [`LOG_CAP_CHECK_S`], the stat that keeps the log under its cap while the game runs, is the
+//!   same kind of read and is not one of #501's 22.
 
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -41,6 +58,7 @@ use serde_json::{Value, json};
 
 use crate::ops_play::{self, Exit};
 use crate::project::Project;
+use crate::project_index::{FileStamp, ProjectIndex, Snapshot as Listing};
 use crate::screen::Screen;
 use crate::workspace::Workspace;
 
@@ -48,11 +66,12 @@ use crate::workspace::Workspace;
 pub const LOG_LINES: usize = 40;
 /// How many of the last lines a crash keeps on the status line's account, beside its exit code.
 pub const CRASH_LOG_LINES: usize = 8;
-/// Seconds between looks at the log file's length.
+/// Seconds between looks at the log file's length. **Stays a clock** (#501): the log is outside the project root, and the index would show it every
+/// two or three seconds, not every quarter of one (see the module note for the measurement).
 pub const LOG_POLL_S: f32 = 0.25;
 /// Seconds between checks that the game's log is still under its cap.
 pub const LOG_CAP_CHECK_S: f32 = 1.0;
-/// Seconds between reads of the game's state over BRP.
+/// Seconds between reads of the game's state over BRP. **Stays a clock** (#501): it asks a running process over a socket, which no file says moved.
 pub const STATE_POLL_S: f32 = 1.0;
 /// Milliseconds a BRP read waits for the game before it is called unanswered.
 pub const BRP_TIMEOUT_MS: u64 = 500;
@@ -335,6 +354,7 @@ pub struct GameViewPlugin;
 
 impl Plugin for GameViewPlugin {
     fn build(&self, app: &mut App) {
+        crate::project_index::ensure(app);
         app.init_resource::<GameView>()
             // **Watching runs in every workspace**: a crash while a person is on the Map is the one they most need to hear of.
             .add_systems(Update, (watch_the_game, report_the_window).run_if(in_state(Screen::Editor)))
@@ -730,48 +750,89 @@ pub const STATE_VIEW_VALUE_SEP: &str = ": ";
 /// **How the engine separates a type's module from its own name.**
 pub const MODULE_SEP: &str = "::";
 
-/// **How often the entity files are read again for the chosen entity**, in seconds: they are read for the line each component stands on, and a file
-/// edited under the panel moves a line.
-pub const FIELD_FILES_POLL_S: f32 = 1.5;
+/// **What the Open file column last drew**: the entity and the components the rows were read for, the entity files (with the project index's
+/// stamps) they were read from, the rows it drew (component, file, line), the index generation it last looked at, and why the index last could
+/// not answer. A named type, so the column's own memory reads as one thing.
+#[derive(Default)]
+struct Drawn {
+    key: Option<(String, Vec<String>)>,
+    files: Vec<(String, FileStamp)>,
+    rows: Vec<(String, String, usize)>,
+    generation: u64,
+    refused: Option<String>,
+}
+
+/// **The chosen entity's name and the short names of its components**: what the entity files are read for. A component's *value* is not in it (it
+/// moves on every read of the game), so a value that changes asks nothing of the files.
+fn field_key(view: &GameView) -> Option<(String, Vec<String>)> {
+    let (id, lines) = view.snapshot.fields.as_ref().filter(|(id, _)| view.selected == Some(*id))?;
+    let entity = view.snapshot.entities.iter().find(|e| e.id == *id)?;
+    // The state view writes a component's name as the engine words it; the entity file's key is the type's own name, so both of the view's
+    // own separators are named here rather than spelled out.
+    let components = lines.iter().filter_map(|line| line.split(STATE_VIEW_VALUE_SEP).next()?.rsplit(MODULE_SEP).next()).map(str::to_owned).collect();
+    Some((entity.name.clone(), components))
+}
+
+/// **The project's entity files with the stamps the index holds of them**, in path order: the files the line a component stands on is read from
+/// (`crate::crosslinks::component_line` reads the direct children of the entities folder that end in the entity-file extension).
+fn entity_files(listing: &Listing) -> Vec<(String, FileStamp)> {
+    let folder = format!("{}/", bevy_blueprint::entities::ENTITIES_DIR);
+    let from = listing.files.partition_point(|(rel, _)| rel.as_str() < folder.as_str());
+    listing.files[from..]
+        .iter()
+        .take_while(|(rel, _)| rel.starts_with(&folder))
+        .filter(|(rel, _)| rel.ends_with(bevy_blueprint::entities::ENTITIES_EXT) && !rel[folder.len()..].contains('/'))
+        .cloned()
+        .collect()
+}
 
 /// **Draw an Open file row for each component the project's entity files set**, for the chosen entity. The state view stays read-only (the file is
 /// the truth, P3): a row does not change the game, it opens the YAML that does, at the line.
-/// **What the Open file column last drew**: the entity and its fields it was drawn for, the rows it drew (component, file, line), and the
-/// seconds since it last looked. A named type, so the column's own memory reads as one thing.
-type Drawn = (Option<(u64, Vec<String>)>, Vec<(String, String, usize)>, f32);
-
+///
+/// **The entity files are read again when the project index says one of them moved** (its stamp), or the chosen entity or its components changed,
+/// and not on a clock: a frame where the index's generation and the choice are the same as last time looks at nothing, and a frame where the index
+/// moved for some other file compares the entity files' stamps and reads nothing. When the index has no listing the rows are left as drawn and the
+/// failure is said once.
 fn draw_the_field_files(
     view: Res<GameView>,
     project: Option<Res<Project>>,
-    time: Res<Time>,
+    index: Res<ProjectIndex>,
     list: Query<(Entity, Option<&Children>), With<GameFieldFiles>>,
     mut commands: Commands,
     mut shown: Local<Drawn>,
 ) {
     let Ok((container, children)) = list.single() else { return };
-    let key = view.snapshot.fields.clone().filter(|(id, _)| view.selected == Some(*id));
-    shown.2 += time.delta_secs();
-    let unfilled = !shown.1.is_empty() && children.is_none_or(|c| c.is_empty());
-    if shown.0 == key && shown.2 < FIELD_FILES_POLL_S && !unfilled {
+    let key = field_key(&view);
+    let unfilled = !shown.rows.is_empty() && children.is_none_or(|c| c.is_empty());
+    if shown.key == key && shown.generation == index.generation() && !unfilled {
         return;
     }
-    shown.2 = 0.0;
+    let Some(listing) = index.snapshot() else {
+        // No listing yet is the index still walking; no listing with a failure is the root that cannot be read.
+        if let Some(why) = index.failure()
+            && shown.refused.as_deref() != Some(why.as_str())
+        {
+            warn!("game view: the project index has no listing ({why}), so the entity files are not read");
+            shown.refused = Some(why);
+        }
+        return;
+    };
+    shown.refused = None;
+    shown.generation = listing.generation;
+    let files = entity_files(&listing);
+    if shown.key == key && shown.files == files && !unfilled {
+        return;
+    }
     let want: Vec<(String, String, usize)> = match (&key, project.as_deref()) {
-        (Some((id, lines)), Some(project)) => view.snapshot.entities.iter().find(|e| e.id == *id).map_or_else(Vec::new, |entity| {
-            lines
-                .iter()
-                .filter_map(|line| {
-                    // The state view writes a component's name as the engine words it; the entity file's key is the type's own
-                    // name, so both of the view's own separators are named here rather than spelled out.
-                    let component = line.split(STATE_VIEW_VALUE_SEP).next()?.rsplit(MODULE_SEP).next()?;
-                    crate::crosslinks::component_line(&project.root, &entity.name, component).map(|(rel, at)| (component.to_owned(), rel, at))
-                })
-                .collect()
-        }),
+        (Some((entity, components)), Some(project)) => components
+            .iter()
+            .filter_map(|component| crate::crosslinks::component_line(&project.root, entity, component).map(|(rel, at)| (component.clone(), rel, at)))
+            .collect(),
         _ => Vec::new(),
     };
-    shown.0 = key;
-    if shown.1 == want && !unfilled {
+    shown.key = key;
+    shown.files = files;
+    if shown.rows == want && !unfilled {
         return;
     }
     for child in children.into_iter().flatten() {
@@ -786,7 +847,7 @@ fn draw_the_field_files(
                 });
         }
     });
-    shown.1 = want;
+    shown.rows = want;
 }
 
 /// **A click in the Game panel**: choose an entity to read, or bring the game's window to the front.

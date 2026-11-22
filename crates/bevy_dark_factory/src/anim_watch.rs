@@ -2,10 +2,13 @@
 //!
 //! Four pieces, all frame-driven ECS in the crate's deliberate no-threads style:
 //!
-//! - [`RigWatch`] polls the loaded rigs' GLB mtimes on a coarse timer. A change counts only when
-//!   the new mtime is seen EQUAL on two consecutive polls — an exporter mid-write never triggers a
-//!   measure of half a file. The `devshot` sentinel poll is the precedent; `notify` and a thread
-//!   are exactly what this crate does not do.
+//! - [`RigWatch`] follows the loaded rigs' GLBs through the project index (`crate::project_index`,
+//!   #501): it reads the index's stamp (size and modification time) of each one when the index's
+//!   generation moves, and a changed stamp queues its rigs. The exporter-mid-write debounce, which was
+//!   "the mtime seen equal on two consecutive polls", is the index's: it publishes a stamp once it has
+//!   been steady for `DEBOUNCE`, or after `MAX_HOLD` of a file that never settles, so a file rewritten
+//!   without a pause for longer than that is measured part-way and again when it ends. A file the
+//!   project's `.gitignore` names is not listed, so it is not followed.
 //! - [`MeasureQueue`] + [`step_measure_queue`] re-measure **one rig per frame**, the `thumbs::bake`
 //!   shape — a re-export that touches sixteen GLBs costs sixteen frames, never one stalled one.
 //!   Selection, the watcher, and check-all all feed the same queue: one measurement path.
@@ -18,74 +21,58 @@
 //! The stale count is painted onto the tab strip's `ANIM` label in place, so it survives tab
 //! switches: a fact about the project does not stop being true because a different tab is open.
 
-use std::collections::{HashMap, VecDeque};
-use std::time::SystemTime;
+use std::collections::{HashMap, HashSet, VecDeque};
 
 use bevy::prelude::*;
 
 use blueprint_model::rig_check::{Finding, Level, Staleness};
 
 use crate::anim_tab::BenchState;
+use crate::project_index::{FileStamp, ProjectIndex, Snapshot as Listing};
 use crate::tiles::Mode;
 
-/// Seconds between mtime polls. Coarse on purpose: the point is "within a breath of the export",
-/// not "within a frame", and sixteen `stat` calls a second is already generous.
-const POLL_SECS: f32 = 1.0;
+/// The folder the rigs' meshes are named under, as the project index names it.
+const ASSETS_REL: &str = "assets";
 
-/// The mtime watcher's memory, per mesh path.
-#[derive(Resource)]
+/// `rigs.yaml` as the project index names it.
+const RIGS_REL: &str = "assets/blueprint/rigs.yaml";
+
+/// The stamp the project index holds for `rel`: `None` when it lists no such file.
+fn stamp_in(listing: &Listing, rel: &str) -> Option<FileStamp> {
+    listing.files.binary_search_by(|(path, _)| path.as_str().cmp(rel)).ok().map(|at| listing.files[at].1)
+}
+
+/// **Say `message` once**, so a failure that lasts is one line and not one a frame.
+fn say_once(said: &mut Option<String>, message: String) {
+    if said.as_deref() != Some(message.as_str()) {
+        warn!("{message}");
+        *said = Some(message);
+    }
+}
+
+/// **Say once that the index cannot answer.**
+fn refuse(said: &mut Option<String>, who: &str, why: String) {
+    say_once(said, format!("{who}: the project index has no listing ({why}), so nothing is read"));
+}
+
+/// The watcher's memory: what the rigs' meshes looked like when last taken.
+#[derive(Resource, Default)]
 pub(crate) struct RigWatch {
-    timer: Timer,
-    seen: HashMap<String, MtimeState>,
+    /// The index generation last looked at.
+    generation: u64,
+    /// The stamp each mesh had when it was last taken (or the first one ever seen), per mesh path.
+    seen: HashMap<String, Option<FileStamp>>,
+    /// Why the index could not answer, as last said.
+    refused: Option<String>,
+    /// The meshes the index does not list, said once each.
+    unlisted: HashSet<String>,
 }
 
-impl Default for RigWatch {
-    fn default() -> Self {
-        RigWatch {
-            timer: Timer::from_seconds(POLL_SECS, TimerMode::Repeating),
-            seen: HashMap::new(),
-        }
-    }
-}
-
-/// What the watcher knows about one file.
-#[derive(Default, Clone, Copy, PartialEq, Eq, Debug)]
-pub(crate) struct MtimeState {
-    /// The mtime the current measurements describe (or the first one ever seen).
-    known: Option<SystemTime>,
-    /// A changed mtime seen once — promoted only if the next poll sees it again unchanged.
-    candidate: Option<SystemTime>,
-}
-
-/// **The debounce, as a pure function.** Returns `true` exactly when a changed mtime has held
-/// still across two consecutive polls — the moment a re-measure is warranted.
-pub(crate) fn promote(state: &mut MtimeState, observed: SystemTime) -> bool {
-    match state.known {
-        // First sight of the file: remember it, nothing changed.
-        None => {
-            state.known = Some(observed);
-            state.candidate = None;
-            false
-        }
-        Some(known) if known == observed => {
-            // Back to (or still at) the known mtime — including an export that was reverted
-            // between polls. Drop any half-seen candidate.
-            state.candidate = None;
-            false
-        }
-        Some(_) => {
-            if state.candidate == Some(observed) {
-                // Seen changed, then seen again unchanged: the file has settled.
-                state.known = Some(observed);
-                state.candidate = None;
-                true
-            } else {
-                // Changed and possibly still being written. Wait one more poll.
-                state.candidate = Some(observed);
-                false
-            }
-        }
-    }
+/// **Whether a file's stamp moved since it was last taken**, remembering the new one. The first sight
+/// of a file is its baseline, not a change. (A change that is undone before the index publishes it is
+/// no change at all, and the index says so by publishing nothing: it is not seen here.)
+pub(crate) fn moved(known: &mut Option<FileStamp>, observed: FileStamp) -> bool {
+    known.replace(observed).is_some_and(|before| before != observed)
 }
 
 /// Rig names awaiting a measure. Fed by selection (front), the watcher, and check-all (back).
@@ -248,40 +235,54 @@ pub(crate) fn invalidate(reports: &mut BenchReports, generation: &mut BenchGener
     }
 }
 
-/// Poll the loaded rigs' GLB mtimes. Only rigs already loaded — the tab's lazy load stands, and a
-/// session that never opens the bench never stats a file.
-pub(crate) fn poll_mtimes(
-    time: Res<Time>,
-    project: Option<Res<crate::project::Project>>,
+/// Follow the loaded rigs' GLBs through the project index. Only rigs already loaded — the tab's lazy
+/// load stands. A frame where neither the index's generation nor the tab moved looks at nothing; the
+/// tab moving is `bench.is_changed()`, which any change to the tab's state sets (a selection among
+/// them), and is a look because a rig that came with an edit of the manifest has a mesh nobody has
+/// taken a stamp of yet.
+pub(crate) fn follow_the_rig_files(
+    index: Res<ProjectIndex>,
     bench: Option<Res<BenchState>>,
     mut watch: ResMut<RigWatch>,
     mut queue: ResMut<MeasureQueue>,
 ) {
-    let (Some(project), Some(bench)) = (project, bench) else {
+    let Some(bench) = bench else {
         return;
     };
     let Some(rigs) = &bench.rigs else {
         return;
     };
-    if !watch.timer.tick(time.delta()).just_finished() {
+    // (See the note above: the tab changing is a look as well.)
+    if watch.generation == index.generation() && !bench.is_changed() {
         return;
     }
-    // Meshes first, so two rigs sharing a GLB cost one stat — and both re-measure when it changes.
+    let Some(listing) = index.snapshot() else {
+        // No listing yet is the index still walking; no listing with a failure is the root that cannot be read.
+        if let Some(why) = index.failure() {
+            refuse(&mut watch.refused, "animation watch", why);
+        }
+        return;
+    };
+    watch.refused = None;
+    watch.generation = listing.generation;
+    // Meshes first, so two rigs sharing a GLB are one lookup — and both re-measure when it changes.
     let mut by_mesh: HashMap<&str, Vec<&str>> = HashMap::new();
     for (name, rig) in &rigs.rigs {
         by_mesh.entry(rig.mesh.as_str()).or_default().push(name);
     }
     for (mesh, names) in by_mesh {
-        // An unreadable file is not the watcher's to report: the measure pass says "cannot read"
-        // loudly, and it will run as soon as the file reappears with a settled mtime.
-        let Ok(meta) = std::fs::metadata(project.root.join("assets").join(mesh)) else {
+        // A file the index does not list is missing or named by the project's `.gitignore`: it cannot be
+        // followed, which is said once. The measure pass says "cannot read" loudly for a file that is
+        // missing, and runs as soon as the file reappears with a new stamp.
+        let rel = format!("{ASSETS_REL}/{mesh}");
+        let Some(observed) = stamp_in(&listing, &rel) else {
+            if watch.unlisted.insert(mesh.to_owned()) {
+                warn!("animation watch: {rel} is not in the project index (it is missing, or the project's .gitignore names it), so changes to it are not followed");
+            }
             continue;
         };
-        let Ok(mtime) = meta.modified() else {
-            continue;
-        };
-        let state = watch.seen.entry(mesh.to_owned()).or_default();
-        if promote(state, mtime) {
+        watch.unlisted.remove(mesh);
+        if moved(watch.seen.entry(mesh.to_owned()).or_default(), observed) {
             for name in names {
                 queue.push_back_unique(name);
             }
@@ -373,14 +374,19 @@ pub(crate) fn paint_stale_badge(
     }
 }
 
-/// How long a rigs file whose size and modification time did not move goes unread.
-const RIGS_RECHECK_SECS: f32 = 1.0;
-
 /// What [`sync_rigs_reload`] last saw of `rigs.yaml`, and what it last decided.
 #[derive(Default)]
 pub(crate) struct RigsSeen {
-    stat: Option<(SystemTime, u64)>,
-    since: f32,
+    /// The index's stamp of `rigs.yaml` when it was last read (`Some(None)`: the index listed none), and
+    /// `None` before the first read since the tab loaded the manifest. It is set even when the read
+    /// failed, so a file that cannot be read is tried again when the index next moves and not every frame.
+    looked: Option<Option<FileStamp>>,
+    /// The index generation last looked at.
+    generation: u64,
+    /// Why the index could not answer, as last said.
+    refused: Option<String>,
+    /// That the index does not list `rigs.yaml` has been said, so it is one line however many looks follow.
+    said_read: Option<String>,
     /// `(what the disk held, what the tab held)` as last decided to refuse or to wait on, so one bad
     /// edit is one verdict however many frames pass and the same bytes are never decided twice. `None`
     /// while the two agree.
@@ -412,7 +418,7 @@ pub(crate) struct Measuring<'w> {
 /// as the tab holds it clears that verdict, and so does a door change, which drops what was held. An
 /// `applied` verdict stays until the next edit replaces it: it is still true of the file.
 pub(crate) fn sync_rigs_reload(
-    time: Res<Time>,
+    index: Res<ProjectIndex>,
     project: Option<Res<crate::project::Project>>,
     mut bench: ResMut<BenchState>,
     mut measuring: Measuring,
@@ -435,18 +441,50 @@ pub(crate) fn sync_rigs_reload(
         {
             reloads.forget(&["rigs"]);
         }
-        seen.stat = None;
+        seen.looked = None;
         return;
     }
-    let path = project.root.join("assets/blueprint").join(FILE);
-    seen.since += time.delta_secs();
-    let stat = std::fs::metadata(&path).ok().and_then(|m| Some((m.modified().ok()?, m.len())));
-    if seen.stat == stat && seen.since < RIGS_RECHECK_SECS {
+    // **Nothing is read until the index says `rigs.yaml` moved** (its stamp), and the tab's first look
+    // after it loaded the manifest reads once, so an edit between that load and the index's first
+    // listing, which publishes no message, is not lost.
+    if seen.looked.is_some() && seen.generation == index.generation() {
         return;
     }
-    seen.since = 0.0;
-    seen.stat = stat;
-    let disk = std::fs::read_to_string(&path).ok();
+    let Some(listing) = index.snapshot() else {
+        if let Some(why) = index.failure() {
+            refuse(&mut seen.refused, "animation tab", why);
+        }
+        return;
+    };
+    seen.refused = None;
+    seen.generation = listing.generation;
+    let stamp = stamp_in(&listing, RIGS_REL);
+    if seen.looked == Some(stamp) {
+        return;
+    }
+    seen.looked = Some(stamp);
+    let path = project.root.join(RIGS_REL);
+    // The file is read whether or not the index lists it: the stamp says when to read, not whether there is a file.
+    let disk = match std::fs::read_to_string(&path) {
+        Ok(text) => {
+            if stamp.is_none() {
+                say_once(
+                    &mut seen.said_read,
+                    format!("animation tab: {RIGS_REL} is not in the project index (the project's .gitignore names it?), so later edits to it are not followed"),
+                );
+            } else {
+                seen.said_read = None;
+            }
+            Some(text)
+        }
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => None,
+        Err(e) => {
+            // Neither taken nor called gone: said at each look, and a look is one the index's stamp asked for, so a file that
+            // stays unreadable is read again when the index next moves and not on every frame (`looked` is set above).
+            warn!("animation tab: {} cannot be read: {e}; the rigs it holds stay", path.display());
+            return;
+        }
+    };
     if disk == bench.text {
         if seen.decided.take().is_some()
             && let Some(reloads) = reloads.as_deref_mut()
@@ -520,41 +558,29 @@ pub(crate) fn sync_rigs_reload(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::time::Duration;
+    use std::time::{Duration, SystemTime};
 
-    fn t(secs: u64) -> SystemTime {
-        SystemTime::UNIX_EPOCH + Duration::from_secs(secs)
+    fn stamp(secs: u64) -> FileStamp {
+        FileStamp { len: 7, modified: Some(SystemTime::UNIX_EPOCH + Duration::from_secs(secs)) }
     }
 
     #[test]
-    fn a_change_promotes_only_after_holding_still_for_two_polls() {
-        let mut s = MtimeState::default();
-        assert!(!promote(&mut s, t(100)), "first sight is baseline, not change");
-        assert!(!promote(&mut s, t(100)), "unchanged");
-        assert!(!promote(&mut s, t(200)), "changed once — might still be mid-write");
-        assert!(promote(&mut s, t(200)), "held still: promote");
-        assert!(!promote(&mut s, t(200)), "and it is the new baseline");
+    fn a_changed_stamp_is_taken_once_and_becomes_the_new_baseline() {
+        let mut known = None;
+        assert!(!moved(&mut known, stamp(100)), "first sight is baseline, not change");
+        assert!(!moved(&mut known, stamp(100)), "unchanged");
+        assert!(moved(&mut known, stamp(200)), "the index published a changed stamp: re-measure");
+        assert!(!moved(&mut known, stamp(200)), "and it is the new baseline");
     }
 
     #[test]
-    fn a_file_still_being_written_never_promotes() {
-        let mut s = MtimeState::default();
-        assert!(!promote(&mut s, t(100)));
-        // The exporter keeps touching the file; every poll sees a different mtime.
-        assert!(!promote(&mut s, t(200)));
-        assert!(!promote(&mut s, t(300)));
-        assert!(!promote(&mut s, t(400)));
-        // It settles.
-        assert!(promote(&mut s, t(400)));
-    }
-
-    #[test]
-    fn a_revert_between_polls_is_no_change_at_all() {
-        let mut s = MtimeState::default();
-        assert!(!promote(&mut s, t(100)));
-        assert!(!promote(&mut s, t(200)), "changed once");
-        assert!(!promote(&mut s, t(100)), "back to known — the candidate must die");
-        assert!(!promote(&mut s, t(100)), "and stay dead");
+    fn a_stamp_differing_in_size_alone_or_older_than_the_known_one_is_a_change() {
+        let mut known = None;
+        assert!(!moved(&mut known, stamp(100)));
+        let longer = FileStamp { len: 8, ..stamp(100) };
+        assert!(moved(&mut known, longer), "the same modification time with another size is a change");
+        assert!(moved(&mut known, stamp(50)), "a stamp older than the known one is a change: the index published it");
+        assert!(!moved(&mut known, stamp(50)), "and then it is the baseline");
     }
 
     #[test]

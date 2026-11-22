@@ -13,6 +13,8 @@ fn the_panel_lists_every_note_newest_first() {
     for _ in 0..4 {
         app.update();
     }
+    // The index's shortest sweep: the notes view follows the project index, and this test writes the file from outside and waits under a second.
+    app.world().resource::<bevy_dark_factory::project_index::ProjectIndex>().set_sweep(bevy_dark_factory::project_index::MIN_SWEEP);
     let path = notes::path_for_map(&app.world().resource::<OpenMap>().map_path);
     let mut n = Notes::default();
     n.add(vec![Target::Cell(0, 0)], "first").unwrap();

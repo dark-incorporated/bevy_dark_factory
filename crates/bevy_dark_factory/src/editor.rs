@@ -2772,6 +2772,8 @@ impl Plugin for EditorPlugin {
         app.add_observer(on_play_click);
         app.register_type::<PaletteRow>()
             .register_type::<crate::chrome::ViewportSlot>();
+        // The notes view reads the project index (#501).
+        crate::project_index::ensure(app);
         app.init_resource::<EditorState>()
             .init_resource::<MapFraming>()
             .init_resource::<RemovalDrag>()

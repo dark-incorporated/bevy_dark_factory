@@ -23,6 +23,7 @@ use bevy_dark_factory::game_view::{EntityButton, FieldFileButton};
 use bevy_dark_factory::harness;
 use bevy_dark_factory::keys::Live;
 use bevy_dark_factory::ops_play::{self, PlayButton};
+use bevy_dark_factory::project_index::{MIN_SWEEP, ProjectIndex};
 use bevy_dark_factory::session::Session;
 use bevy_dark_factory::workspace::Workspace;
 use bevy_gooey::CodeEditor;
@@ -207,4 +208,28 @@ fn open_file_on_a_component_lands_in_files_at_its_line() {
         world.query::<&CodeEditor>().iter(world).next().map(|e| e.buffer().caret().line)
     };
     assert_eq!(line, Some(4), "the caret is on the component's line, not at the top");
+}
+
+/// **An entity file edited under the panel moves its Open file's line, and one removed takes its row away: the project index says it
+/// moved, and no timer does** (#501; `game_view::FIELD_FILES_POLL_S` retired).
+///
+/// The clock is frozen once the rows are up (a manual time step of nothing), so a column that still waited for seconds of `Time` could
+/// not pass; the index's sweep is at its floor, so only its debounce stands between the write and the row. The expected line is found by
+/// reading the file the test wrote, never from the code under test.
+#[test]
+fn an_entity_file_edited_under_the_panel_moves_the_line_with_the_clock_stopped() {
+    let (mut app, root, _log, _kill) = playing_with_the_entity_chosen("moves");
+    until(&mut app, "the Open file rows", |app| !field_buttons(app).is_empty());
+    assert_eq!(field_buttons(&mut app)[0].1.line, 4, "the line before the edit");
+    app.world().resource::<ProjectIndex>().set_sweep(MIN_SWEEP);
+    app.insert_resource(TimeUpdateStrategy::ManualDuration(Duration::ZERO));
+
+    let edited = format!("# written by hand\n# two lines above the entities\n{ENTITIES}");
+    std::fs::write(root.join(ENTITY_FILE), &edited).unwrap_or_else(|e| panic!("{e}"));
+    let line = edited.lines().position(|l| l.trim() == "Transform:").unwrap_or_else(|| panic!("the edited file has a Transform"));
+    assert_ne!(line, 4, "the edit moved the line");
+    until(&mut app, "the Open file's line follows the edit", |app| field_buttons(app).first().is_some_and(|(_, b)| b.line == line));
+
+    std::fs::remove_file(root.join(ENTITY_FILE)).unwrap_or_else(|e| panic!("{e}"));
+    until(&mut app, "no entity file sets the component, so no Open file is offered", |app| field_buttons(app).is_empty());
 }

@@ -35,12 +35,11 @@ use bevy_gooey::{
 
 use crate::commands::{self, Command};
 use crate::keys::Context;
+use crate::settings::{FileNews, Heard};
 use crate::settings_screen::{Files, Layer, Scope, scopes};
 
 /// How many button-heights of commands the list shows before it scrolls.
 const LIST_ROWS: f32 = 9.5;
-/// How often the open screen looks at the two files, in seconds.
-const LOOK_EVERY: f32 = 0.25;
 
 /// Ask for the keymap screen.
 #[derive(Message, Clone, Copy, Debug, Default)]
@@ -208,6 +207,8 @@ pub struct KeymapScreenPlugin;
 
 impl Plugin for KeymapScreenPlugin {
     fn build(&self, app: &mut App) {
+        crate::project_index::ensure(app);
+        crate::project_index::ensure_outside(app);
         app.add_message::<OpenKeymap>().add_systems(Update, (open, refresh).chain());
     }
 }
@@ -273,21 +274,23 @@ fn open(mut asks: MessageReader<OpenKeymap>, existing: Query<(), With<KeymapDial
 }
 
 fn refresh(
-    time: Res<Time>,
+    mut news: FileNews,
     files: Files,
     mut dialogs: Query<(Ref<KeymapDialog>, &mut Built)>,
     rows: Query<Entity, With<Rows>>,
     mut problem_line: Query<&mut Text, With<ProblemLine>>,
-    mut since: Local<f32>,
+    mut heard: Local<Heard>,
     mut commands: Commands,
 ) {
+    let moved = news.moved(&mut heard, files.user().as_deref(), files.project().as_deref());
     let Ok((dialog, mut built)) = dialogs.single_mut() else { return };
-    *since += time.delta_secs();
-    if *since < LOOK_EVERY && !dialog.is_changed() && built.0.is_some() {
+    if !moved.any() && !dialog.is_changed() && built.0.is_some() {
         return;
     }
-    *since = 0.0;
-    let snapshot = Snapshot { dialog: (*dialog).clone(), user: Layer::of(files.user().as_ref()), project: Layer::of(files.project().as_ref()) };
+    let previous = built.0.as_ref().filter(|_| !dialog.is_changed());
+    let user = Layer::follow(files.user().as_ref(), previous.map(|s| &s.user), moved.user);
+    let project = Layer::follow(files.project().as_ref(), previous.map(|s| &s.project), moved.project);
+    let snapshot = Snapshot { dialog: (*dialog).clone(), user, project };
     if built.0.as_ref() == Some(&snapshot) {
         return;
     }

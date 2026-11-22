@@ -76,11 +76,7 @@ fn open(app: &mut App) {
     updates(app, 4);
     let search = find_by_label(app, "Search settings").expect("the screen has a search field");
     click(app, search);
-    // Contract update (2026-11-22): the search row is the input "Search settings" names. The first empty input in query order
-    // was it only by archetype order, which the style sheet's classes on the chrome changed (the Files menu's inputs come first).
-    let row = std::iter::successors(Some(search), |e| app.world().get::<ChildOf>(*e).map(|p| p.parent()))
-        .find(|e| app.world().get::<bevy_gooey::TextInputValue>(*e).is_some())
-        .expect("the search row is a text input");
+    let row = crate::settings_search_support::search_field(app);
     app.world_mut().commands().trigger(bevy::ui_widgets::ValueChange { source: row, value: "terminal agent".to_owned(), is_final: false });
     updates(app, 4);
 }

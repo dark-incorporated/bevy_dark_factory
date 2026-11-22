@@ -42,6 +42,7 @@ use crate::catalog::{self, Catalog, Kit, MapEntry, MapSummary, Pending, PolicyEn
 use crate::confirm::{Asked, Confirm};
 use crate::launcher::{self, HomeContent, Launcher, ProjectPictures, SidebarRoot, SplashArt};
 use crate::project_assets::{self, ProjectRoot};
+use crate::project_index::OutsideFiles;
 use crate::screen::Screen;
 use crate::ui::submit_button;
 use crate::workspace::Workspace;
@@ -318,6 +319,7 @@ pub struct PageSystemsPlugin;
 
 impl Plugin for PageSystemsPlugin {
     fn build(&self, app: &mut App) {
+        crate::project_index::ensure_outside(app);
         app.add_message::<PageAction>()
             // **The same page inside the workbench**: spawned when the Project workspace is entered (the frame is rebuilt on every switch,
             // `screen::cross`), and forgotten on the next switch that is not to it.
@@ -1176,32 +1178,69 @@ fn answer_the_question(mut commands: Commands, mut page: ResMut<ProjectPage>, co
 
 /// **Read the guide from disk** into the page's held state, before it draws.
 ///
-/// **Read every [`GUIDE_READ_SECS`]**, not only when the page redraws: a person editing the guide in their
-/// own text editor is the case this section exists for, and a section that showed a stale copy until the
-/// maps' directory moved would be one that quietly disagreed with the file.
+/// **Read when the project index says the guide or the person's trust store moved** (#501), not on a clock: a person editing the guide in
+/// their own text editor is the case this section exists for, and a section that showed a stale copy until the maps' directory moved would be
+/// one that quietly disagreed with the file. The page is shown before a project is opened, so the files are followed through
+/// [`OutsideFiles`] (the guide's folder and the store's, each for its one file) and not through the open project's index. The first read of
+/// a pair of files is direct, and the first listing after it reads once more (it publishes no message), so a change between the two is not
+/// lost; after that a frame reads only when a followed folder's generation moved. **A change reaches the page after the index's sweep and
+/// debounce, which is up to about a second [INFERENCE: the index's own numbers, not measured on this page].**
 ///
 /// **An unsaved edit survives the read**: the text drawn is `editing` while there is one, and the disk's
 /// text is what the edit is compared against. **A file that moved under an unsaved edit is a conflict**,
 /// reported by the status line, and the file is only written by [`the_guide_section`], which refuses while
 /// a conflict stands.
-const GUIDE_READ_SECS: f32 = 0.5;
+///
+/// **The trust store is followed because the section's state is decided against it** (allowed, or waiting for you): a grant made
+/// elsewhere changes the state with no change to the guide.
+#[derive(Default)]
+struct GuideWatch {
+    /// The files followed, as `(folder, name)`: the project's guide, and the store the state is decided against.
+    followed: Vec<(PathBuf, String)>,
+    /// The generation of each followed folder at the last look.
+    seen: Vec<u64>,
+    /// Whether the files have been read since they were first followed.
+    looked: bool,
+    /// Why the index could not follow a folder, as last said, so one failure is one line and not one a frame.
+    refused: Option<String>,
+}
 
 fn read_the_guide(
     mut page: ResMut<ProjectPage>,
     state: Option<Res<crate::editor::EditorState>>,
     store_root: Option<Res<crate::trusted::StoreRoot>>,
-    real: Res<Time<Real>>,
-    mut since: Local<f32>,
+    mut outside: ResMut<OutsideFiles>,
+    mut watch: Local<GuideWatch>,
 ) {
-    *since += real.delta_secs();
-    // **Every time the page is about to redraw, and otherwise each [`GUIDE_READ_SECS`].** A redraw the
-    // section itself asked for must see the file it asked about, so the read cannot wait for a clock the
-    // next frame may not have reached.
-    if !page.dirty && *since < GUIDE_READ_SECS {
+    let trust_file = state.and_then(|s| s.trust.file.clone());
+    // A store that cannot be resolved (no user data directory) is not followed; the view below says why it cannot be read.
+    let store = crate::trusted::resolve(store_root.as_deref(), trust_file.as_deref()).ok();
+    let want: Vec<(PathBuf, String)> =
+        [Some(crate::agent_guide::project_file(&page.root)), store].into_iter().flatten().filter_map(|path| crate::project_index::split_file(&path)).collect();
+    if watch.followed != want {
+        for (dir, _) in watch.followed.drain(..) {
+            outside.unfollow(&dir);
+        }
+        for (dir, name) in &want {
+            outside.follow(dir, &[name.as_str()]);
+        }
+        watch.followed = want;
+        watch.looked = false;
+    }
+    let generations: Vec<u64> = watch.followed.iter().map(|(dir, _)| outside.generation(dir)).collect();
+    if let Some(why) = watch.followed.iter().find_map(|(dir, _)| outside.failure(dir))
+        && watch.refused.as_deref() != Some(why.as_str())
+    {
+        warn!("project page: the index cannot follow the agent guide's files ({why}), so they are read when the page redraws and not when they change");
+        watch.refused = Some(why);
+    }
+    // **Every time the page is about to redraw, and when a followed folder moved.** A redraw the section itself asked for must see the file
+    // it asked about, so the read cannot wait for the index.
+    if watch.looked && !page.dirty && generations == watch.seen {
         return;
     }
-    *since = 0.0;
-    let trust_file = state.and_then(|s| s.trust.file.clone());
+    watch.looked = true;
+    watch.seen = generations;
     let view = agent_guide_view(&page, store_root.as_deref(), trust_file.as_deref());
     let disk = view.text.clone();
     let mut moved = false;

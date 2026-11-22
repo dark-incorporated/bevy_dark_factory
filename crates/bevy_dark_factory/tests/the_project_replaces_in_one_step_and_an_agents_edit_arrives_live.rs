@@ -19,7 +19,7 @@ use bevy::prelude::*;
 use bevy::window::PrimaryWindow;
 use bevy_dark_factory::command_run::Chords;
 use bevy_dark_factory::commands;
-use bevy_dark_factory::files::{self, Files, POLL_S};
+use bevy_dark_factory::files::{self, Files};
 use bevy_dark_factory::files_panel::{self, SearchPanel, SearchResults, Target};
 use bevy_dark_factory::files_search::{self, Query};
 use bevy_dark_factory::harness;
@@ -77,9 +77,21 @@ fn editor_of(app: &mut App) -> Entity {
     world.query_filtered::<Entity, With<CodeEditor>>().single(world).unwrap_or_else(|e| panic!("one code editor: {e}"))
 }
 
-fn wait_for_the_poll(app: &mut App) {
-    std::thread::sleep(Duration::from_secs_f64(POLL_S + 0.1));
-    settle(app);
+/// **Step frames until `done`, for at most this many seconds of wall time.** An open file reads when the project index says it moved (#501),
+/// on the index's own clock, so neither a sleep nor a number of frames is a wait for it.
+/// Re-pointed from the sleeps of the retired `files::POLL_S` (the commit body lists each test).
+const HEARD_WITHIN_S: f64 = 20.0;
+
+fn wait_until_heard(app: &mut App, what: &str, mut done: impl FnMut(&mut App) -> bool) {
+    let started = std::time::Instant::now();
+    while started.elapsed().as_secs_f64() < HEARD_WITHIN_S {
+        settle(app);
+        if done(app) {
+            return;
+        }
+        std::thread::sleep(Duration::from_millis(20));
+    }
+    panic!("{what}: not seen within {HEARD_WITHIN_S} s");
 }
 
 /// **GD-13, acceptance 1**: one replace over three files, one undo, every file byte for byte as before.
@@ -246,7 +258,9 @@ fn an_agents_file_edit_lands_in_the_open_tab_without_moving_the_caret_and_undoes
     assert_eq!(read(&root, YAML), YAML_TEXT.replace("yaw: 0.0 # turn", "yaw: 90.0 # turn"), "the file changed and its comments are intact");
     assert!(matches!(&shown, ops::Shown::File { path, lines: Some([l, _]) } if path == YAML && *l == 18), "it says where it is seen: {shown:?}");
 
-    wait_for_the_poll(&mut app);
+    wait_until_heard(&mut app, "the open tab shows the change", |app| {
+        app.world().get::<CodeEditorValue>(editor).is_some_and(|v| v.text().contains("yaw: 90.0 # turn"))
+    });
     let shown_text = app.world().get::<CodeEditorValue>(editor).map(|v| v.text().to_owned()).unwrap_or_default();
     assert!(shown_text.contains("yaw: 90.0 # turn"), "the open tab shows the change: {shown_text}");
     assert_eq!(app.world().get::<CodeEditor>(editor).map(|e| e.buffer().caret()), Some(caret), "the person's caret did not move");

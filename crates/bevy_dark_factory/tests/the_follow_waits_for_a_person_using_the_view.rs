@@ -49,6 +49,17 @@ fn frames_of(seconds: f32) -> usize {
     (seconds / FRAME).ceil() as usize + 2
 }
 
+/// **Wait on the wall clock until the editor has taken a settings edit made by hand** (#501 item 18: the settings files are followed by an
+/// index, not polled, so an edit is seen after the index's sweep and debounce, which a fixed number of frames on a manual clock does not
+/// wait for). The assertions after it are unchanged.
+fn until_the_editor_has(app: &mut App, done: impl Fn(&EditorSettings) -> bool) {
+    let began = std::time::Instant::now();
+    while !done(app.world().resource::<EditorSettings>()) && began.elapsed() < Duration::from_secs(10) {
+        app.update();
+        std::thread::sleep(Duration::from_millis(15));
+    }
+}
+
 fn room(tag: &str) -> std::path::PathBuf {
     fixtures::Fixture::new(&format!("{tag}_{}", std::process::id()))
         .side(64.0)
@@ -320,6 +331,7 @@ fn with_the_toggle_off_nothing_moves_and_look_still_frames_it() {
     // **The person's setting**, written where the editor reads it, not the resource it resolves to.
     let settings = app.world().resource::<Project>().project_dir.join("editor.yaml");
     std::fs::write(&settings, "{version: 1, follow_agent: false}").expect("editor.yaml");
+    until_the_editor_has(&mut app, |s| !s.follow_agent);
     // The watcher looks at the file's size and modification time, and again once a second regardless.
     for _ in 0..frames_of(1.5) {
         app.update();
@@ -384,6 +396,7 @@ fn the_follow_setting_survives_a_restart() {
         let mut app = editor(&root);
         let settings = app.world().resource::<Project>().project_dir.join("editor.yaml");
         std::fs::write(&settings, "{version: 1, follow_agent: false}").expect("editor.yaml");
+        until_the_editor_has(&mut app, |s| !s.follow_agent);
         for _ in 0..frames_of(1.5) {
             app.update();
         }
@@ -415,6 +428,7 @@ fn an_old_settings_file_with_no_follow_agent_reads_as_on() {
     let settings = app.world().resource::<Project>().project_dir.join("editor.yaml");
     std::fs::write(&settings, "{version: 1, show_grid: false, reduced_motion: true}")
         .expect("editor.yaml");
+    until_the_editor_has(&mut app, |s| !s.show_grid);
     for _ in 0..frames_of(1.5) {
         app.update();
     }
