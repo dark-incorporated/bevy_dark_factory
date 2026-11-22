@@ -489,11 +489,11 @@ fn layout_at(text_scale: f32) -> (f32, f32) {
 
 /// **The interface size a window can hold** (#537): the person's choice, cut down where the window's height leaves a panel no room to be read.
 ///
-/// The frame is `logical_height / (EDITOR_UI_SCALE * growth * size)` layout units tall. A panel is readable when that is at least its *need*
+/// The frame is `logical_height / (ui_scale * growth * size)` layout units tall, `ui_scale` being the style sheet's `metrics.layout.ui_scale`. A panel is readable when that is at least its *need*
 /// ([`LAYOUT_BY_TEXT_SIZE`]); below it the chrome and the panel's own heading fill the window and its list has no row. The bottom dock is the
-/// second edge: the shell shows it once the body keeps [`crate::chrome::WORKBENCH_FLOOR_H`] beside it, and where a panel needs more than that
-/// (large text) the dock takes the room the panel's list needed, so the heights from there to `need + BOTTOM_DOCK_H` are not held either (and
-/// at the largest text sizes nothing below `need + BOTTOM_DOCK_H` is), and a choice that falls in them is given the size at the far end.
+/// second edge: the shell shows it once the body keeps the sheet's `metrics.layout.workbench_floor_h` beside it, and where a panel needs more than that
+/// (large text) the dock takes the room the panel's list needed, so the heights from there to `need` plus the dock's row are not held either (and
+/// at the largest text sizes nothing below `need` plus the dock's row is), and a choice that falls in them is given the size at the far end.
 ///
 /// **Never below the setting's own floor.** A window too short for even that is not helped (a reading of the table: at text 300% under about 460
 /// logical px tall); `limited` stays false for a person who asked for the floor.
@@ -501,15 +501,16 @@ pub fn fit_interface_scale(logical_width: f32, logical_height: f32, text_scale: 
     let (floor, ceiling) = crate::settings::SCALE_RANGE;
     let wanted = interface_scale.clamp(floor, ceiling);
     let growth = (logical_width / REFERENCE_W).clamp(1.0, MAX_GROWTH);
-    let per_size = crate::chrome::EDITOR_UI_SCALE * growth;
+    let layout = &crate::style::metrics().layout;
+    let per_size = layout.ui_scale * growth;
     let (chrome, need) = layout_at(text_scale);
     let frame_at = |size: f32| logical_height / (per_size * size);
     let size_at = |frame: f32| logical_height / (per_size * frame);
     let frame = frame_at(wanted);
     // The heights a panel's list can be read at: from `need` up to where the dock is shown, and from `need` plus the dock's row up. Where a panel
     // needs more than the dock's threshold (large text) the first range is empty.
-    let dock_comes = chrome + crate::chrome::WORKBENCH_FLOOR_H + crate::chrome::BOTTOM_DOCK_H - LAYOUT_SLACK;
-    let readable_with_the_dock = need + crate::chrome::BOTTOM_DOCK_H + LAYOUT_SLACK;
+    let dock_comes = chrome + layout.workbench_floor_h + layout.bottom_dock_h - LAYOUT_SLACK;
+    let readable_with_the_dock = need + layout.bottom_dock_h + LAYOUT_SLACK;
     let held = if (frame >= need && frame < dock_comes) || frame >= readable_with_the_dock {
         frame
     } else if frame < need && need < dock_comes {
