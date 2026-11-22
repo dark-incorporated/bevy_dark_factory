@@ -84,6 +84,7 @@ pub mod files_menu;
 pub mod draft;
 pub mod autosave;
 pub mod files_search;
+pub(crate) mod followed_files;
 pub mod ops_files;
 pub mod ops_files_verbs;
 pub mod inspector_view;

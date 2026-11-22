@@ -27,6 +27,8 @@ fn editor(tag: &str) -> (App, Ctx) {
     for _ in 0..4 {
         app.update();
     }
+    // The project index decides when an edit is seen (#501): its shortest sweep, so the waits below are the debounce and not the default second.
+    app.world().resource::<bevy_dark_factory::project_index::ProjectIndex>().set_sweep(bevy_dark_factory::project_index::MIN_SWEEP);
     let project = app.world().resource::<Project>().clone();
     let ctx = Ctx { project: Some(project), session: "test".to_owned(), ..Ctx::default() };
     (app, ctx)
