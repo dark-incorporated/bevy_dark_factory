@@ -2,6 +2,10 @@
 
 What each change added, newest first. A visible change has a clip: click the still to play it. `python3 tools/changelog/changelog.py page --open` plays them all in one page.
 
+## 2026-11-22
+
+- **prune-gate-target** `823fc609` tools/loop/prune_gate_target.sh frees the stale test executables a gate leaves behind (162 GB on big) *No clip: a host tool; proved by tools/loop/test_prune_gate_target.py*
+
 ## 2026-11-21
 
 - **pre-push-lfs** `b7b294bd` a branch push uploads its changelog clips too, instead of being refused with GH008 *No clip: a gate hook; proved by tools/loop/test_pre_push_lfs.py, which fails on the old hook*
