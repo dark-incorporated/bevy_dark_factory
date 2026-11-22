@@ -95,18 +95,13 @@ pub fn settings_dir(root: &Path) -> PathBuf {
     root.join("family")
 }
 
-/// Settings files are a few small files: look every tenth of a second and take a change as settled
-/// after another, so a reload lands well inside the second the editor promises, even on a busy machine.
-const SETTINGS_POLL_SECS: f64 = 0.1;
-const SETTINGS_SETTLE_SECS: f64 = 0.1;
-
 /// **Notices a family settings file changing on disk, and says which crates it touched** (#96's hot
 /// reload). The editor's `family_set` and a person editing the file reach the same place: the
-/// file. A settled change is reported once, by crate name, with the new text, so the preview and a
-/// running game's own copy of the plugin read the same bytes. A file that no longer parses as YAML is
-/// reported as a problem, never applied: the previous good settings stay in force.
+/// file. **It has no clock and makes no look of its own** (#538): the editor's host calls [`FamilyWatch::check`] when the project
+/// index says the family folder moved, and the index's own debounce is what takes a change as settled. A change is reported once, by
+/// crate name, with the new text, so the preview and a running game's own copy of the plugin read the same bytes. A file that no
+/// longer parses as YAML is reported as a problem, never applied: the previous good settings stay in force.
 pub struct FamilyWatch {
-    files: crate::live::FileWatch,
     dir: PathBuf,
     good: std::collections::BTreeMap<String, String>,
 }
@@ -123,10 +118,10 @@ pub enum SettingsChange {
 }
 
 impl FamilyWatch {
-    /// Stats and reads the project's settings now. Call before first use of them.
+    /// Reads the project's settings now. Call before first use of them.
     pub fn new(root: &Path) -> FamilyWatch {
         let dir = settings_dir(root);
-        let mut watch = FamilyWatch { files: crate::live::FileWatch::new(&dir, &["yaml"]).with_timing(SETTINGS_POLL_SECS, SETTINGS_SETTLE_SECS), dir, good: Default::default() };
+        let mut watch = FamilyWatch { dir, good: Default::default() };
         for (krate, text) in watch.read() {
             if crate::yaml::to_json(&text, &krate).is_ok() {
                 watch.good.insert(krate, text);
@@ -156,11 +151,9 @@ impl FamilyWatch {
         out
     }
 
-    /// At most one look per [`crate::live::POLL_SECS`]; the changes once the files have settled.
-    pub fn poll(&mut self, now_secs: f64) -> Vec<SettingsChange> {
-        if !self.files.poll(now_secs) {
-            return Vec::new();
-        }
+    /// **Read the settings folder now and say what changed** since the last look: one change for each crate whose file now holds other
+    /// settings, is not valid YAML, or is gone. The caller decides when to look; this holds no timer.
+    pub fn check(&mut self) -> Vec<SettingsChange> {
         let now = self.read();
         let mut out = Vec::new();
         for (krate, text) in &now {

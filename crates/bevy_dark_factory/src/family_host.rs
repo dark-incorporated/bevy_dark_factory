@@ -13,6 +13,7 @@ use std::path::PathBuf;
 
 use crate::editor::EditorState;
 use crate::project::Project;
+use crate::project_index::ProjectIndex;
 
 /// Every crate this editor can host, whether or not this build has it. Add a name here in the
 /// commit that adds the cargo feature.
@@ -130,20 +131,15 @@ fn read_as(krate: &str, text: &str) -> Result<(), (Refusal, &'static str)> {
     Ok(())
 }
 
-/// How often a refused settings file is compared with the disk, seconds.
-const SETTLE_REFUSED_SECS: f64 = 0.5;
-
 /// What [`reload_settings`] holds between frames. Opaque: a system's `Local` has to be nameable by
 /// the system, nothing else uses it.
 pub struct Held {
     root: PathBuf,
     watch: FamilyWatch,
-    /// The clock reading when this watch was made, in seconds on [`Time<Real>`](bevy::time::Real).
-    /// Every poll subtracts it, so `settled_at` and the watch's own intervals are measured from the
-    /// same origin — and a test that drives `TimeUpdateStrategy::ManualDuration` drives both (#279).
-    made_at: f64,
-    /// When refused files were last compared with the disk, in seconds since `made_at`.
-    settled_at: f64,
+    /// The project index's generation at the last look, and the stamps of the files under `family/` then: the watch is asked to read the
+    /// folder only when these differ from the index's, so a frame where nothing in it moved reads nothing (#538).
+    generation: u64,
+    seen: Vec<(String, crate::project_index::FileStamp)>,
     /// The text of each refused file as last decided, so the same bytes are decided once: the watch
     /// says a file is invalid again whenever another settings file changes.
     bad: std::collections::BTreeMap<String, String>,
@@ -230,25 +226,15 @@ fn settle_refused(
 /// good ones stay ([`FamilyWatch`] holds them). A file that is YAML but is not the crate's own type
 /// (`read_as`: the elements settings, the gooey skin) is refused the same way, naming the file and the
 /// field, and never reaches [`FamilySettings`], so what a crate applies is always a text its type reads.
-/// Each poll's changes are one decision in [`crate::live::EditorReloads`], kind `family`, so
+/// Each look's changes are one decision in [`crate::live::EditorReloads`], kind `family`, so
 /// `blueprint_state.reloads` names the file and why, once per edit; a file that is gone is no longer
 /// listed, and one that was already broken when the project opened is named from the start.
 pub fn reload_settings(
     project: Option<Res<Project>>,
-    // **The clock is Bevy's, not a `std::time::Instant` this system owns** (#279).
-    //
-    // `FamilyWatch::poll` has always taken `now_secs` and never asked where it came from, but the
-    // caller passed `held.started.elapsed()` — an `Instant` created here — so the one knob that
-    // decides when a reload lands was pinned to the wall clock and could not be injected. A test
-    // therefore had to *wait* the poll and the settle interval out in real time, and on a loaded
-    // machine `app.update()` cost more than the 3 s it was given, which failed the push gate three
-    // times (#121, #279).
-    //
-    // `Time<Real>` is the same wall clock by default — `TimePlugin` advances it from `Instant` — and
-    // `TimeUpdateStrategy::ManualDuration` replaces it with a step a test chooses, which is how
-    // `bevy_time`'s own tests drive time. So this changes no behaviour for a running editor, and it
-    // makes the reload path testable without a sleep.
-    real: Res<Time<Real>>,
+    // **No clock** (#538; `blueprint_model::family::SETTINGS_POLL_SECS` retired): the folder is inside the project, so the project index
+    // says when a file under `family/` moved, and the host asks the watch to read then. A change reaches the editor after the index's
+    // sweep and debounce, up to about a second [INFERENCE: the index's own numbers, not measured on this host].
+    index: Res<ProjectIndex>,
     mut settings: ResMut<FamilySettings>,
     mut state: ResMut<EditorState>,
     mut reloads: Option<ResMut<crate::live::EditorReloads>>,
@@ -286,19 +272,23 @@ pub fn reload_settings(
                 reloads.decide(verdicts);
             }
         }
-        // **When the watch was made**, on the same clock every poll reads, so `settled_at` and the
-        // watch's own `last_poll` are two readings of one clock rather than of two.
-        *held = Some(Held { root: project.root.clone(), watch: fresh, made_at: real.elapsed_secs_f64(), settled_at: 0.0, bad });
+        // Made now, so what the index lists at its first listing is compared with what it listed then (nothing, until it has one).
+        *held = Some(Held { root: project.root.clone(), watch: fresh, generation: 0, seen: Vec::new(), bad });
     }
     let Some(held) = held.as_mut() else { return };
-    // **Seconds since the watch was made**, from the injected clock: `Time<Real>` is monotonic and
-    // starts near zero, and subtracting the reading taken at the watch's creation keeps this the
-    // "seconds since we started" the watch's own intervals are written in — while letting a test
-    // step it. A plain `elapsed()` would be seconds since the *app* started, which would make the
-    // first poll and settle land early relative to the watch.
-    let now = real.elapsed_secs_f64() - held.made_at;
+    // **A frame where the index did not move looks at nothing**, and one where it moved for another folder compares the family folder's stamps.
+    if index.generation() == held.generation {
+        return;
+    }
+    let Some(listing) = index.snapshot() else { return };
+    held.generation = listing.generation;
+    let family = format!("{}/", blueprint_model::family::settings_dir(std::path::Path::new("")).display());
+    if listing.under(&family) == held.seen.as_slice() {
+        return;
+    }
+    held.seen = listing.under(&family).to_vec();
     let (mut decided, mut gone) = (Vec::new(), Vec::new());
-    for change in held.watch.poll(now) {
+    for change in held.watch.check() {
         match change {
             SettingsChange::Reloaded { krate, text } => {
                 match read_as(&krate, &text) {
@@ -344,9 +334,6 @@ pub fn reload_settings(
         if !decided.is_empty() {
             reloads.decide(decided);
         }
-        if now - held.settled_at >= SETTLE_REFUSED_SECS {
-            held.settled_at = now;
-            settle_refused(&held.root, &settings.text, &mut held.bad, held.watch.current(), &mut state, reloads);
-        }
+        settle_refused(&held.root, &settings.text, &mut held.bad, held.watch.current(), &mut state, reloads);
     }
 }
