@@ -255,12 +255,12 @@ These are written but are not project data, so they have no class. None is read 
 - [x] 6. `notes_view` `RECHECK_SECS` (1.0): reads its file when the index's stamp for it moved, and looks at nothing when a neighbour moves (`tests/the_notes_view_follows_the_project_index.rs`)
 - [x] 7. `oplog_view` `RECHECK_SECS` (1.0): reads its file when the index's stamp for it moved, and looks at nothing when a neighbour moves (`tests/the_oplog_view_follows_the_project_index.rs`)
 - [x] 8. `checks_view` `RECHECK_SECS` (1.0): reads its file when the index's stamp for it moved, and looks at nothing when a neighbour moves (`tests/the_checks_view_follows_the_project_index.rs`)
-- [ ] 9. `problems_view` `READ_SECS` (0.5)
-- [ ] 10. `world_lists` `READ_SECS` (0.5)
-- [ ] 11. `reference_view` `RECHECK_SECS` (1.0)
+- [x] 9. `problems_view` `READ_SECS` (0.5): the relations file is read when its stamp in the index moves, and the relations are checked again on the frame the open map changes, which needs no file (`the_problems_list_follows_the_project_index`)
+- [x] 10. `world_lists` `READ_SECS` (0.5): the water, forest and cue lists read their file when its stamp in the index moves (`world_lists::Follow`, which items 9 and 14 reuse), the lights and the cue uses rebuild when the map or the choice changes; none reads on a clock (`the_world_lists_follow_the_project_index`)
+- [x] 11. `reference_view` `RECHECK_SECS` (1.0): the boards and the pictures they list are found in the index's listing and read again only when their stamp moves; a picture replaced in place under the same name is read again (`the_reference_view_follows_the_project_index`); **limits:** a board inside a folder the project's `.gitignore` names is not discovered, like any file the project ignores; this is the project's rule, not an error (the boards are found in the listing, and the index never lists what the project's own ignore rules name; the same goes for `.git`, `target`, `.live` and `node_modules`). A symlink reads as absent, because the index never lists links, where the old walk accepted a symlinked `board.yaml` (`is_file` follows links). A rewrite of the same length inside one filesystem timestamp tick is not seen, because the index compares sizes and times and never reads bytes [INFERENCE: not measured whether a real save can do this]
 - [ ] 12. `forest_view` `POLL_S` (0.5)
 - [ ] 13. `game_view` `FIELD_FILES_POLL_S` (1.5) and `STATE_POLL_S` (1.0)
-- [ ] 14. `night_shift` `PLAN_READ_SECS` (0.5)
+- [x] 14. `night_shift` `PLAN_READ_SECS` (0.5): the PLAN row reads the plan file when its stamp in the index moves; a plan that does not read is said by its reason, not shown as `no plan` (`the_plan_row_follows_the_project_index`)
 - [ ] 15. `anim_watch` `POLL_SECS` (1.0) and `RIGS_RECHECK_SECS` (1.0)
 - [ ] 16. `audit_view` `LOOK_EVERY_S` (5.0)
 - [ ] 17. `game_view` `LOG_POLL_S` (0.25): a growing log is a tail, not a listing; decide whether it stays a read loop

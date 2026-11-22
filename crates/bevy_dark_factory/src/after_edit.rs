@@ -534,7 +534,7 @@ pub struct AfterEditPlugin;
 
 impl Plugin for AfterEditPlugin {
     fn build(&self, app: &mut App) {
-        // The checks, log and data views read the project index (#501).
+        // The views that follow the project index (checks, log, data, notes, reference) need it present (#501).
         crate::project_index::ensure(app);
         app.add_observer(on_check_view)
             .init_resource::<AfterEditQueue>()
