@@ -719,7 +719,11 @@ pub mod text {
     /// this size on purpose: it is the one thing a badge exists to have read.
     pub const BODY: Role = Role(11.0);
     /// A block or list heading. Quiet: uppercase, dim ink, and [`super::GAP_GROUP`] above it.
-    pub const HEADING: Role = Role(10.0);
+    // **Eleven, not ten** (#518, owner 2026-11-21): a heading has to outrank the label it heads.
+    // It was 10 beside `LABEL`'s 10 because both are "quiet supporting text", and that left the
+    // hierarchy entirely in the case and the ink — which is what the owner's note was about. One
+    // pixel is inside `the_type_scale_stays_short`'s seven-role cap and needs no new role.
+    pub const HEADING: Role = Role(11.0);
     /// The dim half of a label/value pair, and a log line.
     pub const LABEL: Role = Role(10.0);
     /// **A control's own word** — the text on a chip, a button, a field. Ten pixels, the same
