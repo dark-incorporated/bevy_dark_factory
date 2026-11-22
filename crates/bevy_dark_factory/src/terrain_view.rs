@@ -21,6 +21,7 @@ use blueprint_model::volume::Volume;
 use blueprint_model::water::WaterField;
 
 use crate::project::{OpenMap, Project};
+use crate::project_index::{FileStamp, ProjectIndex, Snapshot as Listing};
 
 /// Water shallower than this, metres, is not drawn: the simulation leaves a film on every wet slope.
 pub const MIN_DRAWN_DEPTH_M: f32 = 0.02;
@@ -112,19 +113,27 @@ pub fn water_mesh(ground: &Heightfield, water: &WaterField) -> Option<Mesh> {
     Some(mesh)
 }
 
-/// What the drawn meshes were built from; a change in any of it rebuilds them.
+/// What the drawn meshes were built from, the three files by the stamp the project index holds of them; a change in any of it rebuilds them.
 #[derive(Default, PartialEq)]
 pub struct Built {
     map_path: std::path::PathBuf,
-    ground: Option<std::time::SystemTime>,
-    water: Option<std::time::SystemTime>,
-    volume: Option<std::time::SystemTime>,
+    ground: Option<FileStamp>,
+    water: Option<FileStamp>,
+    volume: Option<FileStamp>,
     origin: [u32; 3],
     drop: u32,
 }
 
-fn modified(path: &std::path::Path) -> Option<std::time::SystemTime> {
-    std::fs::metadata(path).and_then(|m| m.modified()).ok()
+/// **The stamp the index holds of the file at `path`**, `None` when it lists none (the file is missing, or the project's `.gitignore` names it).
+/// A path outside the project root cannot be answered: it is said and read as no stamp.
+fn stamp_of(project: &Project, listing: &Listing, path: &std::path::Path) -> Option<FileStamp> {
+    match path.strip_prefix(&project.root) {
+        Ok(rel) => listing.stamp(&rel.to_string_lossy().replace('\\', "/")),
+        Err(_) => {
+            error!("terrain view: {} is not under the project root {}, so the project index does not follow it", path.display(), project.root.display());
+            None
+        }
+    }
 }
 
 /// The heightfield ground's plain material (its vertex colours are the relief tint); the carved ground's is [`volume_base`].
@@ -192,11 +201,13 @@ pub struct Good {
 /// the map, its origin or the ground's drop, changed, so a refused edit leaves the entities drawn
 /// before it untouched. A map that opens with a file refused has no earlier value and draws without
 /// it. Each edit is one decision, recorded in [`crate::live::EditorReloads`] with the file and the
-/// field it is wrong at and said once on the status line, because the files are only read again
-/// when one's modification time moves.
+/// field it is wrong at and said once on the status line, because **the files are only read again when the project index says one's stamp
+/// moved** (#538; the half-second poll is retired): a frame where the index's generation, the map and the project are as they were looks at
+/// nothing. **A change made elsewhere reaches the view after the index's sweep and debounce, up to about a second [INFERENCE: the index's own
+/// numbers, not measured on this view]**, and a file the project's `.gitignore` names is read when the view looks but not followed.
 #[allow(clippy::too_many_arguments)]
 pub fn sync_terrain_view(
-    time: Res<Time>,
+    index: Res<ProjectIndex>,
     project: Res<Project>,
     open: Res<OpenMap>,
     mut state: ResMut<crate::editor::EditorState>,
@@ -204,15 +215,25 @@ pub fn sync_terrain_view(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
-    mut drawn_state: Local<(f32, Option<Built>, Vec<Entity>, Good)>,
+    mut drawn_state: Local<(u64, Option<Built>, Vec<Entity>, Good, Option<String>)>,
     mut extent: ResMut<crate::view::DrawnExtent>,
 ) {
-    let (since, built, drawn, good) = &mut *drawn_state;
-    *since += time.delta_secs();
-    if built.is_some() && *since < 0.5 {
+    let (seen_generation, built, drawn, good, said) = &mut *drawn_state;
+    if built.is_some() && *seen_generation == index.generation() && !project.is_changed() && !open.is_changed() {
         return;
     }
-    *since = 0.0;
+    let Some(listing) = index.snapshot() else {
+        // No listing yet is the index still walking; no listing with a failure is the root that cannot be read.
+        if let Some(why) = index.failure()
+            && said.as_deref() != Some(why.as_str())
+        {
+            warn!("terrain view: the project index has no listing ({why}), so the ground, water and volume files are not read");
+            *said = Some(why);
+        }
+        return;
+    };
+    *said = None;
+    *seen_generation = listing.generation;
     let name = open.map_path.file_name().and_then(|n| n.to_str()).and_then(|n| n.strip_suffix(".map.yaml")).unwrap_or_default().to_owned();
     let ground_path = project.blueprint_dir.join("terrain").join(format!("{name}.yaml"));
     let water_path = project.blueprint_dir.join("water").join(format!("{name}.field.yaml"));
@@ -220,9 +241,9 @@ pub fn sync_terrain_view(
     let drop = crate::editor::ground_drop(&project);
     let now = Built {
         map_path: open.map_path.clone(),
-        ground: modified(&ground_path),
-        water: modified(&water_path),
-        volume: modified(&volume_path),
+        ground: stamp_of(&project, &listing, &ground_path),
+        water: stamp_of(&project, &listing, &water_path),
+        volume: stamp_of(&project, &listing, &volume_path),
         origin: [open.map.origin.0.to_bits(), open.map.origin.1.to_bits(), open.map.origin.2.to_bits()],
         drop: drop.to_bits(),
     };
@@ -235,9 +256,9 @@ pub fn sync_terrain_view(
     }
     let mut changed = built.as_ref().is_none_or(|b| (b.origin, b.drop) != (now.origin, now.drop));
     // Read each file that exists, and decide it: its value, or the refusal that names file and field.
-    let ground = read_kind("terrain", &project, &ground_path, Heightfield::parse);
-    let water = read_kind("water_field", &project, &water_path, WaterField::parse);
-    let volume = read_kind("volume", &project, &volume_path, Volume::parse);
+    let ground = read_kind("terrain", &project, &ground_path, now.ground, Heightfield::parse);
+    let water = read_kind("water_field", &project, &water_path, now.water, WaterField::parse);
+    let volume = read_kind("volume", &project, &volume_path, now.volume, Volume::parse);
     let verdicts: Vec<KindVerdict> = ground
         .iter()
         .map(|(_, v)| v)
@@ -475,15 +496,26 @@ fn adopt<T: PartialEq>(slot: &mut Option<T>, read: Option<(Option<T>, KindVerdic
 
 /// **One file the view reads**, decided: `None` when it does not exist; otherwise its value when it
 /// reads, and the verdict either way. A refusal names the file as the project's directory sees it
-/// (`site/terrain/yard.yaml`) and the field the file is wrong at.
+/// (`site/terrain/yard.yaml`) and the field the file is wrong at. **A file that cannot be read for a reason other than being absent is refused**,
+/// naming why, and what is drawn stays. The file is read whether or not the index lists it (`stamp` is `None` then); that is said.
 fn read_kind<T>(
     kind: &'static str,
     project: &Project,
     path: &std::path::Path,
+    stamp: Option<FileStamp>,
     parse: fn(&str) -> Result<T, String>,
 ) -> Option<(Option<T>, KindVerdict)> {
-    let text = std::fs::read_to_string(path).ok()?;
     let file = path.strip_prefix(&project.project_dir).unwrap_or(path).to_string_lossy().replace('\\', "/");
+    let text = match std::fs::read_to_string(path) {
+        Ok(text) => {
+            if stamp.is_none() {
+                warn!("terrain view: {file} is not in the project index (the project's .gitignore names it?), so it is read now and later edits to it are not followed");
+            }
+            text
+        }
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return None,
+        Err(e) => return Some((None, KindVerdict::refused(kind, file, None, e.to_string()))),
+    };
     Some(match parse(&text) {
         Ok(value) => (Some(value), KindVerdict::applied(kind, file)),
         Err(reason) => {
