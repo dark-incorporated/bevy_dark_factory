@@ -245,8 +245,8 @@ These are written but are not project data, so they have no class. None is read 
 
 **Migration checklist.** #501 lists twenty-two poll constants in seventeen modules that each re-stat on their own clock (the list in the issue body, checked against the constants in the source when stage 1 landed). Retiring one is one module, its own commit, and it must keep `the_frame_a_change_lands_on_stays_inside_two_milliseconds` passing at 10,000 outliner nodes and 5,000 history lines. The order reads a file under the project root first, then the files that live elsewhere and need a second root.
 
-- [x] 1. `crosslinks` `SCAN_POLL_S` (1.5): the finder's scan reads the index's listing and re-reads only the YAML files whose stamp moved (`bd52f181`, review fixes `1607592a`, `9e1ea118`)
-- [x] 2. `files` `TREE_POLL_S` (1.5): the tree and `listed_files` are one answer from the index (`bd52f181`, review fixes `1607592a`, `9e1ea118`)
+- [x] 1. `crosslinks` `SCAN_POLL_S` (1.5): the finder's scan reads the index's listing and re-reads only the YAML files whose stamp moved (`bd52f181`, review fixes `1607592a`, `9e1ea118`, `3dfb5c19`)
+- [x] 2. `files` `TREE_POLL_S` (1.5): the tree and `listed_files` are one answer from the index (`bd52f181`, review fixes `1607592a`, `9e1ea118`, `3dfb5c19`)
 - [ ] 3. `crosslinks` `USED_BY_POLL_S` (1.0): re-read `maps/` when a `maps/*.yaml` event arrives
 - [ ] 4. `files` `POLL_S` (0.25): an open file reloads on its own `Modified` event
 - [ ] 5. `data_view` `RECHECK_SECS` (1.0)
