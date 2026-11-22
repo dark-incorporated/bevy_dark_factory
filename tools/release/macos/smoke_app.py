@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Drive a freshly built DarkFactory.app through its own bundled MCP server and refuse a black window (#306, #307).
+"""Drive a freshly built Dark Factory.app through its own bundled MCP server and refuse a black window (#306, #307).
 
-    python3 tools/release/macos/smoke_app.py --app dist/DarkFactory.app --out dist/smoke
+    python3 tools/release/macos/smoke_app.py --app "dist/Dark Factory.app" --out dist/smoke
 
 1. Launch the app with `open -n` and a scratch HOME, so its log, recent list and settings are its own.
 2. Wait for its BRP port, then start `Contents/MacOS/dark_factory_mcp` (no --project: it follows the editor) and speak
@@ -217,7 +217,7 @@ def smoke(app, out_dir, home, state):
     version = subprocess.run(["plutil", "-extract", "CFBundleShortVersionString", "raw",
                               os.path.join(app, "Contents", "Info.plist")],
                              capture_output=True, text=True, check=True).stdout.strip()
-    print("smoke: DarkFactory %s at %s, HOME %s" % (version, app, home))
+    print("smoke: Dark Factory %s at %s, HOME %s" % (version, app, home))
 
     before = pids_of(exe)
     subprocess.run(["open", "-n", "--env", "HOME=" + home, "--env", "BEVY_BRP_PORT=%d" % SMOKE_PORT, app], check=True)
@@ -254,7 +254,7 @@ def smoke(app, out_dir, home, state):
     with open(os.path.join(out_dir, "state.json"), "w") as f:
         f.write(text_of(state_answer))
 
-    start = "--- DarkFactory %s " % version
+    start = "--- Dark Factory %s " % version
     if not any(l.startswith(start) for l in log_lines(mcp)):
         raise SmokeFailure("the log has no line starting %r" % start)
 

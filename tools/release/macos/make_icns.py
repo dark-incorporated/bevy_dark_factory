@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build DarkFactory.icns from the 256 px Retro Diffusion icon.
+"""Build AppIcon.icns from the 256 px Retro Diffusion icon.
 
 The pixel art is scaled 3x with NEAREST (so pixels stay crisp), masked with a
 rounded rectangle, centred on a transparent 1024 px canvas (the macOS icon grid
@@ -8,7 +8,7 @@ that canvas and packed by `iconutil`.
 
 Runs on macOS only: `iconutil` ships with it. Needs Pillow.
 
-    python3 make_icns.py crates/bevy_dark_factory/macos/icon-256.png --out DarkFactory.icns
+    python3 make_icns.py crates/bevy_dark_factory/macos/icon-256.png --out AppIcon.icns
 """
 
 import argparse
@@ -31,7 +31,7 @@ RETINA_FACTOR = 2
 # NEAREST keeps it crisp; below it LANCZOS averages instead of dropping pixels.
 NEAREST_MIN_PX = 256
 ICONUTIL = "/usr/bin/iconutil"
-ICONSET_NAME = "DarkFactory.iconset"
+ICONSET_NAME = "AppIcon.iconset"
 
 
 def build_canvas(source: Path) -> Image.Image:

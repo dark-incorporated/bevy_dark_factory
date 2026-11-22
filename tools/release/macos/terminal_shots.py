@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Type into a DarkFactory build's terminal the way a person does, and keep a still after each step, for a person to look at.
+"""Type into a Dark Factory build's terminal the way a person does, and keep a still after each step, for a person to look at.
 
-    python3 tools/release/macos/terminal_shots.py --binary /Applications/DarkFactory.app/Contents/MacOS/bevy_dark_factory \\
+    python3 tools/release/macos/terminal_shots.py --binary "/Applications/Dark Factory.app/Contents/MacOS/bevy_dark_factory" \\
         --project <a project root> --out /tmp/terminal-shots [--prompt 'sh-5.3$ ']
 
 Run on the Mac (Python 3.9, standard library only). The editor runs on a scratch HOME (its own recent list, settings,
@@ -105,7 +105,7 @@ def scenarios(ed, shot, scale):
     ed.click(x / scale, y / scale)
     shot("01-focused-prompt")
 
-    ed.text("echo 'Hello, DarkFactory'")
+    ed.text("echo 'Hello, Dark Factory'")
     shot("02-typed-command")
     for _ in range(9):
         ed.key("ArrowLeft", pause=0.1)
@@ -178,7 +178,7 @@ def scenarios(ed, shot, scale):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    ap.add_argument("--binary", required=True, help="a bevy_dark_factory executable, e.g. inside DarkFactory.app")
+    ap.add_argument("--binary", required=True, help="a bevy_dark_factory executable, e.g. inside Dark Factory.app")
     ap.add_argument("--project", required=True, help="a project root whose assets/ is copied, never written")
     ap.add_argument("--map", default="bedroom", help="the map to open")
     ap.add_argument("--out", required=True, help="where the stills go; must not exist")
