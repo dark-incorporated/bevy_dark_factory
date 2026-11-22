@@ -25,6 +25,12 @@ fn root(tag: &str) -> std::path::PathBuf {
         .build("m")
 }
 
+/// An editor on the Map, in a window of this size.
+///
+/// **The window is what lets a pointer be held.** `view::sense_pointer` reads the cursor from the primary window (or from
+/// `DebugCursor`, which takes precedence) and answers `None` with no window at all, and `surface::retarget_pointer` then
+/// writes `PointerLocation` from `view::Pointer` every `PreUpdate`. So a test that wants the pointer somewhere sets
+/// `DebugCursor`, the one place an agent sets it too, rather than writing a `PointerInput` that `retarget_pointer` clears.
 fn editor(tag: &str, width: u32, height: u32) -> App {
     let mut app = harness::build_headless(&root(tag), "m", None).unwrap_or_else(|e| panic!("{e}"));
     // **A window, and no `resize_surface`** — the order `an_injected_pointer_over_a_dock_is_pickable`
@@ -37,6 +43,12 @@ fn editor(tag: &str, width: u32, height: u32) -> App {
         app.update();
     }
     app
+}
+
+/// Whether `entity` is `ancestor` or sits anywhere beneath it, walking **up** through `ChildOf` one parent at a time.
+fn is_within(world: &World, entity: Entity, ancestor: Entity) -> bool {
+    std::iter::successors(Some(entity), |e| world.get::<ChildOf>(*e).map(ChildOf::parent))
+        .any(|e| e == ancestor)
 }
 
 /// Every shipped guide, as `(file name, parsed script)`.
@@ -222,16 +234,28 @@ fn a_step_naming_a_control_that_is_not_there_raises_a_problem() {
 ///
 /// The outline and its arrow sit over the palette, so every node of the tour's layer has to be `Pickable::IGNORE` — otherwise the
 /// pointer that the step tells the person to use lands on the thing pointing at it.
-// **Ignored while #533 is open**: this is the only test here that injects a pointer, and the
-// pointer never hovers the palette — `HoverMap` stays empty, so the click has nothing to land on.
-// Its subject is unproven rather than disproved, and leaving it red would block a suite of 5,049
-// tests over one assertion nobody has made pass yet. The fixture's missing `PrimaryWindow` used to
-// make this hang for 270 s instead of failing; that is fixed, and this is what it was hiding.
-#[ignore = "the injected pointer never hovers the palette (#533)"]
+///
+/// **The pointer is held through `DebugCursor`**, the seam an agent uses (`view::sense_pointer` → `view::Pointer` →
+/// `surface::retarget_pointer` → `PointerLocation`), so the path under test is the one a person's cursor takes. A hand-built
+/// `PointerInput` cannot do it: with a window, `retarget_pointer` rewrites `PointerLocation` from `view::Pointer` every
+/// `PreUpdate`, which is `None` unless the cursor is somewhere.
+///
+/// **What this once got wrong (#533):** it hung forever. The ancestor walk that asked whether a hit is inside the tour's layer
+/// looked up the entries whose *parent* is the entity and then took *their parent*, which is the entity again, so it never
+/// moved on from a hit that had a child and spun at 100% CPU. The `app.update()` before it returned; the walk is only reached
+/// once something is hovered, so every variant that hovered hung, and every one where `retarget_pointer` cleared the pointer
+/// stopped at the empty-hover assertion instead.
 #[test]
 fn a_click_at_the_outlined_control_reaches_it() {
-    use bevy::camera::{ImageRenderTarget, NormalizedRenderTarget};
-    use bevy::picking::pointer::{Location, PointerAction, PointerId, PointerInput};
+    use std::sync::Arc;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    use bevy::input::ButtonState;
+    use bevy::input::mouse::{MouseButton, MouseButtonInput};
+    use bevy::picking::events::PointerClick;
+    use bevy::picking::hover::HoverMap;
+    use bevy::picking::pointer::PointerId;
+    use bevy::ui::{ComputedNode, UiGlobalTransform};
 
     let mut app = editor("clickthrough", 1600, 1200);
     app.world_mut().resource_mut::<Guide>().post(vec![bevy_debugger_bevy::Step {
@@ -249,63 +273,103 @@ fn a_click_at_the_outlined_control_reaches_it() {
     for _ in 0..4 {
         app.update();
     }
-    let at = {
-        let id = tour::control_of("Palette").expect("Palette is a control");
-        let rect = bevy_dark_factory::badges::control_rect(app.world_mut(), id)
-            .expect("the palette is on the Map");
-        rect.center()
+    let id = tour::control_of("Palette").expect("Palette is a control");
+    let at = bevy_dark_factory::badges::control_rect(app.world_mut(), id)
+        .expect("the palette is on the Map")
+        .center();
+    let palette = {
+        let world = app.world_mut();
+        let mut controls = world.query::<(Entity, &bevy_dark_factory::chrome::Control, &ComputedNode)>();
+        let found: Vec<Entity> = controls
+            .iter(world)
+            .filter(|(_, c, node)| c.0 == id && node.size() != Vec2::ZERO)
+            .map(|(e, ..)| e)
+            .collect();
+        assert_eq!(found.len(), 1, "the palette is one laid-out node, since `control_rect` found it: {found:?}");
+        found[0]
     };
-
-    let handle = app
-        .world()
-        .get_resource::<bevy_dark_factory::surface::Surface>()
-        .map(|s| s.image.clone())
-        .unwrap_or_default();
-    let location = Location {
-        target: NormalizedRenderTarget::Image(ImageRenderTarget { handle, scale_factor: 1.0 }),
-        position: at,
-    };
-    app.world_mut()
-        .write_message(PointerInput::new(PointerId::Mouse, location, PointerAction::Move { delta: Vec2::ZERO }));
-    app.update();
-
-    let hits: Vec<Entity> = app
-        .world()
-        .get_resource::<bevy::picking::hover::HoverMap>()
-        .and_then(|map| map.0.get(&PointerId::Mouse))
-        .map(|hits| hits.iter().map(|(entity, _)| *entity).collect())
-        .unwrap_or_default();
-    assert!(!hits.is_empty(), "a move onto the palette hovered nothing at {at:?}");
-
     let layer = app
         .world_mut()
         .query_filtered::<Entity, With<tour::TourPointerLayer>>()
         .single(app.world())
         .expect("a running step with a control draws a pointer layer");
-    let world = app.world_mut();
-    let mut parents = world.query::<&ChildOf>();
-    let parents = parents.iter(world).cloned().collect::<Vec<_>>();
-    let in_layer = |entity: Entity| {
-        let mut at = Some(entity);
-        while let Some(e) = at {
-            if e == layer {
-                return true;
-            }
-            at = parents.iter().find(|p| p.parent() == e).map(|p| p.parent());
-        }
-        false
+
+    // The cursor, where an agent puts it. Three frames: `sense_pointer` reads it after `PreUpdate`, `retarget_pointer`
+    // hands it to picking in the next one, and the hover map is built from that.
+    app.world_mut().resource_mut::<bevy_debugger_bevy::DebugCursor>().0 = Some(at);
+    for _ in 0..3 {
+        app.update();
+    }
+
+    // **The outline is really over that point**, or the rest proves nothing: a layer that was never drawn is trivially
+    // click-through.
+    let outlined = {
+        let world = app.world();
+        world.get::<Children>(layer).is_some_and(|children| {
+            children.iter().any(|child| {
+                matches!(
+                    (
+                        world.get::<ComputedNode>(child),
+                        world.get::<UiGlobalTransform>(child),
+                        world.get::<InheritedVisibility>(child),
+                    ),
+                    (Some(node), Some(transform), Some(visible))
+                        if visible.get() && node.size() != Vec2::ZERO && node.contains_point(*transform, at)
+                )
+            })
+        })
     };
     assert!(
-        !hits.iter().any(|e| in_layer(*e)),
-        "the pointer at the palette's centre {at:?} hit the tour's own layer. Every node of it must be \
+        outlined,
+        "no visible node of the tour's layer covers the palette's centre {at:?}, so the outline is not over the \
+         control and a click getting through it says nothing"
+    );
+
+    let hits: Vec<Entity> = app
+        .world()
+        .resource::<HoverMap>()
+        .0
+        .get(&PointerId::Mouse)
+        .map(|hits| hits.keys().copied().collect())
+        .unwrap_or_default();
+    assert!(
+        !hits.is_empty(),
+        "the cursor injected at the palette's centre {at:?} hovered nothing: the pointer is not reaching picking, \
+         so a pass below would be an empty hover map agreeing with itself"
+    );
+    let world = app.world();
+    assert!(
+        !hits.iter().any(|e| is_within(world, *e, layer)),
+        "the pointer at the palette's centre {at:?} hit the tour's own layer: {hits:?}. Every node of it must be \
          `Pickable::IGNORE`, or the outline eats the click the step asks for"
     );
-    // And the button the step names is really under that point: a press there would land on it.
-    let mut buttons = world.query_filtered::<Entity, With<bevy::ui_widgets::Button>>();
-    let pressed = buttons.iter(world).any(|e| hits.contains(&e));
     assert!(
-        pressed || hits.iter().any(|e| world.get::<bevy_dark_factory::chrome::Control>(*e).is_some()),
-        "the point {at:?} is the palette's own centre and no button or panel of it is under it: {hits:?}"
+        hits.iter().any(|e| is_within(world, *e, palette)),
+        "the point {at:?} is the palette's own centre and nothing of the palette is under it: {hits:?}"
+    );
+
+    // **And the press and release arrive.** The palette (or anything inside it, the event bubbles) hears a click.
+    let reached = Arc::new(AtomicUsize::new(0));
+    let heard = Arc::clone(&reached);
+    app.world_mut().entity_mut(palette).observe(move |_: On<PointerClick>| {
+        heard.fetch_add(1, Ordering::SeqCst);
+    });
+    let press = |app: &mut App, state| {
+        app.world_mut().write_message(MouseButtonInput {
+            button: MouseButton::Left,
+            state,
+            window: Entity::PLACEHOLDER,
+        });
+    };
+    press(&mut app, ButtonState::Pressed);
+    app.update();
+    app.update();
+    press(&mut app, ButtonState::Released);
+    app.update();
+    app.update();
+    assert!(
+        reached.load(Ordering::SeqCst) > 0,
+        "a press and release at the palette's centre {at:?}, under the tour's outline, never reached the palette"
     );
 }
 
