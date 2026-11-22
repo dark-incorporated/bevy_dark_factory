@@ -426,8 +426,9 @@ pub fn save_file(files: &mut Files, root: &Path, rel: &str) -> Result<(), String
         file.problem = Some(format!("{rel} was deleted from the project; your text is still here, and a save does not bring the file back"));
         return Err(format!("{rel} no longer exists, so it was not saved"));
     }
-    // **A change the poll has not seen yet is still a change**: compare with what the disk holds this instant,
-    // so a save in the quarter second after an outside write cannot overwrite it.
+    // **A change the index has not reported yet is still a change**: compare with what the disk holds this instant, so a save before the
+    // index has reported an outside write (it can take about a second: the sweep and the debounce), or of a file the index does not follow
+    // (ignored by `.gitignore`, in a skipped folder), cannot overwrite it. This check does not depend on the index at all.
     if let Ok(now) = std::fs::read_to_string(&full)
         && now != file.disk
         && now != file.text
