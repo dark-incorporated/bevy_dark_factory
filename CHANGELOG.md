@@ -4,6 +4,7 @@ What each change added, newest first. A visible change has a clip: click the sti
 
 ## 2026-11-21
 
+- **app-icon** `c17a35e9` the app has an icon again: a gothic factory-cathedral before a magenta moon, at every size from 16 to 1024 px<br><a href="docs/changelog/media/2026-11-21-app-icon.mp4"><img src="docs/changelog/media/2026-11-21-app-icon.png" width="320" alt="clip"></a>
 - **dark-factory-name** `d23adab` the app is Dark Factory, two words, and its bundle names itself and its icon *No clip: a rename and a bundle fix; proved by the build_app.sh icon guard and the updater test*
 - **ci-weekly** `9f3ab9f6` the nightly CI runs weekly, since the daily re-tested a tree the gate had just passed *No clip: a workflow change; proved by #528's measurement*
 - **tour-click-ignored** `b4f40fd9` the tour's click test is ignored while its pointer never hovers, and the fixture has a window *No clip: a test fixture fix and one ignore with its reason; proved by the other three tour tests passing in 3 s instead of 270 s*
