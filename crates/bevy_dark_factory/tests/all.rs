@@ -779,5 +779,6 @@ mod the_plan_row_follows_the_project_index;
 mod the_reference_view_follows_the_project_index;
 mod an_open_file_and_the_used_by_line_follow_the_project_index;
 mod no_module_polls_the_project_on_its_own_clock;
+mod the_collection_readout_follows_the_ledger;
 mod the_design_follows_the_project_index;
 mod the_project_page_follows_the_project_index;

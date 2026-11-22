@@ -316,8 +316,19 @@ impl TurnLedger {
         self.on.then_some(self.dir.as_deref()).flatten()
     }
 
+    /// **The folder the ledger is pointed at, whether or not it is on**: what the Settings readout follows, so that turning collection on again
+    /// finds the folder already followed.
+    pub fn dir(&self) -> Option<&Path> {
+        self.dir.as_deref()
+    }
+
+    /// The budget the ledger's store stops at, in bytes, or `None` with no folder named.
+    pub fn budget(&self) -> Option<u64> {
+        self.store.as_ref().map(crate::turn_store::Store::budget)
+    }
+
     /// **What the ledger holds on disk now, and the budget it stops at**, or `None` with no folder named. It walks the folder and reads the
-    /// ledger, so it is for the Settings row on a timer, never for a frame.
+    /// ledger, so it is for the Settings row when the ledger moved, never for a frame.
     pub fn usage(&self) -> Option<(crate::turn_store::Usage, u64)> {
         let store = self.store.as_ref()?;
         Some((store.usage(), store.budget()))
