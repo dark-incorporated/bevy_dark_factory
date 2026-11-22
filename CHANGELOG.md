@@ -4,6 +4,7 @@ What each change added, newest first. A visible change has a clip: click the sti
 
 ## 2026-11-21
 
+- **pre-push-lfs** `b7b294bd` a branch push uploads its changelog clips too, instead of being refused with GH008 *No clip: a gate hook; proved by tools/loop/test_pre_push_lfs.py, which fails on the old hook*
 - **dark-factory-folders** `89362ecf` the folders the app makes in Documents are Dark Factory Projects and Dark Factory Example *No clip: a folder name; proved by a_new_project_opens_something_to_edit*
 - **app-icon** `c17a35e9` the app has an icon again: a gothic factory-cathedral before a magenta moon, at every size from 16 to 1024 px<br><a href="docs/changelog/media/2026-11-21-app-icon.mp4"><img src="docs/changelog/media/2026-11-21-app-icon.png" width="320" alt="clip"></a>
 - **dark-factory-name** `d23adab` the app is Dark Factory, two words, and its bundle names itself and its icon *No clip: a rename and a bundle fix; proved by the build_app.sh icon guard and the updater test*
