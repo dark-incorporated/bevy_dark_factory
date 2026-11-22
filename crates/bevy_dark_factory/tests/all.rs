@@ -760,3 +760,5 @@ mod the_tiers_resolve_into_a_valen_set;
 mod the_label_report_says_what_the_set_is_worth;
 mod an_agents_answer_is_never_a_gold_label;
 mod the_after_picture_has_no_question_on_it;
+mod an_open_file_and_the_used_by_line_follow_the_project_index;
+mod no_module_polls_the_project_on_its_own_clock;
