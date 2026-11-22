@@ -7,6 +7,7 @@ use std::time::Duration;
 
 use bevy::prelude::*;
 use bevy_dark_factory::night_shift::{NightShiftItem, NightShiftPlanLine};
+use bevy_dark_factory::world_lists;
 use bevy_gooey::ValueChange;
 
 use crate::fixtures;
@@ -14,9 +15,17 @@ use crate::index_waits::*;
 
 
 fn plan_project(tag: &str) -> (App, PathBuf, PathBuf) {
+    plan_project_with(tag, Some(PLAN_OF_ONE))
+}
+
+fn plan_project_with(tag: &str, text: Option<&str>) -> (App, PathBuf, PathBuf) {
     let root = fixtures::Fixture::new(&format!("w501c_plan_{tag}_{}", std::process::id())).descriptor("table", "alpha").place_as("table@0", "table", (0.0, 0.0)).build("m");
     let plan = root.join("assets/blueprint/maps/m.plan.yaml");
-    write_in_place(&plan, PLAN_OF_ONE);
+    if let Some(text) = text {
+        write_in_place(&plan, text);
+    }
+    std::fs::create_dir_all(root.join("notes")).unwrap_or_else(|e| panic!("{e}"));
+    write_in_place(&root.join("notes/unrelated.yaml"), "note: first\n");
     let mut app = stepped(&root);
     let row = {
         let world = app.world_mut();
@@ -65,4 +74,27 @@ fn the_plan_row_follows_the_plan_file_through_the_index() {
     std::fs::remove_file(&plan).unwrap_or_else(|e| panic!("{e}"));
     announce(&root, &plan);
     assert!(pump_until(&mut app, SHOWN_WITHIN, |app| plan_row(app) == "no plan").is_some(), "a removed plan was not shown as no plan: {:?}", plan_row(&mut app));
+}
+
+/// **While the plan file is not there, a change to any other file reads nothing and judges nothing**, and the file arriving is one read.
+#[test]
+fn an_unrelated_change_reads_nothing_and_judges_nothing_while_the_plan_file_is_not_there() {
+    let (mut app, root, plan) = plan_project_with("absent", None);
+    assert_eq!(plan_row(&mut app), "no plan");
+    sweep(&app, SWEEP_NEVER);
+    let (reads, judged) = (world_lists::reads_on_this_thread(), world_lists::verdict_lookups_on_this_thread());
+
+    let unrelated = root.join("notes/unrelated.yaml");
+    let before = published(&app);
+    write_in_place(&unrelated, "note: second, and longer\n");
+    announce(&root, &unrelated);
+    assert!(pump_until(&mut app, SHOWN_WITHIN, |app| published(app) > before).is_some(), "the index did not publish the unrelated change, so a count of nothing would prove nothing");
+    pump_for(&mut app, Duration::from_millis(300));
+    assert_eq!(world_lists::reads_on_this_thread(), reads, "a change to an unrelated file made the PLAN row read a file");
+    assert_eq!(world_lists::verdict_lookups_on_this_thread(), judged, "a change to an unrelated file made the PLAN row judge a file that is not there again (it reads .gitignore)");
+
+    write_in_place(&plan, PLAN_OF_ONE);
+    announce(&root, &plan);
+    assert!(pump_until(&mut app, SHOWN_WITHIN, |app| plan_row(app).contains("1 [done] lay the walls")).is_some(), "the plan that arrived was not shown");
+    assert_eq!(world_lists::reads_on_this_thread(), reads + 1, "the arrival of the plan is one read");
 }

@@ -36,7 +36,7 @@ fn show_the_block(app: &mut App) {
     settle(app);
 }
 
-/// Frames at least `PLAN_READ_SECS` of wall time apart, so the block has looked at the file again.
+/// Frames 150 ms of wall time apart, so the block has had time to look at the file again.
 fn settle(app: &mut App) {
     for _ in 0..6 {
         std::thread::sleep(std::time::Duration::from_millis(150));

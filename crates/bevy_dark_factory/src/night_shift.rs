@@ -311,6 +311,7 @@ struct PlanHeld {
 /// **The words the PLAN row says for the plan file at `path`**: the count, then each step with its status, or `no plan` when there is no
 /// file. A file that cannot be read or does not parse is logged and said by its own reason, never taken for no plan.
 fn plan_said(path: &std::path::Path) -> String {
+    crate::world_lists::counted_read();
     match blueprint_model::plan::Plan::load(path) {
         Ok(plan) => crate::ops_plan::plan_text(&plan).join("\n"),
         Err(why) => {
