@@ -4,6 +4,7 @@ What each change added, newest first. A visible change has a clip: click the sti
 
 ## 2026-11-21
 
+- **org-refs** `f649c9e8` The repository's own addresses name its real organization, dark-incorporated *No clip: a rename of the repository's own addresses; proved by cargo metadata --locked resolving every git dependency at its new URL*
 - **app-icon** `c17a35e9` the app has an icon again: a gothic factory-cathedral before a magenta moon, at every size from 16 to 1024 px<br><a href="docs/changelog/media/2026-11-21-app-icon.mp4"><img src="docs/changelog/media/2026-11-21-app-icon.png" width="320" alt="clip"></a>
 - **dark-factory-name** `d23adab` the app is Dark Factory, two words, and its bundle names itself and its icon *No clip: a rename and a bundle fix; proved by the build_app.sh icon guard and the updater test*
 - **heading-11** `4d2d9849` a heading is 11 px, so it outranks the 10 px label it heads (#518) *No clip: a one-pixel change to one size in the type scale; proved by the type-scale census and the section-size tests*
