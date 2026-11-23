@@ -1,0 +1,16 @@
+[Unit]
+Description=Daily prune of the push gate's superseded test executables
+
+[Timer]
+# **Daily, and the reason is measured**: one gate per day writes the executables of every test binary it
+# rebuilds, and cargo never reuses an older hash. `~/.cargo-target-gate` was 331 GB on 2026-11-21 and 320 GB
+# on 2026-11-23 with 195 superseded executables (129.4 GB) that no gate could reuse. A daily prune between
+# gates keeps it near the newest generation of each test (57.6 GB on 2026-11-23).
+OnCalendar=*-*-* 04:40
+# A host asleep at 04:40 prunes when it wakes rather than skipping the day.
+Persistent=true
+# Never start a second prune on top of one already reading the same directory.
+AccuracySec=1min
+
+[Install]
+WantedBy=timers.target

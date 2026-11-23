@@ -30,7 +30,17 @@ export RUSTC_WRAPPER=${RUSTC_WRAPPER-}
 export CARGO_BUILD_JOBS=${CARGO_BUILD_JOBS:-6} NEXTEST_TEST_THREADS=${NEXTEST_TEST_THREADS:-12}
 # /home on big is 97% full (2026-11-12) and a target dir is 15-20 GB: refuse to start a build that could fill it.
 free_gb=$(df -Pk "$HOME" | awk 'NR==2 {print int($4/1048576)}')
-[ "$free_gb" -ge "${PREDONE_MIN_FREE_GB:-30}" ] || { echo "predone: only ${free_gb} GB free under $HOME (need ${PREDONE_MIN_FREE_GB:-30}); delete a finished cluster's ~/.cargo-target-fleet/<cluster> and rerun" >&2; exit 1; }
+[ "$free_gb" -ge "${PREDONE_MIN_FREE_GB:-30}" ] || { echo "predone: only ${free_gb} GB free under $HOME (need ${PREDONE_MIN_FREE_GB:-30}); delete a finished cluster's ~/.cargo-target-fleet/<cluster>, run tools/loop/prune_gate_target.sh --apply, and rerun" >&2; exit 1; }
+# **A full disk stops a run before it compiles, not after** (#578). A disk that fills mid-link surfaces as
+# "clang: error: linker command failed with exit code -2" or as tests that "fail" in 0.2 s, which reads as a code
+# defect for as long as it takes somebody to check `df`. The gate's own target is the largest thing here and the one
+# `gate-prune.timer` holds to a ceiling; name it, with its size, in the refusal so the next person does not have to
+# find it.
+gate_target="${GATE_TARGET:-$HOME/.cargo-target-gate}"
+if [ -d "$gate_target" ]; then
+  gate_gb=$(du -s --block-size=1G "$gate_target" 2>/dev/null | cut -f1)
+  echo "predone: ${free_gb} GB free under $HOME; the gate target $gate_target is ${gate_gb:-?} GB (tools/loop/prune_gate_target.sh --apply prunes it; gate-prune.timer runs it daily)"
+fi
 result=/tmp/fleet/result-$cluster.md
 log=/tmp/fleet/predone-$cluster.log
 sha=$(git rev-parse --short=9 HEAD)

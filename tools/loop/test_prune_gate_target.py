@@ -104,6 +104,33 @@ class PruneGateTarget(unittest.TestCase):
         result = self.run_script("--everything")
         self.assertEqual(result.returncode, 64, result.stdout + result.stderr)
 
+    def test_a_target_that_is_still_over_its_ceiling_after_pruning_says_so(self):
+        """#578: the timer's failure has to be a line in the journal, so a target the prune cannot get under its ceiling
+        exits 4 rather than reporting a successful prune."""
+        self.make(f"every_task_is_valid-{hexhash(1)}", 90_000)
+        self.make(f"every_task_is_valid-{hexhash(2)}", 10)
+        result = subprocess.run(
+            ["bash", str(SCRIPT), "--apply"],
+            env=dict(os.environ, GATE_TARGET=str(self.target), MIN_MB=str(MIN_MB),
+                     GATE_UNIT="prune-test-no-such-unit", CEILING_GB="0"),
+            capture_output=True, text=True, timeout=60,
+        )
+        self.assertEqual(result.returncode, 4, result.stdout + result.stderr)
+        self.assertIn("OVER CEILING", result.stderr)
+
+    def test_a_target_under_its_ceiling_prunes_quietly(self):
+        """The ceiling only speaks when it is broken; a normal prune is exit 0."""
+        self.make(f"every_task_is_valid-{hexhash(1)}", 90_000)
+        self.make(f"every_task_is_valid-{hexhash(2)}", 10)
+        result = subprocess.run(
+            ["bash", str(SCRIPT), "--apply"],
+            env=dict(os.environ, GATE_TARGET=str(self.target), MIN_MB=str(MIN_MB),
+                     GATE_UNIT="prune-test-no-such-unit", CEILING_GB="120"),
+            capture_output=True, text=True, timeout=60,
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("ceiling 120 GB", result.stdout)
+
 
 if __name__ == "__main__":
     unittest.main()
