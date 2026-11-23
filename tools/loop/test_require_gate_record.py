@@ -55,6 +55,40 @@ class RequireGateRecord(unittest.TestCase):
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
         self.assertIn("OWNER EXCEPTION", r.stdout)
 
+    def bump(self):
+        """A version bump on top of `self.sha`: the manifest line changed and nothing else."""
+        (self.work / "Cargo.toml").write_text('version = "1.2.4"\n')
+        git(self.work, "add", "-A")
+        git(self.work, *IDENTITY, "commit", "-q", "-m", "release: 1.2.4")
+        return git(self.work, "rev-parse", "HEAD").stdout.strip()
+
+    def test_a_version_bump_whose_parent_is_gated_passes(self):
+        # The first tag after this script landed refused 0.8.2 for exactly this: a bump runs no tests by design, so it has
+        # no record of its own, and its diff is version lines only.
+        git(self.work, "notes", "--ref", "gated", "add", "-m", "gated on big", self.sha)
+        bump = self.bump()
+        r = self.run_script(bump)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertIn("is a version bump whose parent", r.stdout)
+
+    def test_a_bump_whose_parent_is_not_gated_is_refused(self):
+        bump = self.bump()
+        r = self.run_script(bump)
+        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+        self.assertIn("REFUSED", r.stderr)
+
+    def test_a_commit_that_only_looks_like_a_bump_is_refused(self):
+        # A source line beside the version line makes it not a bump: it must carry its own gate.
+        git(self.work, "notes", "--ref", "gated", "add", "-m", "gated on big", self.sha)
+        (self.work / "Cargo.toml").write_text('version = "1.2.4"\n')
+        (self.work / "src.rs").write_text("fn main() {}\n")
+        git(self.work, "add", "-A")
+        git(self.work, *IDENTITY, "commit", "-q", "-m", "release: 1.2.4 with a fix")
+        fake = git(self.work, "rev-parse", "HEAD").stdout.strip()
+        r = self.run_script(fake)
+        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+        self.assertIn("REFUSED", r.stderr)
+
     def test_an_unknown_commit_is_refused_rather_than_passing(self):
         r = self.run_script("0" * 40)
         self.assertEqual(r.returncode, 2, r.stdout + r.stderr)

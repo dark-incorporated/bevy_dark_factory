@@ -30,6 +30,25 @@ if git notes --ref "$notes_ref" show "$sha" >/dev/null 2>&1; then
   echo "require-gate-record: $sha carries its gate record: $(git notes --ref "$notes_ref" show "$sha" | head -1)"
   exit 0
 fi
+# **A version bump is gated by its parent** (found 2026-11-23, the first tag after this script landed: 0.8.2's bump commit
+# has no record of its own, because the pre-push hook deliberately runs no tests for a bump — and refusing the tag of a
+# correctly gated release is a false alarm). A bump carries no code: its whole diff is `version = "..."` lines in the
+# manifests and the lock. So a bump whose PARENT carries the record is gated, and the diff is re-checked here rather than
+# trusted: a commit with one other line changed is not a bump and still needs its own gate.
+bump_only() {
+  local parent files f
+  parent=$(git rev-parse "$sha^" 2>/dev/null) || return 1
+  files=$(git diff --name-only "$parent" "$sha") || return 1
+  [ -n "$files" ] || return 1
+  while read -r f; do
+    case "$f" in Cargo.lock | Cargo.toml | crates/*/Cargo.toml) ;; *) return 1 ;; esac
+  done <<<"$files"
+  ! git diff -U0 --no-ext-diff "$parent" "$sha" | grep -E '^[+-]' | grep -vE '^(\+\+\+|---) ' | grep -qvE '^[+-]version = "[^"]*"$'
+}
+if parent=$(git rev-parse "$sha^" 2>/dev/null) && bump_only && git notes --ref "$notes_ref" show "$parent" >/dev/null 2>&1; then
+  echo "require-gate-record: $sha is a version bump whose parent $(git rev-parse --short "$parent") carries the gate record: $(git notes --ref "$notes_ref" show "$parent" | head -1)"
+  exit 0
+fi
 if [ -n "$allow" ]; then
   echo "require-gate-record: OWNER EXCEPTION: $sha has no record in $notes_ref ($allow)"
   exit 0
