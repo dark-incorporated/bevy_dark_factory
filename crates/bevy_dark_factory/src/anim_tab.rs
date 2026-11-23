@@ -1073,7 +1073,7 @@ fn on_rig_click(
     project: Option<Res<crate::project::Project>>,
 ) {
     // **`Option`, because this is a GLOBAL observer** — it fires for any `Activate` anywhere in the application, and in
-    // Bevy 0.19 a missing resource panics at param validation rather than skipping.
+    // Bevy 0.20 a missing resource panics at param validation rather than skipping.
     let (Ok(row), Some(project)) = (rows.get(activate.entity), project) else {
         return;
     };

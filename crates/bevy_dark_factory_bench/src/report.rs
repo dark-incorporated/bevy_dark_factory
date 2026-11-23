@@ -823,7 +823,7 @@ fn cell(text: &str) -> String {
 ///
 /// HTML's `&`, `<` and `>` become entities, and markdown's own punctuation (backslash, backtick, `*`, brackets and
 /// parentheses, which make code, emphasis, links and images) is backslash-escaped, so what was quoted renders as the
-/// text it is. The report's own markup is never passed through this. A pipe and a newline are [`cell`]'s.
+/// text it is. The report's own markup is never passed through this. A pipe and a newline are `cell`'s.
 pub fn quoted(text: &str) -> String {
     let mut out = String::with_capacity(text.len());
     for c in text.chars() {

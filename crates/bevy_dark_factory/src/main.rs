@@ -19,7 +19,7 @@ use bevy::app::PluginGroup;
 ///
 /// The winit limit was never the real obstacle: one process can show a menu and an editor in one
 /// window as long as they are two *states* rather than two `App`s. The real obstacle was that in
-/// Bevy 0.19 a **missing `Res<T>` panics its system**, and about a hundred parameter positions take
+/// Bevy 0.20 a **missing `Res<T>` panics its system**, and about a hundred parameter positions take
 /// `Res<Project>` — so a menu inside the editor's `App` meant gating every one of them. That is what
 /// `screen.rs` now does, and this file is what a binary should be again: parse arguments, build one
 /// app, run it.

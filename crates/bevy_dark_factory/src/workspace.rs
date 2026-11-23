@@ -8,16 +8,16 @@
 //! them and why crossing cost a reload.
 //!
 //! A **workspace** is only the *job*. Which panels are on screen is a second axis, and it is the
-//! dock layout: [`Self::default_layout`] says where a workspace starts and the person's own
+//! dock layout: [`Workspace::default_layout`] says where a workspace starts and the person's own
 //! arrangement says where it is now. Crossing between workspaces keeps the project, the open map and
 //! the selection, because the two axes no longer share a value — `docs/ui/vision.md` §3 and §4.
 //!
 //! # Nine, and only the built ones are registered
 //!
-//! [`Self::ALL`] is the canonical order the keys follow, and it is fixed for good: `Cmd`/`Ctrl`+`1`
+//! [`Workspace::ALL`] is the canonical order the keys follow, and it is fixed for good: `Cmd`/`Ctrl`+`1`
 //! is always Project, so a person's fingers keep their meaning across releases. A workspace whose
-//! part is not built yet is **not registered** ([`Self::is_built`]) — a placeholder screen is a
-//! promise the editor cannot keep — and its command says which issue brings it ([`Self::missing`]).
+//! part is not built yet is **not registered** ([`Workspace::is_built`]) — a placeholder screen is a
+//! promise the editor cannot keep — and its command says which issue brings it ([`Workspace::missing`]).
 //! That is why the key exists before the workspace does: the chord is stable, and the command answers
 //! *why* it does nothing, which is the rule `commands::Command::enabled` already keeps for every
 //! other verb.

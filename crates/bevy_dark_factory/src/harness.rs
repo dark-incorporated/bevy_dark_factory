@@ -8,7 +8,7 @@
 //! Because the alternative was worse in a way that took a while to admit. Every system in this crate
 //! reads and writes resources, so almost everything about the editor is checkable from a test — but
 //! the one question a unit test cannot answer is *"does this app get through its first frame"*, and
-//! in Bevy 0.19 that question has teeth: a missing `Res<T>` **panics its system** rather than
+//! in Bevy 0.20 that question has teeth: a missing `Res<T>` **panics its system** rather than
 //! skipping it, and every run condition is evaluated with no short-circuit (`CLAUDE.md`). Those have
 //! broken this editor more than any arithmetic in it.
 //!
@@ -52,7 +52,7 @@ pub fn add_editor_plugins(app: &mut App) -> &mut App {
         // `FeathersPlugins` brings `TabNavigationPlugin`, whose handler claims `Tab` for focus
         // traversal — and `keys.rs` bound `Tab` to "next panel". Both would have fired: with nothing
         // focused, `dispatch_focused_input` sends to the PRIMARY WINDOW
-        // (`bevy_input_focus-0.19.0/src/lib.rs:372`), which is where that observer lives, so it is
+        // (`bevy_input_focus-0.20.0/src/lib.rs:394`), which is where that observer lives, so it is
         // not gated on the editor having a focus model. The collision test reads `BINDINGS` and
         // cannot see an upstream observer, and the handler is window-scoped so every headless test
         // stays green — it would have surfaced as an author's `Tab` key doing two things at once.
@@ -71,7 +71,7 @@ pub fn add_editor_plugins(app: &mut App) -> &mut App {
         crate::chrome::ChromePlugin,
         crate::view::ViewPlugin,
         // **Nested, because `add_plugins` tuples cap at 15** (`all_tuples!(.., 0, 15, ..)`,
-        // `bevy_app-0.19.0/src/plugin.rs:186`). Grouped rather than renumbered so adding the next
+        // `bevy_app-0.20.0/src/plugin.rs:186`). Grouped rather than renumbered so adding the next
         // one is a nested pair again and not a re-flatten of the whole list.
         (
             crate::compass::CompassPlugin,
@@ -100,7 +100,7 @@ pub fn add_editor_plugins(app: &mut App) -> &mut App {
         crate::label_booth::LabelBoothPlugin,
         crate::labels::LabelsPlugin,
         crate::notice::NoticePlugin,
-        // **Nested, because `add_plugins` tuples cap at 15** (`bevy_app-0.19.0/src/plugin.rs:186`,
+        // **Nested, because `add_plugins` tuples cap at 15** (`bevy_app-0.20.0/src/plugin.rs:186`,
         // `all_tuples!(impl_plugins_tuples, 0, 15, P, S)`) and `WidgetsPlugin` was the sixteenth.
         // The error names a `Plugins<_>` bound rather than the cap, so this is worth the comment.
         // Still one list, in one order — the nesting is punctuation, not a second code path.
@@ -306,8 +306,8 @@ pub fn install_font(app: &mut App, root: &Path) -> Result<(), String> {
 /// draws nothing — the editor opened from the home after the home itself was drawn.
 ///
 /// The pipeline does notice a **removed** asset: it clears its collection, registers every remaining face again and marks every
-/// `TextFont` changed. So a second face is a removal now and the new face a frame later ([`PendingFont`]), once a frame has shown the
-/// pipeline the removal ([`mark_the_removal_seen`], [`seat_the_pending_font`]); for that frame the editor's text has no face. A
+/// `TextFont` changed. So a second face is a removal now and the new face a frame later (`PendingFont`), once a frame has shown the
+/// pipeline the removal (`mark_the_removal_seen`, `seat_the_pending_font`); for that frame the editor's text has no face. A
 /// face with the same bytes as the one installed changes nothing, so the common case — two projects with no font of their own —
 /// never blanks.
 pub fn install_font_in(world: &mut World, root: Option<&Path>) -> Result<(), String> {
@@ -488,7 +488,7 @@ pub fn build_stepped_at(
 
     // **The injected-pointer resource, without the plugin that owns it.**
     //
-    // `view::sense_pointer` reads `DebugCursor` to let an agent aim the cursor, and in Bevy 0.19 a
+    // `view::sense_pointer` reads `DebugCursor` to let an agent aim the cursor, and in Bevy 0.20 a
     // missing `Res<T>` panics its system rather than skipping it. `add_debugger_plugins` stays out of
     // here on purpose — it binds a port, and a test process builds several `App`s — so the resource
     // has to be provided on its own. Empty, so `sense_pointer` reads the real window exactly as it

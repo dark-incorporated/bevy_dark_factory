@@ -96,7 +96,8 @@ const TITLE_CHARS: usize = 140;
 /// What starts a line's marked notes: the title ends at the first of these.
 const TITLE_ENDS: [&str; 3] = [" *No clip", "<br>", " *For you: "];
 
-/// Every entry of `text`, newest first as the file keeps them: a line `- **<id>** [`<sha>`] <title>`, the title
+/// Every entry of `text`, newest first as the file keeps them: a line `- **id** sha title` in the file's own
+/// placeholders — the id bold, the commit in code, then the title —, the title
 /// ending where the line's `*For you` sentence, its `*No clip` note or its clip's markup begins.
 pub fn news(text: &str) -> Vec<News> {
     text.lines()
@@ -700,7 +701,7 @@ pub(crate) fn fill_sidebar(commands: &mut Commands, sidebar: Entity, launcher: &
     });
 }
 
-/// The sidebar's version line, which [`follow_the_updater`] keeps saying what the updater knows.
+/// The sidebar's version line, which `follow_the_updater` keeps saying what the updater knows.
 #[derive(Component)]
 pub struct VersionLine;
 

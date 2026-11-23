@@ -2,14 +2,14 @@
 //!
 //! Four systems, in the order they matter:
 //!
-//! 1. [`pump_the_terminal`] — every shell's output into its screen; the emulator's replies back out.
-//! 2. [`measure_the_cell`] — one glyph's advance, once per font, from the shipped face.
-//! 3. [`resize_the_terminal`] — the pane's size → a cell count → `TIOCSWINSZ`, **only on a change**.
-//! 4. [`draw_the_terminal`] — rebuild the rows, and only when the screen is dirty.
+//! 1. `pump_the_terminal` — every shell's output into its screen; the emulator's replies back out.
+//! 2. `measure_the_cell` — one glyph's advance, once per font, from the shipped face.
+//! 3. `resize_the_terminal` — the pane's size → a cell count → `TIOCSWINSZ`, **only on a change**.
+//! 4. `draw_the_terminal` — rebuild the rows, and only when the screen is dirty.
 //!
 //! # The key swallow
 //!
-//! [`type_keys`] reads the raw [`KeyboardInput`] stream and, while [`TerminalFocus`] holds, turns every
+//! `type_keys` reads the raw [`KeyboardInput`] stream and, while [`TerminalFocus`] holds, turns every
 //! key into the bytes a terminal sends. **No editor binding fires** — not because each one is
 //! checked, but because the editor's own gate is `Live(Context::Typing, …)` and
 //! [`crate::editor::sense_context`] folds the terminal into the same `typing` flag a text field sets.
@@ -24,7 +24,7 @@
 //! Not the character. `Enter` is `\r`, `Backspace` is `\x7f`, an arrow is `ESC [ A`, `Ctrl+C` is
 //! `\x03`. This is the VT100 vocabulary and it is not negotiable: a shell in raw mode (`vim`, `less`,
 //! `fzf`) reads those sequences and nothing else, and a pane that sent `"Enter"` would leave the
-//! program waiting for a byte that never came. [`key_bytes`] is the whole table, and it is data.
+//! program waiting for a byte that never came. `key_bytes` is the whole table, and it is data.
 
 use bevy::input::keyboard::{Key, KeyboardInput};
 use bevy::input::ButtonState;
@@ -39,7 +39,7 @@ use crate::terminal_pane::{
 
 /// **One cell's advance**, logical px: the shipped face is `FiraMono`, whose advance is `0.6 em` — the
 /// ratio `capture_feedback_1793905698793`'s test measured independently, stated once here for the
-/// terminal. [`measure_the_cell`] replaces it with a real measurement on the first frame that has a
+/// terminal. `measure_the_cell` replaces it with a real measurement on the first frame that has a
 /// laid-out glyph, so a project's own face is honoured.
 pub fn terminal_cell_w() -> f32 {
     chrome::text::LABEL.px() * 0.6
@@ -54,7 +54,7 @@ pub fn terminal_cell_h() -> f32 {
 /// **Where the rows begin inside the body, logical px, and one number for every side of the boundary:**
 /// the window's panel inset across (`STEP_PAD`), a small inset down.
 ///
-/// The pane writes it as the body's padding; [`resize_the_terminal`] subtracts it before dividing by a cell,
+/// The pane writes it as the body's padding; `resize_the_terminal` subtracts it before dividing by a cell,
 /// the caret adds it before multiplying by one, and `terminal_pane::cell_under` subtracts it from a press. It
 /// was a single 2 px written on both axes here while the pane padded its sides by the panel inset, and that
 /// cost three things on mac_air (feedback-1794011769640): the shell was told of 4 more columns than a row
@@ -140,7 +140,7 @@ impl Plugin for TerminalViewPlugin {
 /// **The measured advance of one glyph**, which is what the pane's column count is computed from.
 ///
 /// Measured once, from a laid-out `Text` holding one `M` in the shipped face, and remeasured whenever
-/// the font changes ([`measure_the_cell`] compares the size it saw). A hard-coded 6.6 px would be
+/// the font changes (`measure_the_cell` compares the size it saw). A hard-coded 6.6 px would be
 /// right until somebody chose a project face with a different advance, at which point every column
 /// would drift by a fraction of a cell per character and the pane would look broken in a way nobody
 /// could name.

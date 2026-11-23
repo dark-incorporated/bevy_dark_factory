@@ -11,7 +11,7 @@
 //!   it was over none. It is spawned only while there is a page to open, so a project with no style has no extra button in the
 //!   panel, and a click goes through the one reveal every other way of arriving at a file uses.
 //!
-//! **The areas are read, not held**: [`refresh`] reads the level's `areas/` folder when the project index says a file under `design/` moved (or the
+//! **The areas are read, not held**: `refresh` reads the level's `areas/` folder when the project index says a file under `design/` moved (or the
 //! map or project changed) and writes the resource only when the answer differs, so an area an agent drew with `design_area_set`, or one edited
 //! by hand, is on screen shortly after the index sees it, and a settled editor costs a comparison.
 

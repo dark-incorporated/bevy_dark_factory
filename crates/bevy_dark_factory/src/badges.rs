@@ -56,7 +56,7 @@
 //! and the expert motion are the same motion. That is Kurtenbach's principle of rehearsal, quoted in
 //! ExposeHK: *"guidance should be a physical rehearsal of the way an expert would issue a command"*,
 //! with the corollary that teaching a hotkey through pointing means *"users rehearse pointing, not
-//! hotkey use."* [`flash_live_badges`] is what makes the coincidence visible, and
+//! hotkey use."* `flash_live_badges` is what makes the coincidence visible, and
 //! `a_key_still_fires_while_k_is_held` is what stops it being quietly lost.
 
 use bevy::prelude::*;
@@ -180,7 +180,7 @@ pub const RENDERS_NO_ROWS: bool = true;
 #[derive(Component)]
 pub struct BadgeLayer;
 
-/// **One anchor's badges.** Positioned by [`place_badges`]; its children are laid out by flex.
+/// **One anchor's badges.** Positioned by `place_badges`; its children are laid out by flex.
 #[derive(Component)]
 pub struct BadgeCluster(pub Home);
 
@@ -203,7 +203,7 @@ pub struct BadgeRest(pub Color, pub Color);
 
 /// **The three segments of a cluster's leader** — the reach out of the anchor, the run down the
 /// corridor, the landing into the box. Spawned among the layer's children *before* every cluster so
-/// a line paints under any box it meets; laid out by [`place_badges`]; the run and the landing stay
+/// a line paints under any box it meets; laid out by `place_badges`; the run and the landing stay
 /// hidden whenever the box sits level with its anchor and the reach alone is the line.
 #[derive(Component)]
 pub struct Lead(pub [Entity; 3]);
@@ -427,7 +427,7 @@ type InkState = bevy::ecs::system::SystemState<(
     Query<'static, 'static, &'static ChildOf>,
 )>;
 
-/// **[`ink`] run against a `World`**, so a test measures the editor's own answer rather than a
+/// **`ink` run against a `World`**, so a test measures the editor's own answer rather than a
 /// second copy of the rule.
 ///
 /// `no_badge_cluster_draws_through_another` is the packer's contract, and a test that restated what
@@ -436,7 +436,7 @@ type InkState = bevy::ecs::system::SystemState<(
 /// queries the system takes.
 pub fn ink_now(world: &mut World) -> Vec<Rect> {
     let mut state: InkState = bevy::ecs::system::SystemState::new(world);
-    // `SystemState::get` is fallible in 0.19; a world that cannot satisfy the queries has no
+    // `SystemState::get` is fallible in 0.20; a world that cannot satisfy the queries has no
     // interface to measure, which is the same answer as an empty one.
     let Ok((layers, painters, parents)) = state.get(world) else {
         return Vec::new();
@@ -454,7 +454,7 @@ impl Plugin for BadgePlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<ShowingFor>()
             // **After the frame.** `spawn_layer` reads `Res<Frame>` for the node it parents to, and
-            // in Bevy 0.19 a missing `Res<T>` panics its system rather than skipping it.
+            // in Bevy 0.20 a missing `Res<T>` panics its system rather than skipping it.
             .add_systems(
                 OnEnter(crate::screen::Screen::Editor),
                 spawn_layer.after(chrome::FrameSystems),
@@ -520,9 +520,9 @@ type ControlState = bevy::ecs::system::SystemState<
     >,
 >;
 
-/// **How many laid-out nodes claim this id** — the census's question behind [`sole_control`], as a number.
+/// **How many laid-out nodes claim this id** — the census's question behind `sole_control`, as a number.
 ///
-/// [`sole_control`] answers *one or none*, because that is what decides whether a box is drawn. A corpus test needs the
+/// `sole_control` answers *one or none*, because that is what decides whether a box is drawn. A corpus test needs the
 /// number between: two is a duplicate the pointer cannot aim at, and zero is a control no tab draws. Asked here rather
 /// than restated in a test, so a reader of the failure and a reader of the badge agree on what "laid out" means.
 pub fn controls_shown(world: &mut World, id: keys::ControlId) -> usize {
@@ -536,9 +536,9 @@ pub fn controls_shown(world: &mut World, id: keys::ControlId) -> usize {
         .count()
 }
 
-/// **Where the control with this id stands, from a query a system already holds** — [`sole_control`]'s answer.
+/// **Where the control with this id stands, from a query a system already holds** — `sole_control`'s answer.
 ///
-/// The tournament's pointer (#510) runs as a system and must not build a second [`SystemState`] per frame, so the join is
+/// The tournament's pointer (#510) runs as a system and must not build a second [`bevy::ecs::system::SystemState`] per frame, so the join is
 /// here once and both callers reach it: this for a system, [`control_rect`] for a bare world.
 pub fn rect_of(
     id: keys::ControlId,
@@ -547,10 +547,10 @@ pub fn rect_of(
     sole_control(id, controls).map(|(_, rect)| rect)
 }
 
-/// **Where the control with this id stands, or `None`** — [`sole_control`]'s answer, against a world.
+/// **Where the control with this id stands, or `None`** — `sole_control`'s answer, against a world.
 ///
 /// The tour (#510) has to point at the control a step is about, and the answer to *"where is that
-/// control"* already exists here: it is [`sole_control`] over [`laid_out_rect`], the same join the
+/// control"* already exists here: it is `sole_control` over `laid_out_rect`, the same join the
 /// census makes. A second locator beside this one would be the duplication `keys.rs` and this module
 /// exist to refuse, so the tour asks this and gets exactly what a badge gets — including the
 /// exactly-one rule, which is why a control drawn twice answers `None` here too.

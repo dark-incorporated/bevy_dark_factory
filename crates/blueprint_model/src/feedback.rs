@@ -228,7 +228,7 @@ pub fn pairs(picks: &[Pick], rects: &[Option<[f32; 4]>], front: &[usize]) -> Vec
 
 /// **The shared rectangle of two**, or `None` when their interiors do not meet.
 ///
-/// **A [`PairKind::Touches`] is this returning `None` while [`edges_meet`] says the edges are within
+/// **A [`PairKind::Touches`] is this returning `None` while `edges_meet` says the edges are within
 /// [`EDGE_TOUCH_PX`] on some axis** — two boxes that abut share a line, which is zero pixels of area,
 /// so a zero-width rectangle is not a rectangle here.
 pub fn overlap_rect(a: [f32; 4], b: [f32; 4]) -> Option<[f32; 4]> {
@@ -386,7 +386,7 @@ pub fn log_file(stem: &str) -> String {
 ///
 /// A `.json` that parses and whose `<stem>.png` exists is a report. Anything else — a file that does
 /// not parse, a record whose picture is missing — is named in the second list rather than hiding the
-/// rest, exactly as [`dark_factory_snip::read_snips`] does for a snip. A folder that does not exist
+/// rest, exactly as `dark_factory_snip::read_snips` does for a snip. A folder that does not exist
 /// has no reports and no problems.
 ///
 /// **The file's own name names the pictures**, never a stem written inside the record: a stem with a

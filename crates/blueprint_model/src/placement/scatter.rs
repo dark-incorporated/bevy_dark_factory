@@ -40,7 +40,7 @@ pub struct SupportSurface {
     /// 2011 "align with prominent features"; Infinigen Indoors (Raistrick et al. 2024) spatial-relation
     /// constraints treat a support and the object on it as co-oriented.
     pub yaw: f32,
-    /// Bitmask of surface classes this top offers (see [`crate::placement::furnish`] `surface_bits`).
+    /// Bitmask of surface classes this top offers (see [`crate::placement::surfaces::surface_bits`]).
     pub provides: u32,
 }
 
@@ -53,7 +53,7 @@ pub struct ScatterProp {
     pub candidate: CandidateIx,
     pub half_x: f32,
     pub half_z: f32,
-    /// Bitmask of surface classes this prop may rest on (see [`crate::placement::furnish`] `surface_bits`).
+    /// Bitmask of surface classes this prop may rest on (see [`crate::placement::surfaces::surface_bits`]).
     pub requires: u32,
 }
 

@@ -14,7 +14,7 @@
 //! flashing on the composure screen"*, and it took an author at the machine to see it: no test
 //! renders, so nothing could have caught two constants being equal.
 //!
-//! [`distinct`] is that check, and it is why the constants live together rather than apart. A new
+//! `distinct` is that check (a test below, not a function), and it is why the constants live together rather than apart. A new
 //! stage adds a row there and the test fails until it is somewhere of its own.
 
 use bevy::prelude::Vec3;

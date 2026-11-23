@@ -20,7 +20,7 @@
 //!
 //! # It survives the door
 //!
-//! The **pane** is a `Node` and the door sweep takes it ([`crate::screen::scene_roots`]); the
+//! The **pane** is a `Node` and the door sweep takes it (`crate::screen::scene_roots`); the
 //! **shells** are a resource ([`crate::terminal::Terminal`]) and nothing sweeps a resource. That is
 //! the whole persistence story, and it is the right one: a `cargo build` started on the Map door is
 //! still running when the person crosses to Kit, and the pane they raise there draws the same
@@ -30,7 +30,7 @@
 //! # Narrow is a layout behaviour, not a hope
 //!
 //! The column count is `floor(body_width / cell_width)` from a measured cell
-//! ([`crate::terminal_view::measure_the_cell`]), and the shell is told every time it changes —
+//! (`crate::terminal_view::measure_the_cell`), and the shell is told every time it changes —
 //! `cargo`'s own wrapping then does the work, and the emulator re-wraps its scrollback so a prompt
 //! that was one row at 200 columns is drawn as four at 50 rather than clipped. The pane never draws a
 //! cell outside its rect: a clipped terminal loses the right-hand end of every error message with no
@@ -243,7 +243,7 @@ impl TerminalFind {
 /// **A screen root the terminal docks across the bottom of** (#314): the projects home, the project
 /// page and the loading screen put this on their root, and the pane is built as its last child the
 /// moment the root is spawned. The editor's frame is not one: it docks the pane above its status band
-/// ([`spawn_the_pane`]). One marker rather than a spawn call in each screen, so a screen added later
+/// (`spawn_the_pane`). One marker rather than a spawn call in each screen, so a screen added later
 /// gets the terminal by naming this, and a screen that forgets it has no half-built pane.
 #[derive(Component, Default, Reflect)]
 #[reflect(Component, Default)]
@@ -309,7 +309,7 @@ fn the_label_says_what_the_next_press_does(terminal: Res<Terminal>, mut labels: 
 }
 
 /// **The `Agent` chip**: another agent tab, in the open project. Shown while the settings choose an
-/// agent (`terminal_agent`) and the pane is not the one inviting the first (see [`offers_another_agent`]).
+/// agent (`terminal_agent`) and the pane is not the one inviting the first (see `offers_another_agent`).
 #[derive(Component)]
 pub struct TerminalAgentChip;
 
@@ -388,7 +388,7 @@ const AGENT_CARD_MIN_W: f32 = 320.0;
 /// the single gate the whole census already respects; a second swallow written here would be the
 /// two-paths failure this crate spends its refusals on.
 ///
-/// Some chords survive, checked in [`crate::terminal_view::type_keys`] *before* the swallow because
+/// Some chords survive, checked in `terminal_view::type_keys` *before* the swallow because
 /// they are read there rather than through the census: `Ctrl+\`` closes, and Cmd+V, Cmd+C and Cmd+A (or
 /// Ctrl+Shift+V, C and A) paste, copy and select all ([`crate::terminal_view::clipboard_chord`]).
 #[derive(Resource, Default, Reflect)]
@@ -969,7 +969,7 @@ fn chip_width(chars: usize) -> f32 {
 }
 
 /// **Decide what a bar of `room` logical px holds** (#423); `None` is a bar not yet laid out, which holds everything. The widths are
-/// estimated from the face's advance ([`GLYPH_ADVANCE`]) so the plan is a pure function of what is wanted and how much room there is.
+/// estimated from the face's advance (`GLYPH_ADVANCE`) so the plan is a pure function of what is wanted and how much room there is.
 pub fn bar_plan(room: Option<f32>, wants: &BarWants) -> BarPlan {
     let mut plan = BarPlan { tabs: (0..wants.tabs.len()).collect(), go_to: wants.go_to.is_some(), start_agent: wants.start_agent, led_name: wants.led };
     let Some(room) = room else {
@@ -2582,7 +2582,7 @@ fn resume_the_agent_that_was_running(
 }
 
 /// **The session a relaunch asks the new editor to restore** (`--restore-dev-agent <id>`, inserted by `main`): the editor development
-/// agent that asked for the relaunch continues in this editor's terminal. Taken by [`restore_the_editor_dev_agent`], once.
+/// agent that asked for the relaunch continues in this editor's terminal. Taken by `restore_the_editor_dev_agent`, once.
 #[derive(Resource, Clone, Debug, PartialEq, Eq)]
 pub struct RestoreDevAgent(pub String);
 

@@ -54,7 +54,7 @@ pub(crate) fn shell_program_of_environment() -> Result<String, String> {
 }
 
 /// **A shell the person chose** (`terminal_shell` and `terminal_shell_args`, #324): VS Code's default
-/// profile. Without one a session runs [`shell_of_environment`].
+/// profile. Without one a session runs `shell_of_environment`.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ShellChoice {
     pub program: String,

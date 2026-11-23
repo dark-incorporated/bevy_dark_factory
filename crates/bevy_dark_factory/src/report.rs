@@ -382,7 +382,7 @@ pub struct ReportOpen;
 #[derive(Component)]
 pub struct ReportBox;
 
-/// **The note box's own field's row**, so [`keep_the_note_boxs_keys`] can find the field Bevy's
+/// **The note box's own field's row**, so `keep_the_note_boxs_keys` can find the field Bevy's
 /// `TextInput` sits on and give it back the keyboard when something else took it (#491).
 #[derive(Component)]
 pub struct NoteField;
@@ -1234,7 +1234,7 @@ fn pick_words(subject: &Subject) -> String {
 ///
 /// One pick reads `Picked: <what>`. Two read `Picked: <a> + <b>`, which is how a person says the
 /// relation out loud. Three or more read `Picked 3 things: <a>, <b>, <c>`. The whole line is capped
-/// at [`PICKS_LINE_CAP`] characters, so a dozen picks cannot grow the note box a paragraph.
+/// at `PICKS_LINE_CAP` characters, so a dozen picks cannot grow the note box a paragraph.
 pub fn picks_line(picks: &[Pick]) -> String {
     let line = match picks {
         [] => "Picked: nothing".to_owned(),

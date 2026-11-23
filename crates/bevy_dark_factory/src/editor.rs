@@ -143,7 +143,7 @@ const CLICK_EPS: f32 = 0.2;
 const BUSY_SCENE: usize = 1_000_000;
 const HEAVY_SCENE: usize = 5_000_000;
 
-/// The chrome bar's own inset, either side of the readout. Named so [`COST_COL`] is derived from the
+/// The chrome bar's own inset, either side of the readout. Named so [`cost_col`] is derived from the
 /// same number the node applies rather than from a copy of it. `pub` for the same reason
 /// [`TriangleTotal`] is: the test that checks the column measures it against what the node was given
 /// rather than against a literal copied out of here.
@@ -264,7 +264,7 @@ pub struct EditorState {
     ///
     /// This began as a flat refusal — `Cmd+O` said *"unsaved changes, `Cmd+S` first"* and did
     /// nothing, on the argument that a refusal cannot lose anything. Asked for at the keyboard:
-    /// *"[it] should probably prompt the user for any unsaved changes if they go back to the main
+    /// *"it should probably prompt the user for any unsaved changes if they go back to the main
     /// menu."* A refusal is safe and it is also a dead end — the author still wants to leave, and
     /// the editor made them work out how on their own.
     ///
@@ -277,7 +277,7 @@ pub struct EditorState {
     /// and from an agent alike. It is taken by the switching, or held while the leaving question is up.
     pub door_request: Option<DoorRequest>,
     /// **A map a document tab asked for, waiting for the person's answer about the open one**
-    /// (NV-04, #381). Held while the leaving question is up, taken by [`answer_the_switch_prompt`]:
+    /// (NV-04, #381). Held while the leaving question is up, taken by `answer_the_switch_prompt`:
     /// a decline drops it, and an agreed save opens it, as choosing it from the project page does.
     pub map_request: Option<String>,
     /// **A command of the project's waiting for the person to allow it** (Send, Play), and where their
@@ -732,8 +732,8 @@ pub struct RemovalDrag {
 ///
 /// **A marquee is a selection, not an edit** ([`crate::selection`]'s own rule): nothing is written to
 /// the map, no operation is dispatched, and `undo_depth` does not move. The box reuses
-/// [`removal_box`]'s snapping so the rectangle a person draws round four crates is the cell lines they
-/// see, and the set it selects is [`marquee_ids`]'s — the same "anything whose centre is inside"
+/// `removal_box`'s snapping so the rectangle a person draws round four crates is the cell lines they
+/// see, and the set it selects is `marquee_ids`'s — the same "anything whose centre is inside"
 /// rule the removal box's own sweep uses, so a box that would delete four pieces selects four pieces.
 #[derive(Resource, Default)]
 pub struct MarqueeDrag {
@@ -1066,7 +1066,7 @@ impl TargetLock {
 
     /// **The ids of the pieces the outliner's eye has taken out of the viewport**, mirrored here by
     /// `outliner::mirror_the_unseen` because every piece-verb already carries this resource into
-    /// [`under_cursor_target`]: a key aimed at the cursor must not act on what is not drawn (UI-51, #237).
+    /// `under_cursor_target`: a key aimed at the cursor must not act on what is not drawn (UI-51, #237).
     pub fn is_unseen(&self, id: &str) -> bool {
         self.2.contains(id)
     }
@@ -1742,7 +1742,7 @@ pub struct NoteEditButton {
     pub id: String,
 }
 
-/// **Where the Notes panel's text area opens**: a sibling after [`NotesList`], never inside it, so the list's rebuild twice a second
+/// **Where the Notes panel's text area opens**: a sibling after `NotesList`, never inside it, so the list's rebuild twice a second
 /// cannot take the field out from under a person typing in it.
 #[derive(Component, Clone, Copy)]
 pub struct NotesEditor;
@@ -1782,7 +1782,7 @@ pub struct CrowdEdit {
     heat: CrowdHeat,
 }
 
-/// What [`draw_crowd_heat`] draws.
+/// What `draw_crowd_heat` draws.
 #[derive(Default, Clone, Debug, PartialEq)]
 pub struct CrowdHeat {
     pub cell: f32,
@@ -1983,7 +1983,7 @@ pub struct ProposalGhost;
 const CELL: f32 = grid::TILE;
 
 /// How much of a generated region should close into rooms, and what that wish is worth — **as
-/// shipped, and as the defaults of [`Enclosure`]** (E-005).
+/// shipped, and as the defaults of `blueprint_model::map::Enclosure`** (E-005).
 ///
 /// **These are defaults now, not the only answer.** A developer who wants more enclosed rooms edits
 /// the map's `enclosure` block, or asks an agent to set it in the running editor; nothing here needs
@@ -2002,7 +2002,7 @@ pub const ENCLOSURE_WEIGHT: u32 = 200;
 
 /// The see-through preview of the armed brush.
 ///
-/// **Public because a ghost is a ghost on every tab.** [`fade_ghost`] is the one thing that makes a
+/// **Public because a ghost is a ghost on every tab.** `fade_ghost` is the one thing that makes a
 /// preview translucent, and it is keyed on this marker alone — so a tab that draws its own preview
 /// (the tile assembler does) marks it with this rather than growing a second fading pass. Without the
 /// marker the "ghost" renders solid, at full alpha, indistinguishable from a committed piece.
@@ -2030,7 +2030,7 @@ const RECEIPT_LINES: f32 = 2.0;
 #[derive(Component)]
 struct ReceiptLabel;
 
-/// The live cost readout. In the chrome bar, in a reserved column — see [`COST_COL`], and
+/// The live cost readout. In the chrome bar, in a reserved column — see [`cost_col`], and
 /// `the_triangle_count_does_not_shove_the_maps_name` for what happens without one. `pub` so that
 /// test can drive it.
 #[derive(Component)]
@@ -2784,17 +2784,17 @@ impl Plugin for EditorPlugin {
             .init_resource::<crate::family_host::FamilySettings>()
             .add_systems(Update, (crate::family_host::report_problems, crate::family_host::reload_settings.in_set(crate::family_host::Reloaded)))
             // Registered in the same commit as `drive_move` and `keys` read it — a missing `ResMut`
-            // panics its system in Bevy 0.19 rather than skipping it (`CLAUDE.md`).
+            // panics its system in Bevy 0.20 rather than skipping it (`CLAUDE.md`).
             .init_resource::<MoveDrag>()
             .init_resource::<CloneDrag>()
             .init_resource::<TargetLock>()
             // Written by `redraw_stamps` and read by `pick_subject`'s callers, so this plugin owns
-            // it — a missing `ResMut` panics its system in Bevy 0.19 rather than skipping it.
+            // it — a missing `ResMut` panics its system in Bevy 0.20 rather than skipping it.
             .init_resource::<StampPicture>()
             // Read by `refresh_status`, so this plugin owns it — a missing `Res<T>` panics its
-            // system in Bevy 0.19 rather than skipping it (`CLAUDE.md`).
+            // system in Bevy 0.20 rather than skipping it (`CLAUDE.md`).
             .init_resource::<UnderCursor>()
-            // Read by `draw_map_grid` as a bare `Res<_>`, which panics its system in 0.19 if
+            // Read by `draw_map_grid` as a bare `Res<_>`, which panics its system in 0.20 if
             // nobody registered it.
             .init_resource::<Rung>()
             .init_resource::<Proposal>()
@@ -2805,13 +2805,13 @@ impl Plugin for EditorPlugin {
             .init_resource::<FineAnchor>()
             .init_resource::<PlaceDrag>()
             // Read by `drive_run`, so this plugin owns it — a missing `ResMut` panics its system in
-            // Bevy 0.19 rather than skipping it (`CLAUDE.md`).
+            // Bevy 0.20 rather than skipping it (`CLAUDE.md`).
             .init_resource::<RunDrag>()
             // Read by `drive_run_ghost`, so this plugin owns it — a missing `ResMut` panics its
-            // system in Bevy 0.19 rather than skipping it (`CLAUDE.md`).
+            // system in Bevy 0.20 rather than skipping it (`CLAUDE.md`).
             .init_resource::<RunGhostDrag>()
             // **This plugin reads it, so this plugin registers it** (CLAUDE.md's rule, and the
-            // documented 0.19 trap: every run condition is evaluated, and `rebuild_palette`'s
+            // documented 0.20 trap: every run condition is evaluated, and `rebuild_palette`'s
             // `resource_changed::<ThumbGeneration>` panics if only ThumbsPlugin — which also inits
             // it, idempotently — happens to be absent from the app.
             .init_resource::<SizeEdit>()
@@ -2914,7 +2914,7 @@ impl Plugin for EditorPlugin {
             // *set's* conditions **once per schedule** (`schedule/executor/multi_threaded.rs`:
             // `evaluated_sets`). So a switching that ran inside `Update` left that condition
             // evaluated against the *old* door, and four systems that take a `Res<OpenMap>` ran on
-            // the Kit door — which has no map — and Bevy 0.19 **panics a system whose `Res<T>` is
+            // the Kit door — which has no map — and Bevy 0.20 **panics a system whose `Res<T>` is
             // missing** rather than skipping it.
             //
             // **`PreUpdate` runs before `StateTransition`, which runs before `Update`.** So the
@@ -2965,7 +2965,7 @@ impl Plugin for EditorPlugin {
                     // fire on a keystroke a field has already swallowed. See `keys::Phase`.
                     rename_keys.in_set(keys::Phase::Text),
                     rule_seed_keys.in_set(keys::Phase::Text),
-                    // Nested: the tuple is at Bevy 0.19's cap of 20. The two typed fields that ask
+                    // Nested: the tuple is at Bevy 0.20's cap of 20. The two typed fields that ask
                     // a question about a piece — why it is pinned, what a group is called — ride
                     // together in `Phase::Text`.
                     (
@@ -2984,7 +2984,7 @@ impl Plugin for EditorPlugin {
                     keys.in_set(keys::Phase::Act),
                     // These two stay gated: they read the MOUSE, which the census does not model, so
                     // context is not their guard. Mode is.
-                    // **Nested, because this tuple is at Bevy 0.19's cap of 20.** The four
+                    // **Nested, because this tuple is at Bevy 0.20's cap of 20.** The four
                     // placement tools are one idea — a click or a drag belongs to whichever is
                     // armed — and they read the MOUSE, which the census does not model, so mode is
                     // their guard.
@@ -3008,7 +3008,7 @@ impl Plugin for EditorPlugin {
                     // guard. Both touch `TargetLock`, so they are named together.
                     (drive_target_marker, sense_under_cursor).run_if(in_map_mode),
                     hide_carried.run_if(in_map_mode),
-                    // **Nested, because this tuple is at Bevy 0.19's cap of 20.** The pair is the
+                    // **Nested, because this tuple is at Bevy 0.20's cap of 20.** The pair is the
                     // two previews: one piece keyed by library index, and a whole set. Not folded
                     // into one system — that would be one system with two subjects and two
                     // lifetimes.
@@ -3024,11 +3024,11 @@ impl Plugin for EditorPlugin {
                     // them — a world that empties out when you change tabs would read as the stamp
                     // having failed.
                     (redraw_stamps, redraw_runs),
-                    // Nested: the tuple is at Bevy 0.19's cap of 20. `redraw_edited` is the Map
+                    // Nested: the tuple is at Bevy 0.20's cap of 20. `redraw_edited` is the Map
                     // side of a Tiles-tab write, so it rides with the other per-frame repaints.
-                    // Nested: the tuple is at Bevy 0.19's cap of 20. `cycle_grid` is a census
+                    // Nested: the tuple is at Bevy 0.20's cap of 20. `cycle_grid` is a census
                     // action, so it goes in `Act` with the rest of them.
-                    // Nested: the tuple is at Bevy 0.19's cap of 20. `walk_palette` is a census
+                    // Nested: the tuple is at Bevy 0.20's cap of 20. `walk_palette` is a census
                     // action, so it goes in `Act` with the rest of them.
                     (
                         // The armed row's cost is inked after the row is armed, in the frame it is.
@@ -3065,7 +3065,7 @@ impl Plugin for EditorPlugin {
                     (
                         rebuild_palette.run_if(
                             // **`or_eager` on the last rung, because `run_once` holds a `Local`.**
-                            // `bevy_ecs-0.19.0/src/schedule/condition.rs:690` is
+                            // `bevy_ecs-0.20.0/src/schedule/condition.rs:648` is
                             // `pub fn run_once(mut has_run: Local<bool>) -> bool`, and `or_else`
                             // combines with `||` (same file, line 1564) — so on the very first
                             // frame, where `Project` was just inserted and answers true, `run_once`
@@ -3587,7 +3587,7 @@ fn answer_the_switch_prompt(world: &mut World) {
 ///
 /// `door_open` answers with a door and, optionally, a tab. The keys reach the switching through
 /// [`open_door`] at once; an agent's request over BRP is stored in [`EditorState::door_request`] and
-/// crossed in the next frame by [`apply_pending_door`].
+/// crossed in the next frame by `apply_pending_door`.
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub struct DoorRequest {
     pub workspace: crate::workspace::Workspace,
@@ -3793,7 +3793,7 @@ fn back_button_clicked(
     );
 }
 
-/// **The Map's left panel scrolls, and this is the pane that does it.** See [`spawn_panel`] for why
+/// **The Map's left panel scrolls, and this is the pane that does it.** See `spawn_panel` for why
 /// it exists at all: this was the one panel in the editor with no scroll area anywhere in it.
 ///
 /// `pub` because a test has to name it: ten scroll areas exist in the editor, and "the leftmost one" is
@@ -4582,7 +4582,7 @@ fn on_category_click(
     fold: Option<ResMut<Folded>>,
 ) {
     // **`Option`, because this is a GLOBAL observer** — it fires for any `Activate` anywhere in
-    // the application, and in Bevy 0.19 a missing resource panics at param validation rather
+    // the application, and in Bevy 0.20 a missing resource panics at param validation rather
     // than skipping. See [`on_cell_verb`] for the whole argument; the ratchet is
     // `every_resource_says_what_a_door_does_to_it.rs`.
     let Some(mut fold) = fold else {
@@ -4671,7 +4671,7 @@ fn walk_palette(
 /// takes the Map door's resources. That was survivable while `chrome::list_row` was only ever called
 /// by editor panels. The moment the **menu** adopted the shared row vocabulary it spawned rows that
 /// carry `Button` too, and the first click on one panicked the whole application — `Res<Project>`
-/// does not exist on `Screen::Project`, and in Bevy 0.19 a missing `Res<T>` panics rather than skipping
+/// does not exist on `Screen::Project`, and in Bevy 0.20 a missing `Res<T>` panics rather than skipping
 /// (`CLAUDE.md`; `bevy_ecs/error/handler.rs:130`).
 ///
 /// The row query already answers "is this mine" — a menu row has no `PaletteRow` — so the guard was
@@ -5027,7 +5027,7 @@ pub fn set_pack_excluded(
 /// Meshes tab's library shelf calls this, so a person's removal is the change an agent's
 /// `piece_remove` makes, with the person's source, and its log line is one Cmd+Z on the Meshes tab.
 /// Returns the outcome's `after` (`id`, `removed`, `mesh`) when the write landed, so the caller can
-/// move the shelf with [`crate::tiles::follow_piece_removal`]; a refusal goes to the status row.
+/// move the shelf with `crate::tiles::follow_piece_removal`; a refusal goes to the status row.
 pub fn remove_piece(
     import: &mut crate::tiles::ImportState,
     project: &mut crate::project::Project,
@@ -5237,7 +5237,7 @@ fn on_size_field_click(
     state: Option<ResMut<EditorState>>,
 ) {
     // **`Option`, because this is a GLOBAL observer** — it fires for any `Activate` anywhere in
-    // the application, and in Bevy 0.19 a missing resource panics at param validation rather
+    // the application, and in Bevy 0.20 a missing resource panics at param validation rather
     // than skipping. See [`on_cell_verb`] for the whole argument; the ratchet is
     // `every_resource_says_what_a_door_does_to_it.rs`.
     let Some(mut edit) = edit else {
@@ -7649,13 +7649,13 @@ pub struct Proposed {
     pub composes: bool,
     pub placements: Vec<Placed>,
     pub stamps: Vec<blueprint_model::composition::Stamped>,
-    /// The edge of one proposed cell in metres — what [`draw_proposal`] sizes each outline to. The
-    /// editor's own step ([`CELL`]) unless the proposal came from the project's block rules, which
+    /// The edge of one proposed cell in metres — what `draw_proposal` sizes each outline to. The
+    /// editor's own step (`CELL`) unless the proposal came from the project's block rules, which
     /// state their own (`BlockRules::cell`), so the preview is drawn on the grid the game builds.
     pub cell: f32,
     /// True for a proposal the editor may show but never keep: the game lays these blocks out
     /// itself, so writing them into the map would make a second, stale copy of its answer.
-    /// [`apply_proposal`] refuses one and leaves it standing.
+    /// `apply_proposal` refuses one and leaves it standing.
     pub preview_only: bool,
     /// **How varied this layout is (E-080)**, or `None` when it cannot be scored.
     ///
@@ -7679,7 +7679,7 @@ pub struct Proposed {
     ///
     /// The preview's own identity, and the reason it is a number rather than something derived from
     /// the rows: pressing `G` twice in a row is ordinary, and a key built from the layout would make
-    /// the second proposal of the same length go undrawn. See [`sync_proposal_ghosts`].
+    /// the second proposal of the same length go undrawn. See `sync_proposal_ghosts`.
     ///
     /// **Not `state.seed`.** That is a door-scoped field (`EditorState` is rebuilt on every door
     /// switching, `seed: 1`), and the sync's `Local` survives the reset — so the two disagreed after
@@ -7708,7 +7708,7 @@ impl Proposed {
 /// **A counter that never resets**, for telling one proposal from the next.
 ///
 /// Its own resource rather than a field on `EditorState`, because `EditorState` is rebuilt every time
-/// a door is crossed and the thing it is compared against ([`sync_proposal_ghosts`]'s `Local`) is
+/// a door is crossed and the thing it is compared against (`sync_proposal_ghosts`'s `Local`) is
 /// not. A counter with a different lifetime from its reader is a counter that will eventually lie.
 #[derive(Resource, Default)]
 pub struct ProposalClock(pub u64);
@@ -7765,7 +7765,7 @@ fn cycle_grid(
     }
 }
 
-/// The slab that shows how far the map goes. See [`BOUNDS_FILL`].
+/// The slab that shows how far the map goes. See `BOUNDS_FILL`.
 #[derive(Component)]
 pub struct BoundsFloor;
 
@@ -8244,8 +8244,8 @@ fn draw_bounds(
     // Faded while the shortcut key is held, the same as the Tiles envelope — the two are the same
     // claim about the world, so they step back together (`chrome::WORLD_HELD`).
     let held = crate::keys::pressed(&keyboard, *live, crate::keys::Action::Shortcuts);
-    // `cube`, not `cuboid` — 0.19 spells it `Gizmos::cube` and takes a transform whose SCALE is
-    // the box's size (`bevy_gizmos-0.19.0/src/gizmos.rs:637`).
+    // `cube`, not `cuboid` — 0.20 spells it `Gizmos::cube` and takes a transform whose SCALE is
+    // the box's size (`bevy_gizmos-0.20.0/src/gizmos.rs:632`).
     gizmos.cube(
         Transform::from_translation(centre).with_scale(size),
         crate::chrome::stepped_back(crate::chrome::ink().bounds_line, held),
@@ -8645,7 +8645,7 @@ fn mark_the_current_line(
 /// swallow a notch that moved it by rounding.
 const LIST_WHEEL_MIN_MOVE_PX: f32 = 0.5;
 
-/// **This list takes its own wheel** ([`the_list_wheel`]) instead of carrying `ScrollArea`, which is the marker the
+/// **This list takes its own wheel** (`the_list_wheel`) instead of carrying `ScrollArea`, which is the marker the
 /// "every pane that clips can scroll" census accepts in its place: the wheel handler exists, it is just not upstream's.
 #[derive(Component)]
 pub struct OwnsItsWheel;
@@ -9226,7 +9226,7 @@ pub struct InHand<'w> {
 
 impl Fields<'_> {
     /// Is one of them taking keys right now? Adding a field is adding a line, in
-    /// [`Self::typing_beside_the_note_box`] and nowhere else.
+    /// `Self::typing_beside_the_note_box` and nowhere else.
     pub fn typing(&self) -> bool {
         self.typing_beside_the_note_box() || self.note_box.draft.is_some()
     }
@@ -9267,7 +9267,7 @@ impl Fields<'_> {
 /// While a name is being typed, every other key belongs to the name.
 ///
 /// `Option<Res<_>>` is not needed here because every resource in [`Fields`] is `init_resource`d by
-/// this same plugin — but every condition in a `.run_if(..)` chain IS evaluated in Bevy 0.19, so a
+/// this same plugin — but every condition in a `.run_if(..)` chain IS evaluated in Bevy 0.20, so a
 /// condition reading a resource some *other* plugin owns must take the option. Worth stating next to
 /// the one place that legitimately does not.
 /// **Whether a command palette holds the keys**: one that is open, or coming back. A palette on its way out
@@ -9745,7 +9745,7 @@ pub fn palette_tooltip(id: &str, triangles: usize) -> String {
 /// Group a number for reading. The total is meant to be compared against itself over time, so the
 /// digits matter.
 ///
-/// `pub` because [`COST_COL`] is sized for the widest string this can produce, and the test that
+/// `pub` because [`cost_col`] is sized for the widest string this can produce, and the test that
 /// checks the sizing has to ask *this* function rather than restate the format — a second copy of it
 /// would agree with the constant while disagreeing with the readout.
 pub fn with_thousands(n: usize) -> String {
@@ -9781,7 +9781,7 @@ fn cost_ink(triangles: usize, armed: bool) -> Color {
     if armed && tint == crate::chrome::ink().label { crate::chrome::ink().text } else { tint }
 }
 
-/// **The triangle-cost text of a palette row**, with the count it was spawned with, so [`ink_the_cost_on_the_armed_row`] can tell which ink it wants.
+/// **The triangle-cost text of a palette row**, with the count it was spawned with, so `ink_the_cost_on_the_armed_row` can tell which ink it wants.
 #[derive(Component)]
 pub struct PaletteCost(usize);
 
@@ -10249,7 +10249,7 @@ pub fn size_field_for_test(world: &mut World, axis: char) {
 
 /// **Click one palette row, the way a person's press does** — E-041's gap.
 ///
-/// Fires the same `Activate` the button sends, so [`on_row_click`]'s observer runs, which is
+/// Fires the same `Activate` the button sends, so `on_row_click`'s observer runs, which is
 /// [`arm_piece`] → `brush_arm`. Nothing in the suite could reach a row until this existed: the
 /// brush's other route under test is the keyboard's (`walk_palette`), a different function with its
 /// own writes, and the closest a test got was calling `arm_piece` itself — which skips the guard
@@ -11654,7 +11654,7 @@ fn drive_removal(
 /// **Take a stamp off the map, whole, through the operation registry** (`stamp_remove`), so it is
 /// saved, logged and taken back the way a placement is.
 ///
-/// FVS-R-14's Delete arm: *"Delete removes the **instance**."* Named by [`Stamped::id`] and never by
+/// FVS-R-14's Delete arm: *"Delete removes the **instance**."* Named by [`blueprint_model::composition::Stamped::id`] and never by
 /// an index, because the caller picked it a frame ago and the list can have moved since.
 ///
 /// The entities are not despawned here. `redraw_stamps` rebuilds the whole stamped set from
@@ -12551,13 +12551,13 @@ fn redraw_runs(
 /// not a [`Placement`]: the stamp list is the truth and this is a picture of it, rebuilt whole.
 #[derive(Component)]
 pub struct StampedPiece {
-    /// The [`Stamped::id`] this row is drawn for.
+    /// The [`blueprint_model::composition::Stamped::id`] this row is drawn for.
     pub stamp: String,
     /// The expanded row's id, as the picture names it.
     pub row: String,
 }
 
-/// **The stamp as one thing** — a parent entity per [`Stamped`] row, with the pieces it expands to
+/// **The stamp as one thing** — a parent entity per `Stamped` row, with the pieces it expands to
 /// as children.
 ///
 /// FVS-R-14. Stamped rows deliberately carry no [`Placement`], *"so the remove, move and clone tools
@@ -12568,8 +12568,8 @@ pub struct StampedPiece {
 /// `stamping_writes_a_reference_and_undo_takes_it_back` exists to protect.
 ///
 /// What was missing is a **selectable identity for the instance**, which is this. `Children` in Bevy
-/// 0.19 is `#[relationship_target(relationship = ChildOf, linked_spawn)]`
-/// (`bevy_ecs-0.19.0/src/hierarchy.rs:148`), so despawning this despawns the rows — the lifetime is
+/// 0.20 is `#[relationship_target(relationship = ChildOf, linked_spawn)]`
+/// (`bevy_ecs-0.20.0/src/hierarchy.rs:148`), so despawning this despawns the rows — the lifetime is
 /// the engine's, not a bookkeeping list to keep in step. And `Query<&Placement>` still correctly
 /// matches nothing here, so every existing tool is unchanged by construction.
 ///
@@ -12578,16 +12578,16 @@ pub struct StampedPiece {
 /// reach into a nested composition"*.
 #[derive(Component)]
 pub struct StampInstance {
-    /// The [`Stamped::id`] this stands for.
+    /// The [`blueprint_model::composition::Stamped::id`] this stands for.
     pub id: String,
-    /// The [`Composition::id`] it is an instance of — carried so a status line can name what an
+    /// The [`blueprint_model::composition::Composition::id`] it is an instance of — carried so a status line can name what an
     /// author is about to remove without going back to the map to look it up.
     pub of: String,
 }
 
 /// **Where the drawn stamped rows are**, so a tool can answer "which stamp is under the cursor".
 ///
-/// The picture layer's own index, written by [`redraw_stamps`] alongside the entities and rebuilt
+/// The picture layer's own index, written by `redraw_stamps` alongside the entities and rebuilt
 /// with them — not a second source of truth, and exactly as derived as the entities are. It exists
 /// because the alternative is calling `composition::expand` over every stamp inside the hover
 /// marker's per-frame path; `site_67` alone is 144 of them.
@@ -12601,7 +12601,7 @@ pub struct StampPicture {
 
 /// One drawn row, and the stamp it belongs to.
 pub struct StampRow {
-    /// [`Stamped::id`] — an id and never an index, the rule [`MoveDrag`] states: the stamp list can
+    /// The [`blueprint_model::composition::Stamped::id`] — an id and never an index, the rule [`MoveDrag`] states: the stamp list can
     /// shift under a held subject, and an index would then name a different stamp.
     pub stamp: String,
     /// The expanded row's own id. Unique across placements *and* stamped rows — `expand` refuses a
@@ -12630,7 +12630,7 @@ pub struct StampRow {
 pub enum Subject {
     /// An index into `map.placements`.
     Placement(usize),
-    /// A [`Stamped::id`]. Not an index, for [`StampRow::stamp`]'s reason.
+    /// A [`blueprint_model::composition::Stamped::id`]. Not an index, for [`StampRow::stamp`]'s reason.
     Stamp(String),
 }
 
@@ -12700,7 +12700,7 @@ pub fn redo_for_test(world: &mut World) {
         .unwrap_or_else(|e| panic!("redo_for_test: {e}"));
 }
 
-/// **Jump the history to a position, for a test (E-018).** See [`jump`].
+/// **Jump the history to a position, for a test (E-018).** See `jump`.
 pub fn jump_for_test(world: &mut World, position: usize) {
     use bevy::ecs::system::RunSystemOnce;
     world
@@ -12759,7 +12759,7 @@ pub fn plant_stale_redo_for_test(world: &mut World, id: &str) {
 
 /// **Put one entry on the history stack, for a test that measures the history panel at depth (UI-93, #259).**
 ///
-/// The entry is a real [`Undo::Logged`] pushed through [`EditorState::record`], the way every edit site
+/// The entry is a real `Undo::Logged` pushed through `EditorState::record`, the way every edit site
 /// records one, so the panel is looking at the stack an author's session would have rather than at a
 /// number written into a struct. It names a line no log holds; the panel never reads the log, which is
 /// the property being measured.
@@ -13071,7 +13071,7 @@ fn keys(
     // never leaves. One fewer parameter against Bevy's sixteen, too.
     // The aim keys repeat while held, so this system needs a clock and somewhere to keep the
     // countdown. Both are `Res`, and `KeysPlugin` owns `Repeat` for the reason its comment gives:
-    // a missing `Res<T>` panics its system in Bevy 0.19 rather than skipping it.
+    // a missing `Res<T>` panics its system in Bevy 0.20 rather than skipping it.
     time: Res<Time>,
     mut repeat: ResMut<keys::Repeat>,
     // One tuple param, three tools: a Bevy system takes at most sixteen parameters, and this
@@ -15048,7 +15048,7 @@ pub fn set_of_placements(
 /// produce using a mixed-initiative PCG system must be possible for the computer to generate on its
 /// own."* An `Anchored` group has **no derived interface** (`composition::interface` returns `None`
 /// for one), so a solver cannot place it — it would be content the author can make and the generator
-/// cannot. So capture always produces [`Envelope::Bounded`].
+/// cannot. So capture always produces `blueprint_model::composition::Envelope::Bounded`.
 ///
 /// # It refuses rather than guessing
 ///
@@ -16695,7 +16695,7 @@ pub fn pick_at_seen(project: &Project,
 ///
 /// The total key is `(area, row id)`. That is total *across* the two lists because the two id spaces
 /// are one: `expand` refuses a stamp id that a second stamp reuses, precisely so the rows it names
-/// `<stamp>/<member>` cannot collide with anything — see [`Stamped::id`].
+/// `<stamp>/<member>` cannot collide with anything — see [`blueprint_model::composition::Stamped`].
 ///
 /// A stamped row resolves to its **stamp**, never to itself. That is the whole of the rule, and it
 /// is why this returns a [`Subject`] rather than an index.
@@ -16749,8 +16749,8 @@ pub fn ray_box_t(origin: Vec3, dir: Vec3, centre: Vec3, half: Vec3) -> Option<f3
 /// *"I should be able to click on a mesh anywhere to pick it up, not strictly the toe underneath."*
 ///
 /// The two are orchestrated by what is armed, which is a rule this editor already has: a clear
-/// cursor asks about a thing ([`cursor_is_clear`]), an armed brush asks about a place
-/// ([`ghost_is_armed`]).
+/// cursor asks about a thing (`cursor_is_clear`), an armed brush asks about a place
+/// (`ghost_is_armed`).
 ///
 /// # Boxes, not meshes
 ///
@@ -19488,7 +19488,7 @@ fn drive_clone_ghost(
     }
 }
 
-/// **Where the ghost stands and how it is turned** — the pure half of [`drive_clone_ghost`].
+/// **Where the ghost stands and how it is turned** — the pure half of `drive_clone_ghost`.
 ///
 /// Extracted for the reason `edit_subject` and `under_readout` were: the system needs
 /// `cursor_ground`, which needs a viewport, so a headless test cannot reach it at all. What a test
@@ -19518,7 +19518,7 @@ struct CloneGhost;
 /// The materials come from the asset, so they are the *shared* handles every real instance uses —
 /// writing alpha into them would turn every crate in the map see-through. Each descendant gets its
 /// own clone, marked so the walk settles to a no-op.
-/// **The member the arrows hold**, marked so [`brighten_held`] can make the held state visible on
+/// **The member the arrows hold**, marked so `brighten_held` can make the held state visible on
 /// the piece itself. (`HeldPiece`, because [`Held`] is already the Map's drag subject.)
 ///
 /// Asked for at the keyboard, 2026-08-14: *"make the mesh that is not yet set a highlighted color,
@@ -19564,7 +19564,7 @@ fn brighten_held(
                 // **`try_insert`, because the thing being marked is rebuilt underneath us.**
                 // The staged tile is despawned and respawned wholesale on every `Build` change,
                 // so an entity read this frame can be gone by the time the command applies —
-                // and a plain `insert` on a despawned entity is a hard panic in Bevy 0.19, which
+                // and a plain `insert` on a despawned entity is a hard panic in Bevy 0.20, which
                 // is exactly how this crashed the editor on launch. The lift is cosmetic; a
                 // piece that stopped existing does not need one.
                 commands
@@ -20516,7 +20516,7 @@ mod replace_tests {
 /// does. The keystrokes are the ones `pin_reason_keys` reads, and that system is the one run, so the reason
 /// committed is the one a person would have typed and the commit goes through `set_pin`.
 ///
-/// The field is `EditorState::pinning`, which every path that pins opens ([`pin_or_unpin`]): the `O` key's
+/// The field is `EditorState::pinning`, which every path that pins opens (`pin_or_unpin`): the `O` key's
 /// prompt and the outliner's row menu. This is the typing half only, so the field must already be open.
 pub fn type_the_pin_reason_for_test(world: &mut World, reason: &str) {
     use bevy::ecs::system::RunSystemOnce;

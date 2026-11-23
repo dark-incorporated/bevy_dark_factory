@@ -47,7 +47,7 @@ pub const BAR_NAME: &str = "Activity bar";
 
 /// The bar: the strip's container, spawned into the frame's body at its far left.
 ///
-/// It records the frame it was spawned into and what it was drawn with, so [`keep_the_activity_bar`] can
+/// It records the frame it was spawned into and what it was drawn with, so `keep_the_activity_bar` can
 /// tell a bar that is current from one that is stale — a new frame (the old one's root, and the bar with
 /// it, are despawned), or a count that moved.
 #[derive(Component, Debug, Clone, PartialEq, Eq)]
@@ -81,7 +81,7 @@ impl Plugin for ActivityBarPlugin {
 /// (refused, or waiting on a restart), `waiting` is the wishes and lessons nobody has answered.
 ///
 /// `Game` answers `0` here: its badge is a state, not a count (a crash, [`crate::game_view::GameView::crashed`]), and the
-/// bar adds it where it reads the game ([`keep_the_activity_bar`]) so this stays a function of its inputs.
+/// bar adds it where it reads the game (`keep_the_activity_bar`) so this stays a function of its inputs.
 pub fn badge(workspace: Workspace, problems: usize, waiting: usize) -> usize {
     match workspace {
         Workspace::Map => problems,

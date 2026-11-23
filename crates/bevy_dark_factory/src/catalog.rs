@@ -352,7 +352,7 @@ fn ids_named(path: &Path) -> Result<BTreeSet<String>, String> {
 /// costs nothing; removing the only one strands every reference to them.
 ///
 /// Two readers, because there are two formats and one of them belongs to another crate. Maps and
-/// `compositions.yaml` are parsed (see [`ids_named`]). The game's kit files under [`GAME_KIT_DIR`]
+/// `compositions.yaml` are parsed (see `ids_named`). The game's kit files under `GAME_KIT_DIR`
 /// are read as text: `SiteKit`'s schema lives in the game, `bevy_dark_factory` does not depend on the
 /// game and must not start, and a quoted-id match over a file that is a list of quoted ids is
 /// exact enough to be worth more than the coupling.
@@ -488,7 +488,7 @@ pub(crate) fn new_kit_files(name: &str) -> (String, String) {
 /// state, deliberately, so writing one would be a file that means nothing. The editor makes it when
 /// the first tile is saved.
 ///
-/// No map either. The maps column will read *"no maps in <kit> yet — the `+ new map` row is the only one there"*, which is
+/// No map either. The maps column will read *"no maps in `<kit>` yet — the `+ new map` row is the only one there"*, which is
 /// the instruction rather than a report (`docs/ui.md` §1.4) and is exactly what to do next.
 pub fn create_kit(root: &Path, raw_name: &str) -> Result<PathBuf, String> {
     let name = naming::to_snake_case(raw_name);

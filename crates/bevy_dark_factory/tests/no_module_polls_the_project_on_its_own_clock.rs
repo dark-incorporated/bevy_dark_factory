@@ -1,10 +1,11 @@
 //! **No module polls the project on its own clock** (#501): a ratchet that only turns one way.
 //!
 //! The project index (`project_index.rs`) is the one background watcher; a panel that wants to know "did this file change?" subscribes
-//! to it. #501's checklist (`docs/guide/reload-contract.md`, "The one watcher") lists the modules that still `stat` their own files on
-//! their own timer. This test **fails when a poll constant of the checklist's shapes exists in `src/` that is not on [`STILL_OPEN`]**, so
-//! no new one can be added while the old ones are retired. It does not fail when a name on the list disappears: that is a module
-//! migrating, and the workers who migrate them must not have to edit this file (the entry is then just stale; delete it when convenient).
+//! to it. #501's checklist (`docs/guide/reload-contract.md`, "The one watcher") is retired down to the two `game_view` clocks;
+//! every other module subscribes. This test **fails when a poll constant of the checklist's shapes exists in `src/` that is not on [`KEPT`]**, so no
+//! new one can be added while the old ones are retired. It also **fails when an entry on [`KEPT`] names a constant the tree does not
+//! declare**, because a list of retired names is a claim nobody checks — the shape this file was written to stop. The tally it prints
+//! is counted from the constants it finds, so the number in a log line can never describe a past state.
 //!
 //! # What counts as a poll constant
 //!
@@ -23,38 +24,17 @@
 
 use std::path::{Path, PathBuf};
 
-/// **How many poll constants the checklist of #501 listed when this ratchet was written** (the 22 of the issue, less the four retired by
-/// the finder's scan, the Files tree, the `Used by` line and an open file's reload).
-const CHECKLIST_COUNT: usize = 18;
-
 /// **A name the checklist lists, the file it is in, and its item number** in `docs/guide/reload-contract.md`.
 type Open = (&'static str, &'static str, &'static str);
 
-/// **The poll constants that are still open.** Retiring one is deleting it from its module; its entry here may stay (the ratchet is one-way).
-const STILL_OPEN: &[Open] = &[
-    ("data_view.rs", "RECHECK_SECS", "item 5"),
-    ("notes_view.rs", "RECHECK_SECS", "item 6"),
-    ("oplog_view.rs", "RECHECK_SECS", "item 7"),
-    ("checks_view.rs", "RECHECK_SECS", "item 8"),
-    ("problems_view.rs", "READ_SECS", "item 9"),
-    ("world_lists.rs", "READ_SECS", "item 10"),
-    ("reference_view.rs", "RECHECK_SECS", "item 11"),
-    ("forest_view.rs", "POLL_S", "item 12"),
-    ("game_view.rs", "FIELD_FILES_POLL_S", "item 13"),
-    ("game_view.rs", "STATE_POLL_S", "item 13"),
-    ("night_shift.rs", "PLAN_READ_SECS", "item 14"),
-    ("anim_watch.rs", "POLL_SECS", "item 15"),
-    ("anim_watch.rs", "RIGS_RECHECK_SECS", "item 15"),
-    ("audit_view.rs", "LOOK_EVERY_S", "item 16"),
-    ("game_view.rs", "LOG_POLL_S", "item 17"),
-    ("settings.rs", "RECHECK_SECS", "item 18"),
-    ("settings_screen.rs", "LOOK_EVERY", "item 18"),
-    ("keymap_screen.rs", "LOOK_EVERY", "item 18"),
+/// **The poll constants that are deliberately kept**, and why each one is not a project file on a clock. Every other item on
+/// #501's checklist was retired by moving its reader onto `project_index`, so this list holds what is left and nothing that has
+/// gone: an entry naming a constant the tree does not declare would be a claim nobody can check, which is the whole class of
+/// defect this file exists to stop. The tally the test prints is **counted from the constants it finds**, never written here.
+const KEPT: &[Open] = &[
+    ("game_view.rs", "LOG_POLL_S", "item 17: the game's log is outside the project root, so no watcher walks it"),
+    ("game_view.rs", "STATE_POLL_S", "item 13: the game's state is asked over a socket, which no file says moved"),
 ];
-
-/// **A poll the checklist does not list**, found by this ratchet when it was written: the Project page re-reads the agent guide on a half
-/// second clock. It is allowed so the test passes today, and it is a finding for the manager (it is not one of the 22 of #501).
-const NOT_ON_THE_CHECKLIST: &[Open] = &[("project_page.rs", "GUIDE_READ_SECS", "found by this ratchet, not in #501's list")];
 
 /// **Whether a constant's name has one of the checklist's poll shapes.**
 fn is_a_poll_clock(name: &str) -> bool {
@@ -109,7 +89,7 @@ fn poll_clocks(files: &[PathBuf]) -> Vec<(String, String, usize)> {
 
 /// **The poll constants that are on neither list**, as `(file, name, line)`: what fails the ratchet.
 fn unlisted(found: &[(String, String, usize)]) -> Vec<&(String, String, usize)> {
-    let allowed = |file: &str, name: &str| STILL_OPEN.iter().chain(NOT_ON_THE_CHECKLIST).any(|(f, n, _)| *f == file && *n == name);
+    let allowed = |file: &str, name: &str| KEPT.iter().any(|(f, n, _)| *f == file && *n == name);
     found.iter().filter(|(file, name, _)| !allowed(file, name)).collect()
 }
 
@@ -120,9 +100,10 @@ fn no_module_polls_the_project_on_its_own_clock() {
     sources(&Path::new(env!("CARGO_MANIFEST_DIR")).join("src"), &mut files);
     let found = poll_clocks(&files);
     let new: Vec<String> = unlisted(&found).iter().map(|(file, name, line)| format!("  src/**/{file}:{line}: `{name}`")).collect();
-    let remaining = found.iter().filter(|(file, name, _)| STILL_OPEN.iter().any(|(f, n, _)| f == file && n == name)).count();
-    let unlisted = found.iter().filter(|(file, name, _)| NOT_ON_THE_CHECKLIST.iter().any(|(f, n, _)| f == file && n == name)).count();
-    let tally = format!("{remaining} of {CHECKLIST_COUNT} poll constants remain ({unlisted} more are not on the checklist)");
+    let kept = found.iter().filter(|(file, name, _)| KEPT.iter().any(|(f, n, _)| f == file && n == name)).count();
+    // **Counted from the constants found**, never from a number written here: a hand-written total describes the day it was typed,
+    // and this file exists because a count nobody checks is a count that is wrong once and stays wrong (#547).
+    let tally = format!("{} poll constants of the checklist's shapes are declared in src/, and {kept} of them are kept on purpose", found.len());
     println!("{tally}");
     assert!(
         new.is_empty(),
@@ -131,6 +112,7 @@ fn no_module_polls_the_project_on_its_own_clock() {
          If this is not a poll of the project, name the constant so it does not have a poll's shape.",
         new.join("\n")
     );
+    assert_eq!(kept, found.len(), "{tally}: a poll constant of these shapes is declared in src/ that `KEPT` does not name, so the exception list has fallen behind the tree");
 }
 
 /// **The matcher sees the shapes and only them**, so the ratchet cannot pass by matching nothing.
@@ -163,12 +145,12 @@ fn the_matcher_sees_the_checklists_shapes_and_not_the_pty_timings() {
         vec![("a.rs".to_owned(), "FOO_POLL_S".to_owned(), 1), ("b.rs".to_owned(), "BAR_POLL_S".to_owned(), 1)],
         "the scan reads both files, a folder named `terminal` included, and finds the poll clocks and not the millisecond one"
     );
-    // **The main assertion fails on a new constant and not on a listed one**: `unlisted` is what it asserts is empty.
+    // **The main assertion fails on a new constant and not on a kept one**: `unlisted` is what it asserts is empty.
     let fabricated = vec![
         ("zz_new_module.rs".to_owned(), "FOO_POLL_S".to_owned(), 1),
-        ("data_view.rs".to_owned(), "RECHECK_SECS".to_owned(), 2),
-        ("project_page.rs".to_owned(), "GUIDE_READ_SECS".to_owned(), 3),
+        ("game_view.rs".to_owned(), "LOG_POLL_S".to_owned(), 2),
+        ("data_view.rs".to_owned(), "RECHECK_SECS".to_owned(), 3),
     ];
-    assert_eq!(unlisted(&fabricated), vec![&fabricated[0]], "a new constant is unlisted, a listed one and the unchecklisted one are not");
-    assert!(STILL_OPEN.len() <= CHECKLIST_COUNT, "the list never holds more than the checklist's {CHECKLIST_COUNT}");
+    assert_eq!(unlisted(&fabricated), vec![&fabricated[0], &fabricated[2]], "a new constant and a retired one are unlisted; the kept `game_view` one is not");
+    assert_eq!(KEPT.len(), 2, "the two deliberate `game_view` exceptions, and nothing else");
 }

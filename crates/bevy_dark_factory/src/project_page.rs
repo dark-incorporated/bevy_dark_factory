@@ -256,7 +256,7 @@ pub struct AgentGuideReload;
 pub struct AgentGuideKeepMine;
 
 /// **The row the section's state-dependent buttons are in**, filled and refilled by
-/// [`fill_the_guide_buttons`].
+/// `fill_the_guide_buttons`.
 #[derive(Component)]
 pub struct AgentGuideButtons;
 

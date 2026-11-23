@@ -19,7 +19,7 @@
 //!
 //! # A file that changes under unsaved edits is reported, never overwritten
 //!
-//! [`poll_the_disk`] reads an open file when the project index says it moved ([`crate::project_index::ProjectFileChanged`], #501):
+//! `poll_the_disk` reads an open file when the project index says it moved ([`crate::project_index::ProjectFileChanged`], #501):
 //! there is no timer and no `stat` of its own. A file nobody has typed in simply reloads. A
 //! file with unsaved edits keeps them, and the editor says so with two buttons, **Reload** (take the disk's)
 //! and **Keep mine** (the person's text stays, and a save is then their own decision to overwrite). Saving
@@ -370,7 +370,7 @@ pub fn hold_for_editing(world: &mut World, rel: &str) -> Result<(), String> {
 ///
 /// **One value for the map and the Files workspace**, so one setting cannot mean two things. [`crate::settings::sync_settings`]
 /// publishes the resolved settings here every frame it changes them ([`publish_conflict_policy`]), and the map's re-read
-/// ([`crate::watch::adopt_map`]) and a buffer's save both read it — neither of them has a world to ask, and a save runs from a
+/// (`watch::adopt_map`) and a buffer's save both read it — neither of them has a world to ask, and a save runs from a
 /// key, an interval and a menu.
 pub fn conflict_policy_now() -> crate::settings::ExternalEdits {
     registry().policy
@@ -1823,7 +1823,7 @@ fn agent_marks(text: &str, lines: &[[u32; 2]]) -> Vec<Diagnostic> {
 /// What the mark on an agent's line says.
 pub const AGENT_CHANGED: &str = "Changed by the NightShift";
 
-/// The marks [`agent_marks`] makes, for a test.
+/// The marks `agent_marks` makes, for a test.
 pub fn agent_marks_for_test(text: &str, lines: &[[u32; 2]]) -> Vec<Diagnostic> {
     agent_marks(text, lines)
 }

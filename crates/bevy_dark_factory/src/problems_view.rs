@@ -76,7 +76,7 @@ fn ask(revealing: &mut crate::reveal::Revealing, inspector: &mut crate::reveal::
     revealing.request_by_person("show_problems", &crate::ops::Shown::Settings { section: "problems".to_owned() });
 }
 
-/// **View ▸ Show problems**: the menu row's half of [`show_the_problems_on_the_chord`]. A world without the reveal (no editor open) has
+/// **View ▸ Show problems**: the menu row's half of `show_the_problems_on_the_chord`. A world without the reveal (no editor open) has
 /// nothing to show, so it asks for nothing.
 pub fn ask_for_the_problems(world: &mut World) {
     let Some(mut revealing) = world.remove_resource::<crate::reveal::Revealing>() else { return };

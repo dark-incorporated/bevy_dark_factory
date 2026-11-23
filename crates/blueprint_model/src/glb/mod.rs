@@ -902,7 +902,7 @@ impl Glb {
         Ok((offset >= FRONT_MIN_OFFSET).then(|| Face::from_yaw(yaw)))
     }
 
-    /// The raw measurement behind [`derive_front`]: how far the upper slice's XZ centroid sits from
+    /// The raw measurement behind [`Self::derive_front`]: how far the upper slice's XZ centroid sits from
     /// the whole mesh's, in metres, and the yaw that offset implies.
     ///
     /// Exposed because the importer should show it rather than only its verdict. "This mesh is 1.2 cm

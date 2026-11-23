@@ -128,7 +128,7 @@ pub fn volume_of(project: &crate::project::Project, open: &crate::project::OpenM
 /// is not a map name**, so a caller naming a path is told so rather than answered with an empty list.
 ///
 /// **The one reader of the `<blueprint_dir>/volume/<map>.yaml` path**, so a report and an edit cannot
-/// read different files for one map name. The name passes [`crate::ops::map_name`], the same guard the
+/// read different files for one map name. The name passes `crate::ops::map_name`, the same guard the
 /// edit path uses: without it a report asked for `map: "../../some-file"` read a path outside `volume/`
 /// and swallowed the parse failure, which reads as "this map carves nothing" instead of the refusal.
 pub fn volume_named(project: &crate::project::Project, map: &str) -> Result<Option<Volume>, Refusal> {
@@ -384,7 +384,7 @@ fn checked(edits: Vec<Edit>) -> Result<Volume, Refusal> {
 /// # What it refuses
 ///
 /// **A list containing one entry the single-edit path refuses is refused whole, naming the index**
-/// ([`checked`]). Nothing is written: a `volume_set` that wrote the entries it could and dropped the
+/// (`checked`). Nothing is written: a `volume_set` that wrote the entries it could and dropped the
 /// one it could not would be the silent append #474 exists to stop, at a larger scale.
 pub struct VolumeSet;
 

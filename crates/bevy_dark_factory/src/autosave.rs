@@ -1,7 +1,7 @@
 //! **A periodic save that reuses the manual save path, and says a countdown only when it is about to fire** (#508).
 //!
 //! A crash between two `Cmd+S` presses takes back everything a person or an agent did in between. The answer is a timer
-//! that dispatches the *same* saves a key does — `map_save` for the map, [`crate::files::save_all`] for the buffers — so
+//! that dispatches the *same* saves a key does — `map_save` for the map, `files::save_all` for the buffers — so
 //! there is one line in the log and no second, silent write path.
 //!
 //! # Parked when firing would be wrong

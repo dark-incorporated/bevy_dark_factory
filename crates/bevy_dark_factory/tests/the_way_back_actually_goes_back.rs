@@ -254,7 +254,7 @@ fn the_project_page_is_a_state_and_not_another_process() {
 /// The transition out of the project page rather than `OnEnter(Editor)`, and the ordering is the whole reason: a state
 /// transition runs every `OnExit` before any `OnEnter`, so `Project` is in the World before the
 /// editor's spawns run. Reversed, roughly a hundred systems taking `Res<Project>` would each panic
-/// on their first frame — in Bevy 0.19 a missing `Res<T>` panics rather than skipping.
+/// on their first frame — in Bevy 0.20 a missing `Res<T>` panics rather than skipping.
 #[test]
 fn the_project_is_loaded_before_the_editor_is_built() {
     let src = read("src/screen.rs");

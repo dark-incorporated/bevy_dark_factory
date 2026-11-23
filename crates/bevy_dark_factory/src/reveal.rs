@@ -13,7 +13,7 @@
 //! page. A second path — a palette row that crossed a door itself, a cross-link that set both a tab and
 //! a selection — would be a second answer to "which page is this thing on", and the two would disagree
 //! the first time a panel moved. Navigation calls this same function when it lands (Go to anything;
-//! Back and Forward, NV-06, whose history push belongs in [`take_the_reveal`] for the reason that is
+//! Back and Forward, NV-06, whose history push belongs in `take_the_reveal` for the reason that is
 //! the one place that knows a view is about to move).
 //!
 //! # Selecting to show is not an edit

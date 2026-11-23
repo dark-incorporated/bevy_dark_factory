@@ -56,7 +56,7 @@ pub const BAKE_FORMAT: u32 = 1;
 /// **How deep a baked tree may nest.** postcard decodes a [`Tree`] with no bound of its own and a list frame is two bytes, so a
 /// crafted ~1 MiB binary nests half a million deep: the recursive decode and [`Tree::into_value`] would overflow the stack, which
 /// is an abort no `Result` and no hash can stop — `baked_sha256` sits in the same untrusted manifest. This is the reader's limit,
-/// and it is [`bevy_blueprint_migrate`]'s `ron_tree::MAX_DEPTH` value because both read the same shapes with the same recursion.
+/// and it is `bevy_blueprint_migrate`'s `ron_tree::MAX_DEPTH` value because both read the same shapes with the same recursion.
 /// No project file comes near it: the deepest is a schema's few levels.
 pub const MAX_TREE_DEPTH: usize = 64;
 
@@ -698,8 +698,8 @@ fn same<T: Serialize + DeserializeOwned>(
 /// unless every file survived, so a failed bake leaves `out` as it was.
 ///
 /// **Two checks are between files, and they run before any is baked** (#512): the project's data may not
-/// name a family crate `family.yaml` does not list ([`check_the_project`]), and a map may not stamp a
-/// composition the project does not define ([`check_stamps`]). Each file proving itself against its own
+/// name a family crate `family.yaml` does not list (`check_the_project`), and a map may not stamp a
+/// composition the project does not define (`check_stamps`). Each file proving itself against its own
 /// YAML cannot catch either, and both are silent in a release — a brazier whose settings nothing reads
 /// is unlit, and a stamp of a group nobody defines draws nothing.
 #[allow(clippy::result_large_err)]
@@ -835,7 +835,7 @@ impl Baked {
     ///
     /// For each file the manifest lists whose YAML is at the project's root, the YAML's SHA-256 must be the one the bake recorded; a YAML
     /// file the project holds that the bake does not list is refused too. A release that ships without its YAML has nothing
-    /// to compare and passes: what it holds is what [`Self::tree`] checks the binaries against their own hashes for.
+    /// to compare and passes: what it holds is what `Baked::tree` checks the binaries against their own hashes for.
     #[allow(clippy::result_large_err)]
     pub fn refuse_if_stale(&self) -> Result<(), Problem> {
         let root = self.root.as_path();

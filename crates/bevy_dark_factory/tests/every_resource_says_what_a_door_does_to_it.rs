@@ -161,7 +161,7 @@ fn the_door_resets_what_it_says_it_owns() {
 /// `reset_door_state` removes and re-inits every `Ownership::Workspace` resource in one exclusive
 /// system, so the panic is closed today — but the crate's own rule, stated at `tiles::on_cell_verb`,
 /// is that a **global** observer fires for any `Activate` anywhere in the application and must
-/// therefore take `Option`: in Bevy 0.19 a missing resource panics at param validation rather than
+/// therefore take `Option`: in Bevy 0.20 a missing resource panics at param validation rather than
 /// skipping. Sixteen observers took bare `ResMut` on 2026-09-04 (the review's T11). This is what
 /// keeps the count at zero.
 ///
@@ -205,7 +205,7 @@ fn every_global_observer_takes_its_resources_as_option() {
     assert!(
         offenders.is_empty(),
         "global observers taking a bare `ResMut` (a global observer fires for any `Activate` in the \
-         application, and in Bevy 0.19 a missing resource panics at param validation rather than \
+         application, and in Bevy 0.20 a missing resource panics at param validation rather than \
          skipping — take `Option<ResMut<..>>` and return on `None`):\n  {}",
         offenders.join("\n  ")
     );

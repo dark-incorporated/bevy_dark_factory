@@ -647,7 +647,7 @@ fn poll_the_build(
     }
 }
 
-/// **Run `game_build` in a context**, and answer with its summary — [`crate::editor::play_game`]'s
+/// **Run `game_build` in a context**, and answer with its summary — `editor::play_game`'s
 /// shape, so the Build button, a key and an agent reach one implementation of "build this project".
 pub fn build_game(ctx: &mut Ctx, params: serde_json::Value) -> Result<String, String> {
     match crate::ops::dispatch(ctx, "game_build", &params) {

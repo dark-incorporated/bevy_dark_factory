@@ -11,13 +11,13 @@
 //! # Who watches the checkpoints
 //!
 //! `bevy_fairy/guide+watch` is the watching half and it is a BRP *watching* method: nothing runs it unless a client is attached.
-//! An agent is that client; a person following the tour is not, so while a tour runs [`drive_the_tour`] runs the same
+//! An agent is that client; a person following the tour is not, so while a tour runs `drive_the_tour` runs the same
 //! [`bevy_debugger_bevy::watch_guide`] every frame, and the step advances when its condition arrives. It runs only while a
 //! [`TourRunning`] stands, so an agent's own script is never read by a second consumer.
 //!
 //! # Pulled, never pushed
 //!
-//! The editor offers the tour **once** ([`offer_the_tour`], `Recent::tour_offered`), as a toast the person can ignore. It stays
+//! The editor offers the tour **once** (`offer_the_tour`, `Recent::tour_offered`), as a toast the person can ignore. It stays
 //! at Help → Take the tour. A person who chose *Take the tour* on the home's Learn page ([`crate::launcher::TourRequested`]) has
 //! already said yes: the tour starts when the editor opens.
 //!
@@ -91,7 +91,7 @@ impl Tour {
 #[derive(Resource, Debug, Clone, Copy)]
 struct TourDue;
 
-/// **A tour is running**: [`drive_the_tour`] watches its steps while this stands.
+/// **A tour is running**: `drive_the_tour` watches its steps while this stands.
 #[derive(Resource, Debug, Clone, Copy)]
 pub struct TourRunning;
 

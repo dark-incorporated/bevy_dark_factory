@@ -604,7 +604,7 @@ pub fn rebind_hosts(
 
 /// **What the door refuses a verb with when nothing is open**, in one place because two say it.
 ///
-/// [`edit`] refuses every edit with it, and `build_keys`'s size guard posts it for the verb that was
+/// `edit` refuses every edit with it, and `build_keys`'s size guard posts it for the verb that was
 /// refused — which is what makes the guard's answer the door's own words rather than a second
 /// wording of them. It was unreachable from the keyboard until 2026-09-03: the guard returned in
 /// silence, so no verb ever got as far as the door to be told (the review's T1).
@@ -706,7 +706,7 @@ fn hand_through_operation(
 
 /// Whether the arrows have anything to act on — a member under the focus.
 ///
-/// Asked *before* [`edit`] by every verb that moves one, because "the tile is empty" is guidance and
+/// Asked *before* `edit` by every verb that moves one, because "the tile is empty" is guidance and
 /// everything the door refuses is a refusal. A note is replaced by the next keystroke; a problem is
 /// sticky until `Esc`, and an author who pressed an arrow on a tile they have not put anything in
 /// yet has not done anything wrong.
@@ -2137,8 +2137,8 @@ pub fn landing_row(project: &crate::project::Project, build: &Build) -> usize {
 ///
 /// # The refusal is here because this is the one writer
 ///
-/// `build.open` is set by exactly one function, [`Build::begin`], which two callers share: this one, which takes whatever it is
-/// handed, and [`Build::take_page`], which carries out what `tile_open`, `tile_page_enter` and `tile_new` answered (the first two
+/// `build.open` is set by exactly one function, `Build::begin`, which two callers share: this one, which takes whatever it is
+/// handed, and `Build::take_page`, which carries out what `tile_open`, `tile_page_enter` and `tile_new` answered (the first two
 /// refuse a tile with no box by the same [`claims_no_tile`] before they answer, and `tile_new` makes a [`blank`]). So this is where
 /// *"an anchored composition cannot enter `build.open`"* is enforceable rather than merely observed: both key paths used to check
 /// nothing, and one `Enter` on a composition captured with the Map's `M` left the tab holding a
@@ -2443,7 +2443,7 @@ pub fn draw_build_grid(
     let stage = crate::stages::TILE;
     let size = (size.x, size.y, size.z);
 
-    // The envelope. `cube` takes a transform whose SCALE is the size — 0.19 spells it that way.
+    // The envelope. `cube` takes a transform whose SCALE is the size — 0.20 spells it that way.
     // Faded while the shortcut key is held — see [`crate::chrome::WORLD_HELD`]. This box projects
     // to the full-height verticals that made the Tiles overlay unreadable.
     let held = crate::keys::pressed(&keyboard, *live, crate::keys::Action::Shortcuts);

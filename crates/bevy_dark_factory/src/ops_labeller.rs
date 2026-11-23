@@ -6,7 +6,7 @@
 //! worker (the photo booth, a queue of pieces and the model's endpoint), so each is a **request** and not a document change:
 //! the operation reads the labeller's state off the view it is carried ([`crate::ops_view::LabelsCursor`]), decides what is
 //! wanted and says so ([`crate::ops_view::LabelsAnswer`]), and the front end carries the answer out
-//! ([`crate::labels::Labeller::take`]), for a key and for an agent's call alike. The labels that arrive land through
+//! (`crate::labels::Labeller::take`), for a key and for an agent's call alike. The labels that arrive land through
 //! `label_apply`'s own field copy with their own undo (`Cmd+Z` per piece); nothing here writes a file.
 //!
 //! `label_suggest` (E-043) is the other way to ask: an agent that brings its own two shots asks the endpoint for one library

@@ -91,7 +91,7 @@ pub enum Asked {
     ///
     /// The one question with three answers: **allow this command** (the exact program, arguments and
     /// directory; an edit to any of them asks again), **trust the whole project**, or **not now**. The
-    /// answer is a person's alone: nothing an agent can call reaches [`Confirm::settle_choice`].
+    /// answer is a person's alone: nothing an agent can call reaches `Confirm::settle_choice`.
     TrustCommand,
     /// **The open project's `.dark_factory/AGENTS.md` is being given to an agent, and no person has
     /// allowed that text** (AG-03, #348).
@@ -334,7 +334,7 @@ struct ConfirmButton(Choice);
 /// `Visibility::Hidden` for exactly one frame: the frame whose readback copies the surface.
 ///
 /// **Why a flag and not the ledger's own hide.** The frame a readback copies is chosen by the renderer, not by a system, so the hide has to span the
-/// whole of a frame: set before the readback is spawned, honoured by [`sync_dialog`], and cleared at the top of the next frame. A flag the ledger wrote
+/// whole of a frame: set before the readback is spawned, honoured by `sync_dialog`, and cleared at the top of the next frame. A flag the ledger wrote
 /// and the dialog read would be two crates' systems racing for one frame's worth of draw; one resource, written by one side and read by the other, is
 /// one order to reason about.
 #[derive(Resource, Default, Debug)]

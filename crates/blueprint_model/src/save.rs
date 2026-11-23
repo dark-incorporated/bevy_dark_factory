@@ -43,7 +43,7 @@ pub fn save_atomic(path: &Path, text: &str) -> Result<(), String> {
 ///
 /// **and it is wrong, in a way that only shows up under a race.** The check and the write are two
 /// calls, and POSIX gives atomicity to the single call only: *"if the `rename()` function fails for
-/// any reason other than [EIO], any file named by `new` shall be unaffected"*. Between the check
+/// any reason other than `EIO`, any file named by `new` shall be unaffected"*. Between the check
 /// and the write, the target can appear — and then `save_atomic`'s `fs::rename` removes it, which
 /// is the exact failure this function exists to prevent.
 ///

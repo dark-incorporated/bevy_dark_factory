@@ -11,7 +11,7 @@
 //! The **arithmetic** is unit-tested where it lives (`descriptor::pick_cell`, `view::pan_direction`,
 //! `keys::repeating`). What those tests cannot see is whether a system was added to the schedule, or
 //! whether it panics on its first run because a resource nobody registered is missing — which Bevy
-//! 0.19 does rather than skipping the system (`CLAUDE.md`), and which is the single most common way
+//! 0.20 does rather than skipping the system (`CLAUDE.md`), and which is the single most common way
 //! this editor has broken.
 //!
 //! So these boot the real plugins with `MinimalPlugins` — no window, no renderer, no GPU — and run
@@ -216,7 +216,7 @@ fn headless() -> App {
 /// **A resource every system takes must exist the moment the plugin is added.**
 ///
 /// `KeysPlugin`'s own doc says why it goes first: `Live` is read from three plugins, so no one of
-/// them can own it, and a missing `Res<T>` panics its system rather than skipping it (Bevy 0.19,
+/// them can own it, and a missing `Res<T>` panics its system rather than skipping it (Bevy 0.20,
 /// `CLAUDE.md`).
 ///
 /// # Registration, not execution
@@ -275,7 +275,7 @@ fn the_tiles_plugin_registers_the_resources_its_systems_take() {
                 .is_some(),
         ),
         // The Tiles tab's width field. `editor::not_typing` and `editor::sense_context` both read it
-        // as a bare `Res`, and both are run conditions — which Bevy 0.19 evaluates with **no**
+        // as a bare `Res`, and both are run conditions — which Bevy 0.20 evaluates with **no**
         // short-circuit, so an unregistered one panics every frame regardless of which tab is live.
         (
             "ScaleEdit",
@@ -293,7 +293,7 @@ fn the_tiles_plugin_registers_the_resources_its_systems_take() {
 
 /// The same contract for the Map tab's three tool resources.
 ///
-/// Each was added beside a system that takes it as a bare `Res`/`ResMut`, and in Bevy 0.19 a missing
+/// Each was added beside a system that takes it as a bare `Res`/`ResMut`, and in Bevy 0.20 a missing
 /// one **panics its system** rather than skipping it. Registration is checked without `update()` for
 /// the reason the test above gives: `init_resource` runs at plugin-build time, and stepping a lone
 /// plugin exercises plugin *order* rather than this registration.
@@ -325,7 +325,7 @@ fn the_editor_plugin_registers_the_tool_resources_its_systems_take() {
                 .is_some(),
         ),
         // What the piece-verbs would act on, written for the UNDER readout. `refresh_status` takes
-        // it as a bare `Res<_>`, which panics its system in 0.19 if nobody registered it.
+        // it as a bare `Res<_>`, which panics its system in 0.20 if nobody registered it.
         (
             "UnderCursor",
             app.world()
@@ -532,7 +532,7 @@ fn pointing_at_a_wall_picks_the_face_you_are_looking_at() {
 /// plugin graph — the same list `main.rs` uses — with no window, no wgpu device and no audio, and
 /// steps it by hand.
 ///
-/// What they catch is the class that has actually broken this editor: in Bevy 0.19 a missing `Res<T>`
+/// What they catch is the class that has actually broken this editor: in Bevy 0.20 a missing `Res<T>`
 /// **panics its system** rather than skipping it, and every run condition is evaluated with no
 /// short-circuit. Both are invisible until a frame runs.
 mod stepped {
@@ -791,7 +791,7 @@ mod stepped {
             .get_resource::<bevy_dark_factory::project::Project>()
             .unwrap_or_else(|| panic!("the project resource is gone"));
         // The claim that matters and is why this test exists: the real project on disk opens, and
-        // the editor survives frames on it — a missing `Res<T>` panics its system in Bevy 0.19
+        // the editor survives frames on it — a missing `Res<T>` panics its system in Bevy 0.20
         // rather than skipping, and no unit test can see that.
         assert!(
             !project.library.descriptors.is_empty(),
@@ -1858,7 +1858,7 @@ fn a_kit_in_two_namespaces_is_refused_at_open() {
 /// **The Compose tab boots, arms a group, and stamps it.**
 ///
 /// The question a unit test cannot answer: does this app survive its first frame with a fourth tab
-/// registered. In Bevy 0.19 a missing `Res<T>` panics its system rather than skipping it, and every
+/// registered. In Bevy 0.20 a missing `Res<T>` panics its system rather than skipping it, and every
 /// run condition is evaluated with no short-circuit — so a plugin that forgets to `init_resource`
 /// something its systems take is a crash on launch, not a feature that quietly does nothing.
 #[cfg(test)]
@@ -2240,7 +2240,7 @@ mod compose {
     /// FVS-R-14. Stamped rows carry no `Placement` on purpose, which kept every tool off them; what
     /// was missing was an identity for the instance. This asserts the three halves that identity is
     /// made of: the parent entity owns the rows' lifetime (`Children` is `linked_spawn` in Bevy
-    /// 0.19), `pick_subject` resolves a row to its stamp rather than to itself, and Delete removes
+    /// 0.20), `pick_subject` resolves a row to its stamp rather than to itself, and Delete removes
     /// the whole instance and inverts cleanly in both directions.
     ///
     /// The composition has **two** members deliberately: with one, "removed the instance" and
@@ -2629,7 +2629,7 @@ mod compose {
     /// running app rather than of the layout function.
     ///
     /// The layout is unit-tested; what no unit test can see is the schedule. `restage_group` gained a
-    /// resource, a change-guard and a parent-per-group hierarchy, and in Bevy 0.19 a system whose
+    /// resource, a change-guard and a parent-per-group hierarchy, and in Bevy 0.20 a system whose
     /// `Res<T>` was never `init_resource`d panics rather than skipping.
     #[test]
     fn the_carousel_stands_the_focal_group_up_with_its_neighbours() {
@@ -4827,7 +4827,7 @@ fn a_refusal_on_the_tiles_tab_is_visible_and_stays_there() {
 /// The arithmetic is unit-tested in `build.rs`; what no unit test can see is the wiring — that the
 /// tab key reaches a system at all, that `Context::Tiles` takes the keyboard from `Context::Meshes`
 /// without the two firing into each other, and that the resources every one of those systems takes
-/// exist before the first frame. In Bevy 0.19 a missing `Res<T>` **panics its system** rather than
+/// exist before the first frame. In Bevy 0.20 a missing `Res<T>` **panics its system** rather than
 /// skipping it, and no unit test can answer "does this app survive its first frame".
 #[test]
 fn the_tiles_tab_opens_a_tile_and_walks_its_grid() {
@@ -6795,7 +6795,7 @@ fn a_refused_mount_names_a_piece_that_would_hold_it() {
 /// So both halves are asserted here, on every file this crate ships under `guides/`:
 ///
 /// 1. **Every named checkpoint is registered.** A typo'd name is a stranded exercise.
-/// 2. **Every registered checkpoint actually runs**, against a booted editor. This is the Bevy 0.19
+/// 2. **Every registered checkpoint actually runs**, against a booted editor. This is the Bevy 0.20
 ///    trap the harness exists for: a missing `Res<T>` **panics its system** rather than skipping it,
 ///    and a one-shot system is not in any schedule, so nothing else in the suite would ever call it.
 ///    A checkpoint that panics the first time an author reaches its step is worse than no checkpoint.
@@ -8292,10 +8292,10 @@ fn the_ladder_reaches_both_centre_and_flush_at_every_depth() {
     );
 
     // An off-ladder start (a hand-edited or reopened tile) lands ON the ladder first.
-    let onto = ladder_step(0.19, f, 3, 1, -1);
+    let onto = ladder_step(0.20, f, 3, 1, -1);
     assert!(
         (onto - f / 3.0).abs() < 1e-6,
-        "0.19 walks down onto the f/3 stop, got {onto}"
+        "0.20 walks down onto the f/3 stop, got {onto}"
     );
 
     // Out and back returns exactly to the centre, at the deepest rung too.
@@ -8690,7 +8690,7 @@ fn the_picked_mesh_ghosts_before_enter() {
 /// instead of being frozen."* It was the first child inside the scroll container. Asserted through
 /// hierarchy rather than pixels — no ancestor of the strip's text may have a scrolling `overflow`
 /// — because that is the fact that makes it frozen, and it holds without a window or a layout
-/// pass. NOT `ScrollPosition`: 0.19's `Node` `#[require]`s that on every UI node, so an ancestor
+/// pass. NOT `ScrollPosition`: 0.20's `Node` `#[require]`s that on every UI node, so an ancestor
 /// carrying one proves nothing. The `IN LIBRARY` heading is the contrast: it lives in the
 /// scrolling list, so it must have such an ancestor.
 #[test]

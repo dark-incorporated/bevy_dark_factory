@@ -29,7 +29,7 @@ impl Plugin for DrivePlugin {
     fn build(&self, app: &mut App) {
         // **The sentinel driver is the Maps door's**, because its verb list reaches the map —
         // `watch_drive` takes `ResMut<OpenMap>`, which four of the five doors do not have, and a
-        // missing `Res<T>` panics its system in Bevy 0.19 rather than skipping it. A run condition
+        // missing `Res<T>` panics its system in Bevy 0.20 rather than skipping it. A run condition
         // rather than a build-time read: the door is chosen at runtime now.
         app.add_systems(
             Update,

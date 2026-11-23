@@ -184,7 +184,7 @@ fn stamp(schema: &mut Value, kind: &str) {
 /// completion depends on, so a silent failure would show up as an editor that offers nothing.
 ///
 /// **A file at a schema path that this crate did not generate is refused, not replaced.** The files here
-/// are derived and a hand edit to one is overwritten — that is what [`stamp`]'s `$comment` warns about —
+/// are derived and a hand edit to one is overwritten — that is what `stamp`'s `$comment` warns about —
 /// but a person who put a schema of their own at that path is not editing ours, they are keeping theirs.
 /// Replacing it would be a deletion nobody asked for.
 ///

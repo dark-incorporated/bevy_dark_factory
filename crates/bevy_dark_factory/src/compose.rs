@@ -41,7 +41,7 @@ use crate::tiles::{ComposeRoot, Mode};
 /// # Why it is not on [`ComposeState`]
 ///
 /// It used to be, and that was a wall rather than a detail. `ComposeState` is
-/// `Ownership::Door` — a door change resets it, which is right for its *cursors* (a different
+/// [`Ownership::Workspace`](crate::screen::Ownership::Workspace) — a door change resets it, which is right for its *cursors* (a different
 /// kit's composition ids mean nothing here) and right for its *staged carousel* (the entities are
 /// despawned). But the arm is neither: it is **the author's intent**, it names a composition by
 /// id, and it is meaningless if a door change throws it away.
@@ -143,7 +143,7 @@ pub struct ComposeState {
     ///
     /// **What was last stood up**, so nothing is respawned unless the picture actually changed.
     ///
-    /// This exists for a defect rather than for speed. [`restage_group`] takes `ResMut<ComposeState>`
+    /// This exists for a defect rather than for speed. `restage_group` takes `ResMut<ComposeState>`
     /// and writes `status.problem` when a group will not resolve — which re-marks the resource
     /// changed, which re-triggers its own gate, which writes again. That is an unbounded
     /// despawn/respawn every frame for as long as the error is on screen, and the strip multiplies it
@@ -1047,7 +1047,7 @@ pub struct StagedMember;
 
 /// One whole group on the strip — the parent carrying its slot's position and miniature scale.
 ///
-/// Despawning this takes its members with it: `ChildOf` is `linked_spawn` in Bevy 0.19, so the
+/// Despawning this takes its members with it: `ChildOf` is `linked_spawn` in Bevy 0.20, so the
 /// hierarchy owns the lifetime and there is no second list of what to clean up.
 #[derive(Component)]
 pub struct StagedGroup;
@@ -1111,7 +1111,7 @@ pub struct Slot {
     /// a group whose members sat at `x ∈ [2, 3]` reported a width of 1, was drawn at the origin, and
     /// rendered a metre and a half outside the slot reserved for it, on top of its neighbour.
     ///
-    /// [`restage_group`] subtracts this, so what lands in the slot is the *content*.
+    /// `restage_group` subtracts this, so what lands in the slot is the *content*.
     pub centre: (f32, f32),
 }
 
@@ -1529,7 +1529,7 @@ pub const SQUARE: f32 = 1.0;
 /// camera cannot quote different numbers.
 ///
 /// [`framing_height`] returns unclamped at both ends and the floor is the caller's; this is that
-/// caller, and it was written twice. [`restage_group`] computed it to decide whether to report a crop
+/// caller, and it was written twice. `restage_group` computed it to decide whether to report a crop
 /// and `tiles::stage_camera` computed it again to apply it — with a `.min(zoom_max_m)` the report did
 /// not have — so the sentence an author read named a height the rig had never been set to.
 ///
@@ -1540,7 +1540,7 @@ pub fn carousel_height(carousel: &Carousel) -> f32 {
     framing_height(carousel.extent, carousel.tallest, SQUARE).max(crate::tiles::TILE_VIEW_HEIGHT)
 }
 
-/// **The carousel as it currently stands**, written by [`restage_group`] and read by everything that
+/// **The carousel as it currently stands**, written by `restage_group` and read by everything that
 /// has to agree with it — the gizmos, the labels, the click, the camera.
 ///
 /// A resource rather than four calls to [`lay_out`], because four callers computing the same layout is
@@ -1584,7 +1584,7 @@ pub(crate) const ELIDED: &str = "…";
 ///
 /// Two constants rather than one with a factor, because [`place_labels`] has to centre a string it
 /// did not set the size of — deriving the advance from the same pair keeps the two systems from
-/// disagreeing about how wide a label is. `TextFont::font_size` is a `FontSize` in Bevy 0.19 and does
+/// disagreeing about how wide a label is. `TextFont::font_size` is a `FontSize` in Bevy 0.20 and does
 /// not divide, so reading it back is not the shortcut it looks like.
 const LABEL_PX: (crate::chrome::text::Role, crate::chrome::text::Role) =
     (crate::chrome::text::BODY, crate::chrome::text::HINT);
@@ -2617,7 +2617,7 @@ fn on_comp_row_click(
     project: Option<ResMut<Project>>,
 ) {
     // **`Option`, because this is a GLOBAL observer** — it fires for any `Activate` anywhere in
-    // the application, and in Bevy 0.19 a missing resource panics at param validation rather
+    // the application, and in Bevy 0.20 a missing resource panics at param validation rather
     // than skipping. See [`on_cell_verb`] for the whole argument; the ratchet is
     // `every_resource_says_what_a_door_does_to_it.rs`.
     let Some(mut state) = state else {
@@ -2662,7 +2662,7 @@ fn on_member_row_click(
     project: Option<Res<Project>>,
 ) {
     // **`Option`, because this is a GLOBAL observer** — it fires for any `Activate` anywhere in
-    // the application, and in Bevy 0.19 a missing resource panics at param validation rather
+    // the application, and in Bevy 0.20 a missing resource panics at param validation rather
     // than skipping. See [`on_cell_verb`] for the whole argument; the ratchet is
     // `every_resource_says_what_a_door_does_to_it.rs`.
     // **`Option` on the project too**: the operations carry one, and a door with none leaves the click alone rather than
@@ -2942,7 +2942,7 @@ pub mod picker {
     /// A click on a row arms it.
     ///
     /// **`Option` on the resources, because this is a GLOBAL observer** — it fires for any
-    /// `Activate` anywhere in the application, and in Bevy 0.19 a missing `Res<T>` panics at param
+    /// `Activate` anywhere in the application, and in Bevy 0.20 a missing `Res<T>` panics at param
     /// validation rather than skipping. See `crate::compose::on_comp_row_click` for the whole
     /// argument; the ratchet is `every_resource_says_what_a_door_does_to_it.rs`.
     pub fn on_row_click(
@@ -3166,7 +3166,7 @@ pub fn flushed(
 ///
 /// The **spatial** number, never the face one. Edge tokens belong to a face and space belongs to a
 /// volume; one number serving both meant a finer seat cost a re-index of every authored token.
-/// [`blueprint_model::policy::Policy::face_bands`] carries that argument.
+/// [`blueprint_model::kits::Lattice`]'s `face_bands` carries that argument.
 ///
 /// # It is the same ladder the Map places on, and that is the change
 ///

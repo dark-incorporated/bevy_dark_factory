@@ -26,11 +26,11 @@
 //! It subscribes to the project index ([`crate::project_index`]) and has no clock of its own. The index's listing says every file's
 //! size and modification time, so a look compares the stamp the listing holds with the one the picture was read at, and **reads only a
 //! board or a picture whose stamp differs**; a project change that touches neither reads nothing. The boards are found in the
-//! listing (the design folder's `board/board.yaml` files, [`board_files_in`]), not by walking the folders. **A picture replaced in
+//! listing (the design folder's `board/board.yaml` files, `board_files_in`), not by walking the folders. **A picture replaced in
 //! place, under the same name, with other bytes, moves its modification time and is read again**; one replaced by bytes of the same
 //! length inside the same filesystem timestamp tick is indistinguishable by a size and a time, which the index never goes beyond (it reads
 //! no file's bytes), and so is not seen. The poll this replaces re-read every picture once a second and caught that case; whether any
-//! filesystem the editor runs on can produce it with a real save was not measured. [INFERENCE]
+//! filesystem the editor runs on can produce it with a real save was not measured. `INFERENCE`
 //!
 //! **What the index does not list is not read from disk behind its back.** A *picture* a board lists that lies under `.git`, `target`,
 //! `.live`, `node_modules` or a folder the project's `.gitignore` names, or outside the project, is warned about once and decides

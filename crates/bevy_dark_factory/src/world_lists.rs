@@ -199,7 +199,7 @@ pub fn spawn_lights_list(p: &mut ChildSpawnerCommands) {
 }
 
 /// **A map's lights in words**: a row per placement that carries `bevy_lights` settings, `<id>: <settings>`, the settings on one line and cut
-/// at [`ROW_CHARS`]. A build without the crate reads the same value as text: it cannot tell a flicker from a fire, and does not need to.
+/// at `ROW_CHARS`. A build without the crate reads the same value as text: it cannot tell a flicker from a fire, and does not need to.
 pub fn light_rows(map: &Map) -> Vec<String> {
     let mut rows: Vec<String> = map
         .placements
@@ -311,7 +311,7 @@ thread_local! {
     static VERDICTS: Cell<u64> = const { Cell::new(0) };
 }
 
-/// **How many files the panels that follow the index through [`Follow`] have read on this thread**: the water plan, the forest and the
+/// **How many files the panels that follow the index through `Follow` have read on this thread**: the water plan, the forest and the
 /// sound file of these lists, the relations file of the PROBLEMS list and the plan of the AGENT block's PLAN row. A test reads it across
 /// frames to say that a change to a file none of them shows made none of them read anything. It counts only those reads: another module
 /// that reads the same file (the finder reads the sound file for its rows) is not counted.

@@ -1,7 +1,7 @@
 //! **What a terminal sends a program for a cursor key and for the mouse** — bytes only, no Bevy.
 //!
 //! Both vocabularies are xterm's, because `TERM=xterm-256color` is what the session tells every program
-//! ([`super::pty`]), and a program reads input against the terminfo entry that name selects. The
+//! (`super::pty`), and a program reads input against the terminfo entry that name selects. The
 //! sources are xterm's *ctlseqs* ("PC-Style Function Keys", "Mouse Tracking") — the same tables VS
 //! Code's xterm.js and Alacritty implement.
 

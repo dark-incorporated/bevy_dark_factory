@@ -15,7 +15,7 @@
 //! systems `ui_budget` already times, plus the panel that lists them.
 //!
 //! **Collecting spans is gated on one relaxed atomic load.** [`record_span`] is called by every instrumented system on
-//! every frame, and with recording off it loads [`RECORDING`], finds it false and returns — no lock, no allocation, no
+//! every frame, and with recording off it loads `RECORDING`, finds it false and returns — no lock, no allocation, no
 //! formatting. That is Renzora's *"one atomic load a frame, and nothing else"*.
 //!
 //! **The frame clock is not gated, and that is deliberate.** `blueprint/state.frame.frame_ms` and the panel must report

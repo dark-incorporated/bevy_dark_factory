@@ -602,7 +602,7 @@ pub const PHASE_BINS: usize = 128;
 /// threshold to count as a measurement. Below it the stance and swing velocity modes do not
 /// separate, and the honest answer is `None` — the caller's loud "no planted-foot stance" path,
 /// whose remedy is the rig-level `contact_eps:` declaration. The six valkyrie gaits measure η
-/// 0.73–0.88 (table on [`otsu_threshold`]); a genuinely unimodal distribution scores far below
+/// 0.73–0.88 (table on `otsu_threshold`); a genuinely unimodal distribution scores far below
 /// 0.5, so 0.5 is a sanity bound, not a quality ranking — the valkyrie's own run_back derives a
 /// *misplaced* threshold at a healthy η, which is why that rig declares its `contact_eps`.
 pub const CONTACT_SEPARABILITY_MIN: f32 = 0.5;
@@ -682,7 +682,7 @@ pub struct ContactTrack {
     /// The clip's duration, seconds.
     pub duration: f32,
     /// The contact threshold actually used, as a fraction of the stance speed — derived per clip
-    /// ([`otsu_threshold`]) unless the rig declared one. Surfaced so a finding can say
+    /// (`otsu_threshold`) unless the rig declared one. Surfaced so a finding can say
     /// "(contact eps 0.31x stance, derived)" and a human can overrule a bad derivation.
     pub threshold: f32,
 }
@@ -837,7 +837,7 @@ fn contact_core(r: &Resampled, eps: Option<f32>) -> Option<ContactTrack> {
     })
 }
 
-/// See [`ContactTrack`]. `eps` as on [`contact_core`]: `None` derives the threshold per clip.
+/// See [`ContactTrack`]. `eps` as on `contact_core`: `None` derives the threshold per clip.
 pub fn contact_track(glb: &Glb, clip: usize, foot: usize, eps: Option<f32>) -> Option<ContactTrack> {
     contact_core(&resampled(glb, clip, foot)?, eps)
 }
@@ -1047,7 +1047,7 @@ pub struct GaitCurves {
 }
 
 /// See [`GaitCurves`]. The curves are a by-product of the FK the checks already run. `eps` as on
-/// [`contact_core`]: `None` derives the contact threshold per clip.
+/// `contact_core`: `None` derives the contact threshold per clip.
 pub fn gait_curves(
     glb: &Glb,
     clip: usize,

@@ -9,14 +9,14 @@
 //!    tab writes, with its own fresh token;
 //! 4. the agent given the task's prompt and nothing else;
 //! 5. the agent stopped at `budget.wall_s`, the editor closed, and what the two left graded by
-//!    [`bevy_dark_factory_bench::Grading`];
+//!    [`crate::grade::Grading`];
 //! 6. a `trial.json` under the state directory, holding the outcome, every check with its measured value,
 //!    the agent's tool calls, tokens and wall time.
 //!
 //! # An outcome is one of three, and a harness failure is not an agent failure
 //!
 //! An editor that did not start, a port that did not open, a transcript that could not be read: the
-//! outcome is [`bevy_dark_factory_bench::Outcome::HarnessError`] with the reason, **never `pass` and never
+//! outcome is [`crate::grade::Outcome::HarnessError`] with the reason, **never `pass` and never
 //! `fail`**. A harness bug scored as an agent failure is a result about the harness, filed under the wrong
 //! name, and it is the mistake that makes a benchmark's numbers move for no reason.
 //!

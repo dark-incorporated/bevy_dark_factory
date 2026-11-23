@@ -24,7 +24,7 @@ use std::collections::BTreeMap;
 use serde::{Deserialize, Serialize};
 use schemars::JsonSchema;
 
-/// The highest mask group a slot may name — `AnimationMask` in Bevy 0.19 is a `u64`, so the bits are
+/// The highest mask group a slot may name — `AnimationMask` in Bevy 0.20 is a `u64`, so the bits are
 /// 0..63 and `1 << 64` is undefined behaviour the compiler turns into a panic.
 pub const MAX_MASK_GROUP: u32 = 64;
 

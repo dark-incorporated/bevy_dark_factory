@@ -12,7 +12,7 @@
 //! move makes no filesystem call (one atomic load, after the path is built), and a change to another file reads nothing. A read that finds the same text as the last
 //! one decides nothing, so one edit is one verdict however many frames pass. A notes file the index cannot follow
 //! (outside the project, under a skipped folder, named by `.gitignore`) is refused on the status line and not read;
-//! see [`crate::followed_files`].
+//! see `crate::followed_files`.
 
 use std::path::PathBuf;
 

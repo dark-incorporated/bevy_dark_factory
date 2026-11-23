@@ -6,7 +6,7 @@
 //!
 //! # Where the rules come from
 //!
-//! Nowhere else. A [`Descriptor`] says what a piece is; it says nothing about what may stand beside
+//! Nowhere else. A [`crate::descriptor::Descriptor`] says what a piece is; it says nothing about what may stand beside
 //! it, and inventing an adjacency schema would mean asking an author to write down a grammar before
 //! they are allowed to draw one.
 //!
@@ -491,7 +491,7 @@ pub fn solve(
 }
 
 /// **[`solve`], laying only the cells in `area`** (#192). The cells around it are pinned to what
-/// stands in them ([`pinned_domains`]), so the area's edge joins its neighbours by the grammar's
+/// stands in them (`pinned_domains`), so the area's edge joins its neighbours by the grammar's
 /// own rules; nothing outside the area is returned, and [`Solved::grid`] is the area and that ring.
 /// An area that holds no cell of the map is refused, naming it.
 pub fn solve_in(
@@ -1948,7 +1948,7 @@ fn turn_composition(c: &Composition, yaw: f32) -> Composition {
 ///
 /// `agrees` is a parameter, not a call. Karth & Smith: *"any arbitrary adjacency validity function
 /// can be substituted here… without changing the WFC solver itself."* The default is
-/// [`composition::agrees`]; passing another is how the edge-versus-corner question (FVS-R-11, still
+/// [`crate::composition::agrees`]; passing another is how the edge-versus-corner question (FVS-R-11, still
 /// blocked on Lagae & Dutré) gets answered later without touching this function, the solver, or the
 /// prototypes.
 ///

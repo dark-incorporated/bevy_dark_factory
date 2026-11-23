@@ -367,7 +367,7 @@ pub fn dir_name(dir: Dir) -> &'static str {
 ///   `SNAP / divisions` — so the editor read every *other* row of a face and called it a match.
 ///
 /// So the grid is gone. Two pieces are neighbours when a face of one **is** a face of the other in
-/// world coordinates (within [`EDGE_EPSILON`]) and they overlap on the perpendicular axis, which is
+/// world coordinates (within `EDGE_EPSILON`) and they overlap on the perpendicular axis, which is
 /// the same exact-world-extent question [`seam`] already answers for the tokens themselves. One
 /// path, one set of coordinates.
 ///

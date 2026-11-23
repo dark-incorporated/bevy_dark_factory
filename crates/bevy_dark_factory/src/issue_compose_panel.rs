@@ -24,7 +24,7 @@
 //! # The filing is a thread
 //!
 //! `curl` and GitHub are seconds long and network-bound, so [`file_the_issue`] starts a thread and
-//! [`land_the_filing`] takes its answer, exactly as [`crate::report_issue`] does for a capture.
+//! `land_the_filing` takes its answer, exactly as [`crate::report_issue`] does for a capture.
 
 use bevy::prelude::*;
 use bevy_gooey::{Shortcut, TextHint};
@@ -495,7 +495,7 @@ fn refill_preview(
 /// **The filing runs on its own thread**, and its `Receiver` waits in the composer.
 ///
 /// `curl` and GitHub are seconds long and network-bound, so the button starts a thread and
-/// [`land_the_filing`] takes the answer: a frame is never held for a network.
+/// `land_the_filing` takes the answer: a frame is never held for a network.
 #[derive(Resource, Default)]
 pub struct Pending {
     rx: Option<std::sync::Mutex<std::sync::mpsc::Receiver<Step>>>,

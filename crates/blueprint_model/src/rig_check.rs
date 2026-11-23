@@ -848,7 +848,7 @@ pub fn clip_list_diff(recorded: &[String], live: &[ClipInfo]) -> Vec<String> {
 }
 
 /// `YYYY-MM-DD` (UTC) from unix seconds — Howard Hinnant's `civil_from_days` algorithm
-/// (https://howardhinnant.github.io/date_algorithms.html), hand-rolled because the allowlist has
+/// (<https://howardhinnant.github.io/date_algorithms.html>), hand-rolled because the allowlist has
 /// no date crate. The clock itself is injected by the CALLER (`SystemTime` at the call site), so
 /// everything here is pure and testable.
 pub fn civil_date_utc(secs: u64) -> String {

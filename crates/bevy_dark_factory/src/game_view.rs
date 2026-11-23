@@ -33,7 +33,7 @@
 //!
 //! - **The Open file column follows it.** The entity files are read again when the index's stamp (size and modification time) of one of them moved, or
 //!   the chosen entity or its components changed; there is no clock (`draw_the_field_files`). A change reaches the column after the index's sweep and
-//!   debounce, which is about 0.1 to 1.1 s ([INFERENCE]: the index's own numbers, not measured on this column), and a file the project's `.gitignore` names is not followed.
+//!   debounce, which is about 0.1 to 1.1 s (`INFERENCE`: the index's own numbers, not measured on this column), and a file the project's `.gitignore` names is not followed.
 //! - **The BRP read stays on its clock ([`STATE_POLL_S`])**: it asks the running game over a socket for entities, resources and frame time, which are
 //!   in another process's memory and in no file, so there is nothing for the index to say moved. This is one of the two deliberate exceptions to #501;
 //!   the owner decides whether its 22 constants include it.

@@ -9,7 +9,7 @@
 //! # Every field is optional, and that is the design
 //!
 //! A [`Descriptor`] is a **patch**, not an instance: absence means *inherit*, never *zero*. That
-//! shape is deliberate rather than lazy — Bevy 0.19's BSN scenes are patches that layer over
+//! shape is deliberate rather than lazy — Bevy 0.20's BSN scenes are patches that layer over
 //! defaults, and if a first-party `.bsn` asset loader lands, a descriptor that is already a patch
 //! ports mechanically instead of becoming a fourth migration. It also gives per-instance overrides in
 //! a map for free: the base says what a crate is, the placement says what *this* crate is.
@@ -339,7 +339,7 @@ pub enum Axis {
 /// parallel and evenly spaced"*, so a spacing that varies per object is not a grid at all
 /// (Merrell & Manocha 2009, *Constraint-Based Model Synthesis*, §4.4).
 ///
-/// So the spacing is one project-level number — [`crate::policy::Policy::divisions`] — and a piece's
+/// So the spacing is one project-level number — `Policy::divisions` — and a piece's
 /// divisions are **derived** from its own size by [`divisions`]. The same paper names this exact
 /// remedy for objects that do not land on round multiples: *"the planes could be spaced more closely.
 /// If they are spaced twice as close, an object that was 1.5-plane spaces wide would become three
@@ -1055,7 +1055,7 @@ pub struct Extent {
     /// The piece's top **above its base**: `ymax − ymin` of its mesh, whatever [`Align::y_offset`] is.
     /// For anything offering a surface this is the plane props rest on: a guest placed `on` the piece
     /// rests this far above the piece's base ([`crate::stack::surface_lift`] takes away the offset
-    /// `datum` added). Declare `ymax − ymin`, not `ymax`; [`Library::height_disagreements`] checks it
+    /// `datum` added). Declare `ymax − ymin`, not `ymax`; `crate::library::Library::height_disagreements` checks it
     /// against the glb.
     pub height: Option<f32>,
 }
@@ -1066,7 +1066,7 @@ pub struct Extent {
 /// # Each variant names *where a piece sits* and decides *what it contests*
 ///
 /// Those are two different things, and only the first is in the name. The second is what makes an
-/// edit refused, and it lives in [`crate::stack::same_layer`]'s match arms — invisible at the call
+/// edit refused, and it lives in `crate::stack::same_layer`'s match arms — invisible at the call
 /// site, so an author picking a mount is choosing collision semantics while reading a positional
 /// word. Three variants put a piece at deck level and mean three different things about collision.
 /// The table is the schema; it is restated here so choosing a mount does not require reading

@@ -259,7 +259,7 @@ pub struct Kits {
     /// whose maps each offer every bound kit.
     ///
     /// **Required, with no `serde(default)`.** A defaulted list would let a file mean "no bashes"
-    /// without saying so, and there is no older file to be lenient towards: [`Kits::validate`]
+    /// without saying so, and there is no older file to be lenient towards: `Kits::validate`
     /// refuses any version that is not exactly [`KITS_VERSION`].
     pub bash: Vec<Bash>,
     /// **Where new work lands** when the command line does not say: the `dir` of one of the binds.
@@ -271,7 +271,7 @@ pub struct Kits {
     ///
     /// `None` **only** when [`Self::bind`] is empty, which is a project nobody has made a kit in
     /// yet — a real state, and the one the chooser exists to get an author out of. Not a default and
-    /// not a fallback: the two fields are empty together or full together, and [`Self::validate`]
+    /// not a fallback: the two fields are empty together or full together, and `Self::validate`
     /// refuses every other combination.
     #[serde(default)]
     pub authoring: Option<String>,
@@ -289,7 +289,7 @@ impl Kits {
         crate::yaml::to_string(self).map_err(|p| format!("kits: {}", p.line()))
     }
 
-    /// The bind whose `dir` is [`Self::authoring`]. Present by construction — [`Self::validate`]
+    /// The bind whose `dir` is [`Self::authoring`]. Present by construction — `Self::validate`
     /// refuses a file where it is not — so this is a lookup and not a question.
     pub fn authoring_bind(&self) -> Option<&Bind> {
         let want = self.authoring.as_deref()?;

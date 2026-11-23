@@ -2,20 +2,20 @@
 //!
 //! Four pieces, all frame-driven ECS in the crate's deliberate no-threads style:
 //!
-//! - [`RigWatch`] follows the loaded rigs' GLBs through the project index (`crate::project_index`,
+//! - `RigWatch` follows the loaded rigs' GLBs through the project index (`crate::project_index`,
 //!   #501): it reads the index's stamp (size and modification time) of each one when the index's
 //!   generation moves, and a changed stamp queues its rigs. The exporter-mid-write debounce, which was
 //!   "the mtime seen equal on two consecutive polls", is the index's: it publishes a stamp once it has
 //!   been steady for `DEBOUNCE`, or after `MAX_HOLD` of a file that never settles, so a file rewritten
 //!   without a pause for longer than that is measured part-way and again when it ends. A file the
 //!   project's `.gitignore` names is not listed, so it is not followed.
-//! - [`MeasureQueue`] + [`step_measure_queue`] re-measure **one rig per frame**, the `thumbs::bake`
+//! - `MeasureQueue` + `step_measure_queue` re-measure **one rig per frame**, the `thumbs::bake`
 //!   shape — a re-export that touches sixteen GLBs costs sixteen frames, never one stalled one.
 //!   Selection, the watcher, and check-all all feed the same queue: one measurement path.
 //! - [`BenchReports`] holds the results keyed by rig NAME, and [`BenchGeneration`] bumps only when
 //!   a stored report actually changed — the `ThumbGeneration` idiom, because `resource_changed` on
 //!   a resource a system takes as `ResMut` fires every frame.
-//! - [`sync_rigs_reload`] takes an edit to `rigs.yaml` itself the moment it is made: a valid edit is
+//! - `sync_rigs_reload` takes an edit to `rigs.yaml` itself the moment it is made: a valid edit is
 //!   `applied` and measured again, a broken one is `refused`, in `blueprint_state.reloads`.
 //!
 //! The stale count is painted onto the tab strip's `ANIM` label in place, so it survives tab

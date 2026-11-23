@@ -253,7 +253,7 @@ impl Volume {
     }
 
     /// **How many cells the void's flood fill would visit**: the carve reach's own box at
-    /// [`SAMPLE_CELL_M`], the number [`Volume::voids`] allocates for. Zero when nothing is carved.
+    /// [`SAMPLE_CELL_M`], the number `Volume::voids` allocates for. Zero when nothing is carved.
     pub fn void_cells(&self) -> usize {
         let Some(reach) = self.carve_reach() else { return 0 };
         let (nx, ny, nz) = cell_counts(&reach);

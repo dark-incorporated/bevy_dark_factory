@@ -367,7 +367,7 @@ pub fn wash_at(colour: Color, share: f32) -> Color {
 
 /// **A surface-pixel coordinate as the overlay's `Val::Px`.**
 ///
-/// The layout multiplies `Val::Px` by [`UiScale`](bevy::ui::UiScale), so an overlay drawing a
+/// The layout multiplies `Val::Px` by [`bevy::ui::UiScale`], so an overlay drawing a
 /// rectangle it was handed in surface (physical) pixels divides by it, as `compose.rs` places its own
 /// rectangles. Two things draw such a rectangle — the snip's drag box and a feedback report's
 /// outline — and they had a copy each before this was one function.
@@ -416,7 +416,7 @@ pub const fn ink_bytes(colour: Color) -> [u8; 4] {
 /// **`bevy_feathers`' machinery, with this editor's palette in it.**
 ///
 /// Separate from [`ChromePlugin`] because `add_plugins` tuples cap at **15**
-/// (`bevy_app-0.19.0/src/plugin.rs:186`) and `harness::add_editor_plugins` is near it — a plugin
+/// (`bevy_app-0.20.0/src/plugin.rs:186`) and `harness::add_editor_plugins` is near it — a plugin
 /// that nests its own group keeps the shared list one list.
 ///
 /// **`UiTheme` is inserted, never defaulted.** `UiTheme::default()` is empty and every token miss
@@ -518,7 +518,7 @@ pub fn theme() -> bevy::feathers::theme::ThemeProps {
 /// smaller of the two.
 ///
 /// A role is not the same thing as a distinct size, and two roles sharing a value is not a defect:
-/// [`HEADING`] and [`text::LABEL`] are both 10 because both are quiet supporting text, and what separates
+/// [`text::HEADING`] and [`text::LABEL`] are both 10 because both are quiet supporting text, and what separates
 /// a heading from a label is that it is uppercase, in a different ink, and preceded by
 /// [`STEP_GROUP`]. `section`'s own doc says so — *"quiet, and separated from what came before it…
 /// the separation is the work"* — which is why the fix for three heading dialects is the smallest
@@ -527,7 +527,7 @@ pub fn theme() -> bevy::feathers::theme::ThemeProps {
 ///
 /// **What actually moved**, so a capture diff can be read rather than guessed at: `section` 9 → 10,
 /// Compose's three hand-made headings 11 → 10, the anim pair un-inverted, and the name box's 18 →
-/// [`TITLE`]. Everything else keeps the size it had and gains a name.
+/// [`text::TITLE`]. Everything else keeps the size it had and gains a name.
 pub mod text {
     /// **A type role, and the reason it is not an `f32`.**
     ///
@@ -843,7 +843,7 @@ pub enum Side {
 
 /// **A panel.** A child of one of the frame's docks, opaque, and as tall as the frame lets it be.
 ///
-/// It used to be `PositionType::Absolute` at `top: TAB_STRIP_BOTTOM`, pinned to a window edge and
+/// It used to be `PositionType::Absolute` at the old `top: TAB_STRIP_BOTTOM`, pinned to a window edge and
 /// floating over the world — which is why nothing on screen filled the window and why a panel's
 /// height was a number rather than a consequence. [`Frame`] owns position now; this owns width,
 /// which side, and whether the panel wants the dock's whole height.
@@ -859,13 +859,13 @@ pub enum Side {
 /// over UI" by looking for any true `Hovered`, and when only the *rows* carried one the gaps between
 /// them counted as open map — a wheel turn over a list zoomed the world, and a click that missed a
 /// row by a pixel dropped a piece behind the panel. `Hovered` is true for an entity **or any
-/// descendant** (`bevy_picking-0.19.0/src/hover.rs:322`), so one on the root answers for the whole
+/// descendant** (`bevy_picking-0.20.0/src/hover.rs:401`), so one on the root answers for the whole
 /// surface. The frame above it deliberately carries none — see [`Frame`].
 /// **What width a panel would like, so the frame can answer how much it may have.**
 ///
 /// The pair is the whole of B-014's fix: `preferred` is what the panel's own constant asks for and
-/// stays the width on any window that can afford it, while [`fit_docks_to_the_window`] lowers the
-/// *applied* width toward [`DOCK_MIN_W`] on a window that cannot. Stored as data rather than
+/// stays the width on any window that can afford it, while `fit_docks_to_the_window` lowers the
+/// *applied* width toward [`crate::style::metrics`]'s `layout.dock_min_w()` on a window that cannot. Stored as data rather than
 /// recomputed from `Node` so the system never has to guess which of `Node`'s widths was the wish.
 #[derive(Component, Debug, Clone, Copy)]
 pub struct PanelWidth {
@@ -980,7 +980,7 @@ pub fn panel_root<'a>(
 ///
 /// # Flex, deliberately, and not `Val::Percent`
 ///
-/// [`EDITOR_UI_SCALE`] multiplies every `Val::Px` and every font size and leaves `Val::Percent`
+/// [`crate::style::metrics`]'s `layout.ui_scale` multiplies every `Val::Px` and every font size and leaves `Val::Percent`
 /// alone (`docs/ui.md` §5). A layout mixing percentage widths with pixel minimums would therefore
 /// scale two ways at once on a 2x display, which is a bug that only appears on somebody else's
 /// monitor. `flex_grow` on the centre and pixel widths on the docks is responsive *and*
@@ -1099,7 +1099,7 @@ pub struct BandGround;
 /// **not the largest surface on screen**.
 ///
 /// One function, called by the spawn and by [`dim_the_ground`] alike, the way [`RowFills::of`] is
-/// called by [`style_list_rows`] and its test. An assertion here is an assertion about what a panel
+/// called by `style_list_rows` and its test. An assertion here is an assertion about what a panel
 /// paints, and it needs no window and no pointer.
 ///
 /// **The fallback is the shipped table**, never a second palette: a headless harness that never ran
@@ -1328,7 +1328,7 @@ pub fn spawn_frame(
 
     // **A dock is a column with no width of its own.** Its width is its widest visible panel, which
     // is what lets four tabs' panels share one dock and each keep the width it argued for
-    // (`CONTROLS_W` vs `TILES_CONTROLS_W`) without a dock-level table saying it twice.
+    // (`layout.controls_w` against the Tiles tab's own) without a dock-level table saying it twice.
     let dock = || {
         (
             // A column of its panels to the start that never shrinks. A `sized` box, not a gooey column: `Role::Column` gives a node a least width of 0, and a dock's width is its widest
@@ -2016,7 +2016,7 @@ impl Journal {
 /// A marker, put by `notice.rs` on the text of the gooey toast it raised for the live tab's newest
 /// refusal, so that there is exactly one such text on screen and `Cmd+C` harvests the right sentence.
 /// It carries no field: which tab is live is `Mode`'s answer, asked once by
-/// [`crate::notice::paint_notices`].
+/// `crate::notice::paint_notices`.
 #[derive(Component, Clone, Copy)]
 pub struct ProblemBanner;
 
@@ -2272,7 +2272,7 @@ impl<K: PartialEq> Follow<K> {
 /// arrows, but I see the mesh change"* — the list is there, and the part of it that would tell you
 /// where you are going is not.
 ///
-/// So the row is revealed with [`CONTEXT_ROWS`] of list either side of it, in units of the row's own
+/// So the row is revealed with `layout.context_rows` of list either side of it, in units of the row's own
 /// height — no new parameter, and it scales with whatever the caller's rows measure. The margin is
 /// clamped so a viewport too short to hold row-plus-margins asks for the largest margin that still
 /// fits rather than thrashing, which also preserves the over-tall row's scroll-to-top.
@@ -2306,7 +2306,7 @@ pub fn scroll_to_reveal(
     let delta = if delta.abs() > list_h { row.0 - list.0 } else { delta };
     // **Clamped at BOTH ends.** The floor was always here; the ceiling is what the two-row margin
     // made necessary — a reveal at the end of a list asks for `max + margin`, Bevy clamps only
-    // `ComputedNode::scroll_position` (`bevy_ui-0.19.0/src/layout/mod.rs:364-369`, through
+    // `ComputedNode::scroll_position` (`bevy_ui-0.20.0/src/layout/mod.rs:493-496`, through
     // `bypass_change_detection`), and the component every caller reads back keeps the surplus. The
     // list then stands still while the highlight walks off it — the 2026-09-03 seed, reintroduced
     // by its own fix.
@@ -2323,7 +2323,7 @@ pub fn scroll_to_reveal(
 /// one, so that is the only honest basis for a delta measured off the screen.
 ///
 /// The maximum is upstream's own: `content - layout + scrollbar`, floored at zero
-/// (`bevy_ui-0.19.0/src/layout/mod.rs:364-367`). `scroll_list` overlays its bar rather than
+/// (`bevy_ui-0.20.0/src/layout/mod.rs:493-496`). `scroll_list` overlays its bar rather than
 /// reserving a gutter, so `scrollbar_size` is zero here today; it is in the expression because
 /// the day it is not, a reveal that ignored it would be short by exactly the bar.
 pub fn scroll_bounds(list: &ComputedNode) -> (f32, f32) {
@@ -2332,7 +2332,7 @@ pub fn scroll_bounds(list: &ComputedNode) -> (f32, f32) {
     (list.scroll_position.y * inv, max * inv)
 }
 
-/// The scrollbar's track. Marked so [`forward_a_wheel_over_a_scrollbar`] can find it and its own width is
+/// The scrollbar's track. Marked so `forward_a_wheel_over_a_scrollbar` can find it and its own width is
 /// stated once.
 #[derive(Component)]
 pub struct ScrollTrack;
@@ -2392,7 +2392,7 @@ pub fn scroll_list<'a>(
     ))
 }
 
-/// **A rail gooey spawned is a scroll track** to the editor's tests and to [`forward_a_wheel_over_a_scrollbar`]: the same marker the hand-built track carried, put on the rail the frame it
+/// **A rail gooey spawned is a scroll track** to the editor's tests and to `forward_a_wheel_over_a_scrollbar`: the same marker the hand-built track carried, put on the rail the frame it
 /// appears. The rail shows only while the content does not fit (gooey's own rule, which replaced `hide_idle_scrollbars`).
 ///
 /// **And no rail is drawn while the shell's split is sliding** (#517) — see [`hide_rails_while_the_shell_slides`].
@@ -2517,7 +2517,7 @@ pub fn list_heading(parent: &mut ChildSpawnerCommands, text: &str) {
 /// A separate value rather than a `Res<GooeySkin>` parameter because every caller builds its heading
 /// inside a `with_children` closure, where a system parameter cannot reach — the caller reads the skin
 /// once, beside the panel it is spawning, and passes the answer in. That is the same shape
-/// [`RowFills::of`] and [`BenchInk::of`] use.
+/// [`RowFills::of`] and [`crate::anim_tab::BenchInk`]'s constructor use.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct ListHeadingInk(pub Color);
 
@@ -2572,7 +2572,7 @@ pub struct PaletteRule(pub String);
 /// **A rule of readiness above a list** (#486): one short sentence, its own line, wrapping inside its own box rather than
 /// running past the panel's border.
 ///
-/// It takes [`SCROLL_GUTTER`] off its right, the lane the scroll list keeps clear for its rail: without it the sentence
+/// It takes `scroll_gutter()` off its right, the lane the scroll list keeps clear for its rail: without it the sentence
 /// ends where the *bar* stands rather than where the rows end, and the two edges of one column would not line up.
 pub fn palette_rule(parent: &mut ChildSpawnerCommands, words: &str) {
     parent.spawn((
@@ -2791,7 +2791,7 @@ pub fn let_a_toggle_label_break(
     }
 }
 
-/// **A tree row steps [`TREE_STEP`], not whatever the skin's `tree_indent` says** (#523).
+/// **A tree row steps [`tree_step`], not whatever the skin's `tree_indent` says** (#523).
 ///
 /// `bevy_gooey` sizes one level of a tree at `tree_indent(text_px)` = `1.5 x the text size` (24 px at
 /// the editor's 11 px body, measured: 3.64 advances), and it writes that width onto every
@@ -2821,7 +2821,7 @@ pub struct TreeDepth(pub u32);
 /// twisty `depth x indent` in from the row's edge and makes it one `indent` wide, so the chevron and
 /// the label after it sit at `(depth + 1) x indent`. Writing only the width would leave every row at
 /// the depth gooey placed it and just narrow the chevron's own box. So this keeps the depth gooey
-/// placed the row at ([`TreeDepth`]) and writes both at [`TREE_STEP`].
+/// placed the row at ([`TreeDepth`]) and writes both at [`tree_step`].
 ///
 /// **The depth is re-read whenever the margin is exactly the widget's own width times a whole
 /// number**, which is the state `spawn_lead`/`bind_lead` leave a rebound row in. A margin this
@@ -3065,7 +3065,7 @@ pub fn fill_text<'a>(row: &'a mut ChildSpawnerCommands, text: impl Into<String>,
 
 /// **A fixed-width column holding one text** (UI-59, #245): gooey's `cell`, whose width is in body text sizes, so the px it stands for is
 /// divided by the body type size and the column grows with the person's text size instead of falling short of it. A glyph column
-/// ([`COL_TIGHT`]: a severity mark, a fold chevron) is the case. The cell cuts what does not fit rather than running onto its neighbour.
+/// (`chrome-col-tight`: a severity mark, a fold chevron) is the case. The cell cuts what does not fit rather than running onto its neighbour.
 pub fn text_cell(row: &mut ChildSpawnerCommands, width_px: f32, text: impl Into<String>, ink: Color, role: text::Role) {
     row.spawn(bevy_gooey::cell(width_px / text::BODY.px())).with_children(|cell| {
         cell.spawn((Text::new(text.into()), TextColor(ink), typed(role)));
@@ -3077,12 +3077,12 @@ pub fn gap_cell(row: &mut ChildSpawnerCommands, width_px: f32) {
     row.spawn(bevy_gooey::cell(width_px / text::BODY.px()));
 }
 
-/// **A chip** — one small clickable word. [`CHIP_PAD`] and a permanent 1 px border whose COLOUR
+/// **A chip** — one small clickable word. `chrome-chip`'s padding and a permanent 1 px border whose COLOUR
 /// asks the questions (a ghost proposal lights it `Ink::suggest`; everything else runs [`Color::NONE`]),
 /// so a chip never changes size when its state does.
 ///
 /// **`marker` must not contain a `Node`, and the failure is a panic rather than a warning.** This
-/// builder spawns one, and a bundle carrying two of the same component panics at spawn in Bevy 0.19
+/// builder spawns one, and a bundle carrying two of the same component panics at spawn in Bevy 0.20
 /// naming the component and not the call site — the trap the repo's `CLAUDE.md` already records for
 /// `button_visual()`. To adjust the node, `.insert(Node { .. })` on the returned `EntityCommands`,
 /// which overrides rather than duplicates. The same holds for [`list_row`], [`quiet_row`] and
@@ -3146,7 +3146,7 @@ pub fn chip<'a>(
 #[derive(Component, Clone, Copy)]
 pub struct RowRest(pub Color);
 
-/// **A selectable list row** — full width, [`CHIP_PAD`] inset, `Ink::row_selected` when it is the one
+/// **A selectable list row** — full width, `chrome-chip`'s inset, `Ink::row_selected` when it is the one
 /// being acted on, `Ink::row_hover` under the pointer. Returns the row for the caller to fill; what a
 /// row holds is the tab's business, that it looks like every other row is not.
 pub fn list_row<'a>(
@@ -3165,7 +3165,7 @@ pub fn list_row<'a>(
 ///
 /// This editor has **twenty-four global `Activate` observers**, and most take a Map-door resource:
 /// `on_row_click` wants `Res<Project>`, `on_tag_chip` wants `ResMut<Project>`. A global observer
-/// fires for *any* `Activate` anywhere in the application, and in Bevy 0.19 a missing `Res<T>`
+/// fires for *any* `Activate` anywhere in the application, and in Bevy 0.20 a missing `Res<T>`
 /// **panics** rather than skipping — so the first click on a `Button` outside the editor takes the
 /// whole application down.
 ///
@@ -3252,7 +3252,7 @@ type RowState = (
 ///
 /// **Why the mouse button is read here rather than trusting `Pressed`.** `bevy_ui::Pressed` is
 /// maintained by `bevy_ui_widgets::ButtonPlugin`'s observers, which match `With<Button>`
-/// (`bevy_ui_widgets-0.19.0/src/button.rs:59`) — and [`quiet_row`] deliberately has no `Button`,
+/// (`bevy_ui_widgets-0.20.0/src/button.rs:41`) — and [`quiet_row`] deliberately has no `Button`,
 /// because a global `Activate` observer taking a door's resource panics on the menu. So a quiet row
 /// would have been the one shape in the editor that never acknowledged a click. Hover plus a held
 /// primary button is the same fact one layer down, and it is what the author actually did.
@@ -3261,7 +3261,7 @@ type RowState = (
 ///
 /// `Hovered` is bevy's `Immutable` picking component: only the picker may write it, and a headless app
 /// has none, so a row's hover colour cannot be observed by hovering. What *can* be observed is the
-/// expression [`style_list_rows`] paints from, which is this — one function, called by the system and
+/// expression `style_list_rows` paints from, which is this — one function, called by the system and
 /// by the test alike, so an assertion here is an assertion about the row.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct RowFills {
@@ -3364,7 +3364,7 @@ impl Severity {
 /// The two were the same box until 2026-09-03, in the same row, in the same panel: on the Meshes tab
 /// the tag chips (toggles), `solid`/`edge`/`clear` (cell commands) and `rescan mesh` (an expensive
 /// action) all rendered as one grey rectangle. The only way to learn which was which was to press
-/// one. So a button is now visibly heavier — [`BUTTON_PAD`] rather than [`CHIP_PAD`], and a lit
+/// one. So a button is now visibly heavier — `chrome-button`'s padding rather than `chrome-chip`'s, and a lit
 /// `Ink::panel_edge` border where a chip's border is `Color::NONE` unless it has something to say.
 ///
 /// **`marker` must not contain a `Node`** — see [`chip`] for why that is a panic rather than a
@@ -3521,7 +3521,7 @@ pub fn severity_rail<'a>(
 /// the whole screen waited for it.
 ///
 /// Two tabs asked it when Compose could also make a composition. That is why this is a shared widget
-/// painted by [`paint_name_box`] rather than a Map-local one: authoring collapsed onto the Map, and a
+/// painted by `paint_name_box` rather than a Map-local one: authoring collapsed onto the Map, and a
 /// widget that survives losing one of its two callers is cheaper than one that has to be rebuilt if a
 /// second ever returns.
 #[derive(Component)]
@@ -3789,7 +3789,7 @@ fn adopt_the_shell_split(
 /// **Give the left pane the width of the panel in it** (#282, #283).
 ///
 /// The split was spawned with `SplitFraction(0.22)`, which at a 1280 px window is a 204 px pane
-/// around a panel that asks for `CONTROLS_W` 380 (456 on screen). The pane clips what overflows it
+/// around a panel that asks for `layout.controls_w` 380 (456 on screen). The pane clips what overflows it
 /// and the viewport is drawn over the rest, so the right half of every control in the inspector was
 /// cut off or unreachable — `ENVIRONMENT`'s `18:30` drew half a button, `23:00` none, and a click at
 /// `23:00`'s own reported centre landed on the viewport (measured on big, 2026-11-03: the pointer's
@@ -3904,7 +3904,7 @@ impl Plugin for ChromePlugin {
             // A wheel over a scrollbar scrolls its area (#283).
             .add_observer(forward_a_wheel_over_a_scrollbar)
             // **The frame first, and everything that puts a panel in it after.** `Res<Frame>` is
-            // how `panel_root` finds its dock, and in Bevy 0.19 a missing `Res<T>` panics its
+            // how `panel_root` finds its dock, and in Bevy 0.20 a missing `Res<T>` panics its
             // system rather than skipping it — so this is an ordering the build must state, not one
             // that happens to hold. Ordering across a set also gets a sync point inserted, which is
             // what makes the deferred `insert_resource` visible to the spawners.
@@ -4515,7 +4515,7 @@ pub fn repaint_where_you_are(
 /// Both of these were spawned *inside* each panel, once per tab, which had two costs. The banner
 /// carries the longest text this editor renders — refusals naming descriptors and compositions —
 /// and a 300 px controls panel is the narrowest place on screen to put it. And the hint line, at
-/// `CONTROLS_W`, wrapped: *"Hold K for shortcuts · Cmd+O back to kits & maps"* broke across two
+/// `layout.controls_w`, wrapped: *"Hold K for shortcuts · Cmd+O back to kits & maps"* broke across two
 /// lines on the Map door, which is visible in the capture that started this work.
 ///
 /// Full window width fixes both by construction, and it deletes four copies of the same two calls.
@@ -4594,8 +4594,9 @@ pub fn spawn_status_band(mut commands: Commands, frame: Res<Frame>, project: Opt
 /// [`crate::decision_model::DecisionLed`]), so the test that pins the model's name and hover follows the light here from the chrome bar
 /// without a second vocabulary.
 ///
-/// **It says what it is doing, and the reason it is not**, in one sentence in its hover, built by [`crate::terminal_agent::band_words`]
-/// from the drawn tab's `AgentPost`: the whole card, in the place a person looks. That is the other half of "one place" — the reason a
+/// **It says what it is doing, and the reason it is not**, in one sentence in its hover, written by
+/// [`crate::terminal_agent::paint_the_band`] from the drawn tab's `AgentPost` ([`crate::terminal_agent::band_off_words`] is the
+/// off-form of the same sentence): the whole card, in the place a person looks. That is the other half of "one place" — the reason a
 /// failure gives used to be reachable only by finding a chip in a bar that scrolls off when the pane narrows.
 pub fn spawn_agent_band(band: &mut ChildSpawnerCommands) {
     band.spawn((
@@ -4818,7 +4819,7 @@ fn stand_down_the_back_chord(
 /// [`Ground`] to say that a container's fill carries nothing a reader needs, so the ground under a
 /// short list is placeable — but a badge is itself an `Ink::panel_bg` box, and an opaque box on an
 /// opaque box of the same colour reads as one shape with a line through it. Dropping the ground to
-/// [`GROUND_HELD`] lets the `Ink::veil` and the window behind it show through, and the badge — which
+/// `layout.ground_held` lets the `Ink::veil` and the window behind it show through, and the badge — which
 /// keeps its own opacity — separates by depth rather than by its border alone.
 ///
 /// **Fill only, and restored from the carried colour.** Every row, field, chip and word inside the

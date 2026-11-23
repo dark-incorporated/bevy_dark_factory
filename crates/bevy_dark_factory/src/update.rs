@@ -631,7 +631,7 @@ pub fn update_button(label: String) -> impl bevy::prelude::Bundle {
 ///
 /// The launch check asks the feed once, so a release published after the app opened was never found while it stayed
 /// open: the home shows [`UpdateButton`] only once there is something to take, and `UpToDate` is a quiet line. This is the
-/// way to look again, in the quietest button the skin has, and it does only that: [`on_check`] begins a check and never a
+/// way to look again, in the quietest button the skin has, and it does only that: `on_check` begins a check and never a
 /// download, so it cannot be mistaken for the button that installs.
 #[derive(Component)]
 pub struct CheckButton;

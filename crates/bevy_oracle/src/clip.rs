@@ -38,7 +38,7 @@ pub const QUESTION_ID: &str = "shows";
 /// **The clip check**, as a [`Check`] a project's `checks.yaml` carries.
 ///
 /// `name` is the check's own name (`clip_shows_its_title`); the images it needs are named by
-/// [`still`] and [`frame`], so a capture directory holds `still.png`, `frame0.png`, `frame1.png` and
+/// `still` and `frame`, so a capture directory holds `still.png`, `frame0.png`, `frame1.png` and
 /// `frame2.png`.
 pub fn clip_check(name: &str) -> Check {
     let mut images = vec![still()];
@@ -168,7 +168,7 @@ pub fn score_set(
 
 /// [`score_set`]'s engine, and **the samples an endpoint's content filter refused**, so a record can say how
 /// much of the set it measured (#455). Only a per-picture content refusal is skipped (see
-/// [`refuses_the_sample`]); everything else stops the run with its own error, naming the sample.
+/// `refuses_the_sample`); everything else stops the run with its own error, naming the sample.
 ///
 /// A skipped sample is **named** in the returned [`crate::Exclusion`], never dropped silently: it is what
 /// separates "116 of 122 were measured" from "the set is 116".

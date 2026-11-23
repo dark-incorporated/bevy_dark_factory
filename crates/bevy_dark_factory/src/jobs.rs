@@ -63,7 +63,7 @@ impl Job {
 
 /// **Every job the editor is running, keyed by the producer that runs it.**
 ///
-/// Classified [`crate::screen::Ownership::Door`]: a door change tears its own work down, and a job
+/// Classified [`crate::screen::Ownership::Workspace`]: a door change tears its own work down, and a job
 /// carried across would name a bake happening in a project nobody is looking at.
 #[derive(Resource, Default)]
 pub struct Jobs {

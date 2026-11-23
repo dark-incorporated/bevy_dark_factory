@@ -9,7 +9,7 @@
 //!
 //! # It draws the camera's own answer, never its own
 //!
-//! Every arm comes from [`crate::view::axis_on_screen`], which reads the basis off [`view::Rig`] —
+//! Every arm comes from [`crate::view::axis_on_screen`], which reads the basis off [`crate::view::Rig`] —
 //! the same rig `pan_direction` reads, and the tests hold the two together on the horizontal. A
 //! compass that derived its own angles would be a second answer to "which way is +X", and this
 //! editor has paid for a second answer to a spatial question more than once.
@@ -60,7 +60,7 @@ const AXES: [(Vec3, Color, &str); 3] = [
 #[derive(Component)]
 struct Compass;
 
-/// One axis's arm — the line from the centre outward. Carries its index into [`AXES`].
+/// One axis's arm — the line from the centre outward. Carries its index into `AXES`.
 #[derive(Component)]
 pub struct CompassArm(pub usize);
 
@@ -75,7 +75,7 @@ impl Plugin for CompassPlugin {
         app.add_systems(
             OnEnter(crate::screen::Screen::Editor),
             // **After the frame, because it parents into it.** `Res<Frame>` is how `spawn` finds
-            // the viewport, and in Bevy 0.19 a missing `Res<T>` panics its system rather than
+            // the viewport, and in Bevy 0.20 a missing `Res<T>` panics its system rather than
             // skipping it — so this is an ordering the build states rather than one that happens
             // to hold. Ordering across the set also inserts the sync point that makes
             // `spawn_frame`'s deferred `insert_resource` visible here.

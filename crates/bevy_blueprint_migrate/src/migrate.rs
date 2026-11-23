@@ -22,7 +22,7 @@
 //!   own lines. One that cannot be placed is listed in the [`Report`], never dropped quietly.
 //!
 //! **A game's own data files are walked too.** `game_data` states no pattern (it is "the files a game
-//! registers in `data.yaml`"), so [`registered_data_files`] reads each registry, converts the `.ron`
+//! registers in `data.yaml`"), so `registered_data_files` reads each registry, converts the `.ron`
 //! files it names by value alongside it, and rewrites the registered path to `.yaml` in the same pass.
 //! A registered file outside the project is refused rather than moved: the migration moves only what it
 //! was pointed at.
@@ -442,7 +442,7 @@ fn io_problem(path: &Path, e: std::io::Error) -> Problem {
 ///
 /// 1. read `text` with the type's RON reader;
 /// 2. write it with the one YAML writer;
-/// 3. **place the RON comments in that text** ([`carry_comments`]);
+/// 3. **place the RON comments in that text** (`carry_comments`);
 /// 4. **read the commented text back with the type's YAML reader and compare it with the RON value** — so
 ///    the text that goes to disk, comments and all, is the text that was verified, and a comment that
 ///    landed inside a value is caught here rather than by a person months later.

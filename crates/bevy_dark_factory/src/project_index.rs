@@ -7,9 +7,10 @@
 //! scan walked) were two walks. This module is the answer to "what files exist, and which moved": **one background thread is the
 //! only code that walks the project's tree after its first listing**, and the panels it has been migrated to subscribe.
 //!
-//! **That is not "the only code that looks at the project".** Stage 1 moves two consumers (the Files tree and `listed_files`, and the
-//! finder's scan in `crosslinks`); twenty poll constants in the other modules still `stat` their own files on their own clocks, and
-//! `docs/guide/reload-contract.md` has the checklist that retires them.
+//! **Every panel that reads a project file subscribes; two `game_view` clocks are the deliberate exceptions.** #501's checklist is
+//! retired down to `game_view::LOG_POLL_S` and `game_view::STATE_POLL_S` — a log file outside the project root, and a running game
+//! asked over a socket, neither of which is a tree a watcher can walk. `docs/guide/reload-contract.md` is the authority on what is
+//! followed and what is kept on purpose.
 //!
 //! # What is published
 //!
@@ -30,7 +31,7 @@
 //! default: it stats each folder it knows (a folder's mtime moves when an entry is added, removed or renamed) and re-reads only the
 //! folders that moved, and it stats each file it knows. The first listing is one walk, whose `symlink_metadata` calls already give
 //! every stamp; after it the index is the fold of the events. Two things walk again, and both are named: a `.gitignore` change (it
-//! changes what is listed), and a folder written in the last [`RACY`] is re-read on the next sweep as well (git's racy-clean rule), so
+//! changes what is listed), and a folder written in the last `RACY` is re-read on the next sweep as well (git's racy-clean rule), so
 //! two changes inside one clock tick are not lost.
 //!
 //! # No second path, and no silent failure
@@ -43,7 +44,7 @@
 //!
 //! **`listed_files` from an operation blocks its caller** while the thread settles (one `stat` per folder, and what was held flushed):
 //! it can wait for the first listing (0.26 s at 10,000 files and 1.6 s at 100,000, measured below with a stepped editor's own build) or
-//! for a full sweep already running (266 ms at 100,000), and for at most [`SETTLE_WAIT`] (10 s) before it is refused.
+//! for a full sweep already running (266 ms at 100,000), and for at most `SETTLE_WAIT` (10 s) before it is refused.
 //!
 //! # How a subscriber reads it
 //!
@@ -58,7 +59,7 @@
 //! walk: the folder may hold a thousand other files, or be a temp folder), on a thread of its own with the project's [`DEBOUNCE`],
 //! [`MAX_HOLD`] and [`SWEEP`]. It is **one path**: the registry is keyed by root; [`note_written`] tells the newest index of each shape that
 //! follows the root it is given and does not wait; [`note_path_written`] is the one `edit_layer` calls when it saves a settings file (it tells
-//! the project's tree without waiting, and this folder's index, for which it waits at most [`NOTE_ACK_WAIT`]); and [`listed`] stays the project
+//! the project's tree without waiting, and this folder's index, for which it waits at most `NOTE_ACK_WAIT`); and [`listed`] stays the project
 //! tree's answer; an outside folder is read through [`OutsideFiles::snapshot`]. Its changes are [`OutsideFileChanged`], a message of
 //! its own so a subscriber of the project's files never hears a file of the person's folder.
 //!
@@ -79,7 +80,7 @@
 //!
 //! Measured on `big` (a throwaway test, the `test` profile, one project of 10,000 and one of 100,000 files in 100 folders): building a
 //! stepped editor, which waits for the first listing, takes 0.26 s and 1.6 s; **a sweep that looks at every file takes 36 ms at 10,000
-//! files and 266 ms at 100,000**, so the thread leaves a sweep alone for [`SWEEP_DUTY`] times its own length (at 100,000 files a sweep
+//! files and 266 ms at 100,000**, so the thread leaves a sweep alone for `SWEEP_DUTY` times its own length (at 100,000 files a sweep
 //! every 2.7 s rather than every second); publishing a change rebuilds the listing in 7-17 ms and 34-45 ms, on the thread; a `Snapshot`
 //! clone is under a microsecond. On the UI thread the finder's scan with a previous scan to reuse costs 4 ms at 10,000 files and 43 ms at
 //! 100,000, and it runs only when a text file came, went or changed ([`Snapshot::text_generation`]); that 43 ms is **not** reduced here.
@@ -125,7 +126,7 @@ pub const MIN_SWEEP: Duration = TICK;
 /// waits 2.7 s, and one slow sweep (a stall of seconds) cannot park the thread for ten times that.
 pub const MAX_SWEEP_EVERY: Duration = Duration::from_secs(30);
 
-/// **How long the thread waits between sweeps that look at every file**: the time set, or [`SWEEP_DUTY`] times the last sweep's length
+/// **How long the thread waits between sweeps that look at every file**: the time set, or `SWEEP_DUTY` times the last sweep's length
 /// when that is longer, at most [`MAX_SWEEP_EVERY`] (the time set wins when it is longer than that).
 pub fn sweep_interval(set: Duration, last_took: Duration) -> Duration {
     set.max((last_took * SWEEP_DUTY).min(MAX_SWEEP_EVERY))
@@ -530,7 +531,7 @@ const NOTE_ACK_WAIT: Duration = Duration::from_millis(250);
 /// **A writer that has finished writing the file at `path` says so**, without knowing which index follows it: it is [`note_written`] for
 /// every running project tree whose root `path` is under (no wait: its sweep may be running, and a wait would force the debounce of
 /// everything else it holds) and for the [`OutsideFiles`] folder `path` is in, **and for that one it returns once the index has
-/// published** (at most [`NOTE_ACK_WAIT`]), because a folder's thread has nothing else to do, so the next frame sees the change as it did
+/// published** (at most `NOTE_ACK_WAIT`), because a folder's thread has nothing else to do, so the next frame sees the change as it did
 /// when the file was `stat`-ed every frame. A hint: with no index that follows `path` the call does nothing.
 pub fn note_path_written(path: &Path) {
     let trees: Vec<Arc<Shared>> = registry()
@@ -1431,7 +1432,7 @@ impl OutsideFiles {
         self.follows.insert(dir.to_path_buf(), follow);
     }
 
-    /// **Follow every file below `dir`, as the open project is followed** (a [`Shape::Tree`]), for a folder that is a project's own and that no
+    /// **Follow every file below `dir`, as the open project is followed** (a `Shape::Tree`), for a folder that is a project's own and that no
     /// project index follows: the Project page is shown before a project is open. Idempotent for a folder already followed as a tree. The
     /// listing's paths are relative to `dir`, and `dir` must exist: a root that cannot be read is a [`OutsideFiles::failure`].
     pub fn follow_tree(&mut self, dir: &Path) {

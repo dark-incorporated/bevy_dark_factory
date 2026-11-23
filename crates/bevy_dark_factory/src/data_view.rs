@@ -23,7 +23,7 @@
 //!
 //! **A file the project index cannot follow is refused, not read**: a registered path outside the project, under
 //! a skipped folder or named by `.gitignore` is `refused` with that reason, because no event would ever say it moved
-//! (see [`crate::followed_files`]).
+//! (see `crate::followed_files`).
 
 use std::collections::BTreeMap;
 use std::path::PathBuf;

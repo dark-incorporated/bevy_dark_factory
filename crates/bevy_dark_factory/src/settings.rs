@@ -329,7 +329,7 @@ impl MachineAgent {
 /// version in memory does not, so the shipped default protects the one that cannot be recovered — the person's text.
 ///
 /// **The map's own question and the Files workspace's are this one value**, so one setting cannot mean two things: a map
-/// re-read ([`crate::watch::adopt_map`]) and a buffer's save ([`crate::files::save_file`]) both read it.
+/// re-read (`watch::adopt_map`) and a buffer's save ([`crate::files::save_file`]) both read it.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 // **snake_case on disk**, so a settings file reads `external_edits: keep_editor_changes`: a key of this file is typed by a
 // person, and the row's own names are words rather than the enum's Rust spelling.
@@ -959,7 +959,7 @@ thread_local! {
 }
 
 /// **How many times a settings file has been read on this thread** by the editor's readers (`sync_settings` and the two screens). A test
-/// reads it across frames to say that a file no one changed was not read: it counts what goes through [`read_settings_file`] and
+/// reads it across frames to say that a file no one changed was not read: it counts what goes through `read_settings_file` and
 /// nothing else.
 pub fn file_reads_on_this_thread() -> u64 {
     FILE_READS.with(std::cell::Cell::get)

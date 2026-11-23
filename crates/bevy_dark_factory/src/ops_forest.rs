@@ -1,6 +1,6 @@
 //! **Planting a forest under a stroke, as one registered operation** (#102): `forest_scatter`.
 //!
-//! The trees are `bevy_flora`'s own [`Scatter`](bevy_flora::Scatter): its Poisson-disc trunks, its
+//! The trees are `bevy_flora`'s own `Scatter`: its Poisson-disc trunks, its
 //! species weights and groves, its seed. The editor only masks the scatter to the stroke (a trunk
 //! stays only within `radius_m` of the stroke's polyline), stands each tree on the map's terrain and
 //! writes the result to `<blueprint_dir>/forest/<map>.yaml`. The game reads the same file and spawns the

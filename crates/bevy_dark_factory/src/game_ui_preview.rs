@@ -2,7 +2,7 @@
 //!
 //! A game ships `family/bevy_gooey.yaml` so its own UI matches its art. This panel is the one place the
 //! editor shows that palette, and it shows it the way `bevy_gooey` means a skin to be shown: a
-//! [`SkinScope`] on this subtree, so the widgets below it are drawn from the game's skin while the rest
+//! `SkinScope` on this subtree, so the widgets below it are drawn from the game's skin while the rest
 //! of the window keeps the editor's own.
 //!
 //! # Why the chrome never takes it

@@ -38,7 +38,7 @@ pub const ACTION: &str = "Open library";
 /// The overlay: the sentence and the action, centred over the viewport.
 ///
 /// It stands over a map with no placements whose library has pieces to place. A library with none gets no overlay: the PLACE
-/// list offers **Add meshes…** there, and the map is left clear ([`wanted_prompt`]).
+/// list offers **Add meshes…** there, and the map is left clear (`wanted_prompt`).
 #[derive(Component, Clone, Copy, Debug, PartialEq, Eq)]
 pub enum EmptyMapPrompt {
     /// The library has pieces; the map has no placements.

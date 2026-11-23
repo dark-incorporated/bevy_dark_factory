@@ -124,7 +124,7 @@ const FREE_TIER_MARKER: &str = ":free";
 ///
 /// The comparison strips exactly three things, and no others:
 ///
-/// * the `:free` billing marker ([`FREE_TIER_MARKER`]) — the run's label says `:free` on a call that is free
+/// * the `:free` billing marker (`FREE_TIER_MARKER`) — the run's label says `:free` on a call that is free
 ///   precisely because the model is, so it names no other model;
 /// * a trailing `-<yyyymmdd>` snapshot date, and only eight digits, so `v1.3` is never read as one;
 /// * nothing else. **A vendor that both names carry must be the same one**: `vendorA/x` is not `vendorB/x`, and

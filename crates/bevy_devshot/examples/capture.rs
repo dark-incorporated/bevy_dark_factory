@@ -26,7 +26,7 @@ fn main() {
         .add_plugins(DefaultPlugins.set(WindowPlugin {
             primary_window: Some(Window {
                 title: "bevy_devshot — touch screenshot.request".into(),
-                // 0.19 takes physical pixels as `u32` — there is no `(f32, f32)` conversion.
+                // 0.20 takes physical pixels as `u32` — there is no `(f32, f32)` conversion.
                 resolution: (800u32, 600u32).into(),
                 ..default()
             }),

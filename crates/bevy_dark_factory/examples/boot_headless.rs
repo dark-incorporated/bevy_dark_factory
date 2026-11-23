@@ -4,7 +4,7 @@
 //! `add_editor_plugins` list — with `WgpuSettings { backends: None }` and no primary window, and
 //! hands it back for `app.update()` to step.
 //!
-//! That matters more here than the usual "tests are nice" argument. In Bevy 0.19 a missing `Res<T>`
+//! That matters more here than the usual "tests are nice" argument. In Bevy 0.20 a missing `Res<T>`
 //! **panics its system** rather than skipping it, and every run condition is evaluated with no
 //! short-circuit — so "does this app survive its first frame" is a question no unit test can answer
 //! and no amount of arithmetic coverage substitutes for. Before the lib/bin split the only way to ask

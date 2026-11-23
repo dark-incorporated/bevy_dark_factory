@@ -182,7 +182,7 @@ pub fn lines(text: &str) -> std::collections::BTreeMap<String, usize> {
 ///
 /// **A leaf's token is its text with its quotes on**, because the caller is a *surgery* — `set_leaf` and
 /// `restore_leaf` in `data_files` replace a token's bytes and must round-trip a string as a string. So a
-/// quoted scalar is `\"yard\"` here and `yard` in [`Node::scalar`], and a block scalar is its content
+/// quoted scalar is `\"yard\"` here and `yard` in `Node::scalar`, and a block scalar is its content
 /// with the indicator, since that is what a replacement has to span.
 ///
 /// The path is the walk's (`mob.speed`, `placements[3].turn_deg`), so a leaf and a [`lines`] entry name the
@@ -261,7 +261,7 @@ pub fn spans(text: &str) -> (Vec<YamlSpan>, Option<usize>) {
 /// names an enum variant, and a JSON Schema and a reflected type both spell a named variant as the key of a
 /// one-key object, so `!Near {to: …}` becomes `{"Near": {"to": …}}`.
 ///
-/// **It is the same walk every refusal comes from**: the file is first checked by [`walk`] — no duplicate key,
+/// **It is the same walk every refusal comes from**: the file is first checked by `walk` — no duplicate key,
 /// no anchor, no alias, no second document — and only then converted, so a document a person could not see the
 /// fault in is refused with a line rather than quietly reshaped. This is what a game's entity files are read
 /// through, so they meet the rules every project file meets (#367).
