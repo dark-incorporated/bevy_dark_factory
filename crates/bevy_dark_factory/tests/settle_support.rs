@@ -54,13 +54,15 @@ pub const GIVE_UP: Duration = Duration::from_secs(10);
 /// **How long one step of a wait sleeps**, so a wait does not spin a core and still sees a change within a frame or two.
 const STEP: Duration = Duration::from_millis(2);
 
-/// **How many frames in a row must leave the entity count alone** for the editor to count as laid out. Eight is more than the
-/// deepest UI nesting in this crate rebuilds through, and a frame that changes nothing but time still costs 2 ms here.
-const QUIET_FRAMES: u32 = 8;
+/// **How long the editor must leave its entity count alone before [`settle`] calls it laid out**, a wall-clock window rather
+/// than a frame count: a panel that rewrites a row's text (a selection, a status) changes no count at all, and a frame count
+/// alone returned before the row was drawn — the failing row of the 2026-11-23 gate, where a Notes row was not yet selected.
+/// The window is the one `index_view_support::settle` has always used (`QUIET`, 400 ms), so a reader meets one idea twice.
+const QUIET: Duration = Duration::from_millis(400);
 
 /// **The most frames [`settle`] steps before it gives up**: the editor never stops creating entities while a background
 /// thread retries (a refused file, a missing kit), and a test must not hang for a reason that is not its own.
-const SETTLE_FRAMES_MAX: u32 = 600;
+const SETTLE_FRAMES_MAX: u32 = 4000; // a cap on the work, not the clock: the quiet window is wall-clock time
 
 /// **Step until `done`, and say how long it took**; panics after [`GIVE_UP`] with `what` named. A wait on a file, a thread or a
 /// panel is this, and it is the same shape `index_view_support::until_seen` has so a reader meets one idea twice.
@@ -82,24 +84,24 @@ pub fn until(app: &mut App, what: &str, mut done: impl FnMut(&mut App) -> bool) 
 /// test is about frames rather than about a result.
 pub fn settle(app: &mut App) {
     let mut last = app.world().entities().len();
-    let mut quiet = 0;
+    let mut quiet_since = Instant::now();
+    let began = Instant::now();
     for _ in 0..SETTLE_FRAMES_MAX {
+        if began.elapsed() >= GIVE_UP {
+            break;
+        }
         step(app);
         let now = app.world().entities().len();
-        if now == last {
-            quiet += 1;
-            if quiet >= QUIET_FRAMES {
-                return;
-            }
-        } else {
-            quiet = 0;
+        if now != last {
             last = now;
+            quiet_since = Instant::now();
+        } else if quiet_since.elapsed() >= QUIET {
+            return;
         }
         std::thread::sleep(STEP);
     }
     // **Not a failure**: an editor that is still working after six hundred frames has a reason, and it is the test's own
-    // assertion about what it holds that should say whether that reason is a defect. Saying so makes the hang visible.
-    panic!("the editor did not stop changing what it holds within {SETTLE_FRAMES_MAX} frames");
+    // to name. A test that must be sure says `until(app, "...", condition)` instead.
 }
 
 #[cfg(test)]

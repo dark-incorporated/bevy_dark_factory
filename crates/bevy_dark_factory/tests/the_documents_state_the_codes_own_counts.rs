@@ -140,7 +140,7 @@ fn the_reload_contract_names_the_extension_set_the_watchers_listen_for() {
         while let Some(found) = text[from..].find("FileWatch::new(") {
             let call = from + found;
             from = call + "FileWatch::new(".len();
-            let close = text[call..].find(')').expect("the call closes") + call;
+            let close = closing_paren(&text, call);
             let args = &text[call..close];
             // **The last `&[` in the call is the extension list**; the first argument is a path.
             if let Some(open) = args.rfind("&[") {
@@ -324,13 +324,38 @@ fn spelled_names(guide: &str, lead: &str) -> Vec<String> {
     let close = guide[open..].find(')').expect("the bullet closes") + open;
     let body = &guide[at..close];
     let Some((_, names)) = body.split_once(':') else { return Vec::new() };
+    // **A list a writer punctuates** is split on commas and on the `and` before a last item, because prose
+    // does both (`forest`, `people`, ... and `editor_style`), and a split on commas alone read five names from
+    // a bullet that spells six (the 2026-11-23 gate).
     names
         .split(',')
         .map(|part| part.trim())
+        .map(|part| part.strip_prefix("and ").unwrap_or(part))
         .filter(|part| part.starts_with('`'))
         .filter_map(|part| part.split('`').nth(1))
         .map(str::to_owned)
         .collect()
+}
+
+/// **The `)` that closes the `(` of a call**, by counting depth: an argument may hold a call of its own
+/// (`&self.root.join(ENTITIES_DIR)`), and reading to the first `)` stopped inside it, so the extension list
+/// after it was never seen (the 2026-11-23 gate).
+fn closing_paren(text: &str, call_at: usize) -> usize {
+    let open = text[call_at..].find('(').expect("the call opens a parenthesis") + call_at;
+    let mut depth = 0usize;
+    for (offset, ch) in text[open..].char_indices() {
+        match ch {
+            '(' => depth += 1,
+            ')' => {
+                depth -= 1;
+                if depth == 0 {
+                    return open + offset;
+                }
+            }
+            _ => {}
+        }
+    }
+    panic!("the call at {call_at} never closes");
 }
 
 /// **The `s("id", …)` sample ids `fn versioned()` builds**, which the version test asserts are one per kind
@@ -477,6 +502,17 @@ fn the_layout_models_fixed_list_states_the_sheets_divider() {
 
 // ── #570: keys.md names every fixed chord ─────────────────────────────────────────────────────────
 
+/// **The same chord with the primary modifier the mac has**, since `chords` builds it for the host's platform:
+/// `Command` on a mac and `Ctrl` on the gate's Linux runner, and the page lists the mac's spelling.
+fn rehosted_on_mac(mut chord: bevy_gooey::Shortcut) -> bevy_gooey::Shortcut {
+    use bevy_gooey::{Modifiers, Platform};
+    if chord.modifiers.ctrl && Platform::current() != Platform::Mac {
+        chord.modifiers.ctrl = false;
+        chord.modifiers.meta = true;
+    }
+    chord
+}
+
 /// **Every fixed chord a person can press is on `docs/guide/keys.md`, spelled the way the editor spells
 /// it.**
 ///
@@ -501,8 +537,13 @@ fn the_keys_page_names_every_fixed_chord() {
             continue;
         }
         let chord = (named.default)();
-        // **The spelling the page uses** is gooey's `Words` on a mac and the platform's own elsewhere, the
-        // one `ui.rs` sets as the host's `ChordGlyphs`. Read as the page writes it, which is the mac's.
+        // **The chord is spelled for the mac, and its modifiers are the mac's too.** `chords::primary` builds
+        // `Modifiers::PRIMARY`, which is `primary_on(Platform::current())` — `ctrl` when the gate compiles on
+        // Linux (the 2026-11-23 gate read `Ctrl+Q` for a page that says `Cmd+Q`). So the modifiers are rebuilt
+        // for the mac here rather than the host, which is the platform the page is written for.
+        let chord = rehosted_on_mac(chord);
+        // **The spelling the page uses** is gooey's `Words` on a mac, the one `ui.rs` sets as the host's
+        // `ChordGlyphs`.
         let label = chord.label_with(Platform::Mac, ChordGlyphs::Words);
         // **A chord is on the page when every one of its parts is in one backticked span**, so `Cmd+=` and
         // `Shift+Cmd+=` are different rows.

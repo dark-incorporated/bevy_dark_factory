@@ -439,6 +439,11 @@ static DEVICE_REQUESTS: AtomicU32 = AtomicU32::new(0);
 /// retry without a GPU that is really out of memory.
 static SIMULATED_REFUSALS: AtomicU32 = AtomicU32::new(0);
 
+/// **The two device switches and the request count are process-wide**, so every ask holds this lock: a test that simulates a
+/// refusal cannot have it spent by another test's `real_device_available`, and the numbers a test reads are its own.
+/// (`on_a_device` takes it; the four tests of the switch take it again, which a `Mutex` allows on the same thread.)
+static DEVICE_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
 /// How many device requests this process has made, retries included.
 pub fn device_requests() -> u32 {
     DEVICE_REQUESTS.load(Ordering::SeqCst)
@@ -448,6 +453,12 @@ pub fn device_requests() -> u32 {
 /// back to `0`; anything else in the same process that asks for a device in between is refused too.
 pub fn refuse_the_next_devices(times: u32) {
     SIMULATED_REFUSALS.store(times, Ordering::SeqCst);
+}
+
+/// How many of the simulated refusals are left, so a test can say whether another test spent them.
+#[cfg(test)]
+fn refuse_the_next_devices_left() -> u32 {
+    SIMULATED_REFUSALS.load(Ordering::SeqCst)
 }
 
 /// **The reason a device could not be had, as one sentence naming the GPU**, so a reader of the gate log does not chase a regression.
@@ -504,6 +515,7 @@ pub fn real_device_available() -> bool {
     if std::fs::create_dir_all(root.join("assets/blueprint")).is_err() {
         return false;
     }
+    let _one_device_at_a_time = DEVICE_LOCK.lock().unwrap_or_else(|e| e.into_inner());
     let asked = on_a_device(DEVICE_TRIES, std::time::Duration::from_secs(DEVICE_BACKOFF_S), || {
         let mut app = App::new();
         app.add_plugins(
@@ -553,9 +565,14 @@ pub fn build_stepped_at(
 ) -> Result<App, String> {
     match device {
         Device::None => build_stepped(root, map, kit, mode, Device::None),
-        Device::Real => on_a_device(DEVICE_TRIES, std::time::Duration::from_secs(DEVICE_BACKOFF_S), || {
-            build_stepped(root, map, kit, mode, Device::Real)
-        }),
+        Device::Real => {
+            // **A real device is asked for under the same lock as `real_device_available`**, so a simulated refusal a test
+            // sets is never spent by a build in another test of this process (2026-11-23).
+            let _one_device_at_a_time = DEVICE_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+            on_a_device(DEVICE_TRIES, std::time::Duration::from_secs(DEVICE_BACKOFF_S), || {
+                build_stepped(root, map, kit, mode, Device::Real)
+            })
+        }
     }
 }
 
@@ -717,10 +734,6 @@ mod tests {
 
     use super::*;
 
-    /// **The two device switches and the request count are process-wide**, so these tests take turns rather than interleave and
-    /// make each other's numbers wrong.
-    static DEVICE_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
-
     /// A font file for a project in a scratch folder: the embedded face and `extra` trailing bytes, so two projects' faces differ
     /// and both are still the face.
     fn project_with_a_font(tag: &str, extra: usize) -> std::path::PathBuf {
@@ -827,6 +840,9 @@ mod tests {
     #[test]
     fn the_simulated_refusal_is_spent_one_request_at_a_time() {
         let _one_at_a_time = DEVICE_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        // **The simulation must survive the process**: the build under test is inside the lock, so another test's device
+        // request (`real_device_available`) cannot spend the refusals (the 2026-11-23 gate: `Ok(1)`, another test had taken
+        // them). The lock covers every ask in this process, which is why the four tests of this switch take it.
         refuse_the_next_devices(2);
         let asks = std::cell::Cell::new(0u32);
         let built = on_a_device(DEVICE_TRIES, std::time::Duration::ZERO, || {
