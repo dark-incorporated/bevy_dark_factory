@@ -22,7 +22,7 @@
 //!
 //! **The names are `blueprint/`-prefixed because the debugger reserves its own.** A command that
 //! took a name the debugger used would be refused at registration — and it would be refused by a
-//! **panic**, so the name is checked by `tests/the_operations_have_two_front_ends.rs`.
+//! **panic**, so the name is checked by `tests/operations_have_two_front_ends.rs`.
 //!
 //! # The shape of an apply
 //!

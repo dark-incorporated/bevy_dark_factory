@@ -224,7 +224,7 @@ impl PoseBlender {
     }
 
     /// The eased weight of a slot — the value actually handed to the `AnimationPlayer` last frame.
-    /// Exposed for the harness oracle in `tests/liveness.rs`.
+    /// Exposed for the harness oracle's liveness check.
     pub fn live_weight(&self, slot: usize) -> f32 {
         self.weight.get(slot).copied().unwrap_or(0.0)
     }

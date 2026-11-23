@@ -210,7 +210,7 @@ fn choosing_a_part_that_is_not_there_names_the_parts_that_are() {
 /// admitting one puts a 200 m door in a palette where every other piece is metres, which nothing
 /// downstream ever rescales.
 ///
-/// The door's half is proved where the door is: `bevy_dark_factory/tests/an_agent_cannot_import_a_centimetre_glb.rs`.
+/// The door's half is proved where the door is: the editor's own import path and its refusals.
 #[test]
 fn a_centimetre_authored_glb_is_reported_with_its_size_named() {
     let dir = scratch("cms");

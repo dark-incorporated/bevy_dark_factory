@@ -1099,7 +1099,7 @@ mod tests {
     /// wall tile's north support was `Empty` and nothing else: a wall tile presents `wall` outward on
     /// one face, so the tile across that seam has to present `wall` back — and only the same tile
     /// turned 180 degrees does. With yaw 0 alone the kit expressed floor, empty, and no wall meeting
-    /// anything. `tests/site_tiles.rs`'s `one_wall_tile_covers_four_orientations` is the authored
+    /// anything. `one_wall_tile_covers_four_orientations` (in `vary_never_turns_a_long_piece_off_its_cells`) is the authored
     /// kit's own statement of the same thing.
     #[test]
     fn the_shipped_site_kit_learns_a_grammar_and_solves() {

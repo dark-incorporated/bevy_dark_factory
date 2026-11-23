@@ -4,7 +4,7 @@
 //! key: what it is called, which category it sits under, what it does, what its default is, and what
 //! kind of control sets it. That is [`Setting`], and [`CATALOGUE`] is the one list of them, so the
 //! screen, its search and its Reset read the same table and a key added to [`SettingsLayer`] is listed
-//! here in the same commit (`tests/the_settings_screen_lists_every_key.rs` checks the two agree).
+//! here in the same commit (a test in this module checks the two agree).
 //!
 //! # A value, whatever the key's type
 //!

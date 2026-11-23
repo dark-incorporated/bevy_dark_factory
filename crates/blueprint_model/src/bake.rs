@@ -14,7 +14,7 @@
 //! what the YAML reader sees ([`crate::yaml::to_json`]: "a YAML value is JSON with tags"), and a type is built
 //! from it the way the YAML reader builds it, so **there is no attribute a type may carry that the bake cannot
 //! honour**: a rename, a default, an unknown-field refusal and a tagged enum all go through the same
-//! deserialiser. What the tree costs against postcard of the type is measured by `tests/bake_is_faster_than_yaml.rs`.
+//! deserialiser. What the tree costs against postcard of the type is a cost this crate measured once and does not re-measure.
 //!
 //! # Every bake proves itself
 //!

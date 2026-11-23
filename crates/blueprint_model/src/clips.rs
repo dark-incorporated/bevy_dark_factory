@@ -21,7 +21,7 @@
 //!
 //! `docs/artist_guide.md` §4 requires gait clips authored **in place** — the `Root` node's
 //! translation bit-zero — because the game drives the transform itself and the clip supplies only limb
-//! motion. [`root_motion`] is that check, and it is the same one `tests/valkyrie_asset.rs` makes.
+//! motion. [`root_motion`] is that check, and it is the same one `rigs_match_assets` makes.
 //!
 //! The consequence is that the ground speed a clip *implies* is not in the file: it has to be
 //! recovered from the feet. While a foot is planted it is stationary in the world, so relative to the
@@ -98,7 +98,7 @@ fn duration(glb: &Glb, anim: &Value) -> f32 {
 ///
 /// The full array, never a name-filtered one: `channels[].target.node` indexes the real array, and a
 /// position within a list that dropped unnamed nodes silently diverges the moment a rig gains one.
-/// `tests/valkyrie_asset.rs` records paying for exactly that.
+/// `rigs_match_assets` records paying for exactly that.
 pub fn node_index(glb: &Glb, name: &str) -> Option<usize> {
     glb.json["nodes"]
         .as_array()?
@@ -1160,7 +1160,7 @@ mod tests {
         }
     }
 
-    /// The in-place contract, measured the way `tests/valkyrie_asset.rs` measures it.
+    /// The in-place contract, measured the way `rigs_match_assets` measures it.
     #[test]
     fn the_gait_clips_are_authored_in_place() {
         let glb = valkyrie();

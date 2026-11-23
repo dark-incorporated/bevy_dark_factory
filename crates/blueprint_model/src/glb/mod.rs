@@ -191,7 +191,7 @@ pub struct Part {
     pub measured: Measured,
 }
 
-/// Tolerance for "centred" / "on the ground", metres. `tests/ozea_asset.rs` asserts the shipped kit to
+/// Tolerance for "centred" / "on the ground", metres. `a_declared_height_is_checked_against_the_mesh` asserts the shipped kit to
 /// 5 mm and notes that is "comfortably tighter than the 15 mm the source packs actually drift by".
 pub const ORIGIN_TOL: f32 = 0.005;
 
@@ -384,7 +384,7 @@ impl Glb {
     /// **Is this model assembled from parts, rather than authored as one?**
     ///
     /// Raw accessor bounds equal world extents only when no node scales or matrices the geometry.
-    /// `tests/prop_footprint_contract.rs` reports and skips such meshes rather than misreading them,
+    /// the footprint report skips such meshes rather than misreading them,
     /// on the grounds that "a silently mismeasured pass would be worse than no pass"; a measurement
     /// library must be able to say the same.
     pub fn has_node_transform(&self) -> bool {
@@ -424,7 +424,7 @@ impl Glb {
     /// preview drew a mesh sticking out through the top of its own volume box, which is what a
     /// measurement being wrong looks like when you finally render it. Every multi-part kit in this
     /// project is built that way; the Ozea kit is single-node and was never affected, which is why
-    /// `tests/mesh_measurement.rs` passed against it for months.
+    /// the shipped kit's measurement passed against it for months.
     ///
     /// So this walks the scene graph, composes each node's TRS (or matrix) down the hierarchy, and
     /// transforms the eight corners of every primitive's box before unioning them. A rotated node

@@ -45,7 +45,7 @@ use crate::project::{OpenMap, Project};
 /// rejects a duplicate plugin by name, so adding it here as well would panic the editor's binary the
 /// moment both were present. The consequence is that `build_headless` has the vocabulary but no card
 /// on screen — which is right, since the harness has no window either. That the overlay builds its
-/// text tree is pinned where it belongs, in `bevy_debugger_bevy`'s own `tests/guide_steps.rs`.
+/// text tree is pinned where it belongs, in `bevy_debugger_bevy`'s own test suite.
 pub struct GuidePlugin;
 
 impl Plugin for GuidePlugin {

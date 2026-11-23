@@ -2364,7 +2364,7 @@ fn fit_the_pane_to_the_window(
         // 1280 px window, because a flex item's *automatic least width* is its content's and that least
         // width reaches the frame root through the pane. The root's `Sizing` stating `min_width: Px(0)` is
         // what stops that (`chrome::spawn_frame`), and
-        // `tests/the_pane_is_the_windows_width_at_every_text_size.rs` measures all three scales.
+        // `the_pane_is_the_windows_width_everywhere` measures all three scales.
         if node.width != Val::Percent(100.0) {
             node.width = Val::Percent(100.0);
         }

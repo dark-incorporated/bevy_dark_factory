@@ -26,7 +26,7 @@
 //!
 //! # Randomized, and reproducible
 //!
-//! FFXV shuffles with whatever RNG is to hand. This project cannot: `tests/determinism_lint.rs`
+//! FFXV shuffles with whatever RNG is to hand. This project cannot: `blueprint_rng`
 //! exists because a "stable enough" ordering is how the same seed produced two different runs. So the
 //! shuffle is a [`DetRng`] draw over a list that has already been put in a **total** order — actors by
 //! id, seats by `(prop, socket)` — and the randomization becomes a property of the seed rather than of
