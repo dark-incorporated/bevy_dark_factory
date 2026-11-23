@@ -550,6 +550,7 @@ mod the_meshes_pane_names_the_standards_a_piece_breaks;
 mod the_meshes_pane_says_how_sure_the_labels_are;
 mod the_code_colours_hold_the_contrast_bar;
 mod the_compose_panel_draws_in_the_skins_ink;
+mod the_minimap_is_drawn_when_a_file_opens;
 mod the_model_written_ink_comes_from_the_skin;
 mod the_rig_bench_draws_in_the_skins_ink;
 mod the_rig_bench_is_built_from_gooey_widgets;

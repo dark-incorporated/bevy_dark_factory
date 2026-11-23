@@ -844,13 +844,18 @@ fn spawn_the_files_workspace(mut commands: Commands, frame: Res<Frame>) {
             // no number to work with. The path is [`FileHeader`] and the position is [`FilePosition`],
             // one text each, because they change on different causes.
             host.spawn(bevy_gooey::row(1.0)).with_children(|line| {
+                // **A bare `Text` needs a `Role` for its `TextFlow` to reach the layout** (#542): gooey applies a
+                // `TextFlow` from `apply_skin`, whose query is `With<Role>`, so the old `TextFlow { grow }` on a bare
+                // `Text` was never written and the path laid out at its words' width. The position then sat against
+                // the path's end — measured at x 800..835 in a row 462..1344 wide — because `Justify::Right` only
+                // justifies a text inside its own content-width box, which was where the words ended.
                 line.spawn((
                     FileHeader,
                     Text::new(String::new()),
                     TextColor(ink.text),
                     chrome::typed(chrome::text::LABEL),
                     TextLayout::new(Justify::Left, LineBreak::NoWrap),
-                    bevy_gooey::TextFlow { grow: Some(1.0), ..default() },
+                    chrome::text_narrows(),
                 ));
                 line.spawn((
                     FilePosition,
@@ -858,9 +863,23 @@ fn spawn_the_files_workspace(mut commands: Commands, frame: Res<Frame>) {
                     TextColor(ink.dim),
                     chrome::typed(chrome::text::LABEL),
                     TextLayout::new(Justify::Right, LineBreak::NoWrap),
+                    // It keeps its words' width, so the path's `grow` carries it to the row's right edge.
+                    chrome::text_keeps_its_width(),
                 ));
             });
-            host.spawn((bevy_gooey::text_input("Set a field: path value", ""), FieldLine, observe(on_field_line)));
+            // **One control, with its words inside its own frame** (#542): `text_input` lays its label and its field
+            // out at the row's two ends (`justify_content: SpaceBetween`), so the label stood 483 px left of the box
+            // it named and a person could not tell the two were one control. The hint is drawn inside the field, and
+            // `FlexStart` stands the field beside its short label. A class of its own is what lets
+            // `blueprint/ui_style_inspect` over the box name this control instead of the page card it stands in.
+            host.spawn((
+                bevy_gooey::text_input("Set a field", ""),
+                bevy_gooey::TextHint("a path and its value, like name: bedroom".to_owned()),
+                bevy_gooey::RowLayout { justify: Some(JustifyContent::FlexStart), ..default() },
+                bevy_gooey::StyleClass::of("chrome-field-line"),
+                FieldLine,
+                observe(on_field_line),
+            ));
         })
         .id();
     commands.entity(frame.viewport).add_child(host);
@@ -868,6 +887,10 @@ fn spawn_the_files_workspace(mut commands: Commands, frame: Res<Frame>) {
 
 /// **The field line**: `<field path> <value>` sets one value of the open YAML file through the operation `file_edit`,
 /// with every comment kept, as the DATA line sets a game's tuning value. The same write an agent's `apply` makes.
+///
+/// **Its words are its own hint, drawn inside its frame** (#542): the row is a `text_input`, so `TextHint` is the
+/// placeholder a person reads where they type, and the row carries `chrome-field-line` so
+/// `blueprint/ui_style_inspect` over the box names this control rather than the page card it stands in.
 #[derive(Component)]
 pub struct FieldLine;
 
