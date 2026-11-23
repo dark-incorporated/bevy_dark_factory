@@ -359,11 +359,16 @@ fn the_readme_table_names_every_tool() {
     let readme = include_str!("../README.md");
     let declared: BTreeSet<String> = dark_factory_mcp::docs::TOOLS.iter().map(|t| t.name.to_owned()).collect();
 
-    // **The table's group rows**, `| <group> | <names> |`; the header and the rule are not rows.
+    // **The tool table, and no other.** The README has more than one two-column table (the flags one
+    // names `blueprint_list_rules` in prose), so the group table is found by its own header.
+    const HEADER: &str = "| group | tools |";
+    let start = readme.find(HEADER).expect("the README has a `| group | tools |` table");
+    let body = &readme[start + HEADER.len()..];
+    let end = body.find("\n\n").expect("the tool table ends at a blank line");
     let mut named: BTreeSet<String> = BTreeSet::new();
-    for line in readme.lines() {
+    for line in body[..end].lines() {
         let line = line.trim();
-        if !line.starts_with("| ") || line.starts_with("| group") || line.starts_with("|--") {
+        if !line.starts_with("| ") || line.starts_with("|--") {
             continue;
         }
         let cells: Vec<&str> = line.trim_matches('|').split('|').collect();
@@ -373,7 +378,7 @@ fn the_readme_table_names_every_tool() {
         for tool in cells[1].split(',') {
             let tool = tool.trim().trim_matches('`');
             if tool.starts_with("blueprint_") {
-                assert!(named.insert(tool.to_owned()), "the README's table names `{tool}` twice");
+                assert!(named.insert(tool.to_owned()), "the README's tool table names `{tool}` twice");
             }
         }
     }

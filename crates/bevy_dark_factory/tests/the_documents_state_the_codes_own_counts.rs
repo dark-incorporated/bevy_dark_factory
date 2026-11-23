@@ -129,10 +129,11 @@ fn the_reload_contract_names_the_extension_set_the_watchers_listen_for() {
         ("crates/bevy_blueprint/src/live.rs", read("crates/bevy_blueprint/src/live.rs")),
         ("crates/bevy_blueprint/src/entities.rs", read("crates/bevy_blueprint/src/entities.rs")),
     ] {
-        let mut from = 0;
         let mut seen = 0;
+        let mut from = 0;
         while let Some(found) = text[from..].find("FileWatch::new(") {
             let call = from + found;
+            from = call + "FileWatch::new(".len();
             let close = text[call..].find(')').expect("the call closes") + call;
             let args = &text[call..close];
             // **The last `&[` in the call is the extension list**; the first argument is a path.
@@ -449,7 +450,8 @@ fn the_layout_models_fixed_list_states_the_sheets_divider() {
     // **`SPLIT_GRIP_THICKNESS` is named once, as gooey's private grip**, never as a `metrics.layout` value.
     if let Some(at) = doc.find("SPLIT_GRIP_THICKNESS") {
         let line = doc[..at].rfind('\n').map_or(0, |n| n + 1);
-        let line = doc[line..doc[at..].find('\n').map_or(doc.len(), |n| at + n)];
+        let stop = doc[at..].find('\n').map_or(doc.len(), |n| at + n);
+        let line = &doc[line..stop];
         assert!(
             line.contains("private") || line.contains("gooey"),
             "docs/design/layout-model.md names `SPLIT_GRIP_THICKNESS` as this editor's measure; it is \
