@@ -784,16 +784,16 @@ mod tests {
         let _one_at_a_time = DEVICE_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         refuse_the_next_devices(0);
         let before = device_requests();
-        let mut asks = 0u32;
+        let asks = std::cell::Cell::new(0u32);
         let built = on_a_device(DEVICE_TRIES, std::time::Duration::ZERO, || {
-            asks += 1;
-            if asks == 1 {
+            asks.set(asks.get() + 1);
+            if asks.get() == 1 {
                 panic!("called `Result::unwrap()` on an `Err` value: RequestDeviceError {{ inner: Core(Device(OutOfMemory)) }}");
             }
             Ok("the editor")
         });
         assert_eq!(built.as_deref(), Ok("the editor"), "the second ask is the one that is taken");
-        assert_eq!(asks, 2, "the first ask was refused and asked again");
+        assert_eq!(asks.get(), 2, "the first ask was refused and asked again");
         assert_eq!(device_requests(), before + 2, "both requests are counted, so the retry is measured and not believed");
     }
 
@@ -803,12 +803,12 @@ mod tests {
     fn with_the_retry_off_the_same_simulation_fails_naming_the_gpu() {
         let _one_at_a_time = DEVICE_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         refuse_the_next_devices(0);
-        let mut asks = 0u32;
+        let asks = std::cell::Cell::new(0u32);
         let refused = on_a_device(1, std::time::Duration::ZERO, || -> Result<&str, String> {
-            asks += 1;
+            asks.set(asks.get() + 1);
             panic!("called `Result::unwrap()` on an `Err` value: RequestDeviceError {{ inner: Core(Device(OutOfMemory)) }}")
         });
-        assert_eq!(asks, 1, "one try, because that is what the retry being off means");
+        assert_eq!(asks.get(), 1, "one try, because that is what the retry being off means");
         let why = refused.err().unwrap_or_default();
         assert!(why.starts_with("the GPU was out of memory and refused a device"), "the refusal names the GPU: {why:?}");
         assert!(why.contains("OutOfMemory"), "and it keeps wgpu's own words: {why:?}");
@@ -828,10 +828,10 @@ mod tests {
     fn the_simulated_refusal_is_spent_one_request_at_a_time() {
         let _one_at_a_time = DEVICE_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         refuse_the_next_devices(2);
-        let mut asks = 0u32;
+        let asks = std::cell::Cell::new(0u32);
         let built = on_a_device(DEVICE_TRIES, std::time::Duration::ZERO, || {
-            asks += 1;
-            Ok(asks)
+            asks.set(asks.get() + 1);
+            Ok(asks.get())
         });
         assert_eq!(built, Ok(3), "two requests are refused without being built, and the third is");
         refuse_the_next_devices(0);
