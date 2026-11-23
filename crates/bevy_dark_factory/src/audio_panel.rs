@@ -149,7 +149,6 @@ pub fn read_audio(
             }
             panel.buses = read.bus_names().iter().map(|b| (*b).to_owned()).collect();
             panel.cues = table_read.names().map(str::to_owned).collect();
-            panel.selected = panel.selected.min(panel.cues.len().saturating_sub(1));
             *settings = read;
             *table = table_read;
         }
@@ -208,7 +207,7 @@ pub fn on_audition(
             .problem("no cue is selected to audition".to_owned());
         return;
     };
-    plays.write(bevy_siren::Play::cue(cue));
+    plays.write(bevy_siren::Play::cue(cue.clone()));
     state.status.note(format!("auditioning `{cue}`"));
 }
 
@@ -300,7 +299,7 @@ fn walk_the_cues(
     if live.as_deref().is_some_and(|l| l.0 == crate::keys::Context::Typing) {
         return;
     }
-    let (Some(panel), Some(mut selected)) = (panel, selected.as_mut()) else { return };
+    let (Some(panel), Some(selected)) = (panel, selected.as_mut()) else { return };
     let step = if keys.just_pressed(KeyCode::ArrowDown) {
         1
     } else if keys.just_pressed(KeyCode::ArrowUp) {
