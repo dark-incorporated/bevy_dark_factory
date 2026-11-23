@@ -33,6 +33,7 @@ use bevy_dark_factory::project_page::{MapCard, WorkspacePage};
 use bevy_dark_factory::workspace::Workspace;
 
 use crate::fixtures;
+use crate::settle_support;
 
 /// **The capture's panel**, physical px: its border ran x = 89..469.
 const CAPTURE_PANEL_PX: f32 = 380.0;
@@ -55,14 +56,8 @@ const CARD_SLACK_PX: f32 = 6.0;
 /// How far a drawn edge may stand past the edge it is held to, physical px: layout rounds.
 const SLACK_PX: f32 = 1.0;
 
-/// Frames a layout needs to settle.
-const SETTLE_FRAMES: usize = 14;
 
-fn settle(app: &mut App) {
-    for _ in 0..SETTLE_FRAMES {
-        app.update();
-    }
-}
+
 
 /// A node's border-box rect, physical px.
 fn border_box(world: &World, entity: Entity) -> Option<Rect> {
@@ -117,7 +112,7 @@ fn editor(tag: &str) -> App {
     let mut app = harness::build_headless(&root, "m", None).unwrap_or_else(|e| panic!("the fixture project must open: {e}"));
     // **The door the capture was taken in**: the Project workspace inside the editor, not the home.
     *app.world_mut().resource_mut::<Workspace>() = Workspace::Project;
-    settle(&mut app);
+    settle_support::settle(&mut app);
     // **The capture's window and interface size**, stated rather than inferred: `UiScale` is what
     // `surface::fit_surface_to_window` writes from the window's density, and no window is spawned, so
     // the number this test sets is the number every `Val::Px` is multiplied by.
@@ -131,7 +126,7 @@ fn editor(tag: &str) -> App {
         .get_mut::<bevy_gooey::Sizing>(panel)
         .expect("the page's panel is a sized box")
         .width = Some(bevy_gooey::Extent::Px(CAPTURE_PANEL_PX / CAPTURE_UI_SCALE));
-    settle(&mut app);
+    settle_support::settle(&mut app);
     app
 }
 

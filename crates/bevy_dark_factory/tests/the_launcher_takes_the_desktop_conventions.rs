@@ -53,11 +53,7 @@ fn project(dir: &Path, name: &str) -> PathBuf {
     root.canonicalize().unwrap_or_else(|e| panic!("{}: {e}", root.display()))
 }
 
-fn settle(app: &mut App, frames: usize) {
-    for _ in 0..frames {
-        app.update();
-    }
-}
+
 
 /// The editor on the launcher, with `names` as its recent projects, on a clock the test sets.
 fn on_the_launcher(tag: &str, scratch: &Scratch, names: &[&str]) -> (App, Vec<PathBuf>) {
@@ -71,7 +67,7 @@ fn on_the_launcher(tag: &str, scratch: &Scratch, names: &[&str]) -> (App, Vec<Pa
     }
     app.insert_resource(RecentProjects(file)).add_plugins(LauncherPlugin);
     app.world_mut().resource_mut::<NextState<Screen>>().set(Screen::Launcher);
-    settle(&mut app, 12);
+    for _ in 0..12 { app.update(); }
     (app, paths)
 }
 
@@ -108,16 +104,16 @@ fn a_toolbar_tooltip_is_not_shown_at_0_4_s_and_is_at_0_5_s() {
     let root = fixtures::Fixture::new(&format!("conventions_tooltip_{}", std::process::id())).descriptor("site/wall", "alpha").build("m");
     let mut app = bevy_dark_factory::harness::build_headless(&root, "m", None).unwrap_or_else(|e| panic!("{e}"));
     app.insert_resource(TimeUpdateStrategy::ManualDuration(Duration::from_millis(FRAME_MS)));
-    settle(&mut app, 8);
+    for _ in 0..8 { app.update(); }
     let button = {
         let world = app.world_mut();
         world.query_filtered::<Entity, With<ToolbarCommand>>().iter(world).next().expect("the toolbar has a command button")
     };
     let at = centre_of(&app, button);
     point(&mut app, at, PointerAction::Move { delta: Vec2::ZERO });
-    settle(&mut app, NOT_YET_FRAMES);
+    for _ in 0..NOT_YET_FRAMES { app.update(); }
     assert!(!tooltip_shown(&mut app), "0.4 s into the hover nothing is shown");
-    settle(&mut app, BY_NOW_FRAMES - NOT_YET_FRAMES);
+    for _ in 0..BY_NOW_FRAMES - NOT_YET_FRAMES { app.update(); }
     assert!(tooltip_shown(&mut app), "by 0.6 s the tooltip is up");
 }
 
@@ -136,7 +132,7 @@ fn one_press_on_a_card_opens_the_project() {
     let pointed = |app: &App| app.world().get_resource::<PointedAt>().map(|at| at.root.clone());
     assert_eq!(pointed(&app), None, "nothing is open before the press");
     click(&mut app, at);
-    settle(&mut app, 4);
+    for _ in 0..4 { app.update(); }
     // Owner exception (2026-11-10): one press opens the card, per the owner's decision on #344
     // (feedback-1794103491165). The double press was the two-press step's second half, and the
     // behaviour this test guards — a press on a card opens *that* folder — is unchanged; only the
@@ -152,7 +148,7 @@ fn typing_a_projects_first_letters_moves_to_it() {
     // A card has the keyboard, as it does after Tab or an arrow; typing goes from there.
     let alpha = card_of(&mut app, &paths[0]);
     app.world_mut().resource_mut::<InputFocus>().set(alpha, FocusCause::Navigated);
-    settle(&mut app, 4);
+    for _ in 0..4 { app.update(); }
 
     type_text(&mut app, "br");
     let bravo = card_of(&mut app, &paths[2]);

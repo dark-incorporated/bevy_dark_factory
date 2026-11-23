@@ -29,8 +29,8 @@ use blueprint_model::board::{self, Board, Entry};
 use bevy_gooey::{CodeCompletionRequested, CodeCompletions, CodeEditor, CodeEditorValue, CodeHover, CodeHoverRequested, CodePos, CompletionTrigger, Diagnostics};
 
 use crate::fixtures;
+use crate::settle_support;
 
-const SETTLE: usize = 12;
 
 /// The page the tests edit: the level `m`'s own style, which sits beside its board.
 const PAGE: &str = "design/levels/m/style.md";
@@ -67,27 +67,23 @@ fn project(tag: &str) -> PathBuf {
     root
 }
 
-fn settle(app: &mut App) {
-    for _ in 0..SETTLE {
-        app.update();
-    }
-}
+
 
 /// An editor on `root`, in the Files workspace, with `rel` open and the code editor focused.
 fn files_editor(root: &Path, rel: &str) -> App {
     let mut app = harness::build_headless(root, "m", None).unwrap_or_else(|e| panic!("{e}"));
     app.world_mut().spawn((Window::default(), PrimaryWindow));
-    settle(&mut app);
+    settle_support::settle(&mut app);
     let command = commands::by_id("workspace.files").unwrap_or_else(|| panic!("`workspace.files` is not a command"));
     let live = *app.world().resource::<Live>();
     app.world_mut().resource_mut::<Chords>().queue(&command, live);
-    settle(&mut app);
+    settle_support::settle(&mut app);
     assert_eq!(*app.world().resource::<Workspace>(), Workspace::Files);
     files::open_file(app.world_mut(), rel).unwrap_or_else(|e| panic!("{e}"));
-    settle(&mut app);
+    settle_support::settle(&mut app);
     let editor = editor_of(&mut app);
     app.world_mut().resource_mut::<InputFocus>().set(editor, FocusCause::Navigated);
-    settle(&mut app);
+    settle_support::settle(&mut app);
     app
 }
 
@@ -105,19 +101,19 @@ fn caret_at(app: &mut App, line: usize, col: usize) {
     let editor = editor_of(app);
     let pos = CodePos::new(line, col);
     app.world_mut().get_mut::<CodeEditor>(editor).map(|mut e| e.select(pos, pos)).unwrap_or_else(|| panic!("no editor"));
-    settle(app);
+    settle_support::settle(app);
 }
 
 fn select(app: &mut App, from: CodePos, to: CodePos) {
     let editor = editor_of(app);
     app.world_mut().get_mut::<CodeEditor>(editor).map(|mut e| e.select(from, to)).unwrap_or_else(|| panic!("no editor"));
-    settle(app);
+    settle_support::settle(app);
 }
 
 /// Wait out the idle the errors wait for, in real time, and let the editor see it.
 fn idle(app: &mut App) {
     std::thread::sleep(Duration::from_secs_f64(DIAGNOSE_IDLE_S + 0.05));
-    settle(app);
+    settle_support::settle(app);
 }
 
 /// `(line, message)` of the findings drawn for the text the editor holds now.
@@ -190,7 +186,7 @@ fn completing_after_a_link_lists_the_boards_pictures_then_the_projects_files_and
     let broken_line = PAGE_TEXT.matches('\n').count();
     caret_at(&mut app, broken_line, 0);
     app.world_mut().get_mut::<CodeEditorValue>(editor).map(|mut v| v.set(format!("{PAGE_TEXT}[a page](\n![\n"))).unwrap_or_default();
-    settle(&mut app);
+    settle_support::settle(&mut app);
     let source = text(&mut app);
 
     // The project's files come from the tree, which is read off the UI thread: wait for it.

@@ -25,6 +25,7 @@ use bevy_dark_factory::editor::Folded;
 use bevy_dark_factory::harness;
 
 use crate::fixtures;
+use crate::settle_support;
 
 /// **The chevrons a fold draws**, closed then open — the pair `docs/design/icon-vocabulary.md` names.
 const CLOSED: char = '\u{25ba}';
@@ -33,14 +34,8 @@ const OPEN: char = '\u{25bc}';
 /// The letters the marks were, so a regression is named rather than merely caught.
 const WAS: [char; 2] = ['v', '>'];
 
-/// Frames for a rebuild to land.
-const SETTLE_FRAMES: usize = 10;
 
-fn settle(app: &mut App) {
-    for _ in 0..SETTLE_FRAMES {
-        app.update();
-    }
-}
+
 
 /// The Map door, holding two pieces of two kinds, so the PLACE palette draws two category headers.
 fn editor(tag: &str) -> App {
@@ -50,7 +45,7 @@ fn editor(tag: &str) -> App {
         .build("m");
     let mut app = harness::build_headless(&root, "m", None).unwrap_or_else(|e| panic!("{e}"));
     harness::resize_surface(&mut app, 1600, 1200).unwrap_or_else(|e| panic!("{e}"));
-    settle(&mut app);
+    settle_support::settle(&mut app);
     app
 }
 
@@ -173,7 +168,7 @@ fn a_press_on_the_chevron_itself_folds_the_group() {
     );
     point(&mut app, at, PointerAction::Press(PointerButton::Primary));
     point(&mut app, at, PointerAction::Release(PointerButton::Primary));
-    settle(&mut app);
+    settle_support::settle(&mut app);
 
     let folded = app.world().resource::<Folded>().0.clone();
     assert!(

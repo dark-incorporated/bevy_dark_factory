@@ -30,7 +30,7 @@ fn covers(bytes: &[u8], c: char) -> bool {
 fn the_terminal_draws_in_a_face_that_has_the_icons_a_prompt_uses() {
     let mut app = editor_with_terminal("nerd_font");
     feed(&mut app, "\r\n\u{e0b0} \u{f115} src \u{e7a8} main\r\n".as_bytes());
-    settle(&mut app, DRAW_FRAMES);
+    for _ in 0..DRAW_FRAMES { &mut app.update(); }
 
     let world = app.world_mut();
     let faces: Vec<FontSource> = world

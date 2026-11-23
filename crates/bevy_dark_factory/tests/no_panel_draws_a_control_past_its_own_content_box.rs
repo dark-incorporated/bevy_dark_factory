@@ -72,6 +72,7 @@ use bevy_dark_factory::settings::UserSettingsFile;
 use bevy_dark_factory::tiles::Mode;
 
 use crate::fixtures;
+use crate::settle_support;
 
 /// **The capture's window**, physical px (`feedback-1794921716691` was 2560 x 1604).
 const WINDOW_PHYSICAL: (u32, u32) = (2560, 1604);
@@ -104,8 +105,6 @@ const CAPTURE_TEXT_SCALE: f32 = 1.5;
 /// How far a measured edge may stand past the content box it is held to, physical px.
 const SLACK_PX: f32 = 1.0;
 
-/// Frames a layout needs to settle after the scale is read from the settings file.
-const SETTLE_FRAMES: usize = 18;
 
 /// How many spills one pane reports before the message becomes a wall.
 const REPORT_LIMIT: usize = 8;
@@ -116,11 +115,7 @@ const REPORT_LIMIT: usize = 8;
 /// skipped, so it cannot quietly grow to cover a second widget.
 const MOST_GOOEY_CELLS: usize = 14;
 
-fn settle(app: &mut App) {
-    for _ in 0..SETTLE_FRAMES {
-        app.update();
-    }
-}
+
 
 /// An editor on a fixture with pieces in the library, opened on `mode` with the person's interface size at
 /// `interface_scale`, at the capture's window.
@@ -162,7 +157,7 @@ fn editor(tag: &str, mode: Mode, interface_scale: f32) -> App {
     let mut window = app.world_mut().get_mut::<Window>(window).expect("the window just spawned");
     window.resolution.set_scale_factor_override(Some(DISPLAY_FACTOR));
     harness::resize_surface(&mut app, WINDOW_PHYSICAL.0, WINDOW_PHYSICAL.1).unwrap_or_else(|e| panic!("{e}"));
-    settle(&mut app);
+    settle_support::settle(&mut app);
     app
 }
 

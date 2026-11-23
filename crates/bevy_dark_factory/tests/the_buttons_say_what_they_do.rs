@@ -26,11 +26,7 @@ fn editor(tag: &str) -> App {
     app
 }
 
-fn settle(app: &mut App, frames: usize) {
-    for _ in 0..frames {
-        app.update();
-    }
-}
+
 
 /// A keystroke the way a keyboard sends it: a press and a release, then a frame.
 fn tap(app: &mut App, logical: Key, code: KeyCode) {
@@ -82,11 +78,11 @@ fn return_in_the_new_project_name_field_creates_the_project() {
     app.insert_resource(bevy_dark_factory::recent::RecentProjects(file));
     app.add_plugins(LauncherPlugin);
     app.world_mut().resource_mut::<NextState<Screen>>().set(Screen::Launcher);
-    settle(&mut app, 4);
+    for _ in 0..4 { app.update(); }
     // The page's main action is gooey's Submit.
     let open = submit_button_named(&mut app, "New project");
     app.world_mut().commands().trigger(Activate { entity: open });
-    settle(&mut app, 4);
+    for _ in 0..4 { app.update(); }
 
     // The form is up with its Name field holding the keyboard; put it somewhere that is ours, and type a name.
     app.world_mut().resource_mut::<NewProjectForm>().0.location = scratch.to_string_lossy().into_owned();
@@ -104,12 +100,12 @@ fn return_in_the_new_project_name_field_creates_the_project() {
     };
     app.world_mut().resource_mut::<bevy::input_focus::InputFocus>().set(text_box, bevy::input_focus::FocusCause::Navigated);
     app.world_mut().insert_resource(bevy::input_focus::InputFocusVisible(true));
-    settle(&mut app, 3);
+    for _ in 0..3 { app.update(); }
     bevy_gooey::testing::type_text(&mut app, "harbour");
     assert!(!scratch.join("harbour").exists(), "typing a name creates nothing by itself");
 
     bevy_gooey::testing::press(&mut app, KeyCode::Enter);
-    settle(&mut app, 4);
+    for _ in 0..4 { app.update(); }
     assert!(scratch.join("harbour").is_dir(), "Return in the Name field pressed Create: the project's folder is made");
     assert!(app.world().get_resource::<NewProjectForm>().is_none(), "and the form is gone");
     let _ = std::fs::remove_dir_all(&scratch);
@@ -131,7 +127,7 @@ fn every_toolbar_icon_button_is_ghost() {
 fn a_destructive_answer_is_danger_and_an_ordinary_one_is_not() {
     let mut app = editor("danger");
     app.world_mut().resource_mut::<Confirm>().ask(Asked::DeleteEntry, "Delete the map `harbour`?", "The map file is removed.", "Delete map `harbour`", "Keep it");
-    settle(&mut app, 3);
+    for _ in 0..3 { app.update(); }
     let yes = button(&mut app, "Delete map `harbour`");
     assert_eq!(variant_of(&app, yes), Some(ButtonVariant::Danger), "deleting a map is the danger colour");
     let no = button(&mut app, "Keep it");
@@ -139,9 +135,9 @@ fn a_destructive_answer_is_danger_and_an_ordinary_one_is_not() {
 
     // Answer it, then ask an ordinary question: quitting keeps everything saved.
     tap(&mut app, Key::Character("n".into()), KeyCode::KeyN);
-    settle(&mut app, 3);
+    for _ in 0..3 { app.update(); }
     app.world_mut().resource_mut::<Confirm>().ask(Asked::QuitApp, "Quit Dark Factory?", "Anything already saved stays saved.", "Quit", "Stay");
-    settle(&mut app, 3);
+    for _ in 0..3 { app.update(); }
     let quit = button(&mut app, "Quit");
     assert_eq!(variant_of(&app, quit), None, "an ordinary answer is not red");
 }

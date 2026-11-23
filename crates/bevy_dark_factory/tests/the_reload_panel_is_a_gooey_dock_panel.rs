@@ -30,6 +30,15 @@ use bevy_dark_factory::project::Project;
 
 use crate::fixtures;
 
+/// **The project index at its shortest sweep, with its first listing in hand** — what a wait on a condition needs, so it is the
+/// condition that is paid for and not the index's one-second default sweep.
+fn index_at_its_shortest_sweep(app: &mut App) {
+    let index = app.world().resource::<bevy_dark_factory::project_index::ProjectIndex>();
+    index.set_sweep(bevy_dark_factory::project_index::MIN_SWEEP);
+    index.wait_ready(std::time::Duration::from_secs(30));
+}
+use crate::index_view_support as support;
+
 /// The editor on a project with one piece, with the game's verdict read (`--live`).
 fn editor(tag: &str) -> App {
     let root = fixtures::Fixture::new(&format!("reload_dock_{tag}_{}", std::process::id()))
@@ -37,22 +46,16 @@ fn editor(tag: &str) -> App {
         .place("site/wall", (1.5, 1.5))
         .build("m");
     let mut app = harness::build_headless(&root, "m", None).unwrap_or_else(|e| panic!("{e}"));
-    app.insert_resource(bevy_dark_factory::live::LiveWrite);
+
+    // The index's shortest sweep, and the first listing waited for: what follows is a wait on the condition, not on a clock.
+    index_at_its_shortest_sweep(&mut app);    app.insert_resource(bevy_dark_factory::live::LiveWrite);
     for _ in 0..8 {
         app.update();
     }
     app
 }
 
-/// **The panel looks at the project twice a second**, so a test that writes a verdict and reads the
-/// lines has to give it that long: three frames 300 ms apart, as `a_file_says_what_the_game_made_of_its_edit`
-/// does, and for the same reason.
-fn settle(app: &mut App) {
-    for _ in 0..3 {
-        std::thread::sleep(Duration::from_millis(300));
-        app.update();
-    }
-}
+
 
 /// A laid-out box, logical px.
 fn laid(app: &mut App, entity: Entity) -> Rect {
@@ -133,7 +136,7 @@ fn the_reload_panel_is_the_docks_and_its_lines_are_in_it() {
     // `reload_files` rows `blueprint_state.reload_files` reports reach the dock's column.
     let project_dir = app.world().resource::<Project>().project_dir.clone();
     Verdict::with_kinds(4, "refused", vec![KindVerdict::applied("kits", "kits.yaml")]).write(&project_dir).unwrap();
-    settle(&mut app);
+    support::settle(&mut app);
     let lines: Vec<String> = {
         let world = app.world_mut();
         let list = world.query_filtered::<Entity, With<ReloadList>>().single(world).expect("the panel spawns its list").to_owned();
@@ -239,7 +242,7 @@ fn view_show_reload_panel_shows_the_dock_in_the_reference_window_and_unticking_h
     assert!(!app.world().entity(row).contains::<Checked>(), "the row starts unticked");
 
     app.world_mut().commands().trigger(ValueChange { source: row, value: true, is_final: true });
-    settle(&mut app);
+    support::settle(&mut app);
     assert_eq!(dock_display(&mut app), Display::Flex, "ticking the row shows the dock whatever the window");
     assert!(app.world().entity(row).contains::<Checked>(), "and the row says so");
     let drawn = {
@@ -254,7 +257,7 @@ fn view_show_reload_panel_shows_the_dock_in_the_reference_window_and_unticking_h
     assert!(drawn > 0, "the reload lines are laid out, with a size, in the dock the person asked for");
 
     app.world_mut().commands().trigger(ValueChange { source: row, value: false, is_final: true });
-    settle(&mut app);
+    support::settle(&mut app);
     assert_eq!(dock_display(&mut app), Display::None, "unticked, the room rule alone decides, and there is no room");
     assert!(!app.world().entity(row).contains::<Checked>(), "and the row is unticked");
 }

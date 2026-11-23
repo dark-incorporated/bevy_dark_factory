@@ -28,15 +28,11 @@ fn editor(tag: &str) -> App {
     let mut app = bevy_dark_factory::harness::build_headless(&root, "m", None).unwrap_or_else(|e| panic!("{e}"));
     app.insert_non_send(PosixShell(guard));
     app.world_mut().spawn((Window { resolution: bevy::window::WindowResolution::new(1280, 720), ..default() }, PrimaryWindow));
-    settle(&mut app, 12);
+    for _ in 0..12 { app.update(); }
     app
 }
 
-fn settle(app: &mut App, frames: usize) {
-    for _ in 0..frames {
-        app.update();
-    }
-}
+
 
 /// Every node of the map's overlay layer ([`COMPASS_Z`]: the axis gizmo, the Look chip) and everything below one, as the stack lists them.
 fn overlay_nodes(app: &mut App) -> HashSet<Entity> {
@@ -72,12 +68,12 @@ fn paint_order(app: &mut App) -> (usize, Option<usize>, usize) {
 fn a_maximised_terminal_is_painted_over_the_maps_overlays() {
     let mut app = editor("maximised_over_overlays");
     app.world_mut().resource_mut::<Terminal>().set_collapsed(false);
-    settle(&mut app, 8);
+    for _ in 0..8 { app.update(); }
     let (_, top_overlay, drawn) = paint_order(&mut app);
     assert!(drawn > 0 && top_overlay.is_some(), "the map's overlay layer (the axis gizmo) is drawn on the map: {drawn} node(s)");
 
     app.world_mut().resource_mut::<Terminal>().toggle_maximised();
-    settle(&mut app, 6);
+    for _ in 0..6 { app.update(); }
     assert!(app.world().resource::<Terminal>().is_maximised());
     let (pane_at, top_overlay, drawn) = paint_order(&mut app);
     let top_overlay = top_overlay.expect("the overlay nodes are still in the stack");
@@ -87,7 +83,7 @@ fn a_maximised_terminal_is_painted_over_the_maps_overlays() {
     );
 
     app.world_mut().resource_mut::<Terminal>().toggle_maximised();
-    settle(&mut app, 6);
+    for _ in 0..6 { app.update(); }
     assert!(!app.world().resource::<Terminal>().is_maximised());
     let (_, _, drawn_back) = paint_order(&mut app);
     assert_eq!(drawn_back, drawn, "given back its height, the map's overlays are drawn as before");
@@ -103,9 +99,9 @@ fn a_dialog_opened_over_a_maximised_terminal_is_painted_over_it() {
     let mut app = editor("maximised_under_dialog");
     app.world_mut().resource_mut::<Terminal>().set_collapsed(false);
     app.world_mut().resource_mut::<Terminal>().toggle_maximised();
-    settle(&mut app, 6);
+    for _ in 0..6 { app.update(); }
     app.world_mut().write_message(OpenKeymap);
-    settle(&mut app, 8);
+    for _ in 0..8 { app.update(); }
     let world = app.world_mut();
     let dialog: Vec<Entity> = world.query::<(Entity, &GlobalZIndex)>().iter(world).filter(|(_, z)| z.0 == GOOEY_DIALOG_Z).map(|(e, _)| e).collect();
     assert!(!dialog.is_empty(), "the Keymap's dialog is up");

@@ -35,8 +35,8 @@ use bevy_dark_factory::settings::{SyntaxTheme, UserSettingsFile};
 use bevy_gooey::{CodeEditor, GooeySkin, Role};
 
 use crate::fixtures;
+use crate::settle_support;
 
-const SETTLE: usize = 14;
 
 /// A YAML file with a key, a quoted string, a keyword and a number on the same line, and a second key below, so
 /// a role is drawn whatever the fold does at the top of the file.
@@ -50,16 +50,12 @@ const REL: &str = "assets/blueprint/colours.yaml";
 /// **How long a change to the settings file may take to reach the drawn spans**, in seconds.
 const HEARD_WITHIN_S: f64 = 20.0;
 
-fn settle(app: &mut App) {
-    for _ in 0..SETTLE {
-        app.update();
-    }
-}
+
 
 fn until(app: &mut App, what: &str, mut done: impl FnMut(&mut App) -> bool) {
     let started = std::time::Instant::now();
     while started.elapsed().as_secs_f64() < HEARD_WITHIN_S {
-        settle(app);
+        settle_support::settle(app);
         if done(app) {
             return;
         }
@@ -81,20 +77,20 @@ fn rig(tag: &str, preset: SyntaxTheme) -> (App, std::path::PathBuf) {
     app.insert_resource(UserSettingsFile(file.clone()));
     app.world_mut().spawn((Window::default(), PrimaryWindow));
     harness::resize_surface(&mut app, 1400, 900).unwrap_or_else(|e| panic!("{e}"));
-    settle(&mut app);
+    settle_support::settle(&mut app);
     let command = commands::by_id("workspace.files").unwrap_or_else(|| panic!("`workspace.files` is not a command"));
     let live = *app.world().resource::<Live>();
     app.world_mut().resource_mut::<Chords>().queue(&command, live);
-    settle(&mut app);
+    settle_support::settle(&mut app);
     bevy_dark_factory::files::open_file(app.world_mut(), REL).unwrap_or_else(|e| panic!("{e}"));
-    settle(&mut app);
+    settle_support::settle(&mut app);
     let editor = app
         .world_mut()
         .query_filtered::<Entity, With<CodeEditor>>()
         .single(app.world_mut())
         .unwrap_or_else(|e| panic!("an editor is open: {e}"));
     app.world_mut().resource_mut::<InputFocus>().set(editor, FocusCause::Navigated);
-    settle(&mut app);
+    settle_support::settle(&mut app);
     (app, file)
 }
 

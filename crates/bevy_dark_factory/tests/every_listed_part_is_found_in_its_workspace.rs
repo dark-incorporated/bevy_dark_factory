@@ -26,10 +26,9 @@ use bevy_dark_factory::workspace::Workspace;
 use bevy_gooey::{Disabled, ValueChange};
 
 use crate::fixtures;
+use crate::settle_support;
 
 /// **Frames the editor is given to settle** after a switch: the transition runs the frame after the key and the panels are spawned the
-/// frame after that.
-const SETTLE_FRAMES: usize = 12;
 
 fn project(tag: &str) -> PathBuf {
     fixtures::Fixture::new(&format!("every_listed_part_{tag}_{}", std::process::id()))
@@ -41,15 +40,11 @@ fn project(tag: &str) -> PathBuf {
 fn editor(tag: &str) -> App {
     let mut app = harness::build_headless(&project(tag), "m", None).unwrap_or_else(|e| panic!("{e}"));
     // **No home's plugins** (`harness::build_headless` adds none): the Project workspace draws its page all the same.
-    settle(&mut app);
+    settle_support::settle(&mut app);
     app
 }
 
-fn settle(app: &mut App) {
-    for _ in 0..SETTLE_FRAMES {
-        app.update();
-    }
-}
+
 
 /// **Press a census chord** the way a person does: a `KeyboardInput` for each key down and up, which is what fills the `ButtonInput` the
 /// census reads. Used where the row's route is a chord rather than a click, so the test takes the route the editor offers.
@@ -74,7 +69,7 @@ fn press_the_chords_key(app: &mut App, action: bevy_dark_factory::keys::Action) 
     for key in bevy_dark_factory::keys::MOD_KEYS {
         tap(app, key, bevy::input::ButtonState::Released);
     }
-    settle(app);
+    settle_support::settle(app);
 }
 
 /// **Switch the way the palette does**: the workspace's command id, its chord queued and pressed.
@@ -83,7 +78,7 @@ fn switch_to(app: &mut App, workspace: Workspace) {
     let command = commands::by_id(&id).unwrap_or_else(|| panic!("`{id}` is not a command"));
     let live = *app.world().resource::<Live>();
     app.world_mut().resource_mut::<Chords>().queue(&command, live);
-    settle(app);
+    settle_support::settle(app);
     assert_eq!(app.world().resource::<Workspace>(), &workspace, "the `{id}` command did not open the {} workspace", workspace.title());
 }
 
@@ -106,7 +101,7 @@ fn the_outliner_is_found_by_label_in_the_map_workspace() {
         world.query_filtered::<Entity, With<OutlinerItem>>().single(world).expect("the View menu carries one Show outliner row")
     };
     app.world_mut().commands().trigger(ValueChange { source: row, value: true, is_final: true });
-    settle(&mut app);
+    settle_support::settle(&mut app);
     assert!(shows(&mut app, "OUTLINER"), "the Map workspace does not show the OUTLINER once it is asked for");
 }
 
@@ -127,7 +122,7 @@ fn ask_for_the_library(app: &mut App, on: bool) {
         world.query_filtered::<Entity, With<LibraryItem>>().single(world).expect("the View menu carries one Show library row")
     };
     app.world_mut().commands().trigger(ValueChange { source: row, value: on, is_final: true });
-    settle(app);
+    settle_support::settle(app);
 }
 
 /// **Kit: the library browser** is found by label in the Kit workspace once it is asked for there (on demand, for the outliner's reason: a
@@ -205,7 +200,7 @@ fn two_maps(tag: &str) -> PathBuf {
 
 fn editor_on(root: &std::path::Path) -> App {
     let mut app = harness::build_headless(root, "m", None).unwrap_or_else(|e| panic!("{e}"));
-    settle(&mut app);
+    settle_support::settle(&mut app);
     app
 }
 
@@ -217,7 +212,7 @@ fn click_the_card(app: &mut App, name: &str) {
         q.iter(world).find(|(_, c)| c.0 == name).map(|(e, _)| e).unwrap_or_else(|| panic!("the page draws no card for the map `{name}`"))
     };
     app.world_mut().trigger(bevy_gooey::Activate { entity: card });
-    settle(app);
+    settle_support::settle(app);
 }
 
 fn open_map_name(app: &App) -> String {
@@ -255,7 +250,7 @@ fn an_editor_with_no_map_open_opens_the_map_that_was_clicked() {
     // The kit-only editor: no `OpenMap`, while the project remembers `m` as the map it was last on.
     app.world_mut().remove_resource::<OpenMap>();
     assert_eq!(app.world().resource::<Project>().open_map_name.as_deref(), Some("m"), "the project remembers the first map");
-    settle(&mut app);
+    settle_support::settle(&mut app);
     click_the_card(&mut app, "other");
     assert!(app.world().get_resource::<OpenMap>().is_some(), "clicking a map card opened nothing");
     assert_eq!(open_map_name(&app), "other", "the editor opened another map than the one clicked");

@@ -42,6 +42,7 @@ use bevy_dark_factory::keys::ControlId;
 use bevy_dark_factory::tiles::{ImportState, Mode};
 
 use crate::fixtures;
+use crate::settle_support;
 
 /// **The capture's panel**, physical px: its border ran x = 89..583.
 const CAPTURE_PANEL_PX: f32 = 494.0;
@@ -56,17 +57,11 @@ const WIDTH_SLACK_PX: f32 = 2.0;
 /// How far a drawn edge may stand past the edge it is held to, physical px.
 const SLACK_PX: f32 = 1.0;
 
-/// Frames a layout needs to settle after the panel's width is written.
-const SETTLE_FRAMES: usize = 14;
 
 /// The piece the panel describes: a chair with a front, as the capture's `ozea/chair.glb` is.
 const PIECE: &str = "ozea/chair";
 
-fn settle(app: &mut App) {
-    for _ in 0..SETTLE_FRAMES {
-        app.update();
-    }
-}
+
 
 /// A node's border-box rect, physical px.
 fn border_box(world: &World, entity: Entity) -> Option<Rect> {
@@ -170,7 +165,7 @@ fn editor(tag: &str) -> App {
     let mut app = harness::build_headless_at(&root, "m", None, Mode::Meshes).unwrap_or_else(|e| panic!("the fixture project must open: {e}"));
     // **The piece the panel describes**: the library row the capture's PIECES list has selected.
     app.world_mut().resource_mut::<ImportState>().selected_library_id = Some(PIECE.to_owned());
-    settle(&mut app);
+    settle_support::settle(&mut app);
     // **The capture's interface size**, stated rather than inferred: `UiScale` is what
     // `surface::fit_surface_to_window` writes from the window's density, and no window is spawned, so
     // the number this test sets is the number every `Val::Px` is multiplied by.
@@ -189,7 +184,7 @@ fn editor(tag: &str) -> App {
         .get_mut::<bevy_gooey::Sizing>(panel)
         .expect("the panel is a sized box")
         .width = Some(bevy_gooey::Extent::Px(CAPTURE_PANEL_PX / CAPTURE_UI_SCALE));
-    settle(&mut app);
+    settle_support::settle(&mut app);
     app
 }
 

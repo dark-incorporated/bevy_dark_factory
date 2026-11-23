@@ -19,15 +19,11 @@ use blueprint_model::design;
 use blueprint_model::trust::{Decision, TrustStore};
 
 use crate::fixtures;
+use crate::settle_support;
 
-const SETTLE: usize = 14;
 const FRAME_S: f32 = 1.0 / 60.0;
 
-fn settle(app: &mut App) {
-    for _ in 0..SETTLE {
-        app.update();
-    }
-}
+
 
 fn press(app: &mut App, action: Action) {
     let row = binding(action);
@@ -49,7 +45,7 @@ fn press(app: &mut App, action: Action) {
         app.update();
         app.update();
     }
-    settle(app);
+    settle_support::settle(app);
 }
 
 fn write(root: &std::path::Path, rel: &str, text: &str) {
@@ -76,7 +72,7 @@ fn designer_at(tag: &str, files: &[(&str, &str)], size: (u32, u32)) -> (App, std
     let store = root.join("trusted.yaml");
     TrustStore::default().save(&store).unwrap_or_else(|e| panic!("{e}"));
     app.world_mut().resource_mut::<EditorState>().trust.file = Some(store.clone());
-    settle(&mut app);
+    settle_support::settle(&mut app);
     press(&mut app, Action::WorkspaceDesign);
     assert_eq!(*app.world().resource::<Workspace>(), Workspace::Design);
     // The editor's state is rebuilt by a workspace switch, so the test's store is named again once Design is open.
@@ -106,7 +102,7 @@ fn click(app: &mut App, label: &str) {
         };
         let key = bevy_dark_factory::files::key_of("design/levels/m");
         app.world_mut().commands().trigger(bevy_gooey::ValueChange { source: tree, value: bevy_gooey::TableSelection::of(key), is_final: true });
-        settle(app);
+        settle_support::settle(app);
         return;
     }
     let entity = bevy_gooey::testing::find_by_label(app, label).unwrap_or_else(|e| panic!("`{label}`: {e}"));
@@ -117,7 +113,7 @@ fn click(app: &mut App, label: &str) {
     } else {
         app.world_mut().commands().trigger(bevy::ui_widgets::Activate { entity });
     }
-    settle(app);
+    settle_support::settle(app);
 }
 
 fn visible(app: &mut App, label: &str) -> bool {
@@ -197,7 +193,7 @@ fn rect_of(app: &mut App, label: &str) -> (Vec2, Vec2) {
 fn real_click(app: &mut App, label: &str) {
     let entity = bevy_gooey::testing::find_by_label(app, label).unwrap_or_else(|e| panic!("`{label}`: {e}"));
     bevy_gooey::testing::click(app, entity);
-    settle(app);
+    settle_support::settle(app);
 }
 
 #[test]
@@ -242,9 +238,9 @@ fn at_the_smallest_window_every_header_and_topic_button_has_room_and_the_last_to
     let (mut app, root, _store) = designer_at("smallest", &[("design/style.md", "# The game\n\nGrey.\n")], (1024, 640));
     // A window of the size for a few frames, because the docks fit themselves to it (`fit_docks_to_the_window`) and without one they keep their full widths; it goes again, because a window makes the pointer helper miss the surface, and the fitted widths stay.
     let window = app.world_mut().spawn((Window { resolution: bevy::window::WindowResolution::new(1024, 640), ..default() }, bevy::window::PrimaryWindow)).id();
-    settle(&mut app);
+    settle_support::settle(&mut app);
     app.world_mut().despawn(window);
-    settle(&mut app);
+    settle_support::settle(&mut app);
     real_click(&mut app, "New topic");
     let topics = ["dialogue", "interaction", "sound", "ui", "names"];
     assert_eq!(offered_topics(&mut app).len(), topics.len(), "all five topics are offered");

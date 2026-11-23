@@ -32,6 +32,7 @@ use bevy_dark_factory::harness;
 use bevy_dark_factory::tiles::Mode;
 
 use crate::fixtures;
+use crate::settle_support;
 
 /// **The capture's window**, physical px (`feedback-1794783669349` was 2560 x 1406).
 const WINDOW: (u32, u32) = (2560, 1406);
@@ -43,8 +44,6 @@ const INTERFACE_SCALES: [f32; 3] = [1.0, 1.6, 2.4];
 /// **The capture's own interface scale** (`feedback-1794783669349`: 2560x1406 at `ui_scale` 2.4).
 const CAPTURE_SCALE: f32 = 2.4;
 
-/// Frames a layout needs to settle after the divider or the scale moves.
-const SETTLE_FRAMES: usize = 14;
 
 /// How far a measured edge may stand past the one it is held to, physical px: layout rounds to whole pixels.
 const SLACK_PX: f32 = 1.0;
@@ -52,11 +51,7 @@ const SLACK_PX: f32 = 1.0;
 /// How many spills one layout reports before the message becomes a wall.
 const REPORT_LIMIT: usize = 8;
 
-fn settle(app: &mut App) {
-    for _ in 0..SETTLE_FRAMES {
-        app.update();
-    }
-}
+
 
 /// A node's border-box rect, physical px.
 fn border_box(world: &World, entity: Entity) -> Option<Rect> {
@@ -245,7 +240,7 @@ fn editor(tag: &str) -> App {
         .build("m");
     let mut app = harness::build_headless_at(&root, "m", None, Mode::Agent).unwrap_or_else(|e| panic!("the fixture opens: {e}"));
     harness::resize_surface(&mut app, WINDOW.0, WINDOW.1).unwrap_or_else(|e| panic!("{e}"));
-    settle(&mut app);
+    settle_support::settle(&mut app);
     app
 }
 
@@ -275,7 +270,7 @@ fn drag_the_divider_left(app: &mut App, panel: Entity) {
         .get_mut::<bevy_gooey::Sizing>(panel)
         .expect("a panel is a sized box");
     sizing.width = Some(bevy_gooey::Extent::Px(bevy_dark_factory::style::metrics().layout.dock_min_w()));
-    settle(app);
+    settle_support::settle(app);
 }
 
 /// The panel's written width in `Val::Px` units, or `NaN` when it is not an `Extent::Px`.

@@ -17,10 +17,21 @@ use blueprint_model::plan::{self, Plan, PlanItem, Status};
 
 use crate::fixtures;
 
+/// **The project index at its shortest sweep, with its first listing in hand** — what a wait on a condition needs, so it is the
+/// condition that is paid for and not the index's one-second default sweep.
+fn index_at_its_shortest_sweep(app: &mut App) {
+    let index = app.world().resource::<bevy_dark_factory::project_index::ProjectIndex>();
+    index.set_sweep(bevy_dark_factory::project_index::MIN_SWEEP);
+    index.wait_ready(std::time::Duration::from_secs(30));
+}
+use crate::index_view_support as support;
+
 fn editor(name: &str) -> App {
     let root = fixtures::Fixture::new(name).descriptor("table", "alpha").place_as("table@0", "table", (0.0, 0.0)).build("m");
     let mut app = harness::build_headless(&root, "m", None).unwrap_or_else(|e| panic!("{e}"));
-    for _ in 0..8 {
+
+    // The index's shortest sweep, and the first listing waited for: what follows is a wait on the condition, not on a clock.
+    index_at_its_shortest_sweep(&mut app);    for _ in 0..8 {
         app.update();
     }
     show_the_block(&mut app);
@@ -33,16 +44,10 @@ fn show_the_block(app: &mut App) {
         world.query_filtered::<Entity, With<NightShiftItem>>().single(world).expect("the View menu carries one Show agent row")
     };
     app.world_mut().commands().trigger(ValueChange { source: row, value: true, is_final: true });
-    settle(app);
+    support::settle(app);
 }
 
-/// Frames 150 ms of wall time apart, so the block has had time to look at the file again.
-fn settle(app: &mut App) {
-    for _ in 0..6 {
-        std::thread::sleep(std::time::Duration::from_millis(150));
-        app.update();
-    }
-}
+
 
 /// **Frames until the PLAN row says what the test expects**, for at most `ROW_TIMEOUT_SECS` of wall time; the row's words are then returned for the
 /// assertions that follow.

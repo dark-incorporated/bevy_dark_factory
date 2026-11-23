@@ -34,6 +34,7 @@ use bevy::window::{PrimaryWindow, Window, WindowResolution};
 use bevy_dark_factory::harness;
 
 use crate::fixtures;
+use crate::settle_support;
 
 /// The interface scales the acceptance names: the constants' own size, and one and a half times it.
 const SCALES: [f32; 2] = [1.0, 1.6];
@@ -46,8 +47,6 @@ const NARROW_PANE_PX: f32 = 460.0;
 /// How far a measured edge may stand past the pane's border box, physical px: layout rounds.
 const SLACK_PX: f32 = 1.0;
 
-/// Frames a layout needs to settle after a change of scale or of the split.
-const SETTLE_FRAMES: usize = 14;
 
 /// **The most gooey table-cell texts one pane may hold**: the history list is single-column, and its
 /// visible rows are the only cells here. See the exemption in [`outside_the_pane`].
@@ -56,11 +55,7 @@ const MOST_GOOEY_CELLS: usize = 12;
 /// How many texts must be drawn under the pane before the measurement means anything.
 const LEAST_TEXTS: usize = 4;
 
-fn settle(app: &mut App) {
-    for _ in 0..SETTLE_FRAMES {
-        app.update();
-    }
-}
+
 
 /// The capture's window, physical px — a 1280 x 703 logical screen at the capture's 2.0 display factor.
 const WINDOW_PHYSICAL: (u32, u32) = (2560, 1406);
@@ -84,7 +79,7 @@ fn editor(name: &str, scale: f32) -> (std::path::PathBuf, App) {
     harness::resize_surface(&mut app, WINDOW_PHYSICAL.0, WINDOW_PHYSICAL.1)
         .unwrap_or_else(|e| panic!("{e}"));
     app.world_mut().resource_mut::<UiScale>().0 = scale;
-    settle(&mut app);
+    settle_support::settle(&mut app);
     (root, app)
 }
 
@@ -211,7 +206,7 @@ fn set_the_fraction(app: &mut App, leftmost: bool) {
         fraction.0 = if leftmost { 0.0 } else { 1.0 };
         split
     };
-    settle(app);
+    settle_support::settle(app);
     // **The write must still be there.** `size_the_shell_split` owns this fraction while `SplitUnsized`
     // is on the split, and rewrites it to the left panel's preferred width; a write it overwrote leaves
     // the shipped layout in place and every assertion below true for the wrong reason. gooey's own
@@ -252,7 +247,7 @@ fn the_left_panes_contents_stay_inside_it_at_its_narrowest() {
     for scale in SCALES {
         let (_root, mut app) = editor(&format!("pane_narrow_{scale}_{}", std::process::id()), scale);
         set_the_fraction(&mut app, true);
-        settle(&mut app);
+        settle_support::settle(&mut app);
         refused.extend(outside_the_pane(&mut app, &format!("[scale {scale}, leftmost]")));
     }
     assert!(
@@ -270,7 +265,7 @@ fn the_left_panes_contents_stay_inside_it_at_its_widest() {
     for scale in SCALES {
         let (_root, mut app) = editor(&format!("pane_wide_{scale}_{}", std::process::id()), scale);
         set_the_fraction(&mut app, false);
-        settle(&mut app);
+        settle_support::settle(&mut app);
         refused.extend(outside_the_pane(&mut app, &format!("[scale {scale}, widest]")));
     }
     assert!(

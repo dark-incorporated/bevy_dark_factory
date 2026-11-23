@@ -25,17 +25,13 @@ use bevy_dark_factory::keys::Live;
 use bevy_gooey::{CodeEditor, CodePos};
 
 use crate::fixtures;
+use crate::settle_support;
 
-const SETTLE: usize = 14;
 
 /// A page with a line long enough that a column past nine exists, and a tab so the display column can differ from the byte.
 const PAGE: &str = "# A heading\n\n*Emphasised words.*\n\n\ttabbed start then words\n";
 
-fn settle(app: &mut App) {
-    for _ in 0..SETTLE {
-        app.update();
-    }
-}
+
 
 fn page(tag: &str) -> (App, Entity) {
     let root = fixtures::Fixture::new(&format!("md_position_{tag}_{}", std::process::id()))
@@ -49,16 +45,16 @@ fn page(tag: &str) -> (App, Entity) {
     let mut app = harness::build_headless(&root, "m", None).unwrap_or_else(|e| panic!("{e}"));
     app.world_mut().spawn((Window::default(), PrimaryWindow));
     harness::resize_surface(&mut app, 1400, 900).unwrap_or_else(|e| panic!("{e}"));
-    settle(&mut app);
+    settle_support::settle(&mut app);
     let command = commands::by_id("workspace.files").unwrap_or_else(|| panic!("`workspace.files` is not a command"));
     let live = *app.world().resource::<Live>();
     app.world_mut().resource_mut::<Chords>().queue(&command, live);
-    settle(&mut app);
+    settle_support::settle(&mut app);
     files::open_file(app.world_mut(), rel).unwrap_or_else(|e| panic!("{e}"));
-    settle(&mut app);
+    settle_support::settle(&mut app);
     let editor = app.world_mut().query_filtered::<Entity, With<CodeEditor>>().single(app.world_mut()).unwrap_or_else(|e| panic!("{e}"));
     app.world_mut().resource_mut::<InputFocus>().set(editor, FocusCause::Navigated);
-    settle(&mut app);
+    settle_support::settle(&mut app);
     (app, editor)
 }
 
@@ -72,7 +68,7 @@ fn readout(app: &mut App) -> String {
 fn stand(app: &mut App, editor: Entity, line: usize, col: usize) {
     let Some(mut widget) = app.world_mut().get_mut::<CodeEditor>(editor) else { panic!("the editor is open") };
     widget.select(CodePos::new(line, col), CodePos::new(line, col));
-    settle(app);
+    settle_support::settle(app);
 }
 
 /// **The readout exists and says where the caret stands**, moved to a line and column.

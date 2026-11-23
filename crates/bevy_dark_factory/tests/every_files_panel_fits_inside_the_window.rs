@@ -14,11 +14,10 @@ use bevy_dark_factory::keys::{Action, binding};
 use bevy_dark_factory::workspace::Workspace;
 
 use crate::fixtures;
+use crate::settle_support;
 
 /// The windows the workspace is laid out in, in logical px.
 const WINDOWS_PX: [(u32, u32); 2] = [(1024, 640), (1280, 720)];
-/// Frames run after each step, so layout settles.
-const SETTLE: usize = 30;
 /// One frame of the test clock, in seconds.
 const FRAME_S: f32 = 1.0 / 60.0;
 /// Rounding the layout may leave on an edge, in logical px.
@@ -29,11 +28,7 @@ const MAX_INSET_PX: f32 = 24.0;
 const TASK: &str = "task.yaml";
 const TASK_TEXT: &str = "id: draft\ntitle: A drafted task\nprompt: |\n  Place a wall along the north edge of the yard, one cell in from the fence, and name it for the person who reads it.\nchecks:\n  - placement_count >= 4\n";
 
-fn settle(app: &mut App) {
-    for _ in 0..SETTLE {
-        app.update();
-    }
-}
+
 
 fn press(app: &mut App, action: Action) {
     let row = binding(action);
@@ -55,7 +50,7 @@ fn press(app: &mut App, action: Action) {
         app.update();
         app.update();
     }
-    settle(app);
+    settle_support::settle(app);
 }
 
 /// A node's rect in logical px: `(left, top, right, bottom)`.
@@ -78,11 +73,11 @@ fn every_files_panel_is_inside_the_window_at_both_sizes_with_a_text_file_open() 
         let mut app = harness::build_headless(&root, "m", None).unwrap_or_else(|e| panic!("{e}"));
         harness::resize_surface(&mut app, width, height).unwrap_or_else(|e| panic!("{e}"));
         app.insert_resource(TimeUpdateStrategy::ManualDuration(std::time::Duration::from_secs_f32(FRAME_S)));
-        settle(&mut app);
+        settle_support::settle(&mut app);
         press(&mut app, Action::WorkspaceFiles);
         assert_eq!(*app.world().resource::<Workspace>(), Workspace::Files, "{width}x{height}: the Files workspace is open");
         files::open_file(app.world_mut(), TASK).unwrap_or_else(|e| panic!("{width}x{height}: {TASK} opens: {e}"));
-        settle(&mut app);
+        settle_support::settle(&mut app);
 
         let frame = app.world().resource::<Frame>();
         let slots = [frame.left, frame.viewport, frame.right];

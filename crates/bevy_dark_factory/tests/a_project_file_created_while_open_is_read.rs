@@ -9,6 +9,7 @@ use bevy::prelude::*;
 use bevy_dark_factory::harness;
 
 use crate::fixtures;
+use crate::settle_support;
 
 fn texts(app: &mut App) -> Vec<String> {
     for _ in 0..3 {
@@ -32,11 +33,11 @@ fn a_repetition_file_created_after_the_open_reaches_the_repeats_row() {
         .join(blueprint_model::repetition::FILE);
     assert!(!file.exists(), "the project starts with no {file:?}");
     let mut app = harness::build_headless(&root, "m", None).unwrap_or_else(|e| panic!("{e}"));
-    // Past the watcher's first poll, so the file's absence has been sighted.
-    for _ in 0..8 {
-        app.update();
-    }
-    std::thread::sleep(std::time::Duration::from_millis(300));
+    // **The repetition the defaults give, waited for on the row itself**: eight frames and a 300 ms sleep were the old way of
+    // hoping the view had read the project's files.
+    settle_support::until(&mut app, "three barrels a metre apart repeat", |app| {
+        texts(app).iter().any(|t| t == "site/barrel \u{d7}3")
+    });
     let before = texts(&mut app);
     assert!(
         before.iter().any(|t| t == "site/barrel \u{d7}3"),

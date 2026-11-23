@@ -37,9 +37,8 @@ use bevy_dark_factory::keys::{Action, binding};
 use bevy_dark_factory::settings::{Theme, UserSettingsFile};
 
 use crate::fixtures;
+use crate::settle_support;
 
-/// Frames run after each step: enough for gooey's colour glide to arrive at the colour it is drawn in.
-const SETTLE: usize = 40;
 /// One frame of the test clock, in seconds.
 const FRAME_S: f32 = 1.0 / 60.0;
 /// The window the editor is laid out in, in logical px.
@@ -48,11 +47,7 @@ const WINDOW_PX: (u32, u32) = (1280, 720);
 const AA: f32 = bevy_gooey::TEXT_CONTRAST;
 const THEMES: [Theme; 3] = [Theme::ToolDark, Theme::Parchment, Theme::HighContrast];
 
-fn settle(app: &mut App) {
-    for _ in 0..SETTLE {
-        app.update();
-    }
-}
+
 
 fn write(root: &std::path::Path, rel: &str, text: &str) {
     let full = root.join(rel);
@@ -75,7 +70,7 @@ fn editor(theme: Theme) -> App {
     app.insert_resource(UserSettingsFile(settings));
     harness::resize_surface(&mut app, WINDOW_PX.0, WINDOW_PX.1).unwrap_or_else(|e| panic!("{e}"));
     app.insert_resource(TimeUpdateStrategy::ManualDuration(std::time::Duration::from_secs_f32(FRAME_S)));
-    settle(&mut app);
+    settle_support::settle(&mut app);
     app
 }
 
@@ -93,7 +88,7 @@ fn open(app: &mut App, action: Action) {
         app.update();
         app.update();
     }
-    settle(app);
+    settle_support::settle(app);
 }
 
 /// The ground a word is read on: every translucent fill from the word up to the first opaque one, composited over it (or over the clear colour).
@@ -198,12 +193,12 @@ fn stand_on_the_home(app: &mut App) {
     app.insert_resource(bevy_dark_factory::recent::RecentProjects(recent.join("recent.yaml")));
     app.add_plugins(bevy_dark_factory::launcher::LauncherPlugin);
     app.world_mut().resource_mut::<NextState<bevy_dark_factory::screen::Screen>>().set(bevy_dark_factory::screen::Screen::Launcher);
-    settle(app);
+    settle_support::settle(app);
 }
 
 fn open_settings(app: &mut App) {
     app.world_mut().write_message(bevy_dark_factory::settings_screen::OpenSettings);
-    settle(app);
+    settle_support::settle(app);
 }
 
 fn open_the_palette(app: &mut App) {
@@ -214,7 +209,7 @@ fn open_the_palette(app: &mut App) {
         }
         app.update();
     }
-    settle(app);
+    settle_support::settle(app);
 }
 
 fn open_every_workspace(app: &mut App) {
@@ -245,7 +240,7 @@ thread_local! {
 fn open_a_file(app: &mut App) {
     open(app, Action::WorkspaceFiles);
     bevy_dark_factory::files::open_file(app.world_mut(), "design/style.md").unwrap_or_else(|e| panic!("{e}"));
-    settle(app);
+    settle_support::settle(app);
 }
 
 fn open_design(app: &mut App) {
@@ -259,17 +254,17 @@ fn open_map(app: &mut App) {
 fn arm_a_piece(app: &mut App) {
     open(app, Action::WorkspaceMap);
     app.world_mut().resource_mut::<bevy_dark_factory::editor::EditorState>().brush = Some(0);
-    settle(app);
+    settle_support::settle(app);
 }
 
 fn select_in_the_outliner(app: &mut App) {
     open(app, Action::WorkspaceMap);
     let row = app.world_mut().query_filtered::<Entity, With<bevy_dark_factory::outliner::OutlinerItem>>().single(app.world()).expect("the View menu carries one Show outliner row");
     app.world_mut().commands().trigger(bevy::ui_widgets::ValueChange { source: row, value: true, is_final: true });
-    settle(app);
+    settle_support::settle(app);
     let id = app.world().resource::<bevy_dark_factory::project::OpenMap>().map.placements[0].id.clone();
     assert!(app.world_mut().resource_mut::<bevy_dark_factory::selection::Selection>().only(&id), "the piece is selected");
-    settle(app);
+    settle_support::settle(app);
 }
 
 /// **In every skin, every word under a selected row, tab or chip of every surface clears 4.5:1 against what it is drawn on.**

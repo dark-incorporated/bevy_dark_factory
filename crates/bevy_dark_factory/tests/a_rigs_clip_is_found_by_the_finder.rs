@@ -19,9 +19,8 @@ use bevy_dark_factory::tiles::Mode;
 use bevy_dark_factory::workspace::Workspace;
 
 use crate::fixtures;
+use crate::settle_support;
 
-/// Frames the editor is given between one key and the next.
-const SETTLE_FRAMES: usize = 40;
 
 /// The rig, and the clip a person asks the finder for. The clip is slot 1 of the manifest, so that a finder that only found the rig (or
 /// the first slot) lands on the wrong answer.
@@ -60,15 +59,11 @@ fn editor(tag: &str) -> App {
     let mut app = harness::build_headless(&root, "m", None).unwrap_or_else(|e| panic!("{e}"));
     app.insert_resource(bevy::time::TimeUpdateStrategy::ManualDuration(std::time::Duration::from_secs_f32(1.0 / 60.0)));
     app.world_mut().spawn((Window::default(), bevy::window::PrimaryWindow));
-    settle(&mut app);
+    settle_support::settle(&mut app);
     app
 }
 
-fn settle(app: &mut App) {
-    for _ in 0..SETTLE_FRAMES {
-        app.update();
-    }
-}
+
 
 /// One key event to the primary window.
 fn key(app: &mut App, code: KeyCode, logical: Key, text: Option<&str>, state: ButtonState) {
@@ -95,7 +90,7 @@ fn ask_the_finder_for(app: &mut App, name: &str) {
         key(app, primary(), unidentified(), None, state);
         key(app, KeyCode::KeyP, unidentified(), None, state);
     }
-    settle(app);
+    settle_support::settle(app);
     let open = {
         let world = app.world_mut();
         world.query_filtered::<Entity, With<bevy_gooey::CommandPalette>>().iter(world).next().is_some()
@@ -107,11 +102,11 @@ fn ask_the_finder_for(app: &mut App, name: &str) {
             key(app, letter(c), Key::Character(s.as_str().into()), (state == ButtonState::Pressed).then_some(s.as_str()), state);
         }
     }
-    settle(app);
+    settle_support::settle(app);
     for state in [ButtonState::Pressed, ButtonState::Released] {
         key(app, KeyCode::Enter, Key::Enter, None, state);
     }
-    settle(app);
+    settle_support::settle(app);
 }
 
 #[test]

@@ -38,11 +38,7 @@ const FRAMES_PER_REDRAW: usize = 4;
 const PROMPT_TRIES: usize = 100;
 const CHECK_GAP: std::time::Duration = std::time::Duration::from_millis(50);
 
-fn settle(app: &mut App, frames: usize) {
-    for _ in 0..frames {
-        app.update();
-    }
-}
+
 
 fn feed(app: &mut App, bytes: &[u8]) {
     let mut terminal = app.world_mut().resource_mut::<Terminal>();
@@ -93,7 +89,7 @@ fn the_capture_editor() -> App {
     );
     resolution.set_scale_factor_override(Some(SCALE));
     let window = app.world_mut().spawn((Window { resolution, ..default() }, PrimaryWindow)).id();
-    settle(&mut app, 10);
+    for _ in 0..10 { app.update(); }
     for state in [ButtonState::Pressed, ButtonState::Released] {
         for key in [KeyCode::ControlLeft, KeyCode::Backquote] {
             app.world_mut().write_message(KeyboardInput {
@@ -108,7 +104,7 @@ fn the_capture_editor() -> App {
         app.update();
     }
     for _ in 0..PROMPT_TRIES {
-        settle(&mut app, 2);
+        for _ in 0..2 { app.update(); }
         if app.world().resource::<CellMetrics>().is_measured() {
             return app;
         }
@@ -126,7 +122,7 @@ fn a_rule_as_wide_as_the_terminal_says_stays_inside_it() {
         let cols = app.world().resource::<TerminalPane>().cells().0 as usize;
         let rule = "-".repeat(cols);
         feed(&mut app, format!("\x1b[2J\x1b[H{PROMPT}\r\n{rule}").as_bytes());
-        settle(&mut app, FRAMES_PER_REDRAW);
+        for _ in 0..FRAMES_PER_REDRAW { app.update(); }
         let (_, body_right) = body_span(&mut app);
         seen.push((cols, body_right, row_right(&mut app, 1)));
     }
@@ -161,7 +157,7 @@ fn lit_caret_left(app: &mut App) -> f32 {
             return span_x(&node, &transform).0;
         }
         std::thread::sleep(CHECK_GAP);
-        settle(app, 1);
+        for _ in 0..1 { app.update(); }
     }
     panic!("the caret was never lit in {PROMPT_TRIES} tries");
 }

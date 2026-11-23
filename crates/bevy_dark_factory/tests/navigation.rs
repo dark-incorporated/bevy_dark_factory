@@ -52,14 +52,13 @@ use bevy_dark_factory::tiles::{ImportState, Mode};
 use bevy_gooey::testing::{click, find_by_label};
 
 use crate::fixtures;
+use crate::settle_support;
 
 /// **Frames the editor is given to finish opening** before a route starts. A door's `OnEnter` spawns
 /// the panels, and a fixture measures its meshes on the way in; ten frames is what the editor's own
 /// tests settle on for this.
 const WARM_UP_FRAMES: usize = 10;
 
-/// **Frames after each action**, so what it changed is laid out before the next one reads the screen.
-const SETTLE_FRAMES: usize = 6;
 
 /// **How long a route may wait for something the clock paces** — the loading screen between the
 /// project page and a door — before the row is called unreachable.
@@ -198,12 +197,6 @@ impl Driver {
         });
     }
 
-    fn settle(&mut self) {
-        for _ in 0..SETTLE_FRAMES {
-            self.app.update();
-        }
-    }
-
     /// **One chord, counted as one press, and named for the route.**
     fn chord(&mut self, keys: &[KeyCode], spoken: &str) {
         for state in [ButtonState::Pressed, ButtonState::Released] {
@@ -212,7 +205,7 @@ impl Driver {
             }
             self.app.update();
         }
-        self.settle();
+        settle_support::settle(&mut self.app);
         self.cost.presses += 1;
         self.steps.push(spoken.to_owned());
     }
@@ -221,7 +214,7 @@ impl Driver {
     fn click(&mut self, label: &str) {
         let widget = find_by_label(&mut self.app, label).unwrap_or_else(|e| panic!("no `{label}` on screen: {e}\n\non screen: {:#?}", self.words()));
         click(&mut self.app, widget);
-        self.settle();
+        settle_support::settle(&mut self.app);
         self.cost.pointer += 1;
         self.steps.push(format!("click `{label}`"));
     }
@@ -243,7 +236,7 @@ impl Driver {
         rows.dedup();
         let [row] = rows.as_slice() else { panic!("{} rows read `{label}`, wanted one: {:#?}", rows.len(), self.words()) };
         click(&mut self.app, *row);
-        self.settle();
+        settle_support::settle(&mut self.app);
         self.cost.pointer += 1;
         self.steps.push(format!("click the row `{label}`"));
     }
@@ -703,14 +696,14 @@ fn a_levels_style() -> Destination {
     }
     let mut d = Driver::open(root.clone(), Mode::Map);
     bevy_dark_factory::harness::resize_surface(&mut d.app, 1536, 1400).unwrap_or_else(|e| panic!("{e}"));
-    d.settle();
+    settle_support::settle(&mut d.app);
     d.chord(&[primary(), KeyCode::Digit0], "press Cmd/Ctrl+0 (the Design workspace)");
     assert_eq!(*d.app.world().resource::<Workspace>(), Workspace::Design, "Cmd/Ctrl+0 opens the Design workspace");
     // The person's own trust store is not read by a test: the workspace's state is rebuilt by the switch, so the test's store is named after it.
     let store = root.join("trusted.yaml");
     blueprint_model::trust::TrustStore::default().save(&store).unwrap_or_else(|e| panic!("{e}"));
     d.app.world_mut().resource_mut::<bevy_dark_factory::editor::EditorState>().trust.file = Some(store);
-    d.settle();
+    settle_support::settle(&mut d.app);
     let selected = |d: &Driver| d.app.world().resource::<bevy_dark_factory::design_view::DesignView>().selected().map(str::to_owned);
     if selected(&d).as_deref() != Some(LEVEL_STYLE) {
         d.click_row("m");
@@ -1056,7 +1049,7 @@ fn drive_the_finder(what: &'static str, query: &'static str) -> Result<Cost, Str
         }
         app.update();
     }
-    settle(&mut app);
+    settle_support::settle(&mut app);
     let opened = {
         let world = app.world_mut();
         world.query_filtered::<Entity, With<bevy_gooey::CommandPalette>>().iter(world).next().is_some()
@@ -1075,12 +1068,12 @@ fn drive_the_finder(what: &'static str, query: &'static str) -> Result<Cost, Str
             app.update();
         }
     }
-    settle(&mut app);
+    settle_support::settle(&mut app);
     for state in [ButtonState::Pressed, ButtonState::Released] {
         finder_key(&mut app, KeyCode::Enter, Key::Enter, None, state);
         app.update();
     }
-    settle(&mut app);
+    settle_support::settle(&mut app);
     let still_open = {
         let world = app.world_mut();
         world.query_filtered::<Entity, With<bevy_gooey::CommandPalette>>().iter(world).next().is_some()

@@ -39,15 +39,11 @@ fn editor(tag: &str) -> App {
     let mut app = bevy_dark_factory::harness::build_headless(&root, "m", None).unwrap_or_else(|e| panic!("{e}"));
     app.insert_non_send(PosixShell(guard));
     app.world_mut().spawn((Window { resolution: bevy::window::WindowResolution::new(1280, 720), ..default() }, PrimaryWindow));
-    settle(&mut app, 12);
+    for _ in 0..12 { app.update(); }
     app
 }
 
-fn settle(app: &mut App, frames: usize) {
-    for _ in 0..frames {
-        app.update();
-    }
-}
+
 
 fn window(app: &mut App) -> Entity {
     app.world_mut().query_filtered::<Entity, With<PrimaryWindow>>().single(app.world()).expect("one primary window")
@@ -80,7 +76,7 @@ fn chord_j(app: &mut App, shift: bool) {
         send(app, KeyCode::KeyJ, Key::Character("j".into()), state);
         app.update();
     }
-    settle(app, 4);
+    for _ in 0..4 { app.update(); }
 }
 
 /// The pane's laid-out height, the room below the menu bar, and whether the pane is drawn — all in logical px.
@@ -218,7 +214,7 @@ fn shift_cmd_j_and_the_view_row_still_reach_maximised_from_any_position() {
 /// **The View ▸ Maximise terminal row, activated through the row's own door** (`app_verbs::run`), as a person's click reaches it.
 fn press_the_view_row(app: &mut App) {
     app_verbs::run(app.world_mut(), AppVerb::MaximiseTerminal);
-    settle(app, 6);
+    for _ in 0..6 { app.update(); }
 }
 
 /// **A drag of the grip is the person taking the height**: the cycle's next turn starts from the dragged height rather than
@@ -237,7 +233,7 @@ fn a_dragged_height_is_the_cycles_next_starting_point() {
         let pane = world.query_filtered::<Entity, With<TerminalPaneRoot>>().single(world).expect("the pane");
         world.get_mut::<Node>(pane).expect("a Node").height = Val::Px(dragged);
     }
-    settle(&mut app, 4);
+    for _ in 0..4 { app.update(); }
     let (after, _, _) = heights(&mut app);
     assert!((after - dragged).abs() <= 1.0, "the pane is drawn at the dragged {dragged}, not {after}");
     // Round the cycle until it comes back to the quarter: Quarter -> Maximised -> Collapsed -> Quarter, which returns to the drag,

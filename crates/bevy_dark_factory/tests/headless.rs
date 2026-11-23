@@ -4149,15 +4149,15 @@ fn a_refit_on_another_tab_leaves_the_tile_history_alone() {
         );
         app.update();
     }
-    // **Released, then stepped.** A latched press stays down, and `keys::repeating` would auto-repeat
-    // an `Undo` held across idle frames — which is exactly what these frames are for.
-    fn settle(app: &mut App, frames: usize) {
-        app.world_mut()
-            .resource_mut::<ButtonInput<KeyCode>>()
-            .release_all();
-        for _ in 0..frames {
-            app.update();
-        }
+    /// **Released, then stepped**, and counted with the frames in the test: the release is part of what this helper is for, so
+    /// it stays a local helper and a reader sees why the frames are there.
+    macro_rules! settle {
+        ($app:expr, $frames:expr) => {{
+            $app.world_mut().resource_mut::<ButtonInput<KeyCode>>().release_all();
+            for _ in 0..$frames {
+                $app.update();
+            }
+        }};
     }
     let members = |app: &App| -> Vec<String> {
         app.world()
@@ -4196,14 +4196,14 @@ fn a_refit_on_another_tab_leaves_the_tile_history_alone() {
         &mut app,
         vec![bevy_dark_factory::keys::MOD_KEYS[0], binding(Action::UndoBuild).key],
     );
-    settle(&mut app, 2);
+    settle!(&mut app, 2);
     let one = members(&app);
     assert_eq!(one.len(), 1, "one undo takes the second mesh back out: {one:?}");
 
     // **Off to Meshes, where `tile_history` is asleep and `refit_tile` is not.**
     *app.world_mut().resource_mut::<bevy_dark_factory::tiles::Mode>() =
         bevy_dark_factory::tiles::Mode::Meshes;
-    settle(&mut app, 2);
+    settle!(&mut app, 2);
     let before = envelope(&app);
 
     // **A measurement lands.** `fit_envelope` measures a member through `library.get(id)`, so this
@@ -4232,7 +4232,7 @@ fn a_refit_on_another_tab_leaves_the_tile_history_alone() {
         }
         assert!(touched > 0, "`{member}` must be in one of the two lists");
     }
-    settle(&mut app, 4);
+    settle!(&mut app, 4);
     let grown = envelope(&app);
     assert!(
         grown.0 > before.0 && grown.2 > before.2,
@@ -4250,7 +4250,7 @@ fn a_refit_on_another_tab_leaves_the_tile_history_alone() {
     // clears `future`.
     *app.world_mut().resource_mut::<bevy_dark_factory::tiles::Mode>() =
         bevy_dark_factory::tiles::Mode::Tiles;
-    settle(&mut app, 2);
+    settle!(&mut app, 2);
 
     // **`past` was not topped with a phantom.** One undo empties the tile, which is the step the
     // author actually took. Before the fix the top of `past` held the pre-refit tile — the same
@@ -4260,7 +4260,7 @@ fn a_refit_on_another_tab_leaves_the_tile_history_alone() {
         &mut app,
         vec![bevy_dark_factory::keys::MOD_KEYS[0], binding(Action::UndoBuild).key],
     );
-    settle(&mut app, 2);
+    settle!(&mut app, 2);
     assert!(
         members(&app).is_empty(),
         "one undo after a refit on another tab must step back a real edit; the tile still holds {:?}",
@@ -4277,7 +4277,7 @@ fn a_refit_on_another_tab_leaves_the_tile_history_alone() {
             binding(Action::RedoBuild).key,
         ],
     );
-    settle(&mut app, 2);
+    settle!(&mut app, 2);
     assert_eq!(
         members(&app),
         one,
@@ -4291,7 +4291,7 @@ fn a_refit_on_another_tab_leaves_the_tile_history_alone() {
             binding(Action::RedoBuild).key,
         ],
     );
-    settle(&mut app, 2);
+    settle!(&mut app, 2);
     assert_eq!(
         members(&app),
         two,
@@ -10226,11 +10226,14 @@ fn the_room_script_can_actually_be_followed() {
         app.update();
     };
     let file = "pending/build_a_room.json";
-    let settle = |app: &mut App| {
-        for _ in 0..2 {
-            app.update();
-        }
-    };
+    /// Two frames: one for the press to be read, one for what it changed to be laid out.
+    macro_rules! settle {
+        ($app:expr) => {{
+            for _ in 0..2 {
+                $app.update();
+            }
+        }};
+    }
 
     // **Step 1 is satisfied by the door.** It used to start false because the editor booted on Map
     // and `3` was what reached the Tiles tab. The Kit door opens on Meshes and holds Tiles one key
@@ -10248,9 +10251,9 @@ fn the_room_script_can_actually_be_followed() {
             "`start the corner tile` must begin false — no tile is open on arrival"
         );
         press(&mut app, vec![key(bevy_dark_factory::keys::Action::BuildNew)]);
-        settle(&mut app);
+        settle!(&mut app);
         name_the_tile(&mut app, "corner");
-        settle(&mut app);
+        settle!(&mut app);
     }
 
     // **The corner.** Two walls, the second turned a quarter — which is what makes it a corner and
@@ -10286,7 +10289,7 @@ fn the_room_script_can_actually_be_followed() {
             }
         }
     }
-    settle(&mut app);
+    settle!(&mut app);
     assert!(
         checkpoint(&mut app, &turns, with),
         "floor and wall at 0 plus a wall turned a quarter is TWO distinct quarter-turns — if this \
@@ -10315,7 +10318,7 @@ fn the_room_script_can_actually_be_followed() {
                 open.members.push(member("the_piece", id, 0.0));
             }
         }
-        settle(&mut app);
+        settle!(&mut app);
         assert!(
             checkpoint(&mut app, &name, with),
             "`{label}` asks for {id}, and a tile holding exactly that did not satisfy it"
@@ -10352,7 +10355,7 @@ fn the_room_script_can_actually_be_followed() {
                 });
             }
         }
-        settle(&mut app);
+        settle!(&mut app);
         assert!(
             checkpoint(&mut app, &name, with),
             "`{label}` wants {want} stamped tiles and {want} did not satisfy it. Note this counts \

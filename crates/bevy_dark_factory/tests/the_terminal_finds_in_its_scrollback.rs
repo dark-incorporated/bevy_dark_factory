@@ -152,7 +152,7 @@ fn ctrl_f(app: &mut App) {
         send(app, KeyCode::KeyF, Key::Character("f".into()), state);
         app.update();
     }
-    settle(app, 3);
+    for _ in 0..3 { app.update(); }
 }
 
 fn shell_text(app: &App) -> String {
@@ -179,7 +179,7 @@ fn find_box(app: &mut App) -> Option<Entity> {
 fn primary_f_in_the_shell_opens_the_find_box_with_the_keys_and_escape_gives_them_back() {
     let mut app = editor_with_terminal("terminal_find_box");
     app.world_mut().resource_mut::<TerminalFocus>().take();
-    settle(&mut app, 6);
+    for _ in 0..6 { &mut app.update(); }
     let before = shell_text(&app);
 
     ctrl_f(&mut app);
@@ -201,9 +201,9 @@ fn primary_f_in_the_shell_opens_the_find_box_with_the_keys_and_escape_gives_them
     assert!(app.world().resource::<TerminalFocus>().holds(), "the terminal keeps the keys: the editor's bindings stay quiet");
 
     tap(&mut app, KeyCode::KeyZ, Key::Character("z".into()));
-    settle(&mut app, 3);
+    for _ in 0..3 { &mut app.update(); }
     std::thread::sleep(std::time::Duration::from_millis(300));
-    settle(&mut app, 3);
+    for _ in 0..3 { &mut app.update(); }
     let after = shell_text(&app);
     assert!(
         !after.contains("^F") && after.matches('z').count() == before.matches('z').count(),
@@ -212,14 +212,14 @@ fn primary_f_in_the_shell_opens_the_find_box_with_the_keys_and_escape_gives_them
 
     // The query searches the active shell's screen.
     app.world_mut().commands().trigger(ValueChange::<String> { source: row, value: "$".to_owned(), is_final: false });
-    settle(&mut app, 3);
+    for _ in 0..3 { &mut app.update(); }
     assert!(
         app.world().resource::<Terminal>().tab().and_then(|tab| tab.screen().find_status()).is_some_and(|s| s.total >= 1),
         "a query typed into the box searches the shell's scrollback"
     );
 
     tap(&mut app, KeyCode::Escape, Key::Escape);
-    settle(&mut app, 3);
+    for _ in 0..3 { &mut app.update(); }
     assert!(find_box(&mut app).is_none(), "Escape closes the find box");
     assert!(!app.world().resource::<TerminalFind>().is_open(), "and the search with it");
     assert!(

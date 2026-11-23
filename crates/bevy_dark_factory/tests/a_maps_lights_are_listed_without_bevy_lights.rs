@@ -18,9 +18,8 @@ use blueprint_model::map::Map;
 use bevy_dark_factory::workspace::Workspace;
 
 use crate::fixtures;
+use crate::settle_support;
 
-/// Frames the editor is given to settle after a switch and between reads.
-const SETTLE_FRAMES: usize = 60;
 
 /// The family key and the value a light is saved under: the crate's own `Flicker`, as text the editor does not interpret.
 const KEY: &str = "bevy_lights";
@@ -46,23 +45,18 @@ fn editor(tag: &str, light: bool) -> App {
         std::fs::write(&file, blueprint_model::yaml::to_string(&map).unwrap_or_else(|p| panic!("{}", p.line()))).unwrap_or_else(|e| panic!("{file:?}: {e}"));
     }
     let mut app = harness::build_headless(&root, "m", None).unwrap_or_else(|e| panic!("{e}"));
-    settle(&mut app);
+    settle_support::settle(&mut app);
     app
 }
 
-fn settle(app: &mut App) {
-    for _ in 0..SETTLE_FRAMES {
-        std::thread::sleep(std::time::Duration::from_millis(5));
-        app.update();
-    }
-}
+
 
 /// **One press of the World workspace's chord**: its command, queued the way the key does.
 fn press_the_world_chord(app: &mut App) {
     let command = commands::by_id("workspace.world").unwrap_or_else(|| panic!("`workspace.world` is not a command"));
     let live = *app.world().resource::<Live>();
     app.world_mut().resource_mut::<Chords>().queue(&command, live);
-    settle(app);
+    settle_support::settle(app);
     assert_eq!(app.world().resource::<Workspace>(), &Workspace::World, "the World chord did not open the World workspace");
 }
 

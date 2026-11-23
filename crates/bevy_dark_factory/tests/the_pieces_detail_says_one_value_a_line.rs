@@ -29,10 +29,9 @@ use bevy_dark_factory::reveal::Revealing;
 use bevy_dark_factory::workspace::Workspace;
 
 use crate::fixtures;
+use crate::settle_support;
 
 /// Frames the editor is given to settle: the crossing to the Kit door, the piece's detail built, and
-/// the maps under `maps/` read for the `Used by` sentence.
-const SETTLE: usize = 60;
 
 fn project(tag: &str) -> std::path::PathBuf {
     fixtures::Fixture::new(&format!("{tag}_{}", std::process::id()))
@@ -49,11 +48,7 @@ fn editor(root: &std::path::Path) -> App {
     app
 }
 
-fn settle(app: &mut App) {
-    for _ in 0..SETTLE {
-        app.update();
-    }
-}
+
 
 /// **The piece's id row is one value a line** (#519): the id on its line, the maps that place it on
 /// the next, and no middle dot between them.
@@ -63,7 +58,7 @@ fn the_pieces_id_row_holds_no_middle_dot_between_two_values() {
     let mut app = editor(&root);
     // The Kit door, on the placed piece, which is the detail the capture picked.
     app.world_mut().resource_mut::<Revealing>().request_by_person("test", &Shown::Piece { id: "chair".to_owned() });
-    settle(&mut app);
+    settle_support::settle(&mut app);
     assert_eq!(*app.world().resource::<Workspace>(), Workspace::Kit, "a piece is shown on the Kit workspace");
 
     // The row as it is drawn: the text carrying both the id and where the piece stands.
@@ -112,7 +107,7 @@ fn no_field_of_the_pieces_detail_joins_two_values_with_a_middle_dot() {
     let root = project("detail519");
     let mut app = editor(&root);
     app.world_mut().resource_mut::<Revealing>().request_by_person("test", &Shown::Piece { id: "chair".to_owned() });
-    settle(&mut app);
+    settle_support::settle(&mut app);
 
     // The detail's own field labels: a row that is a `label` and a value.
     let drawn: Vec<String> = {

@@ -12,16 +12,10 @@ use bevy_gooey::Role;
 
 use crate::fixtures;
 
-fn settle(app: &mut App, frames: usize) {
-    for _ in 0..frames {
-        app.update();
-    }
-}
-
 fn editor(tag: &str) -> App {
     let root = fixtures::Fixture::new(&format!("keep_{tag}_{}", std::process::id())).descriptor("site/wall", "alpha").place("site/wall", (0.0, 0.0)).build("m");
     let mut app = harness::build_headless_at(&root, "m", None, Mode::Map).unwrap_or_else(|e| panic!("{e}"));
-    settle(&mut app, 8);
+    for _ in 0..8 { app.update(); }
     app
 }
 
@@ -29,7 +23,7 @@ fn editor(tag: &str) -> App {
 fn editor_on(tag: &str, mode: Mode) -> App {
     let root = fixtures::Fixture::new(&format!("keep_on_{tag}_{}", std::process::id())).descriptor("site/wall", "alpha").place("site/wall", (0.0, 0.0)).build("m");
     let mut app = harness::build_headless_at(&root, "m", None, mode).unwrap_or_else(|e| panic!("{e}"));
-    settle(&mut app, 8);
+    for _ in 0..8 { app.update(); }
     app
 }
 
@@ -88,7 +82,7 @@ fn a_cards_picture_is_the_middle_band_that_fits_its_box() {
     bevy_dark_factory::recent::record(&file, &root).expect("the project is recorded");
     app.insert_resource(bevy_dark_factory::recent::RecentProjects(file));
     app.world_mut().resource_mut::<NextState<Screen>>().set(Screen::Launcher);
-    settle(&mut app, 4);
+    for _ in 0..4 { app.update(); }
     let card = app.world_mut().query_filtered::<Entity, With<ProjectCard>>().single(app.world()).expect("the project has a card");
     let picture = app
         .world()
@@ -124,15 +118,15 @@ fn the_settings_keymap_and_configuration_cards_are_as_wide_as_they_were() {
     use bevy_dark_factory::settings_screen::{OpenSettings, SettingsDialog};
     let mut app = editor("dialogs");
     app.world_mut().write_message(OpenSettings);
-    settle(&mut app, 6);
+    for _ in 0..6 { app.update(); }
     let settings = app.world_mut().query_filtered::<Entity, With<SettingsDialog>>().single(app.world()).expect("Settings is open");
     assert_dialog_width(&app, settings, "Settings");
     app.world_mut().write_message(OpenKeymap);
-    settle(&mut app, 6);
+    for _ in 0..6 { app.update(); }
     let keymap = app.world_mut().query_filtered::<Entity, With<KeymapDialog>>().single(app.world()).expect("the Keymap is open");
     assert_dialog_width(&app, keymap, "the Keymap");
     app.world_mut().write_message(OpenProjectConfig);
-    settle(&mut app, 6);
+    for _ in 0..6 { app.update(); }
     let config = app.world_mut().query_filtered::<Entity, With<ProjectConfigDialog>>().single(app.world()).expect("the project configuration is open");
     assert_dialog_width(&app, config, "the project configuration");
 }
@@ -147,10 +141,10 @@ fn the_new_project_card_is_as_wide_as_it_was() {
     let mut app = harness::build_headless(&root, "m", None).unwrap_or_else(|e| panic!("{e}"));
     app.add_plugins(LauncherPlugin);
     app.world_mut().resource_mut::<NextState<Screen>>().set(Screen::Launcher);
-    settle(&mut app, 4);
+    for _ in 0..4 { app.update(); }
     let button = bevy_gooey::testing::find_by_label(&mut app, "New project").unwrap_or_else(|e| panic!("{e:?}"));
     app.world_mut().commands().trigger(bevy_gooey::Activate { entity: button });
-    settle(&mut app, 4);
+    for _ in 0..4 { app.update(); }
     let card = app.world_mut().query_filtered::<Entity, With<FormCard>>().single(app.world()).expect("the form is open");
     assert_dialog_width(&app, card, "the New project form");
 }
@@ -166,7 +160,7 @@ fn a_click_on_the_stop_rows_words_stops_the_job() {
     }
     let root = fixture.build("m");
     let mut app = harness::build_headless(&root, "m", None).unwrap_or_else(|e| panic!("{e}"));
-    settle(&mut app, 3);
+    for _ in 0..3 { app.update(); }
     let item = app.world_mut().query_filtered::<Entity, With<JobsItem>>().iter(app.world()).next().expect("the band carries a job item");
     click(&mut app, item);
     let row = {
@@ -181,7 +175,7 @@ fn a_click_on_the_stop_rows_words_stops_the_job() {
         .find(|child| app.world().get::<Text>(*child).is_some())
         .expect("the row holds its words");
     click(&mut app, words);
-    settle(&mut app, 3);
+    for _ in 0..3 { app.update(); }
     let jobs = app.world().resource::<Jobs>();
     assert!(!jobs.snapshot().iter().any(|(key, _)| *key == "thumbs"), "a press on the Stop row's words stopped the bake, as a press on the row does");
 }
@@ -211,7 +205,7 @@ fn the_night_shift_block_fills_its_pane() {
     use bevy_dark_factory::night_shift::NightShift;
     let root = fixtures::Fixture::new(&format!("keep_night_shift_{}", std::process::id())).descriptor("site/wall", "alpha").build("m");
     let mut app = harness::build_headless_at(&root, "m", None, Mode::Agent).unwrap_or_else(|e| panic!("{e}"));
-    settle(&mut app, 8);
+    for _ in 0..8 { app.update(); }
     let block = app.world_mut().query_filtered::<Entity, With<NightShift>>().single(app.world()).expect("the block is on screen");
     let parent = app.world().get::<ChildOf>(block).map(ChildOf::parent).expect("the block has a pane");
     let pane = app.world().get::<ComputedNode>(parent).expect("the pane is laid out");

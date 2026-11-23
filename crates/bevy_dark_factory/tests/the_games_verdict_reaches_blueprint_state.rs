@@ -12,6 +12,7 @@ use bevy_dark_factory::live::LiveWrite;
 use bevy_dark_factory::project::{OpenMap, Project};
 
 use crate::fixtures;
+use crate::index_view_support as support;
 
 fn editor(name: &str, live: bool) -> App {
     let root = fixtures::Fixture::new(name)
@@ -45,11 +46,7 @@ fn game(app: &mut App) -> serde_json::Value {
     state["game"].clone()
 }
 
-fn settle(app: &mut App) {
-    std::thread::sleep(Duration::from_millis(300));
-    app.update();
-    app.update();
-}
+
 
 #[test]
 fn the_verdict_is_null_pending_or_the_answer() {
@@ -62,14 +59,14 @@ fn the_verdict_is_null_pending_or_the_answer() {
     let mut old = Verdict::now(true, "town: 0 added");
     old.at_unix_ms -= 60_000;
     old.write(&dir).unwrap();
-    settle(&mut app);
+    support::settle(&mut app);
     assert_eq!(game(&mut app), serde_json::json!("pending"));
 
     // One written after the last write is the answer.
     std::fs::write(&map, std::fs::read_to_string(&map).unwrap()).unwrap();
     std::thread::sleep(Duration::from_millis(20));
     Verdict::now(false, "descriptor `x/y` does not resolve").write(&dir).unwrap();
-    settle(&mut app);
+    support::settle(&mut app);
     let g = game(&mut app);
     assert_eq!(g["ok"], serde_json::json!(false), "{g}");
     assert_eq!(g["message"], serde_json::json!("descriptor `x/y` does not resolve"));
@@ -80,6 +77,6 @@ fn without_live_the_file_is_never_read() {
     let mut app = editor("verdict_not_live", false);
     let dir = app.world().resource::<Project>().blueprint_dir.clone();
     Verdict::now(true, "ok").write(&dir).unwrap();
-    settle(&mut app);
+    support::settle(&mut app);
     assert_eq!(game(&mut app), serde_json::Value::Null);
 }

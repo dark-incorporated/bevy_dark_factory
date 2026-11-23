@@ -28,10 +28,9 @@ use bevy_dark_factory::workspace::Workspace;
 use bevy::ui::ComputedNode;
 
 use crate::fixtures;
+use crate::settle_support;
 
 /// **Frames the editor is given to settle** after a switch: the transition runs in the frame after the
-/// key, and the panels are spawned on the frame after that.
-const SETTLE_FRAMES: usize = 12;
 
 fn project(tag: &str) -> PathBuf {
     fixtures::Fixture::new(&format!("panel_home_{tag}_{}", std::process::id()))
@@ -42,15 +41,11 @@ fn project(tag: &str) -> PathBuf {
 
 fn editor(tag: &str) -> App {
     let mut app = harness::build_headless(&project(tag), "m", None).unwrap_or_else(|e| panic!("{e}"));
-    settle(&mut app);
+    settle_support::settle(&mut app);
     app
 }
 
-fn settle(app: &mut App) {
-    for _ in 0..SETTLE_FRAMES {
-        app.update();
-    }
-}
+
 
 /// **Switch the way the palette does**: the workspace's command id, its chord queued and pressed.
 fn switch_to(app: &mut App, workspace: Workspace) {
@@ -58,7 +53,7 @@ fn switch_to(app: &mut App, workspace: Workspace) {
     let command = commands::by_id(&id).unwrap_or_else(|| panic!("`{id}` is not a command"));
     let live = *app.world().resource::<Live>();
     app.world_mut().resource_mut::<Chords>().queue(&command, live);
-    settle(app);
+    settle_support::settle(app);
     assert_eq!(app.world().resource::<Workspace>(), &workspace, "the `{id}` command did not open the {} workspace", workspace.title());
 }
 

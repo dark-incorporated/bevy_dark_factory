@@ -31,9 +31,8 @@ use bevy_dark_factory::view::Rig;
 use bevy_dark_factory::workspace::Workspace;
 
 use crate::fixtures;
+use crate::settle_support;
 
-/// Frames a workspace switch and its panels need.
-const SETTLE: usize = 20;
 
 fn editor(tag: &str) -> App {
     let root = fixtures::Fixture::new(&format!("nav_{tag}_{}", std::process::id()))
@@ -50,11 +49,7 @@ fn editor(tag: &str) -> App {
     app
 }
 
-fn settle(app: &mut App) {
-    for _ in 0..SETTLE {
-        app.update();
-    }
-}
+
 
 fn primary() -> KeyCode {
     if cfg!(target_os = "macos") { KeyCode::SuperLeft } else { KeyCode::ControlLeft }
@@ -74,7 +69,7 @@ fn chord(app: &mut App, key: KeyCode) {
         }
         app.update();
     }
-    settle(app);
+    settle_support::settle(app);
 }
 
 fn camera(app: &App) -> (Vec3, f32) {
@@ -96,7 +91,7 @@ fn map_to_a_panel_and_back_twice_restores_the_map_and_its_camera() {
         rig.focus = Vec3::new(6.0, 0.0, 6.0);
         rig.height = 7.5;
     }
-    settle(&mut app);
+    settle_support::settle(&mut app);
     let home = camera(&app);
 
     // **Two moves away, by the key a person presses**, each its own place. Writing the `Workspace`
@@ -107,7 +102,7 @@ fn map_to_a_panel_and_back_twice_restores_the_map_and_its_camera() {
     chord(&mut app, KeyCode::Digit4);
     assert_eq!(*app.world().resource::<Workspace>(), Workspace::Kit, "Cmd/Ctrl+4 is the Kit workspace");
     bevy_dark_factory::editor::open_door(app.world_mut(), Workspace::Kit, Some(Mode::Tiles));
-    settle(&mut app);
+    settle_support::settle(&mut app);
     assert_ne!(
         app.world().resource::<Mode>().label(),
         Mode::Meshes.label(),
@@ -143,7 +138,7 @@ fn one_back_after_a_follow_restores_the_persons_camera() {
         rig.focus = Vec3::new(3.0, 0.0, 3.0);
         rig.height = 9.0;
     }
-    settle(&mut app);
+    settle_support::settle(&mut app);
     let reading = camera(&app);
 
     // **An agent's change on the map**, exactly as `ops_brp` raises one: the follow is asked to frame a
@@ -158,7 +153,7 @@ fn one_back_after_a_follow_restores_the_persons_camera() {
             "the NightShift placed lamp@7",
         );
     }
-    settle(&mut app);
+    settle_support::settle(&mut app);
     let moved = camera(&app);
     assert!(
         !moved.0.abs_diff_eq(reading.0, 1e-3),
@@ -199,14 +194,14 @@ fn the_history_keeps_the_last_hundred_places() {
 fn back_restores_the_selection_the_place_held() {
     let mut app = editor("selection");
     assert!(lock_on_placement(app.world_mut(), "lamp@7"), "the fixture places `lamp@7`");
-    settle(&mut app);
+    settle_support::settle(&mut app);
     assert_eq!(app.world().resource::<Selection>().ids(), ["lamp@7"], "the piece is selected before the walk");
 
     chord(&mut app, KeyCode::Digit4);
     assert_eq!(*app.world().resource::<Workspace>(), Workspace::Kit);
     // **Nothing selected where the person went**, so a Back that only moved the page would leave it so.
     *app.world_mut().resource_mut::<TargetLock>() = TargetLock::default();
-    settle(&mut app);
+    settle_support::settle(&mut app);
     assert!(app.world().resource::<Selection>().is_empty(), "the selection is cleared on the Kit page");
 
     chord(&mut app, KeyCode::BracketLeft);

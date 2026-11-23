@@ -38,15 +38,11 @@ fn editor(tag: &str) -> App {
         .place_as("wall@0", "site/wall", (1.0, 1.0))
         .build("m");
     let mut app = harness::build_headless(&root, "m", None).unwrap_or_else(|e| panic!("{e}"));
-    settle(&mut app, SETTLE_FRAMES);
+    for _ in 0..SETTLE_FRAMES { app.update(); }
     app
 }
 
-fn settle(app: &mut App, n: usize) {
-    for _ in 0..n {
-        app.update();
-    }
-}
+
 
 /// **Press the console's chord** the way a person does: a `KeyboardInput` for each modifier then the key, and their
 /// releases — the census reads `just_pressed` from `ButtonInput`, which the input plugin fills from these messages.
@@ -75,7 +71,7 @@ fn press(app: &mut App) {
     for key in &held {
         tap(app, *key, bevy::input::ButtonState::Released);
     }
-    settle(app, 2);
+    for _ in 0..2 { app.update(); }
 }
 
 /// **The keys a chord holds**, the platform's primary modifier and Shift when it asks for it.
@@ -202,7 +198,7 @@ fn the_pills_carry_real_counts_and_one_off_hides_one_level() {
         ring.push(Level::Warn, "dark_factory::test", "w".to_owned(), None);
         ring.push(Level::Error, "dark_factory::test", "e".to_owned(), None);
     }
-    settle(&mut app, 2);
+    for _ in 0..2 { app.update(); }
     for level in Level::ALL {
         assert_eq!(pill_count(&mut app, level), "1", "the {} pill counts its own lines", level.label());
     }
@@ -217,7 +213,7 @@ fn the_pills_carry_real_counts_and_one_off_hides_one_level() {
             .expect("the WARN pill is drawn")
     };
     app.world_mut().trigger(Activate { entity: pill });
-    settle(&mut app, 2);
+    for _ in 0..2 { app.update(); }
     let drawn = rows(&mut app);
     assert!(drawn.iter().any(|row| row.contains(": i")), "the info line still draws: {drawn:?}");
     assert!(drawn.iter().any(|row| row.contains(": e")), "the error line still draws: {drawn:?}");
@@ -234,14 +230,14 @@ fn a_lines_piece_is_a_chip_that_selects_it() {
     press(&mut app);
     let sink = app.world().resource::<Console>().sink().clone();
     sink.push(Level::Warn, "dark_factory::test", "this piece overlaps its neighbour".to_owned(), Some("wall@0".to_owned()));
-    settle(&mut app, 2);
+    for _ in 0..2 { app.update(); }
     // Open the line, as a click on its row does.
     let id = {
         let ring = sink.read();
         ring.lines().last().map(|line| line.id).expect("the line is in the ring")
     };
     app.world_mut().resource_mut::<Console>().open = Some(id);
-    settle(&mut app, 2);
+    for _ in 0..2 { app.update(); }
     let chip = {
         let world = app.world_mut();
         world
@@ -253,7 +249,7 @@ fn a_lines_piece_is_a_chip_that_selects_it() {
     };
     assert_eq!(chip.1, "wall@0");
     app.world_mut().trigger(Activate { entity: chip.0 });
-    settle(&mut app, 2);
+    for _ in 0..2 { app.update(); }
     let selected = app.world().resource::<Selection>().ids().to_vec();
     assert_eq!(selected, vec!["wall@0".to_owned()], "the chip selects the piece the line names");
 }
@@ -270,7 +266,7 @@ fn five_hundred_lines_keep_four_hundred_and_say_what_fell_off() {
             ring.push(Level::Info, "dark_factory::test", format!("line {i}"), None);
         }
     }
-    settle(&mut app, 2);
+    for _ in 0..2 { app.update(); }
     assert_eq!(sink.read().len(), MAX_ROWS, "the ring keeps {MAX_ROWS} and no more");
     assert_eq!(sink.read().dropped(), 100);
     let tally = {
@@ -291,12 +287,12 @@ fn the_console_is_readable_with_no_project_open() {
         .init_resource::<bevy::diagnostic::FrameCount>()
         .add_plugins(bevy_dark_factory::console::ConsolePlugin)
         .insert_state(Screen::Launcher);
-    settle(&mut app, 2);
+    for _ in 0..2 { app.update(); }
     let sink = app.world().resource::<Console>().sink().clone();
     // The first lines of a run are before there is a project to be about; `log_file` writes them before
     // `DefaultPlugins`, and the console must carry the same ones.
     sink.push(Level::Info, "dark_factory::startup", "starting: no project".to_owned(), None);
-    settle(&mut app, 2);
+    for _ in 0..2 { app.update(); }
     let ring = sink.read();
     assert_eq!(ring.len(), 1);
     assert!(ring.lines().next().is_some_and(|line| line.message.contains("no project")));

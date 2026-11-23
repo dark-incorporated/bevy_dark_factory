@@ -46,17 +46,13 @@ fn the_home() -> App {
         Window { resolution: bevy::window::WindowResolution::new(1280, 703), ..default() },
         PrimaryWindow,
     ));
-    settle(&mut app, 10);
+    for _ in 0..10 { app.update(); }
     app.world_mut().resource_mut::<NextState<Screen>>().set(Screen::Launcher);
-    settle(&mut app, SCREEN_FRAMES);
+    for _ in 0..SCREEN_FRAMES { app.update(); }
     app
 }
 
-fn settle(app: &mut App, frames: usize) {
-    for _ in 0..frames {
-        app.update();
-    }
-}
+
 
 /// **The rows as the pane draws them**, top to bottom: each row's runs, in their order, joined. This is the
 /// text a person reads, so it is read from the drawn spans and not from the emulator's grid.
@@ -86,7 +82,7 @@ fn drawn_rows(app: &mut App) -> Vec<String> {
 
 fn until(app: &mut App, why: &str, test: impl Fn(&mut App) -> bool) {
     for _ in 0..TRIES {
-        settle(app, 2);
+        for _ in 0..2 { app.update(); }
         if test(app) {
             return;
         }

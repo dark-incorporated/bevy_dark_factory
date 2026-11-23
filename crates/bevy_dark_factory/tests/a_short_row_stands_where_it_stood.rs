@@ -72,11 +72,7 @@ const ON_MAIN: [(&str, f32); 5] = [
 const MARK_MAX_PX: f32 = 20.0;
 
 
-fn settle(app: &mut App, frames: usize) {
-    for _ in 0..frames {
-        app.update();
-    }
-}
+
 
 /// One editor over a project whose every name is short, opened on `mode`.
 fn editor(tag: &str, mode: Mode) -> App {
@@ -103,7 +99,7 @@ fn editor(tag: &str, mode: Mode) -> App {
     let mut window = app.world_mut().get_mut::<Window>(window).expect("the window just spawned");
     window.resolution.set_scale_factor_override(Some(DISPLAY_FACTOR));
     harness::resize_surface(&mut app, WINDOW_PHYSICAL.0, WINDOW_PHYSICAL.1).unwrap_or_else(|e| panic!("{e}"));
-    settle(&mut app, SETTLE_FRAMES);
+    for _ in 0..SETTLE_FRAMES { app.update(); }
     app
 }
 
@@ -186,7 +182,7 @@ fn find(app: &mut App, what: &str, want: impl Fn(&str) -> bool) -> Option<(Rect,
         if let Some(found) = find_once(app, what, &want) {
             return Some(found);
         }
-        settle(app, PATIENCE_STEP);
+        for _ in 0..PATIENCE_STEP { app.update(); }
     }
     println!("PROBE-MISSING {what}: no such text is drawn after {} frames", PATIENCE * PATIENCE_STEP);
     None
@@ -198,7 +194,7 @@ const PATIENCE_STEP: usize = 4;
 
 fn show(app: &mut App, mode: Mode) {
     *app.world_mut().resource_mut::<Mode>() = mode;
-    settle(app, SHOW_FRAMES);
+    for _ in 0..SHOW_FRAMES { app.update(); }
 }
 
 /// One probe: where a row's text stands, by `read` over the text's box and the content box of the node it stands in.
@@ -238,9 +234,9 @@ fn probes() -> Vec<(&'static str, f32)> {
     // Not `show`: the armed group is cleared again some tens of frames after it is set (measured, on `main` too), so the
     // Compose panel is given as few frames as the armed row needs.
     *app.world_mut().resource_mut::<Mode>() = Mode::Compose;
-    settle(&mut app, ARM_FRAMES);
+    for _ in 0..ARM_FRAMES { app.update(); }
     app.world_mut().insert_resource(bevy_dark_factory::compose::Armed(Some("short_group".to_owned())));
-    settle(&mut app, ARM_FRAMES);
+    for _ in 0..ARM_FRAMES { app.update(); }
     let name = probe(&mut out, &mut app, "compose_name_left_from_row", |t| t.starts_with("short_group  —"), from_left);
     let _ = name;
     if let Some(gap) = mark_gap(&mut app) {
@@ -257,7 +253,7 @@ fn probes() -> Vec<(&'static str, f32)> {
             node.display = Display::Flex;
         }
     }
-    settle(&mut app, SHOW_FRAMES);
+    for _ in 0..SHOW_FRAMES { app.update(); }
     probe(&mut out, &mut app, "rigs_name_left_from_row", |t| t == "hound", from_left);
     out
 }

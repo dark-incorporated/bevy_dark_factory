@@ -24,12 +24,11 @@ use bevy_dark_factory::tiles::Mode;
 use bevy_dark_factory::workspace::Workspace;
 
 use crate::fixtures;
+use crate::settle_support;
 
 /// Frames the editor is given to finish opening: a door's `OnEnter` spawns the panels.
 const WARM_UP_FRAMES: usize = 10;
 
-/// Frames after a press, so the reveal has crossed a workspace, laid the panel out and scrolled it.
-const SETTLE_FRAMES: usize = 40;
 
 /// The heading the list is under, and the row the fixture's broken relation makes.
 const HEADING: &str = "PROBLEMS";
@@ -68,11 +67,7 @@ fn editor(tag: &str) -> App {
     app
 }
 
-fn settle(app: &mut App) {
-    for _ in 0..SETTLE_FRAMES {
-        app.update();
-    }
-}
+
 
 /// One key event. No `PrimaryWindow` is spawned, on purpose (the navigation driver's own reason): a key's `window` is read by nothing on
 /// the path a `ButtonInput` takes.
@@ -96,7 +91,7 @@ fn press_the_chord(app: &mut App) {
         }
         app.update();
     }
-    settle(app);
+    settle_support::settle(app);
 }
 
 /// A node's laid-out box in the surface's own pixels: `(centre, half extent)`.
@@ -157,7 +152,7 @@ fn the_chord_works_again_after_the_person_scrolls_away() {
             scroll.0.y = 0.0;
         }
     }
-    settle(&mut app);
+    settle_support::settle(&mut app);
     assert_eq!(drawn(&mut app, HEADING), 0, "the test could not scroll the inspector away from {HEADING}, so it proves nothing");
     press_the_chord(&mut app);
     assert_eq!(drawn(&mut app, HEADING), 1, "a second press did not bring {HEADING} back");
@@ -169,10 +164,10 @@ fn the_chord_from_another_workspace_ends_on_the_map_with_the_list_on_screen() {
     let command = commands::by_id("workspace.world").unwrap_or_else(|| panic!("`workspace.world` is not a command"));
     let live = *app.world().resource::<Live>();
     app.world_mut().resource_mut::<Chords>().queue(&command, live);
-    settle(&mut app);
+    settle_support::settle(&mut app);
     assert_eq!(app.world().resource::<Workspace>(), &Workspace::World, "the World chord did not open the World workspace");
     press_the_chord(&mut app);
-    settle(&mut app);
+    settle_support::settle(&mut app);
     assert_eq!(app.world().resource::<Workspace>(), &Workspace::Map, "the chord left the editor on the World workspace");
     assert_eq!(drawn(&mut app, HEADING), 1, "{HEADING} is not on screen after the chord from another workspace");
 }

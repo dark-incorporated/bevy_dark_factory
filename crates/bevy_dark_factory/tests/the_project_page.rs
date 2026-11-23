@@ -15,6 +15,8 @@ use std::time::{Duration, Instant};
 
 use bevy::input::keyboard::{Key, KeyboardInput};
 use bevy::prelude::*;
+
+use crate::settle_support;
 use bevy::ui_widgets::{Activate, ValueChange};
 use bevy_dark_factory::catalog::Catalog;
 use bevy_dark_factory::confirm::{Asked, Confirm};
@@ -41,11 +43,7 @@ fn screen_of(app: &App) -> Screen {
     *app.world().resource::<State<Screen>>().get()
 }
 
-fn settle(app: &mut App) {
-    for _ in 0..3 {
-        app.update();
-    }
-}
+
 
 /// The button whose text is `text`.
 fn button(app: &mut App, text: &str) -> Entity {
@@ -63,13 +61,13 @@ fn button(app: &mut App, text: &str) -> Entity {
 fn press(app: &mut App, text: &str) {
     let b = button(app, text);
     app.world_mut().commands().trigger(Activate { entity: b });
-    settle(app);
+    settle_support::settle(app);
 }
 
 fn type_into<M: Component>(app: &mut App, text: &str) {
     let field = app.world_mut().query_filtered::<Entity, With<M>>().single(app.world()).expect("the dialog has the field");
     app.world_mut().commands().trigger(ValueChange::<String> { source: field, value: text.to_owned(), is_final: false });
-    settle(app);
+    settle_support::settle(app);
 }
 
 fn every_text(app: &mut App) -> Vec<String> {
@@ -184,7 +182,7 @@ fn press_is_ready(app: &mut App) -> bool {
 fn press_create(app: &mut App) {
     let create = app.world_mut().query_filtered::<Entity, With<CreateButton>>().single(app.world()).expect("Create");
     app.world_mut().commands().trigger(Activate { entity: create });
-    settle(app);
+    settle_support::settle(app);
 }
 
 /// **Esc goes back to the home's grid and nothing quits.**
@@ -193,7 +191,7 @@ fn esc_on_the_page_goes_back_to_the_projects_grid_and_nothing_quits() {
     let (_root, mut app) = on_the_page("esc");
     assert_eq!(screen_of(&app), Screen::Project);
     tap(&mut app, Key::Escape, KeyCode::Escape);
-    settle(&mut app);
+    settle_support::settle(&mut app);
     assert_eq!(screen_of(&app), Screen::Launcher, "Esc is back to the home");
     assert!(app.world().get_resource::<Messages<AppExit>>().is_none_or(Messages::is_empty), "and nothing asked the application to exit");
     assert_eq!(app.world().resource::<Launcher>().tab, bevy_dark_factory::launcher::HomeTab::Projects, "on the Projects grid");
@@ -210,7 +208,7 @@ fn esc_with_a_dialog_or_a_question_up_does_not_go_back() {
     // A question up: the page asks before deleting, and Esc answers it.
     let mut app2 = on_the_page("esc_question").1;
     app2.world_mut().write_message(PageAction::DeleteMap("m".to_owned()));
-    settle(&mut app2);
+    settle_support::settle(&mut app2);
     assert!(app2.world().resource::<Confirm>().is_open());
     tap(&mut app2, Key::Escape, KeyCode::Escape);
     assert_eq!(screen_of(&app2), Screen::Project, "a question is up: Esc refuses it and stays");
@@ -225,23 +223,23 @@ fn delete_asks_first_and_only_agreeing_removes_the_map() {
     let text = std::fs::read_to_string(&second).unwrap().replacen("name: \"m\"", "name: \"second\"", 1);
     std::fs::write(&second, text).unwrap();
     app.world_mut().resource_mut::<ProjectPage>().dirty = true;
-    settle(&mut app);
+    settle_support::settle(&mut app);
 
     app.world_mut().write_message(PageAction::DeleteMap("second".to_owned()));
-    settle(&mut app);
+    settle_support::settle(&mut app);
     assert!(app.world().resource::<Confirm>().asking(Asked::DeleteEntry), "the page asks");
     assert!(second.is_file(), "asking changes nothing");
     let said = every_text(&mut app);
     assert!(said.iter().any(|t| t.contains("Delete the map `second`")), "the question names what goes: {said:?}");
 
     tap(&mut app, Key::Character("n".into()), KeyCode::KeyN);
-    settle(&mut app);
+    settle_support::settle(&mut app);
     assert!(second.is_file(), "refusing keeps the map");
 
     app.world_mut().write_message(PageAction::DeleteMap("second".to_owned()));
-    settle(&mut app);
+    settle_support::settle(&mut app);
     tap(&mut app, Key::Character("y".into()), KeyCode::KeyY);
-    settle(&mut app);
+    settle_support::settle(&mut app);
     assert!(!second.exists(), "agreeing removes it");
     assert!(map_file(&root, "m").is_file(), "and only it");
     let cards = app.world_mut().query::<&MapCard>().iter(app.world()).map(|c| c.0.clone()).collect::<Vec<_>>();
@@ -253,7 +251,7 @@ fn delete_asks_first_and_only_agreeing_removes_the_map() {
 fn a_maps_settings_are_changed_from_the_page_through_the_operation() {
     let (root, mut app) = on_the_page("settings");
     app.world_mut().write_message(PageAction::MapSettings("m".to_owned()));
-    settle(&mut app);
+    settle_support::settle(&mut app);
     assert_eq!(dialogs(&mut app), 1);
     let said = every_text(&mut app);
     assert!(said.iter().any(|t| t == "Map: m"), "the name is shown and not editable: {said:?}");
@@ -263,11 +261,11 @@ fn a_maps_settings_are_changed_from_the_page_through_the_operation() {
     for (axis, value) in [(0, 20.0), (1, 14.0), (2, 6.0)] {
         let source = app.world_mut().query::<(Entity, &SizeField)>().iter(app.world()).find(|(_, f)| f.0 == axis).map(|(e, _)| e).expect("a size field");
         app.world_mut().commands().trigger(ValueChange::<f32> { source, value, is_final: true });
-        settle(&mut app);
+        settle_support::settle(&mut app);
     }
     let origin_x = app.world_mut().query::<(Entity, &OriginField)>().iter(app.world()).find(|(_, f)| f.0 == 0).map(|(e, _)| e).expect("an origin field");
     app.world_mut().commands().trigger(ValueChange::<f32> { source: origin_x, value: 3.0, is_final: true });
-    settle(&mut app);
+    settle_support::settle(&mut app);
     type_into::<NoteField>(&mut app, "a courtyard");
     press(&mut app, "Save");
 
@@ -293,7 +291,7 @@ fn a_kits_policy_lists_and_an_entry_is_removed_after_the_question() {
     .unwrap();
 
     app.world_mut().write_message(PageAction::KitPolicy("furniture".to_owned()));
-    settle(&mut app);
+    settle_support::settle(&mut app);
     let said = every_text(&mut app);
     assert!(said.iter().any(|t| t == "Leaves out `characters`"), "the entry is listed in words: {said:?}");
 
@@ -301,7 +299,7 @@ fn a_kits_policy_lists_and_an_entry_is_removed_after_the_question() {
     assert!(app.world().resource::<Confirm>().asking(Asked::DeleteEntry), "removing asks");
     assert!(std::fs::read_to_string(&policy).unwrap().contains("characters"), "asking changes nothing");
     tap(&mut app, Key::Character("y".into()), KeyCode::KeyY);
-    settle(&mut app);
+    settle_support::settle(&mut app);
     let after = std::fs::read_to_string(&policy).unwrap();
     assert!(!after.contains("characters"), "agreeing removes the entry:\n{after}");
     assert!(after.contains("# A comment that must survive."), "and keeps the file's comment:\n{after}");

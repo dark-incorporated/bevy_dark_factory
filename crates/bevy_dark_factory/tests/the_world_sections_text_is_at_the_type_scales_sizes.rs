@@ -27,15 +27,10 @@ use bevy_dark_factory::keys::Live;
 use bevy_dark_factory::workspace::Workspace;
 
 use crate::fixtures;
+use crate::settle_support;
 
-const SETTLE: usize = 60;
 
-fn settle(app: &mut App) {
-    for _ in 0..SETTLE {
-        std::thread::sleep(std::time::Duration::from_millis(5));
-        app.update();
-    }
-}
+
 
 fn world_app(tag: &str) -> App {
     let root = fixtures::Fixture::new(&format!("world_text_{tag}_{}", std::process::id()))
@@ -43,11 +38,11 @@ fn world_app(tag: &str) -> App {
         .place("stool", (0.0, 0.0))
         .build("m");
     let mut app = harness::build_headless(&root, "m", None).unwrap_or_else(|e| panic!("{e}"));
-    settle(&mut app);
+    settle_support::settle(&mut app);
     let command = commands::by_id("workspace.world").unwrap_or_else(|| panic!("`workspace.world` is not a command"));
     let live = *app.world().resource::<Live>();
     app.world_mut().resource_mut::<Chords>().queue(&command, live);
-    settle(&mut app);
+    settle_support::settle(&mut app);
     assert_eq!(app.world().resource::<Workspace>(), &Workspace::World);
     app
 }

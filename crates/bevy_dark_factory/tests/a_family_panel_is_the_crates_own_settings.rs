@@ -39,6 +39,7 @@ use bevy_dark_factory::family_panel::{FamilyBlock, FamilyPanel, FamilyView};
 use bevy_elements::WorldClock;
 
 use crate::fixtures;
+use crate::settle_support;
 
 /// How many frames a headless editor is stepped before it is asked what it shows.
 const SETTLE_FRAMES: usize = 6;
@@ -95,11 +96,7 @@ fn editor_with_a_file_block(tag: &str) -> (App, std::path::PathBuf) {
     (app, skin)
 }
 
-fn settle(app: &mut App) {
-    for _ in 0..SETTLE_FRAMES {
-        app.update();
-    }
-}
+
 
 /// The hour the preview's clock is at.
 fn clock_hour(app: &App) -> f64 {
@@ -158,7 +155,7 @@ fn edit(app: &mut App, path: &str, change: impl FnOnce(&mut FamilyView)) {
 #[test]
 fn a_listed_crate_gets_a_panel_of_its_own_settings() {
     let (mut app, _file) = editor("shows", 6.5);
-    settle(&mut app);
+    settle_support::settle(&mut app);
     let panel = app.world().resource::<FamilyPanel>().clone();
     assert!(
         panel.crates().any(|c| c == "bevy_elements"),
@@ -188,7 +185,7 @@ fn a_listed_crate_gets_a_panel_of_its_own_settings() {
 #[test]
 fn editing_the_hour_in_the_panel_moves_the_sky_in_one_frame() {
     let (mut app, file) = editor("sky", 12.0);
-    settle(&mut app);
+    settle_support::settle(&mut app);
     let noon_altitude = sun_altitude(&app);
     assert!(noon_altitude > 30.0, "noon's sun is high, or this test cannot tell the two skies apart: {noon_altitude}");
     let before = std::fs::read_to_string(&file).expect("the settings file");
@@ -219,11 +216,11 @@ fn editing_the_hour_in_the_panel_moves_the_sky_in_one_frame() {
 #[test]
 fn the_hour_a_person_set_stays_set_after_the_panel_settles() {
     let (mut app, _file) = editor("hour-sticks", 12.0);
-    settle(&mut app);
+    settle_support::settle(&mut app);
 
     edit(&mut app, "hour", |v| v.hour = 0.0);
     app.update();
-    settle(&mut app);
+    settle_support::settle(&mut app);
 
     assert_eq!(
         view(&mut app).hour,
@@ -244,7 +241,7 @@ fn the_hour_a_person_set_stays_set_after_the_panel_settles() {
 #[test]
 fn a_settled_panel_reads_its_files_once_and_then_not_again() {
     let (mut app, _file) = editor("settled-reads", 9.0);
-    settle(&mut app);
+    settle_support::settle(&mut app);
     let reads = app.world().resource::<FamilyPanel>().reads();
     assert!(reads >= 1, "the panel read its files at least once while it was being built");
 
@@ -302,7 +299,7 @@ fn shown(app: &mut App, krate: &str) -> String {
 #[test]
 fn the_read_only_block_follows_its_crates_file() {
     let (mut app, skin) = editor_with_a_file_block("file-block");
-    settle(&mut app);
+    settle_support::settle(&mut app);
     assert_eq!(shown(&mut app, SKIN_CRATE), SKIN_BLUE, "the block opens on the file as it is on disk");
 
     // The edit arrives the way a `family_set` line's does: the text the watch took as good.
@@ -321,7 +318,7 @@ fn the_read_only_block_follows_its_crates_file() {
 #[test]
 fn a_field_edit_writes_the_crates_file_and_is_one_undo_step() {
     let (mut app, file) = editor("write", 12.0);
-    settle(&mut app);
+    settle_support::settle(&mut app);
     let before = app.world().resource::<EditorState>().undo_depth();
     edit(&mut app, "mean_temperature_c", |view| view.mean_temperature_c = -4.0);
     app.update();
@@ -338,7 +335,7 @@ fn a_field_edit_writes_the_crates_file_and_is_one_undo_step() {
 #[test]
 fn a_month_typed_past_december_writes_december() {
     let (mut app, file) = editor("month", 12.0);
-    settle(&mut app);
+    settle_support::settle(&mut app);
     edit(&mut app, "month", |view| view.month = 40);
     app.update();
     let written = std::fs::read_to_string(&file).expect("the settings file");
@@ -356,7 +353,7 @@ fn a_crate_this_build_does_not_have_gets_no_panel() {
     std::fs::write(root.join("family.yaml"), "version: 1\ncrates: [bevy_carnage]\n").unwrap();
     std::fs::write(root.join("family/bevy_carnage.yaml"), "{hitstop_seconds: 0.05}").unwrap();
     let mut app = bevy_dark_factory::harness::build_headless(&root, "m", None).unwrap_or_else(|e| panic!("{e}"));
-    settle(&mut app);
+    settle_support::settle(&mut app);
     let built = bevy_dark_factory::family_host::built();
     let panel = app.world().resource::<FamilyPanel>().clone();
     if built.contains(&"bevy_carnage") {

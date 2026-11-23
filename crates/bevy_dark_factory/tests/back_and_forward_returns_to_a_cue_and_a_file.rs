@@ -26,9 +26,8 @@ use bevy_dark_factory::world_lists::SelectedCue;
 use bevy_gooey::CodeEditor;
 
 use crate::fixtures;
+use crate::settle_support;
 
-/// Frames a workspace switch and its panels need.
-const SETTLE: usize = 40;
 
 /// The project's sound file.
 const CUES: &str = "\
@@ -66,11 +65,7 @@ fn editor(tag: &str) -> (App, std::path::PathBuf) {
     (app, root)
 }
 
-fn settle(app: &mut App) {
-    for _ in 0..SETTLE {
-        app.update();
-    }
-}
+
 
 fn primary() -> KeyCode {
     if cfg!(target_os = "macos") { KeyCode::SuperLeft } else { KeyCode::ControlLeft }
@@ -91,7 +86,7 @@ fn chord(app: &mut App, key: KeyCode) {
         }
         app.update();
     }
-    settle(app);
+    settle_support::settle(app);
 }
 
 fn camera(app: &App) -> (Vec3, f32) {
@@ -119,11 +114,11 @@ fn caret_line(app: &mut App) -> Option<usize> {
 /// **Walk Map → a cue → a file**, leaving the person on the third line of the file.
 fn walk_the_route(app: &mut App) {
     app.world_mut().resource_mut::<Revealing>().request_by_person("test", &Shown::Cue { name: "door.creak".to_owned() });
-    settle(app);
+    settle_support::settle(app);
     assert_eq!(on(app), Workspace::Sound, "the route's first stop is the cue");
     assert_eq!(cue(app).as_deref(), Some("door.creak"));
     crosslinks::open_in_files(app.world_mut(), DOOR_FILE, Some(LEFT_ON_LINE));
-    settle(app);
+    settle_support::settle(app);
     assert_eq!(on(app), Workspace::Files, "the route's second stop is the file");
     assert_eq!(active(app).as_deref(), Some(DOOR_FILE));
     assert_eq!(caret_line(app), Some(LEFT_ON_LINE), "and the caret is where the open put it");
@@ -138,7 +133,7 @@ fn map_to_a_cue_to_a_file_and_back_twice_restores_the_cue_and_then_the_maps_came
         rig.focus = Vec3::new(6.0, 0.0, 6.0);
         rig.height = 7.5;
     }
-    settle(&mut app);
+    settle_support::settle(&mut app);
     let home = camera(&app);
 
     walk_the_route(&mut app);
@@ -183,7 +178,7 @@ fn forward_returns_to_the_cue_and_then_to_the_file_at_its_line() {
 fn a_place_whose_file_is_gone_is_skipped_with_a_notice() {
     let (mut app, root) = editor("gone");
     crosslinks::open_in_files(app.world_mut(), DOOR_FILE, Some(LEFT_ON_LINE));
-    settle(&mut app);
+    settle_support::settle(&mut app);
     assert_eq!(on(&app), Workspace::Files);
     chord(&mut app, KeyCode::BracketLeft);
     assert_eq!(on(&app), Workspace::Map, "Back from the file is the map the person came from");

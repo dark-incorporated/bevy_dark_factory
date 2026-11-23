@@ -16,16 +16,11 @@ use bevy_gooey::GooeySkin;
 use blueprint_model::live::Outcome;
 
 use crate::fixtures;
+use crate::settle_support;
 use crate::index_waits::{SHOWN_WITHIN, pump_until};
 
-/// Updates for the editor to open its project and aim its layers.
-const SETTLE_UPDATES: usize = 4;
 
-fn settle(app: &mut App) {
-    for _ in 0..SETTLE_UPDATES {
-        app.update();
-    }
-}
+
 
 /// Steps frames until `done`, failing with `what` when the index has not shown it within [`SHOWN_WITHIN`].
 fn until(app: &mut App, what: &str, done: impl FnMut(&mut App) -> bool) {
@@ -61,7 +56,7 @@ fn editor(name: &str) -> Editor {
     let mut app = bevy_dark_factory::harness::build_headless(&root, "m", None).unwrap_or_else(|e| panic!("{e}"));
     app.insert_resource(bevy_dark_factory::settings::UserSettingsFile(settings));
     app.insert_resource(bevy_dark_factory::style::UserStyleFile(user_style.clone()));
-    settle(&mut app);
+    settle_support::settle(&mut app);
     let project_style = app.world().resource::<bevy_dark_factory::project::Project>().project_dir.join(bevy_dark_factory::style::PROJECT_FILE);
     Editor { app, checkout, user_style, project_style }
 }
@@ -136,7 +131,7 @@ fn a_projects_rule_styles_a_classed_node_live() {
     let mut editor = editor("style_project");
     let card = editor.app.world_mut().spawn((bevy_gooey::panel(), bevy_gooey::StyleClass::of("test-card"))).id();
     editor.app.world_mut().spawn(bevy_gooey::screen()).add_child(card);
-    settle(&mut editor.app);
+    settle_support::settle(&mut editor.app);
     std::fs::write(&editor.project_style, "version: 1\nrules:\n  \".test-card\": {padding: !Px 13}\n").expect("a project layer");
     until(&mut editor.app, "the project's rule padding the classed node", |app| {
         app.world().get::<Node>(card).is_some_and(|node| node.padding.left == Val::Px(13.0))
@@ -154,7 +149,7 @@ fn a_projects_rule_styles_a_classed_node_live() {
 fn a_type_size_in_a_users_layer_resizes_a_label_where_it_stands() {
     let mut editor = editor("style_type");
     let label = editor.app.world_mut().spawn((Text::new("body"), bevy_dark_factory::chrome::typed(bevy_dark_factory::chrome::text::BODY))).id();
-    settle(&mut editor.app);
+    settle_support::settle(&mut editor.app);
     let size = |app: &App| app.world().get::<TextFont>(label).expect("a font").font_size;
     let body = || bevy_dark_factory::chrome::font(bevy_dark_factory::chrome::text::BODY).font_size;
     let shipped = size(&editor.app);
@@ -162,7 +157,7 @@ fn a_type_size_in_a_users_layer_resizes_a_label_where_it_stands() {
 
     std::fs::write(&editor.user_style, "version: 1\nmetrics: {type: {body: 14.0}}\n").expect("a user layer");
     until(&mut editor.app, "the layer's body size as the running one", |_| bevy_dark_factory::style::metrics().r#type.body == 14.0);
-    settle(&mut editor.app);
+    settle_support::settle(&mut editor.app);
     assert_eq!(size(&editor.app), body(), "the same label, at the layer's body size");
     assert_ne!(size(&editor.app), shipped, "which is not the size it was spawned at");
 }
@@ -182,7 +177,7 @@ fn a_layout_measure_asks_for_a_rebuild_and_a_type_size_does_not() {
     let mut editor = editor("style_rebuild");
     editor.app.init_resource::<Rebuilds>();
     editor.app.add_systems(Update, count_rebuilds.after(bevy_dark_factory::style::apply_style));
-    settle(&mut editor.app);
+    settle_support::settle(&mut editor.app);
 
     std::fs::write(&editor.user_style, "version: 1\nmetrics: {type: {body: 14.0}}\n").expect("a type size");
     until(&mut editor.app, "the type size applied", |_| bevy_dark_factory::style::metrics().r#type.body == 14.0);
@@ -190,6 +185,6 @@ fn a_layout_measure_asks_for_a_rebuild_and_a_type_size_does_not() {
 
     std::fs::write(&editor.user_style, "version: 1\nmetrics: {type: {body: 14.0}, layout: {bottom_dock_h: 200.0}}\n").expect("a dock height");
     until(&mut editor.app, "the layer's dock height as the running measure", |_| bevy_dark_factory::style::metrics().layout.bottom_dock_h == 200.0);
-    settle(&mut editor.app);
+    settle_support::settle(&mut editor.app);
     assert_eq!(editor.app.world().resource::<Rebuilds>().0, 1, "and the door is rebuilt once to show it");
 }

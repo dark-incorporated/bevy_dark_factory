@@ -34,15 +34,11 @@ fn editor(tag: &str) -> App {
     let mut app = bevy_dark_factory::harness::build_headless(&root, "m", None).unwrap_or_else(|e| panic!("{e}"));
     app.insert_non_send(PosixShell(guard));
     app.world_mut().spawn((Window { resolution: bevy::window::WindowResolution::new(1280, 720), ..default() }, PrimaryWindow));
-    settle(&mut app, 12);
+    for _ in 0..12 { app.update(); }
     app
 }
 
-fn settle(app: &mut App, frames: usize) {
-    for _ in 0..frames {
-        app.update();
-    }
-}
+
 
 fn window(app: &mut App) -> Entity {
     app.world_mut().query_filtered::<Entity, With<PrimaryWindow>>().single(app.world()).expect("one primary window")
@@ -75,7 +71,7 @@ fn chord_j(app: &mut App, shift: bool) {
         send(app, KeyCode::KeyJ, Key::Character("j".into()), state);
         app.update();
     }
-    settle(app, 4);
+    for _ in 0..4 { app.update(); }
 }
 
 /// The pane's laid-out height and the room below the menu bar, both in logical px, and whether the pane is drawn.
@@ -115,7 +111,7 @@ fn rows(app: &App) -> u16 {
 fn shift_primary_j_covers_the_window_below_the_menu_bar_and_again_gives_the_height_back() {
     let mut app = editor("maximise");
     app.world_mut().resource_mut::<Terminal>().set_collapsed(false);
-    settle(&mut app, 8);
+    for _ in 0..8 { app.update(); }
     let (normal, room, drawn) = heights(&mut app);
     assert!(drawn && normal > 0.0 && normal < room, "the pane is raised at its normal height {normal} inside {room}");
     let normal_rows = rows(&app);
@@ -165,7 +161,7 @@ fn terminal_maximise_is_a_view_row_a_keymap_row_and_a_reserved_chord() {
     assert_eq!(verbs, [("Maximise terminal".to_owned(), Some(maximise))], "the View menu has its row, with the chord");
 
     app.world_mut().write_message(OpenKeymap);
-    settle(&mut app, 6);
+    for _ in 0..6 { app.update(); }
     let listed = {
         let world = app.world_mut();
         let rows: Vec<Entity> = world.query_filtered::<Entity, With<bevy_gooey::BindingValue>>().iter(world).collect();

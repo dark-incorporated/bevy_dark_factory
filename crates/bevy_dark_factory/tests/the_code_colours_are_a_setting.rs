@@ -26,14 +26,10 @@ use bevy_dark_factory::settings::{EditorSettings, SettingsLayer, SyntaxTheme, Us
 use bevy_gooey::GooeySkin;
 
 use crate::fixtures;
+use crate::settle_support;
 
-const SETTLE: usize = 12;
 
-fn settle(app: &mut App) {
-    for _ in 0..SETTLE {
-        app.update();
-    }
-}
+
 
 /// **How long a change to the settings file may take to reach the running skin**, in seconds: the settings
 /// index's sweep is about a second, so this is many times that and a failure is a change never heard.
@@ -42,7 +38,7 @@ const HEARD_WITHIN_S: f64 = 20.0;
 fn until(app: &mut App, what: &str, mut done: impl FnMut(&mut App) -> bool) {
     let started = std::time::Instant::now();
     while started.elapsed().as_secs_f64() < HEARD_WITHIN_S {
-        settle(app);
+        settle_support::settle(app);
         if done(app) {
             return;
         }

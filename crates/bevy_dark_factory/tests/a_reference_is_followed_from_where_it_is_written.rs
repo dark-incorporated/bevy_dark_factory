@@ -33,9 +33,8 @@ use bevy_dark_factory::world_lists::SelectedCue;
 use bevy_gooey::{CodeEditor, CodePos, Diagnostics};
 
 use crate::fixtures;
+use crate::settle_support;
 
-/// Frames the editor is given to settle after each step.
-const SETTLE: usize = 40;
 
 /// The project's sound file, in the crate's own shape, with the two cues the Sound list shows.
 const CUES: &str = "\
@@ -68,17 +67,13 @@ fn project(tag: &str, extra: &[(&str, &str)]) -> PathBuf {
     root
 }
 
-fn settle(app: &mut App) {
-    for _ in 0..SETTLE {
-        app.update();
-    }
-}
+
 
 fn editor(root: &Path) -> App {
     let mut app = harness::build_headless(root, "m", None).unwrap_or_else(|e| panic!("{e}"));
     // A window to send keys to: the headless harness has none.
     app.world_mut().spawn((Window::default(), PrimaryWindow));
-    settle(&mut app);
+    settle_support::settle(&mut app);
     app
 }
 
@@ -86,7 +81,7 @@ fn run_command(app: &mut App, id: &str) {
     let command = commands::by_id(id).unwrap_or_else(|| panic!("`{id}` is not a command"));
     let live = *app.world().resource::<Live>();
     app.world_mut().resource_mut::<Chords>().queue(&command, live);
-    settle(app);
+    settle_support::settle(app);
 }
 
 /// **The Files workspace with `rel` open and its editor focused**, the way a person opens a file from the tree.
@@ -95,10 +90,10 @@ fn files_editor(root: &Path, rel: &str) -> App {
     run_command(&mut app, "workspace.files");
     assert_eq!(*app.world().resource::<Workspace>(), Workspace::Files, "the Files workspace is reachable by its command");
     files::open_file(app.world_mut(), rel).unwrap_or_else(|e| panic!("{e}"));
-    settle(&mut app);
+    settle_support::settle(&mut app);
     let editor = editor_entity(&mut app);
     app.world_mut().resource_mut::<InputFocus>().set(editor, FocusCause::Navigated);
-    settle(&mut app);
+    settle_support::settle(&mut app);
     app
 }
 
@@ -111,7 +106,7 @@ fn caret_at(app: &mut App, line: usize, col: usize) {
     let editor = editor_entity(app);
     let pos = CodePos::new(line, col);
     app.world_mut().get_mut::<CodeEditor>(editor).map(|mut e| e.select(pos, pos)).unwrap_or_else(|| panic!("no editor"));
-    settle(app);
+    settle_support::settle(app);
 }
 
 fn caret_line(app: &mut App) -> usize {
@@ -131,7 +126,7 @@ fn key(app: &mut App, code: KeyCode, logical: Key, state: ButtonState) {
 fn press(app: &mut App, code: KeyCode, logical: Key) {
     key(app, code, logical.clone(), ButtonState::Pressed);
     key(app, code, logical, ButtonState::Released);
-    settle(app);
+    settle_support::settle(app);
 }
 
 /// Whether a person can read exactly these words somewhere on screen.
@@ -170,7 +165,7 @@ fn a_primary_click_on_a_cue_value_lands_in_sound_with_that_cue_selected() {
     key(&mut app, primary.0, primary.1, ButtonState::Pressed);
     let editor = editor_entity(&mut app);
     bevy_gooey::testing::click(&mut app, editor);
-    settle(&mut app);
+    settle_support::settle(&mut app);
 
     assert_eq!(*app.world().resource::<Workspace>(), Workspace::Sound, "the click followed the reference to the Sound workspace");
     assert_eq!(selected_cue(&app).as_deref(), Some("door.creak"), "and it is the cue the value names that is selected");
@@ -192,7 +187,7 @@ fn a_primary_click_off_the_reference_does_not_follow_a_caret_that_has_moved() {
     key(&mut app, primary.0, primary.1, ButtonState::Pressed);
     let editor = editor_entity(&mut app);
     bevy_gooey::testing::click(&mut app, editor);
-    settle(&mut app);
+    settle_support::settle(&mut app);
 
     assert_eq!(*app.world().resource::<Workspace>(), Workspace::Files, "a caret off the value follows nothing; it stays in the editor");
     assert_eq!(selected_cue(&app), None, "and no cue is marked");
@@ -223,7 +218,7 @@ fn a_primary_click_on_the_tree_stays_in_files() {
     let primary = if cfg!(target_os = "macos") { (KeyCode::SuperLeft, Key::Super) } else { (KeyCode::ControlLeft, Key::Control) };
     key(&mut app, primary.0, primary.1, ButtonState::Pressed);
     bevy_gooey::testing::click(&mut app, tree);
-    settle(&mut app);
+    settle_support::settle(&mut app);
 
     assert_eq!(*app.world().resource::<Workspace>(), Workspace::Files, "a Cmd+click on the tree is not a click on a reference");
     assert_eq!(selected_cue(&app), None, "and no cue is marked");
@@ -241,7 +236,7 @@ fn f12_with_the_finder_open_does_nothing() {
     let logical = if cfg!(target_os = "macos") { Key::Super } else { Key::Control };
     key(&mut app, finder_key, logical, ButtonState::Pressed);
     press(&mut app, KeyCode::KeyP, Key::Character("p".into()));
-    settle(&mut app);
+    settle_support::settle(&mut app);
 
     press(&mut app, KeyCode::F12, Key::F12);
     assert_eq!(*app.world().resource::<Workspace>(), Workspace::Files, "the editor stays where it is");
@@ -255,7 +250,7 @@ fn a_plain_click_does_not_follow_the_reference() {
     let mut app = files_editor(&root, "data/door.yaml");
     let editor = editor_entity(&mut app);
     bevy_gooey::testing::click(&mut app, editor);
-    settle(&mut app);
+    settle_support::settle(&mut app);
     assert_eq!(*app.world().resource::<Workspace>(), Workspace::Files, "a plain click is an edit's click");
     assert_eq!(selected_cue(&app), None);
 }
@@ -290,7 +285,7 @@ fn a_reference_to_a_missing_cue_is_a_diagnostic_and_a_refusal_not_a_dead_link() 
     let mut app = files_editor(&root, "data/ghost.yaml");
     // The errors wait for the person to stop typing; the clock is real, so wait it out.
     std::thread::sleep(std::time::Duration::from_millis(250));
-    settle(&mut app);
+    settle_support::settle(&mut app);
     let editor = editor_entity(&mut app);
     let diagnostics = app.world().get::<Diagnostics>(editor).map(|d| d.items().iter().map(|i| i.message.clone()).collect::<Vec<_>>()).unwrap_or_default();
     assert!(
@@ -315,7 +310,7 @@ fn a_cues_used_by_lists_the_files_that_name_it() {
     );
     let mut app = editor(&root);
     app.world_mut().resource_mut::<Revealing>().request_by_person("test", &Shown::Cue { name: "door.creak".to_owned() });
-    settle(&mut app);
+    settle_support::settle(&mut app);
     assert_eq!(*app.world().resource::<Workspace>(), Workspace::Sound, "the reveal of a cue opens the Sound workspace");
     assert_eq!(selected_cue(&app).as_deref(), Some("door.creak"));
     assert!(drawn(&mut app, "used by data/door.yaml:2"), "the file and line that name the cue; on screen: {:?}", on_screen(&mut app));
@@ -328,7 +323,7 @@ fn a_cue_nothing_names_says_so() {
     let root = project("unused", &[("family/bevy_siren.yaml", CUES)]);
     let mut app = editor(&root);
     app.world_mut().resource_mut::<Revealing>().request_by_person("test", &Shown::Cue { name: "wind.loop".to_owned() });
-    settle(&mut app);
+    settle_support::settle(&mut app);
     assert!(drawn(&mut app, "no file names `wind.loop`"), "on screen: {:?}", on_screen(&mut app));
 }
 
@@ -343,7 +338,7 @@ fn open_file_on_a_placement_lands_in_files_at_its_line() {
         open.map_path.strip_prefix(&project.root).unwrap_or_else(|e| panic!("{e}")).to_string_lossy().replace('\\', "/")
     };
     assert!(editor::lock_on_placement(app.world_mut(), "bed@0"), "the fixture places `bed@0`");
-    settle(&mut app);
+    settle_support::settle(&mut app);
     assert!(drawn(&mut app, "placed in m"), "the inspector says which maps place the selected piece; on screen: {:?}", on_screen(&mut app));
 
     let button = {
@@ -351,7 +346,7 @@ fn open_file_on_a_placement_lands_in_files_at_its_line() {
         world.query_filtered::<Entity, With<bevy_dark_factory::crosslinks::OpenFileButton>>().single(world).unwrap_or_else(|e| panic!("one Open file button: {e}"))
     };
     app.world_mut().commands().trigger(bevy::ui_widgets::Activate { entity: button });
-    settle(&mut app);
+    settle_support::settle(&mut app);
 
     assert_eq!(*app.world().resource::<Workspace>(), Workspace::Files, "Open file leaves the Map for the Files workspace");
     assert_eq!(files::active_file(app.world().resource::<Session>()).as_deref(), Some(map_rel.as_str()), "on the map's own file");
@@ -370,13 +365,13 @@ fn open_piece_file_lands_in_the_library_at_the_piece() {
         project.blueprint_dir.join("library.yaml").strip_prefix(&project.root).unwrap_or_else(|e| panic!("{e}")).to_string_lossy().replace('\\', "/")
     };
     assert!(editor::lock_on_placement(app.world_mut(), "bed@0"));
-    settle(&mut app);
+    settle_support::settle(&mut app);
     let button = {
         let world = app.world_mut();
         world.query_filtered::<Entity, With<bevy_dark_factory::crosslinks::OpenPieceFileButton>>().single(world).unwrap_or_else(|e| panic!("one Open piece file button: {e}"))
     };
     app.world_mut().commands().trigger(bevy::ui_widgets::Activate { entity: button });
-    settle(&mut app);
+    settle_support::settle(&mut app);
     assert_eq!(*app.world().resource::<Workspace>(), Workspace::Files);
     assert_eq!(files::active_file(app.world().resource::<Session>()).as_deref(), Some(piece_rel.as_str()), "on the library's file");
     let text = std::fs::read_to_string(root.join(&piece_rel)).unwrap_or_else(|e| panic!("{e}"));
@@ -390,7 +385,7 @@ fn a_pieces_used_by_in_the_kit_lists_the_maps_that_place_it() {
     let root = project("kit", &[]);
     let mut app = editor(&root);
     app.world_mut().resource_mut::<Revealing>().request_by_person("test", &Shown::Piece { id: "bed".to_owned() });
-    settle(&mut app);
+    settle_support::settle(&mut app);
     assert_eq!(*app.world().resource::<Workspace>(), Workspace::Kit, "a piece is shown on the Kit workspace");
     // **On the detail's id row**, as a suffix of the sentence a person already reads there: the pane's controls are placed by a
     // packer with no give-up arm, so the maps that hold the piece ride that line rather than a row of their own.
