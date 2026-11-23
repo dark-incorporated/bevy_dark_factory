@@ -844,7 +844,7 @@ dependencies = [
 
 [[package]]
 name = "bevy_dark_factory"
-version = "0.7.8"
+version = "0.7.9"
 dependencies = [
  "accesskit",
  "alacritty_terminal",
