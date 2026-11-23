@@ -11,7 +11,8 @@ use bevy::ui::ComputedNode;
 
 use bevy_dark_factory::terminal_pane::{TerminalCaret, TerminalCaretGlyph, TerminalFocus, TerminalRow};
 
-use crate::the_terminal_paints_grounds_and_the_selection::{editor_with_terminal, feed, settle};
+use crate::the_terminal_paints_grounds_and_the_selection::{editor_with_terminal, feed};
+use crate::settle_support::settle;
 
 /// Frames for a feed to be rebuilt and laid out.
 const LAYOUT_FRAMES: usize = 6;
