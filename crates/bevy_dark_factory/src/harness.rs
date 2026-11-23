@@ -439,9 +439,10 @@ static DEVICE_REQUESTS: AtomicU32 = AtomicU32::new(0);
 /// retry without a GPU that is really out of memory.
 static SIMULATED_REFUSALS: AtomicU32 = AtomicU32::new(0);
 
-/// **The two device switches and the request count are process-wide**, so every ask holds this lock: a test that simulates a
-/// refusal cannot have it spent by another test's `real_device_available`, and the numbers a test reads are its own.
-/// (`on_a_device` takes it; the four tests of the switch take it again, which a `Mutex` allows on the same thread.)
+/// **The two device switches and the request count are process-wide**, so every caller that asks for a device holds this
+/// lock: a test that simulates a refusal cannot have it spent by another test's `real_device_available`, and the numbers a
+/// test reads are its own. The callers are `real_device_available`, `build_stepped_at(Device::Real)` and the four tests of
+/// the switch; `on_a_device` itself does not take it, because the switch tests hold it across the set-then-build pair.
 static DEVICE_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
 /// How many device requests this process has made, retries included.
@@ -453,12 +454,6 @@ pub fn device_requests() -> u32 {
 /// back to `0`; anything else in the same process that asks for a device in between is refused too.
 pub fn refuse_the_next_devices(times: u32) {
     SIMULATED_REFUSALS.store(times, Ordering::SeqCst);
-}
-
-/// How many of the simulated refusals are left, so a test can say whether another test spent them.
-#[cfg(test)]
-fn refuse_the_next_devices_left() -> u32 {
-    SIMULATED_REFUSALS.load(Ordering::SeqCst)
 }
 
 /// **The reason a device could not be had, as one sentence naming the GPU**, so a reader of the gate log does not chase a regression.
