@@ -2,6 +2,10 @@
 
 What each change added, newest first. A visible change has a clip: click the still to play it. `python3 tools/changelog/changelog.py page --open` plays them all in one page.
 
+## 2026-11-23
+
+- **docs-numbers** `3f16870` the documents state the numbers and names the code has: PROJECT.md's one MCP tool count, the reload contract's yaml extension set and 39-kind counts, the type roles' 11 px heading, the layout model's 12 px divider, the release rule's advisory benchmark, the MCP README's 32-tool table, keys.md's every fixed chord, AGENTS.md's family table; a test reads each page against the code *No clip: documentation only; no behaviour changed; each page is read back against the code by the_documents_state_the_codes_own_counts and docs_are_current*
+
 ## 2026-11-22
 
 - **525-syntax-theme** `9c78d6a4` A setting picks the code editor's syntax-highlighting hues: Skin (the editor's own), Warm, Cool, Mono and Separated, applied live to every open code editor *For you: You can pick the code editor's colours: five sets from the editor's own hues to warm, cool, one-hue and high-separation, and an open file recolours as you choose.* *No clip: Settings and a recolour, no new still; proved by the_code_colours_reach_an_open_editor::switching_the_preset_changes_the_drawn_colour_of_a_key, the_code_colours_are_a_setting and the_code_colours_hold_the_contrast_bar::every_preset_is_clean_on_every_theme*
