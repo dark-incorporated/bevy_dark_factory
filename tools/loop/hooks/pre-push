@@ -9,6 +9,11 @@
 # parent is recorded, whose other parent is already on the remote's main (it passed its own pusher's
 # gate), and whose tree is exactly what `git merge-tree` makes of the two (no conflict, no hand edit)
 # runs clippy over every target, which type-checks every crate and test, instead of the test run.
+#
+# **A tree that linted clean is not linted again** (#574). Clippy's answer depends on the tree, the
+# toolchain and RUSTFLAGS, and a refusal at the test step changes none of them: 30 of 161 commits in that
+# same log paid clippy twice, 1,149 s in all, the largest repeat 332 s. `gate-clippy` holds one line per
+# (tree, toolchain, RUSTFLAGS) that linted clean, and both paths consult it before linting.
 set -u
 cargo="${LOOP_GATE_CARGO:-cargo}"
 zero=0000000000000000000000000000000000000000
@@ -92,7 +97,13 @@ version_bump_only() {
 }
 if version_bump_only; then note "version bump only, no tests"; echo "pre-push gate: a version bump (manifest and Cargo.lock version lines only); the version policy check passed, no test run" >&2; exit 0; fi
 passed="$(git rev-parse --git-dir)/gate-passed"
+clippy_file="$(git rev-parse --git-dir)/gate-clippy"
 gated() { [ -f "$passed" ] && grep -qx "$1" "$passed"; }
+# Clippy's answer is a fact about (tree, toolchain, RUSTFLAGS). Any source edit, a manifest change or a toolchain bump
+# moves the key; a refusal at the test step moves none of them, which is what makes remembering it free of weakening.
+clippy_key() { printf '%s\n' "$(git rev-parse "$1^{tree}") rustc $(rustc -vV | tr '\n' ' ') RUSTFLAGS ${RUSTFLAGS:-}"; }
+clippy_ok() { [ -f "$clippy_file" ] && grep -qxF "$(clippy_key "$1")" "$clippy_file"; }
+record_clippy() { clippy_key "$1" >> "$clippy_file"; }
 clean_merge_of_main() {
   local parents p1 p2 tree
   parents=$(git rev-list --parents -n 1 "$target")
@@ -111,10 +122,20 @@ if gated "$target"; then note "already gated, pushing again"; echo "pre-push gat
 start=$(date +%s)
 if clean_merge_of_main; then
   echo "pre-push gate: ${target:0:9} is a clean merge of main into a commit that passed the gate; clippy over every target only" >&2
-  timed clippy-merge $cargo clippy --workspace --all-targets -q -- -D warnings || refuse "cargo clippy --workspace --all-targets -- -D warnings failed on the merge"
+  if clippy_ok "$target"; then
+    note "clippy-merge cached 0s (this tree, toolchain and RUSTFLAGS already linted clean)"
+  else
+    timed clippy-merge $cargo clippy --workspace --all-targets -q -- -D warnings || refuse "cargo clippy --workspace --all-targets -- -D warnings failed on the merge"
+    record_clippy "$target"
+  fi
 else
   echo "pre-push gate: clippy and the test suite on ${target:0:9}; this takes minutes, so give git push a timeout of 1800 s or more" >&2
-  timed clippy $cargo clippy --workspace --all-targets -q -- -D warnings || refuse "cargo clippy --workspace --all-targets -- -D warnings failed"
+  if clippy_ok "$target"; then
+    note "clippy cached 0s (a previous attempt at this tree linted clean)"
+  else
+    timed clippy $cargo clippy --workspace --all-targets -q -- -D warnings || refuse "cargo clippy --workspace --all-targets -- -D warnings failed"
+    record_clippy "$target"
+  fi
   # **nextest runs test binaries in parallel; cargo test runs them serially.** Measured on big at one
   # commit, 2,810 tests: `cargo test --workspace` 451 s, bare `cargo nextest run --workspace` 43 s.
   # **This step is not that 43 s.** It is the step as the gate runs it — clippy already done, on a warm
