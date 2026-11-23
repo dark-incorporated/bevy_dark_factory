@@ -282,25 +282,25 @@ fn open(mut asks: MessageReader<OpenKeymap>, existing: Query<(), With<KeymapDial
         });
 }
 
-/// **The files this screen follows, and the index that tells it when one moved** (#553 grouped these so `refresh` stays under
-/// clippy's argument limit without a `#[allow]`): the news from the index, the two files, and the settings the chord spelling comes
-/// from. They are one thing — "what this screen reads" — not eight independent inputs.
+/// **The two queries `refresh` reads but never writes** (#553): the rows it rebuilds under the dialog and the line that says
+/// what is wrong. Grouped so `refresh` stays inside clippy's seven-argument limit without an `#[allow]`; they are one thing —
+/// what the screen has drawn — beside `dialogs`, which it does write.
 #[derive(bevy::ecs::system::SystemParam)]
-struct Read {
-    news: FileNews,
-    files: Files,
-    settings: Option<Res<bevy_gooey::BindingSettings>>,
+struct Drawn<'w, 's> {
+    rows: Query<'w, 's, Entity, With<Rows>>,
+    problem_line: Query<'w, 's, &'static mut Text, With<ProblemLine>>,
 }
 
 fn refresh(
-    mut read: Read,
+    mut news: FileNews,
+    files: Files,
     mut dialogs: Query<(Ref<KeymapDialog>, &mut Built)>,
-    rows: Query<Entity, With<Rows>>,
-    mut problem_line: Query<&mut Text, With<ProblemLine>>,
+    mut drawn: Drawn,
     mut heard: Local<Heard>,
+    settings: Option<Res<bevy_gooey::BindingSettings>>,
     mut commands: Commands,
 ) {
-    let Read { news, files, settings } = &mut read;
+    let Drawn { rows, mut problem_line } = &mut drawn;
     let moved = news.moved(&mut heard, files.user().as_deref(), files.project().as_deref());
     let Ok((dialog, mut built)) = dialogs.single_mut() else { return };
     if !moved.any() && !dialog.is_changed() && built.0.is_some() {
