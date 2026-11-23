@@ -144,12 +144,17 @@ fn own_keymap(layer: &Layer) -> BTreeMap<String, Shortcut> {
 /// answers to what the layer below gives it: `below`, the chord a lower layer rebinds it to, else its
 /// default. A chord another command has refuses and writes nothing, and so does a Reset that would hand a
 /// command back a chord something else has taken since.
+///
+/// `settings` spells the chords the refusal quotes, through [`BindingSettings::chord`] — the same accessor
+/// the dialog's rows and gooey's keycaps read (#553), so a refused chord is not named in one spelling here
+/// and another on the row it was dragged from.
 pub fn rebind(
     path: &std::path::Path,
     id: &str,
     chord: Option<Shortcut>,
     others: &BTreeMap<String, Shortcut>,
     below: Option<Shortcut>,
+    settings: &bevy_gooey::BindingSettings,
 ) -> Result<(), String> {
     let Some((title, default, _)) = rebindable(id) else { return Err(format!("`{id}` is not a command or a fixed chord")) };
     let fallback = below.unwrap_or(default);
@@ -159,7 +164,7 @@ pub fn rebind(
         let who: Vec<String> = clash.iter().map(|c| format!("{} ({})", c.title, c.id)).collect();
         return Err(format!(
             "{} is already {}. Nothing was saved: rebind {} first, or choose another chord for {}.",
-            target.label(),
+            settings.chord(target),
             who.join(" and "),
             if who.len() == 1 { "it" } else { "them" },
             title
@@ -180,6 +185,9 @@ pub fn rebind(
 struct Writer<'w, 's> {
     dialog: Query<'w, 's, &'static mut KeymapDialog>,
     files: Files<'w>,
+    /// How a refused chord is spelled (#553): the host's setting, as gooey's own keycaps read it. Optional
+    /// because a headless harness with no `EditorUiPlugin` has no gooey plugin to insert it.
+    settings: Option<Res<'w, bevy_gooey::BindingSettings>>,
 }
 
 impl Writer<'_, '_> {
@@ -194,8 +202,9 @@ impl Writer<'_, '_> {
             Scope::User => None,
             Scope::Project => own_keymap(&user).get(id).copied(),
         };
+        let spelling = self.settings.as_deref().cloned().unwrap_or_else(crate::ui::editor_binding_settings);
         let outcome = match self.files.path(dialog.scope) {
-            Some(path) => rebind(&path, id, chord, &others, below),
+            Some(path) => rebind(&path, id, chord, &others, below, &spelling),
             None => Err("there is no file to write this to".to_owned()),
         };
         dialog.problem = outcome.err();
@@ -280,6 +289,7 @@ fn refresh(
     rows: Query<Entity, With<Rows>>,
     mut problem_line: Query<&mut Text, With<ProblemLine>>,
     mut heard: Local<Heard>,
+    settings: Option<Res<bevy_gooey::BindingSettings>>,
     mut commands: Commands,
 ) {
     let moved = news.moved(&mut heard, files.user().as_deref(), files.project().as_deref());
@@ -317,6 +327,9 @@ fn refresh(
     let own = own_keymap(edited);
     let users = own_keymap(&snapshot.user);
     let query = dialog.query.to_lowercase();
+    // **How this screen spells a chord** (#553): the host's setting, as gooey's own keycaps and its binding
+    // rows read it, so a row and the words beside it cannot disagree about a key.
+    let spelling = settings.as_deref().cloned().unwrap_or_else(crate::ui::editor_binding_settings);
     // **Every command, then every fixed chord** (`crate::chords`): one kind of row, found by the same words.
     let listed: Vec<Row> = effective(&now)
         .into_iter()
@@ -328,7 +341,12 @@ fn refresh(
             default: (named.default)(),
         }))
         .filter(|row| {
-            let hay = format!("{} {} {}", row.title, row.id, row.chord.label()).to_lowercase();
+            // **Both spellings find the row.** A search is a person typing what they read; the row draws
+            // the host's words (`Cmd+S`) and gooey's own glyph spelling still has to find it for someone
+            // who met this key in another app's docs (`⌘S`).
+            let words = spelling.chord(row.chord);
+            let glyphs = row.chord.label();
+            let hay = format!("{} {} {words} {glyphs}", row.title, row.id).to_lowercase();
             query.split_whitespace().all(|w| hay.contains(w))
         })
         .collect();
@@ -343,7 +361,10 @@ fn refresh(
             Scope::User => row.default,
             Scope::Project => users.get(row.id).copied().unwrap_or(row.default),
         };
-        let items: Vec<_> = listed.into_iter().map(|row| rebind_row(own.contains_key(row.id), below(&row), row)).collect();
+        let items: Vec<_> = listed
+            .into_iter()
+            .map(|row| rebind_row(own.contains_key(row.id), below(&row), row, spelling.clone()))
+            .collect();
         commands.entity(column).with_children(|c| {
             c.spawn(list(LIST_ROWS, Children::spawn(SpawnIter(items.into_iter()))));
         });
@@ -360,7 +381,10 @@ struct Row {
 }
 
 /// One row: the rebinding, and while the file being edited rebinds it, the chord without it and a Reset.
-fn rebind_row(modified: bool, below: Shortcut, row: Row) -> impl Bundle {
+///
+/// `spelling` is the host's [`bevy_gooey::BindingSettings`]: the row's keycap is gooey's own and spells itself,
+/// and this is for the sentence below it, so a reset that names a chord says it in the row's own words (#553).
+fn rebind_row(modified: bool, below: Shortcut, row: Row, spelling: bevy_gooey::BindingSettings) -> impl Bundle {
     let Row { id, title, chord, .. } = row;
     (
         bevy_gooey::column(0.0),
@@ -374,9 +398,10 @@ fn rebind_row(modified: bool, below: Shortcut, row: Row) -> impl Bundle {
                 }),
             ));
             if modified {
+                let below = spelling.chord(below);
                 line.spawn((bevy_gooey::row_with(0.0, bevy_gooey::RowLayout { align: Some(AlignItems::Center), ..default() }), crate::chrome::Gap::Group.class()))
                     .with_children(|reset| {
-                        reset.spawn(label(format!("Modified; without it the chord is {}", below.label())));
+                        reset.spawn(label(format!("Modified; without it the chord is {below}")));
                         reset.spawn((button(format!("Reset {title}")), observe(move |_: On<Activate>, mut w: Writer| w.set(id, None))));
                     });
             }

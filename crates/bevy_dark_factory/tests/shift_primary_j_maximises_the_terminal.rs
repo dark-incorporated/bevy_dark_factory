@@ -174,7 +174,7 @@ fn terminal_maximise_is_a_view_row_a_keymap_row_and_a_reserved_chord() {
     assert!(listed, "the keymap lists the maximise chord as a row a person rebinds");
 
     let file = std::env::temp_dir().join(format!("terminal_maximise_keymap_{}/settings.yaml", std::process::id()));
-    let refused = keymap_screen::rebind(&file, "file.save", Some(maximise), &BTreeMap::new(), None);
+    let refused = keymap_screen::rebind(&file, "file.save", Some(maximise), &BTreeMap::new(), None, &bevy_dark_factory::ui::editor_binding_settings());
     let why = refused.expect_err("a command cannot be rebound onto the maximise chord");
     assert!(why.contains("terminal.maximise"), "the refusal names it: {why}");
     assert!(!file.exists(), "and nothing was saved");

@@ -218,3 +218,104 @@ fn the_panels_file_is_the_crates_file() {
     assert_eq!(read_settings, settings);
     assert_eq!(read_table, table);
 }
+
+/// **The panel judges the cues against the project's own mix table** (#554), not against `bevy_siren`'s four
+/// `DEFAULT_BUSES`.
+///
+/// A project that declares `Music`, `Effects` and `SFX` and puts a cue on `SFX` is a clean file: the crate
+/// would play it, and the panel must not say otherwise. The same file with the cue on `Sfx` — a bus the mix
+/// does *not* declare — is a real finding, and the panel names the cue and the bus. Before #554 the first
+/// case was a false problem on every `SFX` cue and the second could never be seen, because the crate's own
+/// four buses always answered.
+#[test]
+fn the_panel_checks_the_cues_against_this_files_own_buses() {
+    // **The mix and the cues agree**: `SFX` is a bus this file declares, so nothing is wrong with it.
+    let agreeing = r#"{settings: {max_voices: 8, buses: [{name: "Music"}, {name: "Effects"}, {name: "SFX"}], ducks: []}, cues: {cues: [{name: "ui.click", sounds: [{sound: "click"}], bus: "SFX"}]}}"#;
+    let root = project("siren_buses_agree", agreeing);
+    let mut app = harness::build_headless(&root, "m", None).unwrap_or_else(|e| panic!("{e}"));
+    for _ in 0..4 {
+        app.update();
+    }
+    let problems = app.world().resource::<EditorState>().status.problems().iter().map(|p| p.text.clone()).collect::<Vec<_>>();
+    assert!(
+        problems.is_empty(),
+        "`SFX` is a bus this file declares, so a cue on it is no problem: {problems:?}"
+    );
+
+    // **The cue names a bus the mix does not have**: a real finding, naming the cue and the bus.
+    let wrong = r#"{settings: {max_voices: 8, buses: [{name: "Music"}, {name: "Effects"}, {name: "SFX"}], ducks: []}, cues: {cues: [{name: "ui.click", sounds: [{sound: "click"}], bus: "Sfx"}]}}"#;
+    let root = project("siren_buses_wrong", wrong);
+    let mut app = harness::build_headless(&root, "m", None).unwrap_or_else(|e| panic!("{e}"));
+    for _ in 0..4 {
+        app.update();
+    }
+    let problems = app.world().resource::<EditorState>().status.problems().iter().map(|p| p.text.clone()).collect::<Vec<_>>();
+    assert!(
+        problems.iter().any(|p| p.contains("ui.click") && p.contains("Sfx")),
+        "a cue on a bus the mix does not declare is named, with the cue and the bus: {problems:?}"
+    );
+}
+
+/// **The panel draws what its note says** (#557): a row per bus from the mix, the selected cue marked, and
+/// the tail of the crate's log — not a heading and one button.
+///
+/// Each list is a column the section spawns and a system fills. This drives a frame with the Sound workspace
+/// open and reads the rows back, then moves the selection with Down and says the mark follows it — the same
+/// `AudioPanel::selected` **Audition** reads.
+#[test]
+fn the_panel_draws_the_buses_the_cues_and_the_log() {
+    let text = r#"{settings: {max_voices: 8, buses: [{name: "Music"}, {name: "Effects"}], ducks: []}, cues: {cues: [{name: "ui.click", sounds: [{sound: "click"}]}, {name: "step.grass", sounds: [{sound: "step_01"}]}]}}"#;
+    let root = project("siren_draws", text);
+    let mut app = harness::build_headless_at(&root, "m", None, bevy_dark_factory::tiles::Mode::default()).unwrap_or_else(|e| panic!("{e}"));
+    // The Sound workspace, so the panel's draw runs (its run condition is `Workspace::sound_is_open`).
+    *app.world_mut().resource_mut::<bevy_dark_factory::workspace::Workspace>() = bevy_dark_factory::workspace::Workspace::Sound;
+    for _ in 0..6 {
+        app.update();
+    }
+
+    // **The rows of a column**, read from its `Text` children in spawn order.
+    let rows_of = |app: &App, kind: &'static str| -> Vec<String> {
+        let world = app.world();
+        let lists: Vec<Entity> = match kind {
+            "bus" => world.iter_entities().filter(|e| e.get::<audio_panel::BusList>().is_some()).map(|e| e.id()).collect(),
+            "cue" => world.iter_entities().filter(|e| e.get::<audio_panel::CueChooser>().is_some()).map(|e| e.id()).collect(),
+            _ => world.iter_entities().filter(|e| e.get::<audio_panel::LogTail>().is_some()).map(|e| e.id()).collect(),
+        };
+        let Some(&list) = lists.first() else { return Vec::new() };
+        let mut out = Vec::new();
+        fn walk(world: &World, e: Entity, out: &mut Vec<String>) {
+            if let Some(t) = world.get::<Text>(e) {
+                out.push(t.0.clone());
+            }
+            if let Some(kids) = world.get::<Children>(e) {
+                for k in kids.iter() {
+                    walk(world, k, out);
+                }
+            }
+        }
+        walk(world, list, &mut out);
+        out
+    };
+
+    let buses = rows_of(&app, "bus");
+    assert_eq!(buses.len(), 2, "one row per bus in the mix: {buses:?}");
+    let mix = app.world().resource::<SirenMix>().clone();
+    let panel = app.world().resource::<AudioPanel>().clone();
+    assert_eq!(buses, audio_panel::bus_rows(&mix, &panel.buses), "a bus row is `bus_rows`' own string");
+
+    let cues = rows_of(&app, "cue");
+    assert_eq!(cues.len(), 2, "one row per cue: {cues:?}");
+    assert_eq!(cues, audio_panel::cue_rows(&panel), "the cue rows are `cue_rows`' own strings, the chosen one marked");
+    assert!(cues[0].starts_with(bevy_dark_factory::world_lists::CUE_MARK), "the selected cue is marked: {cues:?}");
+
+    let tail = rows_of(&app, "log");
+    assert!(!tail.is_empty(), "the log tail says at least that nothing has played: {tail:?}");
+
+    // **Down moves the mark, and it is the value Audition reads**: the panel's own `selected`, not a second one.
+    let before = app.world().resource::<AudioPanel>().selected;
+    app.world_mut().resource_mut::<ButtonInput<KeyCode>>().press(KeyCode::ArrowDown);
+    app.update();
+    assert_eq!(app.world().resource::<AudioPanel>().selected, (before + 1) % 2, "Down walks the cue list");
+    let moved = rows_of(&app, "cue");
+    assert!(moved[1].starts_with(bevy_dark_factory::world_lists::CUE_MARK), "the mark follows the selection: {moved:?}");
+}

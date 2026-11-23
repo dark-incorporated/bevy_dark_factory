@@ -193,9 +193,12 @@ fn the_palette_lists_every_command_with_its_chord_and_the_reason_it_cannot_run()
 
     let undo = list.iter().find(|c| c.id == "edit.undo").expect("`edit.undo` is listed");
     assert_eq!(undo.label(), "Edit: Undo");
+    // **Both sides in the host's own spelling** (#553): the row carries the command's default chord, and a chord
+    // is compared as a `Shortcut` spelled by the one setting every surface reads, not as `Shortcut::label`.
+    let spelling = bevy_dark_factory::ui::editor_binding_settings();
     assert_eq!(
-        undo.shortcut.map(|s| s.label()),
-        Some(commands::by_id("edit.undo").unwrap().shortcut_label()),
+        undo.shortcut.map(|s| spelling.chord(s)),
+        Some(spelling.chord(commands::by_id("edit.undo").unwrap().shortcut)),
         "the row carries the command's own chord"
     );
     assert!(undo.enabled.is_ok(), "Undo can run on the Map tab: {:?}", undo.enabled);
