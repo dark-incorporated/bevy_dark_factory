@@ -16,7 +16,7 @@
 
 use std::path::Path;
 
-use crate::settings::{EditorSettings, ExternalEdits, GRID_STRENGTH_RANGE, KIND, SettingsLayer, TerminalAgent, TerminalCursor, Theme};
+use crate::settings::{EditorSettings, ExternalEdits, GRID_STRENGTH_RANGE, KIND, SettingsLayer, SyntaxTheme, TerminalAgent, TerminalCursor, Theme};
 use bevy_oracle::DecisionModel;
 
 /// One key's value: what a control shows and what a write carries.
@@ -99,6 +99,9 @@ pub const AUTO_SAVE_NAMES: &[&str] = &["Off", "Every 30 s", "Every minute", "Eve
 /// The names of [`Theme`]'s variants, in declaration order.
 pub const THEMES: &[&str] = &["Tool dark", "Parchment", "High contrast"];
 
+/// The names of [`SyntaxTheme`]'s variants, in declaration order.
+pub const SYNTAX_THEMES: &[&str] = &["Skin", "Warm", "Cool", "Mono", "Separated"];
+
 /// The names of [`TerminalCursor`]'s variants, in declaration order.
 pub const TERMINAL_CURSORS: &[&str] = &["Block", "Underline", "Bar"];
 
@@ -125,6 +128,16 @@ pub const CATALOGUE: &[Setting] = &[
         category: "Appearance",
         description: "The colours and look of the editor.",
         kind: Kind::Options(THEMES),
+    },
+    // **The code editor's hues** (#525, `feedback-1795094391027`): five presets gooey derives from the skin's seeds. `Skin`
+    // is the shipped default and draws exactly the colours the editor drew before this row existed, so a person who never
+    // opens the screen sees nothing move.
+    Setting {
+        key: "syntax_theme",
+        label: "Code colours",
+        category: "Appearance",
+        description: "The hues the code editor gives a key, a string, a number, a keyword, a reference, a function and a type, in a file open in the Files workspace. Skin is the editor's own; Warm is amber and sand; Cool is blues and violets; Mono is one hue told apart by lightness, for quiet reading and for readers who cannot tell hues apart; Separated spreads the hues as far as they go, for reading a pane at a glance. A comment, an operator and an error keep their colours in every set.",
+        kind: Kind::Options(SYNTAX_THEMES),
     },
     Setting {
         key: "text_scale",
@@ -299,6 +312,27 @@ pub fn theme_index(theme: Theme) -> usize {
     }
 }
 
+/// Where a [`SyntaxTheme`] sits in [`SYNTAX_THEMES`], the order the Settings row offers.
+pub fn syntax_theme_index(theme: SyntaxTheme) -> usize {
+    match theme {
+        SyntaxTheme::Skin => 0,
+        SyntaxTheme::Warm => 1,
+        SyntaxTheme::Cool => 2,
+        SyntaxTheme::Mono => 3,
+        SyntaxTheme::Separated => 4,
+    }
+}
+
+fn syntax_theme_at(index: usize) -> SyntaxTheme {
+    match index {
+        1 => SyntaxTheme::Warm,
+        2 => SyntaxTheme::Cool,
+        3 => SyntaxTheme::Mono,
+        4 => SyntaxTheme::Separated,
+        _ => SyntaxTheme::Skin,
+    }
+}
+
 fn cursor_index(cursor: TerminalCursor) -> usize {
     match cursor {
         TerminalCursor::Block => 0,
@@ -407,6 +441,7 @@ impl EditorSettings {
     pub fn value(&self, key: &str) -> Option<Value> {
         Some(match key {
             "theme" => Value::Option(theme_index(self.theme)),
+            "syntax_theme" => Value::Option(syntax_theme_index(self.syntax_theme)),
             "text_scale" => Value::Number(self.text_scale),
             "interface_scale" => Value::Number(self.interface_scale),
             "reduced_motion" => Value::On(self.reduced_motion),
@@ -450,6 +485,7 @@ impl SettingsLayer {
     pub fn get(&self, key: &str) -> Option<Value> {
         match key {
             "theme" => self.theme.map(|t| Value::Option(theme_index(t))),
+            "syntax_theme" => self.syntax_theme.map(|t| Value::Option(syntax_theme_index(t))),
             "text_scale" => self.text_scale.map(Value::Number),
             "interface_scale" => self.interface_scale.map(Value::Number),
             "reduced_motion" => self.reduced_motion.map(Value::On),
@@ -479,6 +515,7 @@ impl SettingsLayer {
     pub fn set(&mut self, key: &str, value: Value) -> bool {
         match (key, value) {
             ("theme", Value::Option(i)) => self.theme = Some(theme_at(i)),
+            ("syntax_theme", Value::Option(i)) => self.syntax_theme = Some(syntax_theme_at(i)),
             ("text_scale", Value::Number(n)) => self.text_scale = Some(n),
             ("interface_scale", Value::Number(n)) => self.interface_scale = Some(n),
             ("reduced_motion", Value::On(on)) => self.reduced_motion = Some(on),
@@ -506,6 +543,7 @@ impl SettingsLayer {
     pub fn clear(&mut self, key: &str) {
         match key {
             "theme" => self.theme = None,
+            "syntax_theme" => self.syntax_theme = None,
             "text_scale" => self.text_scale = None,
             "interface_scale" => self.interface_scale = None,
             "reduced_motion" => self.reduced_motion = None,
