@@ -98,7 +98,7 @@ fn count_between(text: &str, lead: &str, suffix: &str) -> Option<usize> {
 /// **How many kinds core's own checked-in list names**: `blueprint_model::reload_check::unchecked()`, the same read the
 /// other tests make, so the page's "the other N" is measured against the list that decides it rather than against a copy.
 fn unchecked_count() -> usize {
-    blueprint_model::reload_check::unchecked().len()
+    blueprint_model::reload_check::unchecked().count()
 }
 
 /// **Every `kind("id", …)` row of `blueprint_model::reload::KINDS`**, by id, for a document to be read
