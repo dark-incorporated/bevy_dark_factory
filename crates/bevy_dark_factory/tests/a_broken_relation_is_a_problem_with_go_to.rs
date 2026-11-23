@@ -31,8 +31,13 @@ fn editor(name: &str, relations: &str) -> App {
     let mut app = harness::build_headless(&root, "m", None).unwrap_or_else(|e| panic!("{e}"));
     // **A wait on the problems list the test then reads**, not on six sleeps: the list follows the project index, and what this
     // test is about is the row it draws.
-    settle_support::until(&mut app, "the problems list names a relation problem", |app| {
-        app.world_mut().query::<&Text>().iter(app.world()).any(|t| t.0.contains("relation"))
+    //
+    // **The wait is for the list to have drawn a verdict, not for the word "relation"**: one of this file's maps has
+    // relations that all hold, and its list says "no problems" — a wait for "relation" could never be satisfied there
+    // (the 2026-11-23 gate: the two passing-case tests gave up after ten seconds, and the sleeps they replaced had
+    // only hidden it).
+    settle_support::until(&mut app, "the problems list has drawn its verdict", |app| {
+        problem_texts(app).iter().any(|text| !text.trim().is_empty())
     });
     app
 }
