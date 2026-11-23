@@ -565,7 +565,7 @@ fn the_keys_page_names_every_fixed_chord() {
         // `Modifiers::PRIMARY`, which is `primary_on(Platform::current())` — `ctrl` when the gate compiles on
         // Linux (the 2026-11-23 gate read `Ctrl+Q` for a page that says `Cmd+Q`). So the modifiers are rebuilt
         // for the mac here rather than the host, which is the platform the page is written for.
-        let chord = as_the_page_spells_it(chord, built_from_the_primary(named.id, chords_rs));
+        let chord = as_the_page_spells_it(chord, built_from_the_primary(named.id, &chords_rs));
         // **The spelling the page uses** is gooey's `Words` on a mac, the one `ui.rs` sets as the host's
         // `ChordGlyphs`.
         let label = chord.label_with(Platform::Mac, ChordGlyphs::Words);
