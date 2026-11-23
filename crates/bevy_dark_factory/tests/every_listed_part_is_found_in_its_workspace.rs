@@ -28,8 +28,7 @@ use bevy_gooey::{Disabled, ValueChange};
 use crate::fixtures;
 use crate::settle_support;
 
-/// **Frames the editor is given to settle** after a switch: the transition runs the frame after the key and the panels are spawned the
-
+/// **Frames the editor is given to settle** after a switch: the transition runs the frame after the key and the panels are spawned, so a test reads the settled project.
 fn project(tag: &str) -> PathBuf {
     fixtures::Fixture::new(&format!("every_listed_part_{tag}_{}", std::process::id()))
         .descriptor("alpha/floor", "alpha")
