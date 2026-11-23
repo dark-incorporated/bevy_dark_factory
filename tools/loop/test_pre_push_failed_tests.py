@@ -58,7 +58,7 @@ class FailedTestsAreKeptAndRunAlone(unittest.TestCase):
         (self.dir / "docs" / "note.md").write_text("one\n")
         # The hook reads the tools it checks; a stub that always passes keeps those out of the way, and it is committed so the
         # hook's "uncommitted changes under tools/" refusal does not fire on the harness rather than on the hook.
-        for tool in ("tools/loop/backlog.py", "tools/changelog/changelog.py", "tools/loop/version.py"):
+        for tool in ("tools/loop/backlog.py", "tools/changelog/changelog.py", "tools/loop/version.py", "tools/loop/wall_clock_filter.py", "tools/loop/require-gate-record.sh"):
             path = self.dir / tool
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text("import sys\nsys.exit(0)\n")
