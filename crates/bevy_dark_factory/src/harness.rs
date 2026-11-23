@@ -440,8 +440,9 @@ static DEVICE_REQUESTS: AtomicU32 = AtomicU32::new(0);
 static SIMULATED_REFUSALS: AtomicU32 = AtomicU32::new(0);
 
 /// **The two device switches and the request count are process-wide**, so every caller that asks for a device holds this
-/// lock: a test that simulates a refusal cannot have it spent by another test's `real_device_available`, and the numbers a
-/// test reads are its own. The callers are `real_device_available`, `build_stepped_at(Device::Real)` and the four tests of
+/// lock: under `cargo test`, where a binary's tests share a process, a simulated refusal cannot be spent by another test's
+/// `real_device_available`. (Nextest gives each test its own process, which is what the gate runs, so there the lock is a
+/// belt as well as braces.) The callers are `real_device_available`, `build_stepped_at(Device::Real)` and the four tests of
 /// the switch; `on_a_device` itself does not take it, because the switch tests hold it across the set-then-build pair.
 static DEVICE_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
@@ -839,12 +840,18 @@ mod tests {
         // request (`real_device_available`) cannot spend the refusals (the 2026-11-23 gate: `Ok(1)`, another test had taken
         // them). The lock covers every ask in this process, which is why the four tests of this switch take it.
         refuse_the_next_devices(2);
+        let before = device_requests();
         let asks = std::cell::Cell::new(0u32);
         let built = on_a_device(DEVICE_TRIES, std::time::Duration::ZERO, || {
             asks.set(asks.get() + 1);
             Ok(asks.get())
         });
-        assert_eq!(built, Ok(3), "two requests are refused without being built, and the third is");
+        // **Three requests, one build.** A refusal never reaches the build, so the build is called once and the
+        // number it returns is 1; the retry is proved by the request counter, not by that number (the assertion
+        // here used to read `Ok(3)`, which counted the refusals as builds).
+        assert_eq!(built, Ok(1), "the third request is the one that builds");
+        assert_eq!(asks.get(), 1, "a refused request never reaches the build");
+        assert_eq!(device_requests(), before + 3, "three requests were made and counted, so the retry is measured");
         refuse_the_next_devices(0);
     }
 }

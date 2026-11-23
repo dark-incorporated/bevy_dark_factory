@@ -502,11 +502,17 @@ fn the_layout_models_fixed_list_states_the_sheets_divider() {
 
 // ── #570: keys.md names every fixed chord ─────────────────────────────────────────────────────────
 
-/// **The same chord with the primary modifier the mac has**, since `chords` builds it for the host's platform:
-/// `Command` on a mac and `Ctrl` on the gate's Linux runner, and the page lists the mac's spelling.
-fn rehosted_on_mac(mut chord: bevy_gooey::Shortcut) -> bevy_gooey::Shortcut {
+/// **The chord as the page spells it.**
+///
+/// `chords::primary` is `Modifiers::PRIMARY`, which resolves to the HOST at compile time — `Ctrl` on the gate's Linux
+/// runner, `Command` on a mac — and the page is written for the mac. A chord that names `Modifiers::CTRL` itself is
+/// left alone: `Ctrl+Tab` is Ctrl on every platform on purpose (`Cmd+Tab` is the system's window switcher), so a
+/// blanket `ctrl`→`meta` rewrite would change the one chord the page gets right (this is what it did on 2026-11-23,
+/// reporting `Shift+Cmd+Tab` missing for a `session.previous_tab` the code builds as `CTRL | SHIFT`).
+fn as_the_page_spells_it(mut chord: bevy_gooey::Shortcut) -> bevy_gooey::Shortcut {
     use bevy_gooey::{Modifiers, Platform};
-    if chord.modifiers.ctrl && Platform::current() != Platform::Mac {
+    let primary = chord.modifiers == Modifiers::PRIMARY || chord.modifiers == (Modifiers::PRIMARY | Modifiers::SHIFT);
+    if primary && Platform::current() != Platform::Mac {
         chord.modifiers.ctrl = false;
         chord.modifiers.meta = true;
     }
@@ -541,7 +547,7 @@ fn the_keys_page_names_every_fixed_chord() {
         // `Modifiers::PRIMARY`, which is `primary_on(Platform::current())` — `ctrl` when the gate compiles on
         // Linux (the 2026-11-23 gate read `Ctrl+Q` for a page that says `Cmd+Q`). So the modifiers are rebuilt
         // for the mac here rather than the host, which is the platform the page is written for.
-        let chord = rehosted_on_mac(chord);
+        let chord = as_the_page_spells_it(chord);
         // **The spelling the page uses** is gooey's `Words` on a mac, the one `ui.rs` sets as the host's
         // `ChordGlyphs`.
         let label = chord.label_with(Platform::Mac, ChordGlyphs::Words);
