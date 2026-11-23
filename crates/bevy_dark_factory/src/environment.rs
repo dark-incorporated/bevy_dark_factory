@@ -1,9 +1,12 @@
 //! **A map's environment: climate, date, clock, place and forced weather** (#98).
 //!
 //! The data is `bevy_elements`' own serde types, written as YAML in `<project>/family/bevy_elements.yaml`
-//! (the file `family_set` edits and the game's copy of the plugin reads). [`ElementsSettings`] only
-//! lists which of the crate's resources the file holds; it defines no field of its own except which
-//! weather preset is forced, because the crate keeps that inside a private director.
+//! (the file `family_set` edits and the game's copy of the plugin reads). [`ElementsSettings`] lists the
+//! crate's resources the file holds, plus one field of its own — [`ElementsSettings::forced_weather`] — because
+//! no `bevy_elements` settings type carries the forced preset: the crate keeps it inside its
+//! [`WeatherDirector`]. That one field is what the file says ("rain, please"); the director's own
+//! [`WeatherDirector::forced`] is what is in force, and [`apply`] compares the two rather than keeping a second
+//! copy of either.
 //!
 //! [`apply_environment`] copies a changed file into the running resources, so the editor's preview
 //! and the game see the same values. Forcing rain is `WeatherDirector::force`; clearing the field
@@ -81,16 +84,14 @@ impl ElementsSettings {
     }
 }
 
-/// Puts `settings` into the running resources. `applied_force` is the forced preset this was last
-/// called with, so an unchanged field is not forced again (which would restart the blend).
-pub fn apply(
-    settings: &ElementsSettings,
-    clock: &mut WorldClock,
-    location: &mut GeoLocation,
-    climate: &mut Climate,
-    director: &mut WeatherDirector,
-    applied_force: &mut Option<Option<WeatherPreset>>,
-) {
+/// Puts `settings` into the running resources.
+///
+/// **The director already knows which preset it holds** (`WeatherDirector::forced()`), so there is no
+/// second copy of that fact here (#558): the file is compared against the director, not against a `Local`
+/// of the last value written. Force when the file names a preset the director does not hold, release when
+/// the file names none and the director is forced. A `Local` remembered the *editor's* last call, so a
+/// hand edit, a reload or a second project started from a stale answer; the director cannot be stale.
+pub fn apply(settings: &ElementsSettings, clock: &mut WorldClock, location: &mut GeoLocation, climate: &mut Climate, director: &mut WeatherDirector) {
     // **The hour is walked, not jumped** (#271). `bevy_elements` adapts the camera's exposure to the
     // sky with a 1.5 s time constant (`EXPOSURE_TAU_S`), so a step from noon to 20:00 shows the night
     // scene at noon's exposure for about a second and a half — measured as 12 frames of a viewport
@@ -108,13 +109,13 @@ pub fn apply(
     }
     *location = settings.location.clone();
     *climate = settings.climate.clone();
-    if *applied_force != Some(settings.forced_weather) {
-        match settings.forced_weather {
-            Some(preset) => director.force(preset, BLEND),
-            None if director.is_forced() => director.release(BLEND),
-            None => {}
-        }
-        *applied_force = Some(settings.forced_weather);
+    match settings.forced_weather {
+        // A preset the director does not already hold is forced; the same one is left to finish its own
+        // blend rather than restarted.
+        Some(preset) if director.forced() != Some(preset) => director.force(preset, BLEND),
+        // `None` releases a director that is forced, and does nothing to a scheduler already choosing.
+        None if director.forced().is_some() => director.release(BLEND),
+        _ => {}
     }
 }
 
@@ -153,7 +154,6 @@ pub fn apply_environment(
     mut state: ResMut<crate::editor::EditorState>,
     mut preview: Preview,
     mut ramp: Option<ResMut<ClockRamp>>,
-    mut applied_force: Local<Option<Option<WeatherPreset>>>,
     mut seen: Local<Option<String>>,
 ) {
     let Some(text) = settings.text.get(CRATE) else {
@@ -182,7 +182,7 @@ pub fn apply_environment(
         {
             **ramp = walk;
         }
-        apply(&parsed, clock, location, climate, director, &mut applied_force);
+        apply(&parsed, clock, location, climate, director);
     }
     apply_cover(&parsed, &mut preview);
 }
