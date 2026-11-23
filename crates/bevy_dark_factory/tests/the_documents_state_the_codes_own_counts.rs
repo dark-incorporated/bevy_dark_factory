@@ -563,7 +563,7 @@ fn every_guide_markdown_fragment_resolves() {
     let mut broken = Vec::new();
     for file in &files {
         let text = std::fs::read_to_string(file).unwrap_or_else(|e| panic!("{}: {e}", file.display()));
-        let shown = file.strip_prefix(root()).unwrap_or(file).display().to_string();
+        let shown = file.strip_prefix(root()).unwrap_or(file.as_path()).display().to_string();
         let mut fenced = false;
         for (n, line) in text.lines().enumerate() {
             if line.trim_start().starts_with("```") {
