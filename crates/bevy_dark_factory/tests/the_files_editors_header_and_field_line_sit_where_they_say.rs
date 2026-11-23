@@ -168,9 +168,14 @@ fn the_field_lines_words_stand_inside_its_own_box() {
         classes.0
     );
     let words = app.world().get::<TextHint>(line).map(|hint| hint.0.clone()).unwrap_or_default();
+    assert_eq!(
+        words,
+        files::FIELD_LINE_HINT,
+        "the hint is the sentence the module names, so the control and its words cannot drift"
+    );
     assert!(
         !words.trim().is_empty() && !words.starts_with("Set a field"),
-        "the hint says what to type, in a person's words, rather than repeating the label: {words:?}"
+        "the hint says what to type, in a person's words, rather than repeating the old label: {words:?}"
     );
     let shown = app.world().get::<Text>(hint).map(|text| text.0.clone()).unwrap_or_default();
     assert_eq!(shown, words, "the drawn hint is the row's hint");

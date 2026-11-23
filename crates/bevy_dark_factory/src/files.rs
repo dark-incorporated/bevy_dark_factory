@@ -868,14 +868,19 @@ fn spawn_the_files_workspace(mut commands: Commands, frame: Res<Frame>) {
                 ));
             });
             // **One control, with its words inside its own frame** (#542): `text_input` lays its label and its field
-            // out at the row's two ends (`justify_content: SpaceBetween`), so the label stood 483 px left of the box
-            // it named and a person could not tell the two were one control. The hint is drawn inside the field, and
-            // `FlexStart` stands the field beside its short label. A class of its own is what lets
-            // `blueprint/ui_style_inspect` over the box name this control instead of the page card it stands in.
+            // out at the row's two ends (`justify_content: SpaceBetween`), so a label here stood 483 px left of the
+            // box it named and a person could not read the two as one control. The words are the field's own hint
+            // instead, drawn inside the box where a person types, and the row keeps no label at all — the shape
+            // `launcher.rs` and `terminal_pane.rs` already use for a field with a hint.
+            //
+            // `TextFlow`'s `align` is what stops the page host's stretch from widening the box: `apply_skin` writes it
+            // on any role, and `AlignSelf::Start` turns taffy's `width: auto` from "fill the parent" into "as wide as
+            // the content", so the box stands where its words do. A class of its own is what lets
+            // `blueprint/ui_style_inspect` over the box name this control rather than the page card it stands in.
             host.spawn((
-                bevy_gooey::text_input("Set a field", ""),
-                bevy_gooey::TextHint("a path and its value, like name: bedroom".to_owned()),
-                bevy_gooey::RowLayout { justify: Some(JustifyContent::FlexStart), ..default() },
+                bevy_gooey::text_input("", ""),
+                bevy_gooey::TextHint(FIELD_LINE_HINT.to_owned()),
+                bevy_gooey::TextFlow { align: Some(AlignSelf::Start), ..default() },
                 bevy_gooey::StyleClass::of("chrome-field-line"),
                 FieldLine,
                 observe(on_field_line),
@@ -884,6 +889,11 @@ fn spawn_the_files_workspace(mut commands: Commands, frame: Res<Frame>) {
         .id();
     commands.entity(frame.viewport).add_child(host);
 }
+
+/// **What the field line's box says to type** (#542): a path and the value for it, in the words a person would use
+/// rather than the field's own name. A field with a label at the row's left and a box at its right reads as two
+/// controls; this is drawn inside the box, so the words and the place they are typed are one thing.
+pub const FIELD_LINE_HINT: &str = "a path and its value, like name: bedroom";
 
 /// **The field line**: `<field path> <value>` sets one value of the open YAML file through the operation `file_edit`,
 /// with every comment kept, as the DATA line sets a game's tuning value. The same write an agent's `apply` makes.
