@@ -282,16 +282,25 @@ fn open(mut asks: MessageReader<OpenKeymap>, existing: Query<(), With<KeymapDial
         });
 }
 
-fn refresh(
-    mut news: FileNews,
+/// **The files this screen follows, and the index that tells it when one moved** (#553 grouped these so `refresh` stays under
+/// clippy's argument limit without a `#[allow]`): the news from the index, the two files, and the settings the chord spelling comes
+/// from. They are one thing — "what this screen reads" — not eight independent inputs.
+#[derive(bevy::ecs::system::SystemParam)]
+struct Read {
+    news: FileNews,
     files: Files,
+    settings: Option<Res<bevy_gooey::BindingSettings>>,
+}
+
+fn refresh(
+    mut read: Read,
     mut dialogs: Query<(Ref<KeymapDialog>, &mut Built)>,
     rows: Query<Entity, With<Rows>>,
     mut problem_line: Query<&mut Text, With<ProblemLine>>,
     mut heard: Local<Heard>,
-    settings: Option<Res<bevy_gooey::BindingSettings>>,
     mut commands: Commands,
 ) {
+    let Read { news, files, settings } = &mut read;
     let moved = news.moved(&mut heard, files.user().as_deref(), files.project().as_deref());
     let Ok((dialog, mut built)) = dialogs.single_mut() else { return };
     if !moved.any() && !dialog.is_changed() && built.0.is_some() {
