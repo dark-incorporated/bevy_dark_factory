@@ -52,6 +52,7 @@ mod an_agent_starts_with_the_model_the_settings_name;
 mod areas_drawn_on_the_map;
 mod back_and_forward_across_workspaces;
 mod back_and_forward_returns_to_a_cue_and_a_file;
+mod every_family_feature_is_a_name_the_host_knows;
 mod fixtures;
 mod index_view_support;
 mod settings_search_support;

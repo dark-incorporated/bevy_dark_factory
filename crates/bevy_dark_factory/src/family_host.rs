@@ -22,6 +22,7 @@ pub const KNOWN: &[&str] = &[
     "bevy_elements",
     "bevy_flora",
     "bevy_gooey",
+    "bevy_light_grid",
     "bevy_lights",
     "bevy_orca",
     "bevy_siren",
