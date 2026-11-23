@@ -14,6 +14,14 @@ on:
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
+# **A step's exit status is the step's, not `tee`'s** (#572). GitHub's default is `bash -e {0}`, and `-e` does not look
+# inside a pipeline: both test steps end in `| tee <artifact>`, so their status was `tee`'s and always 0. Six runs
+# concluded `success` while their own uploaded `test-output.txt` held `3 failed` or `error: could not compile` (runs
+# 43939562096, 44694523717). `pipefail` makes cargo's and nextest's status the step's; `--no-fail-fast` already makes
+# nextest report every failure, so nothing about the reporting changes, only whether it reaches the exit code.
+defaults:
+  run:
+    shell: bash --noprofile --norc -eo pipefail {0}
 env:
   CARGO_TERM_COLOR: always
   CARGO_PROFILE_DEV_DEBUG: 0
@@ -44,10 +52,3 @@ jobs:
         run: xvfb-run -a cargo nextest run --workspace --no-fail-fast 2>&1 | tee test-output.txt
       - name: doctests (nextest does not run them)
         run: cargo test --workspace --doc 2>&1 | tee doc-output.txt
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: test-output
-          path: |
-            test-output.txt
-            doc-output.txt
