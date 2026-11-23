@@ -260,8 +260,8 @@ fn the_panel_checks_the_cues_against_this_files_own_buses() {
 /// the tail of the crate's log — not a heading and one button.
 ///
 /// Each list is a column the section spawns and a system fills. This drives a frame with the Sound workspace
-/// open and reads the rows back, then moves the selection with Down and says the mark follows it — the same
-/// `AudioPanel::selected` **Audition** reads.
+/// open and reads the rows back, then presses Down and says the mark follows `world_lists::SelectedCue` — the
+/// same value **Audition** reads.
 #[test]
 fn the_panel_draws_the_buses_the_cues_and_the_log() {
     let text = r#"{settings: {max_voices: 8, buses: [{name: "Music"}, {name: "Effects"}], ducks: []}, cues: {cues: [{name: "ui.click", sounds: [{sound: "click"}]}, {name: "step.grass", sounds: [{sound: "step_01"}]}]}}"#;
@@ -303,19 +303,22 @@ fn the_panel_draws_the_buses_the_cues_and_the_log() {
     let panel = app.world().resource::<AudioPanel>().clone();
     assert_eq!(buses, audio_panel::bus_rows(&mix, &panel.buses), "a bus row is `bus_rows`' own string");
 
+    // **No cue is chosen yet**, so no row is marked: the choice is `world_lists::SelectedCue`, the editor's own,
+    // which Audition reads and reveal and the nav stops write (2026-11-23 review, finding 2: a second selection
+    // here marked one list while Audition played the other's choice).
     let cues = rows_of(&app, "cue");
     assert_eq!(cues.len(), 2, "one row per cue: {cues:?}");
-    assert_eq!(cues, audio_panel::cue_rows(&panel), "the cue rows are `cue_rows`' own strings, the chosen one marked");
-    assert!(cues[0].starts_with(bevy_dark_factory::world_lists::CUE_MARK), "the selected cue is marked: {cues:?}");
+    assert_eq!(cues, audio_panel::cue_rows(&panel, None), "the cue rows are `cue_rows`' own strings");
+    assert!(!cues.iter().any(|c| c.starts_with(bevy_dark_factory::world_lists::CUE_MARK)), "nothing is chosen yet: {cues:?}");
 
     let tail = rows_of(&app, "log");
     assert!(!tail.is_empty(), "the log tail says at least that nothing has played: {tail:?}");
 
-    // **Down moves the mark, and it is the value Audition reads**: the panel's own `selected`, not a second one.
-    let before = app.world().resource::<AudioPanel>().selected;
+    // **Down chooses the first cue**, and the mark follows the value Audition reads.
     app.world_mut().resource_mut::<ButtonInput<KeyCode>>().press(KeyCode::ArrowDown);
     app.update();
-    assert_eq!(app.world().resource::<AudioPanel>().selected, (before + 1) % 2, "Down walks the cue list");
+    let chosen = app.world().resource::<bevy_dark_factory::world_lists::SelectedCue>().0.clone();
+    assert_eq!(chosen.as_deref(), Some("ui.click"), "Down walks the cue list and writes the editor's selection");
     let moved = rows_of(&app, "cue");
-    assert!(moved[1].starts_with(bevy_dark_factory::world_lists::CUE_MARK), "the mark follows the selection: {moved:?}");
+    assert!(moved[0].starts_with(bevy_dark_factory::world_lists::CUE_MARK), "the mark follows the selection: {moved:?}");
 }

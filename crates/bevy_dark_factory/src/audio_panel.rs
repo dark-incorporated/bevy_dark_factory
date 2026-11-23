@@ -9,7 +9,7 @@
 //!
 //! - A row per bus: its level from [`SirenMix::db`], the duck on it from `ducked`, and its live voices from `voices`.
 //!   The same numbers a game's own meter reads, because it is the same resource.
-//! - Every cue with its bus, its mode and its priority, and an **Audition** button on the selected one that writes
+//! - Every cue by name, the chosen one marked, and an **Audition** button on it that writes
 //!   [`Play::cue`] — the door a game uses. Up and Down walk the list and the marked row *is* what Audition plays, so
 //!   choosing and playing are one fact. The log then shows `Played` or `Refused`, so a cue that cannot play says
 //!   what it is missing rather than doing nothing.
@@ -27,6 +27,7 @@ use blueprint_model::family::settings_dir;
 
 use crate::editor::EditorState;
 use crate::project::Project;
+use crate::world_lists::NO_CUES;
 
 /// The crate's settings file, under the project's `family/`.
 pub const FILE: &str = "bevy_siren.yaml";
@@ -40,8 +41,6 @@ pub struct AudioPanel {
     pub buses: Vec<String>,
     /// The cue names, in the file's order: the audition target list.
     pub cues: Vec<String>,
-    /// The cue an **Audition** would play.
-    pub selected: usize,
     /// The project root the last read came from, so a different project re-reads.
     pub root: Option<std::path::PathBuf>,
     /// The bytes last read, so a frame that changed nothing costs nothing and a hand edit is picked up once.
@@ -50,19 +49,6 @@ pub struct AudioPanel {
 
 impl AudioPanel {
     /// The cue **Audition** would play, if the list has one.
-    pub fn selected_cue(&self) -> Option<&str> {
-        self.cues.get(self.selected).map(String::as_str)
-    }
-
-    /// Moves the selection by `step`, wrapping.
-    pub fn step(&mut self, step: isize) {
-        if self.cues.is_empty() {
-            return;
-        }
-        let len = self.cues.len() as isize;
-        self.selected = (((self.selected as isize + step) % len + len) % len) as usize;
-    }
-}
 
 /// Audition the selected cue, the top of the panel's one row of buttons.
 #[derive(Component, Clone, Copy, Debug, PartialEq)]
@@ -212,17 +198,14 @@ pub fn write_file(
 pub fn on_audition(
     activate: On<Activate>,
     buttons: Query<(), With<AuditionButton>>,
-    panel: Option<Res<AudioPanel>>,
+    selected: Option<Res<crate::world_lists::SelectedCue>>,
     mut plays: MessageWriter<bevy_siren::Play>,
     mut state: ResMut<EditorState>,
 ) {
     if buttons.get(activate.entity).is_err() {
         return;
     }
-    let Some(panel) = panel else {
-        return;
-    };
-    let Some(cue) = panel.selected_cue() else {
+    let Some(cue) = selected.as_deref().and_then(|s| s.0.clone()) else {
         state
             .status
             .problem("no cue is selected to audition".to_owned());
@@ -254,12 +237,16 @@ pub fn bus_rows(mix: &bevy_siren::SirenMix, buses: &[String]) -> Vec<String> {
 
 /// **The cue list**: every cue in the file's order, the chosen one marked with [`CUE_MARK`]. The marked row is
 /// the same [`AudioPanel::selected`] **Audition** reads, so what a person reads as chosen is what plays.
-pub fn cue_rows(panel: &AudioPanel) -> Vec<String> {
+pub fn cue_rows(panel: &AudioPanel, selected: Option<&str>) -> Vec<String> {
+    if panel.cues.is_empty() {
+        // **An empty project says so**, the way the log does. A blank column reads as a list that failed to fill,
+        // and a list with no rows is never "filled" (see `fill`), so it would be rebuilt every frame.
+        return vec![NO_CUES.to_owned()];
+    }
     panel
         .cues
         .iter()
-        .enumerate()
-        .map(|(i, name)| if i == panel.selected { format!("{CUE_MARK}{name}") } else { name.clone() })
+        .map(|name| if selected == Some(name.as_str()) { format!("{CUE_MARK}{name}") } else { name.clone() })
         .collect()
 }
 
@@ -277,6 +264,7 @@ pub fn log_rows(log: &bevy_siren::SirenLog) -> Vec<String> {
 /// couple of string compares and writes nothing.
 fn draw_the_panel(
     panel: Option<Res<AudioPanel>>,
+    selected: Option<Res<crate::world_lists::SelectedCue>>,
     mix: Option<Res<bevy_siren::SirenMix>>,
     log: Option<Res<bevy_siren::SirenLog>>,
     mut buses: Query<(Entity, Has<Children>), With<BusList>>,
@@ -290,7 +278,8 @@ fn draw_the_panel(
         fill(&mut commands, &mut buses, &mut held.buses, rows);
     }
     if let Some(panel) = panel.as_deref() {
-        fill(&mut commands, &mut cues, &mut held.cues, cue_rows(panel));
+        let chosen = selected.as_deref().and_then(|s| s.0.as_deref());
+        fill(&mut commands, &mut cues, &mut held.cues, cue_rows(panel, chosen));
     }
     if let Some(log) = log.as_deref() {
         fill(&mut commands, &mut tail, &mut held.log, log_rows(log));
@@ -302,10 +291,19 @@ fn draw_the_panel(
 /// than a census row — the Sound tab has no keys of its own (`Context::Sound`), and a tab whose whole job
 /// is one list does not need two more rows in every context's budget. Read only while the Sound workspace
 /// is open, which is the run condition on [`draw_the_panel`]'s sibling below.
-fn walk_the_cues(keys: Res<ButtonInput<KeyCode>>, panel: Option<ResMut<AudioPanel>>) {
-    let Some(mut panel) = panel else { return };
-    // **The selection is the panel's, and a step is one press.** `just_pressed` so a held arrow does not run
-    // the whole list past the person, and the wrap `AudioPanel::step` already owns.
+fn walk_the_cues(
+    keys: Res<ButtonInput<KeyCode>>,
+    live: Option<Res<crate::keys::Live>>,
+    panel: Option<Res<AudioPanel>>,
+    mut selected: Option<ResMut<crate::world_lists::SelectedCue>>,
+) {
+    // **A field, the palette, the report, a dialog or the terminal owns the keys**, and an arrow must move what
+    // the person is looking at: `Live` is the editor's one answer to who owns the keyboard (2026-11-23 review,
+    // finding 4 — the arrows moved the cue while the palette's own selection moved with them).
+    if live.as_deref().is_some_and(|l| l.0 == crate::keys::Context::Typing) {
+        return;
+    }
+    let (Some(panel), Some(mut selected)) = (panel, selected.as_mut()) else { return };
     let step = if keys.just_pressed(KeyCode::ArrowDown) {
         1
     } else if keys.just_pressed(KeyCode::ArrowUp) {
@@ -313,7 +311,21 @@ fn walk_the_cues(keys: Res<ButtonInput<KeyCode>>, panel: Option<ResMut<AudioPane
     } else {
         return;
     };
-    panel.step(step);
+    selected.0 = stepped(&panel.cues, selected.0.as_deref(), step);
+}
+
+/// **The cue `step` presses away from `from`**, wrapping, for a list in the file's order. A list walked for the
+/// first time starts at its first row in the direction pressed.
+fn stepped(cues: &[String], from: Option<&str>, step: isize) -> Option<String> {
+    if cues.is_empty() {
+        return None;
+    }
+    let len = cues.len() as isize;
+    let at = from
+        .and_then(|name| cues.iter().position(|c| c == name))
+        .map_or(if step > 0 { -1 } else { 0 }, |i| i as isize);
+    let next = ((at + step) % len + len) % len;
+    cues.get(next as usize).cloned()
 }
 
 /// What each list last drew, so a frame with no change writes nothing.
@@ -328,7 +340,10 @@ struct Drawn {
 /// yet: despawn the children, then spawn one [`chrome::body`] line per row. The editor's own row vocabulary,
 /// so these read like every other panel's list.
 fn fill(commands: &mut Commands, lists: &mut Query<(Entity, Has<Children>), With<impl Component>>, held: &mut Option<Vec<String>>, rows: Vec<String>) {
-    let unfilled = lists.iter().any(|(_, filled)| !filled);
+    // **A list that is meant to be empty is not "unfilled"** — `world_lists::keep` documents the trap: `with_children`
+    // with no rows inserts no `Children`, so a column of an empty list reads as never filled and is despawned and
+    // respawned every frame (2026-11-23 review, finding 3).
+    let unfilled = !rows.is_empty() && lists.iter().any(|(_, filled)| !filled);
     if held.as_ref() == Some(&rows) && !unfilled {
         return;
     }

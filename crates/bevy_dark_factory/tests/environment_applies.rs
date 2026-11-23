@@ -49,21 +49,20 @@ fn forcing_rain_holds_until_it_is_released_back_to_the_climate() {
     let (mut ctx, file) = project("rain");
     let (mut clock, mut loc, mut climate, mut director) =
         (WorldClock::default(), GeoLocation::default(), Climate::default(), WeatherDirector::default());
-    let mut applied = None;
     let read = |file: &std::path::Path| ElementsSettings::from_yaml(&std::fs::read_to_string(file).unwrap()).unwrap();
 
     set(&mut ctx, "forced_weather", "Rain");
-    apply(&read(&file), &mut clock, &mut loc, &mut climate, &mut director, &mut applied);
+    apply(&read(&file), &mut clock, &mut loc, &mut climate, &mut director);
     assert!(director.is_forced());
     assert_eq!(director.current(), WeatherPreset::Rain);
 
     // The same file again does not restart the blend.
     let before = director.clone();
-    apply(&read(&file), &mut clock, &mut loc, &mut climate, &mut director, &mut applied);
+    apply(&read(&file), &mut clock, &mut loc, &mut climate, &mut director);
     assert_eq!(director, before);
 
     set(&mut ctx, "forced_weather", "null");
-    apply(&read(&file), &mut clock, &mut loc, &mut climate, &mut director, &mut applied);
+    apply(&read(&file), &mut clock, &mut loc, &mut climate, &mut director);
     assert!(!director.is_forced(), "None releases the weather to the climate's schedule");
 }
 
