@@ -176,6 +176,38 @@ fn names_number(reason: &str, n: u32) -> bool {
     reason.split(|c: char| !c.is_ascii_digit()).any(|word| word == n.to_string())
 }
 
+/// **The four lists are exactly the registry**, so a kind added without a home fails here rather than in
+/// the guide's prose. The guide's §"Every format carries a version" states each list's length; this is the
+/// arithmetic those sentences rest on (`docs/guide/reload-contract.md`, #565).
+///
+/// **A cache is not a fifth list**: `CACHES` names kinds that are in `versioned()` already and are read
+/// differently (a file of another version is stale, not damaged). The guide says "24 versioned" and the
+/// cache entry is one of the 24, so counting it twice would overstate the registry.
+#[test]
+fn the_four_lists_are_exactly_the_registry() {
+    let counted = versioned().len() + VERSIONED_ABOVE.len() + UNVERSIONED.len() + OWNED_ELSEWHERE.len();
+    assert_eq!(
+        counted,
+        KINDS.len(),
+        "the version test places {counted} kinds ({} versioned, {} versioned above, {} unversioned, {} \
+         owned elsewhere) and `blueprint_model::reload::KINDS` has {}. A kind with no home in this test \
+         is a kind the guide's counts cannot describe.",
+        versioned().len(),
+        VERSIONED_ABOVE.len(),
+        UNVERSIONED.len(),
+        OWNED_ELSEWHERE.len(),
+        KINDS.len()
+    );
+    let named: Vec<&str> = versioned().iter().map(|v| v.0).collect();
+    for (id, _) in CACHES {
+        assert!(
+            named.contains(id),
+            "`{id}` is on the cache list and not in `versioned()`, so it is a kind neither of the guide's \
+             two tables counts"
+        );
+    }
+}
+
 /// **Each kind is in exactly one place**, so a new kind has to say how its format is versioned.
 #[test]
 fn every_kind_is_versioned_unversioned_or_owned_elsewhere() {

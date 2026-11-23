@@ -15,7 +15,7 @@ A pass runs these phases in order, and marks each with `python3 tools/loop/steps
 3. **Choose.** The next item is whichever the order above names first that the pass can prove with a check that fails before and passes after; otherwise the pass ships nothing.
 4. **Build and prove.** The failing test is written first and its failing message is quoted in the report. No existing check may be weakened.
 5. **Ship.** Commit, then push to `main` through the gate (`tools/loop/hooks/pre-push`: clippy over every target, `cargo nextest run --workspace` and `cargo test --workspace --doc`). Add a changelog line (with a clip when someone can see the change), a line in `docs/loop/log.md` and a report.
-6. **Release.** Only when the pass changed what a package ships. The editor's version comes from `python3 tools/loop/version.py next`, a bump is its own `release: <version>` commit, and a release needs a benchmark run that is not worse than the last ([`docs/loop/RUNNING-A-LOOP.md`](../loop/RUNNING-A-LOOP.md#a-release-needs-a-benchmark-run-and-a-regression-stops-it-bm-05-415)). Then `python3 tools/loop/steps.py end`.
+6. **Release.** Only when the pass changed what a package ships. The editor's version comes from `python3 tools/loop/version.py next`, a bump is its own `release: <version>` commit. The release workflow prints a benchmark comparison but is **not** stopped by it (owner, 2026-11-16: `bash tools/release/bench_advisory.sh` exits 0 whatever the verdict says); [`docs/loop/RUNNING-A-LOOP.md`](../loop/RUNNING-A-LOOP.md#a-release-prints-its-benchmark-comparison-it-is-not-stopped-by-it-owner-2026-11-16) is the one place that split is stated. Then `python3 tools/loop/steps.py end`.
 
 ## State files
 

@@ -95,20 +95,27 @@ The owner's Bevy crates are meant to be the heart of this editor (issues #96–#
 |---|---|
 | Sun, moon, sky, climate, weather, wind, clouds, fog, terrain, water, snow, rocks | `bevy_elements` |
 | Procedural trees and forests that grow, with seasons | `bevy_flora` |
-| SDF to mesh, caves, overhangs, carving | `isomesh` / `bevy_isomesh` |
+| SDF to mesh, caves, overhangs, carving | `isomesh` (the engine-free mesher; **not** its sibling crate `bevy_isomesh`, which this editor never depends on) |
 | Fires, torches, a budgeted light pool | `bevy_lights` |
 | Illuminance field for creature AI | `bevy_light_grid` |
 | People with needs, ties, factions, Rhai scripts | `bevy_society` |
 | Speech balloons, conversation graphs, dialog box | `bevy_speech_bubbles` |
-| Menus, HUD meters, dialogs, tooltips, a UI skin, keyboard and gamepad navigation | `bevy_gooey` |
+| Menus, HUD meters, dialogs, tooltips, a UI skin, keyboard and gamepad navigation | `bevy_gooey` (always built: not a feature) |
 | Stigmergic fields, crowd avoidance | `bevy_stigmergy`, `bevy_orca` |
 | Fracture, wounds, blood | `bevy_carnage` |
 | Cues, buses, ducking, music layers, an audio log | `bevy_siren` |
-| An agent driving a running game over BRP | `bevy_fairy` (successor of `bevy_debugger_mcp`) |
-| A frame on demand | `bevy_devshot` |
+| An agent driving a running game over BRP | `bevy_fairy`, imported as `bevy_debugger_bevy`, behind the `debugger` feature (on by default) |
+| A frame on demand | `bevy_devshot` (a workspace member by path, not a feature) |
 
 - **Configure, don't fork.** A crate's own serde types are the data, saved in the game's project and editable live. The editor never defines a second schema for a crate's settings.
-- **Each crate is an optional cargo feature** of the editor, pinned by git revision on the crate's `main`: never a path into another checkout, and never a crates.io version, which would need a publish.
+- **Most of these crates are optional cargo features** of the editor, named after the crate and pinned by git
+  revision on the crate's `main`: never a path into another checkout, and never a crates.io version, which would
+  need a publish. **The exceptions the table names in its own cells**: `bevy_gooey` is always built (the editor's
+  UI, a plain dependency, not a feature), `bevy_devshot` is a `path` dependency on this workspace's own member,
+  and `bevy_fairy` is the optional `bevy_debugger_bevy` package turned on by the `debugger` feature, which is in
+  `default`. A row with none of those words is a `[features]` key of
+  `crates/bevy_dark_factory/Cargo.toml`, and `the_agents_family_table_names_the_crates_the_editor_has` fails on a
+  name that is none of the four.
 - **The two-way street.** A change the editor needs in a crate is made in that crate's repository, in its own commits with its own tests. It is requested there as an issue labelled `consumer` and `consumer:bevy_blueprint`, and the editor takes it by moving its pin once that issue is closed as fixed. Never patch, wrap or vendor a crate here. The loop's procedure is in `.omp/commands/build-loop.md`, "the two-way street".
 
 ## Blender is a tool we own, and it is not rebuilt here

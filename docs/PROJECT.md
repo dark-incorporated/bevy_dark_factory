@@ -1,6 +1,8 @@
 # What the Dark Factory is, why it exists, and what is wrong with it
 
-An outside-in description of the project, measured on 2026-11-15 at commit `198b82ae` (2,055 commits). Everything here is checkable against the repository: the numbers were counted with the commands named beside them, and where a sentence is a judgement and not a count it says so. It is the one page that lists what does not work.
+An outside-in description of the project. **The snapshot's numbers were measured on 2026-11-15 at commit `198b82ae` (2,055 commits)**, and every one of them can be re-counted at that commit with the command named beside it; the tool count is today's and a test re-counts it on every build (below). Where a sentence is a judgement and not a count it says so. It is the one page that lists what does not work.
+
+**Which numbers are live.** The tool count — in §3, in the crate table, in §4 and in §8 — is re-counted on every build by `dark_factory_mcp`'s `every_document_states_the_servers_tool_count`, so it cannot drift, and the operation counts are re-counted by `the_documents_state_the_codes_own_counts`. Every other number is the snapshot's, counted at `198b82ae` where the sentence says so: the line counts in §3 and §6 and the test-file count in §3 and §8 are that commit's, and today's are larger.
 
 The names: the editor is the Dark Factory (this repository, `bevy_dark_factory`). Its binary and crates are named for it in snake_case (`bevy_dark_factory`, `dark_factory_mcp`); its earlier name was the Cauldron. What it writes and a game loads is still a blueprint (`bevy_blueprint*`, `assets/blueprint/`).
 
@@ -31,9 +33,9 @@ The answer is structural: **there is one way to change anything**, a typed opera
 
 ## 3. What it is made of
 
-About 405,000 lines of Rust (`find crates -name '*.rs' | xargs cat | wc -l` per crate: source, tests and examples) in 13 crates, 844 Rust files under `crates/*/tests/` (`ls crates/*/tests/*.rs | wc -l`), 29 MCP tools, and 144 entries in the operation registry (`ops::registry()`; 137 in a default build, because the family crates' operations are behind cargo features: `bevy_dark_factory --print-operations` lists the ones a build has).
+About 405,000 lines of Rust (`find crates -name '*.rs' | xargs cat | wc -l` per crate: source, tests and examples) in 13 crates, 844 Rust files under `crates/*/tests/` (`ls crates/*/tests/*.rs | wc -l`), both as counted at `198b82ae`, **32 MCP tools**, and 144 entries in the operation registry (`ops::registry()`; 137 in a default build, because the family crates' operations are behind cargo features: `bevy_dark_factory --print-operations` lists the ones a build has).
 
-| Crate | Lines | On crates.io | What it is |
+| Crate | Lines (at `198b82ae`) | On crates.io | What it is |
 |---|---:|---|---|
 | `bevy_dark_factory` | 294,204 | no | The editor. Opens a project directory, writes `<root>/assets/blueprint`. |
 | `blueprint_model` | 67,339 | [yes](https://crates.io/crates/blueprint_model) | The engine-free core: the project's file types and its one YAML reader and writer, the design tree, the grammar learner, WFC (wave function collapse), validators. No Bevy. |
@@ -81,7 +83,7 @@ An operation is a trait object (`ops::Operation`) that declares four things: its
 
 ## 5. How it is measured
 
-`dark_factory-bench` runs a real agent against a real editor: each trial copies a fixture project, starts the editor on its own port and display, hands the agent the MCP config the editor itself gives a person's agent, and grades the files left behind with no model in the loop. There are 20 development tasks in `bench/tasks/` and eight held-out tasks outside every repository. `oracle` (the task's own solution) must pass every task and `nothing` must pass none, which is what proves the pipe. `compare` says `better`, `worse` or `no measurable change` with a paired 95% bootstrap interval, and a release needs a committed report for its code that is not worse than the previous release's (`tools/release/bench_gate.py`). See [`bench/README.md`](../bench/README.md), [`docs/bench/README.md`](bench/README.md) for the committed runs, and the pre-registered study of whether the style helps an agent ([`docs/research/`](research/README.md)): on the sample game an agent with `blueprint_style` satisfied 24.0 of 24 style lines and one without it 10.4 (30 scored runs, one model, the report lists the limits).
+`dark_factory-bench` runs a real agent against a real editor: each trial copies a fixture project, starts the editor on its own port and display, hands the agent the MCP config the editor itself gives a person's agent, and grades the files left behind with no model in the loop. There are 20 development tasks in `bench/tasks/` and eight held-out tasks outside every repository. `oracle` (the task's own solution) must pass every task and `nothing` must pass none, which is what proves the pipe. `compare` says `better`, `worse` or `no measurable change` with a paired 95% bootstrap interval, and a release **prints** that comparison but is not stopped by it (owner, 2026-11-16: `tools/release/bench_advisory.sh` runs `bench_gate.py check` and exits 0 whatever it says; [`docs/loop/RUNNING-A-LOOP.md`](loop/RUNNING-A-LOOP.md#a-release-prints-its-benchmark-comparison-it-is-not-stopped-by-it-owner-2026-11-16) states the split once). See [`bench/README.md`](../bench/README.md), [`docs/bench/README.md`](bench/README.md) for the committed runs, and the pre-registered study of whether the style helps an agent ([`docs/research/`](research/README.md)): on the sample game an agent with `blueprint_style` satisfied 24.0 of 24 style lines and one without it 10.4 (30 scored runs, one model, the report lists the limits).
 
 ---
 
@@ -91,7 +93,7 @@ This is the section to read if you are reading someone else's project.
 
 ### Structural problems
 
-**1. The editor crate is enormous and unaudited.** `bevy_dark_factory` is 294,204 lines of Rust with its tests, written by AI agents working from a human's direction (the Vibe Coded banner on the README says so). It is covered by tests, and the tests are good, but a test suite proves the properties someone thought to assert, not that the code is comprehensible to the next person.
+**1. The editor crate is enormous and unaudited.** `bevy_dark_factory` is 294,204 lines of Rust with its tests, as counted at `198b82ae` (343,045 today), written by AI agents working from a human's direction (the Vibe Coded banner on the README says so). It is covered by tests, and the tests are good, but a test suite proves the properties someone thought to assert, not that the code is comprehensible to the next person.
 
 **2. Two copies of each tool's parameters.** The MCP server cannot depend on the editor crate (it is the bridge's client), so each tool's parameter struct in `dark_factory_mcp` and the editor's own in `bevy_dark_factory::ops_brp` are separate and kept in step by a hand-written `json!` body. They drifted once (B-052, a `turn` field accepted by the server and never sent) and the fix is a source-text ratchet, `a_tools_body_names_every_field`, which catches the drift and does not remove the duplication. A shared parameters crate would.
 
@@ -126,9 +128,9 @@ This is the section to read if you are reading someone else's project.
 | Workspaces | 10 |
 | Operations | 144 in the registry, 137 in a default build |
 | MCP tools | 32 |
-| Test files | 844 under `crates/*/tests/` |
+| Test files (at `198b82ae`) | 844 under `crates/*/tests/` |
 | Published | `bevy_blueprint`, `_core`, `_solver`, `_rng`, `_anim`, `_rhai` and `_snip` on crates.io; what `blueprint_model` 0.12 removed (the `references` module and `trust::GuideGrant`) is under "Upgrading from 0.11" in [its README](https://github.com/dark-incorporated/bevy_dark_factory/blob/main/crates/blueprint_model/README.md) |
 | Editor release | the macOS app, on the [releases](https://github.com/dark-incorporated/bevy_dark_factory/releases) page |
 | Open issues | 7 |
 
-It runs, a game can load what it writes, and an agent can drive it end to end from the shipped guide alone. It also has an unaudited 294,000-line editor at its centre and a review process that is a model reading a diff. Both are true at once, and a document that said only one of them would be lying.
+It runs, a game can load what it writes, and an agent can drive it end to end from the shipped guide alone. It also has an unaudited 343,000-line editor at its centre and a review process that is a model reading a diff. Both are true at once, and a document that said only one of them would be lying.

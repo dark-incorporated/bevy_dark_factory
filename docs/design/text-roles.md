@@ -6,7 +6,9 @@ rev `f1904be`, a 2176 x 1406 surface (1088 x 703 logical px at `ui_scale` 2).
 
 **Since 2026-11-22** the type sizes and the body measures named below (`BODY_CHAR_W`, `BODY_LINE_H`, `GAP_GROUP`) come from
 `metrics.type` and the class rules of the editor's live style sheet, `crates/bevy_dark_factory/src/style/editor.yaml`
-([data files](../guide/data-files.md#the-editors-style-sheet)). The numbers here are as measured at the time.
+([data files](../guide/data-files.md#the-editors-style-sheet)). **The `px` column of the role table in §2 is read from that sheet by
+`tests/the_documents_state_the_codes_own_counts.rs`**, so it cannot drift; the `measured` columns and the §1 capture numbers are
+this page's snapshot at `b64c689f`, where `HEADING` was drawn at 10.
 
 The owner's note, in full:
 
@@ -24,7 +26,7 @@ panel is three things stacked, and the note is about all three:
 
 | what a person sees | drawn by | role | measured size |
 |---|---|---|---|
-| `TERRAIN`, `WATER`, `FOREST`, `LIGHTS` | `chrome::section` (`chrome.rs:991`) | [`text::HEADING`] | **10 px**, uppercase, `Ink::label` |
+| `TERRAIN`, `WATER`, `FOREST`, `LIGHTS` | `chrome::section` (`chrome.rs:827`) | [`text::HEADING`] | **11 px**, uppercase, `Ink::label` |
 | `set on the TERRAIN line: water ...` | `bevy_gooey::label` (`world_lists.rs:118`) | gooey `Role::Label` | **11.67 px**, `skin.text` |
 | `no water placed` | `bevy_gooey::label` (`world_lists.rs:309`) | gooey `Role::Label` | **11.67 px**, `skin.text` |
 
@@ -48,14 +50,14 @@ font is fine, the *sizes* are two systems' guesses, and the more common one is t
 
 ## 2. The roles, measured
 
-`chrome::text` is seven roles over five sizes (`chrome.rs:690`), and every one is `role.px() * text_scale()` when drawn:
+`chrome::text` is seven roles over five sizes (`chrome.rs:531`), and every one is `role.px() * text_scale()` when drawn:
 
 | role | px | what it is for | where it is measured from |
 |---|---|---|---|
 | `TITLE` | **15** | a panel's own name — `INSPECTOR`, `MESHES AND TILES` | `chrome::title` |
 | `TAB` | **13** | a tab's word in the strip, a chooser's column header | `ui`'s tab strip |
 | `BODY` | **11** | **the readable default**: a row's value, a field's contents, a banner, a census row | `chrome::font` at 117 call sites |
-| `HEADING` | **10** | a block heading: uppercase, dim, `GAP_GROUP` above it | `chrome::section` |
+| `HEADING` | **11** | a block heading: uppercase, dim, `GAP_GROUP` above it | `chrome::section` |
 | `LABEL` | **10** | the dim half of a `label value` pair, a log line, the bar's readouts (`BAR_READOUT`) | `chrome::row_label` |
 | `CONTROL` | **10** | a control's own word: a chip, a button, a field | `chip`, `text_field` |
 | `HINT` | **9** | a footnote, a badge's description, the always-on hint — the smallest thing, never the thing being read | `chrome::palette_rule` |
@@ -129,7 +131,8 @@ the person's text size through [`resize_the_labels`], instead of being recompute
 pass. **No role, no face, no setting, and no new dependency:** one helper, and the two sizes the window held become one.
 
 **What was measured after the change**, on the same surface, the same way §1 was: the `WATER` section's hint, its heading
-and its rows draw at `11`, `10` and `11` — all three on the scale. `tests/the_world_sections_text_is_at_the_type_scales_sizes.rs`
+and its rows draw at `11`, `10` and `11` — all three on the scale. That was `b64c689f`; **#518 (owner, 2026-11-21) then moved
+`HEADING` from 10 to 11**, so the same three now draw at `11`, `11` and `11`. `tests/the_world_sections_text_is_at_the_type_scales_sizes.rs`
 holds the three: the hint is `text::BODY` exactly; every World-section text is a size the scale names; the hint stays in
 `Ink::dim`, so this is a size and not a repaint.
 
@@ -142,10 +145,12 @@ stays at the skin's size; a body line the *editor* draws goes through `chrome::b
 
 1. **Two systems decide a size** (this document's §1): `chrome::text` roles and gooey's snapped `skin.text_size`. The
    editor's most common label size (11.666) is not in the type scale.
-2. **`section` (10) is smaller than the body it heads (11.67)** — a heading quieter than the list under it is the one
-   case where size and importance disagree, and the audit's decision (§`chrome::text`'s doc) was to keep headings quiet,
-   which is consistent with the *shape* (uppercase, dim) carrying the hierarchy and size not carrying it. Recorded, not a
-   defect.
+2. **`section` was 10, smaller than the body it heads (11.67)** — a heading quieter than the list under it was the one
+   case where size and importance disagreed, and the audit's decision was to keep headings quiet, which left the *shape*
+   (uppercase, dim) carrying the hierarchy and size not carrying it. **#518 (owner, 2026-11-21) reversed that: `HEADING` is
+   11 now**, a pixel above `LABEL`'s 10 and level with the body it heads, so the hierarchy is carried by size as well as by
+   case and ink. `chrome.rs`'s doc on `text::HEADING` records why, and the role table in §2 reads the sheet's 11.
+   Recorded, no longer a defect.
 3. **`text::CONTROL` and `text::LABEL` are both 10** and are different roles — `the_type_scale_stays_short` allows this on
    purpose (`a seventh role is a decision somebody should have to make on purpose`), and it is documented, so it is a
    decision and not a drift.

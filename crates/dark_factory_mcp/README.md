@@ -55,16 +55,16 @@ ssh <mac> "'/Applications/Dark Factory.app/Contents/MacOS/dark_factory_mcp'"
 
 ## The tools
 
-There are 32 tools, and the set is small on purpose: an agent pays for every tool it is offered, on every turn. The operation tools are a discovery surface. `blueprint_list_operations` says what the editor can do (`query` searches, `operation` answers for one with its parameters and an example), `blueprint_preview_operation` shows what one would change, `blueprint_apply_operation` runs it and records it in the operation log, and `blueprint_undo_operation` takes one back.
+There are 32 tools — the table below names every one, and a test (`the_readme_names_every_tool`) fails naming any it leaves out — and the set is small on purpose: an agent pays for every tool it is offered, on every turn. The operation tools are a discovery surface. `blueprint_list_operations` says what the editor can do (`query` searches, `operation` answers for one with its parameters and an example), `blueprint_preview_operation` shows what one would change, `blueprint_apply_operation` runs it and records it in the operation log, and `blueprint_undo_operation` takes one back.
 
 | group | tools |
 |---|---|
 | Orient | `blueprint_guide`, `blueprint_self_test`, `blueprint_state`, `blueprint_read_oplog`, `blueprint_read_log`, `blueprint_schema`, `blueprint_list_pieces`, `blueprint_list_rules` |
 | Change | `blueprint_list_operations`, `blueprint_preview_operation`, `blueprint_apply_operation`, `blueprint_undo_operation`, `blueprint_run_command`, `blueprint_open_project`, `blueprint_jobs_stop` |
 | See | `blueprint_capture_still`, `blueprint_capture_sequence`, `blueprint_frame_view`, `blueprint_snip`, `blueprint_list_snips` |
-| Style and checks | `blueprint_style`, `blueprint_style_propose`, `blueprint_decide` |
+| Style and checks | `blueprint_style`, `blueprint_style_propose`, `blueprint_decide`, `blueprint_volume_report` |
 | Hand back | `blueprint_present`, `blueprint_wish`, `blueprint_lesson` |
-| Reports | `blueprint_feedback_list`, `blueprint_project_feedback_list` |
+| Reports | `blueprint_feedback_list`, `blueprint_project_feedback_list`, `blueprint_feedback_file_issue` |
 | The editor itself | `blueprint_ui_style_inspect`, `blueprint_relaunch_editor` |
 
 `blueprint_guide` is the one prose tool: the shipped guide, [`src/guide.md`](https://github.com/dark-incorporated/bevy_dark_factory/blob/main/crates/dark_factory_mcp/src/guide.md), compiled in. It is the same text [`docs/mcp-tools.md`](https://github.com/dark-incorporated/bevy_dark_factory/blob/main/docs/mcp-tools.md) is rendered from, so an agent and a person read one guide. That reference is generated, and a test fails when it does not match the server:

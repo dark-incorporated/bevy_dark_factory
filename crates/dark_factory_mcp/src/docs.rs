@@ -650,6 +650,45 @@ pub const TOOLS: &[ToolDoc] = &[
 /// cannot drift from the operations that exist.
 pub const GUIDE: &str = include_str!("guide.md");
 
+/// **Where the server writes its own files**, named once, because the reference's opening sentence is built
+/// from these and three tools write through them (#562).
+///
+/// **A capture goes under the project the server was told about**, beside the project rather than into it; a
+/// server given no `--project` follows the editor, and then a capture goes under the person's own data folder
+/// (`blueprint_model::user_dirs::captures_dir`). **A filed report always goes to that data folder**
+/// (`feedback_dir`), never into a project: a report about the editor is not about whatever project happened
+/// to be open when a person noticed.
+pub const CAPTURES_UNDER_PROJECT: &str = "target/loop/captures";
+
+/// **The leaf a capture lands in under the person's data folder**, when the server was given no project.
+pub const CAPTURES_IN_USER_DIR: &str = blueprint_model::user_dirs::CAPTURES_DIR;
+
+/// **The leaf a filed report lands in under the person's data folder.**
+pub const FEEDBACK_IN_USER_DIR: &str = blueprint_model::user_dirs::FEEDBACK_DIR;
+
+/// **The folders the server writes**, as absolute paths where this machine has them, so a test can compare the
+/// sentence in the reference with the folders the code resolves rather than with a copied string.
+///
+/// A folder that this machine cannot resolve is `None`, the same way `capture_dir` refuses at run time.
+pub fn written_folders(project: Option<&std::path::Path>) -> WrittenFolders {
+    WrittenFolders {
+        captures: match project {
+            Some(project) => Some(project.join(CAPTURES_UNDER_PROJECT)),
+            None => blueprint_model::user_dirs::captures_dir(),
+        },
+        feedback: blueprint_model::user_dirs::feedback_dir(),
+    }
+}
+
+/// **The two folders the server writes**, from [`written_folders`].
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct WrittenFolders {
+    /// Where a capture goes: the project's, or the person's data folder when no project was named.
+    pub captures: Option<std::path::PathBuf>,
+    /// Where a filed report goes: always the person's data folder.
+    pub feedback: Option<std::path::PathBuf>,
+}
+
 /// **The document, as markdown.**
 ///
 /// **One section per tool**, with its description, its annotations and its parameters.
@@ -662,10 +701,15 @@ pub fn render() -> String {
          not match the server.\n\n",
     );
     out.push_str(
-        "The server speaks the Model Context Protocol over **stdio**, and reaches the running \
-         editor over the Bevy Remote Protocol on `BEVY_BRP_PORT` (default 15702). It writes \
-         nothing to disk itself: the editor owns the project directory, and every file the \
-         editor writes is written by the editor.\n\n",
+        &format!(
+            "The server speaks the Model Context Protocol over **stdio**, and reaches the running \
+             editor over the Bevy Remote Protocol on `BEVY_BRP_PORT` (default 15702). It writes two \
+             kinds of file of its own, and no project file: a capture goes under the project's \
+             `{CAPTURES_UNDER_PROJECT}/<label>/` (or, when the server was given no `--project`, under \
+             the user's data folder, `{CAPTURES_IN_USER_DIR}/`), and a filed report goes in the user's \
+             data folder's `{FEEDBACK_IN_USER_DIR}/`. The editor owns the project directory, and every \
+             project file is written by the editor.\n\n"
+        ),
     );
     out.push_str(GUIDE);
     out.push_str("## The tools\n\n");
