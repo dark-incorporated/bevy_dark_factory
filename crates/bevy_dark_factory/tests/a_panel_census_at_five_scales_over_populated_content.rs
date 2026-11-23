@@ -38,11 +38,11 @@
 //!   content scrolled out of view, or cut by an ancestor's clip while a heading shows, is not seen; and it says nothing of
 //!   widths, which is (b). **It did not reproduce a wrap defect**: the "panels draw empty at interface 2.4 and 3.0" of #535
 //!   was the half-size window (see below), and in the capture's real window no text was hidden on `origin/main`.
-//!   **Where it is asserted:** the body and viewport floors are asserted at interface 1.6 and below ([`COLLAPSE_HELD_UP_TO`]),
-//!   where they hold. At 2.4 and 3.0 they do not hold on the capture's window (measured: the door strip ends at y 733 of 1604
-//!   at 2.4 / text 100%, some lists' viewports are 0 px, and at 3.0 / text 150% a panel's content box is 16 px tall), and no
-//!   row's wrap changes that; those cells are printed as `COLLAPSE (not asserted)` and are an open layout limit of the
-//!   interface-scale range on a 1280 x 802 logical window. The "texts but none visible" condition is asserted in every cell.
+//!   **Where it is asserted: in every cell, at every interface scale** (#537). The floors did not hold at 2.4 and 3.0 on the
+//!   capture's window (some lists' viewports were 0 px, and at 3.0 / text 150% a panel's content box was 16 px), because the
+//!   interface size took more window than there was. The editor now limits the size it draws at to what the window can hold
+//!   (`surface::fit_interface_scale`), so those cells are drawn at the limit, and this census reads the `UiScale` the real fit
+//!   system set. [`editor_in`] asserts that scale against the function's, so a cell that was not limited says so.
 //! - **(b) no text is laid out wider than the panel's content box**, visible or not ([`Measured::laid_out_text`], at most
 //!   [`OVERHANG_PX`]). A text a pane clips is not an overhang on the screen, but a row that cannot wrap has only been
 //!   cut, and the part cut off cannot be read. A box with no width or no height is still measured by the glyphs it paints
@@ -123,12 +123,6 @@ const TEXT_SCALES: [f32; 2] = [1.0, 1.5];
 /// the pixel. No cell reads between 0 and 1, so the rounding step is the tolerance, as in
 /// `no_panel_draws_a_control_past_its_own_content_box`'s `SLACK_PX`. The defects start at 30 px.
 const OVERHANG_PX: f32 = 1.0;
-
-/// **The highest interface scale at which the collapse floors are asserted.** Measured on the capture's window: at 1.6 and
-/// below the smallest panel body is 761 px and no viewport is shorter than the shortest text row of its panel (the table prints
-/// the figures); at 2.4 the lists' viewports are 0 to 239 px and at 3.0 / text 150% the frame's body is 375 px tall and the
-/// panel's content box inside it 16 px. Above 1.6 the floors are printed, not asserted.
-const COLLAPSE_HELD_UP_TO: f32 = 1.6;
 
 /// How many culprits a failing cell names.
 const CULPRITS: usize = 4;
@@ -305,6 +299,11 @@ fn project(tag: &str) -> PathBuf {
 /// An editor over `root`, at the capture's window, with the person's two sizes written to a settings file
 /// (`sync_settings` resolves `EditorSettings` from files every frame, so a direct write would be gone).
 fn editor(root: &Path, tag: &str, interface_scale: f32, text_scale: f32) -> App {
+    editor_in(root, tag, interface_scale, text_scale, WINDOW_PHYSICAL)
+}
+
+/// [`editor`] in a window of the stated PHYSICAL size (the display factor stays [`DISPLAY_FACTOR`]).
+fn editor_in(root: &Path, tag: &str, interface_scale: f32, text_scale: f32, window_physical: (u32, u32)) -> App {
     let user = root.join(format!("user_settings_{tag}/settings.yaml"));
     std::fs::create_dir_all(user.parent().expect("a settings folder")).expect("a settings folder");
     std::fs::write(&user, format!("version: 1\ntext_scale: {text_scale}\ninterface_scale: {interface_scale}\n"))
@@ -314,11 +313,11 @@ fn editor(root: &Path, tag: &str, interface_scale: f32, text_scale: f32) -> App 
     app.insert_resource(UserSettingsFile(user));
     let window = app
         .world_mut()
-        .spawn((Window { resolution: WindowResolution::new(WINDOW_PHYSICAL.0, WINDOW_PHYSICAL.1), ..default() }, PrimaryWindow))
+        .spawn((Window { resolution: WindowResolution::new(window_physical.0, window_physical.1), ..default() }, PrimaryWindow))
         .id();
     let mut window = app.world_mut().get_mut::<Window>(window).expect("the window just spawned");
     window.resolution.set_scale_factor_override(Some(DISPLAY_FACTOR));
-    harness::resize_surface(&mut app, WINDOW_PHYSICAL.0, WINDOW_PHYSICAL.1).unwrap_or_else(|e| panic!("{e}"));
+    harness::resize_surface(&mut app, window_physical.0, window_physical.1).unwrap_or_else(|e| panic!("{e}"));
     settle(&mut app, SETTLE_FRAMES);
     // **The text size is read back, not assumed**: a 1.5 the settings file silently lost would make every 150% cell a
     // second run of the 100% one, and `UiScale` below says nothing about type.
@@ -337,13 +336,20 @@ fn editor(root: &Path, tag: &str, interface_scale: f32, text_scale: f32) -> App 
         let root = world.resource::<chrome::Frame>().root;
         let size = world.get::<ComputedNode>(root).map(ComputedNode::size).expect("the frame root is laid out");
         assert!(
-            (size.y - WINDOW_PHYSICAL.1 as f32).abs() < 1.0,
-            "the frame is {} px tall, not the capture's {} px: the census is not drawing the window it says it is",
+            (size.y - window_physical.1 as f32).abs() < 1.0,
+            "the frame is {} px tall, not the {} px asked for: the census is not drawing the window it says it is",
             size.y,
-            WINDOW_PHYSICAL.1
+            window_physical.1
         );
     }
-    let want = bevy_dark_factory::surface::ui_scale_for_a_person(1280.0, DISPLAY_FACTOR, interface_scale);
+    let (want, fit) = bevy_dark_factory::surface::ui_scale_in_a_window(
+        window_physical.0 as f32 / DISPLAY_FACTOR,
+        window_physical.1 as f32 / DISPLAY_FACTOR,
+        DISPLAY_FACTOR,
+        text_scale,
+        interface_scale,
+    );
+    println!("CELL interface {interface_scale} text {text_scale}: drawn at {:.2}{}", fit.effective, if fit.limited { " (limited by the window)" } else { "" });
     let got = app.world().resource::<UiScale>().0;
     assert!(
         (got - want).abs() < UI_SCALE_EPSILON,
@@ -472,8 +478,6 @@ struct Measured {
     row_px: Option<f32>,
     /// The tallest scroll viewport under the region, physical px, when it has one. **Asserted** against [`Measured::row_px`].
     viewport_px: Option<f32>,
-    /// The interface scale this cell was drawn at (set by [`census`]).
-    interface_scale: f32,
     /// The visible edge that stood farthest out even when it was within [`OVERHANG_PX`]: the evidence for the tolerance.
     worst: Option<(f32, String)>,
     /// How many texts were laid out under the region: how *full* it was.
@@ -694,6 +698,31 @@ fn regions(app: &mut App) -> BTreeMap<String, Measured> {
     found
 }
 
+/// **Every panel shown in turn on every mode**, absorbed by name: one cell of the census.
+fn every_region(app: &mut App) -> BTreeMap<String, Measured> {
+    let mut seen_here: BTreeMap<String, Measured> = BTreeMap::new();
+    for mode in MODES {
+        *app.world_mut().resource_mut::<Mode>() = mode;
+        if mode == Mode::Anim {
+            // **The rig bench is put away until `Cmd`/`Ctrl`+`R` draws it** (#522); the RIGS panel is empty
+            // without it, and a census over an empty panel says nothing. Written the way the chord writes it.
+            let world = app.world_mut();
+            let benches: Vec<Entity> =
+                world.query_filtered::<Entity, With<bevy_dark_factory::anim_tab::RigBench>>().iter(world).collect();
+            for bench in benches {
+                if let Some(mut node) = world.get_mut::<Node>(bench) {
+                    node.display = Display::Flex;
+                }
+            }
+        }
+        settle(app, SHOW_FRAMES);
+        for (name, measured) in regions(app) {
+            seen_here.entry(name).or_default().absorb(measured);
+        }
+    }
+    seen_here
+}
+
 /// **The whole census**: every case, every panel. Rows are `(case, panel)`.
 fn census() -> BTreeMap<(String, String), Measured> {
     let root = project("all");
@@ -703,33 +732,41 @@ fn census() -> BTreeMap<(String, String), Measured> {
             let case = format!("scale {interface_scale} text {text_scale}");
             let tag = format!("{interface_scale}_{text_scale}");
             let mut app = editor(&root, &tag, interface_scale, text_scale);
-            let mut seen_here: BTreeMap<String, Measured> = BTreeMap::new();
-            for mode in MODES {
-                *app.world_mut().resource_mut::<Mode>() = mode;
-                if mode == Mode::Anim {
-                    // **The rig bench is put away until `Cmd`/`Ctrl`+`R` draws it** (#522); the RIGS panel is empty
-                    // without it, and a census over an empty panel says nothing. Written the way the chord writes it.
-                    let world = app.world_mut();
-                    let benches: Vec<Entity> =
-                        world.query_filtered::<Entity, With<bevy_dark_factory::anim_tab::RigBench>>().iter(world).collect();
-                    for bench in benches {
-                        if let Some(mut node) = world.get_mut::<Node>(bench) {
-                            node.display = Display::Flex;
-                        }
-                    }
-                }
-                settle(&mut app, SHOW_FRAMES);
-                for (name, measured) in regions(&mut app) {
-                    seen_here.entry(name).or_default().absorb(measured);
-                }
-            }
-            for (name, mut measured) in seen_here {
-                measured.interface_scale = interface_scale;
+            let seen_here = every_region(&mut app);
+            for (name, measured) in seen_here {
                 table.insert((case.clone(), name), measured);
             }
         }
     }
     table
+}
+
+/// **(a): the collapse floors of one panel in one cell**, as failure lines: a panel with texts shows one, its content box is at least one text row
+/// tall, and a scroll viewport under it is at least one text row tall.
+fn collapse_failures(case: &str, panel: &str, m: &Measured) -> Vec<String> {
+    let mut failures = Vec::new();
+    if let Some(row) = m.row_px {
+        if m.body_px.is_some_and(|body| body < row) {
+            failures.push(format!(
+                "[{case}] `{panel}` is laid out {:.1} px tall inside, less than one text row ({row:.1} px, the shortest of its own texts): the body collapsed",
+                m.body_px.unwrap_or_default()
+            ));
+        }
+        if m.viewport_px.is_some_and(|view| view < row) {
+            failures.push(format!(
+                "[{case}] `{panel}`'s scroll viewport is {:.1} px tall, less than one text row ({row:.1} px): nothing can be read in it",
+                m.viewport_px.unwrap_or_default()
+            ));
+        }
+    }
+    if m.texts > 0 && m.visible_texts == 0 {
+        failures.push(format!(
+            "[{case}] `{panel}` holds {} texts and none of them is visible: the panel draws empty (first hidden: {})",
+            m.texts,
+            m.hidden.as_deref().unwrap_or("none")
+        ));
+    }
+    failures
 }
 
 #[test]
@@ -783,36 +820,7 @@ fn every_panel_stays_inside_its_content_box_when_it_is_full() {
         }
         // **(a) A panel that holds texts shows some of them** (#535): the weakest of (a)'s three conditions and the only one asserted
         // in every cell, so one visible heading satisfies it (the module doc says what that cannot catch).
-        let held = m.interface_scale <= COLLAPSE_HELD_UP_TO;
-        if let Some(row) = m.row_px {
-            let collapsed = m.body_px.is_some_and(|body| body < row) || m.viewport_px.is_some_and(|view| view < row);
-            if collapsed && !held {
-                println!(
-                    "COLLAPSE (not asserted) [{case}] `{panel}`: body {:.0} px, viewport {:.0} px, one text row {row:.0} px",
-                    m.body_px.unwrap_or_default(),
-                    m.viewport_px.unwrap_or_default()
-                );
-            }
-            if held && m.body_px.is_some_and(|body| body < row) {
-                failures.push(format!(
-                    "[{case}] `{panel}` is laid out {:.1} px tall inside, less than one text row ({row:.1} px, the shortest of its own texts): the body collapsed",
-                    m.body_px.unwrap_or_default()
-                ));
-            }
-            if held && m.viewport_px.is_some_and(|view| view < row) {
-                failures.push(format!(
-                    "[{case}] `{panel}`'s scroll viewport is {:.1} px tall, less than one text row ({row:.1} px): nothing can be read in it",
-                    m.viewport_px.unwrap_or_default()
-                ));
-            }
-        }
-        if m.texts > 0 && m.visible_texts == 0 {
-            failures.push(format!(
-                "[{case}] `{panel}` holds {} texts and none of them is visible: the panel draws empty (first hidden: {})",
-                m.texts,
-                m.hidden.as_deref().unwrap_or("none")
-            ));
-        }
+        failures.extend(collapse_failures(case, panel, m));
         if m.cells > MOST_GOOEY_CELLS {
             failures.push(format!("[{case}] `{panel}` draws {} one-line gooey table cells, more than {MOST_GOOEY_CELLS}", m.cells));
         }
@@ -862,4 +870,64 @@ fn every_panel_stays_inside_its_content_box_when_it_is_full() {
         "a panel draws something outside the content box it is drawn in (#494):\n  {}",
         failures.join("\n  ")
     );
+}
+
+/// **The floors hold in a shorter and a taller window, and at the text sizes that need the most** (#537): the capture's window is one height; a
+/// laptop screen is another. The interface size is the top of its range in every cell, so it is the window that limits it, and the real fit
+/// system set `UiScale` (`editor_in` asserts it against `surface::ui_scale_in_a_window`).
+///
+/// **Not asserted, said plainly**: a window too short for the floors at the setting's own lowest size. At text 300% that is under about 460
+/// logical px tall (measured: the floors fail at 0.5 from 240 to 420 logical px), and the limit cannot help it: the effective size never goes
+/// below `SCALE_RANGE.0`.
+#[test]
+fn the_floors_hold_in_a_shorter_and_a_taller_window_at_the_top_of_the_range() {
+    let root = project("heights");
+    let mut failures = Vec::new();
+    for (logical_height, text_scale) in [(480u32, 1.0f32), (480, 1.5), (480, 2.0), (802, 1.6), (802, 1.75), (802, 2.0), (802, 2.5), (802, 2.75), (802, 2.9), (802, 3.0), (1200, 1.5), (1200, 3.0), (600, 3.0)] {
+        for interface_scale in [1.0f32, 3.0] {
+            let case = format!("height {logical_height} scale {interface_scale} text {text_scale}");
+            let mut app = editor_in(&root, &format!("h_{logical_height}_{interface_scale}_{text_scale}"), interface_scale, text_scale, (2560, logical_height * 2));
+            for (panel, m) in every_region(&mut app) {
+                failures.extend(collapse_failures(&case, &panel, &m));
+            }
+        }
+    }
+    assert!(failures.is_empty(), "a panel collapsed in a window that should hold it:\n  {}", failures.join("\n  "));
+}
+
+/// **The table the limit is read from is what the layout measures** (#537): `surface::LAYOUT_BY_TEXT_SIZE`'s `chrome` and `need` columns, re-measured
+/// at each text size in a tall window (1200 logical px, interface 90%, where every panel's list has room and the bottom dock is shown or not as the
+/// shell decides). `chrome` is the frame less the body and the dock; `need` is, for the panel that needs most, the frame less its viewport, plus
+/// its text row, less the dock's row when it is shown. The table must not be below a reading (that would let a panel collapse) and not more than a few
+/// layout units above one (that would limit a size the window holds).
+#[test]
+fn the_layout_table_behind_the_limit_is_what_the_layout_measures() {
+    /// How far above the reading a table row may stand, in layout units: rounding up, and the spread of one cell's panels over the sizes it was read at.
+    const ABOVE: f32 = 8.0;
+    /// How far a reading may stand above its row, in layout units: whole-pixel layout.
+    const BELOW: f32 = 0.5;
+    let root = project("table");
+    let mut failures = Vec::new();
+    for (text_scale, chrome, need) in bevy_dark_factory::surface::LAYOUT_BY_TEXT_SIZE {
+        let mut app = editor_in(&root, &format!("t_{text_scale}"), 0.9, text_scale, (2560, 2400));
+        let u = app.world().resource::<UiScale>().0;
+        let regions = every_region(&mut app);
+        let world = app.world();
+        let frame = world.resource::<chrome::Frame>();
+        let height = |e: Entity| world.get::<ComputedNode>(e).map_or(0.0, |c| c.size().y) / u;
+        let dock = if world.get::<Node>(frame.bottom).is_some_and(|n| n.display != Display::None) { height(frame.bottom) } else { 0.0 };
+        let measured_chrome = 2400.0 / u - height(frame.body) - dock;
+        let measured_need = regions
+            .iter()
+            .filter(|(name, m)| name.as_str() != "left pane" && m.viewport_px.unwrap_or(0.0) > 0.0)
+            .map(|(_, m)| (2400.0 - m.viewport_px.unwrap_or(0.0) + m.row_px.unwrap_or(0.0)) / u - dock)
+            .fold(0.0f32, f32::max);
+        if chrome > measured_chrome + BELOW || measured_chrome - chrome > ABOVE {
+            failures.push(format!("text {text_scale}: chrome is {chrome} in the table and {measured_chrome:.1} in the layout"));
+        }
+        if measured_need > need + BELOW || need - measured_need > ABOVE {
+            failures.push(format!("text {text_scale}: need is {need} in the table and {measured_need:.1} in the layout"));
+        }
+    }
+    assert!(failures.is_empty(), "the table in surface.rs no longer matches the layout:\n  {}", failures.join("\n  "));
 }

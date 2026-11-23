@@ -150,11 +150,12 @@ fn editor(tag: &str, mode: Mode, interface_scale: f32) -> App {
     let mut app = harness::build_headless_at(&root, "m", None, mode)
         .unwrap_or_else(|e| panic!("the fixture project must open: {e}"));
     app.insert_resource(UserSettingsFile(user));
-    // The capture's screen: 1280 x 802 logical at a 2.0 factor, so 2560 x 1604 physical.
+    // The capture's screen: 1280 x 802 logical at a 2.0 factor, so 2560 x 1604 physical. `WindowResolution::new` takes PHYSICAL pixels (#535):
+    // it was `new(1280, 802)`, a 640 x 401 logical window, which the interface size now limits (#537) to what it can hold.
     let window = app
         .world_mut()
         .spawn((
-            Window { resolution: WindowResolution::new(1280, 802), ..default() },
+            Window { resolution: WindowResolution::new(WINDOW_PHYSICAL.0, WINDOW_PHYSICAL.1), ..default() },
             PrimaryWindow,
         ))
         .id();
