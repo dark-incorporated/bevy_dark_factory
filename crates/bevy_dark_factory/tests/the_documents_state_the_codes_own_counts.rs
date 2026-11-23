@@ -350,6 +350,17 @@ fn tuple_count(source: &str, name: &str) -> usize {
     body[..end].matches("(\"").count()
 }
 
+/// **The kinds `reload_verdicts.rs` says `check` cannot read**, from its own `UNCHECKED` list: one id a line,
+/// long-form, with comments between.
+fn unchecked_count() -> usize {
+    let source = read("crates/blueprint_model/tests/reload_verdicts.rs");
+    const LEAD: &str = "const UNCHECKED: &[&str] = &[";
+    let at = source.find(LEAD).expect("the verdict test declares `UNCHECKED`") + LEAD.len();
+    let body = &source[at..];
+    let body = &body[..body.find("];").expect("the list closes")];
+    body.lines().filter(|line| line.trim_start().starts_with('"')).count()
+}
+
 /// **How many sample rows `fn versioned()` builds.**
 fn sample_count(source: &str) -> usize {
     sample_ids(source).len()
