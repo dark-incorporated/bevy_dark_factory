@@ -24,6 +24,7 @@ use bevy_dark_factory::workspace::Workspace;
 use bevy_gooey::{Modifiers, Shortcut};
 
 use crate::fixtures;
+use crate::settle_support;
 
 /// The four commands the workspaces replaced, as a saved keymap spells them.
 const RETIRED: [&str; 4] = ["view.switch_door", "view.panel_1", "view.panel_2", "view.panel_3"];
@@ -43,11 +44,7 @@ fn editor(tag: &str) -> (App, PathBuf) {
     (app, root)
 }
 
-fn settle(app: &mut App) {
-    for _ in 0..SETTLE {
-        app.update();
-    }
-}
+
 
 /// **Press one bare key, the way the keyboard does**: down, a frame, up, a frame.
 fn press(app: &mut App, key: KeyCode) {
@@ -62,7 +59,7 @@ fn press(app: &mut App, key: KeyCode) {
         });
         app.update();
     }
-    settle(app);
+    settle_support::settle(app);
 }
 
 #[test]
@@ -89,7 +86,7 @@ fn the_bare_keys_the_four_sat_on_move_nothing() {
     let kit = commands::by_id("workspace.kit").unwrap_or_else(|| panic!("workspace.kit"));
     let live = *app.world().resource::<bevy_dark_factory::keys::Live>();
     app.world_mut().resource_mut::<bevy_dark_factory::command_run::Chords>().queue(&kit, live);
-    settle(&mut app);
+    settle_support::settle(&mut app);
     assert_eq!(*app.world().resource::<Workspace>(), Workspace::Kit);
     let panel = *app.world().resource::<Mode>();
 

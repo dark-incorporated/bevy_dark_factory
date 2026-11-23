@@ -22,6 +22,7 @@ use bevy_dark_factory::workspace::Workspace;
 use bevy_gooey::{DockLayout, Modifiers, Shortcut, SplitAxis};
 
 use crate::fixtures;
+use crate::settle_support;
 
 const SETTLE: usize = 12;
 
@@ -45,18 +46,14 @@ fn editor_in(root: &Path, user: Option<&Path>) -> App {
     app
 }
 
-fn settle(app: &mut App) {
-    for _ in 0..SETTLE {
-        app.update();
-    }
-}
+
 
 /// **Run a command by id**, the way the palette does: its chord is queued and pressed.
 fn run_command(app: &mut App, id: &str) {
     let command = commands::by_id(id).unwrap_or_else(|| panic!("`{id}` is not a command"));
     let live = *app.world().resource::<Live>();
     app.world_mut().resource_mut::<Chords>().queue(&command, live);
-    settle(app);
+    settle_support::settle(app);
 }
 
 fn shown(app: &mut App) -> DockLayout {
@@ -86,7 +83,7 @@ fn moved(fraction: f32) -> DockLayout {
 fn every_built_workspace_is_reachable_by_its_command_and_the_map_and_selection_stay() {
     let (mut app, _root) = editor("commands", None);
     assert!(bevy_dark_factory::editor::lock_on_placement(app.world_mut(), "floor@0"));
-    settle(&mut app);
+    settle_support::settle(&mut app);
     let map = app.world().resource::<OpenMap>().map.name.clone();
     let selected = app.world().resource::<Selection>().ids().to_vec();
     assert_eq!(selected, ["floor@0"], "the test starts with a piece selected");

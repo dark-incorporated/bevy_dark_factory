@@ -46,15 +46,11 @@ fn editor(tag: &str) -> App {
     let mut app = bevy_dark_factory::harness::build_headless(&root, "m", None).unwrap_or_else(|e| panic!("{e}"));
     app.insert_non_send(PosixShell(guard));
     app.world_mut().spawn((bevy::window::Window { resolution: bevy::window::WindowResolution::new(1600, 900), ..default() }, bevy::window::PrimaryWindow));
-    settle(&mut app, 16);
+    for _ in 0..16 { app.update(); }
     app
 }
 
-fn settle(app: &mut App, frames: usize) {
-    for _ in 0..frames {
-        app.update();
-    }
-}
+
 
 fn until(app: &mut App, why: &str, test: impl Fn(&mut App) -> bool) {
     for _ in 0..TRIES {
@@ -75,7 +71,7 @@ fn point_at(app: &mut App, at: Vec2) {
     let handle = app.world().get_resource::<bevy_dark_factory::surface::Surface>().map(|s| s.image.clone()).unwrap_or_default();
     let location = Location { target: NormalizedRenderTarget::Image(ImageRenderTarget { handle, scale_factor: 1.0 }), position: at };
     app.world_mut().write_message(PointerInput::new(PointerId::Mouse, location, PointerAction::Move { delta: Vec2::ZERO }));
-    settle(app, 3);
+    for _ in 0..3 { app.update(); }
 }
 
 /// **Press a workspace's chord**, as its binding spells it: the platform's primary modifier and its digit.
@@ -98,7 +94,7 @@ fn press_workspace_chord(app: &mut App, action: Action) {
         send(app, binding.key, state);
         app.update();
     }
-    settle(app, SETTLE);
+    for _ in 0..SETTLE { app.update(); }
 }
 
 /// The workspace the editor has open.

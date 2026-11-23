@@ -63,7 +63,7 @@ fn lit_caret(app: &mut App) -> (Vec2, f32, Color) {
             return (node.size() * node.inverse_scale_factor(), node.border().min_inset.x * node.inverse_scale_factor(), ground);
         }
         std::thread::sleep(std::time::Duration::from_millis(50));
-        settle(app, 1);
+        for _ in 0..1 { app.update(); }
     }
     panic!("the caret was never lit in {CARET_TRIES} tries");
 }
@@ -77,7 +77,7 @@ fn cell(app: &App) -> Vec2 {
 fn the_caret_is_drawn_in_the_shape_asked_for() {
     let mut app = editor_with_terminal("caret_shapes");
     app.world_mut().resource_mut::<TerminalFocus>().take();
-    settle(&mut app, LAYOUT_FRAMES);
+    for _ in 0..LAYOUT_FRAMES { &mut app.update(); }
     let cell = cell(&app);
 
     let (block, border, ground) = lit_caret(&mut app);
@@ -89,13 +89,13 @@ fn the_caret_is_drawn_in_the_shape_asked_for() {
     assert_ne!(ground.alpha(), 0.0, "with the keyboard in the shell the block is filled");
 
     feed(&mut app, b"\x1b[6 q");
-    settle(&mut app, LAYOUT_FRAMES);
+    for _ in 0..LAYOUT_FRAMES { &mut app.update(); }
     let (bar, _, _) = lit_caret(&mut app);
     assert!(bar.x < cell.x / 2.0, "a bar caret is a thin stroke, not {bar:?} of a {cell:?} cell");
     assert!((bar.y - cell.y).abs() < 0.5, "a bar caret is a cell tall, not {bar:?}");
 
     feed(&mut app, b"\x1b[4 q");
-    settle(&mut app, LAYOUT_FRAMES);
+    for _ in 0..LAYOUT_FRAMES { &mut app.update(); }
     let (underline, _, _) = lit_caret(&mut app);
     assert!((underline.x - cell.x).abs() < 0.5, "an underline caret is a cell wide, not {underline:?}");
     assert!(underline.y < cell.y / 2.0, "an underline caret is a strip at the foot, not {underline:?}");
@@ -105,7 +105,7 @@ fn the_caret_is_drawn_in_the_shape_asked_for() {
 fn without_the_keyboard_the_caret_is_an_outline() {
     let mut app = editor_with_terminal("caret_outline");
     app.world_mut().resource_mut::<TerminalFocus>().release();
-    settle(&mut app, LAYOUT_FRAMES);
+    for _ in 0..LAYOUT_FRAMES { &mut app.update(); }
     let cell = cell(&app);
     let (size, border, ground) = lit_caret(&mut app);
     assert!(border > 0.0, "without the keyboard the caret is outlined, so a glance says the keys are elsewhere");
@@ -119,7 +119,7 @@ fn a_solid_block_shows_the_character_under_it() {
     app.world_mut().resource_mut::<TerminalFocus>().take();
     // The cursor ends on the `q` of `seq`: three letters, then one step back.
     feed(&mut app, b"\r\n\x1b[2Kseq\x1b[D");
-    settle(&mut app, LAYOUT_FRAMES);
+    for _ in 0..LAYOUT_FRAMES { &mut app.update(); }
     let world = app.world_mut();
     let glyph = world
         .query_filtered::<&Text, With<TerminalCaretGlyph>>()

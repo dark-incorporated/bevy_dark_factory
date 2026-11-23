@@ -37,6 +37,15 @@ use serde_json::json;
 
 use crate::fixtures;
 
+/// **The project index at its shortest sweep, with its first listing in hand** — what a wait on a condition needs, so it is the
+/// condition that is paid for and not the index's one-second default sweep.
+fn index_at_its_shortest_sweep(app: &mut App) {
+    let index = app.world().resource::<bevy_dark_factory::project_index::ProjectIndex>();
+    index.set_sweep(bevy_dark_factory::project_index::MIN_SWEEP);
+    index.wait_ready(std::time::Duration::from_secs(30));
+}
+use crate::index_view_support as support;
+
 fn scratch(tag: &str) -> PathBuf {
     let dir = std::env::temp_dir().join(format!("blueprint_new_guide_{tag}_{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&dir);
@@ -44,12 +53,7 @@ fn scratch(tag: &str) -> PathBuf {
     dir
 }
 
-fn settle(app: &mut App) {
-    for _ in 0..6 {
-        std::thread::sleep(std::time::Duration::from_millis(60));
-        app.update();
-    }
-}
+
 
 fn call(app: &mut App) -> serde_json::Value {
     use bevy::remote::{RemoteMethodSystemId, RemoteMethods};
@@ -62,7 +66,7 @@ fn call(app: &mut App) -> serde_json::Value {
         .run_system_with(id, Some(json!({})))
         .unwrap_or_else(|e| panic!("blueprint/agent_guide: {e:?}"))
         .unwrap_or_else(|e| panic!("blueprint/agent_guide: {e:?}"));
-    settle(app);
+    support::settle(app);
     answer
 }
 
@@ -86,7 +90,9 @@ fn run_the_wizard(tag: &str, holder: &Path) -> PathBuf {
     // A fixture project to stand the editor up on; the wizard makes its own folder beside it.
     let start = fixtures::Fixture::new(&format!("wizard_{tag}_{}", std::process::id())).descriptor("site/wall", "alpha").build("m");
     let mut app = harness::build_headless(&start, "m", None).unwrap_or_else(|e| panic!("{e}"));
-    app.add_plugins(LoadingPlugin);
+
+    // The index's shortest sweep, and the first listing waited for: what follows is a wait on the condition, not on a clock.
+    index_at_its_shortest_sweep(&mut app);    app.add_plugins(LoadingPlugin);
     app.add_plugins(LauncherPlugin);
     app.add_plugins(bevy_debugger_bevy::DebuggerPlugin::default());
     app.add_plugins(OpsBridgePlugin);
@@ -94,7 +100,7 @@ fn run_the_wizard(tag: &str, holder: &Path) -> PathBuf {
     // names the real one, so no test reads or writes the developer's `trusted.yaml`.
     app.insert_resource(bevy_dark_factory::trusted::StoreRoot(holder.clone()));
     app.world_mut().resource_mut::<NextState<Screen>>().set(Screen::Launcher);
-    settle(&mut app);
+    support::settle(&mut app);
 
     // **The person's store is the default one** — `trust.file` stays `None` — and the store's folder is a
     // scratch folder of the test's (`trusted::StoreRoot`), so nothing here touches the real `trusted.yaml`.
@@ -107,7 +113,7 @@ fn run_the_wizard(tag: &str, holder: &Path) -> PathBuf {
 
     let button = testing::find_by_label(&mut app, "New project").unwrap_or_else(|e| panic!("{e:?}"));
     app.world_mut().commands().trigger(Activate { entity: button });
-    settle(&mut app);
+    support::settle(&mut app);
     assert!(app.world().get_resource::<NewProjectForm>().is_some(), "the form is open");
 
     let name = app.world_mut().query_filtered::<Entity, With<NameField>>().single(app.world()).expect("the Name field");
@@ -115,12 +121,12 @@ fn run_the_wizard(tag: &str, holder: &Path) -> PathBuf {
     app.world_mut().commands().trigger(bevy::ui_widgets::ValueChange::<String> { source: name, value: tag.to_owned(), is_final: true });
     let location = app.world_mut().query_filtered::<Entity, With<LocationField>>().single(app.world()).expect("the Location field");
     app.world_mut().commands().trigger(bevy::ui_widgets::ValueChange::<String> { source: location, value: folder.clone(), is_final: true });
-    settle(&mut app);
+    support::settle(&mut app);
 
     let create = app.world_mut().query_filtered::<Entity, With<CreateButton>>().iter(app.world()).next().expect("Create is on the form");
     app.world_mut().commands().trigger(Activate { entity: create });
-    settle(&mut app);
-    settle(&mut app);
+    support::settle(&mut app);
+    support::settle(&mut app);
 
     let root = Path::new(&folder).join(tag);
     assert!(root.join("assets/blueprint").is_dir(), "the wizard made the project at {}", root.display());
@@ -150,10 +156,12 @@ fn the_wizard_writes_the_four_section_guide_and_grants_it_so_an_agent_is_asked_n
 
     // **And an agent is served it, with no question raised.**
     let mut app = harness::build_headless(&root, new_project::FIRST_MAP, None).unwrap_or_else(|e| panic!("{e}"));
-    app.add_plugins(bevy_debugger_bevy::DebuggerPlugin::default());
+
+    // The index's shortest sweep, and the first listing waited for: what follows is a wait on the condition, not on a clock.
+    index_at_its_shortest_sweep(&mut app);    app.add_plugins(bevy_debugger_bevy::DebuggerPlugin::default());
     app.add_plugins(OpsBridgePlugin);
     app.insert_resource(bevy_dark_factory::trusted::StoreRoot(holder.clone()));
-    settle(&mut app);
+    support::settle(&mut app);
     assert!(app.world().resource::<EditorState>().trust.file.is_none(), "the store is still the default one");
     let answer = call(&mut app);
     assert_eq!(project_text(&answer).as_deref(), Some(text.as_str()), "the new project's guide is served: {answer}");
@@ -170,7 +178,9 @@ fn opening_an_existing_project_writes_no_guide() {
     let root = fixtures::Fixture::new(&format!("existing_{}", std::process::id())).descriptor("site/wall", "alpha").build("m");
     let before = std::fs::read_dir(&root).map(|e| e.count()).unwrap_or_default();
     let mut app = harness::build_headless(&root, "m", None).unwrap_or_else(|e| panic!("{e}"));
-    for _ in 0..6 {
+
+    // The index's shortest sweep, and the first listing waited for: what follows is a wait on the condition, not on a clock.
+    index_at_its_shortest_sweep(&mut app);    for _ in 0..6 {
         app.update();
     }
     assert!(!root.join(PROJECT_PATH).exists(), "a project the editor did not create gets no guide written into it");

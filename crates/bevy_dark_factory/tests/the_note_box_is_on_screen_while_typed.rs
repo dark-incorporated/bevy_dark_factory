@@ -15,14 +15,11 @@ use bevy::ui::{ComputedNode, ScrollPosition, UiGlobalTransform};
 use bevy_dark_factory::editor::{EditorState, NoteBox, NoteDraft, Tool};
 
 use crate::fixtures;
+use crate::settle_support;
 
 const HEIGHT: u32 = 720;
 
-fn settle(app: &mut App) {
-    for _ in 0..4 {
-        app.update();
-    }
-}
+
 
 fn tap(app: &mut App, c: char) {
     for state in [bevy::input::ButtonState::Pressed, bevy::input::ButtonState::Released] {
@@ -86,13 +83,13 @@ fn typed_text_is_inside_the_inspector_scrolled_to_its_bottom() {
         .build("m");
     let mut app = bevy_dark_factory::harness::build_headless(&root, "m", None).unwrap_or_else(|e| panic!("{e}"));
     bevy_dark_factory::harness::resize_surface(&mut app, 1280, HEIGHT).unwrap_or_else(|e| panic!("{e}"));
-    settle(&mut app);
+    settle_support::settle(&mut app);
 
     // --- Scroll the Inspector to its bottom, as a person reading NOTES has it.
     let label = drawn(&mut app, |t| t == "LAST").expect("the Inspector draws its LAST label");
     let pane = scrolled_parent(&app, label);
     app.world_mut().get_mut::<ScrollPosition>(pane).expect("a scrolling pane").0.y = 100_000.0;
-    settle(&mut app);
+    settle_support::settle(&mut app);
     // The case under test: the receipt row really is off the pane, or this proves nothing.
     assert!(
         !inside(span(&app, label), span(&app, pane)),
@@ -110,7 +107,7 @@ fn typed_text_is_inside_the_inspector_scrolled_to_its_bottom() {
     for c in ['a', 'b', 'c'] {
         tap(&mut app, c);
     }
-    settle(&mut app);
+    settle_support::settle(&mut app);
 
     let typed = drawn(&mut app, |t| t.contains("note: abc")).expect("the note box's text is laid out");
     assert!(

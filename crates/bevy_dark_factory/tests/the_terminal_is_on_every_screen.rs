@@ -55,19 +55,15 @@ fn the_application_and_its_project(tag: &str) -> (App, std::path::PathBuf) {
         },
         PrimaryWindow,
     ));
-    settle(&mut app, 10);
+    for _ in 0..10 { app.update(); }
     (app, root)
 }
 
-fn settle(app: &mut App, frames: usize) {
-    for _ in 0..frames {
-        app.update();
-    }
-}
+
 
 fn go_to(app: &mut App, screen: Screen) {
     app.world_mut().resource_mut::<NextState<Screen>>().set(screen);
-    settle(app, SCREEN_FRAMES);
+    for _ in 0..SCREEN_FRAMES { app.update(); }
 }
 
 fn window(app: &mut App) -> Entity {
@@ -114,7 +110,7 @@ fn primary(app: &mut App, key: KeyCode) {
         send(app, key, logical.clone(), state);
         app.update();
     }
-    settle(app, 2);
+    for _ in 0..2 { app.update(); }
 }
 
 fn type_text(app: &mut App, text: &str) {
@@ -194,7 +190,7 @@ fn drawn_text(app: &mut App) -> String {
 /// Wait until `test` holds of the app, stepping it, or panic with `why` and what the shell shows.
 fn until(app: &mut App, why: &str, test: impl Fn(&mut App) -> bool) {
     for _ in 0..TRIES {
-        settle(app, 2);
+        for _ in 0..2 { app.update(); }
         if test(app) {
             return;
         }
@@ -211,7 +207,7 @@ fn holds(app: &App) -> bool {
 /// person does with Primary+J.
 fn raise(app: &mut App) {
     app.world_mut().resource_mut::<Terminal>().set_collapsed(false);
-    settle(app, 3);
+    for _ in 0..3 { app.update(); }
 }
 
 #[test]
@@ -248,11 +244,11 @@ fn the_editor_opens_with_the_terminal_collapsed_and_every_screen_shows_the_same_
     assert!(!holds(&app), "a door opens without the terminal holding the keyboard");
 
     app.world_mut().resource_mut::<Terminal>().tab_mut().expect("a tab").screen_mut().feed(b"\r\nMARK-314\r\n");
-    settle(&mut app, 4);
+    for _ in 0..4 { app.update(); }
     for (screen, root) in [(Screen::Project, "projects home"), (Screen::Launcher, "projects home"), (Screen::Loading, "loading")] {
         if screen == Screen::Project {
             bevy_dark_factory::harness::stand_on_the_project_page(&mut app, &project);
-            settle(&mut app, SCREEN_FRAMES);
+            for _ in 0..SCREEN_FRAMES { app.update(); }
         } else {
             go_to(&mut app, screen);
         }
@@ -303,7 +299,7 @@ fn primary_j_never_reaches_the_shell() {
     raise(&mut app);
     until(&mut app, "no shell", |app| screen_text(app).contains('$'));
     app.world_mut().resource_mut::<TerminalFocus>().take();
-    settle(&mut app, 2);
+    for _ in 0..2 { app.update(); }
     type_text(&mut app, "echo A");
     // Collapse and restore in the middle of the line. Had Ctrl+J reached the shell it would be a newline,
     // and `echo A` would run on its own before the `B` arrived.
@@ -337,7 +333,7 @@ fn the_home_does_not_act_on_keys_the_shell_has() {
     go_to(&mut app, Screen::Launcher);
     until(&mut app, "no shell", |app| screen_text(app).contains('$'));
     app.world_mut().resource_mut::<TerminalFocus>().take();
-    settle(&mut app, 2);
+    for _ in 0..2 { app.update(); }
     type_text(&mut app, "cat -v");
     tap(&mut app, KeyCode::Enter, Key::Enter);
     until(&mut app, "`cat -v` was never echoed", |app| screen_text(app).contains("cat -v"));

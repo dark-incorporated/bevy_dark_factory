@@ -29,12 +29,11 @@ use bevy_dark_factory::workspace::Workspace;
 use bevy_gooey::CommandPalette;
 
 use crate::fixtures;
+use crate::settle_support;
 
 /// One frame of the test clock, seconds — the reveal is carried a frame at a time.
 const FRAME: f32 = 1.0 / 60.0;
 
-/// **Frames a reveal may take**: the workspace switch, the panel's first build and the selection.
-const SETTLE: usize = 40;
 
 /// **How much of the viewport a framed placement must fill**, as a fraction of its shorter side. A
 /// piece framed as a change arrives with room around it ([`crate::fixtures`]' own margin, `1.25`), so
@@ -63,11 +62,7 @@ fn editor(tag: &str) -> App {
     app
 }
 
-fn settle(app: &mut App) {
-    for _ in 0..SETTLE {
-        app.update();
-    }
-}
+
 
 fn palette_is_open(app: &mut App) -> bool {
     let world = app.world_mut();
@@ -125,7 +120,7 @@ fn ctrl_p(app: &mut App) {
         }
         app.update();
     }
-    settle(app);
+    settle_support::settle(app);
 }
 
 /// **Type `text` as a hand types it.** `>` is Shift+Period and `@` Shift+2 on a US keyboard, and the character is what
@@ -148,7 +143,7 @@ fn type_str(app: &mut App, text: &str) {
             app.update();
         }
     }
-    settle(app);
+    settle_support::settle(app);
 }
 
 fn enter(app: &mut App) {
@@ -156,7 +151,7 @@ fn enter(app: &mut App) {
         send(app, KeyCode::Enter, Key::Enter, None, state);
         app.update();
     }
-    settle(app);
+    settle_support::settle(app);
 }
 
 /// **Every corner of a box, projected through the editor's own camera, inside its viewport**, and the
@@ -214,7 +209,7 @@ fn typing_part_of_a_pieces_name_opens_the_kit_workspace_with_it_selected() {
     enter(&mut app);
 
     assert!(!palette_is_open(&mut app), "choosing a result closes the finder");
-    settle(&mut app);
+    settle_support::settle(&mut app);
     assert_eq!(
         *app.world().resource::<Workspace>(),
         Workspace::Kit,
@@ -240,7 +235,7 @@ fn a_placement_id_opens_the_map_with_the_placement_framed() {
     // **Let the map's one-shot entry frame happen first**: it frames the whole map once the viewport
     // has stopped changing size, and a camera written before it would be overwritten by it, so the
     // precondition below would measure the entry frame and not the camera this test sets.
-    settle(&mut app);
+    settle_support::settle(&mut app);
     // **Somewhere else entirely, so a finder that did nothing cannot pass.** The camera is put on the
     // *opposite* corner at 8 m across: the piece at (28, -28) is outside that view, and only a real
     // go-to brings it in. (The camera is orthographic, so a share of the viewport says nothing about
@@ -250,7 +245,7 @@ fn a_placement_id_opens_the_map_with_the_placement_framed() {
         rig.focus = Vec3::new(-28.0, 0.0, 28.0);
         rig.height = 8.0;
     }
-    settle(&mut app);
+    settle_support::settle(&mut app);
 
     let rect = app
         .world()
@@ -275,7 +270,7 @@ fn a_placement_id_opens_the_map_with_the_placement_framed() {
     assert!(palette_is_open(&mut app));
     type_str(&mut app, "bed@3");
     enter(&mut app);
-    settle(&mut app);
+    settle_support::settle(&mut app);
 
     assert_eq!(*app.world().resource::<Workspace>(), Workspace::Map, "a placement is on the Map");
     let share = framed(&app, rect)
@@ -307,14 +302,14 @@ fn the_keymap_names_cmd_p_go_to_anything() {
 fn a_greater_than_sign_then_a_command_name_runs_that_command() {
     let mut app = editor("command");
     bevy_dark_factory::editor::run_for_test(app.world_mut(), "bed", (3.0, 3.0), (6.0, 3.0));
-    settle(&mut app);
+    settle_support::settle(&mut app);
     assert!(app.world().resource::<EditorState>().undo_depth() > 0, "a run is one undo step");
 
     ctrl_p(&mut app);
     assert!(palette_is_open(&mut app));
     type_str(&mut app, ">undo");
     enter(&mut app);
-    settle(&mut app);
+    settle_support::settle(&mut app);
 
     assert!(!palette_is_open(&mut app), "choosing a command closes the finder");
     assert_eq!(

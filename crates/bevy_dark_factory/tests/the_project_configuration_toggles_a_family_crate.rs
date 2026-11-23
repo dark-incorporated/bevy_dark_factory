@@ -15,6 +15,7 @@ use blueprint_model::family::Family;
 use bevy_gooey::testing::{click, find_by_label};
 
 use crate::fixtures;
+use crate::settle_support;
 
 fn rig(tag: &str) -> (App, PathBuf) {
     let root = fixtures::Fixture::new(tag).descriptor("site/wall", "alpha").build("m");
@@ -30,11 +31,7 @@ fn rig(tag: &str) -> (App, PathBuf) {
     (app, root)
 }
 
-fn settle(app: &mut App) {
-    for _ in 0..4 {
-        app.update();
-    }
-}
+
 
 fn verdict(app: &App) -> Option<(String, String)> {
     app.world().resource::<EditorReloads>().kinds().iter().find(|k| k.kind == "family_list").map(|k| (k.outcome.word().to_owned(), k.file.clone()))
@@ -48,7 +45,7 @@ fn toggling_a_crate_writes_family_ron_atomically_and_the_verdict_row_reads_appli
 
     let gooey = find_by_label(&mut app, "bevy_gooey").unwrap();
     click(&mut app, gooey);
-    settle(&mut app);
+    settle_support::settle(&mut app);
     let family = Family::load(&root).expect("what the screen wrote reads");
     assert_eq!(family.crates, ["bevy_gooey"], "the switch listed the crate");
     let leftovers: Vec<_> = std::fs::read_dir(&root).unwrap().flatten().map(|e| e.file_name().to_string_lossy().into_owned()).filter(|n| n.contains("family")).collect();
@@ -58,7 +55,7 @@ fn toggling_a_crate_writes_family_ron_atomically_and_the_verdict_row_reads_appli
 
     let again = find_by_label(&mut app, "bevy_gooey").unwrap();
     click(&mut app, again);
-    settle(&mut app);
+    settle_support::settle(&mut app);
     assert!(Family::load(&root).unwrap().crates.is_empty(), "the same switch takes it out again");
 }
 
@@ -67,11 +64,11 @@ fn a_crate_this_build_lacks_can_be_listed_and_the_line_says_how_to_host_it_and_t
     let (mut app, root) = rig("project_config_unbuilt");
     // Written by hand before the next switch: the order a person chose is the order that stays.
     std::fs::write(root.join("family.yaml"), "{version: 1, crates: [\"bevy_gooey\"]}").unwrap();
-    settle(&mut app);
+    settle_support::settle(&mut app);
     let missing = bevy_dark_factory::family_host::KNOWN.iter().find(|k| !bevy_dark_factory::family_host::built().contains(k)).expect("a default build lacks some family crate");
     let toggle = find_by_label(&mut app, &format!("{missing} (not built here)")).unwrap();
     click(&mut app, toggle);
-    settle(&mut app);
+    settle_support::settle(&mut app);
     assert_eq!(Family::load(&root).unwrap().crates, ["bevy_gooey".to_owned(), (*missing).to_owned()], "new crates go on the end");
     let mut texts = app.world_mut().query::<&Text>();
     let said: Vec<String> = texts.iter(app.world()).map(|t| t.0.clone()).collect();
@@ -83,7 +80,7 @@ fn a_family_ron_that_does_not_read_is_said_and_left_exactly_as_it_is() {
     let (mut app, root) = rig("project_config_unreadable");
     let broken = "{version: 1, crates: [\"bevy_gooey\"";
     std::fs::write(root.join("family.yaml"), broken).unwrap();
-    settle(&mut app);
+    settle_support::settle(&mut app);
     let mut texts = app.world_mut().query::<&Text>();
     let said: Vec<String> = texts.iter(app.world()).map(|t| t.0.clone()).collect();
     assert!(said.iter().any(|t| t.contains("family.yaml") && t.contains("nothing is written until it reads")), "the screen names the file: {said:?}");

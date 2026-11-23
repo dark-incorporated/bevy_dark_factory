@@ -15,12 +15,23 @@ use bevy_gooey::{RowActivated, RowSource, Table, TextInputOf, TextInputValue};
 
 use crate::fixtures;
 
+/// **The project index at its shortest sweep, with its first listing in hand** — what a wait on a condition needs, so it is the
+/// condition that is paid for and not the index's one-second default sweep.
+fn index_at_its_shortest_sweep(app: &mut App) {
+    let index = app.world().resource::<bevy_dark_factory::project_index::ProjectIndex>();
+    index.set_sweep(bevy_dark_factory::project_index::MIN_SWEEP);
+    index.wait_ready(std::time::Duration::from_secs(30));
+}
+use crate::index_view_support as support;
+
 const TEXT: &str = "# tuning\nmob:\n  speed: 1.50\n  name: orc\n  hp: 7\nfast: false\n";
 
 fn editor(tag: &str, registry: bool) -> (App, std::path::PathBuf) {
     let root = fixtures::Fixture::new(tag).descriptor("site/wall", "alpha").build("m");
     let mut app = harness::build_headless(&root, "m", None).unwrap_or_else(|e| panic!("{e}"));
-    app.world_mut().spawn((Window::default(), PrimaryWindow));
+
+    // The index's shortest sweep, and the first listing waited for: what follows is a wait on the condition, not on a clock.
+    index_at_its_shortest_sweep(&mut app);    app.world_mut().spawn((Window::default(), PrimaryWindow));
     for _ in 0..4 {
         app.update();
     }
@@ -30,16 +41,11 @@ fn editor(tag: &str, registry: bool) -> (App, std::path::PathBuf) {
     if registry {
         std::fs::write(dir.join("data.yaml"), "{version: 1, files: [{id: \"tuning/mob\", path: \"mob.yaml\", bounds: {\"mob.speed\": {min: 0.0, max: 9.0}}}]}").unwrap();
     }
-    settle(&mut app);
+    support::settle(&mut app);
     (app, file)
 }
 
-fn settle(app: &mut App) {
-    for _ in 0..6 {
-        std::thread::sleep(std::time::Duration::from_millis(150));
-        app.update();
-    }
-}
+
 
 /// **The DATA panel's tables**: the history list (UI-53) is a gooey table too, in the same Map inspector, so it is left out.
 fn tables(app: &mut App) -> Vec<Entity> {
@@ -81,7 +87,7 @@ fn a_cell_edited_in_place_is_one_data_set_in_the_log_and_the_file() {
         rows.key(at)
     };
     app.world_mut().commands().trigger(RowActivated { entity: table, key });
-    settle(&mut app);
+    support::settle(&mut app);
     // The field that has the keys is the cell's: it stands in a text row that holds the leaf's value as the file has it.
     let field = testing::focused(&app).expect("opening the row gives a field the keys");
     let row = app.world().get::<TextInputOf>(field).expect("the focus is on a text field").0;
@@ -91,7 +97,7 @@ fn a_cell_edited_in_place_is_one_data_set_in_the_log_and_the_file() {
     }
     testing::type_text(&mut app, "2.5");
     testing::press(&mut app, KeyCode::Enter);
-    settle(&mut app);
+    support::settle(&mut app);
 
     assert_eq!(std::fs::read_to_string(&file).unwrap(), "# tuning\nmob:\n  speed: 2.5\n  name: orc\n  hp: 7\nfast: false\n");
     let project = app.world().resource::<Project>().clone();

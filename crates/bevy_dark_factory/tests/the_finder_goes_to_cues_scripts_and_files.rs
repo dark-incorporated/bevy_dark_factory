@@ -23,12 +23,11 @@ use bevy_dark_factory::world_lists::SelectedCue;
 use bevy_gooey::CommandPalette;
 
 use crate::fixtures;
+use crate::settle_support;
 
 /// One frame of the test clock, seconds.
 const FRAME: f32 = 1.0 / 60.0;
 
-/// Frames a finder choice may take: the switch, the panel's build and the selection.
-const SETTLE: usize = 60;
 
 /// The project's sound file, in the crate's own shape.
 const CUES: &str = "\
@@ -75,11 +74,7 @@ fn editor(tag: &str) -> (App, std::path::PathBuf) {
     (app, root)
 }
 
-fn settle(app: &mut App) {
-    for _ in 0..SETTLE {
-        app.update();
-    }
-}
+
 
 fn palette_is_open(app: &mut App) -> bool {
     let world = app.world_mut();
@@ -126,7 +121,7 @@ fn ctrl_p(app: &mut App) {
         }
         app.update();
     }
-    settle(app);
+    settle_support::settle(app);
 }
 
 fn type_str(app: &mut App, text: &str) {
@@ -138,7 +133,7 @@ fn type_str(app: &mut App, text: &str) {
             app.update();
         }
     }
-    settle(app);
+    settle_support::settle(app);
 }
 
 fn enter(app: &mut App) {
@@ -146,7 +141,7 @@ fn enter(app: &mut App) {
         send(app, KeyCode::Enter, Key::Enter, None, state);
         app.update();
     }
-    settle(app);
+    settle_support::settle(app);
 }
 
 /// **Open the finder, type, choose** — the whole of a person's gesture.

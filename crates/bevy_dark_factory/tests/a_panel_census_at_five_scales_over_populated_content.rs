@@ -202,11 +202,7 @@ fn signature(words: &str) -> Option<&'static str> {
     }
 }
 
-fn settle(app: &mut App, frames: usize) {
-    for _ in 0..frames {
-        app.update();
-    }
-}
+
 
 /// A name no row can hold in one line at any scale: the stem, a two-digit index and one 41-character run of
 /// underscore-joined words with no space in it, so only a break at a letter can wrap it.
@@ -318,7 +314,7 @@ fn editor_in(root: &Path, tag: &str, interface_scale: f32, text_scale: f32, wind
     let mut window = app.world_mut().get_mut::<Window>(window).expect("the window just spawned");
     window.resolution.set_scale_factor_override(Some(DISPLAY_FACTOR));
     harness::resize_surface(&mut app, window_physical.0, window_physical.1).unwrap_or_else(|e| panic!("{e}"));
-    settle(&mut app, SETTLE_FRAMES);
+    for _ in 0..SETTLE_FRAMES { app.update(); }
     // **The text size is read back, not assumed**: a 1.5 the settings file silently lost would make every 150% cell a
     // second run of the 100% one, and `UiScale` below says nothing about type.
     let applied = app.world().resource::<bevy_dark_factory::settings::EditorSettings>().text_scale;
@@ -715,7 +711,7 @@ fn every_region(app: &mut App) -> BTreeMap<String, Measured> {
                 }
             }
         }
-        settle(app, SHOW_FRAMES);
+        for _ in 0..SHOW_FRAMES { app.update(); }
         for (name, measured) in regions(app) {
             seen_here.entry(name).or_default().absorb(measured);
         }

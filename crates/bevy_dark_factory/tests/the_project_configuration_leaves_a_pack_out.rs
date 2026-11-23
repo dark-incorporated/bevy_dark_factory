@@ -14,6 +14,7 @@ use bevy_dark_factory::project_config::OpenProjectConfig;
 use bevy_gooey::testing::{click, find_by_label};
 
 use crate::fixtures;
+use crate::settle_support;
 
 fn rig(tag: &str) -> App {
     let root = fixtures::Fixture::new(tag)
@@ -26,15 +27,11 @@ fn rig(tag: &str) -> App {
         app.update();
     }
     app.world_mut().write_message(OpenProjectConfig);
-    settle(&mut app);
+    settle_support::settle(&mut app);
     app
 }
 
-fn settle(app: &mut App) {
-    for _ in 0..4 {
-        app.update();
-    }
-}
+
 
 fn excluded(app: &App) -> Vec<String> {
     app.world().resource::<Project>().policy.exclude.clone()
@@ -69,7 +66,7 @@ fn a_switch_leaves_a_pack_out_through_the_operation_and_the_same_switch_brings_i
     let aaa = find_by_label(&mut app, "aaa").expect("every folder under assets/ has a switch");
     assert!(find_by_label(&mut app, "bbb").is_ok());
     click(&mut app, aaa);
-    settle(&mut app);
+    settle_support::settle(&mut app);
     assert_eq!(excluded(&app), ["aaa"], "the editor's policy holds the exclusion");
     assert!(policy_file(&app).contains("aaa"), "and project.yaml does: {}", policy_file(&app));
     assert!(app.world().resource::<Project>().policy.excludes("aaa/a1.glb"), "the pack's meshes are no longer offered");
@@ -79,7 +76,7 @@ fn a_switch_leaves_a_pack_out_through_the_operation_and_the_same_switch_brings_i
 
     let again = find_by_label(&mut app, "aaa").unwrap();
     click(&mut app, again);
-    settle(&mut app);
+    settle_support::settle(&mut app);
     assert!(excluded(&app).is_empty(), "the same switch brings it back");
     assert!(policy_file(&app).contains("exclude: []"), "and project.yaml says so: {}", policy_file(&app));
     assert_eq!(log(&app).len(), before + 2);
@@ -94,7 +91,7 @@ fn a_refusal_is_said_under_the_switches_and_writes_nothing() {
     let before = (policy_file(&app), log(&app).len());
     let bbb = find_by_label(&mut app, "bbb").unwrap();
     click(&mut app, bbb);
-    settle(&mut app);
+    settle_support::settle(&mut app);
     assert!(excluded(&app).is_empty(), "nothing was left out");
     assert_eq!((policy_file(&app), log(&app).len()), before, "a refusal writes no file and no log line");
     let said = texts(&mut app);

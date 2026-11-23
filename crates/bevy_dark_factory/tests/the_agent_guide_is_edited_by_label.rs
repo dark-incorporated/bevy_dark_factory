@@ -28,6 +28,8 @@
 //!   a replacement.
 
 use bevy::prelude::*;
+
+use crate::settle_support;
 use bevy::window::PrimaryWindow;
 use bevy_dark_factory::agent_guide::UserGuideFile;
 use bevy_dark_factory::editor::EditorState;
@@ -60,15 +62,11 @@ fn on_the_page(tag: &str) -> (PathBuf, PathBuf, App) {
     app.insert_resource(UserGuideFile(root.join("no-user-guide.md")));
     harness::stand_on_the_project_page(&mut app, &root);
     app.world_mut().resource_mut::<EditorState>().trust.file = Some(store.clone());
-    settle(&mut app);
+    settle_support::settle(&mut app);
     (root, store, app)
 }
 
-fn settle(app: &mut App) {
-    for _ in 0..6 {
-        app.update();
-    }
-}
+
 
 fn guide_path(root: &Path) -> PathBuf {
     root.join(PROJECT_PATH)
@@ -126,14 +124,14 @@ fn the_guide_is_typed_into_by_its_label_and_saved() {
     let (root, store, mut app): (PathBuf, PathBuf, App) = on_the_page("typed");
     write_guide(&root, "the guide as it read");
     app.world_mut().resource_mut::<bevy_dark_factory::project_page::ProjectPage>().dirty = true;
-    settle(&mut app);
+    settle_support::settle(&mut app);
     assert!(status(&mut app).starts_with("waiting for you"), "{}", status(&mut app));
 
     // **A press where the field is drawn**, and the focus is read off the field that is drawn after
     // it: the page redraws its body when it has read the guide, which is a new field entity, so the
     // claim is that the keyboard is in the guide's own field, not that a redraw did not happen.
     harness::resize_surface(&mut app, 1536, 2400).unwrap_or_else(|e| panic!("{e}"));
-    settle(&mut app);
+    settle_support::settle(&mut app);
     let field = the_field_under(&mut app, GUIDE_LABEL);
     testing::click(&mut app, field);
     let field = the_field_under(&mut app, GUIDE_LABEL);
@@ -150,7 +148,7 @@ fn the_guide_is_typed_into_by_its_label_and_saved() {
     let save = testing::find_by_label(&mut app, "Save")
         .unwrap_or_else(|e| panic!("the section offers no Save once the text changed: {e}"));
     app.world_mut().commands().trigger(Activate { entity: save });
-    settle(&mut app);
+    settle_support::settle(&mut app);
 
     let saved = std::fs::read_to_string(guide_path(&root)).expect("the file reads");
     assert_eq!(
@@ -177,7 +175,7 @@ fn the_field_under_the_label_is_the_guides_own_text_area() {
     let (root, _store, mut app) = on_the_page("holds");
     write_guide(&root, "every word of it");
     app.world_mut().resource_mut::<bevy_dark_factory::project_page::ProjectPage>().dirty = true;
-    settle(&mut app);
+    settle_support::settle(&mut app);
     let field = the_field_under(&mut app, GUIDE_LABEL);
     let world = app.world();
     let row = world.get::<TextInputOf>(field).expect("a field has a row").0;
@@ -205,7 +203,7 @@ fn the_field_under_the_label_is_the_guides_own_text_area() {
     let before = std::fs::metadata(guide_path(&root)).expect("the file is there").modified().expect("a time");
     let save = testing::find_by_label(&mut app, "Save").expect("the section's Save");
     testing::click(&mut app, save);
-    settle(&mut app);
+    settle_support::settle(&mut app);
     let after = std::fs::metadata(guide_path(&root)).expect("the file is there").modified().expect("a time");
     assert_eq!(before, after, "nothing was typed, so nothing was written");
 }

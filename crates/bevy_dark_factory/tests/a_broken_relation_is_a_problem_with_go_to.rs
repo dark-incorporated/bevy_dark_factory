@@ -11,6 +11,7 @@ use bevy_dark_factory::problems_view::{ProblemGoTo, ProblemsList};
 use bevy_dark_factory::selection::Selection;
 
 use crate::fixtures;
+use crate::settle_support;
 
 /// Every placement faces +z (yaw 0). The chair at (2, 2) has its table behind it at (2, 0); the crate at (8, 8.5) stands in the
 /// door's swing at (8, 8).
@@ -28,10 +29,11 @@ fn editor(name: &str, relations: &str) -> App {
     let file = root.join("assets/blueprint/maps/m.relations.yaml");
     std::fs::write(&file, format!("version: 1\nrelations: [{relations}]\n")).unwrap_or_else(|e| panic!("{file:?}: {e}"));
     let mut app = harness::build_headless(&root, "m", None).unwrap_or_else(|e| panic!("{e}"));
-    for _ in 0..6 {
-        std::thread::sleep(std::time::Duration::from_millis(150));
-        app.update();
-    }
+    // **A wait on the problems list the test then reads**, not on six sleeps: the list follows the project index, and what this
+    // test is about is the row it draws.
+    settle_support::until(&mut app, "the problems list names a relation problem", |app| {
+        app.world_mut().query::<&Text>().iter(app.world()).any(|t| t.0.contains("relation"))
+    });
     app
 }
 

@@ -47,6 +47,7 @@ use bevy::ui::{ComputedNode, UiGlobalTransform, UiScale};
 use bevy_dark_factory::harness;
 
 use crate::fixtures;
+use crate::settle_support;
 
 /// The interface scales these tests lay the editor out at: the size the constants were written for,
 /// and the capture's own 2.4 (the editor's 1.2 times the display's 2.0).
@@ -59,14 +60,8 @@ const GRAB_SCALES: [f32; 1] = [1.0];
 /// How far a measured edge may stand from the number it is held to, logical px: layout rounds.
 const SLACK_PX: f32 = 0.5;
 
-/// Frames a layout needs to settle after a change of scale.
-const SETTLE_FRAMES: usize = 12;
 
-fn settle(app: &mut App) {
-    for _ in 0..SETTLE_FRAMES {
-        app.update();
-    }
-}
+
 
 /// The editor on a one-piece fixture, settled, at `scale`.
 fn editor(name: &str, scale: f32) -> (std::path::PathBuf, App) {
@@ -74,7 +69,7 @@ fn editor(name: &str, scale: f32) -> (std::path::PathBuf, App) {
     let mut app = harness::build_headless(&root, "m", None)
         .unwrap_or_else(|e| panic!("the fixture project must open: {e}"));
     app.world_mut().resource_mut::<UiScale>().0 = scale;
-    settle(&mut app);
+    settle_support::settle(&mut app);
     (root, app)
 }
 
@@ -220,7 +215,7 @@ fn a_drag_on_the_narrow_divider_still_moves_the_split() {
         let to = from + Vec2::new(delta, 0.0);
         point(&mut app, to, PointerAction::Move { delta: Vec2::new(DRAG_PX, 0.0) });
         point(&mut app, to, PointerAction::Release(PointerButton::Primary));
-        settle(&mut app);
+        settle_support::settle(&mut app);
         let after = app.world().get::<bevy_gooey::SplitFraction>(parent).expect("a split").0;
 
         let want = start + DRAG_PX / room;

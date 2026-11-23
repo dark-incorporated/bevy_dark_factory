@@ -37,8 +37,8 @@ use bevy_gooey::{
 };
 
 use crate::fixtures;
+use crate::settle_support;
 
-const SETTLE: usize = 12;
 
 const MAP: &str = "assets/blueprint/maps/m.map.yaml";
 const MAP_YAML: &str = "assets/blueprint/maps/draft.map.yaml";
@@ -63,11 +63,7 @@ fn project(tag: &str) -> PathBuf {
     root
 }
 
-fn settle(app: &mut App) {
-    for _ in 0..SETTLE {
-        app.update();
-    }
-}
+
 
 /// **How long a change made from outside may take to reach an open file**, in seconds: the project index's sweep and debounce are about a
 /// second and a tenth, so this is many times that and a failure is a change never heard, not a slow one.
@@ -79,7 +75,7 @@ const HEARD_WITHIN_S: f64 = 20.0;
 fn settle_until(app: &mut App, what: &str, mut done: impl FnMut(&mut App) -> bool) {
     let started = std::time::Instant::now();
     while started.elapsed().as_secs_f64() < HEARD_WITHIN_S {
-        settle(app);
+        settle_support::settle(app);
         if done(app) {
             return;
         }
@@ -101,7 +97,7 @@ fn run_command(app: &mut App, id: &str) {
     let command = commands::by_id(id).unwrap_or_else(|| panic!("`{id}` is not a command"));
     let live = *app.world().resource::<Live>();
     app.world_mut().resource_mut::<Chords>().queue(&command, live);
-    settle(app);
+    settle_support::settle(app);
 }
 
 /// An editor on `root`, in the Files workspace, with `rel` open and the code editor focused.
@@ -109,14 +105,14 @@ fn files_editor(root: &Path, rel: &str) -> App {
     let mut app = harness::build_headless(root, "m", None).unwrap_or_else(|e| panic!("{e}"));
     // A window to send keys to: the headless harness has none (a key event with no window reaches no widget).
     app.world_mut().spawn((Window::default(), PrimaryWindow));
-    settle(&mut app);
+    settle_support::settle(&mut app);
     run_command(&mut app, "workspace.files");
     assert_eq!(*app.world().resource::<Workspace>(), Workspace::Files, "the Files workspace is reachable by its command");
     files::open_file(app.world_mut(), rel).unwrap_or_else(|e| panic!("{e}"));
-    settle(&mut app);
+    settle_support::settle(&mut app);
     let editor = editor_of(&mut app);
     app.world_mut().resource_mut::<InputFocus>().set(editor, FocusCause::Navigated);
-    settle(&mut app);
+    settle_support::settle(&mut app);
     app
 }
 
@@ -135,13 +131,13 @@ fn caret_at(app: &mut App, line: usize, col: usize) {
     let editor = editor_of(app);
     let pos = CodePos::new(line, col);
     app.world_mut().get_mut::<CodeEditor>(editor).map(|mut e| e.select(pos, pos)).unwrap_or_else(|| panic!("no editor"));
-    settle(app);
+    settle_support::settle(app);
 }
 
 fn select(app: &mut App, from: CodePos, to: CodePos) {
     let editor = editor_of(app);
     app.world_mut().get_mut::<CodeEditor>(editor).map(|mut e| e.select(from, to)).unwrap_or_else(|| panic!("no editor"));
-    settle(app);
+    settle_support::settle(app);
 }
 
 fn key(app: &mut App, code: KeyCode, logical: Key, state: ButtonState) {
@@ -158,13 +154,13 @@ fn chord_ctrl(app: &mut App, code: KeyCode, name: &str) {
     key(app, code, Key::Character(name.into()), ButtonState::Pressed);
     key(app, code, Key::Character(name.into()), ButtonState::Released);
     key(app, KeyCode::ControlLeft, Key::Unidentified(NativeKey::Unidentified), ButtonState::Released);
-    settle(app);
+    settle_support::settle(app);
 }
 
 /// Wait out the idle the errors wait for, in real time, and let the editor see it.
 fn idle(app: &mut App) {
     std::thread::sleep(Duration::from_secs_f64(DIAGNOSE_IDLE_S + 0.05));
-    settle(app);
+    settle_support::settle(app);
 }
 
 fn findings(app: &mut App) -> Vec<(usize, String)> {
@@ -288,7 +284,7 @@ fn completion_on_a_reference_field_lists_the_librarys_pieces() {
     // A key position, on a new line under a placement.
     let after_yaw = source.find("  yaw: 0.0").map(|at| at + "  yaw: 0.0".len()).unwrap_or(0);
     app.world_mut().get_mut::<CodeEditorValue>(editor).map(|mut v| v.set(format!("{}\n  {}", &source[..after_yaw], &source[after_yaw..]))).unwrap_or_default();
-    settle(&mut app);
+    settle_support::settle(&mut app);
     let source = text(&mut app);
     let key_at = source.find("\n  \n").map(|at| at + 3).unwrap_or(0);
     let fields = ask(&mut app, key_at);
@@ -371,7 +367,7 @@ fn click_answer(app: &mut App, answer: ConflictAnswer) {
     };
     // The button's own event: the headless layout has no pointer to press it with.
     app.world_mut().trigger(bevy::ui_widgets::Activate { entity: target });
-    settle(app);
+    settle_support::settle(app);
 }
 
 /// **Acceptance 4**: the command files and the guide open read-only, and a save of one refuses.
@@ -424,9 +420,9 @@ fn the_tree_lists_the_projects_files_and_a_click_opens_one() {
     assert!(!listed.contains(&"secret.log".to_owned()), "a glob in .gitignore hides a file: {listed:?}");
     assert!(!listed.iter().any(|f| f.starts_with("cache/")), "an anchored folder in .gitignore hides it: {listed:?}");
 
-    settle(&mut app);
+    settle_support::settle(&mut app);
     run_command(&mut app, "workspace.files");
-    settle(&mut app);
+    settle_support::settle(&mut app);
     // The tree is read on a thread of its own, started on a timer: step until its rows are there.
     let tree = {
         let world = app.world_mut();
@@ -450,7 +446,7 @@ fn the_tree_lists_the_projects_files_and_a_click_opens_one() {
     // Picking the row of a file opens its tab, active.
     app.world_mut().commands().entity(tree).insert(bevy_gooey::TableSelection::of(files::key_of("notes.md")));
     app.world_mut().commands().trigger(bevy_gooey::ValueChange { source: tree, value: bevy_gooey::TableSelection::of(files::key_of("notes.md")), is_final: true });
-    settle(&mut app);
+    settle_support::settle(&mut app);
     assert_eq!(files::active_file(app.world().resource::<Session>()).as_deref(), Some("notes.md"), "the click opened the file");
     assert_eq!(text(&mut app), "# notes\n");
 }
@@ -624,7 +620,7 @@ fn a_folded_mapping_moves_the_lines_below_up_by_its_height_and_unfolding_brings_
         key(app, code, Key::Character(name.into()), ButtonState::Released);
         key(app, KeyCode::ShiftLeft, Key::Shift, ButtonState::Released);
         key(app, KeyCode::ControlLeft, Key::Unidentified(NativeKey::Unidentified), ButtonState::Released);
-        settle(app);
+        settle_support::settle(app);
     };
     caret_at(&mut app, header, 0);
     fold_chord(&mut app, KeyCode::BracketLeft, "[");
@@ -734,7 +730,7 @@ fn a_file_with_unsaved_edits_makes_leaving_ask_and_save_all_and_discard_all_do_w
     assert!(!files::any_unsaved(), "nothing is unsaved yet");
     caret_at(&mut app, 0, 0);
     bevy_gooey::testing::type_text(&mut app, "# mine\n");
-    settle(&mut app);
+    settle_support::settle(&mut app);
     assert!(files::any_unsaved(), "a typed file is unsaved work");
 
     let mut state = bevy_dark_factory::editor::EditorState::default();
@@ -747,7 +743,7 @@ fn a_file_with_unsaved_edits_makes_leaving_ask_and_save_all_and_discard_all_do_w
         let mut res = app.world_mut().resource_mut::<Files>();
         res.discard_all(&root);
     }
-    settle(&mut app);
+    settle_support::settle(&mut app);
     assert_ne!(text(&mut app), typed, "discard lets the typed text go");
     assert_eq!(std::fs::read_to_string(root.join(MAP)).unwrap_or_default(), MAP_TEXT);
     caret_at(&mut app, 0, 0);

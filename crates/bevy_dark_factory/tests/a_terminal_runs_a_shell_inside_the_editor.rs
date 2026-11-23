@@ -98,7 +98,7 @@ fn chord(app: &mut App, keys: &[KeyCode]) {
         }
         app.update();
     }
-    settle(app, 4);
+    for _ in 0..4 { app.update(); }
 }
 
 /// **Type a line** — every character as a key event, then `Enter`.
@@ -158,11 +158,7 @@ fn key_for(c: char) -> KeyCode {
     }
 }
 
-fn settle(app: &mut App, frames: usize) {
-    for _ in 0..frames {
-        app.update();
-    }
-}
+
 
 /// Point `SHELL` at a POSIX shell for the length of one test.
 ///
@@ -290,7 +286,7 @@ fn a_terminal_runs_a_shell_inside_the_editor() {
     type_line(&mut app, "printf 'HELLO\\n'\n");
     let mut seen = String::new();
     for _ in 0..60 {
-        settle(&mut app, 2);
+        for _ in 0..2 { app.update(); }
         let text = drawn_text(&mut app);
         seen = text.clone();
         if text.contains("HELLO") {
@@ -321,7 +317,7 @@ fn a_key_goes_to_the_shell_and_not_to_the_editor() {
     // **The editor's own gate answers `Typing`.** That is what every binding in the census respects,
     // so asserting it here is asserting the swallow for *every* action at once, rather than for the
     // one key a narrower test would have picked.
-    settle(&mut app, 2);
+    for _ in 0..2 { app.update(); }
     let live = *app.world().resource::<Live>();
     assert_eq!(
         live.0,
@@ -335,7 +331,7 @@ fn a_key_goes_to_the_shell_and_not_to_the_editor() {
     // the load-bearing one and this is the sanity check beside it.
     send(&mut app, KeyCode::KeyD, Key::Character("d".into()), ButtonState::Pressed);
     send(&mut app, KeyCode::KeyD, Key::Character("d".into()), ButtonState::Released);
-    settle(&mut app, 2);
+    for _ in 0..2 { app.update(); }
     assert_eq!(
         *app.world().resource::<Live>(),
         live,
@@ -412,7 +408,7 @@ fn the_terminal_takes_its_column_count_from_its_own_width() {
 /// Raise the terminal in `app` and return `(cols, body width in logical px)`.
 fn columns_and_body(mut app: App) -> (u16, f32) {
     chord(&mut app, &[KeyCode::ControlLeft, KeyCode::Backquote]);
-    settle(&mut app, 8);
+    for _ in 0..8 { app.update(); }
     // The body's width, and its resolved padding left and right: the rows are drawn inside the padding, so
     // the padding is no part of a row (feedback-1794011769640: this read `body.x - 4.0`, the 2 px a side the
     // pane's arithmetic assumed, while the pane padded its sides by 12).
@@ -459,7 +455,7 @@ fn the_shell_outlives_the_door() {
     let _shell = use_posix_shell();
     let mut app = editor("terminal_outlives_the_door");
     chord(&mut app, &[KeyCode::ControlLeft, KeyCode::Backquote]);
-    settle(&mut app, 4);
+    for _ in 0..4 { app.update(); }
 
     let before = app.world().resource::<Terminal>().len();
     assert!(before > 0, "the chord must start a shell before this test means anything");
@@ -468,7 +464,7 @@ fn the_shell_outlives_the_door() {
     app.world_mut()
         .resource_mut::<NextState<bevy_dark_factory::screen::Screen>>()
         .set(bevy_dark_factory::screen::Screen::Project);
-    settle(&mut app, 6);
+    for _ in 0..6 { app.update(); }
 
     let after = app.world().resource::<Terminal>().len();
     assert_eq!(
@@ -504,7 +500,7 @@ fn a_shell_is_never_started_at_a_size_too_small_to_be_a_terminal() {
     let _shell = use_posix_shell();
     let mut app = editor("terminal_never_a_column");
     chord(&mut app, &[KeyCode::ControlLeft, KeyCode::Backquote]);
-    settle(&mut app, 1);
+    for _ in 0..1 { app.update(); }
 
     let terminal = app.world().resource::<Terminal>();
     let Some(tab) = terminal.tab() else {
@@ -533,7 +529,7 @@ fn the_cd_chip_moves_a_running_shell_to_the_open_project() {
     let _shell = use_posix_shell();
     let mut app = editor("terminal_cd_chip");
     chord(&mut app, &[KeyCode::ControlLeft, KeyCode::Backquote]);
-    settle(&mut app, 6);
+    for _ in 0..6 { app.update(); }
 
     // **Start the shell somewhere else**, the way a door crossing leaves it: the next project is a
     // different temporary directory, which is what `follow_the_project` writes.
@@ -567,7 +563,7 @@ fn the_cd_chip_moves_a_running_shell_to_the_open_project() {
         .write(b"pwd\n");
     let mut seen = String::new();
     for _ in 0..60 {
-        settle(&mut app, 2);
+        for _ in 0..2 { app.update(); }
         seen = drawn_text(&mut app);
         if seen.contains(&other.display().to_string()) {
             break;
@@ -603,7 +599,7 @@ fn the_terminal_menu_offers_copy_paste_and_clear_and_clear_clears() {
     let _shell = use_posix_shell();
     let mut app = editor("terminal_menu");
     chord(&mut app, &[KeyCode::ControlLeft, KeyCode::Backquote]);
-    settle(&mut app, 6);
+    for _ in 0..6 { app.update(); }
 
     // **The body names the menu**, which is what makes a right-click over the scrollback open it. The
     // menu is found *through the body*: the editor has several context menus (the palette's piece menu
@@ -646,7 +642,7 @@ fn the_terminal_menu_offers_copy_paste_and_clear_and_clear_clears() {
     }
     let mut filled = 0;
     for _ in 0..80 {
-        settle(&mut app, 2);
+        for _ in 0..2 { app.update(); }
         filled = app
             .world()
             .resource::<Terminal>()
@@ -677,7 +673,7 @@ fn the_terminal_menu_offers_copy_paste_and_clear_and_clear_clears() {
             .expect("the Clear item")
     };
     app.world_mut().commands().trigger(bevy_gooey::Activate { entity: clear });
-    settle(&mut app, 3);
+    for _ in 0..3 { app.update(); }
 
     let held = app
         .world()
@@ -711,7 +707,7 @@ fn the_pane_spans_the_window_and_sits_above_the_status_band() {
     const H: u32 = 720;
     let mut app = editor_sized("terminal_pane_is_a_window_row", W, H);
     chord(&mut app, &[KeyCode::ControlLeft, KeyCode::Backquote]);
-    settle(&mut app, 8);
+    for _ in 0..8 { app.update(); }
 
     let (pane, pane_size, pane_cx) = {
         let world = app.world_mut();

@@ -48,17 +48,13 @@ fn the_home() -> App {
         Window { resolution: bevy::window::WindowResolution::new(1280, 703), ..default() },
         PrimaryWindow,
     ));
-    settle(&mut app, 10);
+    for _ in 0..10 { app.update(); }
     app.world_mut().resource_mut::<NextState<Screen>>().set(Screen::Launcher);
-    settle(&mut app, SCREEN_FRAMES);
+    for _ in 0..SCREEN_FRAMES { app.update(); }
     app
 }
 
-fn settle(app: &mut App, frames: usize) {
-    for _ in 0..frames {
-        app.update();
-    }
-}
+
 
 fn send(app: &mut App, key_code: KeyCode, logical_key: Key, state: ButtonState) {
     let window = app
@@ -113,7 +109,7 @@ fn command(app: &mut App, c: char) {
         send(app, code, key.clone(), state);
         app.update();
     }
-    settle(app, 2);
+    for _ in 0..2 { app.update(); }
 }
 
 fn enter(app: &mut App) {
@@ -137,7 +133,7 @@ fn screen_text(app: &App) -> String {
 
 fn until(app: &mut App, why: &str, test: impl Fn(&mut App) -> bool) {
     for _ in 0..TRIES {
-        settle(app, 2);
+        for _ in 0..2 { app.update(); }
         if test(app) {
             return;
         }
@@ -151,7 +147,7 @@ fn command_a_selects_the_terminal_and_no_command_chord_reaches_the_shell() {
     let mut app = the_home();
     until(&mut app, "the home's terminal never started a shell", |app| screen_text(app).contains('$'));
     app.world_mut().resource_mut::<TerminalFocus>().take();
-    settle(&mut app, 2);
+    for _ in 0..2 { app.update(); }
     type_text(&mut app, "cat -v");
     enter(&mut app);
     until(&mut app, "`cat -v` was never echoed", |app| screen_text(app).contains("cat -v"));

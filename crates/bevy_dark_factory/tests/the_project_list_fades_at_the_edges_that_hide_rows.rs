@@ -14,11 +14,10 @@ use bevy_dark_factory::screen::Screen;
 use bevy_gooey::{FadeEdge, ScrollFade};
 
 use crate::fixtures;
+use crate::settle_support;
 
 /// Projects enough that their cards cannot all stand in the list's box.
 const MANY: usize = 40;
-/// Frames the launcher is given to lay itself out and for the fade to be drawn.
-const SETTLE_FRAMES: usize = 8;
 
 struct Scratch(PathBuf);
 
@@ -54,15 +53,11 @@ fn on_the_launcher(tag: &str, scratch: &Scratch, count: usize) -> App {
     }
     app.insert_resource(RecentProjects(file)).add_plugins(LauncherPlugin);
     app.world_mut().resource_mut::<NextState<Screen>>().set(Screen::Launcher);
-    settle(&mut app);
+    settle_support::settle(&mut app);
     app
 }
 
-fn settle(app: &mut App) {
-    for _ in 0..SETTLE_FRAMES {
-        app.update();
-    }
-}
+
 
 /// The viewport the cards stand in: the one with a gooey edge fade over it.
 fn the_project_viewport(app: &mut App) -> Entity {
@@ -113,7 +108,7 @@ fn scroll_to_the_end(app: &mut App, viewport: Entity) {
     let end = ((content - shown) * scale).max(0.0);
     assert!(end > 0.0, "the list has to be taller than its box for this test to scroll it");
     app.world_mut().get_mut::<ScrollPosition>(viewport).expect("the viewport scrolls").y = end;
-    settle(app);
+    settle_support::settle(app);
 }
 
 #[test]

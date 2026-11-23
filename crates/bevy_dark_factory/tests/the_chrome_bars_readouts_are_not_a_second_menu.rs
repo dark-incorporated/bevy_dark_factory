@@ -32,6 +32,7 @@ use bevy_dark_factory::chrome::Frame;
 use bevy_dark_factory::harness;
 
 use crate::fixtures;
+use crate::settle_support;
 
 /// **The size a menu title is drawn at, in the skin's own px** — measured, not assumed.
 ///
@@ -53,8 +54,6 @@ const LEAST_STEP_PX: f32 = 1.0;
 /// How far two sizes may stand apart and still be called one number, logical px.
 const SAME_PX: f32 = 0.01;
 
-/// Frames a layout needs to settle.
-const SETTLE_FRAMES: usize = 12;
 
 /// A drawn word: what it says, the size it is drawn at in the skin's own px, and its ink.
 struct Drawn {
@@ -64,17 +63,13 @@ struct Drawn {
     ink: Color,
 }
 
-fn settle(app: &mut App) {
-    for _ in 0..SETTLE_FRAMES {
-        app.update();
-    }
-}
+
 
 fn editor(name: &str) -> (std::path::PathBuf, App) {
     let root = fixtures::Fixture::new(name).descriptor("floor", "alpha").build("m");
     let mut app = harness::build_headless(&root, "m", None)
         .unwrap_or_else(|e| panic!("the fixture project must open: {e}"));
-    settle(&mut app);
+    settle_support::settle(&mut app);
     (root, app)
 }
 

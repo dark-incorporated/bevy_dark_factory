@@ -40,6 +40,7 @@ use bevy_dark_factory::tiles::Mode;
 use bevy_dark_factory::workspace::Workspace;
 
 use crate::fixtures;
+use crate::settle_support;
 
 /// **A rules file with real numbers**, so `rules_set` has a block to write and the no-page test is
 /// about the page rather than about the refusal that precedes it. `alpha` is the fixture's piece.
@@ -69,8 +70,6 @@ const FRAME: f32 = 1.0 / 60.0;
 
 /// **How many frames a reveal may take**: a crossing, the panel's first build, and the follower's
 /// one-frame-late scroll. Generous on purpose — a fixed count is a count somebody guessed, and this
-/// one only has to be longer than the work.
-const SETTLE: usize = 40;
 
 /// A project with a piece, a tile, a composition, a rig, a registered data file, a pack and a note:
 /// one subject per off-map `Shown` variant, so each test can name the operation that changes it.
@@ -161,11 +160,7 @@ fn apply(app: &mut App, operation: &str, parameters: serde_json::Value) -> serde
     )
 }
 
-fn settle(app: &mut App) {
-    for _ in 0..SETTLE {
-        app.update();
-    }
-}
+
 
 /// **Where a laid-out node stands**, in physical pixels: its centre and its half-size.
 fn box_of(app: &App, e: Entity) -> Option<(Vec2, Vec2)> {
@@ -253,7 +248,7 @@ fn a_pieces_page_opens_on_the_meshes_shelf_with_the_piece_selected() {
         serde_json::json!({"id": "lamp_tall", "note": "a tall floor lamp"}),
     );
     assert_eq!(answer["outcome"], "applied", "{answer}");
-    settle(&mut app);
+    settle_support::settle(&mut app);
 
     assert_eq!(
         door_and_tab(&app),
@@ -287,7 +282,7 @@ fn a_tiles_lattice_opens_on_the_meshes_panel_with_that_piece_selected() {
         serde_json::json!({"id": "bed", "cells": [[0, 0, 0]], "solid": true}),
     );
     assert_eq!(answer["outcome"], "applied", "{answer}");
-    settle(&mut app);
+    settle_support::settle(&mut app);
 
     assert_eq!(
         door_and_tab(&app),
@@ -318,7 +313,7 @@ fn a_compositions_page_opens_on_the_compose_panel_with_that_group_selected() {
         serde_json::json!({"id": "corner", "from": ["bed@0"]}),
     );
     assert_eq!(answer["outcome"], "applied", "{answer}");
-    settle(&mut app);
+    settle_support::settle(&mut app);
 
     assert_eq!(
         door_and_tab(&app),
@@ -405,7 +400,7 @@ fn a_rigs_page_opens_on_the_rig_bench_with_that_rig_selected() {
     // The write may be refused (the mesh is measured by the bench, and a refusal is not this test's
     // subject); what the reveal reads is the `shown`, so a refusal is a different subject entirely.
     assert_eq!(answer["outcome"], "applied", "the rig adopts its measured values: {answer}");
-    settle(&mut app);
+    settle_support::settle(&mut app);
     assert_eq!(
         door_and_tab(&app),
         (Workspace::Animation, "ANIM"),
@@ -431,7 +426,7 @@ fn a_data_files_page_opens_on_the_data_panel_at_that_file() {
         serde_json::json!({"file": "tuning/mob", "path": "mob.speed", "value": 2.0}),
     );
     assert_eq!(answer["outcome"], "applied", "{answer}");
-    settle(&mut app);
+    settle_support::settle(&mut app);
 
     assert_eq!(
         door_and_tab(&app),
@@ -459,7 +454,7 @@ fn a_settings_page_opens_on_the_project_configuration_at_that_section() {
         serde_json::json!({"pack": "alpha", "excluded": true}),
     );
     assert_eq!(answer["outcome"], "applied", "{answer}");
-    settle(&mut app);
+    settle_support::settle(&mut app);
     let world = app.world_mut();
     let mut q = world.query_filtered::<Entity, With<bevy_dark_factory::project_config::ProjectConfigDialog>>();
     assert_eq!(
@@ -480,7 +475,7 @@ fn a_notes_page_opens_on_the_notes_panel_with_that_note_selected() {
         serde_json::json!({"id": "note-1", "text": "the bed is by the window"}),
     );
     assert_eq!(answer["outcome"], "applied", "{answer}");
-    settle(&mut app);
+    settle_support::settle(&mut app);
 
     assert_eq!(
         door_and_tab(&app),
@@ -516,7 +511,7 @@ fn a_project_files_change_opens_the_files_workspace_on_that_file() {
         serde_json::json!({"example": "m", "seed": 19}),
     );
     assert_eq!(answer["outcome"], "applied", "{answer}");
-    settle(&mut app);
+    settle_support::settle(&mut app);
 
     assert_eq!(*app.world().resource::<Workspace>(), Workspace::Files, "a rules change is shown in the Files workspace");
     assert_eq!(

@@ -5,6 +5,7 @@ use blueprint_model::notes::{self, Notes, Target};
 use bevy_dark_factory::project::OpenMap;
 
 use crate::fixtures;
+use crate::settle_support;
 
 #[test]
 fn the_panel_lists_every_note_newest_first() {
@@ -21,10 +22,11 @@ fn the_panel_lists_every_note_newest_first() {
     n.add(vec![Target::Cell(1, 1)], "second").unwrap();
     n.resolve("n1", vec![], "did it").unwrap();
     n.save(&path).unwrap();
-    for _ in 0..6 {
-        std::thread::sleep(std::time::Duration::from_millis(150));
-        app.update();
-    }
+    // **A wait on the panel, not on the clock**: the view follows the index, so what is waited for is the row it draws.
+    let drawn = |app: &mut App| -> usize {
+        app.world_mut().query::<&Text>().iter(app.world()).map(|t| t.0.clone()).filter(|t| t.starts_with('n') && t.contains('[')).count()
+    };
+    settle_support::until(&mut app, "both notes are drawn", |app| drawn(app) == 2);
     let mut lines: Vec<String> = app
         .world_mut()
         .query::<&Text>()

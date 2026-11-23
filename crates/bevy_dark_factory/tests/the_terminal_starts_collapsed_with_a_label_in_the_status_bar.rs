@@ -34,15 +34,11 @@ fn editor(tag: &str, user: Option<&PathBuf>) -> App {
         app.insert_resource(UserSettingsFile(user.clone()));
     }
     // No `Window`: the editor draws into its own surface image, which is where the pointer is aimed (a window would take the camera).
-    settle(&mut app, 10);
+    for _ in 0..10 { app.update(); }
     app
 }
 
-fn settle(app: &mut App, frames: usize) {
-    for _ in 0..frames {
-        app.update();
-    }
-}
+
 
 /// **A click through `bevy_picking`'s own input**, on the image the editor draws its interface into (as `a_click_puts_the_keyboard_in_the_terminal`
 /// does), at the centre of `entity`: gooey's `click` aims at the app's window, which is not where this editor's surface is.
@@ -76,7 +72,7 @@ fn chord_j(app: &mut App) {
         }
         app.update();
     }
-    settle(app, 4);
+    for _ in 0..4 { app.update(); }
 }
 
 /// A scratch settings file's path, in a folder of its own.
@@ -134,7 +130,7 @@ fn the_pane_starts_collapsed_and_its_label_in_the_status_bar_raises_it() {
         format!("label at {at:?}, size {size:?}")
     };
     click(&mut app, entity);
-    settle(&mut app, 3);
+    for _ in 0..3 { app.update(); }
     let hovered: Vec<String> = {
         let world = app.world();
         world
@@ -153,7 +149,7 @@ fn the_pane_starts_collapsed_and_its_label_in_the_status_bar_raises_it() {
     // a raised quarter covers the window instead of lowering it. The assertions below are re-pinned to that cycle; the raising, the
     // words and the keyboard are unchanged.
     click(&mut app, entity);
-    settle(&mut app, 3);
+    for _ in 0..3 { app.update(); }
     assert!(raised(&mut app), "a second click covers the window: the cycle's position after a quarter is `Maximised` (#492)");
     assert!(app.world().resource::<Terminal>().is_maximised(), "and the editor agrees, not just the node");
     // The pane now covers the status band, so the label is not there to click: the chord is the door that still is, and it is the same
@@ -173,13 +169,13 @@ fn a_raise_is_kept_and_the_next_launch_opens_the_pane_raised() {
         assert!(!user.exists(), "and keeps nothing: nothing was asked for yet");
         let (entity, _) = label(&mut first);
         click(&mut first, entity);
-        settle(&mut first, 4);
+        for _ in 0..4 { app.update(); }
         assert!(raised(&mut first));
         let text = kept(&user);
         assert!(text.contains("terminal_collapsed: false"), "the raise is written to the user's settings file: {text:?}");
     }
     let mut second = editor("collapsed_kept_second", Some(&user));
-    settle(&mut second, 6);
+    for _ in 0..6 { app.update(); }
     assert!(raised(&mut second), "the next launch opens the pane as it was left, raised");
     assert!(!second.world().resource::<Terminal>().is_collapsed());
 
@@ -188,7 +184,7 @@ fn a_raise_is_kept_and_the_next_launch_opens_the_pane_raised() {
     // press, taken by the chord because a maximised pane covers the status band. The persistence this test is about is unchanged.
     let (entity, _) = label(&mut second);
     click(&mut second, entity);
-    settle(&mut second, 4);
+    for _ in 0..4 { app.update(); }
     assert!(raised(&mut second), "the relaunch opens at the quarter, and a click covers the window (#492)");
     assert!(second.world().resource::<Terminal>().is_maximised());
     chord_j(&mut second);

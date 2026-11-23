@@ -29,8 +29,8 @@ use bevy_dark_factory::workspace::Workspace;
 use blueprint_model::live::KindVerdict;
 
 use crate::fixtures;
+use crate::settle_support;
 
-const SETTLE: usize = 12;
 
 fn editor(tag: &str, user: Option<&PathBuf>) -> App {
     let root = fixtures::Fixture::new(&format!("activity_{tag}_{}", std::process::id()))
@@ -41,15 +41,11 @@ fn editor(tag: &str, user: Option<&PathBuf>) -> App {
     if let Some(user) = user {
         app.insert_resource(UserSettingsFile(user.clone()));
     }
-    settle(&mut app);
+    settle_support::settle(&mut app);
     app
 }
 
-fn settle(app: &mut App) {
-    for _ in 0..SETTLE {
-        app.update();
-    }
-}
+
 
 /// **The tabs of the bar, in the order they are drawn**: gooey puts them under one `TabList` child of the
 /// strip, and child order is draw order.
@@ -107,7 +103,7 @@ fn every_registered_workspace_has_an_icon_in_registry_order_and_no_other_does() 
 fn a_click_on_each_icon_lands_in_its_workspace_and_the_map_and_selection_stay() {
     let mut app = editor("clicks", None);
     assert!(bevy_dark_factory::editor::lock_on_placement(app.world_mut(), "floor@0"));
-    settle(&mut app);
+    settle_support::settle(&mut app);
     let map = app.world().resource::<OpenMap>().map.name.clone();
     let selected = app.world().resource::<Selection>().ids().to_vec();
     assert_eq!(selected, ["floor@0"]);
@@ -121,7 +117,7 @@ fn a_click_on_each_icon_lands_in_its_workspace_and_the_map_and_selection_stay() 
     for index in walk {
         let tab = tabs(&mut app)[index];
         bevy_gooey::testing::click(&mut app, tab);
-        settle(&mut app);
+        settle_support::settle(&mut app);
         assert_eq!(*app.world().resource::<Workspace>(), order[index], "a click on the {} icon did not land there", order[index].title());
         assert_eq!(app.world().resource::<OpenMap>().map.name, map, "{} reloaded the map", order[index].title());
         assert_eq!(app.world().resource::<Selection>().ids(), selected.as_slice(), "{} dropped the selection", order[index].title());
@@ -140,7 +136,7 @@ fn the_indicator_follows_a_workspace_reached_by_its_key() {
     let kit = bevy_dark_factory::commands::by_id("workspace.kit").unwrap_or_else(|| panic!("workspace.kit"));
     let live = *app.world().resource::<bevy_dark_factory::keys::Live>();
     app.world_mut().resource_mut::<bevy_dark_factory::command_run::Chords>().queue(&kit, live);
-    settle(&mut app);
+    settle_support::settle(&mut app);
     assert_eq!(*app.world().resource::<Workspace>(), Workspace::Kit);
     let index = activity_bar::registered().iter().position(|w| *w == Workspace::Kit).unwrap_or_else(|| panic!("kit is registered"));
     let on = {
@@ -158,7 +154,7 @@ fn a_refused_file_is_a_badge_of_one_on_map_and_it_clears() {
     app.world_mut()
         .resource_mut::<bevy_dark_factory::live::EditorReloads>()
         .decide(vec![KindVerdict::refused("kit", "kit.yaml", Some("pieces[3].yaw".to_owned()), "not a number")]);
-    settle(&mut app);
+    settle_support::settle(&mut app);
     let map = activity_bar::registered().iter().position(|w| *w == Workspace::Map).unwrap_or_else(|| panic!("map is registered"));
     let said = badges(&mut app);
     assert_eq!(said[map].as_deref(), Some("1"), "Map shows the one refused file");
@@ -168,7 +164,7 @@ fn a_refused_file_is_a_badge_of_one_on_map_and_it_clears() {
         }
     }
     app.world_mut().resource_mut::<bevy_dark_factory::live::EditorReloads>().decide(vec![KindVerdict::applied("kit", "kit.yaml")]);
-    settle(&mut app);
+    settle_support::settle(&mut app);
     assert!(badges(&mut app).iter().all(Option::is_none), "the badge clears when the file is applied");
 }
 
@@ -263,10 +259,10 @@ fn zen_mode_takes_the_bar_away_and_leaving_it_brings_it_back() {
     let mut app = editor("zen", None);
     assert!(the_bar_is_there(&mut app));
     app.world_mut().resource_mut::<bevy_dark_factory::shell_view::ShellView>().zen = true;
-    settle(&mut app);
+    settle_support::settle(&mut app);
     assert!(!the_bar_is_there(&mut app), "Zen mode leaves only the viewport, so the bar is gone");
     app.world_mut().resource_mut::<bevy_dark_factory::shell_view::ShellView>().zen = false;
-    settle(&mut app);
+    settle_support::settle(&mut app);
     assert!(the_bar_is_there(&mut app), "and it is back when Zen mode ends");
 }
 

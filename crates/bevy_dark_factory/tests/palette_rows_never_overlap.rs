@@ -12,18 +12,13 @@ use bevy_dark_factory::harness;
 use bevy_dark_factory::project::Project;
 
 use crate::fixtures;
+use crate::settle_support;
 
 /// Forty characters with no space in them: the case that cannot wrap at a word.
 const LONG_ID: &str = "a_very_long_piece_name_that_runs_on_and";
 
-/// Frames for the palette to be built and laid out.
-const SETTLE_FRAMES: usize = 6;
 
-fn settle(app: &mut App) {
-    for _ in 0..SETTLE_FRAMES {
-        app.update();
-    }
-}
+
 
 /// The left and right edges of a laid-out node, in physical pixels.
 fn span(node: &ComputedNode, at: &UiGlobalTransform) -> (f32, f32) {
@@ -55,7 +50,7 @@ fn a_long_name_stops_before_the_count() {
         .build("m");
     let mut app = harness::build_headless(&root, "m", None)
         .unwrap_or_else(|e| panic!("the fixture project must open: {e}"));
-    settle(&mut app);
+    settle_support::settle(&mut app);
     let ix = app
         .world()
         .resource::<Project>()
@@ -102,7 +97,7 @@ fn the_list_opens_at_its_top_with_its_first_row_armed() {
 
     let mut app = harness::build_headless(&root, "m", None)
         .unwrap_or_else(|e| panic!("the fixture project must open: {e}"));
-    settle(&mut app);
+    settle_support::settle(&mut app);
     let world = app.world_mut();
     let first_shown = {
         let mut lists = world.query_filtered::<&Children, With<PaletteList>>();

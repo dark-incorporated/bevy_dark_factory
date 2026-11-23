@@ -25,25 +25,20 @@ use bevy_dark_factory::keys::{self, Action, BINDINGS, Context, Live, MOD_NAME};
 use bevy_dark_factory::workspace::Workspace;
 
 use crate::fixtures;
+use crate::settle_support;
 
 /// **Frames the editor is given to settle** after a workspace switch: the transition runs the frame after the key and the panels are spawned
-/// the frame after that.
-const SETTLE_FRAMES: usize = 12;
 
 /// The editor on the fixture project, settled, in the Animation workspace.
 fn editor(tag: &str) -> App {
     let root = fixtures::Fixture::new(&format!("rigs_hidden_{tag}_{}", std::process::id())).descriptor("floor", "alpha").build("m");
     let mut app = harness::build_headless(&root, "m", None).unwrap_or_else(|e| panic!("{e}"));
-    settle(&mut app);
+    settle_support::settle(&mut app);
     switch_to_animation(&mut app);
     app
 }
 
-fn settle(app: &mut App) {
-    for _ in 0..SETTLE_FRAMES {
-        app.update();
-    }
-}
+
 
 /// **Enter the Animation workspace through its command**, the way the palette does, so the test reads the workspace a person reaches with
 /// `Cmd+5` and not a state it poked in.
@@ -52,7 +47,7 @@ fn switch_to_animation(app: &mut App) {
     let command = bevy_dark_factory::commands::by_id(&id).unwrap_or_else(|| panic!("`{id}` is not a command"));
     let live = *app.world().resource::<Live>();
     app.world_mut().resource_mut::<bevy_dark_factory::command_run::Chords>().queue(&command, live);
-    settle(app);
+    settle_support::settle(app);
     assert_eq!(app.world().resource::<Workspace>(), &Workspace::Animation, "the command did not open the Animation workspace");
 }
 
@@ -116,13 +111,13 @@ fn the_chord_shows_the_list_and_the_chord_hides_it_again() {
     let mut app = editor("chord");
     assert_eq!(drawn(&mut app).0, Display::None, "the list starts put away");
     press(&mut app, Action::ToggleRigs);
-    settle(&mut app);
+    settle_support::settle(&mut app);
     let (display, box_) = drawn(&mut app);
     assert_eq!(display, Display::Flex, "the chord did not draw the list");
     assert!(box_.is_some_and(|b| b.width() > 0.0 && b.height() > 0.0), "the drawn list has no box: {box_:?}");
     // And away again.
     press(&mut app, Action::ToggleRigs);
-    settle(&mut app);
+    settle_support::settle(&mut app);
     assert_eq!(drawn(&mut app).0, Display::None, "the chord did not put the list away again");
 }
 
@@ -148,7 +143,7 @@ fn the_workspace_states_the_chord_in_both_states() {
     // **And it is still there with the bench drawn**, which is the whole point: it says how the bench comes back, and it is on screen
     // whenever the workspace is.
     press(&mut app, Action::ToggleRigs);
-    settle(&mut app);
+    settle_support::settle(&mut app);
     assert_eq!(says(&mut app), closed, "the sentence changed when the bench was drawn; it has to read in both states");
     assert_eq!(drawn(&mut app).0, Display::Flex, "the bench is drawn");
 }

@@ -34,13 +34,12 @@ use bevy_dark_factory::marks::ARMED_MARK;
 use bevy_dark_factory::harness;
 
 use crate::fixtures;
+use crate::settle_support;
 
 /// A name long enough to wrap three times in the panel's name column, with no space in it: the case the
 /// break-at-a-letter rule exists for, and the row that exposes a centred box.
 const LONG_ID: &str = "a_very_long_piece_name_that_runs_on_and_on_and_on";
 
-/// Frames a layout needs to settle.
-const SETTLE_FRAMES: usize = 12;
 
 /// **The four text sizes the row is held to** — the slider's two ends and two between (`setting_catalogue::SIZE_SLIDER`
 /// is 75% to 200%), so a layout that only holds at the design size is a failure and not an untested case.
@@ -57,11 +56,7 @@ const SLACK_PX: f32 = 1.0;
 /// wrapped row**, which is a whole body line (13.2 px) away — twelve times the slack, not twice.
 const BASELINE_SLACK_PX: f32 = 2.5;
 
-fn settle(app: &mut App) {
-    for _ in 0..SETTLE_FRAMES {
-        app.update();
-    }
-}
+
 
 /// The editor on a library of one kind: a long-named piece among short ones, drawn at `text_scale`.
 fn editor(tag: &str, text_scale: f32) -> App {
@@ -77,7 +72,7 @@ fn editor(tag: &str, text_scale: f32) -> App {
     std::fs::write(&file, format!("{{version: 1, text_scale: {text_scale}}}"))
         .unwrap_or_else(|e| panic!("{}: {e}", file.display()));
     let mut app = harness::build_headless(&root, "m", None).unwrap_or_else(|e| panic!("the fixture project must open: {e}"));
-    settle(&mut app);
+    settle_support::settle(&mut app);
     app
 }
 

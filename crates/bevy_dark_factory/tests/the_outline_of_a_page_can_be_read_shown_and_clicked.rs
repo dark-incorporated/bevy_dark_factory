@@ -23,8 +23,8 @@ use bevy_gooey::{CodeEditor, CodeEditorValue, CodePos, CodeHover, CodeHoverReque
 use serde_json::{Value, json};
 
 use crate::fixtures;
+use crate::settle_support;
 
-const SETTLE: usize = 12;
 
 const PAGE: &str = "design/levels/m/style.md";
 const PAGE_TEXT: &str = "# Yard\n\nGrey concrete.\n\n## Light\n\n### Dusk\n\n## Fog\n\ntext\n";
@@ -38,25 +38,21 @@ fn files_editor(tag: &str, text: &str) -> App {
     app.add_plugins(bevy_debugger_bevy::DebuggerPlugin::default());
     app.add_plugins(bevy_dark_factory::ops_brp::OpsBridgePlugin);
     app.world_mut().spawn((Window::default(), PrimaryWindow));
-    settle(&mut app);
+    settle_support::settle(&mut app);
     let command = commands::by_id("workspace.files").unwrap_or_else(|| panic!("`workspace.files` is not a command"));
     let live = *app.world().resource::<Live>();
     app.world_mut().resource_mut::<Chords>().queue(&command, live);
-    settle(&mut app);
+    settle_support::settle(&mut app);
     assert_eq!(*app.world().resource::<Workspace>(), Workspace::Files);
     files::open_file(app.world_mut(), PAGE).unwrap_or_else(|e| panic!("{e}"));
-    settle(&mut app);
+    settle_support::settle(&mut app);
     let editor = editor_of(&mut app);
     app.world_mut().resource_mut::<InputFocus>().set(editor, FocusCause::Navigated);
-    settle(&mut app);
+    settle_support::settle(&mut app);
     app
 }
 
-fn settle(app: &mut App) {
-    for _ in 0..SETTLE {
-        app.update();
-    }
-}
+
 
 fn editor_of(app: &mut App) -> Entity {
     let world = app.world_mut();
@@ -78,7 +74,7 @@ fn show_the_outline(app: &mut App, on: bool) {
         world.query_filtered::<Entity, With<OutlineItem>>().single(world).expect("the View menu carries one Show outline row")
     };
     app.world_mut().commands().trigger(ValueChange { source: row, value: on, is_final: true });
-    settle(app);
+    settle_support::settle(app);
 }
 
 fn trees(app: &mut App) -> Vec<Entity> {
@@ -110,7 +106,7 @@ fn an_agent_reads_the_open_pages_headings_from_the_state_as_the_editor_holds_the
     let editor = editor_of(&mut app);
     let end = CodePos::new(PAGE_TEXT.matches('\n').count(), 0);
     app.world_mut().get_mut::<CodeEditor>(editor).map(|mut e| e.select(end, end)).unwrap_or_else(|| panic!("an editor"));
-    settle(&mut app);
+    settle_support::settle(&mut app);
     bevy_gooey::testing::type_text(&mut app, "# Typed");
     let state = blueprint_state(&mut app);
     let titles: Vec<&str> = state["file_outline"]["headings"].as_array().unwrap().iter().map(|h| h["title"].as_str().unwrap()).collect();
@@ -145,7 +141,7 @@ fn a_click_on_a_heading_puts_the_caret_on_its_line() {
     let editor = editor_of(&mut app);
     for (key, line) in [(3u64, 8usize), (1, 4), (2, 6)] {
         app.world_mut().commands().trigger(ValueChange { source: tree, value: TableSelection::of(key), is_final: true });
-        settle(&mut app);
+        settle_support::settle(&mut app);
         let caret = app.world().get::<CodeEditor>(editor).map(|e| e.buffer().caret()).unwrap_or_else(|| panic!("an editor"));
         assert_eq!(caret.line, line, "heading {key} is on line {line}");
     }
@@ -156,7 +152,7 @@ fn a_link_that_climbs_out_of_the_project_is_no_finding_and_says_nothing_on_hover
     let text = "# Yard\n\n[x](../../../../etc/passwd)\n";
     let mut app = files_editor("passwd", text);
     std::thread::sleep(Duration::from_secs_f64(DIAGNOSE_IDLE_S + 0.05));
-    settle(&mut app);
+    settle_support::settle(&mut app);
     let editor = editor_of(&mut app);
     let drawn = app.world().get::<Diagnostics>(editor).map(|d| d.items().len()).unwrap_or(0);
     assert_eq!(drawn, 0, "it names no file of the project, so it is not one that is missing");

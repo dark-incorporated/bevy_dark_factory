@@ -7,6 +7,7 @@ use blueprint_model::notes::{self, Notes, Target};
 use bevy_dark_factory::project::OpenMap;
 
 use crate::fixtures;
+use crate::settle_support;
 
 #[test]
 fn an_auto_note_carries_an_auto_chip_and_a_plain_note_does_not() {
@@ -23,10 +24,11 @@ fn an_auto_note_carries_an_auto_chip_and_a_plain_note_does_not() {
     n.add(vec![Target::Cell(1, 1)], "a wall").unwrap();
     n.set_auto("n1", true).unwrap();
     n.save(&path).unwrap();
-    for _ in 0..6 {
-        std::thread::sleep(std::time::Duration::from_millis(150));
-        app.update();
-    }
+    // **A wait on the panel, not on the clock**: the view follows the index, so what is waited for is the row it draws.
+    let rows = |app: &mut App| -> usize {
+        app.world_mut().query::<&Text>().iter(app.world()).map(|t| t.0.clone()).filter(|t| t.starts_with('n') && t.contains('[')).count()
+    };
+    settle_support::until(&mut app, "both note rows are drawn", |app| rows(app) == 2);
     let world = app.world_mut();
     let texts: Vec<(Entity, String, Option<Entity>, Vec2)> = world
         .query::<(Entity, &Text, Option<&ChildOf>, &ComputedNode)>()

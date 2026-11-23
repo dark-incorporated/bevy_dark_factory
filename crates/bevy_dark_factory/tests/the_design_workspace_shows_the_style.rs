@@ -22,8 +22,8 @@ use blueprint_model::style;
 use blueprint_model::trust::{Decision, TrustStore};
 
 use crate::fixtures;
+use crate::settle_support;
 
-const SETTLE: usize = 14;
 /// One frame of the test clock, in seconds: the file watchers run on the real clock, which the manual strategy drives.
 const FRAME_S: f32 = 1.0 / 60.0;
 /// How long a test waits, on the wall clock, for the editor to learn of a file written from outside: it follows the project index, whose sweep and
@@ -60,14 +60,10 @@ fn press(app: &mut App, action: Action) {
     // The editor's state is rebuilt by a workspace switch, so the person's store of this test is named again once Design is open.
     let store = app.world().resource::<bevy_dark_factory::project::Project>().root.join("trusted.yaml");
     app.world_mut().resource_mut::<EditorState>().trust.file = Some(store);
-    settle(app);
+    settle_support::settle(app);
 }
 
-fn settle(app: &mut App) {
-    for _ in 0..SETTLE {
-        app.update();
-    }
-}
+
 
 fn picture(root: &std::path::Path, rel: &str) {
     let full = root.join(rel);
@@ -112,7 +108,7 @@ fn editor(root: &std::path::Path) -> App {
     let store = root.join("trusted.yaml");
     TrustStore::default().save(&store).unwrap_or_else(|e| panic!("{e}"));
     app.world_mut().resource_mut::<EditorState>().trust.file = Some(store);
-    settle(&mut app);
+    settle_support::settle(&mut app);
     // The index's shortest sweep: the open file follows the project index (#501), and a test that writes a file from outside waits for it.
     app.world().resource::<bevy_dark_factory::project_index::ProjectIndex>().set_sweep(bevy_dark_factory::project_index::MIN_SWEEP);
     app
@@ -167,7 +163,7 @@ fn click(app: &mut App, label: &str) {
     };
     put_the_pointer_over(app, entity);
     bevy_gooey::testing::click(app, entity);
-    settle(app);
+    settle_support::settle(app);
 }
 
 fn visible(app: &mut App, label: &str) -> bool {
@@ -249,11 +245,11 @@ fn edit_typing_and_done_write_the_file_and_render_the_new_text() {
         let editor = world.query_filtered::<Entity, With<CodeEditor>>().single(world).unwrap_or_else(|e| panic!("one editor: {e}"));
         world.resource_mut::<InputFocus>().set(editor, FocusCause::Navigated);
     }
-    settle(&mut app);
+    settle_support::settle(&mut app);
     // Typing needs a window to name; one is spawned after the first clicks. (A click after it puts the cursor over the widget first: see `put_the_pointer_over`.)
     app.world_mut().spawn((Window::default(), bevy::window::PrimaryWindow));
     bevy_gooey::testing::type_text(&mut app, "Dusk first. ");
-    settle(&mut app);
+    settle_support::settle(&mut app);
     let typed = {
         let world = app.world_mut();
         world.query::<&CodeEditorValue>().single(world).map(|v| v.text().to_owned()).unwrap_or_else(|e| panic!("{e}"))
@@ -279,10 +275,10 @@ fn a_change_on_disk_during_edit_offers_reload_or_keep_mine_and_overwrites_nothin
         let editor = world.query_filtered::<Entity, With<CodeEditor>>().single(world).unwrap_or_else(|e| panic!("one editor: {e}"));
         world.resource_mut::<InputFocus>().set(editor, FocusCause::Navigated);
     }
-    settle(&mut app);
+    settle_support::settle(&mut app);
     app.world_mut().spawn((Window::default(), bevy::window::PrimaryWindow));
     bevy_gooey::testing::type_text(&mut app, "Mine. ");
-    settle(&mut app);
+    settle_support::settle(&mut app);
 
     // Someone else writes the file: the question is asked, and the disk is not touched by the editor.
     let theirs = "# Theirs\n\nWritten by an agent.\n";
@@ -332,7 +328,7 @@ fn as_an_agent_reads_it_shows_the_chain_exactly_as_blueprint_style_returns_it() 
     assert_eq!(selected(&app).as_deref(), Some("design/regions/north/levels/m/style.md"));
     let toggle = bevy_gooey::testing::find_by_label(&mut app, "As an agent reads it").unwrap_or_else(|e| panic!("{e}"));
     app.world_mut().commands().trigger(bevy_gooey::ValueChange { source: toggle, value: true, is_final: true });
-    settle(&mut app);
+    settle_support::settle(&mut app);
     assert!(app.world().resource::<DesignView>().as_agent());
 
     let tree = Tree::read(&root);
@@ -355,14 +351,14 @@ fn go_to_anything_on_a_topics_name_opens_it_here_and_a_style_link_reveal_opens_t
     let mut app = editor(&root);
     let topic = app.world().resource::<GotoIndex>().of_kind(Kind::Design).find(|e| e.title == "dialogue").cloned().unwrap_or_else(|| panic!("`dialogue` is a row of the finder"));
     show_in_world(app.world_mut(), &topic);
-    settle(&mut app);
+    settle_support::settle(&mut app);
     assert_eq!(*app.world().resource::<Workspace>(), Workspace::Design, "a topic of the game opens in the Design workspace");
     assert_eq!(selected(&app).as_deref(), Some("design/dialogue.md"));
     assert!(app.world().resource::<GotoIndex>().of_kind(Kind::Design).any(|e| e.title == "m"), "every place is a row too");
 
     // The Map inspector's Style link asks the reveal for the level's page; it lands here.
     app.world_mut().resource_mut::<bevy_dark_factory::reveal::Revealing>().request_by_person("style_link", &bevy_dark_factory::ops::Shown::File { path: LEVEL.to_owned(), lines: None });
-    settle(&mut app);
+    settle_support::settle(&mut app);
     assert_eq!(selected(&app).as_deref(), Some(LEVEL));
 }
 
@@ -381,7 +377,7 @@ fn link(app: &mut App, dest: &str, kind: bevy_gooey::markdown::LinkKind) {
         world.query_filtered::<Entity, With<MarkdownView>>().single(world).unwrap_or_else(|e| panic!("one page: {e}"))
     };
     app.world_mut().commands().trigger(bevy_gooey::MarkdownLink { entity: view, dest: dest.to_owned(), kind });
-    settle(app);
+    settle_support::settle(app);
 }
 
 const NOT_OPENED_LEAVES: &str = "NOT OPENED: a link in the page leaves the project";
@@ -465,7 +461,7 @@ fn a_dropped_picture_goes_on_the_selected_places_board_and_the_levels_board_is_l
     assert_eq!(selected(&app).as_deref(), Some(GAME));
     picture(&root, "art/hall.png");
     app.world_mut().write_message(bevy::window::FileDragAndDrop::DroppedFile { window: Entity::PLACEHOLDER, path_buf: root.join("art/hall.png") });
-    settle(&mut app);
+    settle_support::settle(&mut app);
     let game = Board::of_place(&root, "design").unwrap_or_else(|e| panic!("{e}"));
     assert_eq!(game.pictures.iter().map(|p| p.path.as_str()).collect::<Vec<_>>(), ["art/hall.png"], "the drop is on the game's board");
     let level = Board::of_place(&root, "design/levels/m").unwrap_or_else(|e| panic!("{e}"));
@@ -483,7 +479,7 @@ fn clicking_a_picture_lights_its_card_and_choosing_a_card_scrolls_the_page_to_th
     click(&mut app, "m");
     // Picture 1 (0-based) is the dusk one: its click lights the second card.
     bevy_dark_factory::design_view::pick_picture(app.world_mut(), 1);
-    settle(&mut app);
+    settle_support::settle(&mut app);
     let lit: Vec<usize> = {
         let world = app.world_mut();
         world.query::<(&CardRef, Has<bevy::ui::Selected>)>().iter(world).filter(|(_, lit)| *lit).map(|(c, _)| c.index).collect()

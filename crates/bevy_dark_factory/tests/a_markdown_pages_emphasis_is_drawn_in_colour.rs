@@ -35,18 +35,14 @@ use bevy_dark_factory::keys::Live;
 use bevy_gooey::{CodeEditor, CodeEditorValue, CodePos, Role, SyntaxRole};
 
 use crate::fixtures;
+use crate::settle_support;
 
-const SETTLE: usize = 14;
 
 /// The page the two emphases sit on: a star emphasis and a star-strong, one line each, so a hover or a fold does not
 /// enter into it.
 const PAGE: &str = "# A page\n\n*Emphasised words.*\n\nA **strong** phrase.\n";
 
-fn settle(app: &mut App) {
-    for _ in 0..SETTLE {
-        app.update();
-    }
-}
+
 
 fn page(tag: &str, page_text: &str) -> (App, Entity) {
     let root = fixtures::Fixture::new(&format!("md_emphasis_{tag}_{}", std::process::id()))
@@ -60,16 +56,16 @@ fn page(tag: &str, page_text: &str) -> (App, Entity) {
     let mut app = harness::build_headless(&root, "m", None).unwrap_or_else(|e| panic!("{e}"));
     app.world_mut().spawn((Window::default(), PrimaryWindow));
     harness::resize_surface(&mut app, 1400, 900).unwrap_or_else(|e| panic!("{e}"));
-    settle(&mut app);
+    settle_support::settle(&mut app);
     let command = commands::by_id("workspace.files").unwrap_or_else(|| panic!("`workspace.files` is not a command"));
     let live = *app.world().resource::<Live>();
     app.world_mut().resource_mut::<Chords>().queue(&command, live);
-    settle(&mut app);
+    settle_support::settle(&mut app);
     bevy_dark_factory::files::open_file(app.world_mut(), rel).unwrap_or_else(|e| panic!("{e}"));
-    settle(&mut app);
+    settle_support::settle(&mut app);
     let editor = app.world_mut().query_filtered::<Entity, With<CodeEditor>>().single(app.world_mut()).unwrap_or_else(|e| panic!("{e}"));
     app.world_mut().resource_mut::<InputFocus>().set(editor, FocusCause::Navigated);
-    settle(&mut app);
+    settle_support::settle(&mut app);
     (app, editor)
 }
 
@@ -87,7 +83,7 @@ fn both_emphases_are_drawn_in_an_ink_the_plain_words_are_not() {
     let (mut app, editor) = page("inks", PAGE);
     let Some(mut widget) = app.world_mut().get_mut::<CodeEditor>(editor) else { panic!("the editor is open") };
     widget.select(CodePos::new(0, 0), CodePos::new(0, 0));
-    settle(&mut app);
+    settle_support::settle(&mut app);
     let runs = drawn(&mut app);
     let ink = |needle: &str| runs.iter().find(|(run, ..)| run.contains(needle)).map(|(_, _, colour)| *colour).unwrap_or_else(|| panic!("a run holds `{needle}`: {runs:?}"));
     let plain = ink("phrase.");
@@ -103,7 +99,7 @@ fn the_emphasis_is_drawn_as_a_coloured_run() {
     // Put the caret away from the page's first line so no caret-reveal preedit rewrites the rows.
     let Some(mut widget) = app.world_mut().get_mut::<CodeEditor>(editor) else { panic!("the editor is open") };
     widget.select(CodePos::new(0, 0), CodePos::new(0, 0));
-    settle(&mut app);
+    settle_support::settle(&mut app);
     let world = app.world_mut();
     let mut q = world.query::<(&TextSpan, &Role)>();
     let drawn: Vec<(String, Role)> = q

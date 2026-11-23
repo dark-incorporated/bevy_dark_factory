@@ -26,7 +26,7 @@ fn the_caret_after_wide_characters_is_where_the_text_ends() {
     app.world_mut().resource_mut::<TerminalFocus>().take();
     // A fresh row holding two wide characters, a space and `ok`, with the cursor after the `k`.
     feed(&mut app, "\r\n\x1b[2K日本 ok".as_bytes());
-    settle(&mut app, LAYOUT_FRAMES);
+    for _ in 0..LAYOUT_FRAMES { &mut app.update(); }
     let row = app.world().resource::<Terminal>().tab().expect("a tab").screen().cursor().row;
 
     let world = app.world_mut();
@@ -51,7 +51,7 @@ fn the_caret_after_wide_characters_is_where_the_text_ends() {
             break;
         }
         std::thread::sleep(std::time::Duration::from_millis(50));
-        settle(&mut app, 1);
+        for _ in 0..1 { &mut app.update(); }
     }
     let caret_left = caret_left.unwrap_or_else(|| panic!("the caret was never lit in {CARET_TRIES} tries"));
     let text_right = text_left + text_width;

@@ -73,7 +73,7 @@ fn drawn_text(app: &mut App) -> String {
 fn shows(app: &mut App, wanted: &str) -> Result<(), String> {
     let mut seen = String::new();
     for _ in 0..ANSWER_TRIES {
-        settle(app, 2);
+        for _ in 0..2 { app.update(); }
         seen = drawn_text(app);
         if seen.contains(wanted) {
             return Ok(());
@@ -90,7 +90,7 @@ fn cat_v(tag: &str) -> App {
     shows(&mut app, "cat -v").unwrap_or_else(|seen| panic!("the command was never echoed: {seen:?}"));
     // `cat` is reading once its line has been taken; a moment for the shell to start it.
     std::thread::sleep(std::time::Duration::from_millis(300));
-    settle(&mut app, 2);
+    for _ in 0..2 { &mut app.update(); }
     app
 }
 
@@ -140,7 +140,7 @@ fn wheel(app: &mut App, notches: f32) {
         hit,
         phase: TouchPhase::Moved,
     });
-    settle(app, 2);
+    for _ in 0..2 { app.update(); }
 }
 
 fn click(app: &mut App, cell: (usize, usize)) {
@@ -152,9 +152,9 @@ fn click(app: &mut App, cell: (usize, usize)) {
         hit: hit.clone(),
         count: 1,
     });
-    settle(app, 1);
+    for _ in 0..1 { app.update(); }
     app.world_mut().trigger(PointerRelease { entity, pointer: pointer(), button: PointerButton::Primary, hit });
-    settle(app, 2);
+    for _ in 0..2 { app.update(); }
 }
 
 #[test]

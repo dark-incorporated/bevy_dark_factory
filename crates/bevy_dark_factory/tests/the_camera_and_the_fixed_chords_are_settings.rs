@@ -12,16 +12,11 @@ use bevy_dark_factory::settings::SettingsLayer;
 use bevy_gooey::{Modifiers, Shortcut};
 
 use crate::fixtures;
+use crate::settle_support;
 use crate::index_waits::{SHOWN_WITHIN, pump_until};
 
-/// Updates for the editor to open its project and read its settings.
-const SETTLE_UPDATES: usize = 6;
 
-fn settle(app: &mut App) {
-    for _ in 0..SETTLE_UPDATES {
-        app.update();
-    }
-}
+
 
 /// Steps frames until `done`, failing with `what` when the index has not shown it within [`SHOWN_WITHIN`].
 fn until(app: &mut App, what: &str, done: impl FnMut(&mut App) -> bool) {
@@ -36,7 +31,7 @@ fn editor(tag: &str) -> (App, std::path::PathBuf) {
     let settings = config.join("settings.yaml");
     let mut app = bevy_dark_factory::harness::build_headless(&root, "m", None).unwrap_or_else(|e| panic!("{e}"));
     app.insert_resource(bevy_dark_factory::settings::UserSettingsFile(settings.clone()));
-    settle(&mut app);
+    settle_support::settle(&mut app);
     (app, settings)
 }
 

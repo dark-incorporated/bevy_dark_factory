@@ -64,7 +64,7 @@ pub(crate) fn editor_with_terminal(tag: &str) -> App {
             PrimaryWindow,
         ))
         .id();
-    settle(&mut app, 10);
+    for _ in 0..10 { &mut app.update(); }
     for state in [ButtonState::Pressed, ButtonState::Released] {
         for key in [KeyCode::ControlLeft, KeyCode::Backquote] {
             app.world_mut().write_message(KeyboardInput {
@@ -79,7 +79,7 @@ pub(crate) fn editor_with_terminal(tag: &str) -> App {
         app.update();
     }
     for _ in 0..PROMPT_TRIES {
-        settle(&mut app, 2);
+        for _ in 0..2 { &mut app.update(); }
         if !spans(&mut app).is_empty() {
             break;
         }
@@ -90,7 +90,7 @@ pub(crate) fn editor_with_terminal(tag: &str) -> App {
     for _ in 0..PROMPT_TRIES {
         let before = stamp(&app);
         std::thread::sleep(CHECK_GAP);
-        settle(&mut app, 2);
+        for _ in 0..2 { &mut app.update(); }
         quiet = if stamp(&app) == before { quiet + 1 } else { 0 };
         if quiet >= QUIET_CHECKS {
             break;
@@ -98,12 +98,6 @@ pub(crate) fn editor_with_terminal(tag: &str) -> App {
     }
     assert!(quiet >= QUIET_CHECKS, "the shell never stopped writing after its prompt");
     app
-}
-
-pub(crate) fn settle(app: &mut App, frames: usize) {
-    for _ in 0..frames {
-        app.update();
-    }
 }
 
 /// One drawn span: its row, its text, its ink and its ground.
@@ -157,7 +151,7 @@ pub(crate) fn feed(app: &mut App, bytes: &[u8]) {
 fn inverse_text_is_drawn_on_its_ground_and_plain_text_on_none() {
     let mut app = editor_with_terminal("terminal_inverse_ground");
     feed(&mut app, b"\r\n\x1b[7mINVERSE\x1b[0m PLAIN\r\n");
-    settle(&mut app, DRAW_FRAMES);
+    for _ in 0..DRAW_FRAMES { &mut app.update(); }
     let drawn = spans(&mut app);
 
     let plain = span_with(&drawn, "PLAIN");
@@ -177,7 +171,7 @@ fn inverse_text_is_drawn_on_its_ground_and_plain_text_on_none() {
 fn a_selection_paints_its_cells_and_only_them() {
     let mut app = editor_with_terminal("terminal_selection_ground");
     feed(&mut app, b"\r\nLEFT RIGHT\r\n");
-    settle(&mut app, DRAW_FRAMES);
+    for _ in 0..DRAW_FRAMES { &mut app.update(); }
     let before = spans(&mut app);
     let row = span_with(&before, "LEFT RIGHT").row;
     assert_eq!(span_with(&before, "LEFT RIGHT").ground, None, "nothing is selected yet");
@@ -189,7 +183,7 @@ fn a_selection_paints_its_cells_and_only_them() {
         .expect("a tab")
         .screen_mut()
         .select((row, 5), (row, 9));
-    settle(&mut app, DRAW_FRAMES);
+    for _ in 0..DRAW_FRAMES { &mut app.update(); }
     let after = spans(&mut app);
 
     let right = span_with(&after, "RIGHT");

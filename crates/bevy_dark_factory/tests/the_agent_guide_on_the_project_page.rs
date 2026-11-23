@@ -19,6 +19,8 @@
 //! can call it.
 
 use bevy::prelude::*;
+
+use crate::settle_support;
 use bevy::ui_widgets::Activate;
 use bevy_dark_factory::agent_guide::{GuideState, UserGuideFile};
 use bevy_dark_factory::editor::EditorState;
@@ -54,15 +56,11 @@ fn on_the_page(tag: &str) -> (PathBuf, PathBuf, App) {
     // **After the page is entered**, because entering it rebuilds the editor's state and a store named
     // before that is a store the page never sees.
     app.world_mut().resource_mut::<EditorState>().trust.file = Some(store.clone());
-    settle(&mut app);
+    settle_support::settle(&mut app);
     (root, store, app)
 }
 
-fn settle(app: &mut App) {
-    for _ in 0..4 {
-        app.update();
-    }
-}
+
 
 fn guide_path(root: &Path) -> PathBuf {
     root.join(PROJECT_PATH)
@@ -90,7 +88,7 @@ fn press<M: Component>(app: &mut App) -> bool {
     match found {
         Some(entity) => {
             app.world_mut().commands().trigger(Activate { entity });
-            settle(app);
+            settle_support::settle(app);
             true
         }
         None => false,
@@ -127,7 +125,7 @@ fn a_withheld_guide_shows_waiting_for_you_and_allow_serves_it() {
     let text = "Do not run anything without asking.";
     write_guide(&root, text);
     app.world_mut().resource_mut::<bevy_dark_factory::project_page::ProjectPage>().dirty = true;
-    settle(&mut app);
+    settle_support::settle(&mut app);
     assert!(status(&mut app).starts_with("waiting for you"), "an unallowed guide says so: {}", status(&mut app));
     // **The text is shown**, because reading it is how a person decides, and it is not served to an agent.
     let shown = app
@@ -164,14 +162,14 @@ fn trust_this_project_from_the_page_serves_every_later_edit() {
     let (root, store, mut app) = on_the_page("trust");
     write_guide(&root, "first");
     app.world_mut().resource_mut::<bevy_dark_factory::project_page::ProjectPage>().dirty = true;
-    settle(&mut app);
+    settle_support::settle(&mut app);
     assert!(status(&mut app).starts_with("waiting for you"), "{}", status(&mut app));
     assert!(press::<AgentGuideTrust>(&mut app), "Trust this project is offered");
     assert!(status(&mut app).starts_with("allowed"), "{}", status(&mut app));
     for text in ["second", "third"] {
         write_guide(&root, text);
         app.world_mut().resource_mut::<bevy_dark_factory::project_page::ProjectPage>().dirty = true;
-        settle(&mut app);
+        settle_support::settle(&mut app);
         assert!(status(&mut app).starts_with("allowed"), "a trusted project's guide is served however it changes: {text}, {}", status(&mut app));
     }
     let trusted = TrustStore::load(&store).expect("the store reads");
@@ -187,14 +185,14 @@ fn save_writes_the_new_text_and_grants_it() {
     let (root, store, mut app) = on_the_page("save");
     write_guide(&root, "the first wording");
     app.world_mut().resource_mut::<bevy_dark_factory::project_page::ProjectPage>().dirty = true;
-    settle(&mut app);
+    settle_support::settle(&mut app);
 
     // **Type into the area by its own field**, as a person does: `ValueChange` is what gooey sends when
     // the text changed, and the section takes it as the unsaved edit.
     let new_text = format!("the second wording\n\n{LESSONS_HEADING}\n\n*A task cost a step because the walls were not measured.*");
     let field = app.world_mut().query_filtered::<Entity, With<AgentGuideText>>().single(app.world()).expect("a text area");
     app.world_mut().commands().trigger(bevy::ui_widgets::ValueChange::<String> { source: field, value: new_text.clone(), is_final: false });
-    settle(&mut app);
+    settle_support::settle(&mut app);
     assert!(press::<AgentGuideSave>(&mut app), "Save is offered once the text changed");
 
     let saved = std::fs::read_to_string(guide_path(&root)).expect("the file reads");
@@ -216,17 +214,17 @@ fn a_change_on_disk_during_unsaved_edits_is_reported_and_the_file_is_kept() {
     let on_disk = "what the file said before";
     write_guide(&root, on_disk);
     app.world_mut().resource_mut::<bevy_dark_factory::project_page::ProjectPage>().dirty = true;
-    settle(&mut app);
+    settle_support::settle(&mut app);
 
     let field = app.world_mut().query_filtered::<Entity, With<AgentGuideText>>().single(app.world()).expect("a text area");
     app.world_mut().commands().trigger(bevy::ui_widgets::ValueChange::<String> { source: field, value: "my unsaved wording".to_owned(), is_final: false });
-    settle(&mut app);
+    settle_support::settle(&mut app);
 
     // Somebody else wrote the file: an agent through its shell, or another editor.
     let elsewhere = "what an agent wrote in the meantime";
     write_guide(&root, elsewhere);
     app.world_mut().resource_mut::<bevy_dark_factory::project_page::ProjectPage>().dirty = true;
-    settle(&mut app);
+    settle_support::settle(&mut app);
     assert!(status(&mut app).contains("changed on disk"), "the conflict is reported: {}", status(&mut app));
 
     // **The file is exactly what the other writer left**, and Save cannot overwrite it: the conflict state
@@ -255,10 +253,10 @@ fn a_change_on_disk_during_unsaved_edits_is_reported_and_the_file_is_kept() {
     // And **Reload** throws the unsaved text away for what is on disk.
     let field = app.world_mut().query_filtered::<Entity, With<AgentGuideText>>().single(app.world()).expect("a text area");
     app.world_mut().commands().trigger(bevy::ui_widgets::ValueChange::<String> { source: field, value: "another attempt".to_owned(), is_final: false });
-    settle(&mut app);
+    settle_support::settle(&mut app);
     write_guide(&root, "a third version, from elsewhere");
     app.world_mut().resource_mut::<bevy_dark_factory::project_page::ProjectPage>().dirty = true;
-    settle(&mut app);
+    settle_support::settle(&mut app);
     assert!(press::<AgentGuideReload>(&mut app), "Reload is offered");
     let shown = app
         .world_mut()
@@ -277,10 +275,10 @@ fn revert_undoes_the_editing_without_touching_the_file() {
     let (root, _store, mut app) = on_the_page("revert");
     write_guide(&root, "the wording on disk");
     app.world_mut().resource_mut::<bevy_dark_factory::project_page::ProjectPage>().dirty = true;
-    settle(&mut app);
+    settle_support::settle(&mut app);
     let field = app.world_mut().query_filtered::<Entity, With<AgentGuideText>>().single(app.world()).expect("a text area");
     app.world_mut().commands().trigger(bevy::ui_widgets::ValueChange::<String> { source: field, value: "typed and not saved".to_owned(), is_final: false });
-    settle(&mut app);
+    settle_support::settle(&mut app);
     assert!(press::<AgentGuideRevert>(&mut app), "Revert is offered");
     let shown = app
         .world_mut()
@@ -302,7 +300,7 @@ fn a_guide_over_the_limit_shows_its_problem_instead_of_the_text_area() {
     std::fs::create_dir_all(path.parent().expect("a folder")).expect("the folder is made");
     std::fs::write(&path, vec![b'x'; blueprint_model::agent_guide::GUIDE_MAX_BYTES + 1]).expect("the file is written");
     app.world_mut().resource_mut::<bevy_dark_factory::project_page::ProjectPage>().dirty = true;
-    settle(&mut app);
+    settle_support::settle(&mut app);
     let areas = app.world_mut().query_filtered::<Entity, With<AgentGuideText>>().iter(app.world()).count();
     assert_eq!(areas, 0, "no editor for a file nobody can read");
     let words = status(&mut app);
@@ -341,7 +339,7 @@ fn allow_grants_the_text_that_was_shown_and_raises_the_conflict_when_the_file_mo
     let shown = "what the person read in the area";
     write_guide(&root, shown);
     app.world_mut().resource_mut::<bevy_dark_factory::project_page::ProjectPage>().dirty = true;
-    settle(&mut app);
+    settle_support::settle(&mut app);
     assert!(status(&mut app).starts_with("waiting for you"), "{}", status(&mut app));
 
     // **Plant a different file without an edit and without letting the section look again.** The section's
@@ -380,11 +378,11 @@ fn there_is_no_allow_while_an_edit_is_unsaved() {
     let (root, store, mut app) = on_the_page("allow_edit");
     write_guide(&root, "the wording on disk");
     app.world_mut().resource_mut::<bevy_dark_factory::project_page::ProjectPage>().dirty = true;
-    settle(&mut app);
+    settle_support::settle(&mut app);
 
     let field = app.world_mut().query_filtered::<Entity, With<AgentGuideText>>().single(app.world()).expect("a text area");
     app.world_mut().commands().trigger(bevy::ui_widgets::ValueChange::<String> { source: field, value: "an edit nobody saved".to_owned(), is_final: false });
-    settle(&mut app);
+    settle_support::settle(&mut app);
 
     assert!(
         !press::<AgentGuideAllow>(&mut app),
@@ -414,7 +412,7 @@ fn a_guide_longer_than_the_area_says_so_and_offers_no_save_or_allow() {
     let long = "a line of a long guide.\n".repeat(400);
     write_guide(&root, &long);
     app.world_mut().resource_mut::<bevy_dark_factory::project_page::ProjectPage>().dirty = true;
-    settle(&mut app);
+    settle_support::settle(&mut app);
 
     let words = status(&mut app);
     assert!(words.contains("showing the first"), "the section says it is showing only part: {words}");
@@ -461,7 +459,7 @@ fn a_guide_whose_lines_run_off_the_box_offers_nothing_and_says_so() {
     );
     write_guide(&root, &text);
     app.world_mut().resource_mut::<bevy_dark_factory::project_page::ProjectPage>().dirty = true;
-    settle(&mut app);
+    settle_support::settle(&mut app);
 
     let words = status(&mut app);
     assert!(words.contains("showing the first"), "the section says it is showing only part: {words}");
@@ -487,7 +485,7 @@ fn a_guide_shown_in_part_is_read_only() {
     let long = "a line of a long guide.\n".repeat(400);
     write_guide(&root, &long);
     app.world_mut().resource_mut::<bevy_dark_factory::project_page::ProjectPage>().dirty = true;
-    settle(&mut app);
+    settle_support::settle(&mut app);
 
     let areas = app.world_mut().query_filtered::<Entity, With<AgentGuideText>>().iter(app.world()).count();
     assert_eq!(areas, 0, "no text area over a file the box cannot hold");

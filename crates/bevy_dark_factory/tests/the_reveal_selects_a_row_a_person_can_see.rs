@@ -33,13 +33,12 @@ use bevy_dark_factory::tiles::Mode;
 use bevy_dark_factory::workspace::Workspace;
 
 use crate::fixtures;
+use crate::settle_support;
 
 /// One frame of the test clock, seconds.
 const FRAME: f32 = 1.0 / 60.0;
 
 /// Frames a reveal may take: a crossing, the panel's first build, and the follower's one-frame-late
-/// scroll.
-const SETTLE: usize = 60;
 
 /// A project carrying one subject per off-map `Shown` variant, as
 /// `the_follow_opens_the_page_a_change_is_on` builds it.
@@ -141,11 +140,7 @@ fn apply(app: &mut App, operation: &str, parameters: serde_json::Value) -> serde
     )
 }
 
-fn settle(app: &mut App) {
-    for _ in 0..SETTLE {
-        app.update();
-    }
-}
+
 
 fn box_of(app: &App, e: Entity) -> Option<(Vec2, Vec2)> {
     let node = app.world().get::<ComputedNode>(e)?;
@@ -232,7 +227,7 @@ fn the_rigs_row_the_reveal_selected_is_inside_the_bench() {
     let mut app = editor(&root);
     let answer = apply(&mut app, "rig_adopt_measured", serde_json::json!({"rig": "valkyrie"}));
     assert_eq!(answer["outcome"], "applied", "{answer}");
-    settle(&mut app);
+    settle_support::settle(&mut app);
     assert_eq!((*app.world().resource::<Workspace>(), app.world().resource::<Mode>().label()), (Workspace::Animation, "ANIM"));
 
     // **Half one: the list is away, and the reveal does not pretend otherwise.** The bench's cursor still moved to the rig the reveal
@@ -250,7 +245,7 @@ fn the_rigs_row_the_reveal_selected_is_inside_the_bench() {
 
     // **Half two: the chord draws it, and then the row is inside the list as it always was.**
     press_the_chords_key(&mut app, bevy_dark_factory::keys::Action::ToggleRigs);
-    settle(&mut app);
+    settle_support::settle(&mut app);
     let row = selected_row_drawing(&mut app, "valkyrie");
     let list = scrollable_ancestor(&mut app, row);
     if let Err(why) = inside(&app, row, list) {
@@ -269,7 +264,7 @@ fn the_data_row_the_reveal_selected_is_the_files_leaf_inside_the_table() {
         serde_json::json!({"file": "tuning/mob", "path": "mob.speed", "value": 2.0}),
     );
     assert_eq!(answer["outcome"], "applied", "{answer}");
-    settle(&mut app);
+    settle_support::settle(&mut app);
 
     // **Which leaf the cursor is on**, not that it is on one: the table's own source says what a key
     // names, so the answer is the leaf's file and path.
@@ -327,7 +322,7 @@ fn the_packs_section_the_reveal_opened_is_on_screen() {
         serde_json::json!({"pack": "alpha", "excluded": true}),
     );
     assert_eq!(answer["outcome"], "applied", "{answer}");
-    settle(&mut app);
+    settle_support::settle(&mut app);
 
     // The pack's own switch, and that it says what the file says.
     let world = app.world_mut();
@@ -377,7 +372,7 @@ fn the_notes_row_the_reveal_selected_is_drawn_selected_and_inside_the_panel() {
         serde_json::json!({"id": "note-1", "text": "the bed is by the window"}),
     );
     assert_eq!(answer["outcome"], "applied", "{answer}");
-    settle(&mut app);
+    settle_support::settle(&mut app);
 
     // **The row the list drew for the selected note**, by the marker the reveal set.
     let row = {
@@ -425,7 +420,7 @@ fn a_persons_key_press_stops_a_queued_reveal() {
     app.world_mut()
         .resource_mut::<ButtonInput<KeyCode>>()
         .release(KeyCode::KeyB);
-    settle(&mut app);
+    settle_support::settle(&mut app);
 
     assert_eq!(
         *app.world().resource::<Workspace>(),
@@ -510,7 +505,7 @@ fn a_reveal_waits_while_the_person_is_working() {
     for _ in 0..frames_of(bevy_dark_factory::follow::FOLLOW_IDLE_S) {
         app.update();
     }
-    settle(&mut app);
+    settle_support::settle(&mut app);
     assert_eq!(
         *app.world().resource::<Workspace>(),
         Workspace::Kit,

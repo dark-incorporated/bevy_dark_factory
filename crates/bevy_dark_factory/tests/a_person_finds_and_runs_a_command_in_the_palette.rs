@@ -17,6 +17,7 @@ use bevy_dark_factory::project::OpenMap;
 use bevy_gooey::{CommandList, CommandPalette, PaletteHistory};
 
 use crate::fixtures;
+use crate::settle_support;
 
 fn editor(tag: &str) -> App {
     let root = fixtures::Fixture::new(&format!("{tag}_{}", std::process::id()))
@@ -50,11 +51,7 @@ fn send(app: &mut App, key_code: KeyCode, logical_key: Key, text: Option<&str>, 
     });
 }
 
-fn settle(app: &mut App) {
-    for _ in 0..6 {
-        app.update();
-    }
-}
+
 
 /// **A chord as a hand makes it**: every key down together, a frame, every key up, a frame.
 fn chord(app: &mut App, keys: &[KeyCode]) {
@@ -64,7 +61,7 @@ fn chord(app: &mut App, keys: &[KeyCode]) {
         }
         app.update();
     }
-    settle(app);
+    settle_support::settle(app);
 }
 
 /// **The platform's primary modifier, which is what every one of these chords is bound to.**
@@ -109,7 +106,7 @@ fn type_str(app: &mut App, text: &str) {
             app.update();
         }
     }
-    settle(app);
+    settle_support::settle(app);
 }
 
 fn enter(app: &mut App) {
@@ -117,7 +114,7 @@ fn enter(app: &mut App) {
         send(app, KeyCode::Enter, Key::Enter, None, state);
         app.update();
     }
-    settle(app);
+    settle_support::settle(app);
 }
 
 fn open(app: &mut App) -> bool {
@@ -131,7 +128,7 @@ fn placements(app: &App) -> usize {
 
 fn lay_a_run(app: &mut App, from: (f32, f32), to: (f32, f32)) {
     bevy_dark_factory::editor::run_for_test(app.world_mut(), "fence", from, to);
-    settle(app);
+    settle_support::settle(app);
 }
 
 fn undo_depth(app: &App) -> usize {
@@ -217,7 +214,7 @@ fn the_palette_lists_every_command_with_its_chord_and_the_reason_it_cannot_run()
 fn escape_closes_the_palette_without_cancelling_what_is_armed() {
     let mut app = editor("palette_escape");
     app.world_mut().resource_mut::<EditorState>().brush = Some(0);
-    settle(&mut app);
+    settle_support::settle(&mut app);
     let armed = app.world().resource::<EditorState>().brush;
     assert!(armed.is_some(), "a fence is armed");
 
@@ -227,7 +224,7 @@ fn escape_closes_the_palette_without_cancelling_what_is_armed() {
         send(&mut app, KeyCode::Escape, Key::Escape, None, state);
         app.update();
     }
-    settle(&mut app);
+    settle_support::settle(&mut app);
 
     assert!(!open(&mut app), "Esc closes the palette");
     assert_eq!(

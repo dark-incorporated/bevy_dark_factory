@@ -13,6 +13,7 @@ use bevy_dark_factory::live::LiveWrite;
 use bevy_dark_factory::project::{OpenMap, Project};
 
 use crate::fixtures;
+use crate::index_view_support as support;
 
 fn editor(name: &str) -> App {
     let root = fixtures::Fixture::new(name)
@@ -44,11 +45,7 @@ fn game(app: &mut App) -> serde_json::Value {
     state["game"].clone()
 }
 
-fn settle(app: &mut App) {
-    std::thread::sleep(Duration::from_millis(300));
-    app.update();
-    app.update();
-}
+
 
 #[test]
 fn each_files_verdict_is_in_the_state_and_a_refusal_names_its_file_and_field() {
@@ -63,7 +60,7 @@ fn each_files_verdict_is_in_the_state_and_a_refusal_names_its_file_and_field() {
         KindVerdict::refused("map", "maps/m.map.yaml", Some("placements[0].at[1]".to_owned()), "1:47: Expected float"),
     ];
     Verdict::with_kinds(7, "maps/m.map.yaml: refused", kinds).write(&dir).unwrap();
-    settle(&mut app);
+    support::settle(&mut app);
 
     let g = game(&mut app);
     assert_eq!(g["ok"], serde_json::json!(false), "{g}");

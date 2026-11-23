@@ -50,11 +50,7 @@ fn editor(w: &Rig, map: &str) -> App {
     app
 }
 
-fn settle(app: &mut App, frames: usize) {
-    for _ in 0..frames {
-        app.update();
-    }
-}
+
 
 fn tabs(app: &App, workspace: Workspace) -> (Vec<String>, Option<String>) {
     let t = app.world().resource::<Session>().tabs(workspace);
@@ -81,7 +77,7 @@ fn chord(app: &mut App, keys: &[KeyCode]) {
         app.update();
         app.update();
     }
-    settle(app, SETTLE);
+    for _ in 0..SETTLE { app.update(); }
 }
 
 fn primary() -> KeyCode {
@@ -97,7 +93,7 @@ fn two_maps_and_three_files_come_back_with_the_same_one_active() {
 
     // The second map, opened the way a tab opens it.
     session::choose_map(app.world_mut(), "n");
-    settle(&mut app, SETTLE);
+    for _ in 0..SETTLE { app.update(); }
     assert_eq!(open_map(&app), "n", "choosing a map's tab opens that map");
     assert_eq!(tabs(&app, Workspace::Map), (vec!["m".to_owned(), "n".to_owned()], Some("n".to_owned())));
 
@@ -108,7 +104,7 @@ fn two_maps_and_three_files_come_back_with_the_same_one_active() {
             s.open(Workspace::Files, Doc::new(Kind::File, file)).unwrap_or_else(|e| panic!("{e}"));
         }
     }
-    settle(&mut app, SETTLE);
+    for _ in 0..SETTLE { app.update(); }
     let file = session::path_for(&w.store, &w.root);
     assert!(file.is_file(), "the session is written under the person's data directory: {}", file.display());
     assert!(
@@ -159,7 +155,7 @@ fn the_tab_keys_close_reopen_and_cycle() {
     let w = world("keys");
     let mut app = editor(&w, "m");
     session::choose_map(app.world_mut(), "n");
-    settle(&mut app, SETTLE);
+    for _ in 0..SETTLE { app.update(); }
     assert_eq!(open_map(&app), "n");
 
     chord(&mut app, &[KeyCode::ControlLeft, KeyCode::Tab]);
@@ -192,13 +188,13 @@ fn a_dirty_map_is_asked_about_before_its_tab_is_left() {
     let w = world("dirty");
     let mut app = editor(&w, "m");
     session::choose_map(app.world_mut(), "n");
-    settle(&mut app, SETTLE);
+    for _ in 0..SETTLE { app.update(); }
     session::choose_map(app.world_mut(), "m");
-    settle(&mut app, SETTLE);
+    for _ in 0..SETTLE { app.update(); }
     assert_eq!(open_map(&app), "m");
 
     bevy_dark_factory::editor::place_for_test(app.world_mut(), "alpha/floor", (1.5, 0.5));
-    settle(&mut app, SETTLE);
+    for _ in 0..SETTLE { app.update(); }
     assert!(app.world().resource::<OpenMap>().dirty(), "the test's own edit leaves the map unsaved");
 
     // The strip draws a dot on the dirty map's tab.
@@ -209,7 +205,7 @@ fn a_dirty_map_is_asked_about_before_its_tab_is_left() {
     assert_eq!(dots, 1, "the dirty map's tab wears the dot");
 
     session::choose_map(app.world_mut(), "n");
-    settle(&mut app, SETTLE);
+    for _ in 0..SETTLE { app.update(); }
     assert_eq!(open_map(&app), "m", "the map was not replaced under the person");
     let state = app.world().resource::<EditorState>();
     assert!(state.leaving, "the leaving question is up");
@@ -235,7 +231,7 @@ fn the_strip_names_the_tabs() {
     };
     assert!(names(&mut app).is_empty(), "one document is the title, not a strip");
     session::choose_map(app.world_mut(), "n");
-    settle(&mut app, SETTLE);
+    for _ in 0..SETTLE { app.update(); }
     assert_eq!(names(&mut app), ["m", "n"], "two maps, two tabs, each named");
 }
 
@@ -251,7 +247,7 @@ fn a_tab_whose_file_is_gone_closes_with_a_notice() {
         }
     }
     std::fs::remove_file(w.root.join("c.md")).unwrap_or_else(|e| panic!("{e}"));
-    settle(&mut app, 70);
+    for _ in 0..70 { app.update(); }
     assert_eq!(tabs(&app, Workspace::Files).0, ["a.md"], "the deleted file's tab is closed");
     assert!(
         app.world().resource::<EditorState>().status.note_text().contains("c.md"),
@@ -267,7 +263,7 @@ fn move_to(app: &mut App, root: &std::path::Path, map: &str) {
     let open = OpenMap::open(&project, map).unwrap_or_else(|e| panic!("{e}"));
     app.world_mut().insert_resource(project);
     app.world_mut().insert_resource(open);
-    settle(app, 70);
+    for _ in 0..70 { app.update(); }
 }
 
 /// A second project with one map, `q`, and one file, `b.md`.
@@ -285,9 +281,9 @@ fn a_project_with_no_session_starts_without_the_last_projects_tabs() {
     let b = project_b("carry");
     let mut app = editor(&a, "m");
     session::choose_map(app.world_mut(), "n");
-    settle(&mut app, SETTLE);
+    for _ in 0..SETTLE { app.update(); }
     app.world_mut().resource_mut::<Session>().open(Workspace::Files, Doc::new(Kind::File, "a.md")).unwrap_or_else(|e| panic!("{e}"));
-    settle(&mut app, SETTLE);
+    for _ in 0..SETTLE { app.update(); }
     assert_eq!(tabs(&app, Workspace::Map).0, ["m", "n"], "A has two map tabs");
     assert_eq!(tabs(&app, Workspace::Files).0, ["a.md"], "and one file tab");
     let b_file = session::path_for(&a.store, &b);
@@ -306,7 +302,7 @@ fn a_project_with_no_session_starts_without_the_last_projects_tabs() {
 
     // **A real change is what writes it**, and what it holds is B's alone.
     app.world_mut().resource_mut::<Session>().open(Workspace::Files, Doc::new(Kind::File, "b.md")).unwrap_or_else(|e| panic!("{e}"));
-    settle(&mut app, SETTLE);
+    for _ in 0..SETTLE { app.update(); }
     let written = Session::read(&b_file).unwrap_or_else(|e| panic!("B's session is written once the person opens a tab: {e}"));
     assert_eq!(written.tabs(Workspace::Map).open.iter().map(|d| d.name.as_str()).collect::<Vec<_>>(), ["q"], "and holds only B's map");
     assert_eq!(written.tabs(Workspace::Files).open.iter().map(|d| d.name.as_str()).collect::<Vec<_>>(), ["b.md"], "and only B's own file");
@@ -319,7 +315,7 @@ fn an_unreadable_session_file_is_never_overwritten() {
     let b = project_b("unreadable");
     let mut app = editor(&a, "m");
     session::choose_map(app.world_mut(), "n");
-    settle(&mut app, SETTLE);
+    for _ in 0..SETTLE { app.update(); }
     assert_eq!(tabs(&app, Workspace::Map).0, ["m", "n"], "A has two map tabs");
 
     let b_file = session::path_for(&a.store, &b);
@@ -338,7 +334,7 @@ fn an_unreadable_session_file_is_never_overwritten() {
     // **Even a real change does not write over it**: the tabs are the person's, the file is not this
     // editor's to replace.
     app.world_mut().resource_mut::<Session>().open(Workspace::Files, Doc::new(Kind::File, "b.md")).unwrap_or_else(|e| panic!("{e}"));
-    settle(&mut app, SETTLE);
+    for _ in 0..SETTLE { app.update(); }
     assert_eq!(
         std::fs::read_to_string(&b_file).unwrap_or_else(|e| panic!("{e}")),
         newer,

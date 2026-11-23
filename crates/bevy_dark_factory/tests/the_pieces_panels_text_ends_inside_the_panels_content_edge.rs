@@ -23,6 +23,7 @@ use bevy_dark_factory::harness;
 use bevy_dark_factory::tiles::{CandidateList, ImportState, Mode};
 
 use crate::fixtures;
+use crate::settle_support;
 
 /// The capture's window, physical px.
 const WINDOW_PHYSICAL: (u32, u32) = (2560, 1440);
@@ -43,8 +44,6 @@ const MANY: usize = 120;
 /// A long library id, for the library shelf.
 const LONG_ID: &str = "site/surveillance_console_with_a_very_long_name";
 
-/// Frames a layout needs to settle after a change of scale or width.
-const SETTLE_FRAMES: usize = 12;
 
 /// How far a measured edge may stand past the one it is held to, physical px: layout rounds.
 const SLACK_PX: f32 = 1.0;
@@ -55,11 +54,7 @@ struct Drawn {
     rect: Rect,
 }
 
-fn settle(app: &mut App) {
-    for _ in 0..SETTLE_FRAMES {
-        app.update();
-    }
-}
+
 
 /// The right-hand panel: the one that holds the candidate list.
 fn panel_of(app: &mut App) -> Entity {
@@ -115,7 +110,7 @@ fn texts(world: &World, root: Entity) -> Vec<Drawn> {
 fn lay_out(app: &mut App, panel: Entity, width_px: f32, scale: f32) {
     app.world_mut().resource_mut::<UiScale>().0 = scale;
     app.world_mut().get_mut::<bevy_gooey::Sizing>(panel).expect("the panel is a sized box").width = Some(bevy_gooey::Extent::Px(width_px));
-    settle(app);
+    settle_support::settle(app);
 }
 
 /// What is wrong with the panel as it stands, as sentences: a text whose glyphs end past the panel's content edge.
@@ -152,10 +147,10 @@ fn editor(tag: &str) -> App {
     let root = fixture.build("m");
     let mut app = harness::build_headless_at(&root, "m", None, Mode::Meshes).unwrap_or_else(|e| panic!("{e}"));
     harness::resize_surface(&mut app, WINDOW_PHYSICAL.0, WINDOW_PHYSICAL.1).unwrap_or_else(|e| panic!("{e}"));
-    settle(&mut app);
+    settle_support::settle(&mut app);
     // Every pack open, as the capture's were: the scan the first frames run opens the first and folds the rest.
     app.world_mut().resource_mut::<ImportState>().folded_packs.clear();
-    settle(&mut app);
+    settle_support::settle(&mut app);
     app
 }
 

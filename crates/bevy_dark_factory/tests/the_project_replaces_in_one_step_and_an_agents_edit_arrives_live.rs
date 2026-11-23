@@ -30,8 +30,8 @@ use bevy_dark_factory::session::Session;
 use bevy_gooey::{CodeEditor, CodeEditorValue, CodePos};
 
 use crate::fixtures;
+use crate::settle_support;
 
-const SETTLE: usize = 12;
 const YAML: &str = "assets/blueprint/maps/draft.map.yaml";
 const YAML_TEXT: &str = "# the draft\nversion: 3\nname: draft\norigin:\n- 0.0\n- 0.0\n- 0.0\nbounds:\n- 10.0\n- 3.0\n- 10.0\nplacements:\n- id: floor@0\n  descriptor: alpha/floor\n  at:\n  - 0.0\n  - 0.0\n  yaw: 0.0 # turn\nstamps: []\nlocations: []\n";
 
@@ -39,20 +39,16 @@ fn project(tag: &str) -> PathBuf {
     fixtures::Fixture::new(&format!("replace_{tag}_{}", std::process::id())).descriptor("alpha/floor", "alpha").place_as("floor@0", "alpha/floor", (0.0, 0.0)).build("m")
 }
 
-fn settle(app: &mut App) {
-    for _ in 0..SETTLE {
-        app.update();
-    }
-}
+
 
 fn editor_app(root: &Path) -> App {
     let mut app = harness::build_headless(root, "m", None).unwrap_or_else(|e| panic!("{e}"));
     app.world_mut().spawn((Window::default(), PrimaryWindow));
-    settle(&mut app);
+    settle_support::settle(&mut app);
     let command = commands::by_id("workspace.files").unwrap_or_else(|| panic!("workspace.files"));
     let live = *app.world().resource::<Live>();
     app.world_mut().resource_mut::<Chords>().queue(&command, live);
-    settle(&mut app);
+    settle_support::settle(&mut app);
     app
 }
 
@@ -85,7 +81,7 @@ const HEARD_WITHIN_S: f64 = 20.0;
 fn wait_until_heard(app: &mut App, what: &str, mut done: impl FnMut(&mut App) -> bool) {
     let started = std::time::Instant::now();
     while started.elapsed().as_secs_f64() < HEARD_WITHIN_S {
-        settle(app);
+        settle_support::settle(app);
         if done(app) {
             return;
         }
@@ -122,7 +118,7 @@ fn a_replace_across_three_files_is_one_operation_and_one_undo_puts_every_file_ba
     for (rel, text) in before {
         assert_eq!(read(&root, rel), text, "{rel} is byte for byte as before");
     }
-    settle(&mut app);
+    settle_support::settle(&mut app);
 }
 
 /// **GD-13, acceptance 2**: a replace that would break one YAML file writes nothing, and names that file and line.
@@ -195,7 +191,7 @@ fn the_search_streams_into_a_panel_can_be_cancelled_and_a_result_opens_its_file_
     app.world_mut().get_mut::<SearchPanel>(panel).map(|mut p| p.query.text = "line".to_owned()).unwrap_or_default();
     files_panel::start_the_search(app.world_mut());
     files_panel::stop_the_search(app.world_mut());
-    settle(&mut app);
+    settle_support::settle(&mut app);
     assert!(app.world().get::<SearchPanel>(panel).is_some_and(|p| p.done && p.status.starts_with("Stopped")), "a cancelled search says it stopped");
     let cancelled = std::sync::atomic::AtomicBool::new(true);
     let mut seen = 0;
@@ -204,7 +200,7 @@ fn the_search_streams_into_a_panel_can_be_cancelled_and_a_result_opens_its_file_
 
     // A click on a result: the file opens at the match, with it selected.
     files_panel::open_at(app.world_mut(), &Target { rel: "data/f07.txt".into(), line: 1, col: 0, len: 6 });
-    settle(&mut app);
+    settle_support::settle(&mut app);
     assert_eq!(files::active_file(app.world().resource::<Session>()).as_deref(), Some("data/f07.txt"));
     let editor = editor_of(&mut app);
     let buffer = app.world().get::<CodeEditor>(editor).map(|e| (e.buffer().selection(), e.buffer().selected_text())).unwrap_or_else(|| panic!("an editor"));
@@ -227,15 +223,15 @@ fn chord_ctrl_shift(app: &mut App, code: KeyCode, name: &str) {
     key(app, code, Key::Character(name.into()), ButtonState::Released);
     key(app, KeyCode::ShiftLeft, Key::Shift, ButtonState::Released);
     key(app, KeyCode::ControlLeft, Key::Control, ButtonState::Released);
-    settle(app);
+    settle_support::settle(app);
 }
 
 fn open(app: &mut App, rel: &str) -> Entity {
     files::open_file(app.world_mut(), rel).unwrap_or_else(|e| panic!("{e}"));
-    settle(app);
+    settle_support::settle(app);
     let editor = editor_of(app);
     app.world_mut().resource_mut::<InputFocus>().set(editor, FocusCause::Navigated);
-    settle(app);
+    settle_support::settle(app);
     editor
 }
 
@@ -248,7 +244,7 @@ fn an_agents_file_edit_lands_in_the_open_tab_without_moving_the_caret_and_undoes
     let mut app = editor_app(&root);
     let editor = open(&mut app, YAML);
     app.world_mut().get_mut::<CodeEditor>(editor).map(|mut e| e.select(CodePos::new(3, 2), CodePos::new(3, 2))).unwrap_or_default();
-    settle(&mut app);
+    settle_support::settle(&mut app);
     let caret = app.world().get::<CodeEditor>(editor).map(|e| e.buffer().caret()).unwrap_or_default();
 
     let mut ctx = ctx(&app, Source::Agent);
@@ -294,7 +290,7 @@ fn an_edit_that_breaks_the_schema_or_meets_a_persons_unsaved_edits_or_a_command_
     app.world_mut().get_mut::<CodeEditor>(editor).map(|mut e| e.select(CodePos::new(0, 0), CodePos::new(0, 0))).unwrap_or_default();
     bevy_gooey::testing::type_text(&mut app, "# mine\n");
     assert!(app.world().resource::<Files>().is_dirty(YAML));
-    settle(&mut app);
+    settle_support::settle(&mut app);
     let good = serde_json::json!({"path": YAML, "edits": [{"at": "placements[0].yaw", "value": 45.0}]});
     let refused = ops::dispatch(&mut ctx, "file_edit", &good).expect_err("the person is editing");
     assert!(refused.0.contains("the person is editing") && refused.0.contains("wait or ask"), "{refused}");
@@ -391,7 +387,7 @@ fn changing_the_query_takes_the_preview_away() {
     };
     app.world_mut().get_mut::<SearchPanel>(panel).map(|mut p| p.preview = Some(files_search::Plan::default())).unwrap_or_default();
     app.world_mut().trigger(bevy::ui_widgets::ValueChange { source: field, value: "bar".to_owned(), is_final: false });
-    settle(&mut app);
+    settle_support::settle(&mut app);
     assert!(app.world().get::<SearchPanel>(panel).is_some_and(|p| p.preview.is_none()), "the preview of the old query is gone");
 }
 

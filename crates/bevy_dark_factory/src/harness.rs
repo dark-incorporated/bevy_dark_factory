@@ -36,6 +36,7 @@
 //! is a question for `descriptor::pick_cell`, which answers it in arithmetic.
 
 use std::path::Path;
+use std::sync::atomic::{AtomicU32, Ordering};
 
 use bevy::prelude::*;
 
@@ -422,6 +423,74 @@ pub enum Device {
     Real,
 }
 
+/// **How many times a test app asks the GPU for a device** before a refusal is reported (#581). The memory that refuses one
+/// belongs to other processes, and their work finishes, so a refusal says "ask again", not "this tree is broken".
+pub const DEVICE_TRIES: u32 = 3;
+
+/// **How long the harness waits between one device request and the next**, seconds: two waits, so the three requests span ten
+/// seconds. A GPU out of memory is a moment, not a state.
+pub const DEVICE_BACKOFF_S: u64 = 5;
+
+/// **How many device requests the harness has made in this process**, retries included — a count a test reads to prove the retry
+/// happened rather than guessing that it did.
+static DEVICE_REQUESTS: AtomicU32 = AtomicU32::new(0);
+
+/// **How many of the next device requests this process is told to refuse**, the test-only switch #581 asks for: a test proves the
+/// retry without a GPU that is really out of memory.
+static SIMULATED_REFUSALS: AtomicU32 = AtomicU32::new(0);
+
+/// How many device requests this process has made, retries included.
+pub fn device_requests() -> u32 {
+    DEVICE_REQUESTS.load(Ordering::SeqCst)
+}
+
+/// **Refuse the next `times` device requests**, the way a GPU out of memory refuses one (#581). A test sets it, builds, and sets it
+/// back to `0`; anything else in the same process that asks for a device in between is refused too.
+pub fn refuse_the_next_devices(times: u32) {
+    SIMULATED_REFUSALS.store(times, Ordering::SeqCst);
+}
+
+/// **The reason a device could not be had, as one sentence naming the GPU**, so a reader of the gate log does not chase a regression.
+fn a_refused_device(payload: &str) -> String {
+    format!("the GPU was out of memory and refused a device ({payload}); {DEVICE_TRIES} requests, {DEVICE_BACKOFF_S} s apart, were all refused")
+}
+
+/// Whether a panic payload is wgpu refusing the device for memory, which is the one refusal worth asking again about.
+fn refused_for_memory(payload: &(dyn std::any::Any + Send)) -> bool {
+    let text = payload.downcast_ref::<&str>().map(|s| (*s).to_owned()).or_else(|| payload.downcast_ref::<String>().cloned()).unwrap_or_default();
+    text.contains("OutOfMemory")
+}
+
+/// **The one place a test app asks the GPU for a device** (#581).
+///
+/// wgpu refuses a device with `RequestDeviceError { inner: Core(Device(OutOfMemory)) }` when the card is short of memory, and
+/// `bevy_render` panics on that `Result` — so a busy host reads as a broken commit. This asks again, [`DEVICE_TRIES`] times
+/// [`DEVICE_BACKOFF_S`] seconds apart, and reports a refusal as a sentence naming the GPU. A panic that is not an out-of-memory
+/// refusal is resumed, because a bug must not be asked about three times.
+fn on_a_device<T>(tries: u32, backoff: std::time::Duration, build: impl Fn() -> Result<T, String>) -> Result<T, String> {
+    let mut refusal = String::new();
+    for attempt in 1..=tries.max(1) {
+        DEVICE_REQUESTS.fetch_add(1, Ordering::SeqCst);
+        // The test-only switch is spent before the request, so a simulation refuses exactly the next `times` requests.
+        let simulated = SIMULATED_REFUSALS.fetch_update(Ordering::SeqCst, Ordering::SeqCst, |left| left.checked_sub(1)).is_ok();
+        if !simulated {
+            match std::panic::catch_unwind(std::panic::AssertUnwindSafe(&build)) {
+                Ok(Ok(built)) => return Ok(built),
+                // Not the device: an answer about the project, which no amount of waiting improves.
+                Ok(Err(why)) => return Err(why),
+                Err(payload) if refused_for_memory(payload.as_ref()) => {
+                    refusal = payload.downcast_ref::<&str>().map(|s| (*s).to_owned()).or_else(|| payload.downcast_ref::<String>().cloned()).unwrap_or_default()
+                }
+                Err(payload) => std::panic::resume_unwind(payload),
+            }
+        }
+        if attempt < tries {
+            std::thread::sleep(backoff);
+        }
+    }
+    Err(a_refused_device(&refusal))
+}
+
 /// **Whether this machine can rasterise at all**, so a pixel test skips rather than lies.
 ///
 /// It asks wgpu for an adapter the same way the app will, so a host with no driver, no `/dev/dri` and no
@@ -435,35 +504,62 @@ pub fn real_device_available() -> bool {
     if std::fs::create_dir_all(root.join("assets/blueprint")).is_err() {
         return false;
     }
-    let mut app = App::new();
-    app.add_plugins(
-        DefaultPlugins
-            .set(WindowPlugin {
-                primary_window: None,
-                exit_condition: bevy::window::ExitCondition::DontExit,
-                close_when_requested: false,
-                ..default()
-            })
-            .set(bevy::render::RenderPlugin {
-                render_creation: bevy::render::settings::RenderCreation::Automatic(Box::new(
-                    bevy::render::settings::WgpuSettings {
-                        backends: Some(bevy::render::settings::Backends::all()),
-                        ..default()
-                    },
-                )),
-                ..default()
-            })
-            .disable::<bevy::winit::WinitPlugin>()
-            .disable::<bevy::log::LogPlugin>()
-            .disable::<bevy::audio::AudioPlugin>(),
-    );
-    let ready = app.world().get_resource::<bevy::render::renderer::RenderDevice>().is_some();
+    let asked = on_a_device(DEVICE_TRIES, std::time::Duration::from_secs(DEVICE_BACKOFF_S), || {
+        let mut app = App::new();
+        app.add_plugins(
+            DefaultPlugins
+                .set(WindowPlugin {
+                    primary_window: None,
+                    exit_condition: bevy::window::ExitCondition::DontExit,
+                    close_when_requested: false,
+                    ..default()
+                })
+                .set(bevy::render::RenderPlugin {
+                    render_creation: bevy::render::settings::RenderCreation::Automatic(Box::new(
+                        bevy::render::settings::WgpuSettings {
+                            backends: Some(bevy::render::settings::Backends::all()),
+                            ..default()
+                        },
+                    )),
+                    ..default()
+                })
+                .disable::<bevy::winit::WinitPlugin>()
+                .disable::<bevy::log::LogPlugin>()
+                .disable::<bevy::audio::AudioPlugin>(),
+        );
+        Ok(app.world().get_resource::<bevy::render::renderer::RenderDevice>().is_some())
+    });
     let _ = std::fs::remove_dir_all(&root);
-    ready
+    match asked {
+        Ok(ready) => ready,
+        Err(refusal) => {
+            // **Said out loud with the GPU named** (#581), so the gate log carries the reason a pixel test skipped.
+            eprintln!("SKIPPED: {refusal}");
+            false
+        }
+    }
 }
 
 /// **The stepped editor, on a chosen device.** [`build_headless_at`] is this with [`Device::None`].
+///
+/// **A real device comes through [`on_a_device`]** (#581): the only place this crate asks the GPU for one, and the only place a
+/// refusal is retried rather than reported as a failing test.
 pub fn build_stepped_at(
+    root: &Path,
+    map: &str,
+    kit: Option<&str>,
+    mode: crate::tiles::Mode,
+    device: Device,
+) -> Result<App, String> {
+    match device {
+        Device::None => build_stepped(root, map, kit, mode, Device::None),
+        Device::Real => on_a_device(DEVICE_TRIES, std::time::Duration::from_secs(DEVICE_BACKOFF_S), || {
+            build_stepped(root, map, kit, mode, Device::Real)
+        }),
+    }
+}
+
+fn build_stepped(
     root: &Path,
     map: &str,
     kit: Option<&str>,
@@ -621,6 +717,10 @@ mod tests {
 
     use super::*;
 
+    /// **The two device switches and the request count are process-wide**, so these tests take turns rather than interleave and
+    /// make each other's numbers wrong.
+    static DEVICE_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
     /// A font file for a project in a scratch folder: the embedded face and `extra` trailing bytes, so two projects' faces differ
     /// and both are still the face.
     fn project_with_a_font(tag: &str, extra: usize) -> std::path::PathBuf {
@@ -675,5 +775,65 @@ mod tests {
         let alias = world.resource::<Assets<Font>>().get(AssetId::default()).map(|f| f.alias.clone());
         assert_eq!(alias.as_deref(), Some("registered"), "the registered face was touched");
         assert!(!world.contains_resource::<PendingFont>());
+    }
+
+    /// **A refusal for memory is asked again about and then succeeds** (#581), and the request count proves the retry ran rather
+    /// than that the first try happened to work.
+    #[test]
+    fn an_out_of_memory_refusal_is_asked_again_and_the_second_ask_is_taken() {
+        let _one_at_a_time = DEVICE_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        refuse_the_next_devices(0);
+        let before = device_requests();
+        let mut asks = 0u32;
+        let built = on_a_device(DEVICE_TRIES, std::time::Duration::ZERO, || {
+            asks += 1;
+            if asks == 1 {
+                panic!("called `Result::unwrap()` on an `Err` value: RequestDeviceError {{ inner: Core(Device(OutOfMemory)) }}");
+            }
+            Ok("the editor")
+        });
+        assert_eq!(built.as_deref(), Ok("the editor"), "the second ask is the one that is taken");
+        assert_eq!(asks, 2, "the first ask was refused and asked again");
+        assert_eq!(device_requests(), before + 2, "both requests are counted, so the retry is measured and not believed");
+    }
+
+    /// **With every ask refused, the retry is off and the same simulation fails** — the other half of the proof, and the refusal is a
+    /// sentence naming the GPU rather than a panic a reader would chase as a regression.
+    #[test]
+    fn with_the_retry_off_the_same_simulation_fails_naming_the_gpu() {
+        let _one_at_a_time = DEVICE_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        refuse_the_next_devices(0);
+        let mut asks = 0u32;
+        let refused = on_a_device(1, std::time::Duration::ZERO, || -> Result<&str, String> {
+            asks += 1;
+            panic!("called `Result::unwrap()` on an `Err` value: RequestDeviceError {{ inner: Core(Device(OutOfMemory)) }}")
+        });
+        assert_eq!(asks, 1, "one try, because that is what the retry being off means");
+        let why = refused.err().unwrap_or_default();
+        assert!(why.starts_with("the GPU was out of memory and refused a device"), "the refusal names the GPU: {why:?}");
+        assert!(why.contains("OutOfMemory"), "and it keeps wgpu's own words: {why:?}");
+    }
+
+    /// **A panic that is not about memory is resumed**, because a bug must not be asked about three times.
+    #[test]
+    fn a_panic_that_is_not_about_memory_is_not_retried() {
+        let _one_at_a_time = DEVICE_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        refuse_the_next_devices(0);
+        let caught = std::panic::catch_unwind(|| on_a_device(DEVICE_TRIES, std::time::Duration::ZERO, || -> Result<(), String> { panic!("a missing `Res<T>` panics its system") }));
+        assert!(caught.is_err(), "an unrelated panic is resumed rather than retried and reported as a GPU refusal");
+    }
+
+    /// **The simulated refusal is spent exactly as told**, so a test's switch cannot leak into another test's build.
+    #[test]
+    fn the_simulated_refusal_is_spent_one_request_at_a_time() {
+        let _one_at_a_time = DEVICE_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        refuse_the_next_devices(2);
+        let mut asks = 0u32;
+        let built = on_a_device(DEVICE_TRIES, std::time::Duration::ZERO, || {
+            asks += 1;
+            Ok(asks)
+        });
+        assert_eq!(built, Ok(3), "two requests are refused without being built, and the third is");
+        refuse_the_next_devices(0);
     }
 }

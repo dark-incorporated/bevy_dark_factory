@@ -24,8 +24,8 @@ use bevy_dark_factory::ops::{self, Applied, Ctx, Source};
 use bevy_dark_factory::project::Project;
 
 use crate::fixtures;
+use crate::settle_support;
 
-const SETTLE: usize = 12;
 
 fn project(tag: &str) -> PathBuf {
     fixtures::Fixture::new(&format!("files_verbs_{tag}_{}", std::process::id()))
@@ -34,15 +34,11 @@ fn project(tag: &str) -> PathBuf {
         .build("m")
 }
 
-fn settle(app: &mut App) {
-    for _ in 0..SETTLE {
-        app.update();
-    }
-}
+
 
 fn editor(root: &Path) -> App {
     let mut app = harness::build_headless(root, "m", None).unwrap_or_else(|e| panic!("{e}"));
-    settle(&mut app);
+    settle_support::settle(&mut app);
     app
 }
 
@@ -275,7 +271,7 @@ fn the_four_verbs_are_on_the_trees_right_click_with_delete_last() {
     let command = bevy_dark_factory::commands::by_id("workspace.files").unwrap_or_else(|| panic!("workspace.files"));
     let live = *app.world().resource::<bevy_dark_factory::keys::Live>();
     app.world_mut().resource_mut::<bevy_dark_factory::command_run::Chords>().queue(&command, live);
-    settle(&mut app);
+    settle_support::settle(&mut app);
     // The tree walks on a thread of its own.
     for _ in 0..120 {
         app.update();
@@ -312,7 +308,7 @@ fn the_menus_create_item_dispatches_the_operation() {
         pending.text = "made.yaml".to_owned();
     }
     app.world_mut().trigger(bevy::ui_widgets::Activate { entity: item });
-    settle(&mut app);
+    settle_support::settle(&mut app);
     assert!(root.join("made.yaml").is_file(), "the item created the file through `file_create`");
     let log = ops::read_entries(&ops::oplog_path_at(&root));
     assert!(log.iter().any(|e| e.op == "file_create"), "one log line, as the operation makes: {log:?}");

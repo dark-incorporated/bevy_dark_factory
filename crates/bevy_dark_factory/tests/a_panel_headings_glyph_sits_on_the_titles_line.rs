@@ -31,6 +31,7 @@ use bevy::window::{PrimaryWindow, Window, WindowResolution};
 use bevy_dark_factory::harness;
 
 use crate::fixtures;
+use crate::settle_support;
 
 /// The interface scales the acceptance names.
 const SCALES: [f32; 2] = [1.0, 1.6];
@@ -39,17 +40,11 @@ const SCALES: [f32; 2] = [1.0, 1.6];
 /// layout round can add.
 const ALIGN_PX: f32 = 1.5;
 
-/// Frames a layout needs to settle after a change of scale.
-const SETTLE_FRAMES: usize = 14;
 
 /// The window, physical px: a 1280 x 703 screen at the capture's 2.0 display factor.
 const WINDOW_PHYSICAL: (u32, u32) = (2560, 1406);
 
-fn settle(app: &mut App) {
-    for _ in 0..SETTLE_FRAMES {
-        app.update();
-    }
-}
+
 
 fn editor(name: &str, scale: f32) -> (std::path::PathBuf, App) {
     let root = fixtures::Fixture::new(name).descriptor("floor", "alpha").build("m");
@@ -60,7 +55,7 @@ fn editor(name: &str, scale: f32) -> (std::path::PathBuf, App) {
         PrimaryWindow,
     ));
     app.world_mut().resource_mut::<UiScale>().0 = scale;
-    settle(&mut app);
+    settle_support::settle(&mut app);
     (root, app)
 }
 

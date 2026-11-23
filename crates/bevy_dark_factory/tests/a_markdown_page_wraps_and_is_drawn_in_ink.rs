@@ -31,8 +31,8 @@ use bevy_dark_factory::workspace::Workspace;
 use bevy_gooey::{CodeEditor, CodeEditorValue, CodeMarkdown, CodePos, CodeSoftWrap, Role};
 
 use crate::fixtures;
+use crate::settle_support;
 
-const SETTLE: usize = 16;
 
 /// The interface sizes the acceptance names: the whole range a person can set (`SCALE_RANGE` is 0.5 to 3.0) and the
 /// two rungs between.
@@ -65,11 +65,7 @@ fn long_page(columns: usize) -> String {
     format!("{}\n{word}\nend\n", paragraph.trim_end())
 }
 
-fn settle(app: &mut App) {
-    for _ in 0..SETTLE {
-        app.update();
-    }
-}
+
 
 /// An editor in the Files workspace on a project holding `PAGE` (with `text`) and the map, `PAGE` open and the code
 /// editor focused, at the person's `interface_scale`.
@@ -97,17 +93,17 @@ fn files_editor(tag: &str, interface_scale: f32, text: &str) -> App {
         .id();
     app.world_mut().get_mut::<Window>(window).expect("the window just spawned").resolution.set_scale_factor_override(Some(1.0));
     harness::resize_surface(&mut app, 2560, 1604).unwrap_or_else(|e| panic!("{e}"));
-    settle(&mut app);
+    settle_support::settle(&mut app);
     let command = commands::by_id("workspace.files").unwrap_or_else(|| panic!("`workspace.files` is not a command"));
     let live = *app.world().resource::<Live>();
     app.world_mut().resource_mut::<Chords>().queue(&command, live);
-    settle(&mut app);
+    settle_support::settle(&mut app);
     assert_eq!(*app.world().resource::<Workspace>(), Workspace::Files, "the Files workspace is reachable by its command");
     files::open_file(app.world_mut(), PAGE).unwrap_or_else(|e| panic!("{e}"));
-    settle(&mut app);
+    settle_support::settle(&mut app);
     let editor = editor_of(&mut app);
     app.world_mut().resource_mut::<InputFocus>().set(editor, FocusCause::Navigated);
-    settle(&mut app);
+    settle_support::settle(&mut app);
     let want = bevy_dark_factory::surface::ui_scale_for_a_person(2560.0, 1.0, interface_scale);
     let got = app.world().resource::<UiScale>().0;
     assert!((got - want).abs() < 1e-3, "the editor is drawn at interface size {interface_scale}: UiScale is {got}, not {want}");
@@ -133,13 +129,13 @@ fn caret_at(app: &mut App, line: usize, col: usize) {
     let editor = editor_of(app);
     let pos = CodePos::new(line, col);
     app.world_mut().get_mut::<CodeEditor>(editor).map(|mut e| e.select(pos, pos)).unwrap_or_else(|| panic!("no editor"));
-    settle(app);
+    settle_support::settle(app);
 }
 
 fn select(app: &mut App, from: CodePos, to: CodePos) {
     let editor = editor_of(app);
     app.world_mut().get_mut::<CodeEditor>(editor).map(|mut e| e.select(from, to)).unwrap_or_else(|| panic!("no editor"));
-    settle(app);
+    settle_support::settle(app);
 }
 
 fn key(app: &mut App, code: KeyCode, logical: Key, state: ButtonState) {
@@ -156,7 +152,7 @@ fn chord_ctrl(app: &mut App, code: KeyCode, name: &str) {
     key(app, code, Key::Character(name.into()), ButtonState::Pressed);
     key(app, code, Key::Character(name.into()), ButtonState::Released);
     key(app, KeyCode::ControlLeft, Key::Unidentified(NativeKey::Unidentified), ButtonState::Released);
-    settle(app);
+    settle_support::settle(app);
 }
 
 // ── What is drawn ───────────────────────────────────────────────────────────────────────────
@@ -262,7 +258,7 @@ fn a_long_line_and_a_long_word_are_drawn_whole_inside_the_editors_content_box_at
         let page = long_page(columns);
         let editor = editor_of(&mut app);
         app.world_mut().get_mut::<CodeEditorValue>(editor).map(|mut v| v.set(page.clone())).unwrap_or_else(|| panic!("no value"));
-        settle(&mut app);
+        settle_support::settle(&mut app);
         assert_eq!(text(&mut app), page, "{tag}: the editor holds the text it was given");
         let drawn = rows(&mut app);
 
@@ -361,7 +357,7 @@ fn up_and_down_go_by_row_and_a_wrapped_line_takes_an_edit_a_selection_and_an_und
     // An edit in the middle of a row lands there, and the wrap is redrawn from the new text.
     let at = row_of_paragraph[1] + 4;
     bevy_gooey::testing::type_text(&mut app, "ZZ");
-    settle(&mut app);
+    settle_support::settle(&mut app);
     let mut edited = original.clone();
     edited.insert_str(at, "ZZ");
     assert_eq!(text(&mut app), edited, "the typed letters are in the line where the caret stood, and the text has no wrap in it");
@@ -372,7 +368,7 @@ fn up_and_down_go_by_row_and_a_wrapped_line_takes_an_edit_a_selection_and_an_und
     // A selection across a wrap is replaced by what is typed.
     select(&mut app, CodePos::new(0, row_of_paragraph[1] - 2), CodePos::new(0, row_of_paragraph[1] + 3));
     bevy_gooey::testing::type_text(&mut app, "Q");
-    settle(&mut app);
+    settle_support::settle(&mut app);
     let mut replaced = edited.clone();
     replaced.replace_range(row_of_paragraph[1] - 2..row_of_paragraph[1] + 3, "Q");
     assert_eq!(text(&mut app), replaced, "a selection that crosses a wrap is one selection, and typing replaces all of it");
@@ -402,13 +398,13 @@ fn the_wrap_and_the_ink_follow_the_file_the_editor_shows() {
     let mut app = files_editor("follow", 1.0, MARKED);
     assert_eq!(marks(&mut app), (true, true), "a page is wrapped and drawn as Markdown");
     files::open_file(app.world_mut(), TXT).unwrap_or_else(|e| panic!("{e}"));
-    settle(&mut app);
+    settle_support::settle(&mut app);
     assert_eq!(marks(&mut app), (true, false), "a text file is prose that wraps, and its asterisks are not markup");
     files::open_file(app.world_mut(), MAP).unwrap_or_else(|e| panic!("{e}"));
-    settle(&mut app);
+    settle_support::settle(&mut app);
     assert_eq!(marks(&mut app), (false, false), "a map is a code file: neither");
     files::open_file(app.world_mut(), PAGE).unwrap_or_else(|e| panic!("{e}"));
-    settle(&mut app);
+    settle_support::settle(&mut app);
     assert_eq!(marks(&mut app), (true, true), "the page again: both");
 }
 
@@ -420,19 +416,19 @@ fn an_unsaved_edit_survives_a_tab_change_between_a_page_and_a_map() {
     let mut app = files_editor("unsaved", 1.0, &format!("{}\nnext line\n", paragraph()));
     caret_at(&mut app, 0, 10);
     bevy_gooey::testing::type_text(&mut app, "ZZ");
-    settle(&mut app);
+    settle_support::settle(&mut app);
     let edited = text(&mut app);
     assert!(edited.starts_with(&format!("{}ZZ", &paragraph()[..10])), "the edit is in the text: {}", &edited[..20]);
     assert!(app.world().resource::<Files>().is_dirty(PAGE), "the page is unsaved");
     select(&mut app, CodePos::new(0, 3), CodePos::new(0, 8));
 
     files::open_file(app.world_mut(), MAP).unwrap_or_else(|e| panic!("{e}"));
-    settle(&mut app);
+    settle_support::settle(&mut app);
     assert_ne!(text(&mut app), edited, "the map is showing");
     assert!(app.world().resource::<Files>().is_dirty(PAGE), "going to the map did not save the page");
 
     files::open_file(app.world_mut(), PAGE).unwrap_or_else(|e| panic!("{e}"));
-    settle(&mut app);
+    settle_support::settle(&mut app);
     assert_eq!(text(&mut app), edited, "the page is back with the person's unsaved edit in it");
     let held = app.world().resource::<Files>().get(PAGE).map(|f| (f.text.clone(), f.disk.clone())).unwrap_or_default();
     assert_eq!(held.0, edited, "and the buffer holds it");

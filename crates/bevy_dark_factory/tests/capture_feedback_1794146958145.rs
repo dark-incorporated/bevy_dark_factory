@@ -42,17 +42,13 @@ fn the_home() -> App {
     app.insert_non_send(PosixShell(guard));
     app.add_plugins((LauncherPlugin, bevy_dark_factory::loading::LoadingPlugin));
     app.world_mut().spawn((Window { resolution: bevy::window::WindowResolution::new(1280, 703), ..default() }, PrimaryWindow));
-    settle(&mut app, 10);
+    for _ in 0..10 { app.update(); }
     app.world_mut().resource_mut::<NextState<Screen>>().set(Screen::Launcher);
-    settle(&mut app, SCREEN_FRAMES);
+    for _ in 0..SCREEN_FRAMES { app.update(); }
     app
 }
 
-fn settle(app: &mut App, frames: usize) {
-    for _ in 0..frames {
-        app.update();
-    }
-}
+
 
 fn send(app: &mut App, key_code: KeyCode, logical_key: Key, state: ButtonState) {
     let window = app.world_mut().query_filtered::<Entity, With<PrimaryWindow>>().single(app.world()).expect("one primary window");
@@ -101,7 +97,7 @@ fn command_key(app: &mut App, code: KeyCode, key: Key) {
         send(app, code, key.clone(), state);
         app.update();
     }
-    settle(app, 2);
+    for _ in 0..2 { app.update(); }
 }
 
 fn enter(app: &mut App) {
@@ -120,7 +116,7 @@ fn screen_text(app: &App) -> String {
 
 fn until(app: &mut App, why: &str, test: impl Fn(&mut App) -> bool) {
     for _ in 0..TRIES {
-        settle(app, 2);
+        for _ in 0..2 { app.update(); }
         if test(app) {
             return;
         }
@@ -138,7 +134,7 @@ fn cmd_backspace_clears_the_line_the_shell_is_reading() {
     let mut app = the_home();
     until(&mut app, "the home's terminal never started a shell", |app| screen_text(app).contains('$'));
     app.world_mut().resource_mut::<TerminalFocus>().take();
-    settle(&mut app, 2);
+    for _ in 0..2 { app.update(); }
     type_text(&mut app, "cat -v");
     enter(&mut app);
     until(&mut app, "`cat -v` was never echoed", |app| screen_text(app).contains("cat -v"));
@@ -171,7 +167,7 @@ fn cmd_left_and_cmd_right_move_to_the_start_and_the_end_of_the_line() {
     let mut app = the_home();
     until(&mut app, "the home's terminal never started a shell", |app| screen_text(app).contains('$'));
     app.world_mut().resource_mut::<TerminalFocus>().take();
-    settle(&mut app, 2);
+    for _ in 0..2 { app.update(); }
     type_text(&mut app, "cat -v");
     enter(&mut app);
     until(&mut app, "`cat -v` was never echoed", |app| screen_text(app).contains("cat -v"));

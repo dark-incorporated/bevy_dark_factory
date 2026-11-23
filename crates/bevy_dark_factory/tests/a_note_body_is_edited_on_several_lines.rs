@@ -18,12 +18,16 @@ use blueprint_model::notes::{self, Notes, Target};
 
 use crate::fixtures;
 
-fn settle(app: &mut App) {
-    for _ in 0..6 {
-        std::thread::sleep(std::time::Duration::from_millis(150));
-        app.update();
-    }
+/// **The project index at its shortest sweep, with its first listing in hand** — what a wait on a condition needs, so it is the
+/// condition that is paid for and not the index's one-second default sweep.
+fn index_at_its_shortest_sweep(app: &mut App) {
+    let index = app.world().resource::<bevy_dark_factory::project_index::ProjectIndex>();
+    index.set_sweep(bevy_dark_factory::project_index::MIN_SWEEP);
+    index.wait_ready(std::time::Duration::from_secs(30));
 }
+use crate::index_view_support as support;
+
+
 
 fn text_areas(app: &mut App) -> usize {
     let world = app.world_mut();
@@ -34,7 +38,9 @@ fn text_areas(app: &mut App) -> usize {
 fn ctrl_enter_in_the_panels_text_area_saves_the_note_on_two_lines_as_one_note_edit() {
     let root = fixtures::Fixture::new(&format!("note_body_{}", std::process::id())).descriptor("site/wall", "alpha").place("site/wall", (1.5, 1.5)).build("m");
     let mut app = bevy_dark_factory::harness::build_headless(&root, "m", None).unwrap_or_else(|e| panic!("{e}"));
-    app.world_mut().spawn((Window::default(), PrimaryWindow));
+
+    // The index's shortest sweep, and the first listing waited for: what follows is a wait on the condition, not on a clock.
+    index_at_its_shortest_sweep(&mut app);    app.world_mut().spawn((Window::default(), PrimaryWindow));
     for _ in 0..4 {
         app.update();
     }
@@ -44,14 +50,14 @@ fn ctrl_enter_in_the_panels_text_area_saves_the_note_on_two_lines_as_one_note_ed
     let mut n = Notes::default();
     n.add(vec![Target::Cell(0, 0)], "first draft").unwrap();
     n.save(&path).unwrap();
-    settle(&mut app);
+    support::settle(&mut app);
 
     let button = {
         let world = app.world_mut();
         world.query::<(Entity, &NoteEditButton)>().iter(world).find(|(_, b)| b.id == "n1").map(|(e, _)| e).expect("the note has an Edit button")
     };
     app.world_mut().commands().trigger(Activate { entity: button });
-    settle(&mut app);
+    support::settle(&mut app);
     assert_eq!(text_areas(&mut app), 1, "Edit opens one text area");
 
     // The area holds the note's text; replace it.
@@ -70,7 +76,7 @@ fn ctrl_enter_in_the_panels_text_area_saves_the_note_on_two_lines_as_one_note_ed
         app.update();
     }
     app.world_mut().resource_mut::<ButtonInput<KeyCode>>().release(KeyCode::ControlLeft);
-    settle(&mut app);
+    support::settle(&mut app);
 
     let saved = Notes::load(&path).unwrap();
     assert_eq!(saved.get("n1").map(|n| n.text.clone()).as_deref(), Some("first line\nsecond line"));

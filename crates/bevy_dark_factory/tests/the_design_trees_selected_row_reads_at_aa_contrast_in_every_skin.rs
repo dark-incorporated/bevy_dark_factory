@@ -16,9 +16,8 @@ use bevy_dark_factory::workspace::Workspace;
 use bevy_gooey::{Table, TableRow};
 
 use crate::fixtures;
+use crate::settle_support;
 
-/// Frames run after each step: enough for gooey's colour glide to arrive at the colour it is drawn in.
-const SETTLE: usize = 40;
 /// One frame of the test clock, in seconds.
 const FRAME_S: f32 = 1.0 / 60.0;
 /// The window the editor is laid out in, in logical px.
@@ -26,11 +25,7 @@ const WINDOW_PX: (u32, u32) = (1280, 720);
 /// WCAG AA for text, as a ratio of luminances (1.4.3).
 const AA: f32 = bevy_gooey::TEXT_CONTRAST;
 
-fn settle(app: &mut App) {
-    for _ in 0..SETTLE {
-        app.update();
-    }
-}
+
 
 fn write(root: &std::path::Path, rel: &str, text: &str) {
     let full = root.join(rel);
@@ -53,7 +48,7 @@ fn editor(theme: Theme) -> App {
     app.insert_resource(UserSettingsFile(settings));
     harness::resize_surface(&mut app, WINDOW_PX.0, WINDOW_PX.1).unwrap_or_else(|e| panic!("{e}"));
     app.insert_resource(TimeUpdateStrategy::ManualDuration(std::time::Duration::from_secs_f32(FRAME_S)));
-    settle(&mut app);
+    settle_support::settle(&mut app);
     app
 }
 
@@ -78,7 +73,7 @@ fn open_design(app: &mut App) {
         app.update();
         app.update();
     }
-    settle(app);
+    settle_support::settle(app);
 }
 
 /// The first opaque fill at or above `entity`, composited over the clear colour: the ground a word is read on.

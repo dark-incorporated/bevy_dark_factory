@@ -17,11 +17,10 @@ use bevy_dark_factory::keys::{Action, binding};
 use bevy_gooey::{CodeEditor, MarkdownPicture, MarkdownView};
 
 use crate::fixtures;
+use crate::settle_support;
 
 /// The windows, in logical px as the harness's surface is sized (the editor's interface scale makes the layout narrower than this).
 const WINDOWS_PX: [(u32, u32); 2] = [(1024, 640), (1280, 720)];
-/// Frames run after each step, so layout settles.
-const SETTLE: usize = 30;
 /// One frame of the test clock, in seconds.
 const FRAME_S: f32 = 1.0 / 60.0;
 /// Rounding the layout may leave on an edge, in logical px.
@@ -30,11 +29,7 @@ const SLACK_PX: f32 = 0.5;
 const PICTURE_PX: (u32, u32) = (1600, 800);
 const PICTURE: &str = "design/board/wide.png";
 
-fn settle(app: &mut App) {
-    for _ in 0..SETTLE {
-        app.update();
-    }
-}
+
 
 fn write(root: &std::path::Path, rel: &str, text: &str) {
     let full = root.join(rel);
@@ -72,7 +67,7 @@ fn press(app: &mut App, action: Action) {
         app.update();
         app.update();
     }
-    settle(app);
+    settle_support::settle(app);
 }
 
 /// The Design workspace open on a game page that cites the wide picture, at `window`.
@@ -85,7 +80,7 @@ fn design(window: (u32, u32)) -> App {
     let mut app = harness::build_headless(&root, "m", None).unwrap_or_else(|e| panic!("{e}"));
     harness::resize_surface(&mut app, window.0, window.1).unwrap_or_else(|e| panic!("{e}"));
     app.insert_resource(TimeUpdateStrategy::ManualDuration(std::time::Duration::from_secs_f32(FRAME_S)));
-    settle(&mut app);
+    settle_support::settle(&mut app);
     press(&mut app, Action::WorkspaceDesign);
     app
 }
@@ -131,7 +126,7 @@ fn edit_mode_keeps_the_pages_width_and_the_agent_toggle_inside_it_at_both_sizes(
 
         let edit = bevy_gooey::testing::find_by_label(&mut app, "Edit page").unwrap_or_else(|e| panic!("{window:?}: {e}"));
         bevy_gooey::testing::click(&mut app, edit);
-        settle(&mut app);
+        settle_support::settle(&mut app);
 
         let editing = rect(&app, host);
         let edit_width = editing.2 - editing.0;
