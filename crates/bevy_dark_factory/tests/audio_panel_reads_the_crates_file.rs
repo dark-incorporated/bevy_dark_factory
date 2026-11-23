@@ -218,3 +218,40 @@ fn the_panels_file_is_the_crates_file() {
     assert_eq!(read_settings, settings);
     assert_eq!(read_table, table);
 }
+
+/// **The panel judges the cues against the project's own mix table** (#554), not against `bevy_siren`'s four
+/// `DEFAULT_BUSES`.
+///
+/// A project that declares `Music`, `Effects` and `SFX` and puts a cue on `SFX` is a clean file: the crate
+/// would play it, and the panel must not say otherwise. The same file with the cue on `Sfx` — a bus the mix
+/// does *not* declare — is a real finding, and the panel names the cue and the bus. Before #554 the first
+/// case was a false problem on every `SFX` cue and the second could never be seen, because the crate's own
+/// four buses always answered.
+#[test]
+fn the_panel_checks_the_cues_against_this_files_own_buses() {
+    // **The mix and the cues agree**: `SFX` is a bus this file declares, so nothing is wrong with it.
+    let agreeing = r#"{settings: {max_voices: 8, buses: [{name: "Music"}, {name: "Effects"}, {name: "SFX"}], ducks: []}, cues: {cues: [{name: "ui.click", sounds: [{sound: "click"}], bus: "SFX"}]}}"#;
+    let root = project("siren_buses_agree", agreeing);
+    let mut app = harness::build_headless(&root, "m", None).unwrap_or_else(|e| panic!("{e}"));
+    for _ in 0..4 {
+        app.update();
+    }
+    let problems = app.world().resource::<EditorState>().status.problems().iter().map(|p| p.text.clone()).collect::<Vec<_>>();
+    assert!(
+        problems.is_empty(),
+        "`SFX` is a bus this file declares, so a cue on it is no problem: {problems:?}"
+    );
+
+    // **The cue names a bus the mix does not have**: a real finding, naming the cue and the bus.
+    let wrong = r#"{settings: {max_voices: 8, buses: [{name: "Music"}, {name: "Effects"}, {name: "SFX"}], ducks: []}, cues: {cues: [{name: "ui.click", sounds: [{sound: "click"}], bus: "Sfx"}]}}"#;
+    let root = project("siren_buses_wrong", wrong);
+    let mut app = harness::build_headless(&root, "m", None).unwrap_or_else(|e| panic!("{e}"));
+    for _ in 0..4 {
+        app.update();
+    }
+    let problems = app.world().resource::<EditorState>().status.problems().iter().map(|p| p.text.clone()).collect::<Vec<_>>();
+    assert!(
+        problems.iter().any(|p| p.contains("ui.click") && p.contains("Sfx")),
+        "a cue on a bus the mix does not declare is named, with the cue and the bus: {problems:?}"
+    );
+}

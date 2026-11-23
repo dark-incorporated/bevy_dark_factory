@@ -116,10 +116,18 @@ pub fn read_audio(
     panel.text.clone_from(&text);
     match read_file(&text) {
         Ok((read, table_read)) => {
+            // **The cues are judged against this file's own mix table** (#554), not against the crate's
+            // four `DEFAULT_BUSES`. `CueTable::problems` answers that second question, and a project that
+            // declares `SFX` was told every cue on it named an unknown bus while the crate would play them;
+            // a typo on a bus the file *does* declare was the one fault it could not see, because the crate's
+            // four always answered. `problems_with` is the crate's own accessor for "against the mix table's
+            // list", and [`bevy_siren::SirenSettings::bus_names`] is the same list the mix and the crate's
+            // `UnknownBus` check read — so the panel cannot disagree with the mix it draws.
+            let buses = read.bus_names();
             for problem in read
                 .problems()
                 .into_iter()
-                .chain(table_read.problems().into_iter().map(|p| p.to_string()))
+                .chain(table_read.problems_with(&buses).into_iter().map(|p| p.to_string()))
             {
                 state.status.problem(format!("family/{FILE}: {problem}"));
             }
