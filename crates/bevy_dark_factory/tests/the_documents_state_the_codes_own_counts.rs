@@ -509,16 +509,33 @@ fn the_layout_models_fixed_list_states_the_sheets_divider() {
 /// left alone: `Ctrl+Tab` is Ctrl on every platform on purpose (`Cmd+Tab` is the system's window switcher), so a
 /// blanket `ctrl`→`meta` rewrite would change the one chord the page gets right (this is what it did on 2026-11-23,
 /// reporting `Shift+Cmd+Tab` missing for a `session.previous_tab` the code builds as `CTRL | SHIFT`).
-fn as_the_page_spells_it(mut chord: bevy_gooey::Shortcut) -> bevy_gooey::Shortcut {
-    use bevy_gooey::{Modifiers, Platform};
-    let primary = chord.modifiers == Modifiers::PRIMARY || chord.modifiers == (Modifiers::PRIMARY | Modifiers::SHIFT);
-    if primary && Platform::current() != Platform::Mac {
-        chord.modifiers.ctrl = false;
-        chord.modifiers.meta = true;
+fn as_the_page_spells_it(chord: bevy_gooey::Shortcut, built_from_the_primary: bool) -> bevy_gooey::Shortcut {
+    use bevy_gooey::Platform;
+    // **Whether a chord is the platform's primary is a fact about how it was BUILT, and it cannot be read back off
+    // the value**: on the gate's Linux host `Modifiers::PRIMARY` IS `Modifiers::CTRL`, so `session.previous_tab`
+    // (declared `CTRL | SHIFT` because it is Ctrl on every platform) equals a `primary_shift` chord. The caller
+    // reads the declaration from `chords.rs`'s source instead (see `built_from_the_primary`).
+    if built_from_the_primary && Platform::current() != Platform::Mac {
+        // A primary chord keeps its other modifiers (Alt on the editor-dev agent) and changes only the primary one.
+        let mut for_the_mac = chord;
+        for_the_mac.modifiers.ctrl = false;
+        for_the_mac.modifiers.meta = true;
+        return for_the_mac;
     }
     chord
 }
 
+/// **Whether the entry's `default` builds the platform's primary** (it names `primary` or `Modifiers::PRIMARY`), read from
+/// `chords.rs`'s own source at `id`, because the value cannot say (see [`as_the_page_spells_it`]).
+fn built_from_the_primary(id: &str, source: &str) -> bool {
+    let at = source.find(&format!("id: \"{id}\"")).unwrap_or_else(|| panic!("no chord `{id}` in chords.rs"));
+    let rest = &source[at..];
+    let end = rest.find('}').map(|i| i + 1).unwrap_or(rest.len());
+    let entry = &rest[..end];
+    // Any `default` that names `primary` — `primary(..)`, `primary_shift(..)`, or `Modifiers::PRIMARY | ALT` — is the
+    // host's primary modifier; one that names `Modifiers::CTRL` explicitly is not (the tab chords).
+    entry.contains("|| primary") || entry.contains("Modifiers::PRIMARY")
+}
 /// **Every fixed chord a person can press is on `docs/guide/keys.md`, spelled the way the editor spells
 /// it.**
 ///
@@ -532,6 +549,7 @@ fn the_keys_page_names_every_fixed_chord() {
     use bevy_gooey::{ChordGlyphs, Platform};
 
     let keys = read("docs/guide/keys.md");
+    let chords_rs = read("crates/bevy_dark_factory/src/chords.rs");
     // **The chords a person cannot press from the page's audience.** The page is the editor's own key list,
     // and there is one chord whose action is not "press this to do a thing": none today. A chord that must
     // be left out is listed here with its reason.
@@ -547,7 +565,7 @@ fn the_keys_page_names_every_fixed_chord() {
         // `Modifiers::PRIMARY`, which is `primary_on(Platform::current())` — `ctrl` when the gate compiles on
         // Linux (the 2026-11-23 gate read `Ctrl+Q` for a page that says `Cmd+Q`). So the modifiers are rebuilt
         // for the mac here rather than the host, which is the platform the page is written for.
-        let chord = as_the_page_spells_it(chord);
+        let chord = as_the_page_spells_it(chord, built_from_the_primary(named.id, chords_rs));
         // **The spelling the page uses** is gooey's `Words` on a mac, the one `ui.rs` sets as the host's
         // `ChordGlyphs`.
         let label = chord.label_with(Platform::Mac, ChordGlyphs::Words);
