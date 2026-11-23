@@ -15,7 +15,6 @@ use bevy_dark_factory::terminal::{FindStatus, Terminal, TerminalScreen};
 use bevy_dark_factory::terminal_pane::{TerminalFind, TerminalFindBox, TerminalFocus};
 
 use crate::the_terminal_paints_grounds_and_the_selection::{editor_with_terminal};
-use crate::settle_support::settle;
 
 /// A screen five rows tall, so most of what is printed is scrollback.
 const ROWS: u16 = 5;

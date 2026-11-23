@@ -20,7 +20,6 @@ use bevy_dark_factory::terminal_pane::{TerminalFindFrame, TerminalFocus, Termina
 
 use crate::fixtures;
 use crate::the_terminal_paints_grounds_and_the_selection::{editor_with_terminal};
-use crate::settle_support::settle;
 
 /// **`SHELL` is process-wide**, so the tests that start an agent take turns; the guard lives in the `App`.
 static SHELL_ENV: std::sync::Mutex<()> = std::sync::Mutex::new(());

@@ -11,7 +11,6 @@ use bevy_dark_factory::terminal_pane::TerminalRow;
 use bevy_dark_factory::terminal_view::TERMINAL_FONT;
 
 use crate::the_terminal_paints_grounds_and_the_selection::{editor_with_terminal, feed};
-use crate::settle_support::settle;
 
 /// Frames for a feed to be rebuilt, spawned and laid out.
 const DRAW_FRAMES: usize = 6;
