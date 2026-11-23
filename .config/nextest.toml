@@ -5,7 +5,37 @@
 # apps (and with CI jobs and agent builds beside the gate), and it failed 9 of the 26 refused pushes in the 2026-11-09..11
 # fleet run (docs/loop/iterations/2026-11-11-fleet-timing.md). `threads-required = "num-cpus"` makes nextest give such a
 # test every slot, so nothing else of this run is executing while it measures. Nothing is loosened: each budget is the
-# number its test asserts. Add a test here when it asserts elapsed time against a budget or waits on the wall clock.
+# number its test asserts. Add a test here when it asserts elapsed time against a budget or waits on the wall clock
+# (`UiFrame`, `MAX_MS_PER_FRAME`, `Instant::now`, `.elapsed()`); `tools/loop/test_wall_clock_filter.py` fails when one
+# of those is missing here or when a name here reads none of them.
+#
+# **Test names, not module names** (#577). This was six module patterns, so it took every test in those six files: 28
+# tests owned all four slots for 52.7 s of gate #10's 581.8 s test wall, and 9 of the 28 read no clock at all (2.0 s and
+# 1.3 s of fixture building in `the_uis_budget_is_two_milliseconds_a_frame`, 2.6 s of list behaviour in
+# `the_history_scrolls_five_thousand_lines`). Naming the tests that measure keeps the rule this comment states.
 [[profile.default.overrides]]
-filter = 'test(/the_uis_budget_is_two_milliseconds_a_frame|the_ui_frame_covers_a_change_and_the_input_path|the_frame_a_change_lands_on_stays_inside_two_milliseconds|scrolling_five_thousand_lines_stays_inside_the_ui_frame_budget|a_slow_load_shows_a_spinner_then_progress_then_the_editor|a_glb_touched_every_twenty_milliseconds_is_measured_only_after_the_touching_stops/)'
+filter = '''test(=the_profile_names_a_system_the_frame_ran::with_recording_off_the_settled_budget_is_unchanged)
+| test(=the_profile_names_a_system_the_frame_ran::a_span_with_recording_off_costs_one_atomic_load)
+| test(=the_profile_names_a_system_the_frame_ran::the_heaviest_span_is_one_the_frame_ran_and_the_two_measurements_agree)
+| test(=the_profile_names_a_system_the_frame_ran::the_panel_and_the_agent_report_the_same_frame_ms)
+| test(=the_uis_budget_is_two_milliseconds_a_frame::a_settled_frame_on_the_reference_fixture_stays_under_the_ui_budget)
+| test(=the_uis_budget_is_two_milliseconds_a_frame::a_rebuild_frame_is_measured_and_is_not_claimed_as_settled)
+| test(=the_uis_budget_is_two_milliseconds_a_frame::the_clock_counts_every_way_out_and_marks_a_rebuild)
+| test(=the_ui_frame_covers_a_change_and_the_input_path::the_frame_after_a_change_stays_inside_its_measured_budget_at_ten_thousand_nodes)
+| test(=the_ui_frame_covers_a_change_and_the_input_path::gooeys_own_table_and_tree_drawing_is_in_the_frame_clock)
+| test(=the_ui_frame_covers_a_change_and_the_input_path::a_typed_search_reaches_the_tree_inside_a_tenth_of_a_second)
+| test(=the_frame_a_change_lands_on_stays_inside_two_milliseconds::a_piece_placed_costs_the_ui_under_two_milliseconds_a_frame_at_ten_thousand_nodes)
+| test(=the_frame_a_change_lands_on_stays_inside_two_milliseconds::an_undo_and_a_redo_cost_the_ui_under_two_milliseconds_a_frame_at_ten_thousand_nodes)
+| test(=the_history_scrolls_five_thousand_lines::scrolling_five_thousand_lines_stays_inside_the_ui_frame_budget)
+| test(=a_slow_load_shows_a_spinner_then_progress_then_the_editor::a_slowed_stage_shows_nothing_then_a_spinner_then_progress_then_the_editor)
+| test(=a_slow_load_shows_a_spinner_then_progress_then_the_editor::cancel_mid_load_returns_to_the_launcher_and_leaves_the_project_byte_identical)
+| test(=a_slow_load_shows_a_spinner_then_progress_then_the_editor::a_project_that_will_not_open_says_why_on_the_screen_and_back_returns_to_the_launcher)
+| test(=a_slow_load_shows_a_spinner_then_progress_then_the_editor::a_project_with_one_broken_terrain_file_shows_one_report_row_naming_the_file_and_field_and_open_anyway_enters_it)
+| test(=a_slow_load_shows_a_spinner_then_progress_then_the_editor::back_from_the_report_returns_to_the_launcher_with_no_door_left_open)
+| test(=a_slow_load_shows_a_spinner_then_progress_then_the_editor::cancel_after_the_answer_was_taken_lets_the_opened_project_go)
+| test(=the_animation_watch_follows_the_project_index::a_re_exported_glb_is_measured_again_with_the_clock_stopped)
+| test(=the_animation_watch_follows_the_project_index::a_glb_touched_every_twenty_milliseconds_is_measured_only_after_the_touching_stops)
+| test(=the_animation_watch_follows_the_project_index::an_edit_an_undo_and_a_redo_leave_the_tab_and_the_file_agreeing_with_the_clock_stopped)
+| test(=the_animation_watch_follows_the_project_index::a_manifest_that_cannot_be_read_is_said_once_per_look_and_read_again_when_the_index_moves)
+'''
 threads-required = "num-cpus"

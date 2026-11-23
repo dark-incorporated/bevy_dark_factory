@@ -63,6 +63,9 @@ python3 tools/changelog/changelog.py check >/dev/null || refuse "python3 tools/c
 python3 tools/loop/version.py check >/dev/null || refuse "python3 tools/loop/version.py check failed: the editor's version or one of its tags is outside the policy (PATCH and MINOR stop at 9; a bump is its own commit and the manifest and Cargo.lock must agree)"
 # The editor's integration tests are modules of one binary (`crates/bevy_dark_factory/tests/all.rs`, `autotests = false`):
 # a file missing from `all.rs` is never compiled, so its tests never run, and clippy alone (the clean-merge path) cannot see it.
+# The exclusivity filter in `.config/nextest.toml` names the tests that measure the host; this fails when a clock-reading
+# test is left off it or a named test reads no clock (#577), which is a rule no compile can see.
+python3 tools/loop/wall_clock_filter.py >/dev/null || refuse "python3 tools/loop/wall_clock_filter.py failed: a test that reads a clock or a frame budget is not in .config/nextest.toml's num-cpus filter, or a named test reads none (the message names each)"
 all=crates/bevy_dark_factory/tests/all.rs
 if [ -f "$all" ]; then
   for f in crates/bevy_dark_factory/tests/*.rs; do
