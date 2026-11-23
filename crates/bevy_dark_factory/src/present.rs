@@ -15,7 +15,7 @@
 //!
 //! - `blueprint/present` (this module's [`PresentParams`]) puts the question up and returns at once,
 //!   because an MCP call that blocked on a person would be a deadlock with the editor's own frame.
-//! - [`answer_presentation`] runs in the editor, takes the answer, and either keeps the result or
+//! - `answer_presentation` runs in the editor, takes the answer, and either keeps the result or
 //!   undoes every operation the presentation listed, newest first.
 //!
 //! **This module changes no map data.** Undoing goes through the oplog's own `Undo::Logged` path, so
@@ -25,7 +25,7 @@ use bevy::prelude::*;
 
 use crate::confirm::Asked;
 
-/// **What the person is being asked about**, for `blueprint/state` and for [`answer_presentation`].
+/// **What the person is being asked about**, for `blueprint/state` and for `answer_presentation`.
 #[derive(Resource, Default)]
 pub struct Presenting(pub Option<Presented>);
 
@@ -64,7 +64,7 @@ pub struct Presented {
     pub replaced: Vec<String>,
 }
 
-/// **How the person answered a hand-back in the AGENT block.** Set by its buttons, taken by [`answer_presentation`].
+/// **How the person answered a hand-back in the AGENT block.** Set by its buttons, taken by `answer_presentation`.
 #[derive(Resource, Default, Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PresentationReply(pub Option<Reply>);
 
@@ -184,7 +184,7 @@ pub fn body_with_followed(
 /// place, so the card and the modal say what the person lost without the agent having to remember to.
 ///
 /// **Only a replacement that still stands** (#450): an add the agent undid since has its piece back on the map, so it is not listed. Whether a change stands is the
-/// undo's own rule ([`crate::ops::chains_of`]): an undo takes it out of effect, and an undo of that undo puts it back.
+/// undo's own rule (`crate::ops::chains_of`): an undo takes it out of effect, and an undo of that undo puts it back.
 pub fn replacements(log: &[crate::ops::Entry], operation_ids: &[String]) -> Vec<String> {
     let chains = crate::ops::chains_of(log.iter().filter(|e| e.outcome == "applied"));
     let mut lines = Vec::new();
@@ -248,7 +248,7 @@ impl Plugin for PresentPlugin {
 /// has learned about its own tools in this sitting, and the hand-backs it cites can be on any door:
 /// carried across, a wish made about the Kit door's work stays readable beside the Map door's. The
 /// *ids* are what a door change used to restart, which is why they are numbered from
-/// [`HandBacks::next`] — a count that no door change touches — rather than from the question on
+/// `HandBacks::next` — a count that no door change touches — rather than from the question on
 /// screen.
 #[derive(Resource, Default)]
 pub struct Wishes {

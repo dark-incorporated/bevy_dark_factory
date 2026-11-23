@@ -299,7 +299,7 @@ pub struct Totals {
 /// `checks` is where DM-04's per-model calibrations are read from (the editor's own checks with the project's over them); a model with no record is
 /// `waiting`, never an error. Nothing is written into `labels`.
 ///
-/// **No [`Options`]**: the export's choices (the eval share, the oldest build) are the export's, and the set beside the report is read as it was
+/// **No `Options`**: the export's choices (the eval share, the oldest build) are the export's, and the set beside the report is read as it was
 /// written. A report that took them could disagree with the set it cites.
 pub fn report(labels: &Path, out: &Path, checks: &Checks) -> Result<Report, String> {
     let read = read_file(&labels.join(crate::turn_store::LEDGER_FILE))?;

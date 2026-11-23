@@ -358,8 +358,8 @@ pub fn assess_ledger(store: &mut Store, transport: &dyn Transport, allow_remote:
 /// **The batch the editor runs**: the fast model answers every turn's questions first, its answers are kept (and are never labels), and the assessor
 /// is asked only where it is unsure (DL-08, #467).
 ///
-/// **The gate decides whether anything is saved at all**: while the holdout has not shown the assessor reaching [`TEACHER_BAR`] over
-/// [`HOLDOUT_MIN`] answers, every question is escalated (`why: "gate"`), so the ledger collects the fast model's answers without spending less.
+/// **The gate decides whether anything is saved at all**: while the holdout has not shown the assessor reaching `TEACHER_BAR` over
+/// `HOLDOUT_MIN` answers, every question is escalated (`why: "gate"`), so the ledger collects the fast model's answers without spending less.
 pub fn assess_ledger_with(store: &mut Store, fast: Option<&dyn Transport>, transport: &dyn Transport, allow_remote: bool, limit: Option<usize>) -> Result<Batch, String> {
     if transport.site() == DecisionModel::Remote && !allow_remote {
         return Err(format!(

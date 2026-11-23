@@ -9,7 +9,7 @@
 //! # One state machine, one path, and no issue without pictures
 //!
 //! The body is built by [`blueprint_model::feedback::issue`] — engine-free, so the format is tested
-//! without a window. This module is the filing: after [`crate::report::save`] has written the four
+//! without a window. This module is the filing: after `report::save` has written the four
 //! files, the capture is copied into the configured checkout's `docs/loop/captures/<stem>/`, committed
 //! on a branch named for the stem, pushed, **both raw URLs are verified to answer 200**, and only then
 //! is `gh issue create` run. Any step failing stops the sequence and says what failed, with no issue
@@ -17,7 +17,7 @@
 //!
 //! # Why a job and not a frame
 //!
-//! `git` and `gh` are seconds long and network-bound. They run on a thread ([`Filing`] carries the
+//! `git` and `gh` are seconds long and network-bound. They run on a thread ([`Filing`](crate::issue_compose_panel::Filing) carries the
 //! result), never inside a system, so a save cannot stall a frame.
 //!
 //! # The runner is a value

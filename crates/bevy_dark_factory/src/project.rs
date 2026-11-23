@@ -176,7 +176,7 @@ pub struct Project {
     /// Held so `G` can lay a block the way the game will (`editor::generate_from`), instead of
     /// learning from the whole map at the editor's own 1 m step.
     pub rules: blueprint_model::rules::Rules,
-    /// Where every map in this project lives — see [`MAPS_DIR`]. Held rather than re-derived, so
+    /// Where every map in this project lives — see `MAPS_DIR`. Held rather than re-derived, so
     /// a rename follows the name without re-deciding which directory a map belongs to.
     pub maps_dir: PathBuf,
     /// **The map that was open**, by name — the last one this project had open.
@@ -573,7 +573,7 @@ impl Project {
     ///
     /// # Why this exists (E-003)
     ///
-    /// [`crate::watch::adopt`] answered a save to a kit's `library.yaml` or `project.yaml` by
+    /// `crate::watch::adopt` answered a save to a kit's `library.yaml` or `project.yaml` by
     /// re-opening the whole project: `kits.yaml`, the vocabulary, **every** bound kit's library and
     /// policy, and a triangle count for every GLB in the merge. Measured on the shipped project
     /// (90 descriptors, 2 kits, six opens: 27, 58, 104, 185, 192, 315 ms), the triangle pass alone
@@ -596,7 +596,7 @@ impl Project {
     /// **The one thing it does not re-measure is another kit's triangles** — a `.glb` in a kit
     /// nobody edited has not moved, and the count is a fact about that file.
     ///
-    /// Returns the descriptor ids that changed, by [`crate::tiles::changed_ids`] — the same
+    /// Returns the descriptor ids that changed, by `crate::tiles::changed_ids` — the same
     /// comparison the in-editor commit door uses, so the Map redraws exactly the pieces whose
     /// shapes moved.
     pub fn reload_kit(&mut self, kit_dir: &Path) -> Result<Vec<String>, String> {

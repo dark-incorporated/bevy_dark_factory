@@ -18,7 +18,7 @@ use bevy_gooey::GooeySkin;
 /// **A skin a person could write:** every field a badge reads, moved somewhere no preset puts it.
 fn a_skin_of_its_own() -> GooeySkin {
     let mut skin = GooeySkin::tool();
-    skin.surface = Color::srgb(0.31, 0.11, 0.19);
+    skin.surface = Color::srgb(0.31, 0.11, 0.20);
     skin.text_muted = Color::srgb(0.41, 0.81, 0.21);
     skin.tones.insert("key".to_owned(), Color::srgb(0.11, 0.61, 0.91));
     skin.tones.insert("veil".to_owned(), Color::srgba(0.2, 0.4, 0.6, 0.31));

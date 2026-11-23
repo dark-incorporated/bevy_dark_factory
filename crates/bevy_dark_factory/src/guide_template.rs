@@ -10,11 +10,11 @@
 //! that exact content in the same step: a new project's guide is never withheld from the person who just
 //! made it. An existing project opened without the wizard gets no file — **nothing is written into a
 //! project the editor did not create** — and the project page's **Create guide** is how such a project
-//! gets one. Both call [`write`], so there is one writer of this file and one template.
+//! gets one. Both call [`write()`], so there is one writer of this file and one template.
 //!
 //! **Two calls, because the store is the person's and not the project's.** [`write_file`] puts the
 //! template on disk and is what the project builder (`new_project::fill`) calls, which cannot know where a
-//! person's trust file is. [`write`] is the whole act — the file *and* its grant — and is what every
+//! person's trust file is. [`write()`] is the whole act — the file *and* its grant — and is what every
 //! caller that holds the person's store uses. Nothing writes the file twice: `write` calls `write_file`.
 //!
 //! Engine-free by nature (it is a file and a grant), but it lives in the editor because the wizard does.
@@ -48,7 +48,7 @@ pub fn path(root: &Path) -> PathBuf {
 
 /// **Put the template on disk**, and nothing else. Called by the project builder, which has no store to
 /// write to; a person is never given a guide file whose grant was silently skipped, because every caller
-/// that has a store calls [`write`] instead.
+/// that has a store calls [`write()`] instead.
 pub fn write_file(root: &Path) -> Result<PathBuf, String> {
     let file = path(root);
     if let Some(dir) = file.parent() {

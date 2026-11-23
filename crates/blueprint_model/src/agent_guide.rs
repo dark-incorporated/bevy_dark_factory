@@ -62,7 +62,7 @@ fn hides_or_breaks(c: char) -> bool {
 /// answer: `ceil(columns_in_line / columns)`, at least one row per line, where a character outside ASCII
 /// takes two columns (full-width and wide glyphs are about twice an average advance).
 ///
-/// **A text with a character that hides or breaks** ([`hides_or_breaks`]) is [`UNSHOWABLE_ROWS`]: a person
+/// **A text with a character that hides or breaks** (`hides_or_breaks`) is [`UNSHOWABLE_ROWS`]: a person
 /// cannot be shown what a layout would break or hide where this counts one line, so the answer fails
 /// closed. A line ending `\r\n` is the one exception, being what a Windows file's lines end with.
 pub fn visual_rows(text: &str, columns: usize) -> usize {

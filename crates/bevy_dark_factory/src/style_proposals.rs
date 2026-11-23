@@ -8,7 +8,7 @@
 //!
 //! # The person's Keep is the operation
 //!
-//! Keep dispatches `style_edit` as the person's own change ([`keep`]), so a kept proposal is one log line and one undo step, and it writes
+//! Keep dispatches `style_edit` as the person's own change (`world_lists::keep`), so a kept proposal is one log line and one undo step, and it writes
 //! the `TextGrant` for the new text that every edit made in front of the person writes. **A proposal whose page changed after it was made is
 //! refused on Keep**, naming the page: a person never keeps a change against text they did not see.
 //!

@@ -1,7 +1,7 @@
 //! **Moving a project's files from RON to YAML, losslessly** (GD-03, #365).
 //!
 //! A project used to be RON. This crate is what turns one into YAML: [`migrate`] converts a folder,
-//! [`report`]-shaped [`Report`] says what it did, and [`leftover`] is the refusal an editor's open raises
+//! [`Report`] says what it did, and [`leftover`] is the refusal an editor's open raises
 //! when a project has not been converted.
 //!
 //! # Why this is a crate of its own

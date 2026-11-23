@@ -104,7 +104,7 @@ pub fn layered_library(dir: &Path) -> Result<Layered, String> {
         .apply(&measured)
         .map_err(|e| format!("{}: {e}", dir.join(POLICY_FILE).display()))?;
     // **The lattice check is not here, and that moved deliberately.** It needs `face_bands`, which
-    // is now [`crate::map::Map::face_bands`] — a map has one lattice, and once a map can draw on two
+    // is now `kits::Lattice::face_bands` — a map has one lattice, and once a map can draw on two
     // kits a per-kit answer has none. So the check belongs to whoever holds a map, and this function
     // does not: `src/site/kit.rs` opens a kit with no map at all. Each loader that has one calls
     // `Library::validate_lattices` itself, on the **layered** library, since that is what the game
@@ -126,7 +126,7 @@ pub fn layered_library(dir: &Path) -> Result<Layered, String> {
 /// The game reads [`Self::library`] and nothing else. An editor needs the other two: it writes
 /// [`Self::measured`] — the measurements file, *without* this game's architecture baked into it —
 /// and it reads [`Self::policy`] for the exclusions. How finely a face is read is
-/// [`crate::map::Map::face_bands`], which is not in this struct because a kit is not a map.
+/// [`crate::kits::Lattice`]'s `face_bands`, which is not in this struct because a kit is not a map.
 ///
 /// One struct from the one loader rather than a second parse in the editor, for the reason
 /// [`layered_library`] exists at all: a library layered one way in the editor and another in the

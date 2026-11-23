@@ -4,7 +4,7 @@
 //! A running game, and the editor's own [`crate::live::FileWatch`], can read a file while the editor
 //! is writing it. `std::fs::write` truncates the target and then fills it, so a reader in between
 //! parses an empty or half-written file (#187, #158). Every write of a project file goes through
-//! [`write`] (or [`write_new`], which refuses to replace), and a ratchet test
+//! [`write()`] (or [`write_new`], which refuses to replace), and a ratchet test
 //! (`tests/atomic_writes_only.rs`) fails on a new plain `fs::write`, `File::create`, `fs::copy`
 //! or `OpenOptions` in the non-test source of `blueprint_model` and `bevy_dark_factory`
 //! (a write through another API, such as a bare imported `write(`, is not seen by it).
@@ -40,7 +40,7 @@
 //! # A crash leaves a temp file, and the next write clears it
 //!
 //! A writer killed between steps 1 and 3 leaves its temp file. It is invisible to the editor and the
-//! game, and the next [`write`] or [`write_new`] of the same target removes any such file older
+//! game, and the next [`write()`] or [`write_new`] of the same target removes any such file older
 //! than [`STALE_AFTER`] (never a fresh one, which may be another writer's, mid-write).
 //! [`write_cache`] does not look: a cache directory can hold thousands of files.
 
@@ -89,7 +89,7 @@ pub fn write_new(path: &Path, contents: impl AsRef<[u8]>) -> io::Result<()> {
     put(path, contents.as_ref(), Flush::Full, Land::Refuse)
 }
 
-/// **[`write`] without the flushes**, for a cache the editor can rebuild (a thumbnail, the animation
+/// **[`write()`] without the flushes**, for a cache the editor can rebuild (a thumbnail, the animation
 /// bench's cache). A reader still never sees a mix; only a power cut may lose the file, and a cache
 /// is not worth six milliseconds on every entry.
 pub fn write_cache(path: &Path, contents: impl AsRef<[u8]>) -> io::Result<()> {

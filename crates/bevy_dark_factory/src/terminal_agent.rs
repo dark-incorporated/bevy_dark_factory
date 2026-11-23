@@ -429,7 +429,7 @@ impl AgentPost {
     }
 
     /// **The agent says which session it is in** (`blueprint/agent_session`), or `None` once it has left its session
-    /// (omp shut down). The resume record follows it ([`keep_the_resume_record`]).
+    /// (omp shut down). The resume record follows it (`keep_the_resume_record`).
     pub fn session_reported(&mut self, session: Option<String>) {
         if self.session != session {
             self.session = session;
@@ -887,7 +887,7 @@ const REFUSED_ID_MAX: usize = 200;
 /// the default."*)
 ///
 /// The tab is a shell, so the editor holds no exit code: what it holds is the screen, and omp's refusal is two lines of it
-/// ([`MODEL_REFUSED_LEAD`]). `true` when the drawn tab's screen carries a refusal **for the model this launch named**, in which case
+/// (`MODEL_REFUSED_LEAD`). `true` when the drawn tab's screen carries a refusal **for the model this launch named**, in which case
 /// its record's **Agent connected** row is failed with the id, omp's own words, and the setting to fix, and the two later rows are
 /// skipped: the session never started, so there is nothing to ask.
 ///

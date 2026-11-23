@@ -25,15 +25,15 @@
 //!
 //! | file | what it may touch |
 //! |---|---|
-//! | [`pty`] | a file descriptor and a child process — no Bevy |
-//! | [`grid`] | `alacritty_terminal` and `vte` — no Bevy beyond `Color` |
-//! | [`palette`] | 256 indices → [`bevy::prelude::Color`] |
+//! | `pty` | a file descriptor and a child process — no Bevy |
+//! | `grid` | `alacritty_terminal` and `vte` — no Bevy beyond `Color` |
+//! | `palette` | 256 indices → [`bevy::prelude::Color`] |
 //! | this file | the sessions as one Bevy [`Resource`], and the four operations the pane calls |
 //!
 //! Above [`Terminal`] nothing knows that a terminal has a parser or a PID; `terminal_pane` and
 //! `terminal_view` know about `Node`s and nothing about `alacritty_terminal`. That is the same
 //! boundary `project_assets` keeps for the asset server, and it is what makes the engine provable
-//! with no window at all ([`tests`]).
+//! with no window at all (`tests`).
 
 mod grid;
 pub mod input;
@@ -336,7 +336,7 @@ impl Terminal {
         self.open.iter_mut().filter_map(|tab| tab.agent.as_mut())
     }
 
-    /// **Take the projects whose agent tab has been taken out**, with the kind of agent, since the last call ([`Self::remove_tab`]).
+    /// **Take the projects whose agent tab has been taken out**, with the kind of agent, since the last call (`Self::remove_tab`).
     pub fn take_ended_agents(&mut self) -> Vec<(PathBuf, crate::terminal_agent::AgentKind)> {
         std::mem::take(&mut self.ended_agents)
     }
@@ -527,7 +527,7 @@ impl Terminal {
     ///
     /// Reaching `Quarter` clears the person's dragged height (`self.height`), so the quarter is a *stated* fraction of the body
     /// rather than "what the split last held": that is what makes the position reproducible. A drag after the cycle is the person
-    /// taking the height back, which [`Self::set_height`] records and [`crate::terminal_pane::fit_the_pane_to_the_window`] then
+    /// taking the height back, which [`Self::set_height`] records and `terminal_pane`'s own fit system then
     /// leaves alone.
     pub fn set_placement(&mut self, placement: crate::terminal_pane::TerminalPlacement) {
         use crate::terminal_pane::TerminalPlacement;

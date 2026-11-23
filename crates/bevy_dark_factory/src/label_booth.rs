@@ -7,12 +7,12 @@
 //! lighting, readiness gates and framing (`thumbs::{stage_mesh, erect_booth, subject_bounds,
 //! has_mesh}`) so there is exactly one photographic truth in this editor — and it inherits both of
 //! that module's paid-for traps: a `Mesh3d` component is not a drawable mesh, and the camera never
-//! stays aimed at a finished shot with nothing staged (it parks on [`ShotRig::scratch`]).
+//! stays aimed at a finished shot with nothing staged (it parks on `ShotRig::scratch`).
 //!
 //! One trap of its own: **capture is asynchronous.** `Screenshot::image(..)` copies the target
 //! texture out over the next frame(s), so the camera must not re-aim at angle B until angle A's
 //! `ScreenshotCaptured` has actually landed — re-aiming early photographs B into A's slot. The
-//! state machine waits in [`Phase::AwaitCapture`] for exactly that reason, frame-bounded so a
+//! state machine waits in `Phase::AwaitCapture` for exactly that reason, frame-bounded so a
 //! wedged GPU path drops the job loudly instead of hanging the queue.
 //!
 //! Headless (`backends: None`) this module is inert by design: nothing runs until a job is

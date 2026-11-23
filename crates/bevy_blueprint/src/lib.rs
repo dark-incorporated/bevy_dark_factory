@@ -224,7 +224,7 @@ pub struct Supporting(Vec<Entity>);
 /// Spawns an [`BlueprintWorld`] when one is inserted.
 /// **Paint order, carried onto a spawned piece** — see [`blueprint_model::map::Placed::paint`].
 ///
-/// Put on the root a piece spawns as; [`apply_paint`] finds it by walking up from each material the
+/// Put on the root a piece spawns as; `apply_paint` finds it by walking up from each material the
 /// glTF scene brings in, because those arrive frames later than the entity does.
 #[derive(Component, Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Paint(pub i8);

@@ -6,7 +6,7 @@
 //!
 //! # The photo booth
 //!
-//! Staging happens at [`BOOTH`], four kilometres from the origin, so the booth camera sees the staged
+//! Staging happens at `BOOTH`, four kilometres from the origin, so the booth camera sees the staged
 //! piece and nothing else. No `RenderLayers`, which is where layer-based masking usually goes wrong
 //! on GLB scene children. One camera walks the library: stage a piece, wait for it to be genuinely
 //! ready, aim, render into that piece's image, move on — then the camera **despawns**, because a live
@@ -24,7 +24,7 @@
 //! `Update`, so a despawn lands before the renderer extracts and the next frame draws an empty booth
 //! through whatever image the camera still points at. In the game that silently cleared three
 //! specific pieces — whichever ones the following GLB was too slow to repaint — and the log
-//! cheerfully reported all 45 baked. Here the camera parks on [`Thumbnails::scratch`] whenever no
+//! cheerfully reported all 45 baked. Here the camera parks on `Thumbnails::scratch` whenever no
 //! subject is standing there, so a real image is its target only while its piece is present.
 //!
 //! # The disk cache
@@ -34,7 +34,7 @@
 //! `target/vlm_suggestions.yaml` precedent: derived, regenerable, gitignored) and read back on the
 //! next launch instead of being baked. The key is a hash of everything the picture depends on: the
 //! descriptor id, mesh path, file size and mtime, its `align`, the portrait size and
-//! [`CACHE_VERSION`], which is bumped when the booth's framing or lights change.
+//! `CACHE_VERSION`, which is bumped when the booth's framing or lights change.
 //!
 //! # Order
 //!
@@ -308,7 +308,7 @@ impl Plugin for ThumbsPlugin {
         // palette binds these handles, so it must run after them, and one chain is easier to be sure
         // of than two plugins agreeing about order. Every other door has no palette and no chain, so
         // it registers `setup` itself — `prune` below takes a bare `ResMut<Thumbnails>`, which
-        // panics its system in Bevy 0.19 when nobody built it.
+        // panics its system in Bevy 0.20 when nobody built it.
         //
         // A run condition, not a build-time read: the door is chosen at runtime now.
         app.add_systems(
@@ -368,7 +368,7 @@ fn blank_target(images: &mut Assets<Image>) -> Handle<Image> {
 /// skips it and the palette shows the OLD mesh's portrait for the new piece, permanently.
 ///
 /// Change-gated inside the body rather than by a `resource_changed` run condition, because `Project`
-/// is not this plugin's to assume: a run condition on a missing resource panics in 0.19, and taking
+/// is not this plugin's to assume: a run condition on a missing resource panics in 0.20, and taking
 /// `Option<Res>` keeps the standalone plugin bootable.
 fn prune(mut thumbs: ResMut<Thumbnails>, project: Option<Res<Project>>) {
     let Some(project) = project else { return };
@@ -394,7 +394,7 @@ fn prune(mut thumbs: ResMut<Thumbnails>, project: Option<Res<Project>>) {
     // pending piece disagrees, so nothing more is needed here.
 }
 
-/// `Option<Res<_>>`, never a bare `Res<_>`: Bevy 0.19 evaluates **every** run condition — there is no
+/// `Option<Res<_>>`, never a bare `Res<_>`: Bevy 0.20 evaluates **every** run condition — there is no
 /// short-circuit — and a missing resource in one panics the system at param validation. That shipped
 /// to the game's `main` once and crashed every launch.
 fn unfinished(
@@ -779,7 +779,7 @@ fn spawn_camera(commands: &mut Commands, first_target: &Handle<Image>) -> Entity
                 clear_color: ClearColorConfig::Custom(backdrop()),
                 ..default()
             },
-            // `RenderTarget` IS its own component in 0.19 — one of `Camera`'s `#[require]`s rather
+            // `RenderTarget` IS its own component in 0.20 — one of `Camera`'s `#[require]`s rather
             // than a field on it.
             RenderTarget::Image(ImageRenderTarget {
                 handle: first_target.clone(),

@@ -23,7 +23,7 @@
 //! only able to edit one hub. The reusable part is the schema and the solvers, and those live in
 //! `blueprint_model` where a second game can have them.
 //!
-//! # Before writing any Bevy here, read the vendored 0.19 source
+//! # Before writing any Bevy here, read the vendored 0.20 source
 //!
 //! Not bevy.org, which tracks `main`. `CLAUDE.md` lists the traps this project has already paid for;
 //! the two that bite an editor hardest are that **a `Single<.., With<Camera3d>>` silently skips its

@@ -201,7 +201,7 @@ pub struct AuditRow;
 #[derive(Component)]
 pub struct ReportLine;
 
-/// **The report line's text**, which [`follow_the_report_line`] writes into when the words change.
+/// **The report line's text**, which `follow_the_report_line` writes into when the words change.
 #[derive(Component)]
 pub struct ReportText;
 

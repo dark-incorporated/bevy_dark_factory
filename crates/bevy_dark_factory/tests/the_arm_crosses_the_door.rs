@@ -97,7 +97,7 @@ fn an_armed_composition_is_still_armed_after_the_door_changes() {
     // **No `app.update()` afterwards.** The teardown drops the `Project` and the `Mode`, and the
     // editor's systems are gated on `in_state(Screen::Editor)` — which is still true, because the
     // harness never registered `ScreenPlugin` and so the state never left. A frame here would run
-    // them against a world with no project, and Bevy 0.19 panics a system whose `Res<T>` is
+    // them against a world with no project, and Bevy 0.20 panics a system whose `Res<T>` is
     // missing rather than skipping it.
     bevy_dark_factory::screen::close_the_door(app.world_mut());
 

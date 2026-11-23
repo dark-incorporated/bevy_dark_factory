@@ -29,7 +29,7 @@
 //!
 //! # How the bytes are found
 //!
-//! [`crate::yaml::walk`] reports every node's path and bytes — the same walk the reader refuses a file
+//! `crate::yaml::walk` reports every node's path and bytes — the same walk the reader refuses a file
 //! by, so an edit is only made to text the reader accepts. What the edit produces is checked by the
 //! caller's own typed read ([`crate::yaml::from_str`]) in `tests/yaml_surgery_keeps_every_comment.rs`,
 //! because a surgery that "looks right" and produces a file the type refuses is the one failure this
@@ -37,7 +37,7 @@
 //!
 //! A leaf is one span. **A collection's span is not its content's end**: `saphyr-parser` places a block
 //! collection's end event at the token that follows it, so inserting at a `span`'s end would put a new
-//! item below the next key. [`content_end`] walks to the last child's own end instead, which is where
+//! item below the next key. `content_end` walks to the last child's own end instead, which is where
 //! an item or an entry is added and where a removal stops.
 //!
 //! # Two styles, no third

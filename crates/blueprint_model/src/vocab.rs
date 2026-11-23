@@ -44,7 +44,7 @@
 //!
 //! Position-derived bits mean **appending is safe and reordering is not**. That is deliberate: a
 //! vocabulary is a schema, and shuffling one would silently re-point every mask already computed.
-//! [`Vocabulary::validate`] refuses more than 64 tokens on an axis rather than wrapping.
+//! `Vocabulary::validate` refuses more than 64 tokens on an axis rather than wrapping.
 
 use serde::{Deserialize, Serialize};
 use schemars::JsonSchema;

@@ -9,7 +9,7 @@
 //!
 //! # The gate is a diff, not a judgement
 //!
-//! Every field either round-trips or is on the list below. `tests/descriptor_migration.rs` converts
+//! Every field either round-trips or is on the list below. The RON reader converts
 //! the shipped manifest, converts it back, and asserts equality item by item; a field quietly dropped
 //! shows up as a failing comparison rather than as an empty room three weeks later.
 //!
@@ -50,7 +50,7 @@ use crate::placement::manifest::ManifestItem;
 ///
 /// Same argument as `stretch_y`: how high this game hangs a wall light is not a fact about the mesh,
 /// and baking it into a shared library is how one game's wall height ends up in another's. The game
-/// passes its own (`placement::furnish::WALL_LIGHT_HEIGHT`, 1.8 m).
+/// passes its own (`bevy_coven`'s `placement/furnish.rs`: `WALL_LIGHT_HEIGHT`, 1.8 m).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Policy {
     /// Height at which a wall-anchored piece hangs, metres.
@@ -172,7 +172,7 @@ pub fn descriptor_from_manifest(item: &ManifestItem, policy: Policy) -> Result<D
 
 /// A descriptor → the manifest row it came from. **The gate, not a feature.**
 ///
-/// Nothing in the game calls this; `tests/descriptor_migration.rs` does, to turn "did I port 41 items
+/// Nothing in the game calls this; the migration's own reader does, to turn "did I port 41 items
 /// correctly" from a reading exercise into a diff. It reconstructs only what the descriptor models —
 /// the constraint affordances and the unread ones are gone by design, so the test compares against a
 /// manifest with those stripped rather than against the raw file, and the stripping is spelled out in

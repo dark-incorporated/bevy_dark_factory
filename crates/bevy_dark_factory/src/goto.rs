@@ -30,7 +30,7 @@
 //!
 //! # Rebuilt from the reload events, so a piece an agent adds is findable at once
 //!
-//! The index is not read once at open. [`rebuild_the_index`] watches the watcher's own adopter
+//! The index is not read once at open. `rebuild_the_index` watches the watcher's own adopter
 //! ([`crate::watch::Due::adopted`], the reload contract's record of *this file was taken again*) and
 //! rebuilds when that count, the project, the open map, the library's size or the notes' generation
 //! changes. A piece an agent writes into `library.yaml` is in the finder on the frame the editor adopts
@@ -63,7 +63,7 @@ use crate::project::{OpenMap, Project};
 use crate::workspace::Workspace;
 
 /// **How a goto row's id starts**: `goto:<kind>:<key>`. The palette runs it through the same
-/// `RunCommand` a command uses, and this prefix is how [`show_the_chosen_row`] tells which of the two
+/// `RunCommand` a command uses, and this prefix is how `show_the_chosen_row` tells which of the two
 /// sources the choice came from.
 pub const ID_PREFIX: &str = "goto:";
 

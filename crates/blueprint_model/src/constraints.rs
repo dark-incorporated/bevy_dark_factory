@@ -944,7 +944,7 @@ fn step(w: usize, h: usize, x: usize, z: usize, dir: usize) -> Option<(usize, us
 /// # Foundedness is deliberately not encoded
 ///
 /// The rules below are the first two of `docs/research/2026-08-10-constraint-solver-plan.md` §L3.
-/// The third — *"`outside[c]` → border ∨ ⋁ₙ (outside[n] ∧ seam)"* — and the rank encoding that makes
+/// The third — *"`outside[c]` → border ∨ ⋁ₙ (outside\[n\] ∧ seam)"* — and the rank encoding that makes
 /// it founded are **omitted on purpose**, and that is sound rather than a shortcut:
 ///
 /// R1 and R2 are Horn, so every model has `outside ⊇ flood_fill`. Therefore `¬outside[c]` implies `c`

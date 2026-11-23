@@ -9,7 +9,7 @@
 //!
 //! [`start_the_search`] runs the search on a thread of its own and says so in the status band
 //! ([`crate::jobs::Jobs`], UI-22), where **Cancel** stops it (the producer's own seam: the thread looks at its
-//! flag between files). [`drain_the_search`] takes what the thread has found a little at a time, each frame, and
+//! flag between files). `drain_the_search` takes what the thread has found a little at a time, each frame, and
 //! adds it to the results tree, so the first matches are on screen while the rest are still being read.
 //!
 //! # A replace is previewed, then applied as one operation

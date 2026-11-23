@@ -17,7 +17,7 @@
 //! collapsed pane **peeks** — the pointer resting on the divider floats the pane over the viewport at the width a restore would
 //! give it, with the viewport still (gooey's `SplitPeek`, #69). **The shell asks for it with gooey's [`CollapseSplit`]**
 //! (G-77, #88), triggered on the split: the one path the divider's own Enter, South button and double press take, so
-//! [`collapse_the_left_pane`] synthesises no key and reaches into nothing of gooey's.
+//! `collapse_the_left_pane` synthesises no key and reaches into nothing of gooey's.
 //!
 //! **Two numbers are the shell's to hold while it is collapsed.** The pane's floor ([`SplitMin::first`], which keeps a dragged
 //! pane wide enough for a panel) is put to nothing so the pane can shut, and given back when a restore has landed; the

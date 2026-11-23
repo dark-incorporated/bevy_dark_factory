@@ -56,7 +56,7 @@ mod tests {
     /// reproducibility claim, and every replay golden downstream, sits on exactly these bits. If this
     /// test goes red, the change under it is a breaking change no matter how innocuous it looked.
     ///
-    /// The upstream project pins the identical values in its own `tests/rng_guard.rs`; the copy here
+    /// The upstream project pins the identical values in its own test suite; the copy here
     /// exists so the guard travels with the crate rather than living only in a repository an adopter
     /// cannot see.
     #[test]

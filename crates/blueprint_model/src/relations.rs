@@ -728,7 +728,7 @@ fn walk(placements: &[Placed], from: &Placed, to: &Placed, clearance: f32, skip:
     None
 }
 
-/// How many of the pieces nearest the straight line [`opener`] tries taking away.
+/// How many of the pieces nearest the straight line `opener` tries taking away.
 pub const OPENER_TRIES: usize = 16;
 
 /// The bottom host whose removal (with its riders) opens a walk from `from` to `to`, nearest the

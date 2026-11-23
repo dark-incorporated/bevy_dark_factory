@@ -2466,7 +2466,7 @@ pub mod view_toggle_journal {
 /// dispatch this one thing, so "toggle" means one thing; it writes no project data and takes no undo step, because `Cmd+Z`
 /// must take back the last change to the blueprint rather than reopen a panel a person closed on purpose.
 ///
-/// **The front end applies what comes back** ([`crate::anim_tab::toggle_the_rig_list`]), so the chord, an MCP call and any
+/// **The front end applies what comes back** (`crate::anim_tab::toggle_the_rig_list`), so the chord, an MCP call and any
 /// later button all read `after.rigs` and write the same `display`.
 pub mod view_toggle_rigs {
     use super::*;
@@ -4725,7 +4725,7 @@ pub mod kit_rescan {
 /// **Step the rig bench's history of `rigs.yaml`**, as Cmd+Z and Cmd+Shift+Z do on the Anim tab (E-002, #129 slice 35): the
 /// manifest the bench held before its newest write is written back, or the one a step back took away is put again. The bench
 /// records each manifest it replaces (an adopt, or an edit made under the tab), and the history is session state: the step takes
-/// the top of one stack, writes it through the one door to disk ([`crate::anim_tab::write_manifest`]: parsed first, saved
+/// the top of one stack, writes it through the one door to disk (`crate::anim_tab::write_manifest`: parsed first, saved
 /// atomically) and puts the text it replaced on the other, so **its inverse is the step the other way**. The answer is the
 /// stacks and the manifest now held ([`crate::ops_view::RigHistory`]), which the front end applies to the bench only when the
 /// write landed: a refused step costs no entry.
@@ -6752,7 +6752,7 @@ pub mod piece_import {
 ///
 /// A piece a map places, or a composition holds, is refused by name and nothing is written: an
 /// orphaned placement is a piece that silently fails to appear. The plan asks the same questions the
-/// write does ([`crate::tiles::remove_blockers`], `Project::maps_that_place`), so a preview refuses
+/// write does (`crate::tiles::remove_blockers`, `Project::maps_that_place`), so a preview refuses
 /// what the commit would.
 ///
 /// # Undo is the descriptor, back where it stood
@@ -6977,7 +6977,7 @@ pub mod piece_remove {
 /// cells, so a piece that has some is refused, naming the count, unless `force` is true, which clears
 /// them. A piece with no mesh, a mesh the file system cannot open and a library the project would
 /// refuse after the turn (a placed piece that no longer fits its lattice) are refused before anything
-/// is written, by the plan as well as the commit ([`crate::tiles::turn_descriptor`] is the one rule).
+/// is written, by the plan as well as the commit (`crate::tiles::turn_descriptor` is the one rule).
 ///
 /// # Undo is the descriptor, as it was
 ///
@@ -7261,7 +7261,7 @@ pub mod piece_turn {
 /// A cell outside the lattice the piece stands on is refused, naming it and the lattice's size,
 /// before any cell is written (the keys wrote the cells before it and then said the last was outside).
 /// An edit that would change nothing is refused too, so the log never holds an empty line.
-/// The plan asks the project as the commit does ([`crate::tiles::check_measured`]), so a token the
+/// The plan asks the project as the commit does (`crate::tiles::check_measured`), so a token the
 /// vocabulary does not hold is refused in a preview.
 ///
 /// # Undo is the lattice, as it was
@@ -7888,7 +7888,7 @@ pub mod vocab_add_token {
 /// **Adopt a rig's measured gait values into `rigs.yaml`** (E-002, #129 slice 13). Enter on the Anim tab
 /// and an agent's `apply` are this one operation: it measures the rig's mesh now, rewrites each gait
 /// slot that is not kept, stamps provenance and refuses the whole write unless the edited manifest
-/// parses back to what was built ([`crate::anim_tab::adopt_text`]). Undo puts the manifest back whole.
+/// parses back to what was built (`crate::anim_tab::adopt_text`). Undo puts the manifest back whole.
 pub mod rig_adopt_measured {
     use super::*;
     use serde_json::json;
@@ -9522,7 +9522,7 @@ pub mod map_set_settings {
         pub axis_value: Option<f32>,
         /// **The named combination of kits the map offers**, or `None` for every bound kit.
         ///
-        /// **Absent leaves it alone; `null` clears it.** See [`present`].
+        /// **Absent leaves it alone; `null` clears it.** See `present`.
         #[serde(default, deserialize_with = "present")]
         pub bash: Option<Option<String>>,
         /// **The map's note** — the header prose, as data. Absent leaves it; `null` clears it.

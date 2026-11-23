@@ -44,7 +44,7 @@ fn channels(colour: Color) -> [f32; 3] {
     [c.red, c.green, c.blue]
 }
 
-/// **Every pair a theme's ground would drop below [`LEAST_TEXT_CONTRAST`]**, as
+/// **Every pair a theme's ground would drop below `LEAST_TEXT_CONTRAST`**, as
 /// `"text on surface 1.12:1"`, over [`editor_inks`] and then a panel's ground and a row's.
 ///
 /// Empty for each of the three themes the editor offers (`tests/the_theme_moves_every_colour.rs`):

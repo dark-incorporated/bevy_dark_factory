@@ -34,7 +34,7 @@ use bevy::camera::ScalingMode;
 #[derive(Component)]
 pub struct MainCamera;
 
-/// The editor's own key light, the one [`setup`] spawns. A project that dresses the camera with
+/// The editor's own key light, the one `setup` spawns. A project that dresses the camera with
 /// `bevy_elements` has a sun and a moon, so this light steps aside (`environment::key_light_follows_dressing`).
 #[derive(Component)]
 pub struct EditorKeyLight;
@@ -42,7 +42,7 @@ pub struct EditorKeyLight;
 /// Where the camera sits relative to what it is looking at, before yaw. The game's own iso offset.
 const ISO_OFFSET: Vec3 = Vec3::new(12.0, 12.0, 12.0);
 
-/// [`ISO_OFFSET`]'s elevation above the ground plane: `atan(12 / hypot(12, 12)) = atan(1/sqrt 2)`.
+/// `ISO_OFFSET`'s elevation above the ground plane: `atan(12 / hypot(12, 12)) = atan(1/sqrt 2)`.
 /// The default for [`Rig::elevation`], so the map view is bit-close to what it always was.
 pub const ISO_ELEVATION: f32 = 0.615_479_7;
 
@@ -189,7 +189,7 @@ impl Default for Rig {
 }
 
 impl Rig {
-    /// Where the camera sits relative to its focus: [`ISO_DISTANCE`] out along the rig's yaw and
+    /// Where the camera sits relative to its focus: `ISO_DISTANCE` out along the rig's yaw and
     /// elevation. At the default elevation this is exactly `RotY(yaw) * ISO_OFFSET`, which is
     /// what `offset_matches_the_iso_constant_at_default_elevation` pins.
     pub fn offset(&self) -> Vec3 {
@@ -232,7 +232,7 @@ impl Rig {
 /// which is what lets the arm going away be drawn dimmer instead of three arms all looking equally
 /// near.
 ///
-/// Derived from [`Rig::offset`] rather than from [`ISO_OFFSET`], so it stays correct at the anim
+/// Derived from [`Rig::offset`] rather than from `ISO_OFFSET`, so it stays correct at the anim
 /// bench's non-default elevations instead of only at the isometric one.
 ///
 /// # It is not the inverse of `pan_direction`, and the difference is the tilt
@@ -357,7 +357,7 @@ fn setup(
         }),
         map_projection(rig.height, &tf, open.as_deref(), drawn.as_deref().copied()),
         tf,
-        // `AmbientLight` is a COMPONENT in Bevy 0.19 and applies per-camera; the resource form is
+        // `AmbientLight` is a COMPONENT in Bevy 0.20 and applies per-camera; the resource form is
         // global. On the camera is both correct and the only form that compiles.
         AmbientLight {
             brightness: 320.0,
@@ -426,12 +426,12 @@ impl DrawnExtent {
 /// **The depth range the Map's camera draws**, `(near, far)` along its view axis, in metres from the
 /// camera.
 ///
-/// The camera sits only [`ISO_DISTANCE`] from its focus, and Bevy's
+/// The camera sits only `ISO_DISTANCE` from its focus, and Bevy's
 /// `OrthographicProjection::default_3d()` draws depths 0..1000. That is enough for a room and not
-/// for a town: on a 300 x 1120 m map, zooming out (which [`max_zoom`] allows) showed the whole width
+/// for a town: on a 300 x 1120 m map, zooming out (which `max_zoom` allows) showed the whole width
 /// while everything nearer the camera than its focus distance was cut away at a straight edge, pieces
 /// and all (B-010). An orthographic image does not depend on distance, so the fix is the range, not
-/// the camera's position: every corner of what the map draws, plus [`DEPTH_SLACK`], is inside it, and
+/// the camera's position: every corner of what the map draws, plus `DEPTH_SLACK`, is inside it, and
 /// it is never narrower than the default.
 ///
 /// **`near` is the minimum depth and `far` the maximum over those corners, so no camera position can
@@ -815,7 +815,7 @@ pub fn sense_pointer(
 /// So this reads the rects — through **`ComputedNode::contains_point`**, which is the same function
 /// `bevy_ui`'s picking backend and focus system call (`picking_backend.rs:206`, `focus.rs:259`).
 /// Hand-rolling the rectangle test got two things wrong that the borrowed one cannot: the transform
-/// is [`bevy::ui::UiGlobalTransform`] and **not** `GlobalTransform` — a separate component in 0.19 —
+/// is [`bevy::ui::UiGlobalTransform`] and **not** `GlobalTransform` — a separate component in 0.20 —
 /// and the point has to be **physical**, the pointer being logical.
 ///
 /// The conversion is `camera.target_scaling_factor()`, taken from the same place the backend takes
@@ -916,7 +916,7 @@ struct Ray {
 /// # It comes from where the camera is, not from the world axes
 ///
 /// This used to be `RotY(yaw) * (wish.x, 0, wish.y)`, which pans along world X and Z. Those are only
-/// the screen's axes if the camera looks straight down one of them, and it does not: [`ISO_OFFSET`]
+/// the screen's axes if the camera looks straight down one of them, and it does not: `ISO_OFFSET`
 /// is (12, 12, 12), so the view looks along the XZ diagonal and `W` slid the map up-and-sideways at
 /// 45 degrees. The comment on the key table has always claimed screen axes; this is the version that
 /// delivers them.
@@ -927,7 +927,7 @@ struct Ray {
 /// right if the pitch changed.
 ///
 /// A camera looking straight down has no ground-projected forward, so there is no honest screen
-/// axis to pan along and this returns zero rather than inventing one. [`ISO_OFFSET`] is not
+/// axis to pan along and this returns zero rather than inventing one. `ISO_OFFSET` is not
 /// straight down, so that is unreachable today.
 pub fn pan_direction(wish: Vec2, yaw: f32) -> Vec3 {
     let iso = Quat::from_rotation_y(yaw) * ISO_OFFSET;

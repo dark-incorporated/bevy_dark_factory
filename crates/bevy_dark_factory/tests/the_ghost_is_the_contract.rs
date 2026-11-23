@@ -136,7 +136,7 @@ fn the_scan_can_see_a_map_at_call_where_one_belongs() {
 /// the ghosts — and hand each mesh a fresh material. Both of those hierarchies are despawned and
 /// respawned **wholesale** by the systems that do own them, on every `Build` change, which is what
 /// an arrow key is. So an entity read this frame can be gone before the command applies, and in
-/// Bevy 0.19 `EntityCommands::insert` on a despawned entity is a **hard panic**, not a no-op:
+/// Bevy 0.20 `EntityCommands::insert` on a despawned entity is a **hard panic**, not a no-op:
 ///
 /// ```text
 /// Encountered an error in command `insert<(MeshMaterial3d<StandardMaterial>, Brightened)>`:

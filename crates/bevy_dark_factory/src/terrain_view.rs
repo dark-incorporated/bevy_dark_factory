@@ -388,7 +388,7 @@ impl Surface {
 ///
 /// # What `terrain` hidden means
 ///
-/// A carved map's rock is meshed as **one solid** by [`crate::volume_mesh`]: the hill's outer skin and
+/// A carved map's rock is meshed as **one solid** by `volume_mesh`: the hill's outer skin and
 /// the carved rooms inside it are one surface, so despawning it takes the rooms with it. So `terrain`
 /// hidden **culls the solid's front faces**, which leaves the faces that bound the *void* drawn — the
 /// crypt's floor, its walls, its vault, and the sides of the columns standing in it. That is "the
@@ -445,7 +445,7 @@ pub fn hide_hidden_surfaces(
 /// "dark shape that reads as a floor" the issue names.
 ///
 /// **One function, because the two values are one answer**, and because
-/// [`crate::environment::cut_the_weathered_ground`] must reach the same pair for a map wearing a cover.
+/// `environment::cut_the_weathered_ground` must reach the same pair for a map wearing a cover.
 pub fn interior_faces(cut: bool) -> (Option<Face>, bool) {
     if cut {
         (Some(Face::Front), true)
@@ -455,7 +455,7 @@ pub fn interior_faces(cut: bool) -> (Option<Face>, bool) {
 }
 
 /// **Whether a drawn surface is hidden, given whether the solid is being cut** (#472): the one rule
-/// [`hide_hidden_surfaces`] and [`crate::environment::cut_the_weathered_ground`] both follow, so a map
+/// [`hide_hidden_surfaces`] and `environment::cut_the_weathered_ground` both follow, so a map
 /// wearing a cover and one without cannot disagree about what the eye did.
 pub fn surface_wants(surface: Surface, cut: bool, hidden: bool) -> bool {
     match (surface, cut, hidden) {

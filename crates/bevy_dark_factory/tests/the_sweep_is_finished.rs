@@ -190,7 +190,7 @@ fn nobody_places_their_own_panel() {
 /// This is a crash, not tidiness, and it hid for months. An observer registered with `add_observer`
 /// fires for **any** matching event anywhere in the application — and `Project`, `OpenMap`, `Door`
 /// and `Mode` are inserted when a door opens and **removed by `screen::close_the_door`**. On
-/// `Screen::Project` they do not exist, and in Bevy 0.19 a missing `Res<T>` **panics its system** rather
+/// `Screen::Project` they do not exist, and in Bevy 0.20 a missing `Res<T>` **panics its system** rather
 /// than skipping it.
 ///
 /// Every one of these observers already had the real guard — a `Query` answering "is this entity

@@ -28,7 +28,7 @@
 //!
 //! A refusal in this editor is usually about one named piece, and `Status::problem_about` already carries that id. A log
 //! event that names one — `warn!(piece = %id, "…")`, the field [`PIECE_FIELD`] — becomes a **chip** in the details pane,
-//! and pressing it calls [`Selection::only`], so a line in a log is a way into the map rather than a sentence to retype.
+//! and pressing it calls [`Selection::only`](crate::selection::Selection::only), so a line in a log is a way into the map rather than a sentence to retype.
 //!
 //! # The chord is outside the key census, on purpose
 //!
@@ -131,7 +131,7 @@ pub struct Line {
     pub message: String,
     /// **The piece this line is about**, when the event carried a [`PIECE_FIELD`] field. Selects on a chip.
     pub piece: Option<String>,
-    /// The frame it was recorded in, as [`FRAME`] stood. A line before the first frame is frame 0.
+    /// The frame it was recorded in, as `FRAME` stood. A line before the first frame is frame 0.
     pub frame: u64,
     /// **How many times in a row this exact line arrived.** A fold, not a second row: a batch that logs one line per
     /// frame would otherwise fill the ring with the same sentence.

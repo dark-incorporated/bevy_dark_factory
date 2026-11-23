@@ -21,7 +21,7 @@
 //!
 //! gooey opens a menu at the entity the click reached, and the tree's own node carries this menu, so a right-click that hits
 //! no row reaches the tree — the folder. A row of the tree names the same menu, so a right-click on a file reaches that row,
-//! and [`row_of`] reads which file it was from [`crate::files::TreeNames`] — the tree's own record of what each row key
+//! and `row_of` reads which file it was from [`crate::files::TreeNames`] — the tree's own record of what each row key
 //! names, so the menu cannot disagree with the row it is drawn on.
 //!
 //! # A name is typed on the menu row, not in a second dialog

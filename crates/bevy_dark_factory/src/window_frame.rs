@@ -8,7 +8,7 @@
 //! * the frame it had when a project last opened, or the editor last closed, is kept in the recent-projects file
 //!   ([`crate::recent::Recent::window`]) and used instead of the fit, **when it still lies within a monitor**
 //!   ([`choose`]): a monitor that was unplugged leaves a saved frame nobody can see, and that is ignored;
-//! * the window then **takes the size the system gave it** ([`take_the_given_size`]), which is not always the one
+//! * the window then **takes the size the system gave it** (`take_the_given_size`), which is not always the one
 //!   asked for: macOS will not open a window taller than the room between the menu bar and the Dock.
 //!
 //! The decision is two pure functions over [`MonitorArea`]s; the systems only gather monitors and apply the answer.

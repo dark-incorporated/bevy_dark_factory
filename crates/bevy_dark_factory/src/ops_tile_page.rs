@@ -10,7 +10,7 @@
 //!
 //! Each reads where the page is and the tile in hand off the view it is carried ([`crate::ops_view::View::tile_page`] and
 //! `tile_hand`) and answers with a [`crate::ops_view::PageAnswer`], which the front end carries out in
-//! [`crate::build::Build::take_page`]. The draft is session state until `Cmd+S` saves it (`composition_define`): nothing here writes
+//! `crate::build::Build::take_page`. The draft is session state until `Cmd+S` saves it (`composition_define`): nothing here writes
 //! a file, and a different tile opened is a different document, so the tab's history starts afresh (`Build::opened`).
 
 use crate::build::{NEW_TILE_ROW, blank, claims_no_tile, has_a_box, row_composition};

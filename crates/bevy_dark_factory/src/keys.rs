@@ -174,7 +174,7 @@ impl Context {
 /// when they walk it and on the piece when they move it.)
 ///
 /// With the phase in the table, one key carries two actions the way [`Binding::needs_shift`] already
-/// lets it carry two: they are exclusive by construction, the collision test knows it, and [`rows`]
+/// lets it carry two: they are exclusive by construction, the collision test knows it, and `rows`
 /// shows the one that is live.
 ///
 /// **This does not make the mode safe on its own, and the corpus cannot settle whether it is.**
@@ -549,7 +549,7 @@ impl ControlId {
 enumerated! {
     /// Everything the editor can be asked to do.
     ///
-    /// **Generated with the enum by [`enumerated!`], so the count and the list cannot disagree** —
+    /// **Generated with the enum by `enumerated!`, so the count and the list cannot disagree** —
     /// the same mechanism `ControlId` uses, and for the same reason: a hand-typed list of a
     /// hundred-and-twenty-eight variants is a list that goes stale. **The parity test needs `ALL`**
     /// to say that every action is either migrated or on the unmigrated list, and a list that
@@ -1374,7 +1374,7 @@ pub struct Binding {
     pub needs_stance: Stances,
     pub context: Context,
     /// How the BARE key reads in the panel — `S`, `Z`, `up`. The modifier is **not** written here:
-    /// [`rows`] prepends [`MOD_NAME`] when `needs_mod`, so the one panel that shows this list says
+    /// `rows` prepends [`MOD_NAME`] when `needs_mod`, so the one panel that shows this list says
     /// `Cmd+S` on a Mac and `Ctrl+S` elsewhere without a second census to keep in step.
     pub chord: &'static str,
     /// What it does, in the fewest words that stay true.
@@ -1388,7 +1388,7 @@ pub struct Binding {
     /// [`Holder::Filter`] is standing over the tab, only these fire — and only on the tab they belong
     /// to. Everything else — `Enter`, `Esc`, `Space`, letters, the tab chords, `Cmd+S` — stays
     /// suppressed exactly as it is while [`Context::Typing`] holds the keyboard, and
-    /// [`only_the_list_walks_fire_while_a_filter_box_holds_the_keys`] polices that over the whole
+    /// `only_the_list_walks_fire_while_a_filter_box_holds_the_keys` polices that over the whole
     /// table.
     pub while_filtering: bool,
     /// **The journal panel's own keys.**
@@ -1445,7 +1445,7 @@ impl Draft {
     /// walk to get the exemption, and a new walk forgotten here is a dead key while filtering, which
     /// is the defect the exemption was built to close.
     ///
-    /// It does **not** cross tabs: [`allowed`] also requires the row's own context to overlap the
+    /// It does **not** cross tabs: `allowed` also requires the row's own context to overlap the
     /// live tab, so the Rigs box narrowing the rig list cannot walk the Meshes list.
     pub const fn also_filtered(mut self) -> Draft {
         self.while_filtering = true;
@@ -3613,7 +3613,7 @@ pub fn binding(action: Action) -> &'static Binding {
 ///
 /// The deleted `rows()` carried the same note for the same reason — it pushed `b.chord` and
 /// collapsed `Cmd+Z` and `Shift+Cmd+Z` into "Cmd+Z, Z", naming a key that does not do that. The
-/// badge rows render through [`chord_column`], the same single path. One renderer, no exceptions.
+/// badge rows render through `chord_column`, the same single path. One renderer, no exceptions.
 pub fn chord(action: Action) -> String {
     chord_text(binding(action))
 }
@@ -3699,7 +3699,7 @@ impl Badge {
     /// One badge can be several chords, and the nine workspace chords are exactly that case: they
     /// share a `does` and collapse into one row. While only three workspaces are built, `Cmd+1` still
     /// names a workspace the editor refuses, so the badge is trimmed rather than kept or dropped whole,
-    /// and its column is re-rendered through [`chord_column`], the same function that wrote it.
+    /// and its column is re-rendered through `chord_column`, the same function that wrote it.
     ///
     /// See [`Action::is_offered`] for why the census cannot answer this on its own.
     pub fn offered(mut self) -> Option<Badge> {
@@ -3715,14 +3715,14 @@ impl Badge {
     }
 }
 
-/// **The key list as it should be SEEN** — [`rows`], split along its bindings' homes.
+/// **The key list as it should be SEEN** — `rows`, split along its bindings' homes.
 ///
-/// Exactly [`rows`]'s collapse with one more condition: two adjacent bindings join only if they agree
+/// Exactly `rows`'s collapse with one more condition: two adjacent bindings join only if they agree
 /// about *where* as well as about *what*. So `R, T, Y, U, V` stays one badge on the piece it turns,
 /// and a row whose bindings disagreed would split rather than pick one of them — which is the honest
 /// answer and not a special case.
 ///
-/// Declaration order, never sorted, for the reason [`rows`] gives: Samp 2011 via `docs/ui.md` §3.5, a
+/// Declaration order, never sorted, for the reason `rows` gives: Samp 2011 via `docs/ui.md` §3.5, a
 /// list that rearranges itself is one nobody can build a memory of. That matters more here than it did
 /// there, because a badge's *position* is half of what is being learned — ExposeHK's third goal
 /// (`10.1145/2470654.2470735`) is that hotkeys sit at the spatial location of the control they act
@@ -3804,7 +3804,7 @@ pub enum Phase {
 }
 
 /// Installs [`Live`] and orders the three phases. **Added first**, because a missing `Res<T>` panics
-/// its system in Bevy 0.19 rather than skipping it (`CLAUDE.md`), and `Live` is read from three
+/// its system in Bevy 0.20 rather than skipping it (`CLAUDE.md`), and `Live` is read from three
 /// plugins — so no one of them can be its owner.
 pub struct KeysPlugin;
 
@@ -3945,7 +3945,7 @@ pub enum Holder {
 /// changed that: the list walks stay live while the box holds the keys, and two of them — the Tiles
 /// page's `TilePrev`/`TileNext` — are bound at [`Stance::Browsing`], so blanking the stance to Idle
 /// would kill exactly the walk the exemption exists to keep. The stance survives, and the suppression
-/// is stated where it decides: [`allowed`] refuses every binding that did not opt in.
+/// is stated where it decides: `allowed` refuses every binding that did not opt in.
 ///
 /// **`typing` and `holder` are separate answers.** A filter box is a field taking raw keys, so it
 /// sets both — `Context::Typing` at `.0` and [`Holder::Filter`] at `.2` — and the tab is preserved
@@ -3962,7 +3962,7 @@ pub fn live(tab: Context, typing: bool, stance: Stance, holder: Holder) -> Live 
 /// census would fire *while* you type. So the suppression is stated once, here, and `overlaps` keeps
 /// doing only the tab-exclusion half it was written for.
 ///
-/// Only asked of [`Holder::Tab`]: the other two holders have their own clause in [`allowed`].
+/// Only asked of [`Holder::Tab`]: the other two holders have their own clause in `allowed`.
 pub fn fires_in(want: Context, live: Context) -> bool {
     live != Context::Typing && want.overlaps(live)
 }
@@ -4075,7 +4075,7 @@ pub fn pressed(keys: &ButtonInput<KeyCode>, live: Live, action: Action) -> bool 
 /// picked to avoid, since a tap is rarely under about 120 ms. The margin is thinner than it was and
 /// this is the value to suspect if tapping starts double-stepping. The fix then is not a slower
 /// number: it is the split every OS keyboard makes, a long delay before the first repeat and a
-/// short interval after it. That is one constant and one line in [`countdown`] away, and
+/// short interval after it. That is one constant and one line in `countdown` away, and
 /// deliberately not taken yet — nobody has reported a double step.
 pub const REPEAT_SECS: f32 = 0.100;
 
@@ -4118,7 +4118,7 @@ pub fn interval_after(held: f32) -> f32 {
 /// before any of that exists — it reads raw [`KeyCode`], deliberately, being the screen you arrive
 /// at — so its repeats are keyed by the key.
 ///
-/// One enum rather than two resources: the countdown arithmetic is written once, in [`countdown`],
+/// One enum rather than two resources: the countdown arithmetic is written once, in `countdown`,
 /// and a second store would be a second place for the cadence to drift.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum RepeatId {

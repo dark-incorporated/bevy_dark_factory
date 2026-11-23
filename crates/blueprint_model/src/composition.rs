@@ -1521,7 +1521,7 @@ struct Boxed {
 ///
 /// # Nested compositions are read through, not read off
 ///
-/// A nested group contributes through [`flatten`], so this reads its members' cells rather than
+/// A nested group contributes through `flatten`, so this reads its members' cells rather than
 /// calling itself on the child and splicing the result. The two give the **same tokens** — a child
 /// flush with a parent face presents the cells its own interface would report, and a child sitting
 /// inside the parent reaches no face either way — and going through `flatten` means there is one

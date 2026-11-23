@@ -51,7 +51,7 @@ fn ink_of(app: &mut App) -> Color {
 /// be the constant coinciding with the field.
 fn a_skin_of_its_own() -> GooeySkin {
     let mut skin = GooeySkin::tool();
-    skin.surface_raised = Color::srgb(0.13, 0.17, 0.19); // the box at rest
+    skin.surface_raised = Color::srgb(0.13, 0.17, 0.20); // the box at rest
     skin.text = Color::srgb(0.81, 0.91, 0.11); // what is typed
     skin.text_muted = Color::srgb(0.21, 0.31, 0.41); // a placeholder
     skin.accent = Color::srgb(0.91, 0.11, 0.61); // the caret
@@ -66,7 +66,7 @@ fn a_skin_of_its_own() -> GooeySkin {
 fn a_filter_box_stands_on_the_skins_grounds() {
     let mut app = app_with(Some(a_skin_of_its_own()));
     let rest = ground(&mut app);
-    assert_eq!(rest, Color::srgb(0.13, 0.17, 0.19), "a box at rest is the skin's `surface_raised`");
+    assert_eq!(rest, Color::srgb(0.13, 0.17, 0.20), "a box at rest is the skin's `surface_raised`");
 
     app.world_mut().resource_mut::<Filters>().take_focus(Pane::Palette);
     app.update();

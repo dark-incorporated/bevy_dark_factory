@@ -14,7 +14,7 @@
 //! write straight onto a row would be a second path that skips all three.
 //!
 //! So [`PoseView`] is a **reflected view of the selection's pose**, spawned on one entity of its own; the
-//! inspector edits *it*, and [`pose_edits_are_operations`] turns the change into the operation. That is
+//! inspector edits *it*, and `pose_edits_are_operations` turns the change into the operation. That is
 //! the same shape `filter.rs` and `anim_tab.rs` already use for their read-only views: the editor's own
 //! type, not the crate's, and one writer per fact.
 //!
@@ -31,7 +31,7 @@
 //!
 //! # The panel
 //!
-//! [`spawn_the_block`] puts a heading and gooey's `inspector(...)` over the view at the top of the Map
+//! `spawn_the_block` puts a heading and gooey's `inspector(...)` over the view at the top of the Map
 //! door's INSPECTOR panel (the scroll list `MapControlsPane`) while something is selected, and takes it
 //! out again when nothing is.
 

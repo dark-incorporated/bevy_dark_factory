@@ -126,7 +126,7 @@ fn make_parent(root: &Path, rel: &str) -> Result<(), Refusal> {
     std::fs::create_dir_all(&folder).map_err(|e| Refusal::new(format!("{} was not made ({e}), so nothing was written.", parent.display())))
 }
 
-/// **What [`file_create`] takes.**
+/// **What `file_create` takes.**
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct CreateParams {
@@ -296,7 +296,7 @@ impl Operation for FileCreate {
 
 // ── file_rename ──────────────────────────────────────────────────────────────
 
-/// **What [`file_rename`] takes.**
+/// **What `file_rename` takes.**
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct RenameParams {
@@ -443,7 +443,7 @@ impl Operation for FileRename {
 
 // ── file_delete ──────────────────────────────────────────────────────────────
 
-/// **What [`file_delete`] takes.**
+/// **What `file_delete` takes.**
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct DeleteParams {

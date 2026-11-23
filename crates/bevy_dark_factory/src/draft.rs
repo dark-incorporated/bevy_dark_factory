@@ -19,7 +19,7 @@
 //!
 //! # What is offered, and when
 //!
-//! [`write`] runs on the same interval the unsaved buffers change — a person's typing, and an agent's write into a clean
+//! [`write()`] runs on the same interval the unsaved buffers change — a person's typing, and an agent's write into a clean
 //! buffer — so the file on disk is never more than a few seconds behind. [`offers`] is read when a project opens, and
 //! [`take`] removes one draft after the person has decided. **Declining deletes it**: a draft nobody wants is a draft that
 //! asks again every launch, which is a question a person learns to dismiss without reading.
@@ -120,7 +120,7 @@ pub fn offers(root: &Path) -> Vec<Drafted> {
 }
 
 /// **Remove one file's draft**, after the person has decided about it: taken, or declined. The rest of the project's drafts
-/// stay, and the file goes when the last one is taken (as [`write`] with an empty list does).
+/// stay, and the file goes when the last one is taken (as [`write()`] with an empty list does).
 pub fn take(root: &Path, rel: &str) -> Result<(), String> {
     let mut files = offers(root);
     let before = files.len();
@@ -172,7 +172,7 @@ pub struct DraftClock {
 /// **Write the drafts when the unsaved set has changed**, once per [`DRAFT_WRITE_S`] and not once per keystroke.
 ///
 /// **A write failure is a problem on the status line, once**, not a refusal of anything a person was doing: the buffer is
-/// still theirs and the editor still runs. [`DraftClock::written`] is not updated on a failure, so the next interval tries
+/// still theirs and the editor still runs. `DraftClock::written` is not updated on a failure, so the next interval tries
 /// again rather than believing a write that did not land.
 pub fn keep_the_drafts(
     // **The editor's own clock**, as the periodic save reads it: a draft is for a crash, and the editor's frame steps are what

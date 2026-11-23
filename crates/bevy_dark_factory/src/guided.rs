@@ -45,13 +45,13 @@ use crate::project::{OpenMap, Project};
 /// rejects a duplicate plugin by name, so adding it here as well would panic the editor's binary the
 /// moment both were present. The consequence is that `build_headless` has the vocabulary but no card
 /// on screen — which is right, since the harness has no window either. That the overlay builds its
-/// text tree is pinned where it belongs, in `bevy_debugger_bevy`'s own `tests/guide_steps.rs`.
+/// text tree is pinned where it belongs, in `bevy_debugger_bevy`'s own test suite.
 pub struct GuidePlugin;
 
 impl Plugin for GuidePlugin {
     fn build(&self, app: &mut App) {
         // `DebuggerPlugin` inits both of these, and it is **not** in `build_headless` — it binds a
-        // port. Same argument as `DebugCursor` in `harness.rs`: in Bevy 0.19 a missing `Res<T>`
+        // port. Same argument as `DebugCursor` in `harness.rs`: in Bevy 0.20 a missing `Res<T>`
         // panics its system rather than skipping it, so a resource the editor's own code reads has to
         // exist whether or not the transport does.
         app.init_resource::<Checkpoints>()
@@ -267,7 +267,7 @@ impl Plugin for GuidePlugin {
         // re-satisfy a step that asks for new rows.
         //
         // **`Option<Res<OpenMap>>` on every map checkpoint, because only one door has a map.**
-        // `args::Opened::insert_into` removes `OpenMap` for the Kit and Rigs doors, and in Bevy 0.19
+        // `args::Opened::insert_into` removes `OpenMap` for the Kit and Rigs doors, and in Bevy 0.20
         // a missing `Res<T>` fails the system rather than skipping it — so watching a script that
         // crosses from the Tiles tab into the map (`build_a_room`, `room_from_nothing`,
         // `branch_verbs` all do) killed the exercise at that step instead of simply not passing it

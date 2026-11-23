@@ -169,7 +169,7 @@ pub struct ImportState {
     ///
     /// A righting re-photographs the piece and asks again, so a model that keeps saying "not
     /// upright" turns it for ever — four quarter turns is where it started, which makes the loop
-    /// silent as well as endless. [`MAX_RIGHTINGS`] is the ceiling; past it the proposal is dropped
+    /// silent as well as endless. `MAX_RIGHTINGS` is the ceiling; past it the proposal is dropped
     /// with a sentence rather than retried.
     ///
     /// Session bookkeeping rather than descriptor state, so it is deliberately absent from
@@ -735,7 +735,7 @@ impl NoteEdit {
 /// **`Option<Res<Project>>`, because this is a GLOBAL observer.** See [`on_cell_verb`] for the whole
 /// argument; the short form is that it fires for any `Activate` anywhere in the application, and
 /// `Project` belongs to a door. The entity query below is the real "is this mine" guard — it just
-/// cannot run until the parameters have been validated, and in Bevy 0.19 a missing `Res<T>` panics
+/// cannot run until the parameters have been validated, and in Bevy 0.20 a missing `Res<T>` panics
 /// at that point rather than skipping.
 fn on_note_click(
     activate: On<Activate>,
@@ -745,7 +745,7 @@ fn on_note_click(
     state: Option<ResMut<ImportState>>,
 ) {
     // **`Option`, because this is a GLOBAL observer** — it fires for any `Activate` anywhere in
-    // the application, and in Bevy 0.19 a missing resource panics at param validation rather
+    // the application, and in Bevy 0.20 a missing resource panics at param validation rather
     // than skipping. See [`on_cell_verb`] for the whole argument; the ratchet is
     // `every_resource_says_what_a_door_does_to_it.rs`.
     let Some(mut edit) = edit else {
@@ -978,7 +978,7 @@ fn on_scale_click(
     cell: Option<ResMut<CellEdit>>,
 ) {
     // **`Option`, because this is a GLOBAL observer** — it fires for any `Activate` anywhere in
-    // the application, and in Bevy 0.19 a missing resource panics at param validation rather
+    // the application, and in Bevy 0.20 a missing resource panics at param validation rather
     // than skipping. See [`on_cell_verb`] for the whole argument; the ratchet is
     // `every_resource_says_what_a_door_does_to_it.rs`.
     let Some(mut edit) = edit else {
@@ -1185,7 +1185,7 @@ fn on_mount_height_click(
     cell: Option<ResMut<CellEdit>>,
 ) {
     // **`Option`, because this is a GLOBAL observer** — it fires for any `Activate` anywhere in
-    // the application, and in Bevy 0.19 a missing resource panics at param validation rather
+    // the application, and in Bevy 0.20 a missing resource panics at param validation rather
     // than skipping. See [`on_cell_verb`] for the whole argument; the ratchet is
     // `every_resource_says_what_a_door_does_to_it.rs`.
     let Some(mut edit) = edit else {
@@ -1523,7 +1523,7 @@ fn on_cell_click(
     edit: Option<ResMut<CellEdit>>,
 ) {
     // **`Option`, because this is a GLOBAL observer** — it fires for any `Activate` anywhere in
-    // the application, and in Bevy 0.19 a missing resource panics at param validation rather
+    // the application, and in Bevy 0.20 a missing resource panics at param validation rather
     // than skipping. See [`on_cell_verb`] for the whole argument; the ratchet is
     // `every_resource_says_what_a_door_does_to_it.rs`.
     let Some(mut edit) = edit else {
@@ -1622,7 +1622,7 @@ fn cell_glyph(c: Option<&blueprint_model::descriptor::SubCell>) -> &'static str 
 ///
 /// This fires for *any* `Activate` in the application, not only ones inside this panel — and
 /// `Project` is a **door's** resource, removed by `screen::close_the_door`. On `Screen::Project` it does
-/// not exist, and in Bevy 0.19 a missing `Res<T>` **panics its system** rather than skipping
+/// not exist, and in Bevy 0.20 a missing `Res<T>` **panics its system** rather than skipping
 /// (`bevy_ecs/error/handler.rs:130`).
 ///
 /// The `Query` below is the real guard — a menu row has no `CellVerb` — but parameters are validated
@@ -1638,7 +1638,7 @@ fn on_cell_verb(
     state: Option<ResMut<ImportState>>,
 ) {
     // **`Option`, because this is a GLOBAL observer** — it fires for any `Activate` anywhere in
-    // the application, and in Bevy 0.19 a missing resource panics at param validation rather
+    // the application, and in Bevy 0.20 a missing resource panics at param validation rather
     // than skipping. See [`on_cell_verb`] for the whole argument; the ratchet is
     // `every_resource_says_what_a_door_does_to_it.rs`.
     let Some(mut edit) = edit else {
@@ -1667,7 +1667,7 @@ fn apply_verb(verb: CellVerb, edit: &mut CellEdit, project: &mut Project, state:
     apply_verb_to(verb, &[at], edit, project, state);
 }
 
-/// The button that reads occupancy off the mesh. See [`scan_mesh`].
+/// The button that reads occupancy off the mesh. See `scan_mesh`.
 #[derive(Component, Clone, Copy)]
 pub struct ScanMeshButton;
 
@@ -1848,7 +1848,7 @@ pub(crate) fn turn_descriptor(
 /// **`Option<Res<Project>>`, because this is a GLOBAL observer.** See [`on_cell_verb`] for the whole
 /// argument; the short form is that it fires for any `Activate` anywhere in the application, and
 /// `Project` belongs to a door. The entity query below is the real "is this mine" guard — it just
-/// cannot run until the parameters have been validated, and in Bevy 0.19 a missing `Res<T>` panics
+/// cannot run until the parameters have been validated, and in Bevy 0.20 a missing `Res<T>` panics
 /// at that point rather than skipping.
 fn on_rotate_click(
     activate: On<Activate>,
@@ -1858,7 +1858,7 @@ fn on_rotate_click(
     state: Option<ResMut<ImportState>>,
 ) {
     // **`Option`, because this is a GLOBAL observer** — it fires for any `Activate` anywhere in
-    // the application, and in Bevy 0.19 a missing resource panics at param validation rather
+    // the application, and in Bevy 0.20 a missing resource panics at param validation rather
     // than skipping. See [`on_cell_verb`] for the whole argument; the ratchet is
     // `every_resource_says_what_a_door_does_to_it.rs`.
     let Some(mut state) = state else {
@@ -2272,7 +2272,7 @@ fn autoscan_candidate(
 /// **`Option<Res<Project>>`, because this is a GLOBAL observer.** See [`on_cell_verb`] for the whole
 /// argument; the short form is that it fires for any `Activate` anywhere in the application, and
 /// `Project` belongs to a door. The entity query below is the real "is this mine" guard — it just
-/// cannot run until the parameters have been validated, and in Bevy 0.19 a missing `Res<T>` panics
+/// cannot run until the parameters have been validated, and in Bevy 0.20 a missing `Res<T>` panics
 /// at that point rather than skipping.
 fn on_scan_mesh(
     activate: On<Activate>,
@@ -2282,7 +2282,7 @@ fn on_scan_mesh(
     derived: Option<ResMut<DerivedEdges>>,
 ) {
     // **`Option`, because this is a GLOBAL observer** — it fires for any `Activate` anywhere in
-    // the application, and in Bevy 0.19 a missing resource panics at param validation rather
+    // the application, and in Bevy 0.20 a missing resource panics at param validation rather
     // than skipping. See [`on_cell_verb`] for the whole argument; the ratchet is
     // `every_resource_says_what_a_door_does_to_it.rs`.
     let Some(mut state) = state else {
@@ -2856,7 +2856,7 @@ fn cell_keys(
 /// **`Option<Res<Project>>`, because this is a GLOBAL observer.** See [`on_cell_verb`] for the whole
 /// argument; the short form is that it fires for any `Activate` anywhere in the application, and
 /// `Project` belongs to a door. The entity query below is the real "is this mine" guard — it just
-/// cannot run until the parameters have been validated, and in Bevy 0.19 a missing `Res<T>` panics
+/// cannot run until the parameters have been validated, and in Bevy 0.20 a missing `Res<T>` panics
 /// at that point rather than skipping.
 fn on_fill_header(
     activate: On<Activate>,
@@ -2866,7 +2866,7 @@ fn on_fill_header(
     state: Option<ResMut<ImportState>>,
 ) {
     // **`Option`, because this is a GLOBAL observer** — it fires for any `Activate` anywhere in
-    // the application, and in Bevy 0.19 a missing resource panics at param validation rather
+    // the application, and in Bevy 0.20 a missing resource panics at param validation rather
     // than skipping. See [`on_cell_verb`] for the whole argument; the ratchet is
     // `every_resource_says_what_a_door_does_to_it.rs`.
     let Some(mut edit) = edit else {
@@ -3844,7 +3844,7 @@ impl Plugin for TilesPlugin {
             .init_resource::<LatticePick>()
             .init_resource::<NoteEdit>()
             // Registered in the same commit as `scale_keys` and `rebuild_detail` read it — a missing
-            // `Res<T>` panics its system in Bevy 0.19 rather than skipping it (`CLAUDE.md`).
+            // `Res<T>` panics its system in Bevy 0.20 rather than skipping it (`CLAUDE.md`).
             .init_resource::<ScaleEdit>()
             .init_resource::<HeightEdit>()
             .init_resource::<StagedLift>()
@@ -4017,7 +4017,7 @@ impl Plugin for TilesPlugin {
                             .or_eager(tag_filter_changed),
                     ),
                     refresh_lines,
-                    // **Both stages, nested as one.** A system tuple caps at twenty in 0.19, and these
+                    // **Both stages, nested as one.** A system tuple caps at twenty in 0.20, and these
                     // are one idea on two tabs: Meshes stands one mesh up, Tiles stands the tile up
                     // with the grid you steer it by. They are mutually exclusive on the tab.
                     (
@@ -4029,7 +4029,7 @@ impl Plugin for TilesPlugin {
                     .run_if(in_state(crate::screen::Screen::Editor)),
             )
             // A second `add_systems` rather than a nested tuple — `add_systems` caps a tuple at 20
-            // in 0.19, and nesting would imply these belong together for a reason.
+            // in 0.20, and nesting would imply these belong together for a reason.
             .add_systems(
                 Update,
                 ((
@@ -5595,7 +5595,7 @@ fn cycle_mount(
 pub struct MountChip;
 
 /// **The click, through the one step.** `Option<ResMut<..>>` and an entity check first: a global
-/// observer fires for any `Activate` anywhere, and in Bevy 0.19 a missing `Res<T>` panics rather than
+/// observer fires for any `Activate` anywhere, and in Bevy 0.20 a missing `Res<T>` panics rather than
 /// skipping — the trap `the_sweep_is_finished.rs` polices.
 fn on_mount_chip(
     activate: On<Activate>,
@@ -6671,7 +6671,7 @@ fn on_tag_chip(
     state: Option<ResMut<ImportState>>,
 ) {
     // **`Option`, because this is a GLOBAL observer** — it fires for any `Activate` anywhere in
-    // the application, and in Bevy 0.19 a missing resource panics at param validation rather
+    // the application, and in Bevy 0.20 a missing resource panics at param validation rather
     // than skipping. See [`on_cell_verb`] for the whole argument; the ratchet is
     // `every_resource_says_what_a_door_does_to_it.rs`.
     let Some(mut state) = state else {
@@ -6692,7 +6692,7 @@ fn on_new_token_chip(
     prompt: Option<ResMut<crate::token_prompt::TokenPrompt>>,
 ) {
     // **`Option`, because this is a GLOBAL observer** — it fires for any `Activate` anywhere in
-    // the application, and in Bevy 0.19 a missing resource panics at param validation rather
+    // the application, and in Bevy 0.20 a missing resource panics at param validation rather
     // than skipping. See [`on_cell_verb`] for the whole argument; the ratchet is
     // `every_resource_says_what_a_door_does_to_it.rs`.
     let Some(mut prompt) = prompt else {
@@ -7382,7 +7382,7 @@ fn keep_candidate_selection_visible(
 
 /// **Click one tag chip, the way a person's press does** — B-047, and E-041's gap.
 ///
-/// Fires the same `Activate` the button sends, so [`on_tag_chip`]'s observer runs. Nothing in the
+/// Fires the same `Activate` the button sends, so `on_tag_chip`'s observer runs. Nothing in the
 /// suite could reach a chip until this existed: the tag route under test was the keyboard's
 /// (`take_the_one_match`), which is a different function with its own copy of the write.
 ///
@@ -7629,7 +7629,7 @@ fn on_pack_click(
     project: Option<Res<Project>>,
 ) {
     // **`Option`, because this is a GLOBAL observer** — it fires for any `Activate` anywhere in
-    // the application, and in Bevy 0.19 a missing resource panics at param validation rather
+    // the application, and in Bevy 0.20 a missing resource panics at param validation rather
     // than skipping. See [`on_cell_verb`] for the whole argument; the ratchet is
     // `every_resource_says_what_a_door_does_to_it.rs`.
     let (Some(mut state), Some(project)) = (state, project) else {
@@ -7651,7 +7651,7 @@ fn on_excluded_click(
     project: Option<Res<Project>>,
 ) {
     // **`Option`, because this is a GLOBAL observer** — it fires for any `Activate` anywhere in
-    // the application, and in Bevy 0.19 a missing resource panics at param validation rather
+    // the application, and in Bevy 0.20 a missing resource panics at param validation rather
     // than skipping. See [`on_cell_verb`] for the whole argument; the ratchet is
     // `every_resource_says_what_a_door_does_to_it.rs`.
     let (Some(mut state), Some(project)) = (state, project) else {
@@ -7678,7 +7678,7 @@ fn on_library_click(
     project: Option<Res<Project>>,
 ) {
     // **`Option`, because this is a GLOBAL observer** — it fires for any `Activate` anywhere in
-    // the application, and in Bevy 0.19 a missing resource panics at param validation rather
+    // the application, and in Bevy 0.20 a missing resource panics at param validation rather
     // than skipping. See [`on_cell_verb`] for the whole argument; the ratchet is
     // `every_resource_says_what_a_door_does_to_it.rs`.
     let (Some(mut state), Some(project)) = (state, project) else {
@@ -7697,7 +7697,7 @@ fn on_candidate_click(
     state: Option<ResMut<ImportState>>,
 ) {
     // **`Option`, because this is a GLOBAL observer** — it fires for any `Activate` anywhere in
-    // the application, and in Bevy 0.19 a missing resource panics at param validation rather
+    // the application, and in Bevy 0.20 a missing resource panics at param validation rather
     // than skipping. See [`on_cell_verb`] for the whole argument; the ratchet is
     // `every_resource_says_what_a_door_does_to_it.rs`.
     let Some(mut state) = state else {
@@ -8384,7 +8384,7 @@ fn on_shelf_click(
     mut build: Option<ResMut<crate::build::Build>>,
     // **A global observer, so every resource it takes is optional** — see `on_cell_verb`. This one
     // is `init_resource`d by the tiles plugin, but a click on a `Button` outside the editor still
-    // reaches here, and in 0.19 a missing `Res<T>` takes the application down rather than skipping.
+    // reaches here, and in 0.20 a missing `Res<T>` takes the application down rather than skipping.
     cursor: Option<Res<LibraryCursor>>,
 ) {
     let (
@@ -8499,7 +8499,7 @@ pub(crate) fn count_cell(row: &mut ChildSpawnerCommands, text: String) {
 /// so there is nothing to clamp here that the walk does not already clamp.
 ///
 /// **A global observer, so every resource it takes is optional** — see [`on_shelf_click`]: an
-/// `Activate` from any `Button` anywhere reaches here, and in Bevy 0.19 a missing `Res<T>` takes
+/// `Activate` from any `Button` anywhere reaches here, and in Bevy 0.20 a missing `Res<T>` takes
 /// the process down rather than skipping the system.
 fn on_kit_row(
     activate: On<Activate>,

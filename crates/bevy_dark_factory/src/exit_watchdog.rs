@@ -14,7 +14,7 @@
 //! **Where the process was stuck is not known**: dropping the `World` runs every resource's destructor on
 //! the main thread, and any of them can wait on a thread or a child (the terminal's PTY was one, now
 //! bounded in `terminal::pty`). So a thread waits [`EXIT_GRACE_S`] seconds after the [`AppExit`] and, if the
-//! process is still there, **records where it is stuck (`sample`, on a Mac, for at most [`SAMPLE_PATIENCE_MS`] ms: a
+//! process is still there, **records where it is stuck (`sample`, on a Mac, for at most `SAMPLE_PATIENCE_MS` ms: a
 //! live process is the only one it can look at, so the record is taken first and bounded) and ends it**. The record is
 //! `exit-hang.txt` beside the log, so the next hang names its own cause.
 //!

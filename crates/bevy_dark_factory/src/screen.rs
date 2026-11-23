@@ -7,7 +7,7 @@
 //! event loop per process**, so a second `App::run` in one process dies on `RecreationAttempt`.
 //!
 //! That shape was chosen for a second reason which is the one that actually mattered: `Project` is
-//! inserted before the editor's plugins, and in Bevy 0.19 a **missing `Res<T>` panics its system**
+//! inserted before the editor's plugins, and in Bevy 0.20 a **missing `Res<T>` panics its system**
 //! rather than skipping it. Around a hundred parameter positions take `Res<Project>`, so a menu
 //! living inside the editor's `App` meant gating every one of them — *"Gating is feasible… it is the
 //! **cost** that is the argument"* (the chooser, which the project page replaced).
@@ -102,7 +102,7 @@ impl Plugin for ScreenPlugin {
 /// **The door the project page, the loader or an agent chose, already opened.**
 ///
 /// Still one parser: the argv `[root, map?, --door, d, --kit, k]` goes to `args::open`. The *opening* happens **before** the state moves,
-/// not after: the transition into the editor used to carry the argv and let [`open_the_door`] open it, whose failure branch could not work —
+/// not after: the transition into the editor used to carry the argv and let `open_the_door` open it, whose failure branch could not work —
 /// Bevy runs `ExitSchedules` and `EnterSchedules` in one `StateTransition` pass, so a `NextState` written during `OnExit` is not read until
 /// the *next* pass and `OnEnter(Editor)` ran anyway, against a world with no `Project`. Opening first means the only way into
 /// `Screen::Editor` is with a door in hand, and a door that will not open is refused where a person is looking.
@@ -232,7 +232,7 @@ pub struct Crossing;
 ///
 /// **The first version of this took the `Project` out of the world** and put it back in
 /// `Chosen` — which is what `close_the_door` removes and `open_the_door` restores. **And the live
-/// test found it in one frame:** twenty editor systems ran with no `Project` to read, and Bevy 0.19
+/// test found it in one frame:** twenty editor systems ran with no `Project` to read, and Bevy 0.20
 /// **panics a system whose `Res<T>` is missing** rather than skipping it. The switching tore the
 /// door down and left the editor without a project for the rest of the frame.
 ///
@@ -310,7 +310,7 @@ pub fn rebuild_on_new_measures(mut asked: MessageReader<crate::style::RebuildPan
 ///
 /// # This is the fix for the worst bug on the 2026-09-03 list
 ///
-/// [`OWNERSHIP`] classified fifty-odd resources as the door's own working state and **nothing acted
+/// [`OWNERSHIP`] classifies fifty-odd resources as [`Ownership::Workspace`] and, until this, **nothing acted
 /// on it** — the table was a declaration, and `close_the_door` removed exactly four resources. The
 /// test beside it says so in as many words: *"The door change is **already** the partial teardown
 /// the comment is spent avoiding, and the bug class it warns about is already open."*
@@ -323,7 +323,7 @@ pub fn rebuild_on_new_measures(mut asked: MessageReader<crate::style::RebuildPan
 ///
 /// # Reset, not remove, and the difference is a panic
 ///
-/// A missing `Res<T>` **panics its system** in Bevy 0.19, and these are `init_resource`d once at
+/// A missing `Res<T>` **panics its system** in Bevy 0.20, and these are `init_resource`d once at
 /// plugin build — so removing them would take the next door down rather than clean it. Each is
 /// removed and immediately re-initialised, which is the same value the application started with and
 /// costs nothing a fresh boot does not.
@@ -354,7 +354,7 @@ macro_rules! door_state {
             )*
         }
 
-        /// The types [`reset_door_state`] puts back, by type path, for the ratchet.
+        /// The types `reset_door_state` puts back, by type path, for the ratchet.
         pub fn door_state_type_paths() -> Vec<&'static str> {
             vec![$( $(#[$attr])* std::any::type_name::<$t>() ),*]
         }

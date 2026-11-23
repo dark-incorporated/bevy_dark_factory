@@ -17,7 +17,7 @@
 //! # Previewed, then filed, and the two are one value
 //!
 //! [`Preview`] holds the composed body, the connection's words above it, and the edit a person made.
-//! [`file`] sends **`preview.body`** — not a recomposition — so a person cannot approve one thing and
+//! [`file()`] sends **`preview.body`** — not a recomposition — so a person cannot approve one thing and
 //! ship another; there is no second path that builds a body. [`Preview::edit`] is the only writer of the
 //! body after composition, which is what makes that rule a fact about the types rather than a promise.
 //!
@@ -89,7 +89,7 @@ pub enum Attachment {
 }
 
 impl Attachment {
-    /// **The links this attachment embeds**, which are the ones [`file`] verifies before the issue
+    /// **The links this attachment embeds**, which are the ones [`file()`] verifies before the issue
     /// exists. Empty for [`Attachment::Nothing`] and [`Attachment::Log`], whose content is the body.
     pub fn links(&self) -> Vec<String> {
         match self {
@@ -227,7 +227,7 @@ fn filled_or_said(text: &str) -> String {
 /// **The issue as a person sees it before it is filed**: the composed Markdown, the connection and
 /// repository named above it, and the title and labels the filing will use.
 ///
-/// `body` is the only field [`file`] sends, and [`Preview::edit`] is the only writer after
+/// `body` is the only field [`file()`] sends, and [`Preview::edit`] is the only writer after
 /// composition — the two facts together are the rule that a person cannot approve one thing and ship
 /// another.
 #[derive(Clone, Debug, PartialEq, Eq)]

@@ -52,9 +52,9 @@ pub const FIND_MATCH_CAP: usize = 1_000;
 pub struct FindStatus {
     /// The current match, counted from the oldest and from 1; 0 when nothing matched.
     pub current: usize,
-    /// How many matches are kept: all of them, or the newest [`FIND_MATCH_CAP`].
+    /// How many matches are kept: all of them, or the newest `FIND_MATCH_CAP`.
     pub total: usize,
-    /// More matched than [`FIND_MATCH_CAP`], so the oldest are not counted.
+    /// More matched than `FIND_MATCH_CAP`, so the oldest are not counted.
     pub capped: bool,
 }
 
@@ -507,7 +507,7 @@ impl TerminalScreen {
         self.caret
     }
 
-    /// Bytes the emulator owes the shell — see [`TerminalListener`]. Taken, not read, so a reply is
+    /// Bytes the emulator owes the shell — see `TerminalListener`. Taken, not read, so a reply is
     /// written once.
     pub fn take_replies(&mut self) -> Vec<u8> {
         self.listener

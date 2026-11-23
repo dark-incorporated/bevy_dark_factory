@@ -31,7 +31,7 @@
 //!
 //! `card_grid` spawns a card per entry and says so: "the cards are spawned once; respawn the grid to change
 //! them". So a redraw despawns the grid and spawns another where it stood, and the payload each card carries
-//! is put on it by [`name_the_payloads_on_cards`] right after — one system, because a card's own bundle has
+//! is put on it by `name_the_payloads_on_cards` right after — one system, because a card's own bundle has
 //! no room for a payload the crate knows nothing about.
 
 use std::collections::BTreeSet;
@@ -161,7 +161,7 @@ impl Plugin for LibraryBrowserPlugin {
 
 /// **View ▸ Show library puts the LIBRARY panel into the Kit workspace's right dock, and takes it out again** (NV-08, #385). Not there
 /// until it is asked for, for the reason the module docs give. Asked outside the Kit workspace it does nothing: the row is disabled there
-/// ([`tick_the_menu_row`]), and this is the second guard for a toggle sent by something that is not the menu.
+/// (`tick_the_menu_row`), and this is the second guard for a toggle sent by something that is not the menu.
 pub fn toggle_the_library(
     change: On<ValueChange<bool>>,
     workspace: Option<Res<Workspace>>,

@@ -47,7 +47,7 @@
 //! guess. What that means precisely is **a floor, not an equality** — a file numbered *above* this
 //! build is refused, and one at or below it is read and re-saved at the current number.
 //!
-//! It was an equality until [`Stamped`] arrived, and the difference is worth stating because it looks
+//! It was an equality until [`Stamped`](crate::composition::Stamped) arrived, and the difference is worth stating because it looks
 //! like a loosening and is not. The hazard versioning exists to stop is an **old** build opening a
 //! **new** file, understanding half of it, and writing the other half away — a map silently losing
 //! every stamp in it. That is exactly what the floor still refuses. The equality additionally refused
@@ -338,7 +338,7 @@ pub struct Placed {
     ///
     /// # And it is the record of which mount a two-way piece took
     ///
-    /// For a [`Descriptor`](crate::descriptor::Descriptor) mounted
+    /// For a `crate::descriptor::Descriptor` mounted
     /// [`Mount::OnSurfaceOrFloor`](crate::descriptor::Mount::OnSurfaceOrFloor), this field **is** the
     /// answer to "did it take the surface or the floor": `Some(host)` says the surface, `None` says the
     /// floor. That is why the variant needs no second field — [`crate::stack::resolve_y`] already

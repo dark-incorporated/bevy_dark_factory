@@ -11,7 +11,7 @@
 //!
 //! A workspace, a panel of it, what is selected there, and the camera. Four fields because those are
 //! the four things a person can be looking at when they say *"put me back"*. [`Place::of`] reads them
-//! off the world once, and [`settle_the_place`] writes them back once the door has landed — the camera
+//! off the world once, and `settle_the_place` writes them back once the door has landed — the camera
 //! through [`Camera::restore`], the selection through the editor's one lock — so there is no second
 //! builder, and a place can never be a partial snapshot of an edit site's choosing.
 //!
@@ -358,7 +358,7 @@ impl History {
         }
     }
 
-    /// **The place a walk is waiting to settle on**, for a test and for [`settle_the_place`].
+    /// **The place a walk is waiting to settle on**, for a test and for `settle_the_place`.
     pub fn pending(&self) -> Option<&Place> {
         self.pending.as_ref().map(|(place, _)| place)
     }
@@ -382,7 +382,7 @@ impl History {
 ///
 /// It does not write the camera or the door itself: a workspace change **resets `Rig`**
 /// (`screen::OWNERSHIP`), so a camera written on the frame the change is asked for is erased by the
-/// change it was for. [`settle_the_place`] writes both, on the frame the door has landed — the same
+/// change it was for. `settle_the_place` writes both, on the frame the door has landed — the same
 /// two-step `reveal::take_the_reveal` takes for a row, one value over.
 pub fn go(place: &Place, open: Option<&crate::project::OpenMap>) -> Result<(), String> {
     still_there(place, open)

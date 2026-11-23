@@ -313,7 +313,7 @@ fn place_file_kind(path: &str) -> Option<&'static str> {
     crate::board::IMAGE_EXTS.contains(&ext.as_str()).then_some("reference_images")
 }
 
-/// **Whether a folder of the game's root can hold a file [`place_file_kind`] classifies**, so a walk of the project
+/// **Whether a folder of the game's root can hold a file `place_file_kind` classifies**, so a walk of the project
 /// knows where to look without a depth of its own: a place, a folder a place is in (`design/levels`), or a place's `board/`.
 pub fn holds_place_files(dir: &str) -> bool {
     let board_of = |d: &str| d.rsplit_once('/').is_some_and(|(place, folder)| folder == crate::board::BOARD_DIR && crate::board::is_place(place));

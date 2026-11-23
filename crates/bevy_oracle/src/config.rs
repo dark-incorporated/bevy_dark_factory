@@ -41,7 +41,7 @@ impl Protocol {
 ///
 /// **One endpoint per run, no fallback chain.** `Local` asks d3-flash on the LAN and nothing leaves it; `Remote` asks
 /// Perplexity's model through OpenRouter, and **screenshots of the project go there**. Remote is the person's own
-/// choice, made in their own settings file only ([`crate::decision_model`]).
+/// choice, made in their own settings file only (`crate::decision_model`).
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum DecisionModel {

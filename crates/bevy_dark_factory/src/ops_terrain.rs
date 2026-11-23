@@ -92,7 +92,7 @@ pub fn ground_of(project: &crate::project::Project, open: &crate::project::OpenM
 /// **The one reader of `<blueprint_dir>/terrain/<name>.yaml`**, so the map a report is *about* and the
 /// ground it is measured over are named by the same string. A name that is not a map name is `None`
 /// here: a terrain read is derived data, and the caller that resolves a caller-supplied name (the
-/// volume report) refuses it through [`crate::ops::map_name`] before asking.
+/// volume report) refuses it through `crate::ops::map_name` before asking.
 pub fn ground_named(project: &crate::project::Project, name: &str) -> Option<Heightfield> {
     let name = crate::ops::map_name(name).ok()?;
     let text = std::fs::read_to_string(project.blueprint_dir.join("terrain").join(format!("{name}.yaml"))).ok()?;

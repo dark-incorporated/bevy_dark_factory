@@ -640,7 +640,7 @@ fn same_layer(a: &Descriptor, a_on: Option<&str>, b: &Descriptor, b_on: Option<&
 /// A placement is refused, not layered, when its plan rectangle interpenetrates an existing
 /// placement's on the same layer: kitbashing wants pieces flush, and a mesh hidden inside another
 /// is the kind of authoring accident that is only found by counting draw calls. Flush is legal by
-/// [`OVERLAP_EPS`]; different layers pass each other by [`same_layer`]'s table.
+/// [`OVERLAP_EPS`]; different layers pass each other by `same_layer`'s table.
 ///
 /// The first blocker **in map order** is returned — file order, stable for a status line. `on` is
 /// the host the new piece would rest on, so two lamps contest one table but not two tables.
@@ -652,7 +652,7 @@ fn same_layer(a: &Descriptor, a_on: Option<&str>, b: &Descriptor, b_on: Option<&
 ///
 /// `plans_overlap` is a separating-axis test over two oriented boxes in **X and Z**. Height never
 /// enters. That is right *within* a layer, because a layer is a horizontal stratum — but
-/// [`same_layer`] returns `false` for every heterogeneous pair, so nothing is checked *across* layers
+/// `same_layer` returns `false` for every heterogeneous pair, so nothing is checked *across* layers
 /// at all. So:
 ///
 /// - a 2.2 m floor-standing cabinet and a sconce at 1.8 m on the wall behind it never contest, and
@@ -718,7 +718,7 @@ pub fn blockers(
 ///
 /// A placement whose descriptor the library does not have, or whose extents are unmeasured, takes
 /// part in no pair — the same "unknown is not everywhere" rule [`covers`] states. Reporting it is
-/// [`crate::vocab::validate_library`]'s job, not this one's.
+/// [`crate::vocab::Vocabularies::validate_library`]'s job, not this one's.
 pub fn overlaps(map: &Map, library: &Library) -> Vec<(usize, usize)> {
     // **Resolved once each**, because a descriptor's plan box depends on its own extents and yaw and
     // on nothing else. `None` is a placement this pass cannot speak about, kept in step with the
@@ -828,7 +828,7 @@ fn bodies<'a>(map: &'a Map, library: &'a Library) -> Option<Vec<Option<Body<'a>>
 ///
 /// # Why this is not [`overlaps`]
 ///
-/// [`same_layer`] returns `false` for every heterogeneous pair, and it has to: a door and the wall it
+/// `same_layer` returns `false` for every heterogeneous pair, and it has to: a door and the wall it
 /// is set into must not conflict. The consequence is that a door and a crate *also* do not conflict,
 /// which is the bounded claim [`blocking`]'s own doc states in as many words. A doorway is not a
 /// layer, it is a **hole a piece may stand in**, so the question is asked about the hole rather than
@@ -836,7 +836,7 @@ fn bodies<'a>(map: &'a Map, library: &'a Library) -> Option<Vec<Option<Body<'a>>
 ///
 /// # What is deliberately not reported
 ///
-/// - **Another opening.** Two leaves of one doorway contest each other through [`same_layer`] already;
+/// - **Another opening.** Two leaves of one doorway contest each other through `same_layer` already;
 ///   reporting that here would flag every double door in the project.
 /// - **A piece resting on the door** (`Placed::on` names it). A door with a mail slot on it is one
 ///   object, and the slot would be intruding into its own host.
@@ -912,7 +912,7 @@ pub fn blocked_openings(map: &Map, library: &Library) -> Vec<(usize, usize)> {
 ///
 /// # Clearance crosses the layers, and it has to
 ///
-/// Same reason [`blocked_openings`] exists: [`same_layer`] returns `false` for every heterogeneous pair,
+/// Same reason [`blocked_openings`] exists: `same_layer` returns `false` for every heterogeneous pair,
 /// so a wall behind a table is not an overlap *and cannot be one* — a wall and a floor piece meeting is
 /// how a room is built. But a wall inside the table's pull-out space is exactly what the field was
 /// authored to forbid. So the question is asked about the **reserved band**, not about a stratum.

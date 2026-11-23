@@ -25,7 +25,7 @@ pub mod sequence;
 /// (`cargo run -q -p dark_factory_mcp -- --emit-docs > docs/mcp-tools.md`).
 ///
 /// **What the figure covers, and what it does not.** `latency_ms` times `Transport::send` and nothing else
-/// ([`decide::Measured`]): the decision model's round trips. It does **not** include the editor taking the
+/// (`decide::Measured`): the decision model's round trips. It does **not** include the editor taking the
 /// still, so it is not what an agent waits. Measured 2026-11-21 on big against the local `d3-flash`, five calls
 /// per cell with a **different `state` every call** (llama-server caches prompts, so a repeated body measures
 /// the cache):

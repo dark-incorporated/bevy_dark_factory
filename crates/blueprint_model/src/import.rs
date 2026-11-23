@@ -21,14 +21,14 @@
 //! * **Centimetre units.** `SM_DoorFrame_Double` measured 200.3 units for a 2.003 m door. Nothing
 //!   errors — it renders, at a hundred times the size.
 //! * **Origin.** A centred mesh sinks half into the floor; base-at-origin is this project's
-//!   convention and `tests/ozea_asset.rs` pins it to 5 mm.
+//!   convention and `a_centimetre_authored_glb_is_reported_with_its_size_named` pins it to 5 mm.
 //! * **Grid fit.** A footprint that does not land on the authoring snap tiles badly, and you cannot
 //!   see it until you flood-fill a room and find stripes of bare floor.
-//! * **Triangle budget.** `tests/valkyrie_asset.rs` exists because a re-export forgot to decimate and
+//! * **Triangle budget.** The check exists because a re-export forgot to decimate once and
 //!   silently handed back 15× the geometry.
 //! * **Duplicates.** The same mesh re-exported under a new name is two library entries that are one
 //!   asset, and the second one is found by whoever wonders why there are two crates.
-//! * **Node transforms.** They make accessor bounds a lie. `tests/prop_footprint_contract.rs` reports
+//! * **Node transforms.** They make accessor bounds a lie. The footprint report names them instead of
 //!   and skips such meshes rather than misreading them, on the grounds that *"a silently mismeasured
 //!   pass would be worse than no pass"*. Same rule here.
 
@@ -43,7 +43,7 @@ use crate::naming;
 /// Above this, a mesh is worth a second look before it goes in a library that places hundreds of it.
 ///
 /// Not a limit — a hero prop can be dense on purpose. It is the number that makes someone check
-/// whether the exporter decimated, which is the question `tests/valkyrie_asset.rs` was written to ask.
+/// whether the exporter decimated, which is the question `rigs_match_assets` was written to ask.
 pub const BUSY_TRIANGLES: usize = 20_000;
 
 /// The largest dimension a piece of set dressing plausibly has, metres. Past this it is architecture

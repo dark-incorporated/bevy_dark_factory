@@ -61,12 +61,12 @@ pub struct MenuCommand(pub crate::keys::Action);
 
 /// **View → Show statistics** (#302): the one row of the bar that is a setting and not a command. It is a
 /// tick, and choosing it writes `show_statistics` to the user's settings file, which the editor reads back
-/// as it reads an edit made by hand; [`follow_the_statistics_setting`] keeps the tick on what the settings say.
+/// as it reads an edit made by hand; `follow_the_statistics_setting` keeps the tick on what the settings say.
 #[derive(Component)]
 pub struct StatisticsItem;
 
 /// **View → Show activity bar** (NV-03, #380): a tick on the `show_activity_bar` setting, written to the user's settings file
-/// like Show statistics, so the bar can be collapsed away and the choice is kept. [`follow_the_activity_bar_setting`] keeps the
+/// like Show statistics, so the bar can be collapsed away and the choice is kept. `follow_the_activity_bar_setting` keeps the
 /// tick on what the settings say.
 #[derive(Component)]
 pub struct ActivityBarItem;

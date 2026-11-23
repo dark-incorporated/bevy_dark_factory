@@ -12,7 +12,7 @@
 //! index holds for the path is not the one the last look was made at. A frame in which the index's generation did not
 //! move makes no filesystem call (one atomic load, after the path is built), and a change to another file reads nothing. A read that finds the same text as the last
 //! one decides nothing, so one edit is one verdict however many frames pass. A file the index cannot follow (outside the
-//! project, under a skipped folder, named by `.gitignore`) is refused and not read; see [`crate::followed_files`].
+//! project, under a skipped folder, named by `.gitignore`) is refused and not read; see `crate::followed_files`.
 //!
 //! The type is the decision crate's, above core, so [`blueprint_model::reload_check::check`] cannot
 //! read it; [`blueprint_model::reload_check::read`] names the field of a file that does not parse,

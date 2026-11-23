@@ -185,7 +185,7 @@ pub struct LabelsPlugin;
 /// There is one decision endpoint now, and its preflight ([`crate::decision_model::Source::config`] plus
 /// a TCP dial) can only tell *"a socket is open"* — not *"the model is there"*. So it is not read as
 /// evidence for the band at all: the link is written from **round trips that really happened**, in
-/// [`poll_tasks`]: an answer makes it [`Link::Live`] and carries the model name off the answer's own
+/// `poll_tasks`: an answer makes it [`Link::Live`] and carries the model name off the answer's own
 /// provenance, which is the authoritative one; an unreachable-endpoint failure makes it
 /// [`Link::Down`]. A gate rejection is about the mesh, not the link, and moves nothing. Until
 /// something has been asked, the line names the configured model and claims nothing.
@@ -253,7 +253,7 @@ impl Labeler {
         }
     }
 
-    /// **What the status band says** — see [`Labeler::parts`].
+    /// **What the status band says** — see `Labeler::parts`.
     pub fn line(&self) -> String {
         let (lead, model) = self.parts();
         format!("{lead}{model}")
@@ -860,7 +860,7 @@ fn record_proposals(root: &std::path::Path, entry: &Entry, asset: &str) {
 
 // ── the batch ────────────────────────────────────────────────────────────────────────────────────
 
-/// **What `Shift+L` found in scope, waiting on an answer.** See [`LabelQueue::ask`].
+/// **What `Shift+L` found in scope, waiting on an answer.** See `LabelQueue::ask`.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Overwrite {
     /// Pieces with no judgement at all — what `Esc` walks.
@@ -1334,7 +1334,7 @@ pub(crate) fn poll_warm(
 pub(crate) fn drive_batch(
     project: Option<Res<Project>>,
     // **Which tab is showing**, for the follow below — `Option` because `Screen::Editor` can run one
-    // pass with no door loaded (`screen::open_the_door`), and in Bevy 0.19 a missing `Res` panics its
+    // pass with no door loaded (`screen::open_the_door`), and in Bevy 0.20 a missing `Res` panics its
     // system rather than skipping it.
     mode: Option<Res<crate::tiles::Mode>>,
     mut state: ResMut<crate::tiles::ImportState>,

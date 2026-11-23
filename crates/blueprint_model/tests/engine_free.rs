@@ -6,8 +6,8 @@
 //! `bevy::`" since long before there was a crate — and a comment cannot fail a build.
 //!
 //! Adding `bevy` here would compile fine and nobody would notice until the editor tried to link it.
-//! These two tests are the ratchet, in the spirit of `tests/determinism_lint.rs` and
-//! `tests/panic_budget.rs`: cheap, GPU-free, and they fail at the door.
+//! These two tests are the ratchet: cheap, GPU-free, and they fail at the door -- no crate here may pull a
+//! GPU or a window in behind the model.
 //!
 //! Widening the dependency list is a design decision (see `docs/2026-08-03-emerge-mapper-plan.md`), so it
 //! should cost an argument and a deliberate edit here — not a passing `cargo build`.

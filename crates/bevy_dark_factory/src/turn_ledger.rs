@@ -26,11 +26,11 @@
 //! # Pictures
 //!
 //! **A capture is asked for and then lands**: [`TurnLedger`] hands out tickets, and whoever can draw delivers a picture for each
-//! ([`TurnLedger::deliver_shot`]). In the running editor that is [`issue_shots`], which reads back the surface the whole application draws into.
+//! ([`TurnLedger::deliver_shot`]). In the running editor that is `issue_shots`, which reads back the surface the whole application draws into.
 //!
 //! **Why the before picture is the frame the person last saw.** A readback (like a screenshot) copies the frame that is being finished when it is
 //! spawned. The BRP bridge answers an agent's call in `RemoteLast`, after `Last` and so after every system that draws, and the redraw of what the
-//! call changed waits for the next frame's `Update`: so the readback [`issue_shots`] spawns in `RemoteLast` (the schedule is named in
+//! call changed waits for the next frame's `Update`: so the readback `issue_shots` spawns in `RemoteLast` (the schedule is named in
 //! [`TurnLedgerPlugin`]) sees the map as it stood **before** the first write was drawn. The after picture is asked for from `Update`, once the view
 //! has settled, and sees the settled view. A headless editor has nothing to draw, so the test that drives it delivers the pictures; a picture that
 //! does not land within [`SHOT_LANDS_FRAMES`] is recorded as missing.

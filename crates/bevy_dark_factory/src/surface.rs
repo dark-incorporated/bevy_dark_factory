@@ -30,13 +30,13 @@
 //! wrong is silent: a click lands somewhere else and nothing logs. It is one conversion, applied
 //! once, and the rest of the crate was already written to receive it.
 //!
-//! The target is sized in **physical** pixels (see [`fit_surface_to_window`] for why — it is what
+//! The target is sized in **physical** pixels (see `fit_surface_to_window` for why — it is what
 //! makes the type sharp) and carries `scale_factor: 1.0`, so *the image's logical pixels are physical
 //! pixels*. [`crate::view::sense_pointer`] therefore stores the pointer already multiplied by the
 //! window's scale factor, and then:
 //!
 //! - **`cursor_ground`/`cursor_ray`** feed `Camera::viewport_to_world`, which measures against
-//!   `logical_viewport_rect` (`bevy_camera-0.19.0/src/camera.rs:803`) — the image's, now physical.
+//!   `logical_viewport_rect` (`bevy_camera-0.20.0/src/camera.rs:458`) — the image's, now physical.
 //!   Match, with no change at any of the fourteen call sites.
 //! - **`crate::view::over_ui`** multiplies the pointer by `camera.target_scaling_factor()`, taken
 //!   from the same place `bevy_ui`'s backend takes it. Against an image target that factor is
@@ -50,9 +50,9 @@
 //! that is the gate stopping a click on a row from *also* dropping a piece on the map behind it.
 //!
 //! `bevy_ui`'s backend keeps a pointer only for cameras whose normalized `RenderTarget` **equals the
-//! pointer's own target** (`bevy_ui-0.19.0/src/picking_backend.rs:129`). A mouse targets the window;
+//! pointer's own target** (`bevy_ui-0.20.0/src/picking_backend.rs:129`). A mouse targets the window;
 //! a camera drawing to an image never matches it, so the whole interface would stop answering the
-//! pointer — with no error anywhere. [`retarget_pointer`] re-points it, and the same source line
+//! pointer — with no error anywhere. `retarget_pointer` re-points it, and the same source line
 //! says what position to hand over: the backend scales by `camera.target_scaling_factor()`, which is
 //! 1.0 here, so the position must already be **physical**.
 //!
@@ -82,7 +82,7 @@ pub struct Surface {
     pub image: Handle<Image>,
 }
 
-/// **On every entity the rig owns, so [`crate::screen::scene_roots`] can leave them alone.**
+/// **On every entity the rig owns, so `crate::screen::scene_roots` can leave them alone.**
 ///
 /// The teardown sweeps every parentless entity carrying `Transform` or `Node`, which is exactly what
 /// three cameras and a sprite are. Windows and monitors are already excluded there as the things
@@ -104,7 +104,7 @@ pub struct SurfaceGround;
 ///
 /// `IsDefaultUiCamera` is what puts *everyone's* tree on the image rather than only the one file
 /// that names a target: Bevy picks the highest-order camera rendering to the primary window when a
-/// node names none (`bevy_ui-0.19.0/src/ui_node.rs:2934`), so without this the guide overlay — which
+/// node names none (`bevy_ui-0.20.0/src/ui_node.rs:2933`), so without this the guide overlay — which
 /// spawns its root bare — went to the window camera and appeared in no capture.
 #[derive(Component)]
 pub struct SurfaceCamera;
@@ -125,10 +125,10 @@ impl Plugin for SurfacePlugin {
         //
         // `bevy_state` inserts its transition schedule *before* the startup ones —
         // `schedule.insert_startup_before(PreStartup, StateTransition)`
-        // (`bevy_state-0.19.0/src/app.rs:336`) — so `OnEnter(Editor)` runs before any `Startup`
+        // (`bevy_state-0.20.0/src/app.rs:336`) — so `OnEnter(Editor)` runs before any `Startup`
         // system, and `build_headless_at` enters the editor on the first transition by design.
         // A surface spawned in `Startup` therefore does not exist when `view::setup` asks for it,
-        // and in Bevy 0.19 a missing `Res<T>` panics its system: eighty tests, one message.
+        // and in Bevy 0.20 a missing `Res<T>` panics its system: eighty tests, one message.
         //
         // Doing it at build time is also simply true — the surface is not something a frame makes.
         spawn_surface(app.world_mut());
@@ -186,7 +186,7 @@ impl Plugin for SurfacePlugin {
             )
             // **Between the two picking sets that matter**: `ProcessInput` writes `PointerLocation`
             // in `PreUpdate`, `Backend` reads it in the same schedule
-            // (`bevy_picking-0.19.0/src/lib.rs:258`). Anywhere else and the retarget is either
+            // (`bevy_picking-0.20.0/src/lib.rs:259`). Anywhere else and the retarget is either
             // overwritten or too late.
             .add_systems(
                 PreUpdate,
@@ -302,9 +302,9 @@ fn spawn_surface(world: &mut World) {
     let handle = images.add(image);
 
     let target = || {
-        // `RenderTarget` is its own component in 0.19 — one of `Camera`'s `#[require]`s, not a field
+        // `RenderTarget` is its own component in 0.20 — one of `Camera`'s `#[require]`s, not a field
         // on it. **`scale_factor` stays 1.0**: Bevy's own field doc says *"This should almost always
-        // be 1.0"* (`bevy_camera-0.19.0/src/camera.rs:989`) and off that path it renders nothing at
+        // be 1.0"* (`bevy_camera-0.20.0/src/camera.rs:991`) and off that path it renders nothing at
         // all. Density is carried by `UiScale` instead — see [`fit_surface_to_window`].
         RenderTarget::Image(ImageRenderTarget {
             handle: handle.clone(),
@@ -388,7 +388,7 @@ fn spawn_surface(world: &mut World) {
 
 /// Clear the frame. Draws nothing.
 pub const ORDER_GROUND: isize = -3;
-/// **The world**, which [`crate::view::setup`] gives [`crate::view::MainCamera`]. Named here so the
+/// **The world**, which `crate::view::setup` gives [`crate::view::MainCamera`]. Named here so the
 /// three passes into one image are one ordered list rather than three numbers in three files.
 pub const ORDER_WORLD: isize = -2;
 /// The interface, over the world.
@@ -409,12 +409,12 @@ pub const ORDER_WINDOW: isize = 0;
 ///
 /// **The obvious fix — a larger constant — was tried and is wrong**, and the way it announced itself
 /// is worth keeping: it is the density a *small* window also gets. At 1280 x 800 two
-/// [`crate::chrome::CONTROLS_W`] docks scaled by 1.45 leave almost no stage, and
+/// `crate::chrome::CONTROLS_W` docks scaled by 1.45 leave almost no stage, and
 /// `no_badge_cluster_draws_through_another` went red because the badge packer had nowhere to put a
 /// legend except on top of a control. A constant cannot answer a question about available room.
 ///
-/// So the base is the density the design is drawn at, and a window wider than [`REFERENCE_W`] grows
-/// it in proportion, up to [`MAX_GROWTH`]. Below the reference nothing shrinks: the design has a
+/// So the base is the density the design is drawn at, and a window wider than `REFERENCE_W` grows
+/// it in proportion, up to `MAX_GROWTH`. Below the reference nothing shrinks: the design has a
 /// smallest legible size and a cramped window needs the *stage* back, not smaller type.
 pub fn ui_scale_for(logical_width: f32, scale_factor: f32) -> f32 {
     ui_scale_for_a_person(logical_width, scale_factor, 1.0)
@@ -701,7 +701,7 @@ fn mirror_size(size: Extent3d) -> Vec2 {
 /// Those two numbers are the window before and after the compositor finished sizing it. The frame
 /// ordering is the whole story, and it is not obvious from either system on its own:
 /// `CameraUpdateSystems` is chained **before** `UiSystems::Layout` in `PostUpdate`
-/// (`bevy_ui-0.19.0/src/lib.rs:147-158`), so `camera_system` — which is what validates a viewport
+/// (`bevy_ui-0.20.0/src/lib.rs:160`), so `camera_system` — which is what validates a viewport
 /// against its target — has already run by the time this writes one. A viewport written here is
 /// therefore unchecked until the *next* frame, and on a frame where the surface also grew, the pass
 /// is assembled from a rect measured against one size and a target that is another.
@@ -753,7 +753,7 @@ fn fit_viewport_to_frame(
         physical_size,
         ..default()
     };
-    // `Viewport` has no `PartialEq` in 0.19, so the two fields that matter are compared by hand
+    // `Viewport` has no `PartialEq` in 0.20, so the two fields that matter are compared by hand
     // rather than the whole struct — the point is only to not mark `Camera` changed every frame.
     let same = camera.viewport.as_ref().is_some_and(|v| {
         v.physical_position == want.physical_position && v.physical_size == want.physical_size
@@ -768,7 +768,7 @@ fn fit_viewport_to_frame(
 /// `retarget_pointer` gets an agent's cursor as far as `Hovered` — a row lights, a tab lights — and
 /// then nothing happens when the button goes down. The reason is one layer further in:
 /// `bevy_picking`'s `mouse_pick_events` reads **`WindowEvent`** messages, and takes a press's
-/// position from the real cursor it has been tracking (`bevy_picking-0.19.0/src/input.rs:161`,
+/// position from the real cursor it has been tracking (`bevy_picking-0.20.0/src/input.rs:161`,
 /// `position: *cursor_last`). The debugger writes `MouseButtonInput` messages, which `InputPlugin`
 /// folds into `ButtonInput` — so the button is pressed as far as every key handler in this editor is
 /// concerned, and invisible to every observer.

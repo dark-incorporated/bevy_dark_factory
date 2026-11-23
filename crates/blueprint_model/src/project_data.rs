@@ -21,7 +21,7 @@
 //!
 //! # What is refused, and when
 //!
-//! At load, not at first use: an unknown vocabulary token ([`Library::resolve`]), a hole whose
+//! At load, not at first use: an unknown vocabulary token ([`crate::library::Library::resolve`]), a hole whose
 //! `accepts` names no slot token, a rule naming a descriptor the library lacks, a map placing a
 //! descriptor the library lacks, or a map whose `name` is not its file's. Every error starts with the
 //! path of the file it is about.

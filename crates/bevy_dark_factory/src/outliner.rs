@@ -30,7 +30,7 @@
 //! rebound to a group or to something that is not a piece.
 //!
 //! - **Pin** is the piece's `placement_set_pin`, the write the `O` key makes (`Action::OwnToggle`), through
-//!   [`crate::editor::toggle_pin`] — the same function the key's prompt goes through, so a pin always asks
+//!   `crate::editor::toggle_pin` — the same function the key's prompt goes through, so a pin always asks
 //!   for its reason the way `EditorState::pinning` says it must. One operation, one log line, one Cmd+Z.
 //! - **Hide** takes the piece out of the viewport **for this session** ([`Eyes`]). A hide is view state:
 //!   the map format has no "hidden" field and this does not add one, because a map file that says a wall
@@ -66,12 +66,12 @@ const GROUP_BIT: u64 = 1 << 63;
 const OTHER_GROUP: &str = "other";
 
 /// **The layer a piece stands in, as a person reads it** (UI-51, #237), from the one field that already answers it:
-/// the descriptor's [`Mount`](blueprint_model::descriptor::Mount).
+/// the descriptor's [`blueprint_model::descriptor::Mount`].
 ///
 /// **No new map field, and this is the smallest data change there is.** A `Placed` has no layer because it does not
 /// need one: what decides where a piece sits is its descriptor's mount — the map's own note on [`Placed::at`]
 /// says the height "comes from the descriptor's Mount, never from the author" — and the one case a mount cannot
-/// settle alone, [`Mount::OnSurfaceOrFloor`](blueprint_model::descriptor::Mount::OnSurfaceOrFloor), is recorded
+/// settle alone, [`blueprint_model::descriptor::Mount::OnSurfaceOrFloor`], is recorded
 /// on the placement by [`Placed::on`], which is `Some(host)` when it took the surface. Adding a `layer` field would
 /// be a second statement of a fact the file already holds, and the day the two disagreed the map would be wrong in
 /// a way no reader could see.
@@ -982,7 +982,7 @@ fn follow_the_viewport(
 /// whole layers.
 ///
 /// A resource and not a field of the section, because the eye outlives the section: closing the outliner is not
-/// showing everything again, and the map's own drawing system ([`crate::editor::hide_carried`]) is the one place
+/// showing everything again, and the map's own drawing system (`crate::editor::hide_carried`) is the one place
 /// a placement's `Visibility` is written — a second writer would fight it for the same component.
 ///
 /// **Not a map field, on purpose.** A hidden piece is view state, and a map file that says a wall is invisible is
@@ -1241,7 +1241,7 @@ pub struct OutlinerLayerMenu;
 /// would be two lists that can drift, and the menu and a test both read this one.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum RowVerb {
-    /// The piece's pin: `placement_set_pin`, through the `O` key's own [`crate::editor::pin_or_unpin`].
+    /// The piece's pin: `placement_set_pin`, through the `O` key's own `crate::editor::pin_or_unpin`.
     Pin,
     /// The piece out of the viewport for this session: `placement_set_hidden`.
     Hide,
