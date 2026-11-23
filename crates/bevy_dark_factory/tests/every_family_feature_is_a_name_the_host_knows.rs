@@ -28,13 +28,21 @@ fn family_features() -> BTreeSet<String> {
         .filter_map(|line| line.split_once('='))
         .map(|(name, _)| name.trim().to_owned())
         .filter(|name| name.starts_with("bevy_"))
-        .filter(|name| !matches!(name.as_str(), "bevy_gooey" | "bevy_devshot"))
         .collect()
 }
 
+/// **The crates that are not a switch**: `bevy_gooey` is the editor's own UI and always built (a `KNOWN` name with
+/// no feature to turn on), and `bevy_devshot` is a frame-on-demand tool, not a game's family crate. Both sides of the
+/// comparison drop them, so the test asks about the crates a project can actually declare.
+const NOT_A_SWITCH: &[&str] = &["bevy_gooey", "bevy_devshot"];
+
 #[test]
 fn every_family_feature_is_a_name_the_host_knows() {
-    let known: BTreeSet<String> = bevy_dark_factory::family_host::KNOWN.iter().map(|k| (*k).to_owned()).collect();
+    let known: BTreeSet<String> = bevy_dark_factory::family_host::KNOWN
+        .iter()
+        .map(|k| (*k).to_owned())
+        .filter(|k| !NOT_A_SWITCH.contains(&k.as_str()))
+        .collect();
     let features = family_features();
     let unknown: Vec<&String> = features.difference(&known).collect();
     assert!(
