@@ -2,6 +2,16 @@
 
 What each change added, newest first. A visible change has a clip: click the still to play it. `python3 tools/changelog/changelog.py page --open` plays them all in one page.
 
+## 2026-11-23
+
+- **549** gate: RUSTDOCFLAGS=-D warnings cargo doc runs as its own timed step *No clip: documentation and gate only; no behaviour changed*
+- **548** docs: seven comments name the symbol that exists, not the one it was renamed from *No clip: documentation and gate only; no behaviour changed*
+- **547** docs: project_index names the two live exceptions, and the poll ratchet counts what it finds *No clip: documentation and gate only; no behaviour changed*
+- **546** docs: the four counted comments say what they mean without a number *No clip: documentation and gate only; no behaviour changed*
+- **545** docs: no comment cites a repo .rs file that is not in the tree *No clip: documentation and gate only; no behaviour changed*
+- **544** docs: the tree is Bevy 0.20, and every cited 0.20 source line is re-read and re-pointed *No clip: documentation and gate only; no behaviour changed*
+- **543** docs: comments name the style sheet, not the 48 deleted constants, and every rustdoc link resolves *No clip: documentation and gate only; no behaviour changed*
+
 ## 2026-11-22
 
 - **525-syntax-theme** `9c78d6a4` A setting picks the code editor's syntax-highlighting hues: Skin (the editor's own), Warm, Cool, Mono and Separated, applied live to every open code editor *For you: You can pick the code editor's colours: five sets from the editor's own hues to warm, cool, one-hue and high-separation, and an open file recolours as you choose.* *No clip: Settings and a recolour, no new still; proved by the_code_colours_reach_an_open_editor::switching_the_preset_changes_the_drawn_colour_of_a_key, the_code_colours_are_a_setting and the_code_colours_hold_the_contrast_bar::every_preset_is_clean_on_every_theme*

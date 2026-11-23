@@ -107,8 +107,11 @@ clean_merge_of_main() {
 if gated "$target"; then note "already gated, pushing again"; echo "pre-push gate: ${target:0:9} already passed the gate in this clone; pushing it again" >&2; exit 0; fi
 start=$(date +%s)
 if clean_merge_of_main; then
-  echo "pre-push gate: ${target:0:9} is a clean merge of main into a commit that passed the gate; clippy over every target only" >&2
+  echo "pre-push gate: ${target:0:9} is a clean merge of main into a commit that passed the gate; clippy and rustdoc over every target only" >&2
   timed clippy-merge $cargo clippy --workspace --all-targets -q -- -D warnings || refuse "cargo clippy --workspace --all-targets -- -D warnings failed on the merge"
+  # **Rustdoc runs on the merge path too**: clippy type-checks a merge and cannot see a doc comment, so a merge that
+  # joins one commit's rename to another's citation is exactly what nothing else in this path would catch.
+  timed rustdoc-merge env RUSTDOCFLAGS="-D warnings" $cargo doc --workspace --no-deps -q || refuse "RUSTDOCFLAGS=\"-D warnings\" cargo doc --workspace --no-deps failed on the merge (a doc comment links a private item, an item that does not exist, or a malformed link)"
 else
   echo "pre-push gate: clippy and the test suite on ${target:0:9}; this takes minutes, so give git push a timeout of 1800 s or more" >&2
   timed clippy $cargo clippy --workspace --all-targets -q -- -D warnings || refuse "cargo clippy --workspace --all-targets -- -D warnings failed"
@@ -133,6 +136,12 @@ else
   else
     timed test $cargo test --workspace -q --no-fail-fast || refuse "cargo test --workspace failed (the failing tests are named above)"
   fi
+  # **Rustdoc reads a doc comment the way a reader does, and nothing else in the gate does** (measured on big,
+  # 2026-11-23, at f386fdff: `RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps` fails in 42 s on a warm
+  # target, 4% of the gate's 1,054 s). Every error it reports is a doc comment that is wrong about what a reader
+  # can reach or what exists — three of the 2026-11-23 review's six stale-comment clusters (#543's broken links,
+  # #544's version citations, #548's renamed symbols) are exactly this. Clippy is happy with all of them.
+  timed rustdoc env RUSTDOCFLAGS="-D warnings" $cargo doc --workspace --no-deps -q || refuse "RUSTDOCFLAGS=\"-D warnings\" cargo doc --workspace --no-deps failed (a doc comment links a private item, an item that does not exist, or a malformed link)"
 fi
 echo "$target" >> "$passed"
 note "passed $(( $(date +%s) - start ))s"
