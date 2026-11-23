@@ -14,7 +14,8 @@ use bevy::window::PrimaryWindow;
 use bevy_dark_factory::harness;
 use bevy_dark_factory::keys::{ALT_KEYS, MOD_KEYS, SHIFT_KEYS};
 use bevy_dark_factory::profile::ProfileOverlay;
-use bevy_dark_factory::report::{Audience, ReportEdit};
+use bevy_dark_factory::report::ReportEdit;
+use blueprint_model::feedback::Audience;
 
 use crate::fixtures;
 
