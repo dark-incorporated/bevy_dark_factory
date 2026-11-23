@@ -109,7 +109,7 @@ pub(crate) fn within(radius_m: f32, here: Vec3, there: Vec3) -> bool {
 
 /// **One behaviour this crate ships**, as the crate itself names it.
 ///
-/// The type paths are asked of [`TypePath`](bevy::reflect::TypePath) rather than typed out, so this list
+/// The type paths are asked of [`bevy::reflect::TypePath`] rather than typed out, so this list
 /// cannot name a path the registry does not know: a component renamed without updating the list fails
 /// `every_behaviour_is_a_registered_component_a_file_can_name`.
 ///

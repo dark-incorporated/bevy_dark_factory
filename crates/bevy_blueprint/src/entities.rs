@@ -9,7 +9,7 @@
 //! **"Registered" is the engine's whole registry, not only the game's own types.** `App::register_type` adds
 //! Bevy's built-ins as plugins build, so a file can name `Window`, `Camera3d` or `ChildOf` — and a component
 //! that needs `#[reflect(Deserialize)]` to be built from a value, or that is immutable, is refused or inserted
-//! rather than applied (see [`apply_components`]). An entity file is therefore as powerful as a scene file, by
+//! rather than applied (see `apply_components`). An entity file is therefore as powerful as a scene file, by
 //! the engine's own rules rather than by a list this module keeps.
 //!
 //! ```yaml

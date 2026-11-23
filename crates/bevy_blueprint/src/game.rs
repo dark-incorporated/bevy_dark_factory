@@ -3,7 +3,7 @@
 //! `App::new().add_plugins((DefaultPlugins, GamePlugin)).run()` is a game: the plugin reads the project at
 //! [`ROOT_ENV`] (the working directory when it is not set), registers the behaviours ([`BehaviourPlugin`]), reads
 //! `game/*.entities.yaml` ([`GameEntitiesPlugin`]) and runs the Rhai scripts the entities name
-//! ([`ScriptPlugin`]), and puts the project's first map on the ground ([`BlueprintPlugin`]). **There is no
+//! ([`ScriptPlugin`]), and puts the project's first map on the ground ([`crate::BlueprintPlugin`]). **There is no
 //! game-specific Rust to write**: a behaviour a game needs and cannot express is a component of
 //! [`crate::behaviours`], or a gap in the script API, and is filed as one.
 //!

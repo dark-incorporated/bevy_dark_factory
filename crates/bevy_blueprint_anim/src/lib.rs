@@ -14,7 +14,7 @@
 //! only two things move:
 //!
 //! * **weights**, eased toward the driver's targets with a frame-rate-independent exponential
-//!   ([`FADE_TAU`]), and
+//!   (its `FADE_TAU`), and
 //! * **one shared gait phase** φ ∈ `[0,1)`, from which every [`Playback::Gait`] slot's seek time is
 //!   derived as `frac(φ + offset) · duration`.
 //!
@@ -90,7 +90,7 @@ pub enum Playback {
     OneShot { speed: f32 },
 }
 
-/// One wired clip in a model's blend set. The slot's index in [`PoseBlender::slots`] is the handle
+/// One wired clip in a model's blend set. The slot's index in `PoseBlender::slots` is the handle
 /// drivers use, so the tables in `squad`/`crab`/`parasite` are order-sensitive by design.
 #[derive(Clone, Copy, Debug)]
 pub struct Slot {

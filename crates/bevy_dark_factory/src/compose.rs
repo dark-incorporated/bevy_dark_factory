@@ -2819,7 +2819,7 @@ pub mod picker {
     ///
     /// **The cursor is an index into the project's compositions**, the same order the rows are drawn
     /// in, so the two cannot disagree. It is clamped rather than stored as an `Option`, for
-    /// [`ComposeState::selected`]'s reason: the list is never empty while a selection exists.
+    /// `ComposeState::selected`'s reason: the list is never empty while a selection exists.
     #[derive(Resource, Default, Clone, PartialEq, Eq, Debug)]
     pub struct Picker {
         /// Which composition the cursor is on.

@@ -207,7 +207,7 @@ pub enum Bundle {
     NotABundle,
 }
 
-/// Which [`Bundle`] `exe` is in: `<x>.app/Contents/MacOS/<exe>`.
+/// Which `Bundle` `exe` is in: `<x>.app/Contents/MacOS/<exe>`.
 pub fn bundle_of(exe: &Path) -> Bundle {
     let macos = exe.parent();
     let contents = macos.and_then(Path::parent);
