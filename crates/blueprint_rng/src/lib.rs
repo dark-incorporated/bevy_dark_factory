@@ -117,3 +117,11 @@ mod tests {
         }
     }
 }
+
+#[cfg(test)]
+mod ci_proof {
+    #[test]
+    fn this_test_is_deliberately_failing() {
+        assert_eq!(1, 2, "deliberate failure for #572's proof: the job must conclude failure");
+    }
+}

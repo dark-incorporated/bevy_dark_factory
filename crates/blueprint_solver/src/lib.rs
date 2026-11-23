@@ -602,3 +602,8 @@ mod tests {
         }
     }
 }
+
+/// ```
+/// assert_eq!(1, 2, "deliberate doctest failure for #572's proof");
+/// ```
+pub fn __ci_proof_doctest() {}
