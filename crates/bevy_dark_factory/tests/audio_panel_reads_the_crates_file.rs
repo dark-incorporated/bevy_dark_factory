@@ -103,10 +103,12 @@ fn an_audition_is_a_play_and_the_panel_hears_it() {
         app.update();
     }
 
-    // The panel selects the one cue and writes the crate's own `Play`, as a game would. With no handle for
-    // `click`, the answer is a refusal that names the key — which is exactly what the panel prints.
+    // The file's one cue is the panel's cue list — the choice among them is `world_lists::SelectedCue`, which
+    // the person sets and Audition reads, so a reading of the file names the cue and chooses nothing. The panel
+    // writes the crate's own `Play`, as a game would; with no handle for `click`, the answer is a refusal that
+    // names the key, which is exactly what the panel prints.
     let panel = app.world().resource::<AudioPanel>();
-    assert_eq!(panel.selected_cue(), Some("ui.click"));
+    assert_eq!(panel.cues, vec!["ui.click".to_owned()]);
     assert_eq!(
         app.world()
             .resource::<SirenSounds>()
