@@ -28,6 +28,7 @@ use blueprint_model::live::{KindVerdict, Verdict};
 use bevy_dark_factory::project::Project;
 
 use crate::fixtures;
+use crate::settle_support;
 
 /// **The project index at its shortest sweep, with its first listing in hand** — what a wait on a condition needs, so it is the
 /// condition that is paid for and not the index's one-second default sweep.
@@ -138,7 +139,7 @@ fn the_reload_panel_is_the_docks_and_its_lines_are_in_it() {
     // **Wait for the panel's own look**, which is every 0.5 s (`refresh_reload_list`), not for quiet: the panel is idle
     // between looks, so `settle` can return before it has read the verdict at all (the 2026-11-23 gate read "no game
     // connected" over a verdict already on disk).
-    support::until(&mut app, "the Reload panel reads the game's verdict", |app| {
+    settle_support::until(&mut app, "the Reload panel reads the game's verdict", |app| {
         let world = app.world_mut();
         let Ok(list) = world.query_filtered::<Entity, With<ReloadList>>().single(world).map(|e| e.to_owned()) else {
             return false;

@@ -73,7 +73,7 @@ const SETTLE_FRAMES_MAX: u32 = 4000; // a cap on the work, not the clock: the qu
 /// The count alone missed the change that matters most to a test — a row whose text is rewritten, which is how a list
 /// draws a selection or a status — so a wait could call a frame quiet while the row was about to be redrawn (the
 /// 2026-11-23 gate, where a Notes row was not yet selected when `settle` returned).
-fn shape(app: &mut App) -> (usize, u64) {
+fn shape(app: &mut App) -> (u32, u64) {
     let world = app.world_mut();
     let entities = world.entities().len();
     let mut texts = world.query::<&Text>();
