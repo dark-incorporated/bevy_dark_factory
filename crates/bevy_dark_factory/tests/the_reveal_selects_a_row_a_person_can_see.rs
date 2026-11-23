@@ -38,8 +38,7 @@ use crate::settle_support;
 /// One frame of the test clock, seconds.
 const FRAME: f32 = 1.0 / 60.0;
 
-/// Frames a reveal may take: a crossing, the panel's first build, and the follower's one-frame-late
-
+/// Frames a reveal may take: a crossing, the panel's first build, and the follower's one-frame-late scroll.
 /// A project carrying one subject per off-map `Shown` variant, as
 /// `the_follow_opens_the_page_a_change_is_on` builds it.
 fn project(tag: &str) -> std::path::PathBuf {

@@ -28,7 +28,6 @@ use crate::fixtures;
 use crate::settle_support;
 
 /// **Frames the editor is given to settle** after a workspace switch: the transition runs the frame after the key and the panels are spawned
-
 /// The editor on the fixture project, settled, in the Animation workspace.
 fn editor(tag: &str) -> App {
     let root = fixtures::Fixture::new(&format!("rigs_hidden_{tag}_{}", std::process::id())).descriptor("floor", "alpha").build("m");

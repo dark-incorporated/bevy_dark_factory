@@ -31,8 +31,7 @@ use bevy_dark_factory::workspace::Workspace;
 use crate::fixtures;
 use crate::settle_support;
 
-/// Frames the editor is given to settle: the crossing to the Kit door, the piece's detail built, and
-
+/// Frames the editor is given to settle: the crossing to the Kit door, the piece's detail built, and the value rows laid out.
 fn project(tag: &str) -> std::path::PathBuf {
     fixtures::Fixture::new(&format!("{tag}_{}", std::process::id()))
         .sized_descriptor("chair", "alpha", 2.0, 1.0)

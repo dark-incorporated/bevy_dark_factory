@@ -30,8 +30,7 @@ use bevy::ui::ComputedNode;
 use crate::fixtures;
 use crate::settle_support;
 
-/// **Frames the editor is given to settle** after a switch: the transition runs in the frame after the
-
+/// **Frames the editor is given to settle** after a switch: the transition runs in the frame after the key and the panels are spawned.
 fn project(tag: &str) -> PathBuf {
     fixtures::Fixture::new(&format!("panel_home_{tag}_{}", std::process::id()))
         .descriptor("alpha/floor", "alpha")

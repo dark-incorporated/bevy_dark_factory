@@ -68,9 +68,8 @@ blocks:
 /// the editor mid-crossing. 60 Hz, as the follow's own tests step it.
 const FRAME: f32 = 1.0 / 60.0;
 
-/// **How many frames a reveal may take**: a crossing, the panel's first build, and the follower's
-/// one-frame-late scroll. Generous on purpose — a fixed count is a count somebody guessed, and this
-
+/// **How many frames a reveal may take**: a crossing, the panel's first build, and the follower's one-frame-late scroll. Generous on
+/// purpose — a fixed count is a count somebody guessed, and this is the number the measurement cleared.
 /// A project with a piece, a tile, a composition, a rig, a registered data file, a pack and a note:
 /// one subject per off-map `Shown` variant, so each test can name the operation that changes it.
 ///
