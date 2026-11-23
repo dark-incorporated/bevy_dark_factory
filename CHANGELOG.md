@@ -2,6 +2,12 @@
 
 What each change added, newest first. A visible change has a clip: click the still to play it. `python3 tools/changelog/changelog.py page --open` plays them all in one page.
 
+## 2026-11-23
+
+- **558** `60e2d890` Forced weather reads WeatherDirector::forced() instead of a Local copy, so a hand edit or a reopened project is obeyed *For you: Changing or clearing the forced weather in the file now takes effect even after a reload.* *No clip: no visible change on the common path; the editor no longer holds a stale second copy of the forced preset; proved by environment::apply against the director*
+- **554** `a8b8dd31` The audio panel judges a cue\u2019s bus against the project\u2019s own mix table, not bevy_siren\u2019s four defaults *For you: A project that declares its own sound buses no longer shows a bogus unknown bus warning.* *No clip: documentation of a false report; the panel\u2019s status no longer names a declared bus; proved by the_panel_checks_the_cues_against_this_files_own_buses*
+- **553** `3578868b` Key badges, the keymap editor and an agent\u2019s run_command receipt spell a chord the way the editor sets it, in words, never as apple symbols the shipped face cannot draw *For you: Every key hint now reads Cmd+S in plain words instead of a missing-character box.* *No clip: visible, but the change is a spelling of text that is already on screen and no storyboard was recorded in this pass; proved by keys::chord_in through BindingSettings*
+
 ## 2026-11-22
 
 - **525-syntax-theme** `9c78d6a4` A setting picks the code editor's syntax-highlighting hues: Skin (the editor's own), Warm, Cool, Mono and Separated, applied live to every open code editor *For you: You can pick the code editor's colours: five sets from the editor's own hues to warm, cool, one-hue and high-separation, and an open file recolours as you choose.* *No clip: Settings and a recolour, no new still; proved by the_code_colours_reach_an_open_editor::switching_the_preset_changes_the_drawn_colour_of_a_key, the_code_colours_are_a_setting and the_code_colours_hold_the_contrast_bar::every_preset_is_clean_on_every_theme*
