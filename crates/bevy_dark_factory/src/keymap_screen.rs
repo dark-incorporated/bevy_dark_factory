@@ -145,7 +145,7 @@ fn own_keymap(layer: &Layer) -> BTreeMap<String, Shortcut> {
 /// default. A chord another command has refuses and writes nothing, and so does a Reset that would hand a
 /// command back a chord something else has taken since.
 ///
-/// `settings` spells the chords the refusal quotes, through [`BindingSettings::chord`] — the same accessor
+/// `settings` spells the chords the refusal quotes, through [`bevy_gooey::BindingSettings::chord`] — the same accessor
 /// the dialog's rows and gooey's keycaps read (#553), so a refused chord is not named in one spelling here
 /// and another on the row it was dragged from.
 pub fn rebind(

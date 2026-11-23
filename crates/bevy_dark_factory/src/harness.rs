@@ -550,7 +550,7 @@ pub fn real_device_available() -> bool {
 
 /// **The stepped editor, on a chosen device.** [`build_headless_at`] is this with [`Device::None`].
 ///
-/// **A real device comes through [`on_a_device`]** (#581): the only place this crate asks the GPU for one, and the only place a
+/// **A real device comes through `on_a_device`** (#581): the only place this crate asks the GPU for one, and the only place a
 /// refusal is retried rather than reported as a failing test.
 pub fn build_stepped_at(
     root: &Path,
