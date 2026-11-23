@@ -630,3 +630,54 @@ What to look for, surface by surface:
   pack counts sit in their own right-hand column instead of inside the wrapped folder name.
 - **Compose** — the derived interface is a label column and a value column, not `{name:>5}` padded
   with `" ".repeat(7)`.
+## Blocked: #551, #552 (adopting gooey Chip / ListRow)
+
+
+Both issues are "adopt the family widget", and both are refused by the same two
+protected tests, not by a design question.
+
+## #551 — `chrome::chip` must carry `Role::Chip`
+
+`tests/the_g87_nodes_are_gooeys.rs::a_chip_is_a_row_the_editor_paints_by_state`
+asserts, on a chip spawned by `chrome::chip`:
+
+- `Role` is `Role::Sized`      (line 76)
+- `RowRest` is present         (line 101)
+- `BackgroundColor` is the `fill` the *caller* passed, at rest
+- `BorderColor.top` is the `border` the *caller* passed
+
+Issue acceptance asks for `Role::Chip` and "its fill/edge is the sheet's or an
+`InkOverride`". gooey's `Role::Chip` skin arms paint the fill from
+`skin.surface_raised` / `skin.accent` and the edge from `skin.outline` — the
+caller's colours are then unused. So the acceptance and the protected test
+cannot both hold. The tolerance cannot be widened either: the assertions are
+`assert_eq!` on exact colours and an exact `Role`.
+
+Call-site cost, measured: 16 `chrome::chip(` sites pass per-state ink
+(`terminal_pane.rs` 7, `tiles.rs` 4, `anim_stage.rs` 2, `console.rs` 2,
+`anim_tab.rs` 1) — 4-state tag chips, severity pills, a tab strip. Moving each to
+`InkOverride` is real work, but the blocker is the test, not the work.
+
+## #552 — list rows adopt gooey's `Role::ListRow`, `RowSelected`/`RowRest`/
+`style_list_rows` deleted
+
+Same test file plus 21 more references:
+- `a_chip_is_a_row_the_editor_paints_by_state` (as above)
+- `..._no_chip_button_or_row_is_drawn_at_another_height` queries `With<RowRest>`
+- `tests/a_theme_edit_reaches_every_list_row.rs` spawns `chrome::RowRest(..)`
+  directly and asks what `style_list_rows` would paint
+- `tiles.rs`/`editor.rs` in `src/` read `RowRest`+`RowSelected` to tint a row's
+  cost (`ink_the_cost_on_the_armed_row`) and to repaint a palette row
+
+Issue acceptance says "deleting `RowSelected`/`RowRest`/`style_list_rows` leaves
+those two panels looking the same in a capture". `style_list_rows` is also the
+one chokepoint #210's theme tests read (`a_theme_edit_reaches_every_list_row`),
+so deleting it breaks a second protected file.
+
+## What was not done
+No `#[ignore]`, no `#[should_panic]`, no assertion loosened, no test deleted —
+that is exactly the "converge on passing the evaluator" failure the house rules
+forbid. The fix needs an owner exception on
+`the_g87_nodes_are_gooeys::a_chip_is_a_row_the_editor_paints_by_state`,
+`..._no_chip_button_or_row_is_drawn_at_another_height` and
+`a_theme_edit_reaches_every_list_row`, naming which of the two contracts wins.
