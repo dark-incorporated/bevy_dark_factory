@@ -5,10 +5,16 @@
 #
 # Clean-merge fast path (owner's session, 2026-10-29). With six workers gating at once, a push refused
 # for being behind used to merge main and rerun the whole 40-minute gate, and was often refused again.
-# A commit that passes the full gate is recorded in `<git-dir>/gate-passed`. A merge commit whose one
-# parent is recorded, whose other parent is already on the remote's main (it passed its own pusher's
-# gate), and whose tree is exactly what `git merge-tree` makes of the two (no conflict, no hand edit)
-# runs clippy over every target, which type-checks every crate and test, instead of the test run.
+# A commit that passes the full gate carries a record in `refs/notes/gated`. A merge commit whose one
+# parent carries that record, whose other parent is already on the remote's main (it passed its own
+# pusher's gate), and whose tree is exactly what `git merge-tree` makes of the two (no conflict, no hand
+# edit) runs clippy over every target, which type-checks every crate and test, instead of the test run.
+#
+# **The record travels with the commit, not with the clone** (#575). It used to be
+# `<git-dir>/gate-passed`, and `git rev-parse --git-dir` inside a worktree is that worktree's own
+# administrative directory: the fast path fired on 5 of the 24 clean merges the 2026-11-12..23 log holds,
+# because 37 of 39 worktrees had no record at all and a merge of two commits gated on different hosts could
+# see neither. A note is pushed with the commit, so a clone that never ran the gate can still read it.
 #
 # **A tree that linted clean is not linted again** (#574). Clippy's answer depends on the tree, the
 # toolchain and RUSTFLAGS, and a refusal at the test step changes none of them: 30 of 161 commits in that
@@ -20,6 +26,7 @@ zero=0000000000000000000000000000000000000000
 target="" remote="" code=0
 # The pushed refs arrive on stdin once; `git lfs pre-push` below needs them too.
 refs=$(cat)
+hook_remote="${1:-origin}"
 while read -r _local_ref local_sha remote_ref remote_sha; do
   [ "$remote_ref" = "refs/heads/main" ] || continue
   [ "$local_sha" = "$zero" ] && continue
@@ -96,9 +103,21 @@ version_bump_only() {
   ! git diff -U0 --no-ext-diff "$remote" "$target" | grep -E '^[+-]' | grep -vE '^(\+\+\+|---) ' | grep -qvE '^[+-]version = "[^"]*"$'
 }
 if version_bump_only; then note "version bump only, no tests"; echo "pre-push gate: a version bump (manifest and Cargo.lock version lines only); the version policy check passed, no test run" >&2; exit 0; fi
-passed="$(git rev-parse --git-dir)/gate-passed"
 clippy_file="$(git rev-parse --git-dir)/gate-clippy"
-gated() { [ -f "$passed" ] && grep -qx "$1" "$passed"; }
+notes_ref=refs/notes/gated
+# A clone that has never gated anything still reads the records, because they were pushed with the commits. The merge,
+# not a forced refspec: this clone's own notes are records too, and overwriting the ref would drop the ones written here
+# before they were pushed (measured: a fresh fetch clobbered two local notes and the fast path then refused a clean merge).
+git fetch --quiet "$hook_remote" "$notes_ref" >/dev/null 2>&1 &&
+  git notes --ref "$notes_ref" merge FETCH_HEAD >/dev/null 2>&1 || true
+gated() { git notes --ref "$notes_ref" show "$1" >/dev/null 2>&1; }
+# Written where the gate actually runs, so the proof is in the commit rather than in the clone that happened to gate it.
+record_gated() {
+  git notes --ref "$notes_ref" add -f -m "gated on $(uname -n) $(date +%FT%T): clippy over every target, nextest and doctests passed" "$1" >/dev/null 2>&1 ||
+    { echo "pre-push gate: WARNING: could not write the $notes_ref note for ${1:0:9}" >&2; return 0; }
+  git push --quiet "$hook_remote" "$notes_ref:$notes_ref" >/dev/null 2>&1 ||
+    echo "pre-push gate: WARNING: the record for ${1:0:9} did not reach $hook_remote; a clone without it runs the full gate" >&2
+}
 # Clippy's answer is a fact about (tree, toolchain, RUSTFLAGS). Any source edit, a manifest change or a toolchain bump
 # moves the key; a refusal at the test step moves none of them, which is what makes remembering it free of weakening.
 clippy_key() { printf '%s\n' "$(git rev-parse "$1^{tree}") rustc $(rustc -vV | tr '\n' ' ') RUSTFLAGS ${RUSTFLAGS:-}"; }
@@ -121,7 +140,7 @@ clean_merge_of_main() {
 if gated "$target"; then note "already gated, pushing again"; echo "pre-push gate: ${target:0:9} already passed the gate in this clone; pushing it again" >&2; exit 0; fi
 start=$(date +%s)
 if clean_merge_of_main; then
-  echo "pre-push gate: ${target:0:9} is a clean merge of main into a commit that passed the gate; clippy over every target only" >&2
+  echo "pre-push gate: ${target:0:9} is a clean merge of main into a commit that carries a gate record; clippy over every target only" >&2
   if clippy_ok "$target"; then
     note "clippy-merge cached 0s (this tree, toolchain and RUSTFLAGS already linted clean)"
   else
@@ -158,6 +177,6 @@ else
     timed test $cargo test --workspace -q --no-fail-fast || refuse "cargo test --workspace failed (the failing tests are named above)"
   fi
 fi
-echo "$target" >> "$passed"
+record_gated "$target"
 note "passed $(( $(date +%s) - start ))s"
 echo "pre-push gate: passed in $(( $(date +%s) - start ))s" >&2
