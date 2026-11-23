@@ -4,6 +4,7 @@ What each change added, newest first. A visible change has a clip: click the sti
 
 ## 2026-11-23
 
+- **557** `4b5de850` audio panel: the buses, the cues (one choice the arrows move) and the log it says it draws *No clip: a panel's contents, proved by the_panel_draws_the_buses_the_cues_and_the_log and the_cue_list_is_chosen_by_SelectedCue; no clip: the Sound workspace needs a sound loaded before Audition can play one (#555)*
 - **549** gate: RUSTDOCFLAGS=-D warnings cargo doc runs as its own timed step *No clip: documentation and gate only; no behaviour changed*
 - **548** docs: seven comments name the symbol that exists, not the one it was renamed from *No clip: documentation and gate only; no behaviour changed*
 - **547** docs: project_index names the two live exceptions, and the poll ratchet counts what it finds *No clip: documentation and gate only; no behaviour changed*
