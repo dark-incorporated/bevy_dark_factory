@@ -474,7 +474,7 @@ fn on_a_device<T>(tries: u32, backoff: std::time::Duration, build: impl Fn() -> 
         // The test-only switch is spent before the request, so a simulation refuses exactly the next `times` requests.
         let simulated = SIMULATED_REFUSALS.fetch_update(Ordering::SeqCst, Ordering::SeqCst, |left| left.checked_sub(1)).is_ok();
         if !simulated {
-            match std::panic::catch_unwind(std::panic::AssertUnwindSafe(&build)) {
+            match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| build())) {
                 Ok(Ok(built)) => return Ok(built),
                 // Not the device: an answer about the project, which no amount of waiting improves.
                 Ok(Err(why)) => return Err(why),

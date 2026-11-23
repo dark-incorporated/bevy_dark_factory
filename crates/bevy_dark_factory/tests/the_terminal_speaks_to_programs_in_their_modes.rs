@@ -19,7 +19,7 @@ use bevy::window::PrimaryWindow;
 use bevy_dark_factory::terminal_pane::{TerminalBody, TerminalRow};
 use bevy_dark_factory::terminal_view::CellMetrics;
 
-use crate::the_terminal_paints_grounds_and_the_selection::{editor_with_terminal, feed, settle};
+use crate::the_terminal_paints_grounds_and_the_selection::{editor_with_terminal, feed};
 
 /// How many 50 ms checks a test waits for `cat -v` to print a line.
 const ANSWER_TRIES: usize = 60;

@@ -17,8 +17,6 @@
 //! 2. the panel it shows is a `DockPanel("reload")`, and the lines are inside it;
 //! 3. the dock is not the arrangement's: a drag in it saves nothing over the workspace's layout.
 
-use std::time::Duration;
-
 use bevy::prelude::*;
 use bevy::ui::{ComputedNode, UiGlobalTransform};
 use bevy_dark_factory::chrome::{ArrangementDock, BottomDock, Frame};

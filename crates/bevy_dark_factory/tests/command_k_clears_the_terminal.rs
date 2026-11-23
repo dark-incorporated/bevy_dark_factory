@@ -12,7 +12,7 @@ use bevy::window::PrimaryWindow;
 use bevy_dark_factory::terminal::Terminal;
 use bevy_dark_factory::terminal_pane::TerminalFocus;
 
-use crate::the_terminal_paints_grounds_and_the_selection::{editor_with_terminal, feed, settle};
+use crate::the_terminal_paints_grounds_and_the_selection::{editor_with_terminal, feed};
 
 /// Lines of output, so there is history to clear.
 const PRINTED: usize = 300;
