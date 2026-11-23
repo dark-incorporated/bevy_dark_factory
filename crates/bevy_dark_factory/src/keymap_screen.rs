@@ -300,7 +300,8 @@ fn refresh(
     settings: Option<Res<bevy_gooey::BindingSettings>>,
     mut commands: Commands,
 ) {
-    let Drawn { rows, mut problem_line } = &mut drawn;
+    let rows = &drawn.rows;
+    let problem_line = &mut drawn.problem_line;
     let moved = news.moved(&mut heard, files.user().as_deref(), files.project().as_deref());
     let Ok((dialog, mut built)) = dialogs.single_mut() else { return };
     if !moved.any() && !dialog.is_changed() && built.0.is_some() {
@@ -326,7 +327,7 @@ fn refresh(
             _ => None,
         })
         .unwrap_or_default();
-    for mut text in &mut problem_line {
+    for mut text in problem_line.iter_mut() {
         if text.0 != said {
             text.0 = said.clone();
         }
