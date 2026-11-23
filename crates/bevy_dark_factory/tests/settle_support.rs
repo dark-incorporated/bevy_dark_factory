@@ -101,3 +101,20 @@ pub fn settle(app: &mut App) {
     // assertion about what it holds that should say whether that reason is a defect. Saying so makes the hang visible.
     panic!("the editor did not stop changing what it holds within {SETTLE_FRAMES_MAX} frames");
 }
+
+#[cfg(test)]
+mod counter {
+    use super::*;
+
+    /// **The counters are the measurement #576 asks for**, so a test proves they move and print: one `settle` over a bare app
+    /// steps at least one frame, and `frames_stepped` reads it back.
+    #[test]
+    fn the_stepped_frame_counter_moves_and_reports() {
+        let mut app = App::new();
+        let before = frames_stepped();
+        settle(&mut app);
+        let after = frames_stepped();
+        assert!(after > before, "a settle stepped {after} frames and the counter said {before}: it is not counting");
+        report_stepped_frames("the counter's own test");
+    }
+}

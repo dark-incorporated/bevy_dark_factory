@@ -90,7 +90,7 @@ fn cat_v(tag: &str) -> App {
     shows(&mut app, "cat -v").unwrap_or_else(|seen| panic!("the command was never echoed: {seen:?}"));
     // `cat` is reading once its line has been taken; a moment for the shell to start it.
     std::thread::sleep(std::time::Duration::from_millis(300));
-    for _ in 0..2 { &mut app.update(); }
+    for _ in 0..2 { app.update(); }
     app
 }
 

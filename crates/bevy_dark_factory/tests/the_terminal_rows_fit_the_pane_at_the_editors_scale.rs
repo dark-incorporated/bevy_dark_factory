@@ -34,7 +34,7 @@ fn cursor_on_the_last_row(tag: &str) -> (App, usize) {
     let rows = app.world().resource::<TerminalPane>().cells().1 as usize;
     assert!(rows >= 4, "the pane was sized to a usable terminal, not {rows} rows");
     feed(&mut app, "\r\n".repeat(rows).as_bytes());
-    for _ in 0..LAYOUT_FRAMES { &mut app.update(); }
+    for _ in 0..LAYOUT_FRAMES { app.update(); }
     let cursor = app
         .world()
         .resource::<Terminal>()
@@ -96,7 +96,7 @@ fn the_caret_sits_on_the_cursors_row() {
             break;
         }
         std::thread::sleep(std::time::Duration::from_millis(50));
-        for _ in 0..1 { &mut app.update(); }
+        for _ in 0..1 { app.update(); }
     }
     let (caret_top, caret_bottom) = caret;
     assert!(caret_bottom > caret_top, "the caret was never lit in {CARET_TRIES} tries");

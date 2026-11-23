@@ -24,7 +24,7 @@ fn a_block_caret_is_a_tint_with_the_letter_in_its_own_ink() {
     app.world_mut().resource_mut::<TerminalFocus>().take();
     // The cursor ends on the `q` of `seq`: three letters, then one step back.
     feed(&mut app, b"\r\n\x1b[2Kseq\x1b[D");
-    for _ in 0..LAYOUT_FRAMES { &mut app.update(); }
+    for _ in 0..LAYOUT_FRAMES { app.update(); }
 
     let mut fill = None;
     for _ in 0..CARET_TRIES {
@@ -40,7 +40,7 @@ fn a_block_caret_is_a_tint_with_the_letter_in_its_own_ink() {
             break;
         }
         std::thread::sleep(std::time::Duration::from_millis(50));
-        for _ in 0..1 { &mut app.update(); }
+        for _ in 0..1 { app.update(); }
     }
     let fill = fill.unwrap_or_else(|| panic!("the caret was never lit in {CARET_TRIES} tries"));
     assert!(

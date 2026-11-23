@@ -21,7 +21,7 @@ fn every_run_a_row_draws_names_the_terminal_face() {
     let mut app = editor_with_terminal("nerd_font_spans");
     // Three runs on one row: plain, red, then plain again, with a prompt icon in the red one.
     feed(&mut app, "\r\n\x1b[2Kmain \x1b[31m\u{e0b0} src\x1b[0m done\r\n".as_bytes());
-    for _ in 0..DRAW_FRAMES { &mut app.update(); }
+    for _ in 0..DRAW_FRAMES { app.update(); }
 
     let world = app.world_mut();
     let mut spans = world.query_filtered::<(&TextSpan, &TextFont, &ChildOf), With<TextSpan>>();

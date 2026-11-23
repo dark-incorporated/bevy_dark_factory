@@ -73,7 +73,7 @@ fn ctrl_f(app: &mut App) {
 fn the_find_box_opens_and_its_frame_takes_the_pointer() {
     let mut app = editor_with_terminal("overlay_find");
     app.world_mut().resource_mut::<TerminalFocus>().take();
-    for _ in 0..6 { &mut app.update(); }
+    for _ in 0..6 { app.update(); }
     ctrl_f(&mut app);
     let frame = {
         let world = app.world_mut();
@@ -120,7 +120,7 @@ fn a_click_beside_the_invitations_button_starts_nothing_and_the_button_still_doe
         let world = app.world_mut();
         world.query_filtered::<Entity, With<TerminalInvite>>().iter(world).next().is_some()
     });
-    for _ in 0..4 { &mut app.update(); }
+    for _ in 0..4 { app.update(); }
     let (frame, button_at, corner) = {
         let world = app.world_mut();
         let frame = world.query_filtered::<Entity, With<TerminalInvite>>().iter(world).next().expect("the invitation");
@@ -134,7 +134,7 @@ fn a_click_beside_the_invitations_button_starts_nothing_and_the_button_still_doe
 
     app.world_mut().resource_mut::<TerminalFocus>().release();
     click(&mut app, corner);
-    for _ in 0..3 { &mut app.update(); }
+    for _ in 0..3 { app.update(); }
     assert!(app.world().resource::<Terminal>().is_empty(), "a click beside the button starts no agent");
     assert!(app.world().resource::<TerminalFocus>().holds(), "it is the pane's click: the pane takes the keyboard");
 
@@ -160,10 +160,10 @@ fn the_launchers_split_takes_exactly_what_the_terminal_leaves() {
     app.insert_non_send(PosixShell(guard));
     app.add_plugins(LauncherPlugin);
     app.world_mut().spawn((Window { resolution: bevy::window::WindowResolution::new(1280, 720), ..default() }, PrimaryWindow));
-    for _ in 0..6 { &mut app.update(); }
+    for _ in 0..6 { app.update(); }
     app.world_mut().resource_mut::<Terminal>().set_collapsed(false);
     app.world_mut().resource_mut::<NextState<Screen>>().set(Screen::Launcher);
-    for _ in 0..10 { &mut app.update(); }
+    for _ in 0..10 { app.update(); }
 
     let world = app.world_mut();
     let home = world.query_filtered::<Entity, With<LauncherRoot>>().iter(world).next().expect("the projects home");

@@ -64,7 +64,7 @@ pub(crate) fn editor_with_terminal(tag: &str) -> App {
             PrimaryWindow,
         ))
         .id();
-    for _ in 0..10 { &mut app.update(); }
+    for _ in 0..10 { app.update(); }
     for state in [ButtonState::Pressed, ButtonState::Released] {
         for key in [KeyCode::ControlLeft, KeyCode::Backquote] {
             app.world_mut().write_message(KeyboardInput {
@@ -79,7 +79,7 @@ pub(crate) fn editor_with_terminal(tag: &str) -> App {
         app.update();
     }
     for _ in 0..PROMPT_TRIES {
-        for _ in 0..2 { &mut app.update(); }
+        for _ in 0..2 { app.update(); }
         if !spans(&mut app).is_empty() {
             break;
         }
@@ -90,7 +90,7 @@ pub(crate) fn editor_with_terminal(tag: &str) -> App {
     for _ in 0..PROMPT_TRIES {
         let before = stamp(&app);
         std::thread::sleep(CHECK_GAP);
-        for _ in 0..2 { &mut app.update(); }
+        for _ in 0..2 { app.update(); }
         quiet = if stamp(&app) == before { quiet + 1 } else { 0 };
         if quiet >= QUIET_CHECKS {
             break;
@@ -151,7 +151,7 @@ pub(crate) fn feed(app: &mut App, bytes: &[u8]) {
 fn inverse_text_is_drawn_on_its_ground_and_plain_text_on_none() {
     let mut app = editor_with_terminal("terminal_inverse_ground");
     feed(&mut app, b"\r\n\x1b[7mINVERSE\x1b[0m PLAIN\r\n");
-    for _ in 0..DRAW_FRAMES { &mut app.update(); }
+    for _ in 0..DRAW_FRAMES { app.update(); }
     let drawn = spans(&mut app);
 
     let plain = span_with(&drawn, "PLAIN");
@@ -171,7 +171,7 @@ fn inverse_text_is_drawn_on_its_ground_and_plain_text_on_none() {
 fn a_selection_paints_its_cells_and_only_them() {
     let mut app = editor_with_terminal("terminal_selection_ground");
     feed(&mut app, b"\r\nLEFT RIGHT\r\n");
-    for _ in 0..DRAW_FRAMES { &mut app.update(); }
+    for _ in 0..DRAW_FRAMES { app.update(); }
     let before = spans(&mut app);
     let row = span_with(&before, "LEFT RIGHT").row;
     assert_eq!(span_with(&before, "LEFT RIGHT").ground, None, "nothing is selected yet");
@@ -183,7 +183,7 @@ fn a_selection_paints_its_cells_and_only_them() {
         .expect("a tab")
         .screen_mut()
         .select((row, 5), (row, 9));
-    for _ in 0..DRAW_FRAMES { &mut app.update(); }
+    for _ in 0..DRAW_FRAMES { app.update(); }
     let after = spans(&mut app);
 
     let right = span_with(&after, "RIGHT");

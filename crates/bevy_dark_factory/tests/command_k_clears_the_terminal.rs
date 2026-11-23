@@ -56,7 +56,7 @@ fn with_history(tag: &str) -> App {
     app.world_mut().resource_mut::<TerminalFocus>().take();
     let text: String = (1..=PRINTED).map(|n| format!("{n}\r\n")).collect();
     feed(&mut app, text.as_bytes());
-    for _ in 0..3 { &mut app.update(); }
+    for _ in 0..3 { app.update(); }
     assert!(history(&app) > 0, "the output left no history, so this test proves nothing");
     app
 }
