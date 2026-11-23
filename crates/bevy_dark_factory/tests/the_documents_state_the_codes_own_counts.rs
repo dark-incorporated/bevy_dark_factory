@@ -342,6 +342,15 @@ fn sample_ids(source: &str) -> BTreeSet<&str> {
         .collect()
 }
 
+/// **The `("id", …)` tuples a `const NAME: &[(&str, …)]` holds** in a source file: `VERSIONED_ABOVE`,
+/// `UNVERSIONED`, `OWNED_ELSEWHERE`.
+fn tuple_count(source: &str, name: &str) -> usize {
+    let at = source.find(&format!("const {name}:")).unwrap_or_else(|| panic!("the version test declares `{name}`"));
+    let body = &source[at..];
+    let end = body.find("];").expect("the list closes");
+    body[..end].matches("(\"").count()
+}
+
 /// **How many sample rows `fn versioned()` builds.**
 fn sample_count(source: &str) -> usize {
     sample_ids(source).len()
