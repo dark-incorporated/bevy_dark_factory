@@ -5,16 +5,28 @@
 #
 # Clean-merge fast path (owner's session, 2026-10-29). With six workers gating at once, a push refused
 # for being behind used to merge main and rerun the whole 40-minute gate, and was often refused again.
-# A commit that passes the full gate is recorded in `<git-dir>/gate-passed`. A merge commit whose one
-# parent is recorded, whose other parent is already on the remote's main (it passed its own pusher's
-# gate), and whose tree is exactly what `git merge-tree` makes of the two (no conflict, no hand edit)
-# runs clippy over every target, which type-checks every crate and test, instead of the test run.
+# A commit that passes the full gate carries a record in `refs/notes/gated`. A merge commit whose one
+# parent carries that record, whose other parent is already on the remote's main (it passed its own
+# pusher's gate), and whose tree is exactly what `git merge-tree` makes of the two (no conflict, no hand
+# edit) runs clippy over every target, which type-checks every crate and test, instead of the test run.
+#
+# **The record travels with the commit, not with the clone** (#575). It used to be
+# `<git-dir>/gate-passed`, and `git rev-parse --git-dir` inside a worktree is that worktree's own
+# administrative directory: the fast path fired on 5 of the 24 clean merges the 2026-11-12..23 log holds,
+# because 37 of 39 worktrees had no record at all and a merge of two commits gated on different hosts could
+# see neither. A note is pushed with the commit, so a clone that never ran the gate can still read it.
+#
+# **A tree that linted clean is not linted again** (#574). Clippy's answer depends on the tree, the
+# toolchain and RUSTFLAGS, and a refusal at the test step changes none of them: 30 of 161 commits in that
+# same log paid clippy twice, 1,149 s in all, the largest repeat 332 s. `gate-clippy` holds one line per
+# (tree, toolchain, RUSTFLAGS) that linted clean, and both paths consult it before linting.
 set -u
 cargo="${LOOP_GATE_CARGO:-cargo}"
 zero=0000000000000000000000000000000000000000
 target="" remote="" code=0
 # The pushed refs arrive on stdin once; `git lfs pre-push` below needs them too.
 refs=$(cat)
+hook_remote="${1:-origin}"
 while read -r _local_ref local_sha remote_ref remote_sha; do
   [ "$remote_ref" = "refs/heads/main" ] || continue
   [ "$local_sha" = "$zero" ] && continue
@@ -63,6 +75,9 @@ python3 tools/changelog/changelog.py check >/dev/null || refuse "python3 tools/c
 python3 tools/loop/version.py check >/dev/null || refuse "python3 tools/loop/version.py check failed: the editor's version or one of its tags is outside the policy (PATCH and MINOR stop at 9; a bump is its own commit and the manifest and Cargo.lock must agree)"
 # The editor's integration tests are modules of one binary (`crates/bevy_dark_factory/tests/all.rs`, `autotests = false`):
 # a file missing from `all.rs` is never compiled, so its tests never run, and clippy alone (the clean-merge path) cannot see it.
+# The exclusivity filter in `.config/nextest.toml` names the tests that measure the host; this fails when a clock-reading
+# test is left off it or a named test reads no clock (#577), which is a rule no compile can see.
+python3 tools/loop/wall_clock_filter.py >/dev/null || refuse "python3 tools/loop/wall_clock_filter.py failed: a test that reads a clock or a frame budget is not in .config/nextest.toml's num-cpus filter, or a named test reads none (the message names each)"
 all=crates/bevy_dark_factory/tests/all.rs
 if [ -f "$all" ]; then
   for f in crates/bevy_dark_factory/tests/*.rs; do
@@ -88,8 +103,26 @@ version_bump_only() {
   ! git diff -U0 --no-ext-diff "$remote" "$target" | grep -E '^[+-]' | grep -vE '^(\+\+\+|---) ' | grep -qvE '^[+-]version = "[^"]*"$'
 }
 if version_bump_only; then note "version bump only, no tests"; echo "pre-push gate: a version bump (manifest and Cargo.lock version lines only); the version policy check passed, no test run" >&2; exit 0; fi
-passed="$(git rev-parse --git-dir)/gate-passed"
-gated() { [ -f "$passed" ] && grep -qx "$1" "$passed"; }
+clippy_file="$(git rev-parse --git-dir)/gate-clippy"
+notes_ref=refs/notes/gated
+# A clone that has never gated anything still reads the records, because they were pushed with the commits. The merge,
+# not a forced refspec: this clone's own notes are records too, and overwriting the ref would drop the ones written here
+# before they were pushed (measured: a fresh fetch clobbered two local notes and the fast path then refused a clean merge).
+git fetch --quiet "$hook_remote" "$notes_ref" >/dev/null 2>&1 &&
+  git notes --ref "$notes_ref" merge FETCH_HEAD >/dev/null 2>&1 || true
+gated() { git notes --ref "$notes_ref" show "$1" >/dev/null 2>&1; }
+# Written where the gate actually runs, so the proof is in the commit rather than in the clone that happened to gate it.
+record_gated() {
+  git notes --ref "$notes_ref" add -f -m "gated on $(uname -n) $(date +%FT%T): clippy over every target, nextest and doctests passed" "$1" >/dev/null 2>&1 ||
+    { echo "pre-push gate: WARNING: could not write the $notes_ref note for ${1:0:9}" >&2; return 0; }
+  git push --quiet "$hook_remote" "$notes_ref:$notes_ref" >/dev/null 2>&1 ||
+    echo "pre-push gate: WARNING: the record for ${1:0:9} did not reach $hook_remote; a clone without it runs the full gate" >&2
+}
+# Clippy's answer is a fact about (tree, toolchain, RUSTFLAGS). Any source edit, a manifest change or a toolchain bump
+# moves the key; a refusal at the test step moves none of them, which is what makes remembering it free of weakening.
+clippy_key() { printf '%s\n' "$(git rev-parse "$1^{tree}") rustc $(rustc -vV | tr '\n' ' ') RUSTFLAGS ${RUSTFLAGS:-}"; }
+clippy_ok() { [ -f "$clippy_file" ] && grep -qxF "$(clippy_key "$1")" "$clippy_file"; }
+record_clippy() { clippy_key "$1" >> "$clippy_file"; }
 clean_merge_of_main() {
   local parents p1 p2 tree
   parents=$(git rev-list --parents -n 1 "$target")
@@ -107,14 +140,25 @@ clean_merge_of_main() {
 if gated "$target"; then note "already gated, pushing again"; echo "pre-push gate: ${target:0:9} already passed the gate in this clone; pushing it again" >&2; exit 0; fi
 start=$(date +%s)
 if clean_merge_of_main; then
-  echo "pre-push gate: ${target:0:9} is a clean merge of main into a commit that passed the gate; clippy and rustdoc over every target only" >&2
-  timed clippy-merge $cargo clippy --workspace --all-targets -q -- -D warnings || refuse "cargo clippy --workspace --all-targets -- -D warnings failed on the merge"
-  # **Rustdoc runs on the merge path too**: clippy type-checks a merge and cannot see a doc comment, so a merge that
-  # joins one commit's rename to another's citation is exactly what nothing else in this path would catch.
-  timed rustdoc-merge env RUSTDOCFLAGS="-D warnings" $cargo doc --workspace --no-deps -q || refuse "RUSTDOCFLAGS=\"-D warnings\" cargo doc --workspace --no-deps failed on the merge (a doc comment links a private item, an item that does not exist, or a malformed link)"
+  echo "pre-push gate: ${target:0:9} is a clean merge of main into a commit that carries a gate record; clippy over every target only" >&2
+  if clippy_ok "$target"; then
+    note "clippy-merge cached 0s (this tree, toolchain and RUSTFLAGS already linted clean)"
+  else
+    timed clippy-merge $cargo clippy --workspace --all-targets -q -- -D warnings || refuse "cargo clippy --workspace --all-targets -- -D warnings failed on the merge"
+    record_clippy "$target"
+  fi
+  # **Rustdoc runs on the merge path too** (#549): clippy type-checks a merge and cannot see a doc comment, so a merge that
+  # joins one commit's rename to another's citation is exactly what nothing else in this path would catch. It runs whether clippy was
+  # cached or not: a cached lint says nothing about the doc comments.
+  timed rustdoc-merge env RUSTDOCFLAGS="-D warnings" $cargo doc --workspace --no-deps -q || refuse "RUSTDOCFLAGS=\"-D warnings\" cargo doc --workspace --no-deps failed on the merge (a doc comment links a private item or names nothing that exists)"
 else
   echo "pre-push gate: clippy and the test suite on ${target:0:9}; this takes minutes, so give git push a timeout of 1800 s or more" >&2
-  timed clippy $cargo clippy --workspace --all-targets -q -- -D warnings || refuse "cargo clippy --workspace --all-targets -- -D warnings failed"
+  if clippy_ok "$target"; then
+    note "clippy cached 0s (a previous attempt at this tree linted clean)"
+  else
+    timed clippy $cargo clippy --workspace --all-targets -q -- -D warnings || refuse "cargo clippy --workspace --all-targets -- -D warnings failed"
+    record_clippy "$target"
+  fi
   # **nextest runs test binaries in parallel; cargo test runs them serially.** Measured on big at one
   # commit, 2,810 tests: `cargo test --workspace` 451 s, bare `cargo nextest run --workspace` 43 s.
   # **This step is not that 43 s.** It is the step as the gate runs it — clippy already done, on a warm
@@ -143,6 +187,6 @@ else
   # #544's version citations, #548's renamed symbols) are exactly this. Clippy is happy with all of them.
   timed rustdoc env RUSTDOCFLAGS="-D warnings" $cargo doc --workspace --no-deps -q || refuse "RUSTDOCFLAGS=\"-D warnings\" cargo doc --workspace --no-deps failed (a doc comment links a private item, an item that does not exist, or a malformed link)"
 fi
-echo "$target" >> "$passed"
+record_gated "$target"
 note "passed $(( $(date +%s) - start ))s"
 echo "pre-push gate: passed in $(( $(date +%s) - start ))s" >&2

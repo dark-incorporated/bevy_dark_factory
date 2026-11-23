@@ -39,7 +39,8 @@ class VersionBumpNeedsNoTests(unittest.TestCase):
         git(self.tmp, "init", "-q", "--bare", "-b", "main", str(self.bare))
         git(self.tmp, "init", "-q", "-b", "main", str(self.work))
         git(self.work, "remote", "add", "origin", str(self.bare))
-        for name in ("tools/loop/backlog.py", "tools/changelog/changelog.py", "tools/loop/version.py"):
+        for name in ("tools/loop/backlog.py", "tools/changelog/changelog.py", "tools/loop/version.py",
+                     "tools/loop/wall_clock_filter.py"):
             path = self.work / name
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text("import sys\nsys.exit(0)\n")

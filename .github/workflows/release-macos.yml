@@ -49,6 +49,14 @@ jobs:
       # Outside the checkout, which `actions/checkout` cleans: this is what makes the next release incremental.
       - name: Keep the cargo target between runs
         run: echo "CARGO_TARGET_DIR=$HOME/actions-runner-bevy_blueprint/cargo-target" >> "$GITHUB_ENV"
+      # **A tag whose commit carries no gate record is refused before a DMG is built** (#579). The pre-push hook runs
+      # only where `core.hooksPath` names it, and 7 of the last 9 release commits reached `main` from clones where it did
+      # not; this is the reading side, and it runs where the tag becomes a download. The record is a `refs/notes/gated`
+      # note the gate writes where it passes (#575), fetched with the commits.
+      - name: The tag's commit passed a gate
+        run: |
+          git fetch --quiet origin "+refs/notes/gated:refs/notes/gated" || true
+          bash tools/loop/require-gate-record.sh "$GITHUB_SHA"
       - name: Version
         id: version
         run: |

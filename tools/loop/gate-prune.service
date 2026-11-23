@@ -1,0 +1,15 @@
+[Unit]
+Description=Keep the newest test executable of each name in the push gate's target
+Documentation=file:%h/dark-incorporated/bevy_dark_factory/tools/loop/prune_gate_target.sh
+# **The pruner refuses under a running gate and says so with exit 3** (its own path, tested by
+# test_prune_gate_target.py). Starting this unit beside a gate is therefore harmless; it is ordered after
+# the gate only so the usual case is a prune that runs rather than one that declines.
+After=fleet-gate-rel.service
+
+[Service]
+Type=oneshot
+# The script prints what it kept, which names, how many older generations and the GB it freed; the journal is
+# where `journalctl --user -u gate-prune` reads that, so the freed number is a record rather than a console line.
+ExecStart=/usr/bin/bash %h/dark-incorporated/bevy_dark_factory/tools/loop/prune_gate_target.sh --apply
+Nice=10
+IOSchedulingClass=idle

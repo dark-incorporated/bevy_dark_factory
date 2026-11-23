@@ -14,10 +14,25 @@ on:
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
+# **A step's exit status is the step's, not `tee`'s** (#572). GitHub's default is `bash -e {0}`, and `-e` does not look
+# inside a pipeline: both test steps end in `| tee <artifact>`, so their status was `tee`'s and always 0. Six runs
+# concluded `success` while their own uploaded `test-output.txt` held `3 failed` or `error: could not compile` (runs
+# 43939562096, 44694523717). `pipefail` makes cargo's and nextest's status the step's; `--no-fail-fast` already makes
+# nextest report every failure, so nothing about the reporting changes, only whether it reaches the exit code.
+defaults:
+  run:
+    shell: bash --noprofile --norc -eo pipefail {0}
 env:
   CARGO_TERM_COLOR: always
   CARGO_PROFILE_DEV_DEBUG: 0
   CARGO_INCREMENTAL: 0
+  # **The target lives in the runner's own cache, not in the checkout** (#573). The image already sets
+  # `CARGO_TARGET_DIR=/cache/target`, a volume the runner mounts per slot and that `actions/checkout` never cleans;
+  # the release job does the same thing on mac_air (`.github/workflows/release-macos.yml`). Naming it here means a
+  # run that loses it says so: the invalidator below prints the triple a cold build differs by, and the weekly
+  # `gh-runner-prune` is the only thing that deletes it (a slot over its cap loses the whole target and builds cold
+  # once, which is the property that keeps `/home` from filling).
+  CARGO_TARGET_DIR: /cache/target
 jobs:
   test:
     name: test (workspace)
@@ -38,12 +53,49 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - uses: taiki-e/install-action@nextest
+      # **What a cold run costs is the triple, and a cold run names it** (#573). A warm run compiles 11-21 workspace
+      # crates in 175-240 s; a run whose target was invalidated compiled 451-510 in 648-1,271 s (5.3x) and nothing in
+      # the log said which of the four inputs moved. The last triple is kept beside the target, so the next run can
+      # print the difference rather than leaving a 20-minute compile unexplained.
+      - name: Name the build inputs
+        run: |
+          mkdir -p "$CARGO_TARGET_DIR"
+          stamp="$CARGO_TARGET_DIR/ci-build-inputs"
+          lock=$(sha256sum Cargo.lock | cut -d' ' -f1)
+          rustc=$(rustc -vV | tr '\n' ' ')
+          flags="RUSTFLAGS=${RUSTFLAGS:-} CARGO_INCREMENTAL=$CARGO_INCREMENTAL CARGO_PROFILE_DEV_DEBUG=$CARGO_PROFILE_DEV_DEBUG"
+          echo "Cargo.lock $lock"
+          echo "toolchain  $rustc"
+          echo "flags      $flags"
+          if [ -f "$stamp" ]; then
+            echo "--- the previous run's inputs ---"
+            cat "$stamp"
+            if diff -q <(printf '%s\n%s\n%s\n' "$lock" "$rustc" "$flags") "$stamp" >/dev/null; then
+              echo "the inputs are unchanged: a cold build here is the target having been deleted, not an input"
+            else
+              echo "THE INPUTS CHANGED since the last run (the diff above is what invalidated the target)"
+            fi
+          else
+            echo "no previous inputs at $stamp: this run has nothing to compare a cold build against"
+          fi
+          printf '%s\n%s\n%s\n' "$lock" "$rustc" "$flags" > "$stamp"
+      # **A wait for the host's cargo slot is its own line** (#573). The image's `cargo` shim allows one heavy compile at
+      # a time across every runner slot on big (`GHR_CARGO_SLOTS=1`), and it prints the queue on the build's stderr,
+      # which `| tee` then buries in 500 lines of `Compiling`. Measured: 111 s of a 274 s doctest step was the queue.
+      # The steps below tee their output and the log is scanned afterwards, so the number is reported where a person
+      # looks for it.
       - name: workspace tests (nextest)
         env:
           NEXTEST_TEST_THREADS: 2
         run: xvfb-run -a cargo nextest run --workspace --no-fail-fast 2>&1 | tee test-output.txt
       - name: doctests (nextest does not run them)
         run: cargo test --workspace --doc 2>&1 | tee doc-output.txt
+      - name: Report the cargo-slot wait
+        if: always()
+        run: |
+          line=$(grep -h 'ghr-cargo: got cargo slot' test-output.txt doc-output.txt 2>/dev/null | head -1 || true)
+          if [ -n "$line" ]; then echo "cargo slot wait: ${line#*after }"; else echo "cargo slot wait: none (no queue)"; fi
+          grep -h 'ghr-cargo: all .* busy; queued' test-output.txt doc-output.txt 2>/dev/null || true
       - uses: actions/upload-artifact@v4
         if: always()
         with:
