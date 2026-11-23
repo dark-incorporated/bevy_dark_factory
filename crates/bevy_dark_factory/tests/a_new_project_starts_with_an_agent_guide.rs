@@ -53,8 +53,6 @@ fn scratch(tag: &str) -> PathBuf {
     dir
 }
 
-
-
 fn call(app: &mut App) -> serde_json::Value {
     use bevy::remote::{RemoteMethodSystemId, RemoteMethods};
     let id = match app.world().resource::<RemoteMethods>().get("blueprint/agent_guide") {

@@ -24,9 +24,8 @@ use std::time::{Duration, Instant};
 
 use bevy::prelude::*;
 
-/// **Every frame a test steps through [`settle_support`]**, so "the suite got cheaper" is a number a run prints rather than a
-/// belief. `cargo test -p bevy_dark_factory --test editor -- --nocapture` prints it from
-/// [`frames_stepped`] when [`report_stepped_frames`] is called by the run's last test.
+/// **Every frame a test steps through this module**, so "the suite got cheaper" is a number and not a belief. A test that wants
+/// the number calls [`report_stepped_frames`]; nothing else depends on the print.
 static STEPPED: AtomicU64 = AtomicU64::new(0);
 
 /// How many frames this process has stepped through [`settle`] and [`until`].
