@@ -293,3 +293,107 @@ fn count_after(text: &str, lead: &str, suffix: &str) -> Option<usize> {
     let digits: String = text[at..].chars().take_while(char::is_ascii_digit).collect();
     text[at + digits.len()..].starts_with(suffix).then(|| digits.parse().ok()).flatten()
 }
+
+/// **The reference names the folders the server actually writes**, not a copy of them (#562).
+///
+/// The sentence said the server "writes nothing to disk itself" while `blueprint_capture_still`,
+/// `blueprint_capture_sequence`, `blueprint_snip` and `blueprint_feedback_file_issue` all wrote files. So the
+/// sentence is built from `docs`' constants and this reads it against the folders the code resolves: a moved
+/// path fails the build rather than the sentence going quietly stale.
+#[test]
+fn the_reference_names_the_folders_the_server_writes() {
+    let rendered = dark_factory_mcp::docs::render();
+    assert!(
+        !rendered.contains("writes nothing to disk"),
+        "docs/mcp-tools.md's opening says the server writes nothing, and it writes every capture and every \
+         filed report"
+    );
+    // **Under a project**: the capture folder is that project's `target/loop/captures`.
+    let project = std::path::Path::new("/tmp/a-project");
+    let folders = dark_factory_mcp::docs::written_folders(Some(project));
+    let captures = folders.captures.expect("a project's capture folder resolves");
+    assert_eq!(captures, project.join("target/loop/captures"));
+    let tail = captures.strip_prefix(project).expect("under the project");
+    let tail = tail.to_string_lossy().replace('\\', "/");
+    assert!(
+        rendered.contains(&format!("`{tail}/<label>/`")),
+        "the reference does not name the project capture folder `{tail}/<label>/` that `capture_dir` returns"
+    );
+    // **With no project**: the person's data folder's `captures`.
+    let user = dark_factory_mcp::docs::written_folders(None);
+    if let Some(captures) = user.captures {
+        let leaf = captures.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+        assert!(
+            rendered.contains(&format!("`{leaf}/`")),
+            "the reference does not name the no-project capture folder `{leaf}/` that `capture_dir` returns"
+        );
+    }
+    // **A filed report**: always the person's data folder's `feedback`.
+    if let Some(feedback) = folders.feedback {
+        let leaf = feedback.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+        assert!(
+            rendered.contains(&format!("`{leaf}/`")),
+            "the reference does not name the feedback folder `{leaf}/` that `feedback_dir` returns"
+        );
+    }
+    // **And the constants the sentence interpolates are the folders' own leaves**, so a rename in `user_dirs`
+    // is caught here and not by a person reading a stale sentence.
+    if let Some(captures) = dark_factory_mcp::docs::written_folders(None).captures {
+        assert_eq!(captures.file_name().unwrap_or_default(), dark_factory_mcp::docs::CAPTURES_IN_USER_DIR);
+    }
+    if let Some(feedback) = dark_factory_mcp::docs::written_folders(None).feedback {
+        assert_eq!(feedback.file_name().unwrap_or_default(), dark_factory_mcp::docs::FEEDBACK_IN_USER_DIR);
+    }
+}
+
+/// **The README's group table names every tool the server declares, and the sentence above it states the
+/// table's own length** (#569).
+///
+/// The README said "There are 32 tools" over a table of 30: `blueprint_volume_report` and
+/// `blueprint_feedback_file_issue`, the two newest, had no row. A group table is the page a person reads to
+/// learn what the server can do, so the two tools it left out were the two least likely to be guessed.
+#[test]
+fn the_readme_table_names_every_tool() {
+    use std::collections::BTreeSet;
+
+    let readme = include_str!("../README.md");
+    let declared: BTreeSet<String> = dark_factory_mcp::docs::TOOLS.iter().map(|t| t.name.to_owned()).collect();
+
+    // **The table's group rows**, `| <group> | <names> |`; the header and the rule are not rows.
+    let mut named: BTreeSet<String> = BTreeSet::new();
+    for line in readme.lines() {
+        let line = line.trim();
+        if !line.starts_with("| ") || line.starts_with("| group") || line.starts_with("|--") {
+            continue;
+        }
+        let cells: Vec<&str> = line.trim_matches('|').split('|').collect();
+        if cells.len() != 2 {
+            continue;
+        }
+        for tool in cells[1].split(',') {
+            let tool = tool.trim().trim_matches('`');
+            if tool.starts_with("blueprint_") {
+                assert!(named.insert(tool.to_owned()), "the README's table names `{tool}` twice");
+            }
+        }
+    }
+    let missing: Vec<&String> = declared.difference(&named).collect();
+    let extra: Vec<&String> = named.difference(&declared).collect();
+    assert!(
+        missing.is_empty(),
+        "**the MCP README's group table omits {missing:?}**: every tool the server declares needs a group \
+         row, or a person reading the table never learns it exists"
+    );
+    assert!(extra.is_empty(), "the README's table names {extra:?}, which the server does not declare");
+
+    // **And the sentence above the table states the table's own length.**
+    let at = readme.find("There are ").expect("the README states a tool count") + "There are ".len();
+    let digits: String = readme[at..].chars().take_while(char::is_ascii_digit).collect();
+    let said: usize = digits.parse().expect("the sentence states a number");
+    assert_eq!(
+        said,
+        declared.len(),
+        "the README says there are {said} tools and the table names {}",
+        declared.len()
+    );
+}

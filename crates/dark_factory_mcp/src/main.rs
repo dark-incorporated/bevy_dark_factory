@@ -794,7 +794,9 @@ impl Blueprint {
             ));
         }
         let base = match &self.project {
-            Some(project) => project.join("target").join("loop").join("captures"),
+            // **The folder the reference names**, from `docs`' one constant, so the sentence and the write
+            // cannot disagree (#562).
+            Some(project) => project.join(crate::docs::CAPTURES_UNDER_PROJECT),
             None => blueprint_model::user_dirs::captures_dir().ok_or(
                 "this system has no data directory, so a capture has nowhere to go; pass --project",
             )?,

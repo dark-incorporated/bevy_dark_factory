@@ -26,10 +26,10 @@ pub const SETTINGS_FILE: &str = "settings.yaml";
 pub const STYLE_FILE: &str = "style.yaml";
 
 /// The folder under [`data_dir`] a capture goes to when no project is named.
-const CAPTURES_DIR: &str = "captures";
+pub const CAPTURES_DIR: &str = "captures";
 
 /// The folder under [`data_dir`] the reports about the editor itself go to (`crate::feedback`).
-const FEEDBACK_DIR: &str = "feedback";
+pub const FEEDBACK_DIR: &str = "feedback";
 
 /// The folder under [`data_dir`] the turn ledger is kept in (`crate::turn_ledger`, DL-01, #460).
 const LABELS_DIR: &str = "labels";

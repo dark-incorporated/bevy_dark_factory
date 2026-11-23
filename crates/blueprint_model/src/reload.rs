@@ -201,7 +201,7 @@ pub const KINDS: &[FileKind] = &[
         "A species a forest uses: the editor regrows every tree of it when the file's modification time moves, and a file that does not read leaves them as the last good one drew them."),
     // ---- the game root's files ----
     kind("family", Root, "family/<name>.yaml", "a family crate's settings", Live, Global, "",
-        "One file per family crate: the editor applies it in place, polled every 0.1 s. The game-side `BlueprintLivePlugin` does not watch `<root>/family/`."),
+        "One file per family crate: the editor applies it in place, when the project index (#501) says a file under `family/` moved. The game-side `BlueprintLivePlugin` does not watch `<root>/family/`."),
     kind("family_list", Root, "family.yaml", "Family", Live, Global, "by hand",
         "Which family crates the project uses, read when the editor needs the list; nothing holds it."),
     kind("editor_settings", Blueprint, "editor.yaml", "EditorSettings", Live, Global, "by hand",

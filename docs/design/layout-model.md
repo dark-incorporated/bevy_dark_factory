@@ -4,8 +4,9 @@
 
 **Since 2026-11-22** the measures named below as constants (`CONTROLS_W`, `LIST_W`, `BOTTOM_DOCK_H`, `WORKBENCH_FLOOR_H`, `PAD`,
 `GAP_ROW`, …) are `metrics.layout` values and class rules of the editor's live style sheet,
-`crates/bevy_dark_factory/src/style/editor.yaml` ([data files](../guide/data-files.md#the-editors-style-sheet)). The numbers
-here are as measured at the time.
+`crates/bevy_dark_factory/src/style/editor.yaml` ([data files](../guide/data-files.md#the-editors-style-sheet)). **§2.2's fixed
+list is read from that sheet and `metrics.layout` by `tests/the_documents_state_the_codes_own_counts.rs`**, so it cannot drift;
+every other number here is as measured at the time.
 
 The owner's note, in full:
 
@@ -32,7 +33,7 @@ Read off the frame at 2.4:
 | PIECES panel | x `1767..2146`, y `335..1314` | **158 x 408** | `chrome::panel_root(Side::Right, LIST_W = 264, …)` |
 | its rail | x `2112..2115` | 1.7 wide, 30 px in from the panel's right border | gooey's `ListRail` |
 | the viewport (the map/world hole) | x `~645` to `~1767` | ~467 wide | what the two docks leave |
-| the split divider | the light column `636..644` | 3.3 visible, 24 hit target | gooey's `Role::SplitDivider` |
+| the split divider | the light column `636..644` | 3.3 visible inside the target this build drew (24; `metrics.layout.divider_w` is 12 since #476) | gooey's `Role::SplitDivider` |
 
 Two things to note before any defect is named:
 
@@ -62,7 +63,7 @@ window root                                   Sized, 100% x 100vh        (chrome
 │  │  │     └─ … panels, each panel_root()    Sized, width = PanelWidth.preferred (squeezed)
 │  │  │        ├─ title / heading             text
 │  │  │        └─ scroll_list → ScrollViewport  fills what is left, scroll_y, rail as sibling
-│  │  ├─ SplitDivider                         SPLIT_GRIP_THICKNESS 4 inside a 24 px target
+│  │  ├─ SplitDivider                         `metrics.layout.divider_w` (12 px): the room the shell's split takes
 │  │  └─ SplitPane  #2 (right of the split)   grid 1fr/1fr
 │  │     └─ Frame::viewport  (ViewportSlot)   fill column, row of …
 │  │        └─ ArrangementDock (cover)        gooey Dock, absolute over the whole hole
@@ -88,9 +89,12 @@ Each part answers exactly one question, and the whole model is these four answer
 - **Flex**: the two docks' *widths* (they shrink toward `DOCK_MIN_W`), the panels inside them (their
   contents reflow), the `SplitPane` widths (the fraction), the scroll viewports (fill the panel's rest),
   the bottom dock's *display* (it appears only when `WORKBENCH_FLOOR_H` 420 is still kept).
-- **Fixed**: `BAR_H` 26, `BOTTOM_DOCK_H` 148, `MARGIN` 12, `PAD` 12, `GAP_ROW` 5, the 1 px borders,
-  gooey's divider target 24, `SCROLL_GUTTER` `BAR_W + BAR_INSET` = 6, `DOCK_MIN_W` = `LIST_W * 0.6` = 158.4,
-  `VIEWPORT_MIN_W` 420, `VIEWPORT_SHARE` 0.52.
+- **Fixed**: `metrics.layout.bar_h` 26, `metrics.layout.bottom_dock_h` 148, a panel's margin and pad (12 each,
+  the sheet's `chrome-panel` rule), the row step 5, the 1 px borders (`metrics.layout.edge_w`), the shell split's
+  **`divider_w` 12** (the owner's half-thickness divider, #476, which the editor sets and `bevy_gooey` draws; its own
+  default channel is `bevy_gooey`'s `MIN_TARGET_PX` 24 and its private grip is `SPLIT_GRIP_THICKNESS` 4, neither of
+  which this editor's sheet names), `scroll_gutter()` = `scroll_bar_w + scroll_bar_inset` = 6, `dock_min_w()` =
+  `list_w * dock_min_share` = 158.4, `metrics.layout.viewport_min_w` 420, `viewport_share` 0.52.
 
 ### 2.3 The mental model, in one sentence
 
@@ -157,15 +161,16 @@ bottom dock's. Nothing says "a panel's fixed chrome may not exceed N% of its hei
 
 **Seen**: the frame shows the INSPECTOR's thumb at `x≈550`, the divider's grip at `x≈640`, and the
 PIECES rail at `x≈2113` — three vertical light marks at three different insets (30 px from a border,
-centred in a 24 px target, flush with a viewport's edge). Nothing on screen says which belongs to what.
+centred in the divider target that build drew, flush with a viewport's edge). Nothing on screen says which belongs to what.
 
 **Model says**: each is right by its own rule — a rail is placed over its viewport's right edge
 (`place_scroll_rails`), a divider's grip is centred in its target (`split_divider`), and a dock's rail
 is inset by the panel's `MARGIN`. There is **no rule that they line up**, and no rule that says two
 bars in one view are one gesture or two.
 
-**Measurement**: viewport rail flush at its viewport's right edge, divider grip centred in 24 px, panel
-rail 30 physical px in from the panel's border.
+**Measurement**: viewport rail flush at its viewport's right edge, divider grip centred in the divider target
+(the capture's build drew 24; `metrics.layout.divider_w` is 12 since #476), panel rail 30 physical px in from
+the panel's border.
 
 **What it exposes**: the model has no notion of **chrome adjacency** — what two controls next to each
 other mean together. `SCROLL_GUTTER` exists so content does not run *under* a rail; nothing exists so
