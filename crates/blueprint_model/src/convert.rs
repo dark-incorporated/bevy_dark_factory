@@ -50,7 +50,7 @@ use crate::placement::manifest::ManifestItem;
 ///
 /// Same argument as `stretch_y`: how high this game hangs a wall light is not a fact about the mesh,
 /// and baking it into a shared library is how one game's wall height ends up in another's. The game
-/// passes its own (`placement::furnish::WALL_LIGHT_HEIGHT`, 1.8 m).
+/// passes its own (`bevy_coven`'s `placement/furnish.rs`: `WALL_LIGHT_HEIGHT`, 1.8 m).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Policy {
     /// Height at which a wall-anchored piece hangs, metres.
