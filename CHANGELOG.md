@@ -2,6 +2,11 @@
 
 What each change added, newest first. A visible change has a clip: click the still to play it. `python3 tools/changelog/changelog.py page --open` plays them all in one page.
 
+## 2026-11-23
+
+- **542-files-header-and-field-line** `45bdff0a` The Files editor's caret readout sits at the header row's right edge, and its field line draws its words inside its own frame with a class of its own *For you: In the Files editor, the line-and-column readout now sits at the right edge of its bar, and the field box says what to type inside itself.* *No clip: a layout measurement, proved by the_files_editors_header_and_field_line_sit_where_they_say, which prints the rects it asserts*
+- **560-profile-and-report-are-two-presses** `793392c6` The frame profile answers to Shift+Alt+Cmd+D and the project report keeps Shift+Cmd+D, so one press opens one panel *For you: The frame profile and the project report no longer open together on the same shortcut.* *No clip: a chord move with no new picture; proved by one_press_opens_one_panel, chords::tests::no_two_fixed_chords_share_a_press and profile::tests::the_chord_is_free_and_answers_to_no_other*
+
 ## 2026-11-22
 
 - **525-syntax-theme** `9c78d6a4` A setting picks the code editor's syntax-highlighting hues: Skin (the editor's own), Warm, Cool, Mono and Separated, applied live to every open code editor *For you: You can pick the code editor's colours: five sets from the editor's own hues to warm, cool, one-hue and high-separation, and an open file recolours as you choose.* *No clip: Settings and a recolour, no new still; proved by the_code_colours_reach_an_open_editor::switching_the_preset_changes_the_drawn_colour_of_a_key, the_code_colours_are_a_setting and the_code_colours_hold_the_contrast_bar::every_preset_is_clean_on_every_theme*

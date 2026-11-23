@@ -249,7 +249,7 @@ Goal: read what the person pointed at and said was wrong, without asking them to
 
 A person presses a key while using Dark Factory, points at **anything on screen** — a panel, a button, a field, a tooltip, a placed piece, a cell, the empty viewport — and types what is wrong. The frame is the one that was on screen when the key was pressed, so what the agent reads is what the person saw.
 
-There are two channels and they do not mix. **Cmd+D** reports on Dark Factory itself, for the people who write the editor: it works on every screen, including the Projects home, and needs no project open. **Cmd+Shift+D** reports on the project you have open, for whoever works that project, and is refused with a sentence where there is none.
+There are two channels and they do not mix. **Cmd+D** reports on Dark Factory itself, for the people who write the editor: it works on every screen, including the Projects home, and needs no project open. **Cmd+Shift+D** reports on the project you have open, for whoever works that project, and is refused with a sentence where there is none. (The frame profile, a developer's panel, answers to **Shift+Option+Cmd+D**, so it is not the press that starts a project report.)
 
 | | Developers | Project |
 |---|---|---|
