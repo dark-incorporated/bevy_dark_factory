@@ -38,6 +38,20 @@ measurement.
 the highest number for that prefix across both files), `archive` (move every `fixed`/`shipped`/
 `rejected` item to the end of the archive, in order).
 
+**`check-gate-hook.sh`** — every clone that can push `main` reads `core.hooksPath=tools/loop/hooks`; `--fix` sets it
+where it does not. `bmb` pushes releases and had it set to `/dev/null`, which is why 7 of 9 release commits reached
+`main` with no gate record (#579). `require-gate-record.sh <sha>` is the reading side, run by the release workflow:
+a tag whose commit carries no `refs/notes/gated` note is refused before a DMG is built.
+
+**`prune_gate_target.sh`** — keeps the newest test executable of each name in the push gate's target and deletes the
+older ones (`CEILING_GB`, default 120, is what it is held to; over it exits 4). `gate-prune.timer` runs it daily via
+`install-gate-prune.sh`; nothing ran it before, and the target reached 283 GB with 129.4 GB of superseded executables
+cargo could never reuse (#578).
+
+**`wall_clock_filter.py`** — the `threads-required = "num-cpus"` overrides in `.config/nextest.toml` name the tests
+that measure the host, and this check fails when a clock-reading test is unnamed or a named test reads no clock. It
+replaced six module patterns that took 28 tests, 9 of them reading no clock (#577).
+
 **`test_accept.py`** — `summarize()`'s arithmetic, which is what the loop grades itself on: a skip is
 neither a pass nor a failure, `first_failure` is the first failure in step order, a skip ahead of a
 failure does not become the first failure, and a skip never satisfies a dependent.
