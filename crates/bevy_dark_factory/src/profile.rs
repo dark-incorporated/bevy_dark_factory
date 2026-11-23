@@ -379,13 +379,35 @@ mod tests {
         assert!((frame.measured_ms() - 3.5).abs() < f64::EPSILON);
     }
 
+    /// **The profile's press is its own** (#560): `Shift+Alt+Cmd+D`, with the project report's `Shift+Cmd+D` and the
+    /// developers' report's `Cmd+D` beside it and neither of them also opening a panel.
+    ///
+    /// The list this checked used to be hand-written, and `ReportProject` — the chord that was the same press — was
+    /// not on it, so one press opened a report and a frame profile together. The whole-table sweep is
+    /// `crate::chords::tests::no_two_fixed_chords_share_a_press`; this names the three `D` chords, because they are
+    /// the near neighbours whose collision a person would hit first.
     #[test]
     fn the_chord_is_free_and_answers_to_no_other() {
         use crate::chords::{Fixed, default_of};
         let chord = default_of(Fixed::ProfileToggle);
         assert_eq!(chord.key, KeyCode::KeyD);
-        assert!(chord.modifiers.shift);
-        for other in [Fixed::ConsoleToggle, Fixed::TerminalCollapse, Fixed::ScaleUp, Fixed::ScaleDown, Fixed::ScaleReset, Fixed::GotoOpen, Fixed::PaletteOpen, Fixed::PaletteOpenAlt] {
+        assert!(
+            chord.modifiers.shift && chord.modifiers.alt,
+            "the profile takes Shift and Alt: the third modifier is what makes it nobody else's press"
+        );
+        for other in [
+            Fixed::ReportProject,
+            Fixed::ReportDevelopers,
+            Fixed::EditorDevAgent,
+            Fixed::ConsoleToggle,
+            Fixed::TerminalCollapse,
+            Fixed::ScaleUp,
+            Fixed::ScaleDown,
+            Fixed::ScaleReset,
+            Fixed::GotoOpen,
+            Fixed::PaletteOpen,
+            Fixed::PaletteOpenAlt,
+        ] {
             assert_ne!(default_of(other), chord, "{other:?}");
         }
     }

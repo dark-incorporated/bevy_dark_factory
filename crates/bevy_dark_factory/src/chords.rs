@@ -66,6 +66,12 @@ fn primary_shift(key: KeyCode) -> Shortcut {
     Shortcut::new(Modifiers::PRIMARY | Modifiers::SHIFT, key)
 }
 
+/// **Shift and Alt with the platform's primary** — the shape a chord takes when both its neighbouring presses are taken
+/// ([`Fixed::ProfileToggle`], #560).
+fn primary_shift_alt(key: KeyCode) -> Shortcut {
+    Shortcut::new(Modifiers::PRIMARY | Modifiers::SHIFT | Modifiers::ALT, key)
+}
+
 /// **Every fixed chord**, in the order the keymap screen lists them.
 pub const CHORDS: &[NamedChord] = &[
     NamedChord { fixed: Fixed::Quit, id: "app.quit", title: "Quit Dark Factory", default: || primary(KeyCode::KeyQ) },
@@ -83,11 +89,17 @@ pub const CHORDS: &[NamedChord] = &[
     // **The console beside the journal's `Cmd+E`** (#509).
     NamedChord { fixed: Fixed::ConsoleToggle, id: "console.open", title: "Show or hide the log", default: || primary_shift(KeyCode::KeyE) },
     // **The frame profile** (#504): `D` already means "move" here, so the modifier carries the same word.
+    //
+    // **`Shift+Alt+Cmd+D`, not `Shift+Cmd+D`** (#560): that press is [`Fixed::ReportProject`]'s, and until this row moved
+    // both handlers ran on one press — a frame profile opened over a report that had just started pointing. The
+    // project report keeps `Shift+Cmd+D` because it is the chord three documents name (`docs/guide/agents.md`,
+    // `data-files.md`, the MCP guide) and the one a person reaches for mid-task; the profile is a developer's panel,
+    // so it is the row that takes the third modifier.
     NamedChord {
         fixed: Fixed::ProfileToggle,
         id: "profile.open",
         title: "Show or hide the frame profile",
-        default: || primary_shift(KeyCode::KeyD),
+        default: || primary_shift_alt(KeyCode::KeyD),
     },
     NamedChord { fixed: Fixed::ProblemsShow, id: "problems.show", title: "Show the map's problems", default: || primary_shift(KeyCode::KeyX) },
     NamedChord { fixed: Fixed::IssueCompose, id: "issue.compose", title: "Write an issue", default: || primary_shift(KeyCode::KeyI) },
@@ -252,6 +264,30 @@ mod tests {
         assert_eq!(unique.len(), CHORDS.len(), "a variant is listed twice");
         for id in &ids {
             assert!(crate::commands::by_id(id).is_none(), "`{id}` is a command's id as well");
+        }
+    }
+
+    /// **No two fixed chords are the same press** (#560).
+    ///
+    /// `Shift+Cmd+D` was written twice — [`Fixed::ProfileToggle`] and [`Fixed::ReportProject`] — and
+    /// `Shortcut::just_pressed` compares the whole modifier set, so one press satisfied both handlers and a report
+    /// and a frame profile opened together. The guard that should have caught it compared the profile against a
+    /// hand-written list of seven neighbours that nobody updated; this sweeps the whole table, so the next row added
+    /// cannot take a press an existing one already answers to.
+    #[test]
+    fn no_two_fixed_chords_share_a_press() {
+        for (at, first) in CHORDS.iter().enumerate() {
+            let press = (first.default)();
+            for second in &CHORDS[at + 1..] {
+                assert_ne!(
+                    press,
+                    (second.default)(),
+                    "`{}` and `{}` both answer to {}; one press would open both",
+                    first.id,
+                    second.id,
+                    press.label()
+                );
+            }
         }
     }
 }
