@@ -1,6 +1,6 @@
 //! **The support-surface class vocabulary** — the one closed token table in the placement stack.
 //!
-//! Lived in the game's `placement::furnish` until the Stage-0b workspace split. It had to move: it is a token
+//! Lived in `bevy_coven`'s `placement/furnish.rs` until the Stage-0b workspace split. It had to move: it is a token
 //! table and four pure functions, `manifest::validate_manifest` validates against it, and `manifest`
 //! is engine-free — so the vocabulary could not stay behind the Bevy boundary that `furnish` is.
 //!

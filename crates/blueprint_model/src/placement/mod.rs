@@ -6,7 +6,7 @@
 //! [`solvers`] are the backends.
 //!
 //! The Bevy half of placement — turning a solved [`ir::Placement`] into an entity — is the game's
-//! the game's `placement::furnish`, and stays there. `ir.rs` named it as the boundary before this crate existed.
+//! `bevy_coven`'s `placement/furnish.rs`, and stays there. `ir.rs` named it as the boundary before this crate existed.
 
 pub mod ir;
 pub mod manifest;
