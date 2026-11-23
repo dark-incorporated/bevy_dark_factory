@@ -135,7 +135,17 @@ fn the_reload_panel_is_the_docks_and_its_lines_are_in_it() {
     // `reload_files` rows `blueprint_state.reload_files` reports reach the dock's column.
     let project_dir = app.world().resource::<Project>().project_dir.clone();
     Verdict::with_kinds(4, "refused", vec![KindVerdict::applied("kits", "kits.yaml")]).write(&project_dir).unwrap();
-    support::settle(&mut app);
+    // **Wait for the panel's own look**, which is every 0.5 s (`refresh_reload_list`), not for quiet: the panel is idle
+    // between looks, so `settle` can return before it has read the verdict at all (the 2026-11-23 gate read "no game
+    // connected" over a verdict already on disk).
+    support::until(&mut app, "the Reload panel reads the game's verdict", |app| {
+        let world = app.world_mut();
+        let Ok(list) = world.query_filtered::<Entity, With<ReloadList>>().single(world).map(|e| e.to_owned()) else {
+            return false;
+        };
+        let mut texts = world.query::<(&Text, &ChildOf)>();
+        texts.iter(world).any(|(text, parent)| parent.parent() == list && text.0.starts_with("game decided "))
+    });
     let lines: Vec<String> = {
         let world = app.world_mut();
         let list = world.query_filtered::<Entity, With<ReloadList>>().single(world).expect("the panel spawns its list").to_owned();

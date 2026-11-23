@@ -371,7 +371,13 @@ fn the_notes_row_the_reveal_selected_is_drawn_selected_and_inside_the_panel() {
         serde_json::json!({"id": "note-1", "text": "the bed is by the window"}),
     );
     assert_eq!(answer["outcome"], "applied", "{answer}");
-    settle_support::settle(&mut app);
+    // **Wait for the row to be drawn selected**, not for quiet: the Notes list refreshes on its own half-second, and
+    // between looks it is idle, so `settle` returned before the selection reached a row (the 2026-11-23 gate).
+    settle_support::until(&mut app, "the Notes list draws note-1 selected", |app| {
+        let world = app.world_mut();
+        let mut q = world.query::<(&bevy_dark_factory::editor::NoteRow, &bevy_dark_factory::chrome::RowSelected)>();
+        q.iter(world).any(|(r, s)| r.id == "note-1" && s.0)
+    });
 
     // **The row the list drew for the selected note**, by the marker the reveal set.
     let row = {
