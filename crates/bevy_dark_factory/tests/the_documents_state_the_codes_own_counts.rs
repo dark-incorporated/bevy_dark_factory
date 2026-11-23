@@ -121,7 +121,7 @@ fn the_reload_contract_names_the_extension_set_the_watchers_listen_for() {
         )
     });
     let rest = &guide[at + LEAD.len()..];
-    let said: BTreeSet<&str> = rest[..rest.find('}').expect("the set closes")].split(',').map(str::trim).filter(|s| !s.is_empty()).collect();
+    let said: BTreeSet<String> = rest[..rest.find('}').expect("the set closes")].split(',').map(|s| s.trim().to_owned()).filter(|s| !s.is_empty()).collect();
 
     // **What the watchers are given**, from the two `FileWatch::new` calls in the game's runtime crate.
     let mut listened = BTreeSet::new();
@@ -151,15 +151,14 @@ fn the_reload_contract_names_the_extension_set_the_watchers_listen_for() {
         }
         assert!(seen >= 1, "{file} no longer calls `FileWatch::new`; this test reads that call");
     }
-    let listened: BTreeSet<&str> = listened.iter().map(String::as_str).collect();
     assert!(!listened.is_empty(), "no `FileWatch::new(…, &[…])` extension list was found");
     assert_eq!(
         said, listened,
         "**docs/guide/reload-contract.md says the game's watcher listens for `{{{}}}`, and the two \
          `FileWatch::new` calls pass `{{{}}}`**. The page's sentence is about the code, so the code is \
          right: fix the sentence (#563).",
-        said.iter().copied().collect::<Vec<_>>().join(","),
-        listened.iter().copied().collect::<Vec<_>>().join(",")
+        said.iter().map(String::as_str).collect::<Vec<_>>().join(","),
+        listened.iter().map(String::as_str).collect::<Vec<_>>().join(",")
     );
 }
 
@@ -555,7 +554,7 @@ fn every_guide_markdown_fragment_resolves() {
     let guide = root().join("docs/guide");
     for entry in std::fs::read_dir(&guide).unwrap_or_else(|e| panic!("{}: {e}", guide.display())) {
         let path = entry.expect("a directory entry").path();
-        if path.extension().is_some_and(|e| e == "md") {
+        if path.extension().and_then(|e| e.to_str()) == Some("md") {
             files.push(path);
         }
     }
@@ -589,7 +588,7 @@ fn every_guide_markdown_fragment_resolves() {
                     continue;
                 }
                 let Some(fragment) = fragment else { continue };
-                if target.extension().is_none_or(|e| e != "md") {
+                if target.extension().and_then(|e| e.to_str()) != Some("md") {
                     continue;
                 }
                 let Ok(target_text) = std::fs::read_to_string(&target) else { continue };
