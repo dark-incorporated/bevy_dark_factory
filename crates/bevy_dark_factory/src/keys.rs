@@ -3655,10 +3655,19 @@ pub fn chord_text(b: &Binding) -> String {
     }
 }
 
-/// **The chord for an action as `rebound` has it**: the settings' chord, spelled the way gooey spells
-/// every chord it shows, or else [`chord`]'s.
-pub fn chord_in(action: Action, rebound: &Rebound) -> String {
-    rebound.chord(action).map_or_else(|| chord(action), |chord| chord.label())
+/// **The chord for an action as `rebound` has it**: the settings' chord, spelled by the host's own
+/// [`bevy_gooey::BindingSettings`], or else [`chord`]'s.
+///
+/// A rebound chord is a [`Shortcut`], and the one place a `Shortcut` becomes words is
+/// [`BindingSettings::chord`](bevy_gooey::BindingSettings::chord) — the accessor gooey's own keycaps,
+/// menu rows and palette read. Spelling it with `Shortcut::label` instead asked for Apple's `⌘⌃⌥`
+/// whatever the host had said, and the editor ships Fira Mono, which maps none of them: the owner
+/// twice reported the `?` that drew.
+///
+/// The census's own default needs no spelling: [`chord_text`] wrote it in words already (`Cmd+Z`, `up`,
+/// `Esc`), so it carries no `Shortcut` and no glyph.
+pub fn chord_in(action: Action, rebound: &Rebound, settings: &bevy_gooey::BindingSettings) -> String {
+    rebound.chord(action).map_or_else(|| chord(action), |chord| settings.chord(chord))
 }
 
 /// Is Shift down?
@@ -3709,7 +3718,7 @@ impl Badge {
             return None;
         }
         if self.actions.len() != before {
-            self.chord = chord_column(&self.actions, &Rebound::NONE);
+            self.chord = chord_column(&self.actions, chord);
         }
         Some(self)
     }
@@ -3728,6 +3737,9 @@ impl Badge {
 /// (`10.1145/2470654.2470735`) is that hotkeys sit at the spatial location of the control they act
 /// through, and Schramm, Gutwin & Cockburn 2016 measured spatial-memory shortcuts 700 ms faster than
 /// visually-guided ones.
+///
+/// The chords are the census's own until [`Badge::rebound`] names the settings' — its default is what
+/// a caller with no app (a test of the table) reads.
 pub fn badges(context: Context, stance: Stance) -> Vec<Badge> {
     let mut out: Vec<Badge> = Vec::new();
     for b in in_context(context, stance) {
@@ -3746,29 +3758,27 @@ pub fn badges(context: Context, stance: Stance) -> Vec<Badge> {
     // had no way to say so but to re-render it somewhere else, and two renderers of one column is
     // how `Cmd+` goes missing from exactly one of them. See [`Badge::offered`].
     for b in &mut out {
-        b.chord = chord_column(&b.actions, &Rebound::NONE);
+        b.chord = chord_column(&b.actions, chord);
     }
     out
 }
 
-/// **How a badge's chords read**, and the only place that decides.
+/// **How a badge's chords read**, and the only place that decides. `spell` is `keys::chord` for the
+/// census's own words and [`chord_in`] for a setting's.
 ///
 /// Joined with a mid-dot rather than a comma, since 2026-09-04: the member walk is `,` and `.`,
 /// and a comma separator rendered that badge as `",, ."` (N15). The codepoint is one this UI
 /// already draws — the status line's bullets in `chrome.rs`.
-fn chord_column(actions: &[Action], rebound: &Rebound) -> String {
-    actions
-        .iter()
-        .map(|a| chord_in(*a, rebound))
-        .collect::<Vec<_>>()
-        .join(" · ")
+fn chord_column(actions: &[Action], spell: impl Fn(Action) -> String) -> String {
+    actions.iter().map(|a| spell(*a)).collect::<Vec<_>>().join(" · ")
 }
 
 impl Badge {
     /// **The same badge, naming the chords the settings gave its commands** (UI-72b). A chord nobody
-    /// rebound reads as it always did.
-    pub fn rebound(mut self, rebound: &Rebound) -> Badge {
-        self.chord = chord_column(&self.actions, rebound);
+    /// rebound reads as it always did, and a rebound one is spelled by the host's `settings` — the
+    /// same accessor gooey's own keycaps read, so a badge and a tooltip cannot disagree.
+    pub fn rebound(mut self, rebound: &Rebound, settings: &bevy_gooey::BindingSettings) -> Badge {
+        self.chord = chord_column(&self.actions, |a| chord_in(a, rebound, settings));
         self
     }
 }

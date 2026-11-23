@@ -54,11 +54,6 @@ impl Command {
         self.id.split_once('.').map_or(self.id, |(category, _)| category)
     }
 
-    /// The shortcut as a person reads it on this platform.
-    pub fn shortcut_label(&self) -> String {
-        self.shortcut.label()
-    }
-
     /// **The chord this command answers to in `live`**: the one the settings gave it, else its default
     /// (UI-72b). The palette, a menu and the keys panel say this one.
     pub fn shortcut_in(&self, live: Live) -> Shortcut {

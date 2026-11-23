@@ -671,6 +671,11 @@ struct Shortcut<'w> {
     /// reaches the keyboard legend like every other surface. Read here rather than as a system
     /// parameter because it is one more thing a rebuild reads, not its own question.
     skin: Option<Res<'w, bevy_gooey::GooeySkin>>,
+    /// **How a rebound chord is spelled** (#553): the same host setting gooey's keycaps, menu rows and
+    /// palette read. Read here for `skin`'s reason — a rebuild reads it, it is not its own question —
+    /// and optional because a headless harness that never added `EditorUiPlugin` has no gooey plugin
+    /// to insert it.
+    bindings: Option<Res<'w, bevy_gooey::BindingSettings>>,
 }
 
 /// The clusters and leader segments a rebuild sweeps.
@@ -697,7 +702,7 @@ fn rebuild_badges(
     // where its badge may go is a fact about the pane, and that is `place_badges`'s question.
     controls: Query<(Entity, &chrome::Control, &ComputedNode, &UiGlobalTransform)>,
 ) {
-    let Shortcut { keyboard, live, skin } = shortcut;
+    let Shortcut { keyboard, live, skin, bindings } = shortcut;
     let ink = BadgeInk::of(skin.as_deref());
     let Stale { clusters, segs } = stale;
     let want = keys::pressed(&keyboard, *live, keys::Action::Shortcuts);
@@ -746,11 +751,16 @@ fn rebuild_badges(
     // **And a verb the editor does not offer is not drawn at all.** The workspace chords are
     // `Context::Global`, and `Cmd+6` names a workspace that is not built: `Badge::offered` is the one
     // place that answers it, through `Action::is_offered`.
+    // **A rebound chord is spelled by the host setting, not by `Shortcut::label`** (#553). The editor
+    // says `ChordGlyphs::Words` because Fira Mono maps none of `⌘ ⌃ ⌥ ↩ ⎋ ⇥`, so a badge that spelled its
+    // own chord in glyphs drew the tofu box the owner reported twice, in the one surface that exists to
+    // show a key. The same `BindingSettings::chord` gooey's keycaps read, asked once per rebuild.
+    let spelling = bindings.map_or_else(crate::ui::editor_binding_settings, |s| s.clone());
     let live_badges: Vec<keys::Badge> = keys::badges(tab.context(), stance)
         .into_iter()
         .chain(keys::badges(keys::Context::Global, stance))
         .filter_map(|b| b.offered())
-        .map(|b| b.rebound(&live.3))
+        .map(|b| b.rebound(&live.3, &spelling))
         .map(|mut b| {
             b.home = resolve(b.home, &on_screen);
             b

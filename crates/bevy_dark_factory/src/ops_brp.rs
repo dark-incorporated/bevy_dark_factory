@@ -3432,6 +3432,7 @@ fn run_command(
     screen: Option<Res<State<crate::screen::Screen>>>,
     live: Option<Res<crate::keys::Live>>,
     chords: Option<ResMut<crate::command_run::Chords>>,
+    settings: Option<Res<bevy_gooey::BindingSettings>>,
     state: Option<ResMut<crate::editor::EditorState>>,
 ) -> Result<Value, String> {
     fn refused(id: &str, why: impl Into<String>) -> Value {
@@ -3474,7 +3475,11 @@ fn run_command(
     if let Some(mut state) = state {
         state.status.note(format!("an agent ran {}", command.title));
     }
-    Ok(json!({"outcome": "ran", "id": command.id, "title": command.title, "shortcut": command.shortcut_in(*live).label()}))
+    // **The receipt spells the chord the way the host does** (#553): the same `BindingSettings::chord` the
+    // badge and the keymap row read, so an agent's receipt and a person's screen name one key one way.
+    let spelling = settings.as_deref().cloned().unwrap_or_else(crate::ui::editor_binding_settings);
+    let shortcut = spelling.chord(command.shortcut_in(*live));
+    Ok(json!({"outcome": "ran", "id": command.id, "title": command.title, "shortcut": shortcut}))
 }
 
 /// **`blueprint/frame_view` — frame the Map camera on a box.**

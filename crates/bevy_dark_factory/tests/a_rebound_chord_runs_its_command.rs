@@ -159,7 +159,7 @@ fn the_palette_and_the_badges_name_the_rebound_chord() {
         keys::badges(keys::Context::Global, keys::Stance::Idle)
             .into_iter()
             .filter(|b| b.actions.contains(&Action::Save))
-            .map(|b| b.rebound(rebound).chord)
+            .map(|b| b.rebound(rebound, &bevy_dark_factory::ui::editor_binding_settings()).chord)
             .next()
             .expect("Save has a badge")
     };

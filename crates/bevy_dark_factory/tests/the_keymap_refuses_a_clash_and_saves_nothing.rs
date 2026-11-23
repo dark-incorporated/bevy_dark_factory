@@ -16,6 +16,11 @@ use bevy_gooey::{Binding, Modifiers, Shortcut};
 
 use crate::fixtures;
 
+/// The host's chord spelling: the editor's own setting, so a refusal quotes a chord the way the screen's rows do (#553).
+fn spelling() -> bevy_gooey::BindingSettings {
+    bevy_dark_factory::ui::editor_binding_settings()
+}
+
 fn rig(tag: &str) -> (App, PathBuf) {
     let root = fixtures::Fixture::new(tag).descriptor("site/wall", "alpha").build("m");
     let mut app = bevy_dark_factory::harness::build_headless(&root, "m", None).unwrap_or_else(|e| panic!("{e}"));
@@ -136,15 +141,15 @@ fn a_reset_that_would_hand_back_a_chord_another_command_took_is_refused() {
     let file = dir.join("settings.yaml");
     let elsewhere = Shortcut::new(Modifiers::PRIMARY | Modifiers::SHIFT, KeyCode::KeyY);
     // Save moves off Ctrl+S, then Undo takes Ctrl+S: both fine at the time.
-    rebind(&file, "file.save", Some(elsewhere), &BTreeMap::new(), None).unwrap();
+    rebind(&file, "file.save", Some(elsewhere), &BTreeMap::new(), None, &spelling()).unwrap();
     let mut others = BTreeMap::new();
     others.insert("file.save".to_owned(), elsewhere);
-    rebind(&file, "edit.undo", Some(ctrl_s()), &others, None).unwrap();
+    rebind(&file, "edit.undo", Some(ctrl_s()), &others, None, &spelling()).unwrap();
     // Reset on Save would put it back on Ctrl+S, which Undo has now.
     let mut others = BTreeMap::new();
     others.insert("edit.undo".to_owned(), ctrl_s());
     let before = std::fs::read_to_string(&file).unwrap();
-    let err = rebind(&file, "file.save", None, &others, None).unwrap_err();
+    let err = rebind(&file, "file.save", None, &others, None, &spelling()).unwrap_err();
     assert!(err.contains("already Undo") && err.contains("Nothing was saved"), "{err}");
     assert_eq!(std::fs::read_to_string(&file).unwrap(), before, "a refused Reset writes nothing");
     let _ = std::fs::remove_dir_all(&dir);
@@ -159,11 +164,11 @@ fn choosing_a_commands_default_in_the_project_keeps_it_when_the_user_rebound_it(
     let project = dir.join("editor.yaml");
     let users = Shortcut::new(Modifiers::PRIMARY | Modifiers::SHIFT, KeyCode::KeyY);
     // The user's file gives Save Ctrl+Shift+Y; the project asks for Ctrl+S, the default, which is not what is in force.
-    rebind(&project, "file.save", Some(ctrl_s()), &BTreeMap::new(), Some(users)).unwrap();
+    rebind(&project, "file.save", Some(ctrl_s()), &BTreeMap::new(), Some(users), &spelling()).unwrap();
     let layer = SettingsLayer::read("editor.yaml", &std::fs::read_to_string(&project).unwrap()).unwrap();
     assert_eq!(layer.keymap.get("file.save"), Some(&ctrl_s()), "the project's choice is saved, because the layer below says something else");
     // And choosing what the user's layer already gives is no rebinding in the project's file.
-    rebind(&project, "file.save", Some(users), &BTreeMap::new(), Some(users)).unwrap();
+    rebind(&project, "file.save", Some(users), &BTreeMap::new(), Some(users), &spelling()).unwrap();
     let layer = SettingsLayer::read("editor.yaml", &std::fs::read_to_string(&project).unwrap()).unwrap();
     assert!(layer.keymap.is_empty(), "{:?}", layer.keymap);
     let _ = std::fs::remove_dir_all(&dir);
