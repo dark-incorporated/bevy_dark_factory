@@ -825,6 +825,16 @@ pub fn apply_style(
     {
         targets.skin.text_scale = scale;
     }
+    // **And the code editor's hues are the person's choice on every path** (#525), for the same reason and by the
+    // same shape as `text_scale`: the sheet's `skin.syntax_theme` is where a layer would put it, and a setting chosen
+    // on the Settings screen is not overridden by a project's file. Every `Role::CodeSyntax` run recolours in this
+    // frame — gooey restyles every widget whose skin changed — so an open editor moves without a rebuild.
+    let syntax_theme = settings.as_ref().map(|s| s.syntax_theme);
+    if let Some(chosen) = syntax_theme
+        && targets.skin.syntax_theme != chosen.theme()
+    {
+        targets.skin.syntax_theme = chosen.theme();
+    }
     if found.is_empty() && !theme_moved && watch.applied.is_some() {
         return;
     }
@@ -859,6 +869,10 @@ pub fn apply_style(
         let mut skin = style.skin.clone();
         if let Some(scale) = text_scale {
             skin.text_scale = scale;
+        }
+        // **A sheet's `skin.syntax_theme` is not the person's choice** (#525): the setting is the one answer, as `text_scale` is.
+        if let Some(chosen) = syntax_theme {
+            skin.syntax_theme = chosen.theme();
         }
         if *targets.skin != skin {
             *targets.skin = skin;

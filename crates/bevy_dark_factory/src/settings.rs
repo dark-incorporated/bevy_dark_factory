@@ -70,6 +70,63 @@ pub enum Theme {
     HighContrast,
 }
 
+/// **The hues the code editor's colours are derived from** (#525, `feedback-1795094391027`: *"...as well as
+/// syntax highlighting (we should have a setting to pick a syntax highlighting theme)"*).
+///
+/// gooey derives a colour for each [`SyntaxRole`](bevy_gooey::SyntaxRole) from the skin's seeds and a fixed
+/// hue table, and [`GooeySkin::syntax_theme`](bevy_gooey::GooeySkin) lets a host choose those hues. This is
+/// the person's choice of them, one to one with gooey's [`SyntaxPreset`](bevy_gooey::SyntaxPreset).
+///
+/// **A setting the skin builder applies**, not a style-sheet value: `Theme` is the shape this repo already
+/// has for "pick one of a few looks", and the style sheet's `skin:` section is a layer a person edits by hand
+/// — five choices with names the screen shows are a setting, and [`SettingsLayer`] is where the screen writes.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SyntaxTheme {
+    /// The skin's own hues: exactly the colours the editor drew before this setting existed.
+    #[default]
+    Skin,
+    Warm,
+    Cool,
+    /// One hue, told apart by lightness: quiet reading, and for readers who cannot tell hues apart.
+    Mono,
+    /// The widest hue spacing the roles allow: read at a glance.
+    Separated,
+}
+
+impl SyntaxTheme {
+    /// Every preset, in the order the Settings row offers them.
+    pub const ALL: [SyntaxTheme; 5] = [SyntaxTheme::Skin, SyntaxTheme::Warm, SyntaxTheme::Cool, SyntaxTheme::Mono, SyntaxTheme::Separated];
+
+    /// What the row says this choice does, so five similar-sounding names cannot be mistaken for each other.
+    pub fn meaning(self) -> &'static str {
+        match self {
+            SyntaxTheme::Skin => "the editor's own hues, as before this setting",
+            SyntaxTheme::Warm => "amber, orange and sand, like a warm terminal",
+            SyntaxTheme::Cool => "blues, teals and violets, like a night sky",
+            SyntaxTheme::Mono => "one hue told apart by lightness, for quiet reading and colour-blind readers",
+            SyntaxTheme::Separated => "the widest hue spacing there is, for reading a pane at a glance",
+        }
+    }
+
+    /// gooey's preset for this choice — the one place the two lists are held together, so a variant added
+    /// here is a compile error there and not a silently missing theme.
+    pub fn preset(self) -> bevy_gooey::SyntaxPreset {
+        match self {
+            SyntaxTheme::Skin => bevy_gooey::SyntaxPreset::Skin,
+            SyntaxTheme::Warm => bevy_gooey::SyntaxPreset::Warm,
+            SyntaxTheme::Cool => bevy_gooey::SyntaxPreset::Cool,
+            SyntaxTheme::Mono => bevy_gooey::SyntaxPreset::Mono,
+            SyntaxTheme::Separated => bevy_gooey::SyntaxPreset::Separated,
+        }
+    }
+
+    /// The theme this choice puts on the skin.
+    pub fn theme(self) -> bevy_gooey::SyntaxTheme {
+        self.preset().theme()
+    }
+}
+
 /// **The terminal's caret when a program asks for none** (#324): VS Code's
 /// `terminal.integrated.cursorStyle`. A program that asks for a shape (vim's DECSCUSR) still gets it.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -307,6 +364,9 @@ impl ExternalEdits {
 #[derive(Resource, Clone, Debug, PartialEq)]
 pub struct EditorSettings {
     pub theme: Theme,
+    /// **The code editor's syntax-highlighting hues** (#525): gooey derives every `Role::CodeSyntax` colour from
+    /// the skin's seeds and this theme's hues, so a choice recolours every open code editor without a rebuild.
+    pub syntax_theme: SyntaxTheme,
     /// Text size as a multiple of the skin's: 1.0 is as designed, 2.0 is 200%.
     pub text_scale: f32,
     /// Interface size (spacing and targets) as a multiple of the skin's.
@@ -513,6 +573,7 @@ impl Default for EditorSettings {
     fn default() -> Self {
         EditorSettings {
             theme: Theme::default(),
+            syntax_theme: SyntaxTheme::default(),
             text_scale: 1.0,
             interface_scale: 1.0,
             reduced_motion: false,
@@ -560,6 +621,10 @@ pub struct SettingsLayer {
     pub version: u32,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub theme: Option<Theme>,
+    /// **The code editor's syntax-highlighting hues** (#525). Absent leaves the layer below to decide, so a file
+    /// written before this key existed reads as `Skin` — the colours the editor drew before the setting.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub syntax_theme: Option<SyntaxTheme>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub text_scale: Option<f32>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -652,6 +717,7 @@ impl Default for SettingsLayer {
         SettingsLayer {
             version: SETTINGS_VERSION,
             theme: None,
+            syntax_theme: None,
             text_scale: None,
             interface_scale: None,
             reduced_motion: None,
@@ -791,6 +857,7 @@ impl EditorSettings {
     fn resolve_with(user: Option<&SettingsLayer>, project: Option<&SettingsLayer>, mut out: EditorSettings) -> EditorSettings {
         for layer in [user, project].into_iter().flatten() {
             out.theme = layer.theme.unwrap_or(out.theme);
+            out.syntax_theme = layer.syntax_theme.unwrap_or(out.syntax_theme);
             out.text_scale = layer.text_scale.unwrap_or(out.text_scale);
             out.interface_scale = layer.interface_scale.unwrap_or(out.interface_scale);
             out.reduced_motion = layer.reduced_motion.unwrap_or(out.reduced_motion);
