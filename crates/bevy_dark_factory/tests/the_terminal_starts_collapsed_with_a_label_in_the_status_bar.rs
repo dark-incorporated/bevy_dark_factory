@@ -169,13 +169,13 @@ fn a_raise_is_kept_and_the_next_launch_opens_the_pane_raised() {
         assert!(!user.exists(), "and keeps nothing: nothing was asked for yet");
         let (entity, _) = label(&mut first);
         click(&mut first, entity);
-        for _ in 0..4 { app.update(); }
+        for _ in 0..4 { first.update(); }
         assert!(raised(&mut first));
         let text = kept(&user);
         assert!(text.contains("terminal_collapsed: false"), "the raise is written to the user's settings file: {text:?}");
     }
     let mut second = editor("collapsed_kept_second", Some(&user));
-    for _ in 0..6 { app.update(); }
+    for _ in 0..6 { second.update(); }
     assert!(raised(&mut second), "the next launch opens the pane as it was left, raised");
     assert!(!second.world().resource::<Terminal>().is_collapsed());
 
@@ -184,7 +184,7 @@ fn a_raise_is_kept_and_the_next_launch_opens_the_pane_raised() {
     // press, taken by the chord because a maximised pane covers the status band. The persistence this test is about is unchanged.
     let (entity, _) = label(&mut second);
     click(&mut second, entity);
-    for _ in 0..4 { app.update(); }
+    for _ in 0..4 { second.update(); }
     assert!(raised(&mut second), "the relaunch opens at the quarter, and a click covers the window (#492)");
     assert!(second.world().resource::<Terminal>().is_maximised());
     chord_j(&mut second);
