@@ -258,32 +258,39 @@ pub fn log_rows(log: &bevy_siren::SirenLog) -> Vec<String> {
 /// computed, and `cue_rows`/`log_rows` read resources that cost nothing when nothing changed. A row is
 /// rebuilt only when its column is empty or the text it would show differs, so a settled frame costs a
 /// couple of string compares and writes nothing.
+/// **The three columns the panel fills**, grouped so [`draw_the_panel`] stays inside clippy's seven-argument
+/// limit without an `#[allow]` — the same grouping `keymap_screen::Drawn` uses for the same reason.
+#[derive(bevy::ecs::system::SystemParam)]
+struct Columns<'w, 's> {
+    buses: Query<'w, 's, (Entity, Has<Children>), With<BusList>>,
+    cues: Query<'w, 's, (Entity, Has<Children>), With<CueChooser>>,
+    tail: Query<'w, 's, (Entity, Has<Children>), With<LogTail>>,
+}
+
 fn draw_the_panel(
     panel: Option<Res<AudioPanel>>,
     selected: Option<Res<crate::world_lists::SelectedCue>>,
     mix: Option<Res<bevy_siren::SirenMix>>,
     log: Option<Res<bevy_siren::SirenLog>>,
-    mut buses: Query<(Entity, Has<Children>), With<BusList>>,
-    mut cues: Query<(Entity, Has<Children>), With<CueChooser>>,
-    mut tail: Query<(Entity, Has<Children>), With<LogTail>>,
+    mut columns: Columns,
     mut held: Local<Drawn>,
     mut commands: Commands,
 ) {
     if let Some(mix) = mix.as_deref() {
         let rows = bus_rows(mix, panel.as_deref().map_or(&[][..], |p| p.buses.as_slice()));
-        fill(&mut commands, &mut buses, &mut held.buses, rows);
+        fill(&mut commands, &mut columns.buses, &mut held.buses, rows);
     }
     if let Some(panel) = panel.as_deref() {
         let chosen = selected.as_deref().and_then(|s| s.0.as_deref());
-        fill(&mut commands, &mut cues, &mut held.cues, cue_rows(panel, chosen));
+        fill(&mut commands, &mut columns.cues, &mut held.cues, cue_rows(panel, chosen));
     }
     if let Some(log) = log.as_deref() {
-        fill(&mut commands, &mut tail, &mut held.log, log_rows(log));
+        fill(&mut commands, &mut columns.tail, &mut held.log, log_rows(log));
     }
 }
 
-/// **Up/Down over the cue list moves the selection** (#557): the same [`AudioPanel::selected`] **Audition**
-/// reads, so walking the list is choosing what plays. The arrows are `bevy::prelude::KeyCode`'s own rather
+/// **Up/Down over the cue list moves the selection** (#557): `world_lists::SelectedCue`, the editor's own,
+/// which **Audition** reads and reveal and the nav stops write, so walking the list is choosing what plays. The arrows are `bevy::prelude::KeyCode`'s own rather
 /// than a census row — the Sound tab has no keys of its own (`Context::Sound`), and a tab whose whole job
 /// is one list does not need two more rows in every context's budget. Read only while the Sound workspace
 /// is open, which is the run condition on [`draw_the_panel`]'s sibling below.
