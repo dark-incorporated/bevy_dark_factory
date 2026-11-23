@@ -790,3 +790,4 @@ mod the_terrain_view_follows_the_project_index;
 mod the_collection_readout_follows_the_ledger;
 mod the_design_follows_the_project_index;
 mod the_project_page_follows_the_project_index;
+mod an_interface_size_is_limited_to_what_the_window_can_hold;
