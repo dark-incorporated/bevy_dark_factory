@@ -47,9 +47,6 @@ pub struct AudioPanel {
     pub text: String,
 }
 
-impl AudioPanel {
-    /// The cue **Audition** would play, if the list has one.
-
 /// Audition the selected cue, the top of the panel's one row of buttons.
 #[derive(Component, Clone, Copy, Debug, PartialEq)]
 pub struct AuditionButton;
