@@ -1038,11 +1038,6 @@ fn drive_the_finder(what: &'static str, query: &'static str) -> Result<Cost, Str
             app.update();
         }
     }
-    let settle = |app: &mut App| {
-        for _ in 0..40 {
-            app.update();
-        }
-    };
     for state in [ButtonState::Pressed, ButtonState::Released] {
         for key in [primary(), KeyCode::KeyP] {
             finder_key(&mut app, key, Key::Unidentified(NativeKey::Unidentified), None, state);
