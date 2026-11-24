@@ -608,10 +608,13 @@ fn project_root(
     // whole agent surface refused on the one screen where a project is chosen.
     let Some(project) = project else {
         if let Some(menu) = menu {
+            // **No `screen` here** (#601): this answers which root the editor is pointed at, and the
+            // screen is `blueprint/state.screen`'s one fact. The `"project"` this used to say was the
+            // menu root's kind, not a screen name — the field was a fourth spelling of a screen and it
+            // did not agree with the other three.
             return Ok(json!({
                 "project_root": menu.root.to_string_lossy(),
                 "map": serde_json::Value::Null,
-                "screen": "project",
             }));
         }
         return Err("no project is open.".to_owned());
@@ -1283,6 +1286,11 @@ fn editor_state(
     screen: Option<Res<State<crate::screen::Screen>>>,
     // **Which keys the editor is reading and who holds them** (UI-90), for `ui.focus`.
     keys_live: Option<Res<crate::keys::Live>>,
+    // **The terminal's placement** (#598): which of the three positions `Cmd+J` cycles the pane through, so
+    // an agent that pressed the chord reads what moved instead of inferring it from a picture. The screen
+    // field above answers "which screen" and never the pane's own state — #598 measured a drive that pressed
+    // the chord three times and learned nothing, because nothing in this answer named the pane.
+    terminal: Option<Res<crate::terminal::Terminal>>,
     // **The preview's clock** (#282): what the crate is actually told the hour is, and what the
     // scrubber asked for. The two are separate on purpose — the changelog line says the scrubber
     // "holds the preview at an hour of day", and the only way to tell whether the preview follows is
@@ -1430,17 +1438,44 @@ fn editor_state(
             "undo_depth": s.undo_depth(),
             "redo_next": undo_map.and_then(|m| s.redo_next(m)),
             "redo_depth": s.redo_depth(),
-            // **What a caller needs to read a waiting door (cycle 8, gap 3).** The question on screen and
-            // the door it would cross to, so a waiting door is not invisible to the agent that asked.
+            // **What a caller needs to read a waiting request (cycle 8, gap 3).** The question on screen
+            // and the workspace it would cross to, so a waiting request is not invisible to the agent that asked.
+            // **The workspace is `workspace`, not `door`** (#601): it is the same fact `ui.workspace` names,
+            // waiting rather than held, and one fact has one name.
             "leaving": s.leaving,
             "door_waiting": s.door_request.map(|r| json!({
-                "door": r.workspace.label(),
+                "workspace": r.workspace.label(),
                 "tab": r.tab.map(|m| m.label()),
             })),
         })
     });
-    // **Where the person is looking** (UI-90, #256): the screen, the workspace, the panels and the region with the keys.
-    let ui = ui_json(screen.as_deref(), door.as_deref(), keys_live.as_deref());
+    // **The terminal's pane** (#598): which position it is in, and whether its shell is up. A cycle has no
+    // state to see, so a caller that pressed `Cmd+J` reads the answer here; without it a drive measured the
+    // screen (which never changes for a chord) and concluded the press did nothing.
+    let terminal_state = terminal.as_deref().map(|t| {
+        let placement = t.placement();
+        json!({
+            "placement": match placement {
+                crate::terminal_pane::TerminalPlacement::Maximised => "maximised",
+                crate::terminal_pane::TerminalPlacement::Collapsed => "collapsed",
+                crate::terminal_pane::TerminalPlacement::Quarter => "quarter",
+            },
+            "next": match t.next_placement() {
+                crate::terminal_pane::TerminalPlacement::Maximised => "maximised",
+                crate::terminal_pane::TerminalPlacement::Collapsed => "collapsed",
+                crate::terminal_pane::TerminalPlacement::Quarter => "quarter",
+            },
+            // **Whether a shell is actually running**, which is the other half of #598's report: a pane in the
+            // right position with no shell is a placement that worked and a shell that did not, and the two
+            // are told apart here rather than in a picture.
+            "tabs": t.len(),
+            "shell_live": t.tab().is_some_and(crate::terminal::TerminalTab::is_live),
+            "height": t.height(),
+        })
+    });
+    // **Where the person is looking** (UI-90, #256): the workspace, its panels and the region with the
+    // keys. **Not the screen** — `screen`, above, is the one field that answers that (#601).
+    let ui = ui_json(door.as_deref(), keys_live.as_deref());
     // **The work the editor is doing** (UI-22, #223): the same record the band draws, in the band's own
     // words, plus each job's key and fraction. An agent asks "is the editor busy" here rather than
     // squinting at a screenshot, and `jobs_stop` is how it asks one to stop.
@@ -1474,6 +1509,7 @@ fn editor_state(
     Ok(json!({
         "map": map,
         "ui": ui,
+        "terminal": terminal_state,
         "jobs": working,
         // **The notes an agent can claim, and with `note` the bundle to work one** (#91).
         "notes": open.as_ref().map(|o| crate::ops_notes::state_json(
@@ -1558,10 +1594,14 @@ fn editor_state(
         }),
         "armed_composition": armed.and_then(|a| a.id().map(|s| s.to_owned())),
         "selected": tiles.as_ref().map(|t| t.selected_library_id.clone()),
-        "door": door.map(|d| d.label()),
+        // **`mode` is the panel, and only the panel** (#601). It used to sit beside `door`, which spelled the
+        // workspace a second time; `ui.workspace` is that answer now, so a reader that wants the workspace
+        // reads one field and a reader that wants the panel reads this one.
         "mode": mode.map(|m| m.label()),
-        // **`"launcher"`, `"loading"`, `"project"` or `"editor"`.** A caller that needs "is the person looking at this map?" reads
-        // it here; nothing else in this answer can be told apart between the two screens.
+        // **The one field that answers "what is on screen"** (#601). `"launcher"`, `"loading"`, `"project"` or
+        // `"editor"`, and nothing else in this answer spells a screen name: `ui.screen` was a second one and it
+        // answered `"workbench"` for the same screen this calls `"editor"`, so an agent that read the wrong one
+        // was wrong two times in three (see #598, where a terminal chord was measured against the wrong field).
         "screen": screen.map(|s| match *s.get() {
             crate::screen::Screen::Launcher => "launcher",
             crate::screen::Screen::Loading => "loading",
@@ -1573,31 +1613,38 @@ fn editor_state(
 
 /// **`blueprint/state.ui` — where the person is looking** (UI-90, #256; `docs/ui/vision.md` §4).
 ///
-/// `screen` is `launcher` on the chooser and `workbench` in the editor. `workspace` is the open door
-/// (the workbench's saved layouts replace the doors, UI-33) and `panels` are the tabs that door shows,
-/// until the docks hold panels of their own (UI-30). `focus` is the region with the keyboard: the
-/// `viewport` unless a text field, a filter box or the journal is holding it. Read it before
-/// `blueprint/run_command`: a command is refused when the region that holds the keys is not its own.
-fn ui_json(
-    screen: Option<&State<crate::screen::Screen>>,
-    door: Option<&crate::workspace::Workspace>,
-    live: Option<&crate::keys::Live>,
-) -> Value {
+/// **Three answers, and none of them is "what is on screen"** (#601): that is `blueprint/state.screen`,
+/// and a second spelling of it here is what made an agent's read of the state wrong two times in three.
+/// What is left is what the three questions are:
+///
+/// | field | answers |
+/// |---|---|
+/// | `workspace` | which workspace is open, or `null` before one is — **including while the launcher is up**, where it names the workspace behind it |
+/// | `panels` | which panels that workspace shows, empty when none is |
+/// | `focus` | which region has the keyboard: `viewport`, `text_field`, `filter` or `journal` |
+///
+/// `focus` is read before `blueprint/run_command`, which is refused when the region that holds the keys
+/// is not its own. `workspace` is `null` on the launcher only when no workspace has been opened in this
+/// process; it is the editor's held workspace either way, so "which job am I in" is answered from the
+/// launcher too.
+fn ui_json(door: Option<&crate::workspace::Workspace>, live: Option<&crate::keys::Live>) -> Value {
     use crate::keys::{Context, Holder};
-    let workbench = screen.is_some_and(|s| *s.get() == crate::screen::Screen::Editor);
-    if !workbench {
-        return json!({"screen": "launcher", "workspace": null, "panels": [], "focus": "launcher"});
-    }
+    // **`workspace` is the editor's held workspace, on every screen.** It used to read `null` off the
+    // workbench, which made "which workspace" and "is the workbench up" the same question — the defect
+    // #601 names. A reader that wants "is the workbench up" reads `screen`.
+    let workspace = door.map(|d| d.label());
+    let panels: Vec<&'static str> = door.map_or_else(Vec::new, |d| d.panels().iter().map(|m| m.label()).collect());
     let focus = match live.map(|l| (l.0, l.2)) {
+        // **No region has the keys while no workbench is up**, which a reader tells from `panels` being
+        // empty: `focus` names the region within the workbench's frame.
         Some((Context::Typing, _)) => "text_field",
         Some((_, Holder::Filter)) => "filter",
         Some((_, Holder::Journal)) => "journal",
         _ => "viewport",
     };
     json!({
-        "screen": "workbench",
-        "workspace": door.map(|d| d.label()),
-        "panels": door.map_or_else(Vec::new, |d| d.panels().iter().map(|m| m.label()).collect()),
+        "workspace": workspace,
+        "panels": panels,
         "focus": focus,
     })
 }
@@ -3719,8 +3766,12 @@ impl Plugin for OpsBridgePlugin {
             DebugCommandInfo::new(
                 "blueprint/state",
                 "What the editor is holding right now: the open map and its bounds, how many \
-                 pieces it has, what is armed, what is selected, which door and tab are open, and \
-                 what the editor last said, and which placements are pinned and why. A read.",
+                 pieces it has, what is armed, what is selected, which workspace and panel are open, and \
+                 what the editor last said, and which placements are pinned and why. A read. \
+                 The screen, the workspace and the panel are three different answers and each is said \
+                 once: screen is what is on screen (launcher, loading, project or editor); ui.workspace \
+                 is which workspace is open, or null before one is; ui.panels are the panels that \
+                 workspace shows; and mode is which panel of it is showing, or null before one is.",
             )
             .example(json!({})),
             editor_state,

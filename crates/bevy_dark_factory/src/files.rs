@@ -860,14 +860,34 @@ fn spawn_the_files_workspace(mut commands: Commands, frame: Res<Frame>) {
                     TextLayout::new(Justify::Right, LineBreak::NoWrap),
                 ));
             });
-            host.spawn((bevy_gooey::text_input("Set a field: path value", ""), FieldLine, observe(on_field_line)));
+            // **The field line names itself** (#599). It was spawned with its placeholder as its only
+            // text, so a `TextInput`'s visible label was an empty string and the pane drew a 153x29
+            // focusable box a person could tab into with nothing saying what it edits. The row's label is
+            // the field's own name — gooey puts it beside the field, outside it, and reads it as the
+            // control's accessible name — and the placeholder keeps the shape `<path> <value>`, which is
+            // what the person types rather than what the field is.
+            host.spawn((
+                bevy_gooey::text_input(FIELD_LINE_LABEL, ""),
+                bevy_gooey::TextHint(FIELD_LINE_HINT.into()),
+                FieldLine,
+                observe(on_field_line),
+            ));
         })
         .id();
     commands.entity(frame.viewport).add_child(host);
 }
 
+/// **The field line's own name**, drawn beside its field and read as the control's accessible name (#599).
+pub const FIELD_LINE_LABEL: &str = "Set a field";
+/// What the field line's placeholder says a person types: `<path> <value>`.
+pub const FIELD_LINE_HINT: &str = "path value";
+
 /// **The field line**: `<field path> <value>` sets one value of the open YAML file through the operation `file_edit`,
 /// with every comment kept, as the DATA line sets a game's tuning value. The same write an agent's `apply` makes.
+///
+/// **The field is drawn with [`FIELD_LINE_LABEL`] beside it** (#599), so the control a person tabs into says what it
+/// edits. A label rather than a tooltip: a tooltip is read only where the pointer hovers, and the box in the report
+/// was focusable and had nothing at all.
 #[derive(Component)]
 pub struct FieldLine;
 

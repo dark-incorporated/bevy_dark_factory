@@ -2,7 +2,7 @@
 
 ## Orient
 
-**Start with the state, not with a change.** `blueprint_state` is the whole picture: the open map and its bounds, how many pieces it has, what is armed, what is selected, which door and tab are open, the undo and redo stacks, and what has gone wrong. Read it first and often; it is cheap and it never changes anything.
+**Start with the state, not with a change.** `blueprint_state` is the whole picture: the open map and its bounds, how many pieces it has, what is armed, what is selected, which workspace and panel are open, the undo and redo stacks, and what has gone wrong. Read it first and often; it is cheap and it never changes anything.
 
 **Then read what the person already told you about this project.** `blueprint_project_feedback_list` returns the reports they filed about this project from the editor itself (Cmd+Shift+D): each one's note, the interface nodes and map points they pointed at, and a picture of the screen at that moment. If they filed a report saying the wall tool draws over the road, that is the ground truth of what bothers them — read `blueprint_feedback_list` for the reports about Dark Factory itself, and `blueprint_list_snips` for the pictures they cut out to show you something.
 

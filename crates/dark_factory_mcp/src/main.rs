@@ -1150,7 +1150,7 @@ impl Blueprint {
     #[tool(
         name = "blueprint_state",
         description = "What the editor is holding right now: the open map and its bounds, how many \
-                       pieces it has, what is armed, what is selected, which door and tab are open, \
+                       pieces it has, what is armed, what is selected, which workspace and panel are open, \
                        and what the editor last said and what has gone wrong. The editor section also \
                        names the next undo and redo (undo_next, redo_next) and how many are stacked \
                        (undo_depth, redo_depth). The map section names up to 50 pinned placements \
@@ -1207,6 +1207,15 @@ impl Blueprint {
                        three rows of three {piece, turn} north to south and west to east, the middle \
                        at [1][1]; each null when the kit cannot build it; declared counts the pieces \
                        with an edge token, and at 0 the nulls say the kit is unlabelled. \
+                       The screen, the workspace and the panel are three different answers (#601), and each is said once: \
+                       screen is what is on screen (launcher, loading, project or editor); ui.workspace is which workspace \
+                       is open, on every screen including the launcher's, or null before one is; ui.panels are the panels \
+                       that workspace shows, empty off the workbench; and mode is which panel of it is showing, null before \
+                       one is. Nothing else in this answer spells a screen name, so a caller never has to choose between \
+                       two fields for one fact. \
+                       terminal is the pane Cmd+J cycles: placement (maximised, collapsed or quarter), next (what the next \
+                       press reaches), tabs, shell_live (whether a shell is actually running) and height in logical pixels, \
+                       so a drive that pressed the chord reads what moved. \
                        Returns that summary \
                        as JSON, and changes nothing. \
                        Call it before a change to know what you are changing, and after one to check \
