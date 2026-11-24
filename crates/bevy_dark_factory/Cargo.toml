@@ -54,7 +54,7 @@ publish = false
 # the feature's own: `serde` on the crate's types, and `bevy_audio`'s device, which `main.rs` opens only
 # when this feature is on (a headless box still builds and runs; the panel's lists read the project's
 # file and the crate's defaults, and an audition on a machine with no device says so in its own log).
-default = ["debugger", "bevy_siren"]
+default = ["debugger"]
 debugger = ["bevy/bevy_remote", "dep:bevy_debugger_bevy"]
 # **Family crates (#96).** One optional feature per crate, named after it, off by default: a game
 # that lists none pays nothing. Pinned by git revision on the crate's `main`, never a path. A project's
