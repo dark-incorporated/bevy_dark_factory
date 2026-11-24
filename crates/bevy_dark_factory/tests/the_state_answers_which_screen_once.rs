@@ -67,6 +67,26 @@ fn state(app: &mut App) -> serde_json::Value {
     call(app, "blueprint/state", serde_json::json!({}))
 }
 
+/// **Open a workspace the way the strip does**: its command id queued as a chord, which is the one path the
+/// keys, the palette, the activity bar and an agent all take (`commands::by_id`).
+///
+/// **Not `insert_resource`**: the editor keeps `Workspace` and `Mode` as two axes and syncs the first from
+/// the second (`Workspace::showing`), so a workspace inserted without its mode is put back by that system —
+/// measured: `ui.workspace` read `"MAP"` after `insert_resource(Workspace::Files)`.
+fn switch_to(app: &mut App, workspace: Workspace) {
+    use bevy_dark_factory::command_run::Chords;
+    use bevy_dark_factory::commands;
+    use bevy_dark_factory::keys::Live;
+    let id = format!("workspace.{}", workspace.id());
+    let command = commands::by_id(&id).unwrap_or_else(|| panic!("`{id}` is not a command"));
+    let live = *app.world().resource::<Live>();
+    app.world_mut().resource_mut::<Chords>().queue(&command, live);
+    for _ in 0..24 {
+        app.update();
+    }
+    assert_eq!(app.world().resource::<Workspace>(), &workspace, "the `{id}` command did not open {}", workspace.title());
+}
+
 fn go_to(app: &mut App, screen: Screen) {
     app.world_mut().resource_mut::<NextState<Screen>>().set(screen);
     for _ in 0..6 {
@@ -113,7 +133,7 @@ fn the_screen_the_workspace_and_the_panel_are_three_different_answers() {
     // **A workspace.** `screen` says the workbench is up, `ui.workspace` says which job, `mode` says which
     // panel of that job.
     let mut work = editor("state_workbench");
-    work.world_mut().insert_resource(Workspace::Files);
+    switch_to(&mut work, Workspace::Files);
     let at_work = state(&mut work);
     assert_eq!(at_work["screen"], serde_json::json!("editor"), "the workbench is on screen: {at_work}");
     assert!(at_work["ui"].get("screen").is_none(), "and `screen` is still the only field that says so: {at_work}");
@@ -121,11 +141,14 @@ fn the_screen_the_workspace_and_the_panel_are_three_different_answers() {
     assert_eq!(at_work["ui"]["panels"], serde_json::json!(["FILES"]), "and it shows its own panel: {at_work}");
     assert_eq!(at_work["mode"], serde_json::json!("FILES"), "`mode` names the panel that is showing: {at_work}");
 
-    // **The project page.** The third screen: the workbench is not up, so no panel is showing, and the
-    // workspace behind it is still named.
-    let mut page = editor("state_page");
-    page.world_mut().insert_resource(Workspace::Files);
-    go_to(&mut page, Screen::Project);
+    // **The project page, from a fresh app stood on it by the harness.** Not a walk out of the editor: that
+    // exit is the teardown the harness does not support (see this file's note), and `stand_on_the_project_page`
+    // is the one way a test arrives on the page.
+    let root = fixtures::Fixture::new("state_page").sized_descriptor("fence", "alpha", 2.064, 0.12).build("m");
+    let mut page = bevy_dark_factory::harness::build_headless(&root, "m", None).unwrap_or_else(|e| panic!("{e}"));
+    page.add_plugins(bevy_debugger_bevy::DebuggerPlugin::default());
+    page.add_plugins(bevy_dark_factory::ops_brp::OpsBridgePlugin);
+    bevy_dark_factory::harness::stand_on_the_project_page(&mut page, &root);
     let at_page = state(&mut page);
     assert_eq!(at_page["screen"], serde_json::json!("project"), "the project page is on screen: {at_page}");
     assert!(at_page["mode"].is_null(), "and no panel of the workbench is showing: {at_page}");
