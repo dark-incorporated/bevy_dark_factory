@@ -44,11 +44,6 @@ pub struct WorldPane;
 pub struct SoundRoot;
 
 /// The sentence the Sound workspace shows in a build without `bevy_siren`: what is missing, and what to do about it.
-///
-/// **No build offers this tab and draws this line** (#600). The Sound workspace is registered only where the build can fill it
-/// ([`crate::workspace::WAITING`] carries the row that unregisters it), so a person reaches this sentence only by opening the workspace
-/// through something that does not consult the table — a hand-written test of the panel's own arms. It stays because the
-/// `#[cfg(not(feature = "bevy_siren"))]` arm has to draw *something*, and "nothing" would be the worse answer.
 pub const NO_AUDIO: &str = "This build has no audio panel. Build the editor with the bevy_siren feature to edit cues and buses";
 
 /// The two panels' spawners and the heading both carry.
@@ -122,8 +117,7 @@ fn spawn_world_panel(mut commands: Commands, frame: Res<Frame>) {
     });
 }
 
-/// **The Sound workspace's panel**: the audio table, or — in a build that offers no Sound tab at all — the sentence that says which
-/// crate fills it.
+/// **The Sound workspace's panel**: the audio table, or the sentence that says this build has none.
 fn spawn_sound_panel(mut commands: Commands, frame: Res<Frame>) {
     let root = chrome::panel_root(
         &mut commands,
@@ -148,16 +142,11 @@ fn spawn_sound_panel(mut commands: Commands, frame: Res<Frame>) {
                 chrome::section(s, "AUDIO");
                 s.spawn(bevy_gooey::label(NO_AUDIO));
             }
-            // **The cue's own cross-references, in every build.** With `bevy_siren`,
-            // `audio_panel::spawn_section` already draws the cue NAMES and the choice Audition plays, so this adds
-            // only the `used by data/door.yaml:2` lines (or `no file names <cue>`): a different question, and the
-            // one a person following a reference asks. They are two views of one selection
-            // (`world_lists::SelectedCue`), not two selections — the second *selection* the 2026-11-23 review
-            // removed stays gone. Without the crate there is no panel, so the list draws its names too.
-            // **The cross-reference column, always.** The panel above owns the cue NAMES (and the arrow walk that
-            // chooses what Audition plays); this draws the other question — `used by data/door.yaml:2`, or
-            // `no file names <cue>` — against the one selection in `world_lists::SelectedCue`. Without the crate
-            // there is no panel, so the full list draws (names and cross-references) and the chord is refused.
+            // **One cue list, not two.** With `bevy_siren`, `audio_panel::spawn_section` draws the cues and marks the
+            // one Audition plays; a second list here would be the same names with a second selection, so following a
+            // cue marked one list while Audition played the other's choice (2026-11-23 review, finding 2). Without
+            // the crate there is no audition, and this list is the only place the project's cues are named.
+            #[cfg(not(feature = "bevy_siren"))]
             crate::world_lists::spawn_cue_list(s);
         });
     });

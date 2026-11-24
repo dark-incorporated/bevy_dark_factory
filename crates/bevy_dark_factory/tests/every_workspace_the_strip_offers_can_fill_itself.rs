@@ -24,8 +24,7 @@
 //! # Why the three lists are read structurally
 //!
 //! A heading over three empty columns is the shape the panel fills every frame to avoid, so the test
-//! reads the columns themselves — `BusList` and `LogTail` in the panel, `CueList` beside it — and each one's
-//! drawn rows.
+//! reads the columns themselves — `BusList`, `CueChooser` and `LogTail` — and each one's drawn rows.
 //! A `Text` that says `AUDIO` over nothing is exactly what an apology looks like from the outside.
 
 use bevy::prelude::*;
@@ -109,7 +108,7 @@ fn a_default_build_draws_the_audio_panel() {
     #[cfg(feature = "bevy_siren")]
     {
         use bevy_dark_factory::audio_panel::{AudioPanel, BusList, LogTail};
-        use bevy_dark_factory::world_lists::CueList;
+        use bevy_dark_factory::audio_panel::CueChooser;
 
         // **The panel's own state names buses**, so a column that drew nothing would be a drawing fault
         // rather than an empty project.
@@ -123,7 +122,7 @@ fn a_default_build_draws_the_audio_panel() {
             "the bus list draws {bus_rows:?}, and none of them is the bus the panel says it has: {buses:?}",
         );
 
-        let cue_rows = rows_in::<CueList>(&mut app);
+        let cue_rows = rows_in::<CueChooser>(&mut app);
         assert!(
             !cue_rows.is_empty(),
             "the cue list is drawn with no rows under it: an empty project must still say it has no cues",

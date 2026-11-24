@@ -280,7 +280,7 @@ fn the_panel_draws_the_buses_the_cues_and_the_log() {
         let world = app.world();
         let lists: Vec<Entity> = match kind {
             "bus" => world.iter_entities().filter(|e| e.get::<audio_panel::BusList>().is_some()).map(|e| e.id()).collect(),
-            "cue" => world.iter_entities().filter(|e| e.get::<bevy_dark_factory::world_lists::CueList>().is_some()).map(|e| e.id()).collect(),
+            "cue" => world.iter_entities().filter(|e| e.get::<audio_panel::CueChooser>().is_some()).map(|e| e.id()).collect(),
             _ => world.iter_entities().filter(|e| e.get::<audio_panel::LogTail>().is_some()).map(|e| e.id()).collect(),
         };
         let Some(&list) = lists.first() else { return Vec::new() };

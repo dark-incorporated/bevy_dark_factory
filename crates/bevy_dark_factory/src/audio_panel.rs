@@ -60,9 +60,7 @@ pub fn spawn_section(s: &mut ChildSpawnerCommands) {
     section(s, "AUDIO");
     button(s, AuditionButton, "Audition cue", Severity::Plain);
     s.spawn((BusList, list_column()));
-    // **No cue column here**: `world_lists::spawn_cue_list` draws the names beside the cross-references, in every
-    // build, and the arrow walk moves `world_lists::SelectedCue` — one list, one selection (#600). A second column
-    // of the same names is what the 2026-11-23 review removed, and it comes back whenever this one is spawned.
+    s.spawn((CueChooser, list_column()));
     s.spawn((LogTail, list_column()));
 }
 
@@ -74,6 +72,11 @@ fn list_column() -> impl Bundle {
 /// **One row per bus**, from this frame's [`bevy_siren::SirenMix`]: the list [`bus_rows`] fills.
 #[derive(Component, Clone, Copy)]
 pub struct BusList;
+
+/// **Every cue, the selected one marked**, and the value **Audition** reads: the list [`cue_rows`] fills from
+/// [`AudioPanel::cues`] and [`AudioPanel::selected`].
+#[derive(Component, Clone, Copy)]
+pub struct CueChooser;
 
 /// **The tail of [`bevy_siren::SirenLog`]**: the last few decisions, newest first, so an audition's
 /// `Played`/`Refused` is on screen and not only on the status line.
@@ -260,6 +263,7 @@ pub fn log_rows(log: &bevy_siren::SirenLog) -> Vec<String> {
 #[derive(bevy::ecs::system::SystemParam)]
 struct Columns<'w, 's> {
     buses: Query<'w, 's, (Entity, Has<Children>), With<BusList>>,
+    cues: Query<'w, 's, (Entity, Has<Children>), With<CueChooser>>,
     tail: Query<'w, 's, (Entity, Has<Children>), With<LogTail>>,
 }
 
@@ -276,9 +280,10 @@ fn draw_the_panel(
         let rows = bus_rows(mix, panel.as_deref().map_or(&[][..], |p| p.buses.as_slice()));
         fill(&mut commands, &mut columns.buses, &mut held.buses, rows);
     }
-    // **The cue names are `world_lists`' column**, drawn beside this panel against the one `SelectedCue`: the
-    // arrows and Audition must read the same list, and two columns of one list is what #600 broke.
-    let _ = (&selected, crate::audio_panel::cue_rows);
+    if let Some(panel) = panel.as_deref() {
+        let chosen = selected.as_deref().and_then(|s| s.0.as_deref());
+        fill(&mut commands, &mut columns.cues, &mut held.cues, cue_rows(panel, chosen));
+    }
     if let Some(log) = log.as_deref() {
         fill(&mut commands, &mut columns.tail, &mut held.log, log_rows(log));
     }
@@ -330,6 +335,7 @@ fn stepped(cues: &[String], from: Option<&str>, step: isize) -> Option<String> {
 #[derive(Default)]
 struct Drawn {
     buses: Option<Vec<String>>,
+    cues: Option<Vec<String>>,
     log: Option<Vec<String>>,
 }
 
