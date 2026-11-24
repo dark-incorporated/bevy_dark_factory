@@ -224,7 +224,7 @@ impl Default for LayoutMetrics {
             dock_min_share: 0.6,
             viewport_min_w: 420.0,
             viewport_share: 0.52,
-            divider_w: 29.0,
+            divider_w: 29.0, // the compiled sheet's `style/editor.yaml` is what runs; this agrees with it
             bottom_dock_h: 148.0,
             workbench_floor_h: 420.0,
             thumb_slot: 30.0,

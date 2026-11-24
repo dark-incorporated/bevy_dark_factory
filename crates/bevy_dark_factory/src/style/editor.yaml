@@ -99,7 +99,8 @@ metrics:
     dock_min_share: 0.6        # a dock is never squeezed below this share of `list_w`
     viewport_min_w: 420.0      # what the map is owed before either dock gets more than its floor
     viewport_share: 0.52       # and its share of a wide window (#282)
-    divider_w: 12.0            # the owner's half-thickness divider (#476)
+    divider_w: 29.0            # the seam the shell draws, handed to gooey as its SplitThickness (#550);
+                               # 12 from #476 was applied nowhere, and gooey's 24 is a minimum not a size
     bottom_dock_h: 148.0
     workbench_floor_h: 420.0
     thumb_slot: 30.0
