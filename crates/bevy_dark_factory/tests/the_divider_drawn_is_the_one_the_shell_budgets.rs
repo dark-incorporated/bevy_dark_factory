@@ -57,6 +57,10 @@ fn the_divider_drawn_is_the_one_the_shell_budgets() {
     let world = app.world_mut();
     let mut dividers = world.query::<(&bevy_gooey::SplitDivider, &ComputedNode, &Node)>();
     let drawn: Vec<(f32, bool)> = dividers.iter(world).map(|(_, node, plain)| (node.size().x, plain.display != Display::None)).collect();
+    let inverse_scale = {
+        let mut again = world.query::<&ComputedNode>();
+        again.iter(world).next().map(bevy::ui::ComputedNode::inverse_scale_factor).unwrap_or(1.0)
+    };
     assert!(!drawn.is_empty(), "the shell draws a split divider");
     // **`SplitThickness` is what makes the seam the budget.** Before the shell set it the sheet said 12 and the
     // frame drew its own seam, because gooey's `MIN_TARGET_PX` 24 is written as a *minimum* and the node was free
@@ -64,15 +68,21 @@ fn the_divider_drawn_is_the_one_the_shell_budgets() {
     //
     // **The shell's seam is the widest drawn divider**: a workspace's docks are a `DockLayout` gooey splits at its
     // own thickness (14 px measured on this fixture), and the shell's is the one the sheet budgets.
-    let widest = drawn.iter().filter(|(_, visible)| *visible).map(|(w, _)| *w).fold(0.0_f32, f32::max);
-    // **The node is the seam plus gooey's grip and borders**, the same sum the shell hands gooey, so this fails if
-    // either side of that sum moves: `SPLIT_GRIP_PX + 2 * DIVIDER_BORDER_PX` is 6 and the frame draws 35 for a 29 px
-    // seam (measured on `33cd81c1`).
+    // **`ComputedNode::size()` is PHYSICAL pixels; the sheet is logical.** This test compared the two for four runs
+    // and blamed gooey for the difference: 29 logical drew 34.8 physical (read as 35), 35 logical drew 42.
+    // `computed.inverse_scale_factor()` is the logical size, and the border the node reports (`0.8333` where the sheet
+    // says `1.0`) is the same scale seen from the other side.
+    // `inverse_scale_factor()` is bevy's own conversion from a computed size back to logical px, so this divides by
+    // exactly the number the layout multiplied by.
+    let drawn_logical: Vec<(f32, bool)> =
+        drawn.iter().map(|(width, visible)| (width * inverse_scale, *visible)).collect();
+    let widest = drawn_logical.iter().filter(|(_, visible)| *visible).map(|(w, _)| *w).fold(0.0_f32, f32::max);
     let node = budget + 6.0;
     assert!(
         (widest - node).abs() <= 1.0,
-        "the sheet reserves {budget} px, the node is taken to be {node} px, and the widest divider drawn is \
-         {widest} px ({drawn:?}); the divider's own nodes say {parts:?} (#550)"
+        "the sheet reserves {budget} logical px, the divider's node is {node} logical px (grip and borders inside), \
+         and the widest divider drawn is {widest} logical px at scale {inverse_scale} ({drawn:?}); the nodes say \
+         {parts:?} (#550)"
     );
 
 }
