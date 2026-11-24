@@ -139,7 +139,10 @@ fn no_two_band_chips_say_the_same_word_with_no_subject() {
         // The hover says the whole sentence, so the band is not the only place the pair can be read; it names the subject too.
         let half = app.world_mut().query_filtered::<Entity, With<AgentBandHalf>>().iter(app.world()).next().expect("the agent's half");
         let tip = app.world().get::<Tooltip>(half).map(|t| t.text.clone()).unwrap_or_default();
-        if !tip.contains(AGENT_LABEL) {
+        // **Case-insensitive**, because the hover answers in a sentence ("No agent is running…") and a sentence
+        // that names the subject in lower case does name it; the capitalised label is the chip's word, not the
+        // only spelling a reader needs (#597).
+        if !tip.to_lowercase().contains(&AGENT_LABEL.to_lowercase()) {
             failures.push(format!("{size:?}: the agent's half does not name its subject in the hover: {tip:?}"));
         }
         let chip = app
