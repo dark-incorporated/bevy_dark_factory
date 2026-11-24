@@ -382,12 +382,21 @@ mod tests {
     #[test]
     fn the_chord_is_free_and_answers_to_no_other() {
         use crate::chords::{Fixed, default_of};
+        // **`Cmd+Shift+D` was the project report's** (#560): this test once pinned `KeyD` and hand-listed six
+        // "others", which is why the collision with `report.project` survived — the list never named it. It now
+        // compares against the whole table, and the profile's own key moved to `F`.
         let chord = default_of(Fixed::ProfileToggle);
-        assert_eq!(chord.key, KeyCode::KeyD);
+        assert_eq!(chord.key, KeyCode::KeyF);
         assert!(chord.modifiers.shift);
-        for other in [Fixed::ConsoleToggle, Fixed::TerminalCollapse, Fixed::ScaleUp, Fixed::ScaleDown, Fixed::ScaleReset, Fixed::GotoOpen, Fixed::PaletteOpen, Fixed::PaletteOpenAlt] {
-            assert_ne!(default_of(other), chord, "{other:?}");
+        // **Every other fixed chord**, from the table itself: a hand-written list is what let the collision with
+        // `report.project` live, because nobody thought to add it.
+        for named in crate::chords::CHORDS {
+            if named.fixed == Fixed::ProfileToggle {
+                continue;
+            }
+            assert_ne!((named.default)(), chord, "{} shares the profile's chord", named.id);
         }
+    }
     }
 
     #[test]
