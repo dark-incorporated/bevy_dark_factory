@@ -2,6 +2,10 @@
 
 What each change added, newest first. A visible change has a clip: click the still to play it. `python3 tools/changelog/changelog.py page --open` plays them all in one page.
 
+## 2026-11-24
+
+- **597** the status band's two lights name their subjects, so the agent and the decision model read apart *For you: The two lights at the bottom of the screen now say which one is the agent and which is the model.* *No clip: a chip's words are laid out by the skin and read from the world; proved by tests/no_two_band_chips_say_the_same_word_with_no_subject.rs*
+
 ## 2026-11-23
 
 - **557** `4b5de850` audio panel: the buses, the cues (one choice the arrows move) and the log it says it draws *No clip: a panel's contents, proved by the_panel_draws_the_buses_the_cues_and_the_log and the_cue_list_is_chosen_by_SelectedCue; no clip: the Sound workspace needs a sound loaded before Audition can play one (#555)*

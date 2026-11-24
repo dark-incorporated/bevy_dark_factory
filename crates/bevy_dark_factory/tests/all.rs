@@ -58,6 +58,7 @@ mod index_view_support;
 mod settings_search_support;
 mod settle_support;
 mod new_topics_start_from_templates_in_the_design_workspace;
+mod no_two_band_chips_say_the_same_word_with_no_subject;
 mod opening_a_project_never_holds_a_frame_past_the_budget;
 mod shift_primary_j_maximises_the_terminal;
 mod the_agent_and_the_decision_model_share_one_place;
