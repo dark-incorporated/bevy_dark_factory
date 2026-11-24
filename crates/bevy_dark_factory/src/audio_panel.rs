@@ -276,10 +276,9 @@ fn draw_the_panel(
         let rows = bus_rows(mix, panel.as_deref().map_or(&[][..], |p| p.buses.as_slice()));
         fill(&mut commands, &mut columns.buses, &mut held.buses, rows);
     }
-    if let Some(panel) = panel.as_deref() {
-        let chosen = selected.as_deref().and_then(|s| s.0.as_deref());
-        fill(&mut commands, &mut columns.cues, &mut held.cues, cue_rows(panel, chosen));
-    }
+    // **The cue names are `world_lists`' column**, drawn beside this panel against the one `SelectedCue`: the
+    // arrows and Audition must read the same list, and two columns of one list is what #600 broke.
+    let _ = (&selected, crate::audio_panel::cue_rows);
     if let Some(log) = log.as_deref() {
         fill(&mut commands, &mut columns.tail, &mut held.log, log_rows(log));
     }
