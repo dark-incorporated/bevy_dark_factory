@@ -397,7 +397,6 @@ mod tests {
             assert_ne!((named.default)(), chord, "{} shares the profile's chord", named.id);
         }
     }
-    }
 
     #[test]
     fn recording_off_collects_nothing_and_recording_on_collects() {
