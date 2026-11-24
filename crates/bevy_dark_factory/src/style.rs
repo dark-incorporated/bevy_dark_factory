@@ -162,8 +162,12 @@ pub struct LayoutMetrics {
     pub viewport_min_w: f32,
     /// **The share of the window the viewport is owed once that is more than `viewport_min_w`** (#282).
     pub viewport_share: f32,
-    /// **The room the shell's split divider takes** (#476, `feedback-1794783253218`: *"maybe only half as thick
-    /// as this?"*): the owner's 12, which gooey draws at its `SplitThickness`.
+    /// **The room the shell's split divider takes**: gooey's own 24 px channel, which is what the build draws
+    /// because the shell sets no `SplitThickness` (#550). This was 12 between the owner's #476
+    /// (`feedback-1794783253218`, *"maybe only half as thick as this?"*) and 2026-11-23, and nothing applied it, so
+    /// every width calc reserved 12 for a 24 px seam. gooey's note on `SplitThickness` is why the number moved
+    /// here rather than there: under 24 px is below WCAG 2.2 SC 2.5.8's minimum target, and the divider is the one
+    /// grabbable node in the frame.
     pub divider_w: f32,
     /// The bottom dock's height.
     pub bottom_dock_h: f32,
@@ -216,7 +220,7 @@ impl Default for LayoutMetrics {
             dock_min_share: 0.6,
             viewport_min_w: 420.0,
             viewport_share: 0.52,
-            divider_w: 12.0,
+            divider_w: 24.0,
             bottom_dock_h: 148.0,
             workbench_floor_h: 420.0,
             thumb_slot: 30.0,

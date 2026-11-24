@@ -33,7 +33,7 @@ Read off the frame at 2.4:
 | PIECES panel | x `1767..2146`, y `335..1314` | **158 x 408** | `chrome::panel_root(Side::Right, LIST_W = 264, …)` |
 | its rail | x `2112..2115` | 1.7 wide, 30 px in from the panel's right border | gooey's `ListRail` |
 | the viewport (the map/world hole) | x `~645` to `~1767` | ~467 wide | what the two docks leave |
-| the split divider | the light column `636..644` | 3.3 visible inside the target this build drew (24; `metrics.layout.divider_w` is 12 since #476) | gooey's `Role::SplitDivider` |
+| the split divider | the light column `636..644` | 3.3 visible inside the target this build drew (24; `metrics.layout.divider_w` is 24 since #550 — it was 12 from #476, and never applied) | gooey's `Role::SplitDivider` |
 
 Two things to note before any defect is named:
 
@@ -63,7 +63,7 @@ window root                                   Sized, 100% x 100vh        (chrome
 │  │  │     └─ … panels, each panel_root()    Sized, width = PanelWidth.preferred (squeezed)
 │  │  │        ├─ title / heading             text
 │  │  │        └─ scroll_list → ScrollViewport  fills what is left, scroll_y, rail as sibling
-│  │  ├─ SplitDivider                         `metrics.layout.divider_w` (12 px): the room the shell's split takes
+│  │  ├─ SplitDivider                         `metrics.layout.divider_w` (24 px): the room the shell's split takes
 │  │  └─ SplitPane  #2 (right of the split)   grid 1fr/1fr
 │  │     └─ Frame::viewport  (ViewportSlot)   fill column, row of …
 │  │        └─ ArrangementDock (cover)        gooey Dock, absolute over the whole hole
@@ -91,9 +91,10 @@ Each part answers exactly one question, and the whole model is these four answer
   the bottom dock's *display* (it appears only when `WORKBENCH_FLOOR_H` 420 is still kept).
 - **Fixed**: `metrics.layout.bar_h` 26, `metrics.layout.bottom_dock_h` 148, a panel's margin and pad (12 each,
   the sheet's `chrome-panel` rule), the row step 5, the 1 px borders (`metrics.layout.edge_w`), the shell split's
-  **`divider_w` 12** (the owner's half-thickness divider, #476, which the editor sets and `bevy_gooey` draws; its own
-  default channel is `bevy_gooey`'s `MIN_TARGET_PX` 24 and its private grip is `SPLIT_GRIP_THICKNESS` 4, neither of
-  which this editor's sheet names), `scroll_gutter()` = `scroll_bar_w + scroll_bar_inset` = 6, `dock_min_w()` =
+  **`divider_w` 24** (gooey's own `MIN_TARGET_PX` channel, which is what the build draws: the shell sets no
+  `SplitThickness`; #550 moved the metric to the seam rather than the seam to the metric, because gooey's note says
+  a thinner divider is below WCAG 2.2 SC 2.5.8's minimum target. It was 12 from the owner's #476 and was never
+  applied), `scroll_gutter()` = `scroll_bar_w + scroll_bar_inset` = 6, `dock_min_w()` =
   `list_w * dock_min_share` = 158.4, `metrics.layout.viewport_min_w` 420, `viewport_share` 0.52.
 
 ### 2.3 The mental model, in one sentence
@@ -169,7 +170,7 @@ is inset by the panel's `MARGIN`. There is **no rule that they line up**, and no
 bars in one view are one gesture or two.
 
 **Measurement**: viewport rail flush at its viewport's right edge, divider grip centred in the divider target
-(the capture's build drew 24; `metrics.layout.divider_w` is 12 since #476), panel rail 30 physical px in from
+(the capture's build drew 24, and `metrics.layout.divider_w` is 24 again since #550), panel rail 30 physical px in from
 the panel's border.
 
 **What it exposes**: the model has no notion of **chrome adjacency** — what two controls next to each
