@@ -75,11 +75,6 @@ fn list_column() -> impl Bundle {
 #[derive(Component, Clone, Copy)]
 pub struct BusList;
 
-/// **Every cue, the selected one marked**, and the value **Audition** reads: the list [`cue_rows`] fills from
-/// [`AudioPanel::cues`] and [`AudioPanel::selected`].
-#[derive(Component, Clone, Copy)]
-pub struct CueChooser;
-
 /// **The tail of [`bevy_siren::SirenLog`]**: the last few decisions, newest first, so an audition's
 /// `Played`/`Refused` is on screen and not only on the status line.
 #[derive(Component, Clone, Copy)]
@@ -265,7 +260,6 @@ pub fn log_rows(log: &bevy_siren::SirenLog) -> Vec<String> {
 #[derive(bevy::ecs::system::SystemParam)]
 struct Columns<'w, 's> {
     buses: Query<'w, 's, (Entity, Has<Children>), With<BusList>>,
-    cues: Query<'w, 's, (Entity, Has<Children>), With<CueChooser>>,
     tail: Query<'w, 's, (Entity, Has<Children>), With<LogTail>>,
 }
 
