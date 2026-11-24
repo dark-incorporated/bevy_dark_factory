@@ -216,6 +216,21 @@ names which agents it started and what it ran in parallel.
 7. **Never file** an upstream defect here: a `bevy_gooey` bug goes to `dark-incorporated/bevy_gooey` with
    `consumer` and `consumer:bevy_grimoire`.
 
+## An issue, not a paragraph (owner, 2026-11-24)
+
+**Every finding is an open GitHub issue on `dark-incorporated/bevy_dark_factory` before the pass ends.** The report is
+the index; the issues are the work. A finding that exists only in the report is a finding nobody will pick up: the
+build loop reads the issue list, not last week's markdown.
+
+- The order is fixed: **search → file → verify the number → write the report**. When the pass runs out of time, the
+  report is what gets dropped, never the filing.
+- A finding that an open issue already names gets a **comment with the new measurement** on that issue — an issue
+  updated is the same as an issue filed, and better than a duplicate.
+- A finding the review cannot decide (a design call, a product choice) is filed too, labelled `enhancement`, with the
+  options and a recommendation — the owner decides by answering the issue, not by reading a report.
+- The sweep's **fixes** are not issues: a fix that landed is a commit with its module's test; a fix the sweep decided
+  not to make becomes an issue saying why.
+
 ## The report (the pass's last act)
 
 One file, `docs/loop/iterations/<date>-review.md`, committed and pushed: the seven lenses run and by which agents;
@@ -236,7 +251,8 @@ through the pre-push fast path; the report is the only commit this command makes
    whose effect cannot be shown is not a fix).
 5. **De-duplicate across lenses before filing**: two lenses often find one defect from two sides. The pass
    merges them into one issue naming both proofs.
-6. File, then write the report, then push the report and the sweep's branch.
+6. **File every finding as an open issue** (search first, comment on an existing one), then write the report, then
+   push the report and the sweep's branch. If time runs out, the report goes and the filing stays.
 7. Stop after the report. The sweep's branch is gated by the next pass, not by this command.
 
 ## What not to do
