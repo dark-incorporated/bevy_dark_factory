@@ -98,6 +98,7 @@ fn rows_in<C: Component>(app: &mut App) -> Vec<String> {
 }
 
 /// **A default build's Sound workspace draws the buses, the cues and the log.**
+#[cfg(feature = "bevy_siren")]
 #[test]
 fn a_default_build_draws_the_audio_panel() {
     let mut app = editor("sound_default");
@@ -144,6 +145,7 @@ fn a_default_build_draws_the_audio_panel() {
 /// The list is the strip's own ([`bevy_dark_factory::activity_bar::registered`]), so a workspace the
 /// strip would offer and this test would skip cannot exist: offering a tab whose only content is
 /// "this build has no …" is the defect #600 names, and the apology is the string it is caught by.
+#[cfg(feature = "bevy_siren")]
 #[test]
 fn no_offered_workspace_draws_only_an_apology() {
     let mut app = editor("sound_no_apology");
