@@ -82,12 +82,15 @@ pub const CHORDS: &[NamedChord] = &[
     },
     // **The console beside the journal's `Cmd+E`** (#509).
     NamedChord { fixed: Fixed::ConsoleToggle, id: "console.open", title: "Show or hide the log", default: || primary_shift(KeyCode::KeyE) },
-    // **The frame profile** (#504): `D` already means "move" here, so the modifier carries the same word.
+    // **The frame profile** (#504, moved by #560): it shared `Cmd+Shift+D` with `report.project`, and both
+    // handlers run in `Phase::Act` on one press, so a press opened both panels. `Cmd+Shift+D` is the project
+    // report — what `agents.md` tells a person, and what `Cmd+D`'s family means — so the profile takes `F`,
+    // free because it is only the unshifted find chord.
     NamedChord {
         fixed: Fixed::ProfileToggle,
         id: "profile.open",
         title: "Show or hide the frame profile",
-        default: || primary_shift(KeyCode::KeyD),
+        default: || primary_shift(KeyCode::KeyF),
     },
     NamedChord { fixed: Fixed::ProblemsShow, id: "problems.show", title: "Show the map's problems", default: || primary_shift(KeyCode::KeyX) },
     NamedChord { fixed: Fixed::IssueCompose, id: "issue.compose", title: "Write an issue", default: || primary_shift(KeyCode::KeyI) },
