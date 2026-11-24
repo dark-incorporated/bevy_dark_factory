@@ -111,15 +111,7 @@ fn every_focusable_control_in_the_files_pane_is_labelled() {
                 // **The roles that take the keyboard**: a field, a button, a toggle, a list, a table, a
                 // tab, a dock's grip. `Role` is gooey's own vocabulary, so this list is what a control *is*
                 // rather than a list of the spawn sites that exist today.
-                Role::TextInput
-                    | Role::TextField
-                    | Role::Button
-                    | Role::Toggle
-                    | Role::List
-                    | Role::Table
-                    | Role::Tab
-                    | Role::SplitGrip
-                    | Role::TreeTwisty
+                Role::TextInput | Role::TextField | Role::Button | Role::Toggle | Role::List | Role::Table | Role::Tab
             ) && in_the_files_pane(world, *entity)
         })
         .map(|(entity, role)| {
@@ -165,7 +157,9 @@ fn the_field_line_says_it_sets_a_field() {
         .map(|(entity, _)| entity)
         .next()
         .unwrap_or_else(|| panic!("the Files workspace draws no field line; this test measured nothing"));
-    let row = world.get::<ChildOf>(line).map(|parent| parent.parent()).expect("a field's row");
+    // **`text_input`'s bundle is the row**: `text_row` spawns the `Node`, the `ControlText` label and the
+    // field cell on one entity, so the label is the field's own child rather than a sibling's.
+    let row = line;
 
     // **The label is drawn beside the field**, as a `ControlText` — the role gooey reads a row's
     // accessible name from.

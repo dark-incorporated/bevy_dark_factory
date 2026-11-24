@@ -1300,6 +1300,9 @@ fn editor_state(
     #[cfg(feature = "bevy_elements")] scrub: Option<Res<crate::environment::ClockScrub>>,
 ) -> Result<Value, String> {
     let Loaded { project, open, game, reloads, live, diagnostics, busy, profiler, files, session, style_proposals } = loaded;
+    // **Is the workbench the screen?** Read once, because two fields ask it: `screen` names the screen and
+    // `mode` only means anything while this holds (#601).
+    let workbench = screen.as_ref().is_some_and(|s| *s.get() == crate::screen::Screen::Editor);
     // **The agent's presentation, and the person's answer to it** (S1.7). `None` until an agent
     // presents something; then an object whose `answer` is `null` while the question is up. This is
     // the only channel an agent has for what a person did after its call returned.
@@ -1594,10 +1597,13 @@ fn editor_state(
         }),
         "armed_composition": armed.and_then(|a| a.id().map(|s| s.to_owned())),
         "selected": tiles.as_ref().map(|t| t.selected_library_id.clone()),
-        // **`mode` is the panel, and only the panel** (#601). It used to sit beside `door`, which spelled the
-        // workspace a second time; `ui.workspace` is that answer now, so a reader that wants the workspace
-        // reads one field and a reader that wants the panel reads this one.
-        "mode": mode.map(|m| m.label()),
+        // **`mode` is the panel that is showing, and only that** (#601). It used to sit beside `door`, which
+        // spelled the workspace a second time; `ui.workspace` is that answer now. And it reads `null` off the
+        // workbench — `Mode` is a `Resource` that outlives a crossing, so on the launcher it named a panel of a
+        // workspace nobody was looking at, which is the same class of second answer the issue is about. One
+        // field answers "what is on screen" (`screen`), one answers "which workspace" (`ui.workspace`), and
+        // this one answers "which panel of it is showing" — nothing shows on the launcher, so it says nothing.
+        "mode": mode.filter(|_| workbench).map(|m| m.label()),
         // **The one field that answers "what is on screen"** (#601). `"launcher"`, `"loading"`, `"project"` or
         // `"editor"`, and nothing else in this answer spells a screen name: `ui.screen` was a second one and it
         // answered `"workbench"` for the same screen this calls `"editor"`, so an agent that read the wrong one
