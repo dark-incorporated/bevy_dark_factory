@@ -22,7 +22,13 @@ fn the_divider_drawn_is_the_one_the_shell_budgets() {
 
     // **The divider is the split's own node**, which gooey gives a `ComputedNode`; its width is what a person
     // can press. The budget is the metric the layout model and every width calc read.
-    let budget = metrics().layout.divider_w;
+    // **The sheet's number, read the way the shell reads it**: `metrics()` is the live table `StylePlugin`
+    // swaps in, and `compiled_default()` is the sheet before a skin. The test names both, so a run that disagrees
+    // says which table it disagrees about rather than leaving the reader to guess.
+    let live = metrics().layout.divider_w;
+    let compiled = bevy_dark_factory::style::compiled_default().metrics.layout.divider_w;
+    assert_eq!(live, compiled, "the live sheet and the compiled sheet disagree on the divider: {live} vs {compiled}");
+    let budget = live;
     // **The shell's own split root**, which is the one entity the editor gives a `SplitThickness` — gooey keeps the
     // divider's copy private ("not for hosts to write"), so the root is how a host names its seam.
     let mut roots = app.world_mut().query::<&bevy_gooey::SplitThickness>();
