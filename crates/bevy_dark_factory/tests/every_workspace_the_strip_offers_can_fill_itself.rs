@@ -68,6 +68,9 @@ fn shows(app: &mut App, label: &str) -> bool {
 ///
 /// A row is a `Text` the column owns, so this walks the column's descendants rather than the whole
 /// screen — which is what makes "this list is filled" different from "this workspace draws something".
+// **Only the `bevy_siren` arm calls this**: the Sound workspace's columns exist when the crate does, and the test's
+// other arms read their own panels. Kept `cfg`-shaped rather than deleted so a build with the crate still checks them.
+#[cfg_attr(not(feature = "bevy_siren"), allow(dead_code))]
 fn rows_in<C: Component>(app: &mut App) -> Vec<String> {
     let world = app.world_mut();
     let columns: Vec<Entity> = world.query_filtered::<Entity, With<C>>().iter(world).collect();
