@@ -1,7 +1,7 @@
 //! **Placing water, as one registered operation** (#100): `water_place`.
 //!
 //! The plan is `<blueprint_dir>/water/<map>.yaml`, the engine-free `blueprint_model::water::WaterPlan`
-//! as RON, saved beside the map and the terrain. One call places one spring, sink or lake, or clears
+//! as YAML, saved beside the map and the terrain. One call places one spring, sink or lake, or clears
 //! the plan; either is one undo. Placing never runs the simulation.
 
 use blueprint_model::water::{Placed, WaterField, WaterPlan};

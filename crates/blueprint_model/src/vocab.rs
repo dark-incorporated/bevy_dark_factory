@@ -942,7 +942,7 @@ mod tests {
     }
 
     /// An unknown field in a vocabulary file is a mistake, not an extension — `deny_unknown_fields`
-    /// everywhere, as `persist.rs` requires.
+    /// on every type below, so the reader names the field instead of dropping it.
     #[test]
     fn an_unknown_axis_is_refused() {
         let err = Vocabularies::parse(

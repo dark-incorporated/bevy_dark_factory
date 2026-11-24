@@ -462,7 +462,7 @@ pub fn refresh(
 
 /// **A click in the world takes the keyboard back from a filter box.**
 ///
-/// Enter and Escape were the only ways out, and nothing said so. Meanwhile `editor::place_on_click`
+/// Enter and Escape were the only ways out, and nothing said so. Meanwhile `editor::drive_place`
 /// is gated on `not_typing`, which reads [`Filters::typing`] — so filtering the palette to find a
 /// piece and then clicking to place it did **nothing at all, silently**. That is the failure this
 /// repo's rules exist to prevent, and it was reachable by the most natural way to find one piece
@@ -472,7 +472,7 @@ pub fn refresh(
 ///
 /// [`crate::keys::Phase`] exists to decide who owns the keyboard once, before anything reads a key.
 /// Running here — ahead of `editor::sense_context`, which computes `Live` from this very flag —
-/// means the focus is already gone by the time `place_on_click` evaluates `not_typing` in
+/// means the focus is already gone by the time `drive_place` evaluates `not_typing` in
 /// `Phase::Act`. So one click blurs and places, rather than the first click being eaten as a
 /// dismissal and the author clicking again.
 ///

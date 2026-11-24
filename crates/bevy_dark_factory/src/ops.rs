@@ -284,7 +284,7 @@ pub enum Shown {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         lines: Option<[u32; 2]>,
     },
-    /// **One sound cue** (NV-07, #384), by the name `family/bevy_siren.ron` gives it: on the Sound workspace's cue list, selected. No
+    /// **One sound cue** (NV-07, #384), by the name `family/bevy_siren.yaml` gives it: on the Sound workspace's cue list, selected. No
     /// operation answers it: a reference that names a cue and the Go to anything finder do.
     Cue { name: String },
     /// **One note**, in the Notes panel and on the map where it was drawn.
@@ -3498,7 +3498,7 @@ pub mod list_cursors {
                 let rigs = &need_view(ctx, "walk")?.rig;
                 let n = rigs.names.len();
                 if n == 0 {
-                    return Err(Refusal::new("the rig bench lists no rigs, so there is nothing to walk. Open the Anim tab on a project with a rigs.ron."));
+                    return Err(Refusal::new("the rig bench lists no rigs, so there is nothing to walk. Open the Anim tab on a project with a rigs.yaml."));
                 }
                 // **Clamped below the list's length**: this list wraps, and on a short list a stride of exactly `n` is the
                 // identity wearing a jump's clothes. **A stride longer than that is refused rather than silently cut**
@@ -12371,7 +12371,7 @@ pub mod pack_set_excluded {
     }
 
     /// **The pack as the policy file spells it**: no trailing slash, relative, and a folder name a
-    /// quoted RON string can hold. `..` and `.` are refused because neither names a pack.
+    /// quoted YAML string can hold. `..` and `.` are refused because neither names a pack.
     fn clean(pack: &str) -> Result<String, Refusal> {
         let pack = pack.trim_end_matches('/');
         let bad = pack.is_empty()
@@ -14420,7 +14420,7 @@ pub mod map_rename {
         let old = std::fs::read_to_string(&file)
             .map_err(|e| refuse(format!("{}: {e}", file.display())))?;
         // **A YAML example is a plain scalar** (`example: m`), quoted only when YAML needs it, so the needle is
-        // the value as the writer emits it — not the RON spelling this used to look for.
+        // the value as the writer emits it — not the RON spelling this used to look for (GD-03, #365).
         let needle = format!("example: {was}");
         if old.matches(&needle).count() != named {
             return Err(refuse(format!(

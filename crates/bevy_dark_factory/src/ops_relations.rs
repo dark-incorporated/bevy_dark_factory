@@ -305,7 +305,7 @@ impl Operation for RelationsSolve {
 /// The relation vocabulary has been complete for weeks — `Faces`, `Near`, `Apart`, `InFrontOf`,
 /// `Behind`, `LeftOf`, `RightOf`, `ClearInFront`, `VisibleFrom`, `Along`, `ReachableFrom` — and
 /// `relations_solve` mends the map against them. **What was missing is the step before**: a person
-/// could only *add* one by hand-writing RON, so the layer was readable by a person editing a text
+/// could only *add* one by hand-writing YAML, so the layer was readable by a person editing a text
 /// file and by nobody else, and no log line named an authored relation.
 ///
 /// **The relation is data, so the operation takes the file's own shape.** `of` and `kind` are the

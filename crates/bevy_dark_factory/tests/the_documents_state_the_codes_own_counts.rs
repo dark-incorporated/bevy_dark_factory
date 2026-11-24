@@ -586,6 +586,90 @@ fn the_keys_page_names_every_fixed_chord() {
     );
 }
 
+/// **Every census binding with a modifier is on the page too** (#590).
+///
+/// `chords::CHORDS` is the *fixed* chords — the ones read by their own systems, outside `crate::keys` — and
+/// the page's census above covers them. But the keymap's own rows can carry the platform modifier as well, and
+/// one did it invisibly: `Action::ToggleRigs` was bound to `Cmd+R` (#522) and `keys.md`'s Anim table never
+/// named it, because no census read `keys::BINDINGS` for a chord. A chord a person presses that the census
+/// cannot see is a chord that can go missing unnoticed, which is exactly what happened.
+///
+/// **The other side of the choice in #590.** The issue allowed either moving `ToggleRigs` into
+/// `chords::CHORDS` or teaching the census to read the keymap; this is the second, because `ToggleRigs` *is* a
+/// census row — it has a context, a stance and a badge home — and moving it would have taken those away to
+/// make a test pass.
+#[test]
+fn the_keys_page_names_every_chord_with_a_modifier() {
+    use bevy_dark_factory::keys::BINDINGS;
+
+    let page = read("docs/guide/keys.md");
+    let mut spans: Vec<BTreeSet<String>> = page.split('`').skip(1).step_by(2).map(chord_parts).collect();
+    // **A range the page writes compactly is every chord in it**: the workspace row says `` `Cmd+1` to
+    // `Cmd+9` `` and that names all nine. Expanding it here is what lets the row stay one line instead of
+    // becoming nine, which is how a key page stays readable.
+    for (a, b) in page.split('`').skip(1).step_by(2).zip(page.split('`').skip(3).step_by(2)) {
+        let (Some((a_prefix, a_digit)), Some((b_prefix, b_digit))) = (split_digit_chord(a), split_digit_chord(b)) else {
+            continue;
+        };
+        if a_prefix != b_prefix || a_digit >= b_digit {
+            // Not a range: the text between the two spans must be ` to `, which the caller of this loop
+            // cannot see, so an out-of-order or different-prefix pair is simply not expanded.
+            continue;
+        }
+        for digit in a_digit..=b_digit {
+            let chord = format!("{a_prefix}{digit}");
+            spans.push(chord_parts(&chord));
+        }
+    }
+
+    let mut missing = Vec::new();
+    for b in BINDINGS {
+        if !b.needs_mod {
+            continue;
+        }
+        // **The page is written for the mac**, so a modifier row is spelled the way that platform spells it,
+        // whatever host compiled this test: `Cmd`, `Option`, and only a *required* Shift (the rule
+        // `chord_text` states). `Binding::chord` is the bare key, never the modifier.
+        let mut label = String::from("Cmd+");
+        if b.needs_alt {
+            label.push_str("Option+");
+        }
+        // **The page is written for the mac, and one chord's *name* is platform-dependent too**:
+        // `keys::REMOVE_NAME` is `Delete` there and `Del` on the gate's Linux host, the same split
+        // `MOD_NAME` has. So the mac spelling is what is compared, on the same rule as the modifiers.
+        let spelled: String = if b.chord == "Del" { "Delete".to_owned() } else { b.chord.to_owned() };
+        label.push_str(&spelled);
+        if b.needs_shift == Some(true) {
+            label.insert_str(0, "Shift+");
+        }
+        let wanted = chord_parts(&label);
+        if !spans.iter().any(|span| *span == wanted) {
+            missing.push(format!("`{label}` ({:?}, \"{}\")", b.action, b.does));
+        }
+    }
+    assert!(
+        missing.is_empty(),
+        "**docs/guide/keys.md does not name {} keymap chord(s) that carry a modifier**: {}. The page is the \
+         guide's every-key page; add the row, and if the chord is not a person's, say why in `NOT_A_PERSON_KEY` \
+         for the fixed chords or here (#590).",
+        missing.len(),
+        missing.join(", ")
+    );
+}
+
+/// **A chord split into its prefix and its last digit**, when it is `…+<digit>`: the shape a page writes a
+/// range in (`` `Cmd+1` to `Cmd+9` ``). `None` for any chord that is not one.
+fn split_digit_chord(chord: &str) -> Option<(String, char)> {
+    let last = chord.chars().next_back()?;
+    if !last.is_ascii_digit() || chord.len() < 2 {
+        return None;
+    }
+    let prefix = chord[..chord.len() - 1].to_owned();
+    // **The prefix must end in a modifier separator**: `Cmd+` is, a bare `1` is not, so a lone digit is not
+    // read as a one-member range.
+    prefix.ends_with('+').then_some((prefix, last))
+}
+
 /// **A chord's parts, normalised to one spelling**, so the page and gooey can word the same chord differently
 /// and still be compared.
 ///

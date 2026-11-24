@@ -322,7 +322,7 @@ pub fn flood(
 /// # It fills UNDER what is already there
 ///
 /// A cell holding something is not a cell that is spoken for. Laying a floor across a dressed room is
-/// the ordinary case, and the placement rules do not forbid it — `place_on_click` asks
+/// the ordinary case, and the placement rules do not forbid it — `drive_place` asks
 /// `stack::placement_at` whether the *mount* can be satisfied and nothing else, so a single click has
 /// always been able to put a floor tile under a crate. A fill that skipped those cells was answering a
 /// stricter question than the click path, which is the sort of disagreement `CLAUDE.md`'s one-path rule

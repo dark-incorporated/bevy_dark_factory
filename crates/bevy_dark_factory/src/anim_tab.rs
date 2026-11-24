@@ -1046,7 +1046,7 @@ fn move_selection(
     // stride is clamped below its length — lives there once. A refusal (no rigs) leaves the bench where it was, as the key did.
     //
     // **A door with no project still walks.** This returned early when the project was absent (E-002, #129 review), which
-    // was a regression: the rig list is the bench's own, read from `rigs.ron` when the bench was built, and the arrows
+    // was a regression: the rig list is the bench's own, read from `rigs.yaml` when the bench was built, and the arrows
     // worked here before the migration. `rig_walk` needs the project for nothing, so `None` travels and the walk happens.
     let mut ctx = crate::ops::Ctx {
         project: project.as_deref().cloned(),
@@ -1494,10 +1494,12 @@ fn rebuild_slots(
                 .with_children(|row| {
                     // **A `cell` is the two fixed columns** (UI-58, #244). Its width is in body text
                     // sizes, so the column keeps its share of the row as the person enlarges the type
-                    // — which is the thing `SLOT_COL`'s 84 px was standing in for, and the reason a
-                    // 52 px column wrapped "0 - clip 14" onto two lines and made a ten-slot rig
-                    // unreadable. A cell cuts what does not fit rather than overlapping its
-                    // neighbour, which is the `NoWrap` this used to carry.
+                    // — which is the thing the old fixed pixel column was standing in for, and the
+                    // reason a 52 px column wrapped "0 - clip 14" onto two lines and made a ten-slot
+                    // rig unreadable. The width is `slot_cell()`'s: `SLOT_CHARS` (11) glyphs of
+                    // `chrome::body_char_w` (6.6 px at the 11 px body) over that body, about 6.6 body
+                    // sizes and 72.6 px at the shipped type size. A cell cuts what does not fit
+                    // rather than overlapping its neighbour, which is the `NoWrap` this used to carry.
                     row.spawn(bevy_gooey::cell(slot_cell())).with_children(|cell| {
                         cell.spawn((
                             Text::new(format!("{i} - clip {}", slot.clip)),

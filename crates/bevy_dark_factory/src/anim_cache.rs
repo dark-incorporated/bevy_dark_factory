@@ -1,7 +1,7 @@
 //! **The measurement cache, persisted** — so the STALE badge is truthful at startup instead of
 //! only after the tab's first audit, and a session that changed nothing re-measures nothing.
 //!
-//! One RON file under the project's `target/` (gitignored; `cargo clean` losing a cache is the
+//! One YAML file under the project's `target/` (gitignored; `cargo clean` losing a cache is the
 //! correct cost of it being one). An entry is kept on load only when three things still hold: the
 //! rig still exists, the manifest's `Rig` equals the one the report was measured under (a
 //! hand-edited declared value invalidates exactly — no second hash scheme), and the GLB's bytes

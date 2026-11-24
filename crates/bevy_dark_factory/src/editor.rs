@@ -5568,7 +5568,7 @@ fn family_edit_keys(
 }
 
 /// **Commit the typed line through the registry** as `family_set`: the first word is the crate, the
-/// second the dot-pathed field, and the rest one RON value.
+/// second the dot-pathed field, and the rest one YAML value.
 fn set_family_field(project: Option<&Project>, state: &mut EditorState, raw: &str) {
     let mut words = raw.trim().splitn(3, ' ');
     let (Some(krate), Some(field), Some(value)) = (words.next(), words.next(), words.next()) else {
@@ -5642,7 +5642,7 @@ fn preview_dialogue(
 }
 
 /// **Commit `@<id> <crate> <value>` through the registry** as `placement_set_family`: the piece
-/// named by the id carries the crate's own settings as one RON value; no value takes them off.
+/// named by the id carries the crate's own settings as one YAML value; no value takes them off.
 fn set_piece_family(project: Option<&Project>, open: Option<&mut OpenMap>, state: &mut EditorState, raw: &str) {
     let mut words = raw.trim().trim_start_matches('@').splitn(3, ' ');
     let (Some(id), Some(krate)) = (words.next(), words.next()) else {
@@ -6338,7 +6338,7 @@ fn run_water(project: Option<&Project>, open: Option<&OpenMap>, state: &mut Edit
 
 /// **Author a trigger through the registry** as `trigger_set`, from the terrain line
 /// `trigger <id> remove`, or `trigger <id> | <on> | <if> | <then> [| people=<a,b>] [| faction=<id>] [| area=<x0,z0,x1,z1>]`
-/// (`<on>` is a bevy_society event as RON, `<if>` may be empty). A script that does not compile is refused with its line.
+/// (`<on>` is a bevy_society event as YAML, `!Activity work`; `<if>` may be empty). A script that does not compile is refused with its line.
 fn set_trigger(project: Option<&Project>, open: Option<&OpenMap>, state: &mut EditorState, raw: &str) {
     let Some(open) = open else {
         state.status.problem("no map is open, so there is nowhere to keep a trigger".to_owned());
@@ -9945,7 +9945,7 @@ pub fn snap_level(keyboard: &ButtonInput<KeyCode>, rung: SnapLevel) -> SnapLevel
 /// The grid is what makes pieces meet, so it is the default and stays the default. But a prop that
 /// wants to sit at an angle against a wall, or a bit of clutter that should not read as laid out on
 /// a grid, has nowhere to go on a half-metre lattice — and the alternative was hand-editing the
-/// map's RON afterwards.
+/// map's YAML afterwards.
 ///
 /// Only X and Z: they are the axes the grid quantises and the axes a cursor on the ground plane can
 /// express. **Y is not freed** — it comes from the piece's `mount` through `stack::datum`, which is

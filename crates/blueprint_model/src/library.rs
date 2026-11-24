@@ -21,7 +21,8 @@ use schemars::JsonSchema;
 use crate::descriptor::Descriptor;
 use crate::vocab::{Masks, Vocabularies};
 
-/// Bumped when the shape below changes. A mismatch is refused, never migrated — `persist.rs`'s rule.
+/// Bumped when the shape below changes. A mismatch is refused, never migrated — the rule
+/// [`crate::format_version`] states, which [`Library::validate`] applies below.
 pub const LIBRARY_VERSION: u32 = 1;
 
 /// The most cells one piece's derived lattice may have.

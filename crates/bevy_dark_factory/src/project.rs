@@ -261,10 +261,10 @@ impl Project {
     pub fn open_staged(root: &Path, kit: Option<&str>, at: &mut dyn FnMut(Stage)) -> Result<Project, String> {
         at(Stage::ReadProject);
         // **A project still holding the old spelling is refused here, by name** (GD-03, #365). Nothing reads
-        // RON after the cutover, so an unmigrated project opened quietly would open empty and the next save
-        // would write fresh YAML beside files a person still has — the one state nobody can read off the disk.
-        // The migration library's own walk decides what "still RON" means (`migrate::leftover`), so the editor,
-        // the command line and an agent cannot disagree about it.
+        // RON after the cutover (GD-03, #365), so an unmigrated project opened quietly would open empty and the next save would
+        // write fresh YAML beside files a person still has — the one state nobody can read off the disk. The
+        // migration library's own walk decides what "still RON" (GD-03, #365) means (`migrate::leftover`), so
+        // the editor, the command line and an agent cannot disagree about it.
         if let Some(problem) =
             bevy_blueprint_migrate::leftover(root, &format!("{} migrate {}", crate::args::PROGRAM, root.display()))
             .map_err(|p| format!("{}: {}", root.display(), p.line()))?
@@ -1263,7 +1263,7 @@ impl OpenMap {
         // library that draws a map is the merge of every bound kit, so filing it under one of them
         // picks a winner arbitrarily.
         let path = project.maps_dir.join(naming::map_file_name(&self.map.name));
-        // One placement a line (`Map::to_ron`), so an edit of one row is a diff of one line.
+        // One placement a line (`Map::to_yaml`), so an edit of one row is a diff of one line.
         let text = self.map.to_yaml()?;
 
         // **A rename is a move, and a move is not a copy.**

@@ -29,20 +29,26 @@
 //!
 //! `docs/research/2026-08-18-reusable-scroll-and-tab-widgets.md` §3.5 assumes the other model: it
 //! routes keyboard paging to *"the scroll view that currently owns focus"*. **This editor does not
-//! work that way and is not going to.** `just_pressed(&ButtonInput, Live, Action)` is a *pull*
-//! helper each consumer polls, and `Live(Context, Stance, Holder::Tab)` is an ambient pair — there is no focused
-//! widget, and `InputFocus`/`TabIndex` appear nowhere in `src/`.
+//! route a key by focus and is not going to.** `just_pressed(&ButtonInput, Live, Action)` is a *pull*
+//! helper each consumer polls, and `Live(Context, Stance, Holder::Tab)` is an ambient pair — **no
+//! binding here is chosen by who holds focus**.
+//!
+//! **What does hold focus is Bevy's text entry, not this census.** `InputFocus` is in six files
+//! (`audit_view`, `files_panel`, `launcher`, `report`, `settings_screen`, `terminal_pane`), where a
+//! text field takes it so the keyboard reaches the field, and `TabIndex` in two: `chrome`'s viewport
+//! focus region and `report`'s modal `TabGroup`, which records *why* it reopened the decision
+//! (FOCUS-DECISION-REOPENED at `report.rs`). None of those is a second routing model: the holder that
+//! decides a binding is [`Holder`], set from a widget's own state, and
+//! `the_keys_doc_states_the_focus_machinery_the_crate_actually_has` counts both from `src/` so this
+//! sentence cannot go stale again.
 //!
 //! Introducing focus *as a second routing model* was the alternative and it is the one thing this
 //! crate's rules forbid outright: two paths to "who gets this key", disagreeing on the day somebody
 //! clicks a row and then presses a verb. `Live` is decided **once** per frame in `Phase::Sense`
 //! precisely so no system sees a keyboard that changed owner mid-frame, and that guarantee is not
-//! available to a model where a click can move ownership.
-//!
-//! So focus stays out of routing, and is used for the two things it is actually for: the **a11y
-//! tree** (`Role::TabList`/`Tab` on the strip) and, when something wants it, a visible focus ring.
-//! `FeathersPlugins` brings `acquire_focus` and `click_to_focus`, and they are inert here because
-//! nothing carries `TabIndex` — which is the correct amount of inert, not an oversight.
+//! available to a model where a click can move ownership. So focus is used for the **a11y tree**
+//! (`Role::TabList`/`Tab` on the strip), for **text entry**, and for a visible **focus ring** — the
+//! three things it is actually for — and never to decide which binding fires.
 //!
 //! **The paging keys the design wanted are therefore not built either**, and that is the better
 //! outcome rather than a consolation. Every list here is walked with the arrows, and

@@ -12,7 +12,7 @@
 //! arrangement says where it is now. Crossing between workspaces keeps the project, the open map and
 //! the selection, because the two axes no longer share a value — `docs/ui/vision.md` §3 and §4.
 //!
-//! # Nine, and only the built ones are registered
+//! # Ten, and only the built ones are registered
 //!
 //! [`Workspace::ALL`] is the canonical order the keys follow, and it is fixed for good: `Cmd`/`Ctrl`+`1`
 //! is always Project, so a person's fingers keep their meaning across releases. A workspace whose

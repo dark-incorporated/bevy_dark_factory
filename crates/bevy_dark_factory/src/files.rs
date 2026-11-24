@@ -704,8 +704,8 @@ pub fn active_file(session: &Session) -> Option<String> {
 ///
 /// **A default chosen while implementing #525, not a setting** (the owner approved soft wrap and highlighting in the issue, and was away for
 /// the choice of a switch): the note was *"this markdown editor is not great"*, and what a person met was a paragraph on one line to scroll
-/// sideways to read, so Markdown wraps. A YAML, RON or Rhai file keeps gooey's code editor, which is what [`CodeSoftWrap`]'s own docs say a
-/// code pane is. A Files-workspace setting (a key in the editor's settings YAML read here, with a row on the Settings screen) is possible if
+/// sideways to read, so Markdown wraps. A YAML, `.ron` or Rhai file keeps gooey's code editor, which is what [`CodeSoftWrap`]'s own docs say a
+/// code pane is. A `.ron` file is still code — a game's own, since GD-03 (#365) no project file is one. A Files-workspace setting (a key in the editor's settings YAML read here, with a row on the Settings screen) is possible if
 /// wanted. The two components follow the file the editor shows, so a tab change from a page to a map takes them away and back; the text, the
 /// caret and an unsaved edit are the buffer's and are not touched by it.
 fn mark_the_prose(mut commands: Commands, editors: Query<(Entity, &FileEditor, Has<CodeSoftWrap>, Has<CodeMarkdown>)>) {
@@ -736,7 +736,7 @@ fn mark_the_prose(mut commands: Commands, editors: Query<(Entity, &FileEditor, H
 const PLAIN_TEXT_EXTENSION: &str = "txt";
 
 /// **What the editor does with a file as prose**: `(wraps, drawn as Markdown)`. A Markdown page does both; a `.txt` file is prose too and wraps, but its
-/// asterisks and backticks are not markup, so it is not drawn as Markdown; every other file (YAML, RON, Rhai, anything unknown) is code and does neither.
+/// asterisks and backticks are not markup, so it is not drawn as Markdown; every other file (YAML, `.ron`, Rhai, anything unknown) is code and does neither.
 fn prose_of(rel: &str) -> (bool, bool) {
     match Lang::of(rel) {
         Lang::Markdown => (true, true),
@@ -1261,7 +1261,7 @@ fn decorate_the_editor(
                 let schema = files.schema_for(&rel);
                 for found in files_lang::references(lang, value.text(), schema.as_deref()) {
                     if index.holds(&found.kind, &found.name) == Some(false) && found.kind == files_lang::CUE_KIND {
-                        let message = format!("`{}` is not a cue of this project (the cues are in family/bevy_siren.ron)", found.name);
+                        let message = format!("`{}` is not a cue of this project (the cues are in family/bevy_siren.yaml)", found.name);
                         items.push(Diagnostic::new(found.range, CodeSeverity::Warning, message));
                     }
                 }

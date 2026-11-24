@@ -1,4 +1,4 @@
-//! **RON**: what a game keeps of its own (no project file of this repository is RON any more). Coloured by the
+//! **RON**: what a game keeps of its own (no project file of this repository is RON any more since GD-03, #365). Coloured by the
 //! shared tokenizer, and refused only for what a bracket scan can be sure of.
 
 use std::ops::Range;

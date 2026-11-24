@@ -124,7 +124,7 @@ pub enum Kind {
     Clip,
     /// A registered data file, whose page is the DATA table.
     Data,
-    /// A sound cue of the project's `family/bevy_siren.ron`, on the Sound workspace's list (NV-07, #384).
+    /// A sound cue of the project's `family/bevy_siren.yaml`, on the Sound workspace's list (NV-07, #384).
     Cue,
     /// **A place of the game's style, or one of its topics** (SG-05, #404): a page of the Design workspace.
     Design,
@@ -602,7 +602,7 @@ fn collect_the_rest(
             });
         }
     }
-    // **A rig's clips, read from the manifest** (NV-11, #391), not from the bench: the bench reads `rigs.ron` when the Animation
+    // **A rig's clips, read from the manifest** (NV-11, #391), not from the bench: the bench reads `rigs.yaml` when the Animation
     // workspace is first opened, and a finder that could name a clip only after a person had been to the page it names would not be
     // a finder. A clip is a slot of the rig, and the manifest is the one file that says what the slots are.
     out.extend(collect_the_clips(project));
@@ -698,7 +698,7 @@ pub fn clip_name(rig: &blueprint_model::rigs::Rig, slot: usize) -> Option<String
     Some(from_asset.or_else(from_note).unwrap_or_else(|| format!("clip {}", def.clip)))
 }
 
-/// **Every rig's every clip**, from `assets/blueprint/rigs.ron`: a project with no manifest, or one that does not read, has none (the
+/// **Every rig's every clip**, from `assets/blueprint/rigs.yaml`: a project with no manifest, or one that does not read, has none (the
 /// bench says which on its own page).
 fn collect_the_clips(project: &Project) -> Vec<Entry> {
     let Ok(text) = std::fs::read_to_string(project.root.join(crate::anim_tab::RIGS_FILE)) else { return Vec::new() };

@@ -9,7 +9,7 @@
 //!
 //! **Two writes, and the second is byte-identical to the first**, which is why neither a diff of the
 //! file nor any existing test could see it: the file on disk is right either way. What was wrong is
-//! that the click cost two `to_ron` → `save_atomic` round trips — a full library serialized and
+//! that the click cost two `to_yaml` → `save_atomic` round trips — a full library serialized and
 //! fsynced twice, plus two file-stamp changes the watcher then has to dismiss. Every other library
 //! mutator in this file pays for one.
 //!

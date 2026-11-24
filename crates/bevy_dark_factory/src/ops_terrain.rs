@@ -1,7 +1,7 @@
 //! **Sculpting the map's ground, as one registered operation** (#99): `terrain_stroke`.
 //!
 //! The heightfield is `<blueprint_dir>/terrain/<map>.yaml`, the engine-free `blueprint_model::heightfield`
-//! type as RON, saved beside the map. A stroke is a gesture: its points arrive whole and make one
+//! type as YAML, saved beside the map. A stroke is a gesture: its points arrive whole and make one
 //! change and one undo. The inverse is the same operation carrying the heights the stroke replaced
 //! (`restore`), which only an undo may send.
 

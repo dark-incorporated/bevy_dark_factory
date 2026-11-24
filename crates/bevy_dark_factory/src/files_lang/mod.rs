@@ -34,9 +34,9 @@
 //!
 //! # Not a parser, and why that is a decision and not a shortcut
 //!
-//! The colours of RON and Rhai come from a small tokenizer each (no new dependency: the
-//! owner's call of 2026-11-12). Their *errors* are not guessed by it: RON (no project file is RON any more, so
-//! it is only a file a game keeps of its own) and Rhai's are only what a scan can be sure of (a bracket that
+//! The colours of `.ron` files and Rhai come from a small tokenizer each (no new dependency: the
+//! owner's call of 2026-11-12). Their *errors* are not guessed by it: a `.ron` file's (no project file is
+//! RON any more since GD-03, #365, so it is only a game's own) and Rhai's are only what a scan can be sure of (a bracket that
 //! never closes, a string that never ends: the engine's own compile is a crate the editor does not link).
 //! Markdown's colours are `bevy_gooey`'s own (`CodeMarkdown`, #525), and its errors are the paths the design reader names.
 
@@ -228,7 +228,7 @@ pub fn highlights(lang: Lang, text: &str, schema: Option<&Value>) -> Vec<(Range<
 }
 
 /// **Where a file can fold**, as `start..end` over lines (the header stays drawn, `start + 1..end` hides):
-/// every YAML mapping and sequence, every Rhai or RON block, every Markdown section and code fence.
+/// every YAML mapping and sequence, every Rhai or `.ron` block, every Markdown section and code fence.
 pub fn folds(lang: Lang, text: &str) -> Vec<Range<usize>> {
     if text.len() > COLOUR_LIMIT_BYTES {
         return Vec::new();
@@ -270,7 +270,7 @@ fn finding_on(lines: &Lines<'_>, text: &str, line: usize, message: String, sever
 }
 
 /// **What is wrong with a file**, read the way the game reads it (see the module note): a project file by
-/// its kind's own reader, any other YAML by the event walk, RON and Rhai by a bracket scan.
+/// its kind's own reader, any other YAML by the event walk, `.ron` and Rhai by a bracket scan.
 ///
 /// `path` is the file's path under the project, with `/`. With no project around it ([`Env::alone`]): a Markdown
 /// page's paths are not looked for. [`diagnose_in`] is the call that has one.

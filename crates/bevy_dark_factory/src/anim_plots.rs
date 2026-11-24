@@ -53,7 +53,7 @@ pub(crate) const SHOW_TRACE_H: f32 = 224.0;
 /// copy that a palette edit would silently strand.
 ///
 /// **A function and not a `const`** (UI-02, #210): the palette is the editor's skin now, and a skin
-/// is read from a RON file at run time, so the byte form cannot be a compile-time constant any more.
+/// is read from `editor_skin.yaml` at run time, so the byte form cannot be a compile-time constant any more.
 fn bg() -> [u8; 4] {
     crate::chrome::ink_bytes(crate::chrome::ink().slot_bg)
 }

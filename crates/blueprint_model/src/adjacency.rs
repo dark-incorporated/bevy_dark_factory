@@ -51,9 +51,10 @@ use crate::wfc::{E, N, S, W};
 
 /// How close a yaw must be to a quarter turn to count as one, in degrees.
 ///
-/// Yaws are authored in 15° steps (`bevy_dark_factory`'s `YAW_STEP`) and stored as `f32`, so a value that
-/// went through a serialize/parse round trip can be a hair off. A thousandth of a degree is far below
-/// anything an author can express and far above `f32`'s error at these magnitudes.
+/// Yaws are authored in 15° steps (`bevy_dark_factory::settings::ViewSettings`'s `yaw_step_deg`, 15.0 when no
+/// file sets it) and stored as `f32`, so a value that went through a serialize/parse round trip can be a hair
+/// off. A thousandth of a degree is far below anything an author can express and far above `f32`'s error at
+/// these magnitudes.
 pub(crate) const SQUARE_EPSILON: f32 = 1e-3;
 
 /// How far inside a cell boundary a piece's edge may land and still count as on it, as a fraction of

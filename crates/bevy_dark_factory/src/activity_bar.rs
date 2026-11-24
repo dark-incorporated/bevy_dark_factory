@@ -13,15 +13,16 @@
 //! # The badges, and only the ones that have a source
 //!
 //! A badge is a count of what needs a person ([`badge`]); a count of zero draws nothing, so a bar that has
-//! nothing to say is silent. Map and Files carry **the problems count for their files** — the same refused
-//! and needs-a-restart reloads the status band's `1 refused` says. Agent carries **the wishes and lessons
-//! waiting for an answer**. A workspace with no source draws no badge: never a placeholder number.
+//! nothing to say is silent. **Map alone carries the problems count for its files** — the same refused and
+//! needs-a-restart reloads the status band's `1 refused` says; `Files` answers `0` deliberately (GD-11, #373),
+//! because a second tab saying the same number is two places for one fact. Agent carries **the wishes and
+//! lessons waiting for an answer**. A workspace with no source draws no badge: never a placeholder number.
 //!
-//! **Agent and Files are not registered yet** (NV-10 and GD-11), so their tabs, and the Agent badge with
-//! them, are not on the bar today; [`badge`] already answers for them, so registering the workspace is the
-//! only change either needs. The Agent badge **replaces the status-band chip** (AW-02, #354) *when that
-//! tab exists*, so there is one notice per waiting thing and not two; until then the chip is the only
-//! notice there is, and it stays.
+//! **Every workspace is registered, so every one has a tab.** `workspace::WAITING` is empty since the Project
+//! workspace (NV-08, #385) was the last, and the bar draws `Workspace::ALL` filtered by [`Workspace::is_built`]
+//! — today that is all ten, and a workspace that is not built draws nothing rather than a placeholder.
+//! `the_activity_bar_draws_every_workspace_the_registry_declares` pins the two together, so a comment here cannot
+//! claim a tab is absent while the registry says it is there.
 //!
 //! # Spawned on demand, never hidden
 //!

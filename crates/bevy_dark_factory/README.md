@@ -61,7 +61,7 @@ A terminal is docked across the bottom of every screen, already in the project's
 
 ## Driving it from an agent
 
-The default `debugger` feature serves the Bevy Remote Protocol (BRP, Bevy's JSON-over-HTTP interface) on `BEVY_BRP_PORT` (default 15702). The companion MCP server [`dark_factory_mcp`](https://github.com/dark-incorporated/bevy_dark_factory/blob/main/crates/dark_factory_mcp/README.md) speaks the Model Context Protocol on stdio and turns that into 28 typed tools; the same operations are what a key press runs.
+The default `debugger` feature serves the Bevy Remote Protocol (BRP, Bevy's JSON-over-HTTP interface) on `BEVY_BRP_PORT` (default 15702). The companion MCP server [`dark_factory_mcp`](https://github.com/dark-incorporated/bevy_dark_factory/blob/main/crates/dark_factory_mcp/README.md) speaks the Model Context Protocol on stdio and turns that into 32 typed tools; the same operations are what a key press runs.
 
 ```sh
 cargo run -p bevy_dark_factory -- <project-root>                       # the editor
