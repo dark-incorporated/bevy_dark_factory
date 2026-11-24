@@ -206,7 +206,7 @@ fn the_state_says_whether_the_shell_started_as_well_as_where_the_pane_is() {
     press_cmd_j(&mut app); // Collapsed -> Quarter
     let terminal = app.world().resource::<Terminal>();
     assert_eq!(terminal.placement(), TerminalPlacement::Quarter, "one press from Collapsed is the Quarter");
-    assert!(terminal.len() >= 1, "there is a tab to run a shell in");
+    assert!(!terminal.is_empty(), "there is a tab to run a shell in");
     // **`shell_live` is `TerminalTab::is_live`**, which is the fact `blueprint/state.terminal.shell_live`
     // reports. It is asserted to be readable here rather than to be true: whether a shell starts is the
     // host's, and the report's own host had none. What #598 fixes is that the two are told apart.
