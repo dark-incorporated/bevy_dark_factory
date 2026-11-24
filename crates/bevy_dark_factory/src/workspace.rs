@@ -68,12 +68,27 @@ pub const VIEWPORT: &str = "viewport";
 /// The library the map places from.
 pub const PLACE: &str = "place";
 
-/// **The workspaces whose part is not built yet, each with the issue that brings it** (the sentence a refused chord answers with).
+/// **The workspaces whose part is not built yet, each with the reason a refused chord answers with.**
 ///
-/// Empty since the Project workspace (NV-08, #385) was the last: every workspace is registered. The table stays, because the refusal it
-/// feeds ([`Workspace::missing`], `Command::enabled`, `Action::is_offered`) is how a *future* workspace's chord exists before its panel
-/// does, and `an_unbuilt_workspace_is_refused_with_its_reason.rs` proves that mechanism on a table that is not empty.
+/// Empty since the Project workspace (NV-08, #385) was the last of the workspaces that was waiting on an issue. The table stays, because
+/// the refusal it feeds ([`Workspace::missing`], `Command::enabled`, `Action::is_offered`) is how a *future* workspace's chord exists
+/// before its panel does, and `an_unbuilt_workspace_is_refused_with_its_reason.rs` proves that mechanism on a table that is not empty.
+///
+/// # One row, and it is a build's rather than an issue's (#600)
+///
+/// The Sound workspace is offered only where the build can fill it. `bevy_siren` is a default feature — the owner's decision,
+/// 2026-11-24 — so every build a person runs has it and every build offers the tab. A build that turns the feature off has no audio
+/// panel at all, and the answer for its Sound chord is the truth rather than an invitation to a panel that says "this build has no
+/// audio panel": the tab is not in the strip, the chord is refused, and the refusal says which crate fills it.
+///
+/// A build's row and an issue's row are the same row because they are the same fact — *this workspace's part is not in this binary* —
+/// and one mechanism that answers it is what keeps a refused chord from meaning two different things.
+#[cfg(feature = "bevy_siren")]
 pub const WAITING: [(Workspace, &str); 0] = [];
+/// The Sound workspace's part, in a build without it: the crate that fills it.
+#[cfg(not(feature = "bevy_siren"))]
+pub const WAITING: [(Workspace, &str); 1] =
+    [(Workspace::Sound, "the audio panel, which needs the bevy_siren crate this build was made without: rebuild with --features bevy_siren")];
 
 /// **What `workspace` is waiting for in `table`**, or `None` when it is not listed there. The lookup [`Workspace::missing`] makes, over a
 /// table a test can fill.

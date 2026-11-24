@@ -514,32 +514,32 @@ fn a_rigs_clip() -> Destination {
 /// **A sound cue**, in the Sound workspace (`Cmd`/`Ctrl`+`6`, NV-08 #385).
 ///
 /// It was the Map inspector's AUDIO block, 60 wheel notches that never reached it. The audio panel is the
-/// Sound workspace's now, one chord away. Its heading is drawn in a build with `bevy_siren`; a build without
-/// the crate says so in a sentence, and that is the row's reason.
+/// Sound workspace's now, one chord away — and since `bevy_siren` is a default feature (#600) the panel is
+/// what the chord reaches. A build that turned the feature off offers no Sound tab at all, so the chord is
+/// refused with the crate that fills it and there is no row to draw.
 fn a_sound_cue() -> Destination {
+    if Workspace::Sound.missing().is_some() {
+        return Destination {
+            what: "A sound cue",
+            steps: Vec::new(),
+            cost: Cost { presses: 0, pointer: 0 },
+            reach: Reach::Unreachable(format!(
+                "this build has no Sound workspace: {}",
+                Workspace::Sound.missing().unwrap_or_default()
+            )),
+        };
+    }
     let mut d = Driver::cold_start("sound");
     d.chord(&[primary(), KeyCode::Digit6], "press Cmd/Ctrl+6 (the Sound workspace)");
     assert_eq!(d.panel_name(), Mode::Sound.label(), "Cmd/Ctrl+6 opens the Sound workspace");
     let cost = d.cost;
     let steps = d.steps.clone();
-    if d.showing("AUDIO") {
-        return Destination { what: "A sound cue", steps, cost, reach: Reach::Arrived };
-    }
     assert!(
-        d.showing(bevy_dark_factory::workspace_panels::NO_AUDIO),
-        "the Sound workspace shows neither AUDIO nor the sentence that says the build has none: {:#?}",
+        d.showing("AUDIO"),
+        "the Sound workspace offers no AUDIO panel, which is the defect #600 names: {:#?}",
         d.words()
     );
-    Destination {
-        what: "A sound cue",
-        steps,
-        cost,
-        reach: Reach::Unreachable(
-            "the Sound workspace opens by one chord, but the AUDIO panel is behind the off-by-default `bevy_siren` \
-             feature: this build draws a sentence saying so, and no cue"
-                .to_owned(),
-        ),
-    }
+    Destination { what: "A sound cue", steps, cost, reach: Reach::Arrived }
 }
 
 /// **A part of the world**, in the World workspace (`Cmd`/`Ctrl`+`3`, NV-08 #385): terrain, water, forest and

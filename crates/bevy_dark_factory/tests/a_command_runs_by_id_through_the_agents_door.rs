@@ -107,7 +107,8 @@ fn an_agent_runs_edit_undo_exactly_as_cmd_z_does() {
     assert_eq!(map(&by_id).placements.len(), start.placements.len(), "the run is taken back");
 
     let state = call(&mut by_id, "blueprint/state", json!({}));
-    assert_eq!(state["ui"]["screen"], json!("workbench"), "state: {state}");
+    assert_eq!(state["screen"], json!("editor"), "`screen` is the field that says the workbench is up (#601): {state}");
+    assert_eq!(state["ui"]["workspace"], json!("MAP"), "and `ui.workspace` names which one: {state}");
     assert_eq!(state["editor"]["redo_depth"], json!(1), "the undone run is on the redo stack");
 
     let again = run(&mut by_id, "edit.redo");
@@ -156,7 +157,8 @@ fn the_state_says_the_screen_the_workspace_the_panels_and_who_has_the_keys() {
     let mut app = editor("cmdstate");
     let state = call(&mut app, "blueprint/state", json!({}));
     let ui = &state["ui"];
-    assert_eq!(ui["screen"], json!("workbench"), "ui: {ui}");
+    assert_eq!(state["screen"], json!("editor"), "the workbench is up, and `screen` is the one field that says so (#601): {state}");
+    assert!(ui.get("screen").is_none(), "`ui` does not spell the screen a second time: {ui}");
     assert_eq!(ui["workspace"], json!("MAP"), "ui: {ui}");
     assert_eq!(ui["panels"], json!(["MAP"]), "the Map door shows one panel: {ui}");
     assert_eq!(ui["focus"], json!("viewport"), "nothing holds the keys but the viewport: {ui}");

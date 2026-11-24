@@ -44,6 +44,11 @@ pub struct WorldPane;
 pub struct SoundRoot;
 
 /// The sentence the Sound workspace shows in a build without `bevy_siren`: what is missing, and what to do about it.
+///
+/// **No build offers this tab and draws this line** (#600). The Sound workspace is registered only where the build can fill it
+/// ([`crate::workspace::WAITING`] carries the row that unregisters it), so a person reaches this sentence only by opening the workspace
+/// through something that does not consult the table — a hand-written test of the panel's own arms. It stays because the
+/// `#[cfg(not(feature = "bevy_siren"))]` arm has to draw *something*, and "nothing" would be the worse answer.
 pub const NO_AUDIO: &str = "This build has no audio panel. Build the editor with the bevy_siren feature to edit cues and buses";
 
 /// The two panels' spawners and the heading both carry.
@@ -117,7 +122,8 @@ fn spawn_world_panel(mut commands: Commands, frame: Res<Frame>) {
     });
 }
 
-/// **The Sound workspace's panel**: the audio table, or the sentence that says this build has none.
+/// **The Sound workspace's panel**: the audio table, or — in a build that offers no Sound tab at all — the sentence that says which
+/// crate fills it.
 fn spawn_sound_panel(mut commands: Commands, frame: Res<Frame>) {
     let root = chrome::panel_root(
         &mut commands,

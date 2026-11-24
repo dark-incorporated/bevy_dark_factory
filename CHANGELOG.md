@@ -4,6 +4,10 @@ What each change added, newest first. A visible change has a clip: click the sti
 
 ## 2026-11-24
 
+- **598** Cmd+J cycles the terminal, and blueprint/state says which position *No clip: a state field plus a chord's measured cycle; proved by three_cmd_j_presses_cycle_the_pane_and_the_state_says_so*
+- **599** The Files pane's field line says what it edits *No clip: one label on a field; proved by every_focusable_control_in_the_files_pane_is_labelled*
+- **600** The Sound workspace draws its buses, cues and log on a default build *No clip: a build feature plus the panel it fills; proved by every_workspace_the_strip_offers_can_fill_itself*
+- **601** blueprint/state answers which screen once *No clip: a state-summary contract, not a drawing; proved by the_state_answers_which_screen_once*
 - **docs-citations** docs: nine comments and pages name the symbol, the system and the format the tree actually has, and four tests hold them there *No clip: documentation and comments only, no behaviour changed; each fix is read back against the code by every_comment_names_what_exists (no dead name under crates/, no uncited RON claim, the focus count, the bar against WAITING), the_documents_state_the_codes_own_counts::the_keys_page_names_every_chord_with_a_modifier and dark_factory_mcp::docs_are_current::every_document_states_the_servers_tool_count*
 - **597** the status band's two lights name their subjects, so the agent and the decision model read apart *For you: The two lights at the bottom of the screen now say which one is the agent and which is the model.* *No clip: a chip's words are laid out by the skin and read from the world; proved by tests/no_two_band_chips_say_the_same_word_with_no_subject.rs*
 - **592** Cargo.toml states what pin 8647648 has: a markdown module and feature the editor enables *No clip: a comment corrected, no dependency or code changed; the pin, the feature list and design_view.rs:1017 are unchanged and were re-read*
