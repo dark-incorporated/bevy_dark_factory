@@ -1,5 +1,5 @@
 ---
-description: Work on Dark Factory's own editor from inside it. Taste (colour, spacing, size, type, stacking, layout shares) is changed live in the editor's style sheet; a Rust change is built, tested and relaunched in place. Started by the editor's Dev chip or agent.editor_dev (Cmd/Ctrl+Alt+D).
+description: Work on Dark Factory's own editor from inside it. Taste (colour, spacing, size, type, stacking, layout shares) is changed live in the editor's style sheet; a Rust change is built, tested and relaunched in place. Started by agent.editor_dev (Cmd+Alt+D on a mac, Ctrl+Alt+D elsewhere), or by omp in the checkout and /editor-dev.
 argument-hint: "[what to change about the editor]"
 ---
 
@@ -27,7 +27,11 @@ not in Rust. The editor follows the file and applies an edit about a second afte
   `crates/bevy_dark_factory/src/style/theme_parchment.yaml` and `theme_high_contrast.yaml`.
 - **Find what styles a node before editing it**: `blueprint_ui_style_inspect` at the node's pixel (the coordinates of
   `blueprint_capture_still`'s picture) names its classes, each rule that matches with its file and line, and what
-  they add up to. The person's `Cmd/Ctrl+Alt+I` shows the same overlay.
+  they add up to.
+  - The person's `Cmd/Ctrl+Alt+I` (`view.inspect_style`) shows the same overlay over the running editor. A click on a
+    rule row opens it at that line in the Files workspace **when the layer is a file of the open project**; the
+    editor's own checkout and the person's `style.yaml` are not, so those rows put `path:line` on the clipboard and
+    the status line says `COPIED …`.
 - **Verify**: `blueprint_state` — its `reloads` must show `editor_style` applied and no refusal — then
   `blueprint_capture_still` to see it. A refusal names the field; fix that field.
 
