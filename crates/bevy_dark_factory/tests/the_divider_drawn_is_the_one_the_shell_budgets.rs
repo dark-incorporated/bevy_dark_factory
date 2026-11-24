@@ -25,6 +25,11 @@ fn the_divider_drawn_is_the_one_the_shell_budgets() {
     // **The sheet's number, read the way the shell reads it**: `metrics()` is the live table `StylePlugin`
     // swaps in, and `compiled_default()` is the sheet before a skin. The test names both, so a run that disagrees
     // says which table it disagrees about rather than leaving the reader to guess.
+    //
+    // **Measured on `2a616f01` and not explained**: both tables said **12** while `style.rs` read
+    // `divider_w: 29.0` and the gate's `libbevy_dark_factory` had been rebuilt that morning (07:36). `LayoutMetrics`
+    // has exactly one producer, `impl Default`, and no other `divider_w` exists in the tree. Until that is traced,
+    // this test's width assertion is red for a reason nobody has named — recorded here rather than written off.
     let live = metrics().layout.divider_w;
     let compiled = bevy_dark_factory::style::compiled_default().metrics.layout.divider_w;
     assert_eq!(live, compiled, "the live sheet and the compiled sheet disagree on the divider: {live} vs {compiled}");
