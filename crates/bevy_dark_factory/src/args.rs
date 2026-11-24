@@ -209,7 +209,7 @@ usage: bevy_dark_factory [ROOT] [MAP] [--workspace <id>] [--kit NAME] [--live] [
   --print-operations
                 print every operation this build has, one name a line, and exit (opens nothing)
 
-  migrate       move a project's files from RON to YAML and exit (does not open the editor)
+  migrate       move a project's files from the pre-GD-03 RON spelling to YAML and exit (does not open the editor)
   bake          turn every YAML file a game loads into binaries for a release, proved against the YAML, and exit";
 
 /// **Whether the arguments ask for the operation list and an exit**, which is what a benchmark asks a

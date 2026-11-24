@@ -43,7 +43,7 @@
 //!
 //! # Versioning: refuse what you cannot understand
 //!
-//! `persist.rs` states the rule this follows: a map from another schema is a loud error rather than a
+//! [`Map::parse`] states the rule this follows: a map from another schema is a loud error rather than a
 //! guess. What that means precisely is **a floor, not an equality** — a file numbered *above* this
 //! build is refused, and one at or below it is read and re-saved at the current number.
 //!

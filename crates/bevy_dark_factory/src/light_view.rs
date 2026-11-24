@@ -1,7 +1,7 @@
 //! **A placed torch flickers in the viewport** (#103).
 //!
 //! A placement that carries a `bevy_lights` `Flicker` (`placement_set_family`, the value is the crate's
-//! own RON type) is drawn with a real [`PointLight`] hung over it, and the crate's own `FlickerPlugin`
+//! own type, read from YAML) is drawn with a real [`PointLight`] hung over it, and the crate's own `FlickerPlugin`
 //! drives that light's intensity every frame, the way a game running the plugin does. One that carries a
 //! `Fire` holds the crate's `Fire` component at its foot instead, and a window's editor
 //! ([`FirePreviewPlugin`]) lets the crate make its flame and its pooled light. So the author

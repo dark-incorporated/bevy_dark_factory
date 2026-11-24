@@ -380,8 +380,8 @@ fn bake_and_exit(argv: &[String], program: &str) -> AppExit {
     }
 }
 
-/// **`bevy_dark_factory migrate <project folder>`**: move a project's files from RON to YAML, and say what
-/// happened (GD-03, #365).
+/// **`bevy_dark_factory migrate <project folder>`**: move a project's files from the old RON (GD-03, #365)
+/// spelling to YAML, and say what happened.
 ///
 /// The work is the migration crate's (`bevy_blueprint_migrate`), which computes every conversion before it
 /// writes one — so a project this refuses is byte for byte what it was. This function only prints:
@@ -401,7 +401,7 @@ fn migrate_and_exit(argv: &[String], program: &str) -> AppExit {
     let Some(root) = args::subcommand_argument(argv) else {
         eprintln!(
             "usage: {command}\n\n\
-             Moves a project's files from RON to YAML. Every file is converted in memory and read back \
+             Moves a project's files from the pre-GD-03 RON spelling to YAML. Every file is converted in memory and read back \
              before anything is written, so a project this refuses is left exactly as it was, and the \
              old files are moved to .dark_factory/migrated-ron/ rather than deleted."
         );

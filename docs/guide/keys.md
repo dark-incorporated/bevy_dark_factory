@@ -103,6 +103,7 @@ These keys work in the Map workspace.
 | `Cmd+B` | Any time | Show or hide the left panel (`Ctrl+B` elsewhere; View, Show left panel). |
 | `Shift+Cmd+M` | Any time | Zen mode: hide everything but the viewport, and bring it back (`Shift+Ctrl+M` elsewhere; View, Zen mode). |
 | `Shift+Cmd+X` | Any time | Show the problems list: the Map inspector's PROBLEMS, scrolled on screen from any workspace (`Shift+Ctrl+X` elsewhere; View, Show problems). |
+| `Shift+Cmd+L` | Any time | Look at the agent's last change: frame what the NightShift touched (`Shift+Ctrl+L` elsewhere). Rebind it in the keymap screen if you want it elsewhere. |
 | `M` | Any time | Keep the selected set as a composition. |
 | `N` | Any time | Rename the map. |
 | `O` | Any time | Pin or unpin. |
@@ -185,6 +186,7 @@ These keys work on the Animation workspace's rig bench (the Anim panel).
 | --- | --- | --- |
 | `Up` / `Down` | Any time | Walk the rigs. Hold Shift to move five at a time. Works in filter boxes. |
 | `Enter` | Any time | Adopt the measured values into the rig file. |
+| `Cmd+R` | Any time | Show or hide the rig list. The workspace opens without it; the list's heading states the chord. `Ctrl+R` elsewhere. |
 | `Cmd+Z` | Any time | Undo the last write. |
 | `Cmd+Shift+Z` | Any time | Redo the last write. |
 | `Left` / `Right` | Any time | Scrub the phase. Hold Shift to scrub finely. |

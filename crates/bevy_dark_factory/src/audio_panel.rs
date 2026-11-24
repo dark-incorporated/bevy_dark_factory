@@ -158,7 +158,7 @@ pub fn read_audio(
 
 /// One file's worth of the crate's own types: the mix table and the cue table, which is what an audio panel edits.
 ///
-/// The file is a RON tuple of the two, so a project ships one sound file and the editor has one file to write. A
+/// The file is one YAML mapping holding the two (`settings:`, `cues:`), so a project ships one sound file and the editor has one file to write. A
 /// score is a third section and is optional: a project with no adaptive music leaves it out.
 pub fn read_file(text: &str) -> Result<(bevy_siren::SirenSettings, bevy_siren::CueTable), String> {
     #[derive(serde::Deserialize)]

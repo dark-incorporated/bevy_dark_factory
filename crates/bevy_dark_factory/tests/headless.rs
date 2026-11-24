@@ -2838,7 +2838,7 @@ mod compose {
 /// **The open name box is UI, and every "is the pointer over UI" test has to agree.**
 ///
 /// That question is asked as "is any `Hovered` true" — `view::drive` for the scroll wheel,
-/// `place_on_click` for the world click, `compose::pick_slot` for the strip. The dialog carried no
+/// `drive_place` for the world click, `compose::pick_slot` for the strip. The dialog carried no
 /// `Hovered` at all, so scrolling over a visible, open prompt zoomed the world behind it.
 ///
 /// The full-screen backdrop deliberately stays click-through, which is why this asserts on the inner

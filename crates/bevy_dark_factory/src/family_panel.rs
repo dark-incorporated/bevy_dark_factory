@@ -7,7 +7,7 @@
 //! # The file is the crate's, and there is no second schema
 //!
 //! A project's `family.yaml` lists the family crates it uses; each one's settings are its own serde type
-//! written as RON in `<project>/family/<crate>.yaml` — the file `family_set` writes (`ops_family.rs`) and
+//! written as YAML in `<project>/family/<crate>.yaml` — the file `family_set` writes (`ops_family.rs`) and
 //! a running game's copy of the plugin reads. [`ElementsSettings`] is the one settings type this build
 //! holds, and it is the editor's thin wrapper around the crate's own types (`WorldClock`, `Climate`,
 //! `GeoLocation`): the panel's fields are that file's fields, at the dot-paths `family_set` already takes
@@ -17,7 +17,7 @@
 //!
 //! `bevy_gooey::inspector` edits a **reflected component on an entity**. `ElementsSettings` is a plain
 //! serde type here and is not `#[reflect(Resource)]`, and even if it were, a reflected write straight
-//! onto it would be a second path to the file — one that skips `family_set`'s RON surgery, its refusal of
+//! onto it would be a second path to the file — one that skips `family_set`'s YAML value surgery, its refusal of
 //! a value the crate's type will not read, its atomic write, its log line and its inverse. So
 //! [`FamilyView`] is a **reflected view of the file's editable fields**, spawned on an entity of its own;
 //! the inspector edits *it*, and [`an_edit_is_the_operation`] turns the change into the write. That is the
@@ -53,7 +53,7 @@
 //! its settings live under), [`FamilySettings`] (the text the watch last saw good), and the preview's
 //! held [`ClockScrub`] for the hour — so it re-reads on a change in one of those and on nothing else.
 //!
-//! **The first cut did not.** It loaded `family.yaml`, read every `family/<crate>.yaml` and parsed its RON
+//! **The first cut did not.** It loaded `family.yaml`, read every `family/<crate>.yaml` and parsed its YAML
 //! every frame, and it read from disk even when [`FamilySettings`] already held the text: sixty file
 //! reads a second to be told what the panel was already showing (`#243` review). A settled panel now
 //! costs one comparison, and the disk is the *fallback* for the first frames before the watch has polled
@@ -68,7 +68,7 @@
 //!
 //! # A crate this build has no type for
 //!
-//! It gets a block that shows its file as RON and no fields: the editor will not invent a schema for
+//! It gets a block that shows its file's YAML text and no fields: the editor will not invent a schema for
 //! another crate's settings, and it will not draw an empty panel as if the crate had none. That is the
 //! two-way street's own answer — a settings type that wants fields here needs `Reflect` in its own crate,
 //! filed there (`consumer:bevy_blueprint`) rather than worked around here.
@@ -116,7 +116,7 @@ pub const FILE_FIELDS: &[(&str, &str)] = &[
 pub struct FamilyPanel {
     /// The crates with a block, in `family.yaml`'s order.
     crates: Vec<String>,
-    /// The crates whose fields this build can draw; the others show their file as RON.
+    /// The crates whose fields this build can draw; the others show their file's YAML text.
     fields: Vec<String>,
     /// The project root the list was read for, so another project re-reads.
     root: Option<PathBuf>,
@@ -138,7 +138,7 @@ impl FamilyPanel {
         self.crates.iter().map(String::as_str)
     }
 
-    /// Whether the panel draws `krate`'s fields (rather than its file as RON).
+    /// Whether the panel draws `krate`'s fields (rather than its file's YAML text).
     pub fn has_fields(&self, krate: &str) -> bool {
         self.fields.iter().any(|c| c == krate)
     }
@@ -243,7 +243,7 @@ impl FamilyView {
         self
     }
 
-    /// **The RON value `family_set` is given for a field of this view**, kept inside what the crate's own
+    /// **The YAML value `family_set` is given for a field of this view**, kept inside what the crate's own
     /// type accepts: a typed month of 0 or 40 lands on January or December rather than in the file.
     ///
     /// A float is written with its point (`0.0`, never `0`), so the file keeps the field's type.
@@ -309,7 +309,7 @@ const STEP_CLIMATE: f32 = 0.5;
 #[derive(Resource, Default)]
 pub struct FamilyViews(pub BTreeMap<String, Entity>);
 
-/// **The block in the INSPECTOR panel**: a heading and, under it, the crate's fields or its file as RON.
+/// **The block in the INSPECTOR panel**: a heading and, under it, the crate's fields or its file's YAML text.
 #[derive(Component)]
 pub struct FamilyBlock {
     /// The crate the block draws.
@@ -370,7 +370,7 @@ fn listed_stamp(root: &std::path::Path) -> Option<Stamp> {
 /// [`FamilySettings`] (the text the watch last took as good), and the preview's held [`ClockScrub`]
 /// (the hour). A frame in which none of them moved returns here on one `stat`, two change ticks and a
 /// look at the view entities — the first cut loaded `family.yaml`, read every `family/<crate>.yaml` and
-/// parsed its RON on **every** frame, sixty times a second, to be told what the panel already showed.
+/// parsed its YAML on **every** frame, sixty times a second, to be told what the panel already showed.
 ///
 /// **The view entities are part of the gate** because a door change sweeps them without touching these
 /// resources: a slot naming an entity the world no longer has is exactly the frame the panel must read
@@ -655,7 +655,7 @@ mod tests {
         assert_eq!(*DAYS.end(), 31.0);
     }
 
-    /// A crate with no settings type in this build has no view, which is what sends its block to the RON
+    /// A crate with no settings type in this build has no view, which is what sends its block to the YAML
     /// text instead of an empty panel.
     #[test]
     fn a_crate_this_build_has_no_type_for_has_no_view() {

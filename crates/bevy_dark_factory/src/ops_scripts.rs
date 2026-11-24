@@ -1,6 +1,6 @@
 //! **Triggers on a map, as one registered operation** (#105): `trigger_set`.
 //!
-//! A trigger is `bevy_society`'s own: an event it listens to (`on`, the crate's `TriggerOn` in RON), an
+//! A trigger is `bevy_society`'s own: an event it listens to (`on`, the crate's `TriggerOn` as YAML), an
 //! optional Rhai `if`, and Rhai `then`, written against the crate's `ctx` reader and `fx` writer. The editor
 //! adds no scripting language. What it adds is where the trigger is kept and who it is for: the file is
 //! `<blueprint_dir>/scripts/<map>.yaml`, beside the map and the people, and a trigger may be **bound** to named
@@ -46,7 +46,8 @@ pub struct Bind {
 #[serde(deny_unknown_fields)]
 pub struct Trigger {
     pub id: String,
-    /// `bevy_society`'s `TriggerOn`, as RON: `Activity("work")`, `NeedBelow(need: "food", below: 0.4)`.
+    /// `bevy_society`'s `TriggerOn`, as YAML: `!Activity work` (the spelling every trigger test in this
+    /// crate writes).
     pub on: String,
     /// A Rhai boolean that must hold.
     #[serde(default, rename = "if", skip_serializing_if = "Option::is_none")]
@@ -418,7 +419,7 @@ impl Operation for TriggerSet {
             "properties": {
                 "map": {"type": "string", "description": "The map the trigger belongs to."},
                 "id": {"type": "string", "description": "The trigger's id. A new id adds a trigger and needs `on` and `then`; a standing one is changed."},
-                "on": {"type": "string", "description": "A bevy_society event as RON, e.g. `Activity(\"work\")` or `NeedBelow(need: \"food\", below: 0.4)`."},
+                "on": {"type": "string", "description": "A bevy_society event as YAML, e.g. `!Activity work`."},
                 "if": {"type": "string", "description": "A Rhai boolean written against `ctx` (`ctx.trust(actor, target) < 0.2`); \"\" removes it."},
                 "then": {"type": "string", "description": "Rhai statements written against `fx` (`fx.bark(actor, \"Hello\")`). A script that does not compile is refused with its line, and nothing is saved."},
                 "once": {"type": "boolean", "description": "Fire at most once per person."},

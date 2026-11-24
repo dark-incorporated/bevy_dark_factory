@@ -1,4 +1,4 @@
-//! **The tokenizer RON and Rhai share**: colours, the brackets in order, a string that never ended. It is a scan and
+//! **The tokenizer `files_lang::ron` and Rhai share**: colours, the brackets in order, a string that never ended. It is a scan and
 //! not a parser (see the module note of [`super`]), so the errors it names are only the ones a scan can be sure of.
 
 use std::ops::Range;
@@ -7,7 +7,7 @@ use bevy_gooey::{CodeSeverity, SyntaxRole};
 
 use super::Finding;
 
-// ── RON and Rhai ─────────────────────────────────────────────────────────────
+// ── `files_lang::ron` and Rhai ───────────────────────────────────────────────
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(super) enum Code {
@@ -30,7 +30,7 @@ struct Bracket {
     line: usize,
 }
 
-/// What a scan of RON or Rhai found: the spans, the brackets in order, and a string that never ended.
+/// What a scan of a `.ron` or Rhai file found: the spans, the brackets in order, and a string that never ended.
 pub(super) struct Scan {
     brackets: Vec<Bracket>,
     unterminated: Option<usize>,
@@ -78,7 +78,7 @@ pub(super) fn highlights(text: &str, code: Code) -> (Vec<(Range<usize>, SyntaxRo
                 at = end.min(text.len());
             }
             // **A character literal is a string of one character** (`'"'`, `'('`, `'\n'`): its quote and what is inside it
-            // open no string and no bracket. A lone `'` (a lifetime in a RON enum name, an apostrophe) is only itself.
+            // open no string and no bracket. A lone `'` (a lifetime in a Rhai script, an apostrophe) is only itself.
             b'\'' => {
                 match char_literal_end(text, at) {
                     Some(end) => {
@@ -223,7 +223,7 @@ fn char_literal_end(text: &str, at: usize) -> Option<usize> {
 /// The longest an escaped character literal is, in bytes between its backslash and its closing quote (`\u{10FFFF}`).
 const CHAR_ESCAPE_BYTES: usize = 10;
 
-/// **What a bracket scan can be sure of** in a RON or Rhai file: a bracket that closes nothing or never closes, a
+/// **What a bracket scan can be sure of** in a `.ron` or Rhai file: a bracket that closes nothing or never closes, a
 /// string that never ends.
 pub(super) fn bracket_findings(text: &str, code: Code) -> Vec<Finding> {
     let (_, scan) = highlights(text, code);

@@ -1,5 +1,5 @@
 //! **What a `bevy_lights` placement carries** (#103): the crate's own `Flicker` (a bare light that breathes)
-//! or its own `Fire` (a whole fire: flame, pooled light, sparks, smoke), as one RON value under the family
+//! or its own `Fire` (a whole fire: flame, pooled light, sparks, smoke), as one YAML value under the family
 //! key `bevy_lights`. The editor never defines a second schema: [`Fixture::read`] only decides which of the
 //! crate's two types a value is, then lets the crate's own serde read it.
 //!

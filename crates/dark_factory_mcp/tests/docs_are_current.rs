@@ -259,23 +259,27 @@ fn the_tool_table_and_its_count_are_the_servers() {
     );
 }
 
-/// **Every document that says how many tools there are says the server's number** (#473 review).
+/// **Every document that says how many tools there are says the server's number** (#473 review, #589).
 ///
 /// The module doc's table and its count are checked above, but the *same* number is spelled in the
 /// crate's README and in `docs/PROJECT.md`, and both had gone stale: the server declared 29 tools
 /// while both said 28. A count nobody checks is a count that is wrong once and stays wrong, so this
 /// reads each document that states it and refuses a stale one.
+///
+/// **The editor's own README is the fourth document** (#589): it said 28 while the server declared 32, and
+/// no test read it, so an agent's first page about the editor was the one page nobody checked.
 #[test]
 fn every_document_states_the_servers_tool_count() {
     let declared = dark_factory_mcp::docs::TOOLS.len();
     // **Every place the number is spelled**, as (document, the phrase its digits follow, where a
-    // table cell ends rather than a word): the README's sentence, PROJECT.md's agent section, its
-    // crate table row and its summary table row.
-    let places: [(&str, &str, &str); 4] = [
+    // table cell ends rather than a word): the server's README's sentence, PROJECT.md's agent section,
+    // its crate table row and its summary table row, and the editor's README (#589).
+    let places: [(&str, &str, &str); 5] = [
         (include_str!("../README.md"), "There are ", " tools"),
         (include_str!("../../../docs/PROJECT.md"), "### What an agent sees\n\n- **", " tools**, `blueprint_`"),
         (include_str!("../../../docs/PROJECT.md"), "The MCP server: ", " tools over stdio"),
         (include_str!("../../../docs/PROJECT.md"), "| MCP tools | ", " |"),
+        (include_str!("../../bevy_dark_factory/README.md"), "turns that into ", " typed tools"),
     ];
     for (text, lead, suffix) in places {
         assert_eq!(

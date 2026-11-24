@@ -855,7 +855,7 @@ pub enum Side {
 /// size is its content, so without it the panel grows to fit every row and `overflow` has nothing
 /// left to clip.
 ///
-/// **Every panel carries `Hovered`.** `view::drive` and `place_on_click` both ask "is the pointer
+/// **Every panel carries `Hovered`.** `view::drive` and `drive_place` both ask "is the pointer
 /// over UI" by looking for any true `Hovered`, and when only the *rows* carried one the gaps between
 /// them counted as open map — a wheel turn over a list zoomed the world, and a click that missed a
 /// row by a pixel dropped a piece behind the panel. `Hovered` is true for an entity **or any
@@ -3563,7 +3563,7 @@ fn spawn_name_box(mut commands: Commands) {
                 // **The dialog itself is UI; the dimmed backdrop behind it is not.**
                 //
                 // "Is the pointer over UI" is asked everywhere as "is any `Hovered` true"
-                // (`view::drive`, `place_on_click`, `compose::pick_slot`), and this panel carried no
+                // (`view::drive`, `drive_place`, `compose::pick_slot`), and this panel carried no
                 // `Hovered` — so scrolling over a visible, open dialog zoomed the world behind it.
                 //
                 // This narrows the root's deliberate `Pickable::IGNORE` rather than undoing it. The

@@ -132,7 +132,7 @@ fn spawn_sound_panel(mut commands: Commands, frame: Res<Frame>) {
     .id();
     commands.entity(root).with_children(|p| {
         chrome::title(p, "INSPECTOR");
-        // **The cues (NV-11, #392):** listed in every build, from the project's `family/bevy_siren.ron`. Auditioning one needs the
+        // **The cues (NV-11, #392):** listed in every build, from the project's `family/bevy_siren.yaml`. Auditioning one needs the
         // crate, so a build without it says so beside the list.
         block(p).with_children(|s| {
             #[cfg(feature = "bevy_siren")]

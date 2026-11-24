@@ -2,6 +2,10 @@
 
 What each change added, newest first. A visible change has a clip: click the still to play it. `python3 tools/changelog/changelog.py page --open` plays them all in one page.
 
+## 2026-11-24
+
+- **docs-citations** docs: nine comments and pages name the symbol, the system and the format the tree actually has, and four tests hold them there *No clip: documentation and comments only, no behaviour changed; each fix is read back against the code by every_comment_names_what_exists (no dead name under crates/, no uncited RON claim, the focus count, the bar against WAITING), the_documents_state_the_codes_own_counts::the_keys_page_names_every_chord_with_a_modifier and dark_factory_mcp::docs_are_current::every_document_states_the_servers_tool_count*
+
 ## 2026-11-23
 
 - **557** `4b5de850` audio panel: the buses, the cues (one choice the arrows move) and the log it says it draws *No clip: a panel's contents, proved by the_panel_draws_the_buses_the_cues_and_the_log and the_cue_list_is_chosen_by_SelectedCue; no clip: the Sound workspace needs a sound loaded before Audition can play one (#555)*

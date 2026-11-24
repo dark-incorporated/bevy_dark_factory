@@ -8,7 +8,7 @@
 //! It always was engine-free — `placement/ir.rs` has carried the sentence *"Nothing here imports
 //! `bevy::`"* since long before this crate existed, and `wfc.rs`, `geom.rs` and `scatter.rs` each say
 //! the same about themselves. But a comment cannot fail a build. Now the manifest can: `blueprint_model`
-//! depends on `serde`, `ron`, `rand` and `rand_chacha`, so reaching for a `bevy` type or a game
+//! depends on `serde`, `rand` and `rand_chacha`, so reaching for a `bevy` type or a game
 //! concept from in here does not compile.
 //!
 //! That matters because three consumers need this code and only one of them is the game: the game

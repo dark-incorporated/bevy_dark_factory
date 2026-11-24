@@ -196,7 +196,7 @@ pub fn run(world: &mut World, verb: AppVerb) {
 /// Two writes, one intent. The running `Dock` is set to the current workspace's default so the change
 /// is on screen this frame; the user's file loses that workspace's entry, which is what its default
 /// *is* (a person who has never moved a panel has no key). Writing the file is what makes it survive a restart; the
-/// key goes rather than being written out as the default's RON, because a saved copy of the default
+/// key goes rather than being written out as the default's YAML, because a saved copy of the default
 /// would stop tracking a change to it.
 fn reset_the_layout(world: &mut World) {
     let workspace = world

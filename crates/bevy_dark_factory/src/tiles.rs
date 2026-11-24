@@ -3398,7 +3398,7 @@ impl ImportState {
 
 /// **Write the measurements back to disk, or say why they could not be.** The one writer.
 ///
-/// `commit_candidate` and `remove_tile` each grew their own copy of resolve → remeasure → `to_ron` →
+/// `commit_candidate` and `remove_tile` each grew their own copy of resolve → remeasure → `to_yaml` →
 /// `save_atomic`; a third copy, for lattice edits, is the point at which they would have drifted. The
 /// masks and triangle counts are derived from the library, so they move with it or they are stale.
 ///
@@ -6758,7 +6758,7 @@ fn toggle_tag(axis: Axis, token_ix: usize, project: &mut Project, state: &mut Im
             let said = format!("{} tags updated", axis.label().to_lowercase());
             // **No `persist` here — `label_set` already wrote the file.** Its commit is
             // `commit_measured`, which is the one door to `library.yaml`; `Persist::Library` would
-            // serialize and write the identical library a second time. That cost two `to_ron` ->
+            // serialize and write the identical library a second time. That cost two `to_yaml` ->
             // `save_atomic` round trips per click, and no existing test could see it because the
             // bytes on disk are right either way (E-049,
             // `a_chip_click_writes_the_library_once.rs`).

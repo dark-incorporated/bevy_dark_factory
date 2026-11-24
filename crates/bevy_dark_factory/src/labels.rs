@@ -14,7 +14,7 @@
 //!
 //! # No proposal survives the process, deliberately
 //!
-//! There was a RON cache under the project's `target/` that warmed [`Suggestions`] back full on
+//! There was a cache under the project's `target/` that warmed [`Suggestions`] back full on
 //! `OnEnter(Editor)`, and it outlived the reason for it. A proposal now applies **on arrival**
 //! (`tiles::apply_what_arrives`), so its life is under one frame and the file could only ever hold
 //! the answers staged while a batch was HELD — and `LabelQueue::paused` has no serde, so the next
@@ -2382,7 +2382,7 @@ mod tests {
     ///
     /// Before this, the two were byte-identical in `library.yaml` the moment `U` was pressed: the
     /// model's name, the date and its own confidence were dropped by `apply_fields`, and the only
-    /// surviving copy lived in a RON file under the build directory, so `cargo clean` deleted every
+    /// surviving copy lived in a file under the build directory, so `cargo clean` deleted every
     /// record of what any model had ever said about the kit. That file is gone now too (see the
     /// module note), which makes the record this test pins the ONLY copy there is.
     ///

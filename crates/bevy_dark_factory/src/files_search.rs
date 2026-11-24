@@ -10,8 +10,9 @@
 //!
 //! [`plan`] reads every file the query matches and says what each would become, **writing nothing**. It
 //! refuses, naming the file and line, when the replace would leave a file that read **not reading**
-//! ([`crate::files_lang::diagnose`]: a YAML file by its kind's own reader or the event walk, a RON file by
-//! `ron`), and then nothing is written for any file: a project-wide rename is all of it or none of it.
+//! ([`crate::files_lang::diagnose`]: a YAML file by its kind's own reader or the event walk, a `.ron` file by
+//! its bracket scan, as `files_lang::ron` does), and then nothing is written for any file: a project-wide rename
+//! is all of it or none of it. A `.ron` file here is a game's own — no project file is one since GD-03, #365.
 //! [`apply`] writes the planned files atomically and, if one write fails, puts back the ones already written.
 //! The operation `files_replace` ([`crate::ops_files`]) is [`plan`] then [`apply`], logged with an inverse
 //! that puts every file back byte for byte, so one undo takes the whole replace back.
