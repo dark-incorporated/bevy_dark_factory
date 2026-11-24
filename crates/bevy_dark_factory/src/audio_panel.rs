@@ -330,7 +330,6 @@ fn stepped(cues: &[String], from: Option<&str>, step: isize) -> Option<String> {
 #[derive(Default)]
 struct Drawn {
     buses: Option<Vec<String>>,
-    cues: Option<Vec<String>>,
     log: Option<Vec<String>>,
 }
 
