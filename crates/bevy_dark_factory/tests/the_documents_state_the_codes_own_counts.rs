@@ -643,7 +643,7 @@ fn the_keys_page_names_every_chord_with_a_modifier() {
             label.insert_str(0, "Shift+");
         }
         let wanted = chord_parts(&label);
-        if !spans.iter().any(|span| *span == wanted) {
+        if !spans.contains(&wanted) {
             missing.push(format!("`{label}` ({:?}, \"{}\")", b.action, b.does));
         }
     }
