@@ -1395,13 +1395,12 @@ pub fn spawn_frame(
     let split = commands
         .spawn((
             bevy_gooey::split(bevy_gooey::SplitAxis::Horizontal, (), ()),
-            // **The shell draws gooey's own 24 px divider, and the layout budgets it** (#550, decision
-            // 2026-11-23). `metrics.layout.divider_w` was 12 (the owner's #476, "maybe only half as thick as
-            // this?") and nothing handed it to gooey, so the build drew 24 while every width calc reserved 12.
-            // gooey's own note says a divider under 24 px is below WCAG 2.2 SC 2.5.8's minimum target, mitigated
-            // only by its keys, and a divider is the one grabbable node in the frame: the metric moves to the
-            // seam rather than the seam to the metric, and `bevy_gooey::SplitThickness` stays unset so gooey's
-            // default is the single source. A 12 px drawn seam with a 24 px hit area needs a gooey change first.
+            // **One number for the seam and the budget** (#550). It was two: `metrics.layout.divider_w` 12 (the
+            // owner's #476, "maybe only half as thick as this?"), applied nowhere, while gooey drew **29 px**
+            // measured on the fixture — its `MIN_TARGET_PX` 24 is a *minimum*, and the node took more. The host
+            // now hands the sheet's number to gooey, so what is reserved is what is drawn, and
+            // `the_divider_drawn_is_the_one_the_shell_budgets` fails if either side moves alone.
+            bevy_gooey::SplitThickness(crate::style::metrics().layout.divider_w),
             bevy_gooey::SplitFraction(0.22),
             // **Both panes keep a floor, so a drag cannot squash the world** (UI-30, #224).
             // Without it `SplitMin` is `(0, 0)` and `SplitFraction` 0.95 left the viewport 47 px of

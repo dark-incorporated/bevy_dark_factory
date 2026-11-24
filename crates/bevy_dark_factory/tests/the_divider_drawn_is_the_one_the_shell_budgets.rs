@@ -27,13 +27,17 @@ fn the_divider_drawn_is_the_one_the_shell_budgets() {
     let mut dividers = world.query::<(&bevy_gooey::SplitDivider, &ComputedNode)>();
     let drawn: Vec<f32> = dividers.iter(world).map(|(_, node)| node.size().x).collect();
     assert!(!drawn.is_empty(), "the shell draws a split divider");
+    // **`SplitThickness` is what makes the seam the budget**, and this is the test that proved it needed to be.
+    // On `main` before the shell set it, the divider drew **29 px** on this fixture while the sheet's number was
+    // 12: gooey's default is `MIN_TARGET_PX` 24 written as a *minimum*, so the node was free to be wider and the
+    // drawn seam answered to neither number. The sheet's `divider_w` is now 29 — the measured seam — and the host
+    // hands that one number to gooey, so what is reserved is what is drawn.
     for width in &drawn {
-        // **Measured, not read off the component**: a node's size is what the frame drew. The tolerance is a
-        // device pixel at the fixture's scale, because a 12 px channel lands on a fractional boundary.
         assert!(
             (width - budget).abs() <= 1.0,
-            "the divider draws {width} px where `metrics.layout.divider_w` budgets {budget} px; a seam wider than \
-             its budget eats the viewport, and one narrower than it leaves a dead strip (#550)"
+            "the divider draws {width} px where `metrics.layout.divider_w` budgets {budget} px. Without \
+             `SplitThickness` gooey's 24 is a MINIMUM and the node may be wider (29 measured); a seam wider \
+             than its budget eats the viewport, a narrower one leaves a dead strip (#550)"
         );
     }
 }

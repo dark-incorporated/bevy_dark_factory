@@ -162,12 +162,14 @@ pub struct LayoutMetrics {
     pub viewport_min_w: f32,
     /// **The share of the window the viewport is owed once that is more than `viewport_min_w`** (#282).
     pub viewport_share: f32,
-    /// **The room the shell's split divider takes**: gooey's own 24 px channel, which is what the build draws
-    /// because the shell sets no `SplitThickness` (#550). This was 12 between the owner's #476
-    /// (`feedback-1794783253218`, *"maybe only half as thick as this?"*) and 2026-11-23, and nothing applied it, so
-    /// every width calc reserved 12 for a 24 px seam. gooey's note on `SplitThickness` is why the number moved
-    /// here rather than there: under 24 px is below WCAG 2.2 SC 2.5.8's minimum target, and the divider is the one
-    /// grabbable node in the frame.
+    /// **The room the shell's split divider takes**, handed to gooey as its `SplitThickness` (#550).
+    ///
+    /// This was 12 from the owner's #476 (*"maybe only half as thick as this?"*) and nothing applied it, so every
+    /// width calc reserved 12 while the frame drew its own seam: **29 px measured** on the fixture project
+    /// (`the_divider_drawn_is_the_one_the_shell_budgets`), because gooey writes its `MIN_TARGET_PX` 24 as a
+    /// *minimum* and the node takes more. The number is now both the budget and what the host tells gooey, so the
+    /// two cannot disagree. A 12 px seam with a 24 px hit area is a gooey change (a channel separate from the
+    /// drawn thickness); until then this is 29, which also clears WCAG 2.2 SC 2.5.8's 24 px target.
     pub divider_w: f32,
     /// The bottom dock's height.
     pub bottom_dock_h: f32,
@@ -220,7 +222,7 @@ impl Default for LayoutMetrics {
             dock_min_share: 0.6,
             viewport_min_w: 420.0,
             viewport_share: 0.52,
-            divider_w: 24.0,
+            divider_w: 29.0,
             bottom_dock_h: 148.0,
             workbench_floor_h: 420.0,
             thumb_slot: 30.0,
