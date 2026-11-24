@@ -149,11 +149,14 @@ fn spawn_sound_panel(mut commands: Commands, frame: Res<Frame>) {
                 s.spawn(bevy_gooey::label(NO_AUDIO));
             }
             // **The cue's own cross-references, in every build.** With `bevy_siren`,
-            // `audio_panel::spawn_section` draws the cue NAMES and the choice Audition plays; this list draws the
-            // `used by data/door.yaml:2` lines and says `no file names <cue>` when nothing does — a different
-            // question, and the one a person following a reference asks. They are two views of one selection
-            // (`world_lists::SelectedCue`), not two selections (2026-11-23 review, finding 2 was the second
-            // *selection*, which is still gone).
+            // `audio_panel::spawn_section` already draws the cue NAMES and the choice Audition plays, so this adds
+            // only the `used by data/door.yaml:2` lines (or `no file names <cue>`): a different question, and the
+            // one a person following a reference asks. They are two views of one selection
+            // (`world_lists::SelectedCue`), not two selections — the second *selection* the 2026-11-23 review
+            // removed stays gone. Without the crate there is no panel, so the list draws its names too.
+            #[cfg(feature = "bevy_siren")]
+            crate::world_lists::spawn_cue_uses(s);
+            #[cfg(not(feature = "bevy_siren"))]
             crate::world_lists::spawn_cue_list(s);
         });
     });

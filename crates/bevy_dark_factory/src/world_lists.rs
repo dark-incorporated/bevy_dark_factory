@@ -229,6 +229,15 @@ pub fn spawn_cue_list(p: &mut ChildSpawnerCommands) {
     p.spawn((CueUses, list_node()));
 }
 
+/// **Just the `used by` column**, for a build where the audio panel already names the cues (#600).
+///
+/// The panel draws the names and the choice Audition plays; this column answers the other question a following
+/// reference asks — which file and line names this cue — and the two are one selection
+/// (`world_lists::SelectedCue`), not two. Spawning `spawn_cue_list` beside the panel would draw the names twice.
+pub fn spawn_cue_uses(p: &mut ChildSpawnerCommands) {
+    p.spawn((CueUses, list_node()));
+}
+
 /// A list's column.
 fn list_node() -> impl Bundle {
     (bevy_gooey::column(0.0), chrome::Gap::Tight.class())
