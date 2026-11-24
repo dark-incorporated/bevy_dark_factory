@@ -1,7 +1,8 @@
 # **The editor's style sheet** (`crate::style`): every value of taste the editor draws with, in one file.
 #
-# Edit it while the editor runs from this checkout and the window changes within a fifth of a second, with no
-# rebuild. A theme (`theme_parchment.yaml`, `theme_high_contrast.yaml`) is laid over it, then the person's
+# Edit it while the editor runs from this checkout and the window changes about a second after the save (the
+# project index's sweep and debounce, #501), with no rebuild. A theme (`theme_parchment.yaml`,
+# `theme_high_contrast.yaml`) is laid over it, then the person's
 # `<config_dir>/Blueprint/style.yaml`, then a project's `assets/blueprint/editor_style.yaml`; a later layer wins
 # key by key. A file that does not read keeps the last good one and is refused in `blueprint_state.reloads`.
 #
