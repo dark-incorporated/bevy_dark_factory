@@ -42,6 +42,19 @@ fn the_divider_drawn_is_the_one_the_shell_budgets() {
 
     // **Every divider**, so a failure can say which one it measured.
     let world = app.world_mut();
+    // **Every number the divider's node holds**, so a build says why it is the width it is instead of leaving the
+    // reader to model flexbox: the plain `Node`'s own width and padding, the computed box, and each child's size.
+    let mut dividers = world.query::<(Entity, &bevy_gooey::SplitDivider, &ComputedNode, &Node)>();
+    let parts: Vec<String> = dividers
+        .iter(world)
+        .map(|(e, _, node, plain)| {
+            format!(
+                "node width={:?} pad={:?} border={:?} min={:?} :: computed={:?}",
+                plain.width, plain.padding, plain.border, plain.min_width, node.size()
+            )
+        })
+        .collect();
+    let world = app.world_mut();
     let mut dividers = world.query::<(&bevy_gooey::SplitDivider, &ComputedNode, &Node)>();
     let drawn: Vec<(f32, bool)> = dividers.iter(world).map(|(_, node, plain)| (node.size().x, plain.display != Display::None)).collect();
     assert!(!drawn.is_empty(), "the shell draws a split divider");
@@ -58,9 +71,8 @@ fn the_divider_drawn_is_the_one_the_shell_budgets() {
     let node = budget + 6.0;
     assert!(
         (widest - node).abs() <= 1.0,
-        "the sheet reserves {budget} px, gooey's grip and borders make the node {node} px, and the widest divider \
-         drawn is {widest} px ({drawn:?}); a seam wider than its budget eats the viewport, a narrower one leaves a \
-         dead strip (#550)"
+        "the sheet reserves {budget} px, the node is taken to be {node} px, and the widest divider drawn is \
+         {widest} px ({drawn:?}); the divider's own nodes say {parts:?} (#550)"
     );
 
 }
