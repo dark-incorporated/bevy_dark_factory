@@ -1490,7 +1490,13 @@ fn rebuild_slots(
                         },
                     ),
                 };
-                p.spawn((bevy_gooey::row(0.0), crate::chrome::Gap::Row.class()))
+                // **The legend wraps** (#596): four gait chips on one non-wrapping row measured 346 px in a 324 px
+                // column, so the last one drew 22 px past the panel's own edge. Every other wrapping row in the
+                // editor says the same thing this way (`chrome.rs:3030`, `editor.rs:7265`, `project_page.rs:517`).
+                p.spawn((
+                    bevy_gooey::row_with(0.0, bevy_gooey::RowLayout { wrap: Some(FlexWrap::Wrap), ..default() }),
+                    crate::chrome::Gap::Row.class(),
+                ))
                 .with_children(|row| {
                     // **A `cell` is the two fixed columns** (UI-58, #244). Its width is in body text
                     // sizes, so the column keeps its share of the row as the person enlarges the type
