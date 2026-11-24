@@ -52,6 +52,53 @@ fn go_to_files(app: &mut App) {
     assert_eq!(app.world().resource::<Workspace>(), &Workspace::Files, "the Files workspace is open");
 }
 
+/// **Is `entity` on screen**, by the same rule the panel census uses: visible, and laid out with a box.
+fn is_drawn(world: &World, entity: Entity) -> bool {
+    let Some(shown) = world.get::<InheritedVisibility>(entity) else { return false };
+    let Some(node) = world.get::<ComputedNode>(entity) else { return false };
+    shown.get() && node.size().x > 0.0 && node.size().y > 0.0
+}
+
+/// **The name a screen reader gets for `entity`**, as gooey published it.
+///
+/// `access.rs` writes one `AccessibilityNode` per control and fills its `name` from the arm that made it:
+/// a field's is its row's `ControlText`, a code editor's is `CodeEditor::label()` — which
+/// `bevy_gooey::code_editor(path, text)` built from the path, so it is never empty in this workspace. Reading
+/// the published name is asking the same question a screen reader asks, rather than guessing which arm ran.
+fn published_name(world: &World, entity: Entity) -> Option<String> {
+    // **`AccessibilityNode` is a plain newtype over `accesskit::Node`** in Bevy 0.20 (`bevy_a11y-0.20.0`,
+    // `pub struct AccessibilityNode(pub Node)`), so the node is read directly. `label()` is accesskit's own
+    // accessor — `(Label, label, set_label, clear_label)` in its property table — and it is what gooey's
+    // `wanted.name` becomes. Read through the crates rather than a second notion of "name".
+    let node = world.get::<bevy::a11y::AccessibilityNode>(entity)?;
+    node.0.label().map(str::to_owned).filter(|name| !name.trim().is_empty())
+}
+
+/// **The label gooey reads for a field**, which is its row's `ControlText` — `access.rs`'s
+/// `Role::TextField` arm does `facts.field` then `look.control_text(row)`.
+///
+/// The row is the field's **ancestor**, not its descendant: `text_row_as` spawns the label, then the cell,
+/// then the field inside that cell. A sweep that looked only downward would call every gooey field in the
+/// app unlabelled — which is why this asks the crate's own question instead of inventing a second one.
+fn row_label(world: &World, entity: Entity) -> Option<String> {
+    let mut at = entity;
+    while let Some(parent) = world.get::<ChildOf>(at).map(|p| p.parent()) {
+        if let Some(label) = world
+            .get::<Children>(parent)
+            .map(|children| children.iter().collect::<Vec<Entity>>())
+            .unwrap_or_default()
+            .into_iter()
+            .filter(|child| world.get::<bevy_gooey::Role>(*child) == Some(&bevy_gooey::Role::ControlText))
+            .filter_map(|child| world.get::<Text>(child).map(|text| text.0.trim().to_owned()))
+            .find(|words| !words.is_empty())
+        {
+            return Some(label);
+        }
+        at = parent;
+    }
+    None
+}
+
 /// **The words under `entity` that are drawn**: its own `Text` and its descendants', visible and laid out.
 fn drawn_words(world: &World, entity: Entity) -> Vec<String> {
     let mut found = Vec::new();
@@ -111,7 +158,21 @@ fn every_focusable_control_in_the_files_pane_is_labelled() {
                 // **The roles that take the keyboard**: a field, a button, a toggle, a list, a table, a
                 // tab, a dock's grip. `Role` is gooey's own vocabulary, so this list is what a control *is*
                 // rather than a list of the spawn sites that exist today.
-                Role::TextInput | Role::TextField | Role::Button | Role::Toggle | Role::List | Role::Table | Role::Tab
+                Role::TextInput
+                    | Role::TextField
+                    // (checked below: a control that is not laid out is not on screen, so it is not swept)
+                    | Role::Button
+                    | Role::Toggle
+                    | Role::List
+                    | Role::Table
+                    | Role::Tab
+                    // **The code editor is a named control of its own** (#599). It is not a `TextField`:
+                    // `bevy_gooey::code_editor(label, text)` builds `CodeEditor::new(label.clone(), &text)` from
+                    // the path `files.rs` passes, and `access.rs`'s `Role::CodeEditor` arm names it from that
+                    // label — the crate's own accessor, so the guard must ask the crate's own question rather
+                    // than look for a drawn sibling label. Checked in the crate's source before concluding the
+                    // editor was unlabelled; it was not.
+                    | Role::CodeEditor
             ) && in_the_files_pane(world, *entity)
         })
         .map(|(entity, role)| {
@@ -127,9 +188,38 @@ fn every_focusable_control_in_the_files_pane_is_labelled() {
     assert!(!controls.is_empty(), "no control was found in the Files workspace, so this swept nothing");
     let mut unlabelled = Vec::new();
     for (entity, role, _) in &controls {
-        let words = drawn_words(app.world(), *entity);
-        if words.is_empty() {
+        // **A control is named when a screen reader gets a name, or when it draws one.** A field's name is
+        // its row's `ControlText` — drawn, so `drawn_words` finds it; a code editor's is the path its
+        // `CodeEditor` was built from — published, so `published_name` finds it. One of the two is the
+        // answer to "can a person tell what this is", and requiring the drawn one alone is what would make
+        // this guard demand a second label on a control that already has one.
+        // **Not drawn is not unlabelled**: a control the pane keeps for a file that is not open is
+        // `Display::None`, and a person cannot tab into it. `a_panel_census` states the same rule.
+        if !is_drawn(app.world(), *entity) {
+            continue;
+        }
+        let named = published_name(app.world(), *entity).is_some()
+            || row_label(app.world(), *entity).is_some()
+            || !drawn_words(app.world(), *entity).is_empty();
+        if !named {
             unlabelled.push((*entity, *role));
+        }
+    }
+    if !unlabelled.is_empty() {
+        // **Say which row of the pane each one is**, taken from the nearest ancestor that draws text, so a
+        // failure names the field a person sees rather than an entity id alone.
+        for (entity, role) in &unlabelled {
+            let mut at = *entity;
+            let mut owner = None;
+            while let Some(parent) = app.world().get::<ChildOf>(at).map(|p| p.parent()) {
+                let words = drawn_words(app.world(), parent);
+                if !words.is_empty() {
+                    owner = Some(words.join(" | "));
+                    break;
+                }
+                at = parent;
+            }
+            eprintln!("unlabelled {role:?} {entity:?} sits under {owner:?}");
         }
     }
     assert!(

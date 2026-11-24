@@ -1635,9 +1635,11 @@ fn editor_state(
 /// launcher too.
 fn ui_json(door: Option<&crate::workspace::Workspace>, live: Option<&crate::keys::Live>) -> Value {
     use crate::keys::{Context, Holder};
-    // **`workspace` is the editor's held workspace, on every screen.** It used to read `null` off the
-    // workbench, which made "which workspace" and "is the workbench up" the same question — the defect
-    // #601 names. A reader that wants "is the workbench up" reads `screen`.
+    // **`workspace` is the workspace that is open, and `null` when none is.** A leave is a full teardown
+    // (`screen::close_the_door` drops `Opened`, `Workspace` with it), so on the launcher this is null and
+    // that is the answer: no workspace is open. It used to read `null` off the *workbench* as well, which
+    // made "which workspace" and "is the workbench up" the same question — the defect #601 names. A reader
+    // that wants "is the workbench up" reads `screen`; this answers only which workspace is open.
     let workspace = door.map(|d| d.label());
     let panels: Vec<&'static str> = door.map_or_else(Vec::new, |d| d.panels().iter().map(|m| m.label()).collect());
     let focus = match live.map(|l| (l.0, l.2)) {

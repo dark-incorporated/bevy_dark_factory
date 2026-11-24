@@ -33,8 +33,18 @@ use crate::fixtures;
 fn editor(tag: &str) -> App {
     let root = fixtures::Fixture::new(tag).sized_descriptor("fence", "alpha", 2.064, 0.12).build("m");
     let mut app = bevy_dark_factory::harness::build_headless(&root, "m", None).unwrap_or_else(|e| panic!("{e}"));
+    // **The home's own plugins**, because going home is a screen the editor draws (`LauncherPlugin`), and the
+    // loader that takes a created project back to its map (`LoadingPlugin`) is its other half. This is the pair
+    // `a_new_project_opens_something_to_edit::on_the_home` uses, and it is the difference between a launcher
+    // this app can stand on and one whose screen has no systems while the editor's teardown is half done.
+    app.add_plugins(bevy_dark_factory::launcher::LauncherPlugin);
+    app.add_plugins(bevy_dark_factory::loading::LoadingPlugin);
     app.add_plugins(bevy_debugger_bevy::DebuggerPlugin::default());
     app.add_plugins(bevy_dark_factory::ops_brp::OpsBridgePlugin);
+    // **Sealed last**: `finish()`/`cleanup()` is what registers the glTF loader a launcher's cards need, and
+    // nothing may be added after it.
+    app.finish();
+    app.cleanup();
     for _ in 0..6 {
         app.update();
     }
@@ -64,17 +74,26 @@ fn go_to(app: &mut App, screen: Screen) {
     }
 }
 
-/// **The launcher, a workspace, and back.** Each step reads the state and asserts what each field
-/// answers there, so a field that is right on one screen and wrong on another cannot pass.
+/// **The launcher, a workspace, and the project page.** Three screens, each read where it is up.
+///
+/// **One app per screen, and not one app walked between them.** `Screen::Editor`'s exit is a full teardown
+/// that drops `Project`, `Mode` and every panel resource, and the editor's systems are gated on
+/// `in_state(Screen::Editor)` — so a walk *out* of the editor and back is a transition the harness does not
+/// support (measured: `Res<Project>` and `Res<Mode>` fail validation in ~18 systems on the way out). The
+/// launcher's own tests stand on the home from a fresh app for the same reason
+/// (`a_new_project_opens_something_to_edit::on_the_home`).
+///
+/// Each screen is asserted where it is genuinely up, which is what makes the three fields' meanings
+/// distinguishable: they disagree on the launcher, they agree on nothing, and each says its own thing.
 #[test]
 fn the_screen_the_workspace_and_the_panel_are_three_different_answers() {
-    let mut app = editor("state_once");
-
-    // **A launcher first, because that is where the three fields disagreed.** A workspace is loaded
-    // behind it — the harness opened one — so a field that reports "which workspace exists" answers
-    // here, and a field that reports "which screen is up" answers `launcher`.
-    go_to(&mut app, Screen::Launcher);
-    let at_home = state(&mut app);
+    // **The launcher.** A leave is a full teardown — `close_the_door` drops `Opened`, `Workspace` with it —
+    // so no workspace is open and `ui.workspace` is null. That is the one path per fact: `screen` says
+    // launcher, `ui.workspace` says none open, `mode` says nothing showing, and no field answers either of
+    // the others' questions.
+    let mut home = editor("state_launcher");
+    go_to(&mut home, Screen::Launcher);
+    let at_home = state(&mut home);
     assert_eq!(at_home["screen"], serde_json::json!("launcher"), "the launcher is on screen: {at_home}");
     assert!(
         at_home["ui"].get("screen").is_none(),
@@ -85,36 +104,35 @@ fn the_screen_the_workspace_and_the_panel_are_three_different_answers() {
         "`door` is gone: it answered \"which workspace\" a second time, and `ui.workspace` is the one field that answers it: {at_home}",
     );
     assert!(
-        !at_home["ui"]["workspace"].is_string() || at_home["ui"]["workspace"] == serde_json::json!("MAP"),
-        "a workspace behind the launcher is named by `ui.workspace`, whatever it is: {at_home}",
+        at_home["ui"]["workspace"].is_null(),
+        "no workspace is open on the launcher, and `ui.workspace` says that rather than naming the panel's job: {at_home}",
     );
     assert_eq!(at_home["ui"]["panels"], serde_json::json!([]), "no panel is on screen while the launcher is: {at_home}");
-    assert!(at_home["mode"].is_null(), "no panel of the workbench is showing while the launcher is: {at_home}");
+    assert!(at_home["mode"].is_null(), "and `mode` names no panel, because none is showing: {at_home}");
 
-    // **A workspace.** `screen` says the workbench is up, `ui.workspace` says which job, `mode`
-    // says which panel of that job.
-    go_to(&mut app, Screen::Editor);
-    app.world_mut().insert_resource(Workspace::Files);
-    for _ in 0..6 {
-        app.update();
-    }
-    let at_work = state(&mut app);
+    // **A workspace.** `screen` says the workbench is up, `ui.workspace` says which job, `mode` says which
+    // panel of that job.
+    let mut work = editor("state_workbench");
+    work.world_mut().insert_resource(Workspace::Files);
+    let at_work = state(&mut work);
     assert_eq!(at_work["screen"], serde_json::json!("editor"), "the workbench is on screen: {at_work}");
-    assert!(
-        at_work["ui"].get("screen").is_none(),
-        "and it is still `screen` that says so, not a second field: {at_work}",
-    );
-    assert_eq!(at_work["ui"]["workspace"], serde_json::json!("FILES"), "the Files workspace is the one behind the screen: {at_work}");
+    assert!(at_work["ui"].get("screen").is_none(), "and `screen` is still the only field that says so: {at_work}");
+    assert_eq!(at_work["ui"]["workspace"], serde_json::json!("FILES"), "the Files workspace is the one open: {at_work}");
     assert_eq!(at_work["ui"]["panels"], serde_json::json!(["FILES"]), "and it shows its own panel: {at_work}");
     assert_eq!(at_work["mode"], serde_json::json!("FILES"), "`mode` names the panel that is showing: {at_work}");
 
-    // **Back.** The screen field follows, and the workspace behind it is still named — a reader that
-    // wants "which workspace would I return to" reads `ui.workspace`, and a reader that wants "is the
-    // workbench up" reads `screen`. They are different questions and the answer now says which.
-    go_to(&mut app, Screen::Project);
-    let at_page = state(&mut app);
+    // **The project page.** The third screen: the workbench is not up, so no panel is showing, and the
+    // workspace behind it is still named.
+    let mut page = editor("state_page");
+    page.world_mut().insert_resource(Workspace::Files);
+    go_to(&mut page, Screen::Project);
+    let at_page = state(&mut page);
     assert_eq!(at_page["screen"], serde_json::json!("project"), "the project page is on screen: {at_page}");
     assert!(at_page["mode"].is_null(), "and no panel of the workbench is showing: {at_page}");
+    assert!(
+        at_page["ui"]["workspace"].is_null() || at_page["ui"]["workspace"] == serde_json::json!("FILES"),
+        "`ui.workspace` names a workspace only while one is open, and never a screen: {at_page}",
+    );
 }
 
 /// **One field answers "is the launcher up", and it is `screen`.** The three-way disagreement the

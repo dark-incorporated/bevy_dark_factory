@@ -46,8 +46,15 @@ fn editor(tag: &str) -> App {
     unsafe { std::env::set_var("SHELL", "/bin/sh") };
     let mut app = bevy_dark_factory::harness::build_headless(&root, "m", None).unwrap_or_else(|e| panic!("{e}"));
     app.insert_non_send(PosixShell(guard));
-    app.add_plugins(bevy_debugger_bevy::DebuggerPlugin::default());
-    app.add_plugins(bevy_dark_factory::ops_brp::OpsBridgePlugin);
+    // **No `DebuggerPlugin`, no `OpsBridgePlugin`** (#598). `primary_j_cycles_the_terminal_through_three_positions`
+    // is the nearest passing pattern and adds neither: `DebuggerPlugin` binds a BRP port, and `harness.rs` says
+    // it "stays out of here on purpose" because a test process builds several `App`s. Adding it here panicked
+    // the compute pool rather than failing an assertion, which is a test that measured its own harness.
+    //
+    // **And no `OpsBridgePlugin` either**: the state is read by naming the registered method and running it, and
+    // the plugin is what registers it — so this test reads the placement from the resource the pane draws from
+    // instead. That is the stronger measurement of the two: a state field can be right while the pane is wrong,
+    // and the pane can be right while the field is stale, so both are read and compared on their own.
     app.world_mut().spawn((Window { resolution: bevy::window::WindowResolution::new(1600, 1000), ..default() }, PrimaryWindow));
     for _ in 0..12 {
         app.update();
@@ -127,10 +134,14 @@ fn seen(app: &mut App) -> TerminalPlacement {
 }
 
 /// **The placement `blueprint/state` reports**, which is the field #598 found missing.
+///
+/// Read from the resource `blueprint/state.terminal` is built from, through the same `placement()` the
+/// answer calls: the state's own section is a `json!` of this resource, so a resource that says one thing
+/// and a drawing that says another is exactly the disagreement this test exists to catch, and it is
+/// caught here without a port (`blueprint_state_adds_a_terminal_section` proves the JSON carries it).
 fn reported(app: &mut App) -> String {
-    let state = call(app, "blueprint/state", serde_json::json!({}));
-    let placement = state["terminal"]["placement"].as_str().map(str::to_owned);
-    placement.unwrap_or_else(|| panic!("`blueprint/state` carries no `terminal.placement`: the drive that measured #598 had nothing to read. state: {state}"))
+    let placement = app.world().resource::<Terminal>().placement();
+    words(placement).to_owned()
 }
 
 fn words(placement: TerminalPlacement) -> &'static str {
@@ -155,7 +166,10 @@ fn three_presses_cycle_the_pane_and_the_state_reports_each() {
     assert_eq!(reported(&mut app), "collapsed", "and the state says so");
 
     let mut pressed = 0;
-    for want in [TerminalPlacement::Collapsed, TerminalPlacement::Maximised, TerminalPlacement::Quarter, TerminalPlacement::Collapsed] {
+    // The owner's order, walked from where a launch leaves the pane: `Collapsed -> Quarter -> Maximised ->
+    // Collapsed`. `TerminalPlacement::next` is the one machine that states it, and `cmd_j_is_the_cycle_chord`
+    // pins the chord; this walk pins what three presses of it reach.
+    for want in [TerminalPlacement::Collapsed, TerminalPlacement::Quarter, TerminalPlacement::Maximised, TerminalPlacement::Collapsed] {
         if pressed > 0 {
             press_cmd_j(&mut app);
         }
@@ -189,18 +203,40 @@ fn three_presses_cycle_the_pane_and_the_state_reports_each() {
 #[test]
 fn the_state_says_whether_the_shell_started_as_well_as_where_the_pane_is() {
     let mut app = editor("cmd_j_shell");
-    press_cmd_j(&mut app); // Collapsed -> Maximised
-    let state = call(&mut app, "blueprint/state", serde_json::json!({}));
-    let terminal = &state["terminal"];
-    assert_eq!(terminal["placement"], "maximised", "the pane moved: {state}");
-    assert!(terminal["tabs"].as_u64().is_some_and(|tabs| tabs >= 1), "there is a tab to run a shell in: {state}");
-    assert!(
-        terminal["shell_live"].is_boolean(),
-        "`shell_live` distinguishes a placement that failed from a shell that did not start, which is the pair #598 could not tell apart: {state}",
-    );
-    if !terminal["shell_live"].as_bool().unwrap_or(false) {
-        // **Not a failure of this test, and not silent either.** The report's own host was in this state;
-        // what #598 adds is that a reader can now see it, so the message says so rather than pretending.
+    press_cmd_j(&mut app); // Collapsed -> Quarter
+    let terminal = app.world().resource::<Terminal>();
+    assert_eq!(terminal.placement(), TerminalPlacement::Quarter, "one press from Collapsed is the Quarter");
+    assert!(terminal.len() >= 1, "there is a tab to run a shell in");
+    // **`shell_live` is `TerminalTab::is_live`**, which is the fact `blueprint/state.terminal.shell_live`
+    // reports. It is asserted to be readable here rather than to be true: whether a shell starts is the
+    // host's, and the report's own host had none. What #598 fixes is that the two are told apart.
+    let live = terminal.tab().is_some_and(bevy_dark_factory::terminal::TerminalTab::is_live);
+    if !live {
         eprintln!("#598: the pane cycles with no live shell on this host — the placement half is proved, the shell half is the host's");
     }
+}
+
+/// **`blueprint/state` carries the terminal section**, so the field #598 found missing is on the wire.
+///
+/// The other two tests read the resource, because registering a BRP method needs the port-binding plugin
+/// this harness deliberately leaves out. This one proves the JSON: the section is a `json!` of that same
+/// resource, so a resource that answers and an answer that omits it cannot both be right.
+#[test]
+fn blueprint_state_carries_the_terminal_section() {
+    let mut app = editor("cmd_j_json");
+    // **The pair the passing state tests use** (`a_command_runs_by_id_through_the_agents_door`): the debugger
+    // registers `bevy/remote`'s method table and `OpsBridgePlugin` the editor's own methods. The bridge alone
+    // panics in `bevy_fairy`'s command layer, which is what this test measured first.
+    app.add_plugins(bevy_debugger_bevy::DebuggerPlugin::default());
+    app.add_plugins(bevy_dark_factory::ops_brp::OpsBridgePlugin);
+    for _ in 0..4 {
+        app.update();
+    }
+    press_cmd_j(&mut app); // Collapsed -> Quarter
+    let state = call(&mut app, "blueprint/state", serde_json::json!({}));
+    let terminal = &state["terminal"];
+    assert_eq!(terminal["placement"], "quarter", "`blueprint/state.terminal.placement` names the position: {state}");
+    assert!(terminal["next"].is_string(), "and what the next press reaches: {state}");
+    assert!(terminal["tabs"].as_u64().is_some_and(|tabs| tabs >= 1), "and how many tabs there are: {state}");
+    assert!(terminal["shell_live"].is_boolean(), "and whether a shell is running, which is the half #598 could not tell apart: {state}");
 }

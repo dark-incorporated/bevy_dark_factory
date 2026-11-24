@@ -298,7 +298,7 @@ pub const TOOLS: &[ToolDoc] = &[
                        with an edge token, and at 0 the nulls say the kit is unlabelled. \
                        The screen, the workspace and the panel are three different answers (#601), and each is said once: \
                        screen is what is on screen (launcher, loading, project or editor); ui.workspace is which workspace \
-                       is open, on every screen including the launcher's, or null before one is; ui.panels are the panels \
+                       is open, or null when none is (a leave is a full teardown, so the launcher has none); ui.panels are the panels \
                        that workspace shows, empty off the workbench; and mode is which panel of it is showing, null before \
                        one is. Nothing else in this answer spells a screen name, so a caller never has to choose between \
                        two fields for one fact. \
