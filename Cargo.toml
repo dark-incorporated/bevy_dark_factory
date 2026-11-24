@@ -52,16 +52,22 @@ sha2 = "0.10"
 # rather than pretending a shell started.
 alacritty_terminal = { version = "0.26.0", default-features = false }
 image = { version = "0.25", default-features = false, features = ["png"] }
-# **The CommonMark parser the design tree's pictures and links are read with** (SG-01, #400). The editor has
-# **no renderer** to share it with: GD-11's Markdown support is a *tokenizer* for syntax colours, which
-# recognises no image and no link, and `bevy_gooey` at the pinned revision has no Markdown module at all
-# (measured: `~/.cargo/git/checkouts/bevy_gooey-*/57d3d49/` (the pin before 424d37b) carries no `markdown` and no `pulldown`). So this
-# is the one parser, not a duplicate of another: written by hand it would be a CommonMark implementation with
-# tables, strikethrough and task lists, and the pictures a style text cites — the whole point of the check —
-# are exactly what a hand-rolled regex gets wrong. MIT, a pure data crate with no engine in it.
+# **The CommonMark parser the design tree's pictures and links are read with** (SG-01, #400). **`bevy_gooey` at the
+# pin this build resolves already has a Markdown view**, and the editor enables it: rev `8647648`
+# (`Cargo.lock`, v0.58.0) carries `pub mod markdown;` at its `src/lib.rs:138` and the `markdown` feature at its
+# `Cargo.toml:40` (`markdown = ["dep:pulldown-cmark"]`), and `crates/bevy_dark_factory` turns that feature on
+# (`crates/bevy_dark_factory/Cargo.toml`, `features = ["serde", "reflect", "markdown"]`), so
+# `design_view.rs:1017` draws a page with gooey's `markdown_view`. `blueprint_model`'s `pulldown-cmark` is the
+# **engine-free half of that same parser**: the design tree's own reader (`design.rs`'s `cites` and `pictures`)
+# has to find a page's pictures and links *without* an engine, because it answers an agent as well as the editor,
+# and gooey's module needs a `World` to draw into. **Neither is a duplicate of the other:** one parses for a
+# check, the other draws. Written by hand it would be a CommonMark implementation with tables, strikethrough and
+# task lists, and the pictures a style text cites — the whole point of the check — are exactly what a hand-rolled
+# regex gets wrong. MIT, a pure data crate with no engine in it.
 # **Owner exception (2026-11-12):** GD-11's "no new dependency" note governed the editor's *syntax colours*,
-# which stay on their tokenizer; parsing CommonMark is a parser's job, and the first consumer of this crate's
-# output is a check rather than a view.
+# which stay on its tokenizer — the colours are gooey's `CodeMarkdown` (`files_lang/markdown.rs`), so that
+# tokenizer colours a file being edited and recognises no image and no link — parsing CommonMark is a parser's
+# job, and the first consumer of this crate's output is a check rather than a view.
 pulldown-cmark = { version = "0.13", default-features = false }
 
 # Same dev profile as Sanctuary: Bevy runs fast in debug without slowing rebuilds of these crates.

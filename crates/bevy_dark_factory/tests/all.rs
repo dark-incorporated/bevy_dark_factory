@@ -66,6 +66,7 @@ mod the_agent_and_the_decision_model_share_one_place;
 mod the_agent_workspace_takes_a_change_back_from_its_row;
 mod the_checks_view_follows_the_project_index;
 mod the_data_view_follows_the_project_index;
+mod a_documents_citations_resolve;
 mod the_documents_state_the_codes_own_counts;
 mod the_finder_goes_to_cues_scripts_and_files;
 mod the_files_trees_selected_row_reads_at_aa_in_every_skin;
