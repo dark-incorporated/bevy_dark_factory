@@ -60,7 +60,9 @@ pub fn spawn_section(s: &mut ChildSpawnerCommands) {
     section(s, "AUDIO");
     button(s, AuditionButton, "Audition cue", Severity::Plain);
     s.spawn((BusList, list_column()));
-    s.spawn((CueChooser, list_column()));
+    // **No cue column here**: `world_lists::spawn_cue_list` draws the names beside the cross-references, in every
+    // build, and the arrow walk moves `world_lists::SelectedCue` — one list, one selection (#600). A second column
+    // of the same names is what the 2026-11-23 review removed, and it comes back whenever this one is spawned.
     s.spawn((LogTail, list_column()));
 }
 

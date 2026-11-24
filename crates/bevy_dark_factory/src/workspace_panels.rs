@@ -154,9 +154,10 @@ fn spawn_sound_panel(mut commands: Commands, frame: Res<Frame>) {
             // one a person following a reference asks. They are two views of one selection
             // (`world_lists::SelectedCue`), not two selections — the second *selection* the 2026-11-23 review
             // removed stays gone. Without the crate there is no panel, so the list draws its names too.
-            #[cfg(feature = "bevy_siren")]
-            crate::world_lists::spawn_cue_uses(s);
-            #[cfg(not(feature = "bevy_siren"))]
+            // **The cross-reference column, always.** The panel above owns the cue NAMES (and the arrow walk that
+            // chooses what Audition plays); this draws the other question — `used by data/door.yaml:2`, or
+            // `no file names <cue>` — against the one selection in `world_lists::SelectedCue`. Without the crate
+            // there is no panel, so the full list draws (names and cross-references) and the chord is refused.
             crate::world_lists::spawn_cue_list(s);
         });
     });
