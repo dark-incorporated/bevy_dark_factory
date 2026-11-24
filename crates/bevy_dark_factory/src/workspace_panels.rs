@@ -148,11 +148,12 @@ fn spawn_sound_panel(mut commands: Commands, frame: Res<Frame>) {
                 chrome::section(s, "AUDIO");
                 s.spawn(bevy_gooey::label(NO_AUDIO));
             }
-            // **One cue list, not two.** With `bevy_siren`, `audio_panel::spawn_section` draws the cues and marks the
-            // one Audition plays; a second list here would be the same names with a second selection, so following a
-            // cue marked one list while Audition played the other's choice (2026-11-23 review, finding 2). Without
-            // the crate there is no audition, and this list is the only place the project's cues are named.
-            #[cfg(not(feature = "bevy_siren"))]
+            // **The cue's own cross-references, in every build.** With `bevy_siren`,
+            // `audio_panel::spawn_section` draws the cue NAMES and the choice Audition plays; this list draws the
+            // `used by data/door.yaml:2` lines and says `no file names <cue>` when nothing does — a different
+            // question, and the one a person following a reference asks. They are two views of one selection
+            // (`world_lists::SelectedCue`), not two selections (2026-11-23 review, finding 2 was the second
+            // *selection*, which is still gone).
             crate::world_lists::spawn_cue_list(s);
         });
     });
