@@ -36,17 +36,23 @@ fn the_divider_drawn_is_the_one_the_shell_budgets() {
     // 12: gooey's default is `MIN_TARGET_PX` 24 written as a *minimum*, so the node was free to be wider and the
     // drawn seam answered to neither number. The sheet's `divider_w` is now 29 — the measured seam — and the host
     // hands that one number to gooey, so what is reserved is what is drawn.
-    for (width, told, visible) in &drawn {
-        // A divider the shell never sized still draws gooey's default, and this names it rather than blaming it.
-        assert!(
-            told.is_some(),
-            "a visible divider ({visible}) was drawn at {width} px with no `SplitThickness`, so its seam answers to \
-             gooey's default (a 24 px MINIMUM, and 29 measured on the fixture) and not to the sheet (#550)"
-        );
+    // **The shell's seam is the one the sheet budgets**, and the shell is the only split the editor sizes: a
+    // workspace's docks are a `DockLayout` description gooey turns into splits at its own thickness, so a divider
+    // without `SplitThickness` is a dock's and is not what `divider_w` measures. The first run of this test said so
+    // by naming one at 14 px, which is what stopped a wrong reading being written off as a wrong seam.
+    let shell: Vec<&(f32, Option<f32>, bool)> = drawn.iter().filter(|(_, told, _)| told.is_some()).collect();
+    assert_eq!(
+        shell.len(),
+        1,
+        "the shell draws exactly one divider with a `SplitThickness`; found {} of {} dividers told a thickness: {drawn:?}",
+        shell.len(),
+        drawn.len()
+    );
+    for (width, told, _) in shell {
         assert!(
             (width - budget).abs() <= 1.0,
-            "the divider draws {width} px where `metrics.layout.divider_w` budgets {budget} px and gooey was told \
-             {told:?}; a seam wider than its budget eats the viewport, a narrower one leaves a dead strip (#550)"
+            "the shell's divider draws {width} px where `metrics.layout.divider_w` budgets {budget} px and gooey was \
+             told {told:?}; a seam wider than its budget eats the viewport, a narrower one leaves a dead strip (#550)"
         );
     }
 }

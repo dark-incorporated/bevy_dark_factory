@@ -162,7 +162,9 @@ pub struct LayoutMetrics {
     pub viewport_min_w: f32,
     /// **The share of the window the viewport is owed once that is more than `viewport_min_w`** (#282).
     pub viewport_share: f32,
-    /// **The room the shell's split divider takes**, handed to gooey as its `SplitThickness` (#550).
+    /// **The room the shell's own split divider takes**, handed to gooey as its `SplitThickness` (#550). A
+    /// workspace's docks are a `DockLayout` gooey turns into splits at its own thickness; this is the frame's
+    /// one seam, the one every width calc subtracts.
     ///
     /// This was 12 from the owner's #476 (*"maybe only half as thick as this?"*) and nothing applied it, so every
     /// width calc reserved 12 while the frame drew its own seam: **29 px measured** on the fixture project
