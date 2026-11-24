@@ -453,7 +453,8 @@ fn the_text_roles_citations_land_on_their_symbols() {
 /// editor's measure.**
 ///
 /// The page said the divider was "gooey's divider target 24" and named `SPLIT_GRIP_THICKNESS`, which is
-/// private to `bevy_gooey`. The editor's own number is `metrics.layout.divider_w`, 12 since #476.
+/// private to `bevy_gooey`. The editor's own number is `metrics.layout.divider_w`; it was 12 from #476 and is
+/// whatever the shell hands gooey as its `SplitThickness` (#550), so this reads it rather than naming it.
 #[test]
 fn the_layout_models_fixed_list_states_the_sheets_divider() {
     let doc = read("docs/design/layout-model.md");
