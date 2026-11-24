@@ -2,8 +2,9 @@
 
 **Issue #521** (`feedback-1795094182023`). Research, with measurements. **Nothing was re-implemented.**
 
-**Since 2026-11-22** the measures named below as constants (`CONTROLS_W`, `LIST_W`, `BOTTOM_DOCK_H`, `WORKBENCH_FLOOR_H`, `PAD`,
-`GAP_ROW`, …) are `metrics.layout` values and class rules of the editor's live style sheet,
+**Since 2026-11-22** the measures this page once named as constants (`CONTROLS_W`, `LIST_W`, `BOTTOM_DOCK_H`,
+`WORKBENCH_FLOOR_H`, `PAD`, `GAP_ROW`, …) are **`metrics.layout` values and class rules** of the editor's live style
+sheet, and the bare names no longer exist in `chrome.rs`:
 `crates/bevy_dark_factory/src/style/editor.yaml` ([data files](../guide/data-files.md#the-editors-style-sheet)). **§2.2's fixed
 list is read from that sheet and `metrics.layout` by `tests/the_documents_state_the_codes_own_counts.rs`**, so it cannot drift;
 every other number here is as measured at the time.
@@ -28,21 +29,22 @@ Read off the frame at 2.4:
 
 | Part | Frame, physical px | Logical px | Where it comes from |
 |---|---|---|---|
-| INSPECTOR panel | x `89..583`, y `335..1314` | **206 x 408** | `chrome::panel_root(Side::Left, CONTROLS_W = 380, …)` |
+| INSPECTOR panel | x `89..583`, y `335..1314` | **206 x 408** | `chrome::panel_root(Side::Left, controls_w = 380, …)` — the sheet's `metrics.layout.controls_w` |
 | its scrolling body (the pick) | x `120..552`, y `533..1213` | **180 x 283** | `chrome::scroll_list` inside the panel |
-| PIECES panel | x `1767..2146`, y `335..1314` | **158 x 408** | `chrome::panel_root(Side::Right, LIST_W = 264, …)` |
+| PIECES panel | x `1767..2146`, y `335..1314` | **158 x 408** | `chrome::panel_root(Side::Right, list_w = 264, …)` — the sheet's `metrics.layout.list_w` |
 | its rail | x `2112..2115` | 1.7 wide, 30 px in from the panel's right border | gooey's `ListRail` |
 | the viewport (the map/world hole) | x `~645` to `~1767` | ~467 wide | what the two docks leave |
 | the split divider | the light column `636..644` | 3.3 visible inside the target this build drew (24; `metrics.layout.divider_w` is 12 since #476) | gooey's `Role::SplitDivider` |
 
 Two things to note before any defect is named:
 
-- **The panel asks for 380 and is drawn at 206.** `CONTROLS_W` is 380 logical px "written in `Val::Px`
-  units" (`chrome.rs:496`), and `fit_docks_to_the_window` squeezes it when the window cannot pay both
+- **The panel asks for 380 and is drawn at 206.** The controls panel's preferred width is 380 logical px, the sheet's
+  **`metrics.layout.controls_w`** (`style/editor.yaml`, read as `layout.controls_w`; the constant `CONTROLS_W` this page
+  used to cite is gone), and `fit_docks_to_the_window` (`chrome.rs:1178`) squeezes it when the window cannot pay both
   docks and the viewport's share. At this window the squeeze is `206 / 380 = 0.54`.
-- **The panel's content is 180 px wide because the panel is 206 and keeps `MARGIN` 12 each side,
-  `PAD` 12 each side, a 1 px border, and the scroll viewport's own `SCROLL_GUTTER` on its right.** So
-  the panel a person reads is 54% of the width the panel's builder was told to want.
+- **The panel's content is 180 px wide because the panel is 206 and keeps a margin of 12 each side, a pad of 12 each
+  side, a 1 px border, and the scroll viewport's own `scroll_gutter()` (`scroll_bar_w` 5 + `scroll_bar_inset` 1) on its
+  right.** So the panel a person reads is 54% of the width the panel's builder was told to want.
 
 ---
 
@@ -53,8 +55,8 @@ Two things to note before any defect is named:
 The workbench is a **tree of four kinds of container**, and nothing else:
 
 ```text
-window root                                   Sized, 100% x 100vh        (chrome.rs:1660)
-├─ chrome_bar                                 row, 100% x BAR_H (26)      1 px bottom edge
+window root                                   Sized, 100% x 100vh
+├─ chrome_bar                                 row, 100% x bar_h (26)      1 px bottom edge
 ├─ door_strip                                 row, 100% x auto            2 px gaps, STEP_PAD left
 ├─ body                                       fill_region, row, 100% x flex:1
 │  ├─ split (ShellSplit)                      SplitAxis::Horizontal, SplitFraction, SplitMin
@@ -68,10 +70,13 @@ window root                                   Sized, 100% x 100vh        (chrome
 │  │     └─ Frame::viewport  (ViewportSlot)   fill column, row of …
 │  │        └─ ArrangementDock (cover)        gooey Dock, absolute over the whole hole
 │  └─ Frame::right  (right dock)              column, as wide as its widest visible panel
-│     └─ … panels, e.g. PIECES                LIST_W = 264, squeezed to 158 here
-├─ bottom  (BottomDock)                       dock, 100% x BOTTOM_DOCK_H (148), ShownFollow
-└─ status                                     row, 100% x BAR_H, 1 px top edge
+│     └─ … panels, e.g. PIECES                list_w = 264, squeezed to 158 here
+├─ bottom  (BottomDock)                       dock, 100% x bottom_dock_h (148), ShownFollow
+└─ status                                     row, 100% x bar_h, 1 px top edge
 ```
+
+The whole tree is built by `spawn_frame` (`chrome.rs:1277`), which is why every measure in it is a local read of the
+sheet rather than a constant.
 
 ### 2.2 The sizing rules, which are the model
 
@@ -79,16 +84,17 @@ Each part answers exactly one question, and the whole model is these four answer
 
 | Rule | What holds it | Where |
 |---|---|---|
-| **A panel's preferred width** | a constant per panel role: `CONTROLS_W` 380 for a controls panel, `LIST_W` 264 for a list, `WORKSPACE_PAGE_W` 560 for the Project page | `chrome.rs:496`, `:507`, `project_page.rs:344` |
-| **A dock's width** | **not stated**: it is its widest *visible* panel plus that panel's 2x `MARGIN`, because a gooey dock takes its widest child (its automatic minimum) | `chrome.rs:1491`, doc on `dock()` |
-| **A panel's drawn width** | its preferred width, squeezed by `fit_docks_to_the_window` so the docks + the split divider + the viewport's owed share fit the window | `chrome.rs:1335` |
-| **A pane's width** | the split's `SplitFraction` of the row, less the divider, held to `SplitMin` for each pane — *except* that `size_the_shell_split` overwrites the fraction to make the first pane as wide as the panel in it, and `the_left_panel_follows_its_pane` writes the panel back from the pane once a person has dragged | `chrome.rs:3743`, `:3806` |
+| **A panel's preferred width** | a sheet value per panel role: `metrics.layout.controls_w` 380 for a controls panel, `metrics.layout.list_w` 264 for a list; and the one that is still a constant, `WORKSPACE_PAGE_W` 560, for the Project page | the two dock widths are **sheet values** in `crates/bevy_dark_factory/src/style/editor.yaml` (`controls_w`, `list_w`), read as `layout.controls_w` and `layout.list_w`, because the constants that held them are gone; `WORKSPACE_PAGE_W` (`project_page.rs:354`) |
+| **A dock's width** | **not stated**: it is its widest *visible* panel plus that panel's 2x margin, because a gooey dock takes its widest child (its automatic minimum) | `fit_docks_to_the_window` (`chrome.rs:1178`) |
+| **A panel's drawn width** | its preferred width, squeezed by `fit_docks_to_the_window` so the docks + the split divider + the viewport's owed share fit the window | `fit_docks_to_the_window` (`chrome.rs:1178`) |
+| **A pane's width** | the split's `SplitFraction` of the row, less the divider, held to `SplitMin` for each pane — *except* that `size_the_shell_split` overwrites the fraction to make the first pane as wide as the panel in it, and `the_left_panel_follows_its_pane` writes the panel back from the pane once a person has dragged | `size_the_shell_split` (`chrome.rs:3807`), `the_left_panel_follows_its_pane` (`chrome.rs:3872`) |
 
 **Which are fixed and which flex:**
 
-- **Flex**: the two docks' *widths* (they shrink toward `DOCK_MIN_W`), the panels inside them (their
-  contents reflow), the `SplitPane` widths (the fraction), the scroll viewports (fill the panel's rest),
-  the bottom dock's *display* (it appears only when `WORKBENCH_FLOOR_H` 420 is still kept).
+- **Flex**: the two docks' *widths* (they shrink toward the sheet's `dock_min_w()`, `list_w * dock_min_share`), the
+  panels inside them (their contents reflow), the `SplitPane` widths (the fraction), the scroll viewports (fill the
+  panel's rest), the bottom dock's *display* (it appears only when `metrics.layout.workbench_floor_h` 420 is still
+  kept).
 - **Fixed**: `metrics.layout.bar_h` 26, `metrics.layout.bottom_dock_h` 148, a panel's margin and pad (12 each,
   the sheet's `chrome-panel` rule), the row step 5, the 1 px borders (`metrics.layout.edge_w`), the shell split's
   **`divider_w` 12** (the owner's half-thickness divider, #476, which the editor sets and `bevy_gooey` draws; its own
@@ -144,8 +150,9 @@ whole track, so a person cannot tell how much is above or below.
 
 **Model says**: a scroll viewport clips at its box and its rail shows `content > size`
 (`update_lists`, `list.rs:99`). Both are true here. What is not in the model is **why the box is 283
-px tall** on a 408 px panel: `title` + `PAD` + heading + the body's own `GAP_GROUP` + the status line
-under the viewport take the rest, and *those are content-sized*, so the body gets the leftover. A
+px tall** on a 408 px panel: `title` + the sheet's `chrome-panel` padding + heading + the body's own
+group gap (was `GAP_GROUP`, now the `.chrome-gap-group` rule) + the status line under the viewport take
+the rest, and *those are content-sized*, so the body gets the leftover. A
 panel whose fixed chrome is 30% of it has a body that shows 4 rows of a 20-row list.
 
 **Measurement**: panel 408 tall; viewport 283; the chrome above and below it 125 px — 31%.

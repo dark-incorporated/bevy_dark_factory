@@ -1,8 +1,11 @@
 # Data files
 
-This page lists every file in a bevy_blueprint project. Each table says where the file lives, what it holds, who writes it, whether the editor reloads it when it changes, and which code reads it.
+This page lists the **authored** files in a bevy_blueprint project: the ones a person or the editor writes as project content, which is what a reader of this page is looking for. Each table says where the file lives, what it holds, who writes it, whether the editor reloads it when it changes, and which code reads it.
 
-"Live reload" means the editor watches the file and reloads it when its content changes. A game reads the project when it starts, and reloads it when it changes only if it adds `BlueprintLivePlugin` ([your game](your-game.md)). [The reload contract](reload-contract.md) lists every kind of file, with what a change to it costs a running program.
+"Live reload" means the editor watches the file and reloads it when its content changes. A game reads the project when it starts, and reloads it when it changes only if it adds `BlueprintLivePlugin` ([your game](your-game.md)).
+
+<!-- data-files:delegated -->
+**Every other kind of file has no section here**, and each has a row in [the reload contract](reload-contract.md): the per-map, per-kit and shared files this page has no section for, and the generated ones — `checks`, `schema`, `data_registry`, `reference_images`, `notes`, `plan`, `relations`, `terrain`, `water_plan`, `water_field`, `volume`, `people`, `scripts`, `scripts_rhai`, `family_list`, `agent`, `guide`, `play`, `destructible_marks`, `destructible_bake` and `game_data` — **21 kinds in all**, and that page says for each one what a change to it costs a running program.
 
 ## kits.yaml
 
@@ -13,7 +16,7 @@ This page lists every file in a bevy_blueprint project. Each table says where th
 | Written by | The editor's kit chooser adds, removes and points bindings and `authoring`. Other fields are edited by hand. |
 | Live reload | Yes. |
 | Read by | The game's loader (`project_data::load`) and the editor. |
-| Format version | 3 |
+| Format version | 3 (`KITS_VERSION`) |
 
 ## vocab.yaml
 
@@ -24,7 +27,7 @@ This page lists every file in a bevy_blueprint project. Each table says where th
 | Written by | Edited by hand. The editor's labelling writes suggested tokens to `slop/llm/vocab_proposals.yaml`, which nothing loads. |
 | Live reload | Yes. A change reloads the whole file or none of it. |
 | Read by | The game's loader and the editor. Every token a piece uses must be in this file. |
-| Format version | None. |
+| Format version | 1 (`VOCAB_VERSION`) |
 
 ## library.yaml
 
@@ -35,7 +38,7 @@ This page lists every file in a bevy_blueprint project. Each table says where th
 | Written by | The editor. Committing a piece in the kit door writes it, and measuring a mesh writes its measured values. |
 | Live reload | Yes. |
 | Read by | The game's loader and the editor, through the layered library. |
-| Format version | 1 |
+| Format version | 1 (`LIBRARY_VERSION`) |
 
 ## project.yaml
 
@@ -46,7 +49,7 @@ This page lists every file in a bevy_blueprint project. Each table says where th
 | Written by | The editor's kit chooser (patches) and its exclude action: `Shift+R` on the Meshes tab, a switch under *Packs the kit leaves out* on the project configuration screen, or an agent's `pack_set_excluded`. |
 | Live reload | Yes. |
 | Read by | The game's loader and the editor, through the layered library. |
-| Format version | 2 |
+| Format version | 2 (`POLICY_VERSION`) |
 
 ## compositions.yaml
 
@@ -57,7 +60,7 @@ This page lists every file in a bevy_blueprint project. Each table says where th
 | Written by | The editor, when a composition is saved or renamed. |
 | Live reload | Yes. |
 | Read by | The game's loader, which checks it against the bound library, and the editor. |
-| Format version | 1 |
+| Format version | 1 (`COMPOSITIONS_VERSION`) |
 
 ## rules.yaml
 
@@ -68,7 +71,7 @@ This page lists every file in a bevy_blueprint project. Each table says where th
 | Written by | The editor's rule operations. |
 | Live reload | Yes. |
 | Read by | The game's loader, which checks it against the bound library, and the editor. |
-| Format version | 1 |
+| Format version | 1 (`RULES_VERSION`) |
 
 ## standards.yaml
 
@@ -79,7 +82,7 @@ This page lists every file in a bevy_blueprint project. Each table says where th
 | Written by | Hand. |
 | Live reload | Yes. The Meshes pane's `standards` row names the rules the selected piece breaks, and every pair of modules that do not nest where a rule covering that piece is one of the two; `blueprint_state.standards` lists every breach, every rule that covers no piece, and in `unnested` every pair of rules whose `multiple_of` modules do not nest (neither a whole multiple of the other, so a 2 m wall run and a 1.5 m fence run share a grid line only every 6 m; width and depth compare with each other, height with height), with where they meet again; `piece_import` reports a new piece's breaches. A breach is reported, not refused. |
 | Read by | The editor. |
-| Format version | 1 |
+| Format version | 1 (`STANDARDS_VERSION`) |
 
 ## repetition.yaml
 
@@ -90,6 +93,7 @@ This page lists every file in a bevy_blueprint project. Each table says where th
 | Written by | Hand. |
 | Live reload | Yes. `blueprint_state.repetition` reads it on every call and names a bad file in its `error`; the status bar's `REPEATS` line re-reads it when it changes. The `repetition_vary` operation (or the Terrain field line `repeats vary`) reads it on every run: it turns each clutter copy (never a round one) that looks like an earlier one in range by a half or quarter turn until none does, never turns structure, keeps the first copy's yaw, and one undo puts every turned row back. A piece whose floor footprint is longer one way than the other (a bench, a cart) gets the half turn only, since a quarter turn would swap its width and depth onto cells it never covered; a copy the half turn cannot end is counted as left. A bad file is refused, never replaced by the defaults. |
 | Read by | The editor. |
+| Format version | 1 (`REPETITION_VERSION`) |
 
 ## rigs.yaml
 
@@ -98,9 +102,9 @@ This page lists every file in a bevy_blueprint project. Each table says where th
 | Where | `assets/blueprint/rigs.yaml` |
 | What it holds | The animation rigs: which clips a character plays and the timing values measured for them. |
 | Written by | The editor's animation tab, when a person adopts measured values. The write replaces the whole file. |
-| Live reload | No. The editor does not watch this file. |
+| Live reload | Yes. Read when the animation tab loads, and again at once when the file changes: the tab takes a good edit (`applied`), measures its rigs again and keeps the rig the author was on selected by name; a file that does not read is `refused` with the file and the field and the tab keeps what it holds; a file that is gone is `needs_restart`, because the tab has no manifest to take in its place. |
 | Read by | The editor's animation tab. |
-| Format version | 3 |
+| Format version | 3 (`RIGS_VERSION`) |
 
 ## maps/<name>.map.yaml
 
@@ -111,7 +115,7 @@ This page lists every file in a bevy_blueprint project. Each table says where th
 | Written by | The editor, when a map is saved and when a new empty map is made. The save **checks** the map by expanding its stamps — the same `Map::expanded` the game uses, so the gate and the loader agree — and then writes the map **unexpanded**, so each stamp stays a stamp. |
 | Live reload | Yes, for the map the editor has open. |
 | Read by | The game's loader, which refuses a map whose `name` does not match its file, and the editor. |
-| Format version | 7 |
+| Format version | 9 (`MAP_VERSION`) |
 
 ### What a save leaves out
 
@@ -152,7 +156,7 @@ A `Fire` standing on a placement draws the crate's flame and the light the pool 
 | Written by | `forest_scatter`: a `plant` stroke (`bevy_flora`'s own Scatter, kept only within `radius_m` of the stroke, on the terrain) or one `place`d tree; the Terrain field's `forest <x> <z> <radius_m> <spacing_m> <seed> <species>` line sends the same operation. Each is one undo step. |
 | Live reload | Yes. The viewport draws every tree with `bevy_flora`'s plugin and redraws within half a second of a change to this file or to a `.tree.yaml` it names: a scattered tree is a `PooledTree` of its species' pool, built in the background, and a placed tree is a `ProceduralTree` grown from its species with its own seed and age, the tree the game grows. With `bevy_elements` too, the trees wear the map's date. |
 | Read by | The editor. A game that lists `bevy_flora` reads it to spawn the same trees through the crate's pools. |
-| Format version | None. |
+| Format version | 1 (`FOREST_VERSION`) |
 
 ## trees/<name>.tree.yaml
 
@@ -174,6 +178,7 @@ A `Fire` standing on a placement draws the crate's flame and the light the pool 
 | Written by | `family_set` (the ENVIRONMENT buttons, the FAMILY SETTINGS field, an agent), one undo per change, or by hand. |
 | Live reload | Yes, with `--features bevy_elements`. The preview's clock, climate, weather and ground cover follow the file. With `isomesh` too (`--features volume_snow` has both), the carved ground's chunks are drawn with the crate's `WeatheredMaterial` and wear `volume_cover` in the next frame, with no remesh. A file that does not parse is named on the status line and the previous values stay. |
 | Read by | The editor; a game reads it with the same crate types. |
+| Format version | 1 (`FAMILY_VERSION`) |
 
 ## The design folder
 
@@ -184,8 +189,9 @@ A `Fire` standing on a placement draws the crate's flame and the light the pool 
 | Written by | A person, in the Design workspace's page editor or the Files workspace; an agent through `style_edit` (a level's or an area's pages), `design_area_set` (`area.yaml`) and `board_set` (`board.yaml`), and by `blueprint_style_propose` for the game's and a region's pages, which wait for your Keep. A new project starts with `design/style.md`. |
 | Live reload | Yes. Nothing holds the tree: it is read from the folder on every `blueprint_state` and `blueprint_style` call, so an edit is in the next answer. |
 | Read by | `blueprint_model::design` (the tree and what is wrong with it) and `style` (the chain an agent is served), the editor's Design workspace, and an agent through `blueprint_style`. A game does not read it. |
+| Reload kinds | `design` (the pages) and `board` (each place's `board/board.yaml`) |
 | Limits | A file over 32 KiB is refused whole, and a topic whose chain of files is over 64 KiB is refused with the size of each file. A picture the text cites that is not there, two areas of one level that overlap, and a level with no map are listed as problems. Nothing is cut. |
-| Format version | 1 for `area.yaml` and `board.yaml`; Markdown has none. |
+| Format version | 1 (`AREA_VERSION`) for `area.yaml`, 1 (`BOARD_VERSION`) for `board.yaml`; Markdown has none. |
 
 ## oplog.jsonl
 
@@ -194,9 +200,9 @@ A `Fire` standing on a placement draws the crate's flame and the light the pool 
 | Where | `assets/blueprint/oplog.jsonl` |
 | What it holds | The editor's history of changes, one JSON object per line. It is only appended to. |
 | Written by | The editor, one line per operation. |
-| Live reload | No. The editor does not watch this file. |
+| Live reload | Yes. Appended by the dispatcher and read by the log tools, the undo walk and the steps feed; nothing holds it. The editor looks at it when its size or modification time moves and says in `blueprint_state.reloads` whether every line reads: a line that does not is named (`line 3.seq`), the readers skip it and an undo refuses until it is repaired. |
 | Read by | The MCP server's oplog read tools. The game does not read it. |
-| Format version | None. |
+| Format version | 1 (`OPLOG_VERSION`), on every line: the log is one JSON entry per line, so its version is a field of each. A line from before the field existed reads as the first. |
 
 ## A file the Files workspace makes, renames or deletes
 
@@ -220,7 +226,7 @@ A `Fire` standing on a placement draws the crate's flame and the light the pool 
 | Written by | The editor, a second after the unsaved set changes, and removed when nothing is unsaved. |
 | Live reload | No. Read when a project opens, and offered with the file's name and the time it was taken. |
 | Read by | The editor only. Taking a draft restores its text, unsaved; declining deletes it. |
-| Format version | 1. A draft of another version is ignored rather than refused, because a corrupt draft is not a reason to refuse a project. |
+| Format version | 1 (`DRAFTS_VERSION`). A draft of another version is ignored rather than refused, because a corrupt draft is not a reason to refuse a project. |
 
 ## Snip images
 
@@ -242,7 +248,7 @@ A `Fire` standing on a placement draws the crate's flame and the light the pool 
 | Written by | The editor, `create_new`, never overwritten. |
 | Live reload | No. |
 | Read by | `blueprint_project_feedback_list`, which needs `--project`. Nothing in the project. The game does not read it. |
-| Format version | 2, in the record's `version`. A record from another version is named by the reader, not converted. |
+| Format version | 2 (`FEEDBACK_VERSION`), in the record's `version`. A record from another version is named by the reader, not converted. |
 
 ## Feedback reports about the editor
 
@@ -253,7 +259,7 @@ A `Fire` standing on a placement draws the crate's flame and the light the pool 
 | Written by | The editor, `create_new`, never overwritten. |
 | Live reload | No. |
 | Read by | `blueprint_feedback_list`, which needs no `--project`. |
-| Format version | 2, in the record's `version`. A record from another version is named by the reader, not converted. |
+| Format version | 2 (`FEEDBACK_VERSION`), in the record's `version`. A record from another version is named by the reader, not converted. |
 
 ## recent.yaml
 
@@ -266,7 +272,7 @@ Not a project file: one per user, so a project folder never carries where an aut
 | Written by | The editor, each time a project is opened by the menu, the command line or an agent's `map_open`. Each write is atomic (`atomic_file::write`). |
 | Live reload | No. |
 | Read by | The editor only. |
-| Format version | 1. A file of another version is refused by name and left as it is, and the project still opens. |
+| Format version | 1 (`RECENT_VERSION`). A file of another version is refused by name and left as it is, and the project still opens. |
 
 ## editor.yaml and settings.yaml
 
@@ -279,7 +285,7 @@ The editor's settings, in two files that are laid over the built-in defaults, ke
 | Written by | A person, or the settings screen (`Cmd/Ctrl+,`), which sets or resets one key at a time and leaves the rest of the file as it is. A file that does not read is never written over. |
 | Live reload | Yes, in the editor: it looks at both files while it runs, so an edit, a deleted key or a deleted file changes the running editor at once. A file that does not read (not YAML, an unknown key, a value out of range, another version) keeps that layer's last good content, is refused in `blueprint_state.reloads` with the file and the field, and is a problem on the status line. The game does not read it. |
 | Read by | The editor only (`settings::sync_settings`, resource `EditorSettings`). |
-| Format version | 1. An old file with fewer keys still reads; a file of another version is refused by name. |
+| Format version | 1 (`SETTINGS_VERSION`). An old file with fewer keys still reads; a file of another version is refused by name. |
 
 Three more keys, each optional:
 
@@ -297,4 +303,4 @@ The editor's own look — colours, the spacing scale, type sizes, dock widths, s
 | What it holds | `version: 1`, then any of `skin:` (gooey's skin fields: colours, the surface ladder, tones, `spacing`, `radii`, motion; its `syntax_theme` is the setting's to decide, so a layer that sets it is overwritten by `syntax_theme` in `settings.yaml`, as `text_scale` is), `metrics:` (`type` sizes per role, `layout` measures, `z` stacking, `ink` ladder steps) and `rules:` (`".chrome-chip": {padding: !Step 0}`, CSS-like selectors on the classes the editor's nodes carry). A layer states only what it changes. |
 | Live reload | Yes: each layer's file is followed by the editor's file index, not polled (the project's layer by the project's index, the checkout's sheets and the person's `style.yaml` by the folders it follows outside the project), and an edit is drawn as soon as the index sees it, about a second at its default sweep. A `layout` or `z` measure rebuilds the open workspace's panels in place. A file that does not read keeps that layer's last good content and is refused in `blueprint_state.reloads` (`editor_style`), naming the file and the field. `Cmd/Ctrl+Alt+I` (`view.inspect_style`) and `blueprint_ui_style_inspect` name the rule and the line that styled the node under the pointer. |
 | Read by | The editor only (`style::apply_style`). |
-| Format version | 1. A layer of another version is refused by name. |
+| Format version | 1 (`STYLE_VERSION`). A layer of another version is refused by name. |

@@ -2,6 +2,15 @@
 
 What each change added, newest first. A visible change has a clip: click the still to play it. `python3 tools/changelog/changelog.py page --open` plays them all in one page.
 
+## 2026-11-24
+
+- **592** Cargo.toml states what pin 8647648 has: a markdown module and feature the editor enables *No clip: a comment corrected, no dependency or code changed; the pin, the feature list and design_view.rs:1017 are unchanged and were re-read*
+- **609** docs: text-roles marks 550 of 602 at 11.666 as the dated before-census and cross-references the change that ended it *No clip: documentation only; no behaviour changed; proved by the page's own §1 table being read from metrics.type by the_documents_state_the_codes_own_counts::the_text_roles_table_states_the_sheets_sizes*
+- **608** docs: layout-model and text-roles cite the symbol at the line it is on, or say the constant became a sheet value *No clip: documentation only; no behaviour changed; proved by a_documents_citations_resolve::the_design_pages_citations_land_on_their_symbols, which resolves 11 symbol (path:line) citations across the two pages*
+- **588** docs: the four Format version rows state MAP_VERSION 9, VOCAB_VERSION 1, FOREST_VERSION 1 and REPETITION_VERSION 1 *No clip: documentation only; no behaviour changed; proved by a_documents_citations_resolve::the_data_files_format_versions_are_the_constants, which reads 21 constant-bearing rows against the source (and repetition.yaml gains its row)*
+- **587** docs: rigs.yaml and oplog.jsonl are Live, as the reload contract says *No clip: documentation only; no behaviour changed; proved by a_documents_citations_resolve::the_data_files_live_reload_rows_are_the_reload_contracts, which reads all 18 kind-bearing Live reload rows against the contract's class column*
+- **586** docs: data-files names the kinds it carries and delegates the rest to the reload contract *No clip: documentation only; no behaviour changed; proved by a_documents_citations_resolve::every_kind_is_listed_or_delegated, which reads all 39 reload::KINDS against the page's sections and its delegation sentence (18 sectioned + 21 named = 39)*
+
 ## 2026-11-23
 
 - **557** `4b5de850` audio panel: the buses, the cues (one choice the arrows move) and the log it says it draws *No clip: a panel's contents, proved by the_panel_draws_the_buses_the_cues_and_the_log and the_cue_list_is_chosen_by_SelectedCue; no clip: the Sound workspace needs a sound loaded before Audition can play one (#555)*
