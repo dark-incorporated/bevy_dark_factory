@@ -1199,7 +1199,7 @@ pub fn paint_the_band(
     terminal: Option<Res<crate::terminal::Terminal>>,
     mut halves: Query<&mut bevy_gooey::Tooltip, With<crate::chrome::AgentBandHalf>>,
     mut leds: Query<(&mut bevy_gooey::Led, &Children), With<crate::chrome::AgentBandLed>>,
-    mut words: Query<&mut Text>,
+    mut words: Query<&mut Text, With<bevy_gooey::LedWord>>,
 ) {
     let post = terminal.as_deref().and_then(|terminal| terminal.tab()).and_then(|tab| tab.agent());
     let (state, said) = match post {
@@ -1215,8 +1215,11 @@ pub fn paint_the_band(
         if led.0 != state {
             led.0 = state;
         }
-        // The state word, `off` … `failed`: `bevy_gooey` draws it beside the dot, and a `Led` whose state moved repaints it — this writes
-        // only when the laid-out word is not already the state's, which is the same compare-before-write rule as the light.
+        // **Only the word, never the subject** (#597): `bevy_gooey::led` draws two words beside the dot — the light's name and the state — and
+        // marks the state one `LedWord`. This loop used to write the state into *every* text child, so it overwrote `Agent` with `off` before the
+        // frame was drawn and the band read `○ off off`: the chip's subject was gone, and the only way to tell the agent's light from the
+        // decision model's beside it was to guess. `bevy_gooey` maintains the word itself (`led::update_leds` keys on `LedWord`), so this is
+        // the state's write and it says so.
         for child in children.iter() {
             if let Ok(mut text) = words.get_mut(child)
                 && text.0 != state.word()
