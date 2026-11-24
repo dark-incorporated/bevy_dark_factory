@@ -42,21 +42,18 @@ fn the_divider_drawn_is_the_one_the_shell_budgets() {
 
     // **Every divider**, so a failure can say which one it measured.
     let world = app.world_mut();
-    // **Every number the divider's node holds**, so a build says why it is the width it is instead of leaving the
-    // reader to model flexbox: the plain `Node`'s own width and padding, the computed box, and each child's size.
-    let mut dividers = world.query::<(Entity, &bevy_gooey::SplitDivider, &ComputedNode, &Node)>();
-    let parts: Vec<String> = dividers
-        .iter(world)
-        .map(|(e, _, node, plain)| {
-            format!(
-                "node width={:?} pad={:?} border={:?} min={:?} :: computed={:?}",
-                plain.width, plain.padding, plain.border, plain.min_width, node.size()
-            )
-        })
-        .collect();
-    let world = app.world_mut();
+    // **Every number the divider's node holds**, so a failure says why it is the width it is instead of leaving the
+    // reader to model flexbox: the plain `Node`'s width, padding, border and minimum, and the computed box.
     let mut dividers = world.query::<(&bevy_gooey::SplitDivider, &ComputedNode, &Node)>();
-    let drawn: Vec<(f32, bool)> = dividers.iter(world).map(|(_, node, plain)| (node.size().x, plain.display != Display::None)).collect();
+    let mut drawn: Vec<(f32, bool)> = Vec::new();
+    let mut parts: Vec<String> = Vec::new();
+    for (_, node, plain) in dividers.iter(world) {
+        drawn.push((node.size().x, plain.display != Display::None));
+        parts.push(format!(
+            "node width={:?} pad={:?} border={:?} min={:?} :: computed={:?}",
+            plain.width, plain.padding, plain.border, plain.min_width, node.size()
+        ));
+    }
     let inverse_scale = {
         let mut again = world.query::<&ComputedNode>();
         again.iter(world).next().map(bevy::ui::ComputedNode::inverse_scale_factor).unwrap_or(1.0)
