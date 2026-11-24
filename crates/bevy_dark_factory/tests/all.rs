@@ -67,6 +67,7 @@ mod the_checks_view_follows_the_project_index;
 mod the_data_view_follows_the_project_index;
 mod the_documents_state_the_codes_own_counts;
 mod the_finder_goes_to_cues_scripts_and_files;
+mod the_files_trees_selected_row_reads_at_aa_in_every_skin;
 mod the_leds_word_is_the_size_of_the_text_beside_it;
 mod the_notes_view_follows_the_project_index;
 mod the_oplog_view_follows_the_project_index;
