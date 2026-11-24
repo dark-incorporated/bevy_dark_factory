@@ -52,11 +52,15 @@ fn the_divider_drawn_is_the_one_the_shell_budgets() {
     // **The shell's seam is the widest drawn divider**: a workspace's docks are a `DockLayout` gooey splits at its
     // own thickness (14 px measured on this fixture), and the shell's is the one the sheet budgets.
     let widest = drawn.iter().filter(|(_, visible)| *visible).map(|(w, _)| *w).fold(0.0_f32, f32::max);
-    let budget_seen = told[0];
+    // **The node is the seam plus gooey's grip and borders**, the same sum the shell hands gooey, so this fails if
+    // either side of that sum moves: `SPLIT_GRIP_PX + 2 * DIVIDER_BORDER_PX` is 6 and the frame draws 35 for a 29 px
+    // seam (measured on `33cd81c1`).
+    let node = budget + 6.0;
     assert!(
-        (widest - budget_seen).abs() <= 1.0,
-        "the sheet hands gooey {budget_seen} px and the widest divider drawn is {widest} px ({drawn:?}); a seam wider \
-         than its budget eats the viewport, a narrower one leaves a dead strip (#550)"
+        (widest - node).abs() <= 1.0,
+        "the sheet reserves {budget} px, gooey's grip and borders make the node {node} px, and the widest divider \
+         drawn is {widest} px ({drawn:?}); a seam wider than its budget eats the viewport, a narrower one leaves a \
+         dead strip (#550)"
     );
 
 }

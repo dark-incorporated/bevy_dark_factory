@@ -1391,7 +1391,14 @@ pub fn spawn_frame(
             bevy::picking::Pickable::IGNORE,
         ))
         .id();
-    // **A gooey split between the left dock and the viewport** (UI-30, #224).
+    // **gooey's own divider internals, named here because the host has to add them**: the grip's thickness and the
+// border line the skin draws on the divider. Both are gooey's numbers, copied with the version they were read from
+// (`bevy_gooey` 8647648, `widgets.rs:175` and the sheet's `border`), and `the_divider_drawn_is_the_one_the_shell_budgets`
+// fails the day either moves.
+const SPLIT_GRIP_PX: f32 = 4.0;
+const DIVIDER_BORDER_PX: f32 = 1.0;
+
+// **A gooey split between the left dock and the viewport** (UI-30, #224).
     let split = commands
         .spawn((
             bevy_gooey::split(bevy_gooey::SplitAxis::Horizontal, (), ()),
@@ -1400,7 +1407,11 @@ pub fn spawn_frame(
             // measured on the fixture — its `MIN_TARGET_PX` 24 is a *minimum*, and the node took more. The host
             // now hands the sheet's number to gooey, so what is reserved is what is drawn, and
             // `the_divider_drawn_is_the_one_the_shell_budgets` fails if either side moves alone.
-            bevy_gooey::SplitThickness(crate::style::metrics().layout.divider_w),
+            // **The node's width, from the seam the sheet reserves.** gooey lays the divider out with a grip
+            // `SPLIT_GRIP_THICKNESS` (4 px) inside a `skin.border` line each side, so the node a person presses
+            // is `divider_w + 4 + 2` and `SplitThickness` takes the node's. `divider_w` stays the seam every
+            // width calc subtracts, which is what the layout model means by "the room the shell's split takes".
+            bevy_gooey::SplitThickness(crate::style::metrics().layout.divider_w + SPLIT_GRIP_PX + 2.0 * DIVIDER_BORDER_PX),
             bevy_gooey::SplitFraction(0.22),
             // **Both panes keep a floor, so a drag cannot squash the world** (UI-30, #224).
             // Without it `SplitMin` is `(0, 0)` and `SplitFraction` 0.95 left the viewport 47 px of
