@@ -6,10 +6,12 @@ disable-model-invocation: true
 
 # bevy_dark_factory: a thorough review, one lens at a time
 
-This command is a **review**, not a build loop: it changes no code. It finds defects, proves each with a
-measurement or a picture, files them on `dark-incorporated/bevy_dark_factory` as issues that are cheap to
-answer, and groups them so the next build loop can take a cluster at a time. The repository is the memory:
-the open issues are what a review must not re-file, and each filed issue is the evidence.
+This command is a **review that fixes what it can see and files the rest**. The visual lens sweeps every part of
+the UI, pictures what is drawn, and repairs the small, safe defects on the spot in its own worktree. The other six
+lenses are finding work: each proves a defect with a measurement or a quote, files it on
+`dark-incorporated/bevy_dark_factory` as an issue that is cheap to answer, and groups the issues so the next build
+loop can take a cluster at a time. The repository is the memory: the open issues are what a review must not
+re-file, and each filed issue is the evidence.
 
 **Owner's rules that bind this command:** two agents at most unless the owner says otherwise (the pass
 says how many it took); every agent runs `ollama-cloud/deepseek-v4.1-flash:1017` through ollama cloud
@@ -40,7 +42,7 @@ names which agents it started and what it ran in parallel.
 
 | # | Lens | How it is proved | Labels |
 |---|---|---|---|
-| 1 | **Visual**: the UI as drawn | pictures (`bevy_fairy` capture, region+zoom), read with a row scan where size or alignment is the defect | `ui`, `bug` |
+| 1 | **Visual**: the UI as drawn — **every workspace, panel and overlay, at two sizes**, cropped and measured; the small safe defects are **fixed** in the sweep's own branch | pictures (`bevy_fairy` capture or `import -window root`), cropped 2×, read with a row/column scan where size, alignment or contrast is the defect; a commit per fix | `ui`, `bug` |
 | 2 | **Performance while driving**: where an interaction stalls | a measured wall-clock or `UiFrame` number from a scripted drive of the running editor, with the baseline beside it | `bug`, and `performance` if it exists (else `enhancement`) |
 | 3 | **Docs against code**: a guidance or architecture document says the code does X and the code does Y | both sides quoted with file, symbol and line | `documentation` |
 | 4 | **Docs against themselves**: two documents, or one document twice, say different things | both quoted with path and line | `documentation` |
@@ -57,18 +59,37 @@ names which agents it started and what it ran in parallel.
   (`xvfb-run -a` or the fleet's own display unit), `BEVY_BRP_PORT=1571<n>`, and capture through
   `dark_factory_mcp`'s `blueprint_capture_sequence` at 2 fps or a `bevy_fairy/screenshot` with `region` and
   `zoom`. **One capture per state, not a scripted playthrough.**
-- Capture **at least**: the launcher; a map open on each workspace (Map, Files, Game, Design, Settings);
-  the terminal pane open and closed; the inspector with a long name selected; the palette open; a dialog
-  (new project, settings); the keymap screen; a code file open in the Files editor; the style inspector
-  (`Option+Cmd+I`) on a panel edge. That is ten states; add one for each panel the capture's first frame
-  shows is cut or empty.
-- **What counts as a defect**: text drawn outside its own content box; a control outside its panel; a
-  panel that draws empty or with its body collapsed; two inks where one is meant; a label clipped mid-word
-  where the row has room; a scroll area with nothing in it; a picture that is the wrong aspect; a colour
-  pair that fails the contrast bar. **Read the picture, do not guess from the code**: crop the pick to a
-  fresh path first (`tools/demo/README.md` says how the captures and crops work).
-- Measure before filing: where the defect is a size or a gap, do a row or column scan of the PNG (a script
-  is fine) and put the numbers in the issue. "Looks wrong" is not an issue.
+- **Sweep it, do not sample it** (owner, 2026-11-24: *"go through the different parts of the UI, all parts of the
+  UI … exhaustively, across the entire UI"*). "Ten states" was this command's first shape and it left most of the
+  editor unlooked at. The list is now **every workspace, every panel, every overlay, at two sizes**, each captured
+  on its own, cropped to the defect, and measured:
+
+  | Group | What must be captured |
+  |---|---|
+  | Launcher | the project page, the What's new page, a map card, the filter field, Settings |
+  | Workspaces | every variant the `Workspace` enum names — Project, Map, World, Kit, Files, Animation, Design, Settings, Sound, Game — and name any that does not open |
+  | Panels | inspector (empty and with a long piece selected), place, library, kit rows, DATA table, design styles, notes, reload, audio buses/cues/log, terminal, console, notifications, problems list, world lists, animation bench, rig list, tile palette, compose, behaviours, crosslinks |
+  | Overlays | command palette (empty and with a query), goto, keymap screen, a dialog (new project, a refusal), a menu open, the style inspector on a panel edge, the section cut, the status band, a tab strip with several tabs |
+  | Sizes | the reference window **and** a narrow one (1100×700): a layout that only works wide is a defect |
+
+  The `Workspace` enum and the panel registry are the authority for what exists; read both and say in the report
+  which states you could not reach and why. A gap named is worth more than a state silently skipped.
+- **Crop and zoom every defect** to its own 2× PNG before judging it, and measure it (the pixel the text ends at,
+  the box edge, the two colours and their contrast ratio, the row height). A crop is also what an issue links.
+- **Fix the small, safe ones on the spot** (owner, 2026-11-24: *"Or better yet, just fix them on the spot"*). A
+  missing word, a wrong number, a width, a colour, a clipped label: fix it in your own worktree, one concept per
+  commit, running only the module you touched. **A design call is not fixed** — it is reported with the picture and
+  the options. The branch is `fix/uireview-<n>`, it is pushed for review, and the pass's report names every commit.
+- **What counts as a defect**: text outside its own content box; a label clipped mid-word where the row has room; a
+  control outside its panel; a panel drawn empty or with its body collapsed; two inks where one is meant; a colour
+  pair under 4.5:1 for body text or 3:1 for large; a scroll area with nothing in it; a picture at the wrong aspect; a
+  row wider than its panel; a label naming a thing that moved; a number the panel states that the code no longer
+  has. **Read the picture, do not guess from the code.**
+- **The machinery that works** is `tools/loop/remote/editor_png.sh` (Xvfb on a spare display, `BEVY_BRP_PORT`, a
+  scratch project with `HOME`/`XDG_*` pointed at it, `import -window root` as the fallback capture) and
+  `tools/demo/record.py` (`record.McpClient`, `bevy_fairy/input`, `bevy_fairy/screenshot`). **One editor at a time:
+  one display, one BRP port.** Copy the binary to a scratch path first — a gate rebuilding `target/` will rewrite
+  it under the run.
 
 ### Lens 2: performance (agent `ReviewPerf`)
 
@@ -210,14 +231,22 @@ through the pre-push fast path; the report is the only commit this command makes
    time unless the owner has lifted the two-agent limit — while the driver prepares the editor for `visual` and `perf`.
 3. Run `visual` and `perf` one after the other on the same editor (one BRP port, one GPU): drive, capture,
    measure, stop the editor.
-4. **De-duplicate across lenses before filing**: two lenses often find one defect from two sides. The pass
+4. **The sweep's fixes are reviewed like anyone's**: the pass reads each commit's diff, runs the one module it
+   touched, and keeps or drops it. A fix that cannot be shown to help is dropped, not shipped (owner's rule: a fix
+   whose effect cannot be shown is not a fix).
+5. **De-duplicate across lenses before filing**: two lenses often find one defect from two sides. The pass
    merges them into one issue naming both proofs.
-5. File, then write the report, then push the report.
-6. Stop. A review that starts fixing is the build loop's job, not this command's.
+6. File, then write the report, then push the report and the sweep's branch.
+7. Stop after the report. The sweep's branch is gated by the next pass, not by this command.
 
 ## What not to do
 
-- Do not fix anything. Do not run the gate. Do not touch a test, a fixture or a golden file.
+- **Fixing is the visual lens's job and only there** (owner, 2026-11-24: *"Or better yet, just fix them on the
+  spot"*). A visual defect that is small and safe — a word, a number, a width, a colour, a clip — is fixed in the
+  sweep agent's own worktree, one concept per commit, with only the touched module's test run. **The other six
+  lenses still change no code**: they are finding work, and their output is issues.
+- Do not run the gate from any lens. Do not touch a test's assertion, a fixture or a golden file to make a fix pass;
+  if a fix needs that, it is a finding, not a fix.
 - Do not file from a document alone: a document that disagrees with code needs the code quoted, and code
   that disagrees with a document needs the document quoted. The finding is the *disagreement*, and both
   sides are quoted with path and line.
