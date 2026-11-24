@@ -24,12 +24,15 @@ fn the_divider_drawn_is_the_one_the_shell_budgets() {
     // can press. The budget is the metric the layout model and every width calc read.
     let budget = metrics().layout.divider_w;
     let world = app.world_mut();
-    // **Every divider, with what gooey was told**: a `SplitDivider` with no `SplitThickness` is one the shell
-    // never sized, and naming both numbers is what tells a wrong reading from a wrong seam.
+    // **Every divider, with what gooey was told.** The host writes `SplitThickness` on the split ROOT, and
+    // `update_splits` carries it to the divider as `DividerThickness` (its doc: "The thickness `update_splits`
+    // last wrote into a divider's `Sizing`"); a divider without one is one no host sized, and the pair of numbers
+    // is what tells a wrong reading from a wrong seam. The first version of this test asked for `SplitThickness`
+    // on the divider, found none of three, and would have "fixed" a seam that was never broken.
     let mut dividers =
-        world.query::<(&bevy_gooey::SplitDivider, &ComputedNode, &Node, Option<&bevy_gooey::SplitThickness>)>();
-    let drawn: Vec<(f32, Option<f32>, bool)> =
-        dividers.iter(world).map(|(_, node, plain, told)| (node.size().x, told.map(|t| t.0), plain.display != Display::None)).collect();
+        world.query::<(&bevy_gooey::SplitDivider, &ComputedNode, &Node, Option<&bevy_gooey::DividerThickness>)>();
+    let drawn: Vec<(f32, bool, bool)> =
+        dividers.iter(world).map(|(_, node, plain, told)| (node.size().x, told.is_some(), plain.display != Display::None)).collect();
     assert!(!drawn.is_empty(), "the shell draws a split divider");
     // **`SplitThickness` is what makes the seam the budget**, and this is the test that proved it needed to be.
     // On `main` before the shell set it, the divider drew **29 px** on this fixture while the sheet's number was
@@ -38,21 +41,22 @@ fn the_divider_drawn_is_the_one_the_shell_budgets() {
     // hands that one number to gooey, so what is reserved is what is drawn.
     // **The shell's seam is the one the sheet budgets**, and the shell is the only split the editor sizes: a
     // workspace's docks are a `DockLayout` description gooey turns into splits at its own thickness, so a divider
-    // without `SplitThickness` is a dock's and is not what `divider_w` measures. The first run of this test said so
-    // by naming one at 14 px, which is what stopped a wrong reading being written off as a wrong seam.
-    let shell: Vec<&(f32, Option<f32>, bool)> = drawn.iter().filter(|(_, told, _)| told.is_some()).collect();
+    // with no `DividerThickness` is a dock's and is not what `divider_w` measures.
+    let shell: Vec<&(f32, bool, bool)> = drawn.iter().filter(|(_, told, _)| *told).collect();
     assert_eq!(
         shell.len(),
         1,
-        "the shell draws exactly one divider with a `SplitThickness`; found {} of {} dividers told a thickness: {drawn:?}",
+        "the shell draws exactly one divider gooey was told a thickness for; found {} of {} (width, told, visible): {drawn:?}",
         shell.len(),
         drawn.len()
     );
-    for (width, told, _) in shell {
+    for (width, _, _) in shell {
+        // **The drawn width is the value**; `DividerThickness`'s field is gooey's, so its presence names the shell's
+        // divider and the frame says how wide it is.
         assert!(
             (width - budget).abs() <= 1.0,
-            "the shell's divider draws {width} px where `metrics.layout.divider_w` budgets {budget} px and gooey was \
-             told {told:?}; a seam wider than its budget eats the viewport, a narrower one leaves a dead strip (#550)"
+            "the shell's divider draws {width} px where `metrics.layout.divider_w` budgets {budget} px; a seam wider \
+             than its budget eats the viewport, a narrower one leaves a dead strip (#550)"
         );
     }
 }
