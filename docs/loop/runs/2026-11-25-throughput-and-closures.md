@@ -5,8 +5,10 @@
 | | |
 |---|---|
 | opened when this pass began | 34 |
-| **closed by this pass** | **11** |
-| still open | 26 (18 of them owner decisions or unstarted scope) |
+| **closed by this pass** | **14** |
+| still open | 25 |
+| blocked, correctly labelled | 4 (#540 crate release, #625 #633 #626 gate) |
+| needs the owner | 3 (#636 #621 #622) |
 | merged to `main` | `3db6c23e` → `478e6754`, gate **5,211/5,211, 0 failures, 1,324 s** |
 | awaiting a gate | `fleet/w633-635` at `ea1a3a39`, six commits |
 | display-free checks offloaded | **3/3 PASS, 834 s** on `big_mac` |
@@ -26,6 +28,8 @@
 | **#632** | the one test of three that actually reads a clock |
 | **#635** | **verified on big_mac: 6 tests run, 6 passed** — both `/var` sites |
 | **#629** | **not planned**: `+` spawns live bash; my own "placement toggle only" was also wrong |
+| **#628** | **answered**: `-D warnings` alone does NOT catch a private-item link; `cargo doc` with that lint does. The step stays |
+| **#627** | **answered**: the doctest step is 8x the doc step (554 s vs 70 s) and its cost is the *build*, so it does not duplicate `cargo doc` |
 
 ## What was got wrong, and corrected
 
