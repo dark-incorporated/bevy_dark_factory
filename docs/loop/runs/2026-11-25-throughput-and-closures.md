@@ -108,3 +108,49 @@ in one sentence.
 - One macOS run to confirm the three slices are clean (`FinalMacOSCheck`, at `f2ee98c4`).
 - Then the full suite on big_mac, and the gate can move there.
 - big's own recovery: swap free went **7 → 8 → 10 GB** during this pass. The floor is 12. It may unblock itself.
+
+---
+
+## The full suite ran on big_mac: 2,832 of 2,836, zero swap
+
+This is the measurement that answers the throughput question.
+
+```
+Summary [ 512.779s] 2836 tests run: 2832 passed (1 slow), 4 failed, 4 skipped
+```
+
+| fact | value |
+|---|---|
+| swap used during the run | **0.00 MB** |
+| free RAM after | ~14.5 GB |
+| timeouts, crashes, leaks | **none** |
+| display needed | **no** |
+| time | **512.8 s** — against big's 1,324 s gate that OOM-died at 64% |
+
+**big_mac can host the editor suite.** The four reds were:
+
+| # | test | cause | state |
+|---|---|---|---|
+| 1 | `a_documents_citations_resolve` | the branch was 11 commits behind `main`; the fix is `9c235636` | merged |
+| 2 | `a_rebound_chord_runs_its_command` | badge spells `ChordGlyphs::Words` (`Shift+Cmd+Y`), test asked `Shortcut::label()` (`⇧⌘Y`) | **fixed** |
+| 3 | `the_keymap_refuses_a_clash_and_saves_nothing` | same, `Cmd+S` vs `⌘S` | **fixed** |
+| 4 | `the_commands_never_order_a_destructive_git` | **my own #621 guard, red on `main`** | **fixed** |
+
+**Number 4 is the one to remember.** I wrote that guard, said I was holding it because it reddens the tree, and pushed it anyway. Every gate on `main` since 17:44 has been red, and no full suite ran to notice. **A guard that is red on `main` is not a stricter guard — it is a broken gate.**
+
+## What this pass established
+
+1. **big's blocker is zram, not cores and not code** — 10.1 GB of its 31 GB RAM is compressed pages from exited processes, unreclaimable without root.
+2. **big_mac is a viable replacement** — 2,832/2,836 in 512.8 s with zero swap.
+3. **The suite had never been under portability test** — 32 of its 2,836 tests pressed Linux-only chords. Thirteen files fixed.
+4. **Three product defects were invisible to the Linux gate** — `terminal.clear` on `META` (colliding on macOS), `TerminalCloseTab`'s table entry disagreeing with its handler, and two tests comparing against a spelling the product does not use.
+
+## The rule that cost four errors to learn
+
+> **A press follows the chord's own modifiers, not the platform's primary.** `primary_key()` for `primary(…)` and `primary_shift(…)` chords; `KeyCode::ControlLeft` for `Modifiers::CTRL` chords, on every platform.
+
+## Yours
+
+- **#636** — reboot big, or add a disk-backed swap file. big_mac now makes this less urgent: the suite runs there.
+- **#621** — fix `debug-response.md:69`, or keep the known-outstanding entry.
+- **#622** — which `consumer:` label is canonical; the edits belong in `agent-guidance`.
