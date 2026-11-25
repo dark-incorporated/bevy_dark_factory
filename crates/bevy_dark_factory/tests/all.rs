@@ -691,6 +691,7 @@ mod the_files_workspace_makes_renames_duplicates_and_deletes;
 mod a_file_that_changes_under_edits_obeys_a_policy;
 mod a_never_saved_buffer_has_a_draft;
 mod the_terminal_agent_is_a_setting;
+mod a_missing_res_panics_the_system;
 mod a_machine_with_the_agent_installed_starts_with_it_chosen;
 mod an_agent_tab_runs_its_self_test;
 mod capture_feedback_1794024642593;
