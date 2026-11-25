@@ -81,11 +81,6 @@ pub struct TerminalSession {
     /// Taken off the list at the start of the hang-up below, before the child is reaped, so a forced quit racing a closed pane
     /// never signals a pid that has been collected and may have been given to a stranger.
     _listed: Option<crate::exit_watchdog::ShellListed>,
-    /// **The master closed, which is a shell that has left** (#642). On Darwin a shell told `exit` stops reading
-    /// but is never reported by `waitid`, so `has_exited` alone says "still running" for ever. An `EIO` on the
-    /// master is the documented shape of "the slave side is gone" -- `drain` already treated it as the ordinary
-    /// goodbye, and this records it so the pane can act on it.
-    closed: bool,
     /// The size last written to the child, so a resize to the size it already has is not a syscall.
     size: (u16, u16),
     /// The directory the shell was started in, for the bar's chip and for the `cd` offer.
@@ -167,7 +162,7 @@ impl TerminalSession {
         // **The shell is listed with the exit watchdog from here until the session is dropped** (#427): a quit that has to end the
         // process then ends the shell's process group too, instead of leaving a shell that ignores `SIGHUP` running with no window.
         let listed = crate::exit_watchdog::list_the_shell(pty.child().id());
-        Ok(TerminalSession { pty, closed: false, size: (cols, rows), cwd, _listed: listed })
+        Ok(TerminalSession { pty, size: (cols, rows), cwd, _listed: listed })
     }
 
     /// Any non-Unix target: the PTY layer does not exist there in this build.
@@ -200,10 +195,7 @@ impl TerminalSession {
     /// pipe when the answer is yes, and one drain reads it all.
     #[cfg(unix)]
     pub fn has_exited(&self) -> bool {
-        // **Two signals, because one of them does not arrive on every platform** (#642): `waitid` reports a shell
-        // that exited, and the master closing reports one that stopped. macOS gives only the second.
-        self.closed
-            || i32::try_from(self.pty.child().id()).ok().and_then(rustix::process::Pid::from_raw).is_some_and(child_has_left)
+        i32::try_from(self.pty.child().id()).ok().and_then(rustix::process::Pid::from_raw).is_some_and(child_has_left)
     }
 
     /// No session exists on this target (`spawn_with` refuses), so none has left.
@@ -284,10 +276,7 @@ impl TerminalSession {
                 // **A closed fd is how a shell says goodbye.** `EIO` on a PTY's master is the
                 // documented shape of "the slave side is gone", so it is the ordinary exit path and
                 // not an error to report every frame.
-                Err(e) if e.raw_os_error() == Some(5) => {
-                    self.closed = true;
-                    break;
-                }
+                Err(e) if e.raw_os_error() == Some(5) => break,
                 Err(e) => return Err(format!("the terminal could not read from the shell: {e}")),
             }
         }
