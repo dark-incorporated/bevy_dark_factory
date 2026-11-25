@@ -68,7 +68,7 @@ resolved against `chrome.rs` and `world_lists.rs` by `the_text_roles_citations_l
 |---|---|---|---|
 | `TITLE` | **15** | a panel's own name — `INSPECTOR`, `MESHES AND TILES` | `chrome::title` |
 | `TAB` | **13** | a tab's word in the strip, a chooser's column header | `ui`'s tab strip |
-| `BODY` | **11** | **the readable default**: a row's value, a field's contents, a banner, a census row | `chrome::font` at 117 call sites |
+| `BODY` | **11** | **the readable default**: a row's value, a field's contents, a banner, a census row | `chrome::font` at 5 call sites, or `chrome::typed` (which picks the role) at 120 |
 | `HEADING` | **11** | a block heading: uppercase, dim, the sheet's `.chrome-gap-group` above it | `chrome::section` |
 | `LABEL` | **10** | the dim half of a `label value` pair, a log line, the bar's readouts (`BAR_READOUT`) | `chrome::row_label` |
 | `CONTROL` | **10** | a control's own word: a chip, a button, a field | `chip`, `text_field` |

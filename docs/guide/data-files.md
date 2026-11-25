@@ -127,8 +127,10 @@ A stated value is still written: `owned: true`, a `note`, a `patch`, a `paint` l
 
 How much of a generated region should close into rooms, and what that wish is worth:
 
-```ron
-enclosure: (wish: 0.25, weight: 200),
+```yaml
+enclosure:
+  wish: 0.25
+  weight: 200
 ```
 
 `wish` is a fraction, `0.0` to `1.0`, and only the **composition** source uses it — the learned and declared sources derive no interfaces, so they have no walls to close. The wish is *soft*: a region that cannot reach the target returns its best arrangement and says so, rather than refusing. `weight` is what the wish is worth against the other terms of the solve; any positive value makes it decisive, because it is the only soft constraint in play.
