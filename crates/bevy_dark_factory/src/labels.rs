@@ -758,7 +758,7 @@ pub const PROPOSALS_PATH: &str = "slop/llm/vocab_proposals.yaml";
 const PROPOSALS_README: &str = "PROPOSALS ONLY - nothing loads this file. Adopting a token is a \
     human edit: append a row to assets/blueprint/vocab.yaml (append-only; bits come from position), \
     and for a `surfaces` token ALSO add the row to \
-    crates/blueprint_model/src/placement/surfaces.rs SURFACE_CLASSES. See docs/llm_rule_authoring.md.";
+    crates/blueprint_model/src/placement/surfaces.rs SURFACE_CLASSES.";
 
 #[derive(serde::Serialize, serde::Deserialize)]
 struct ProposalsFile {
@@ -1368,7 +1368,7 @@ pub(crate) fn drive_batch(
     let scale = d.align.scale.unwrap_or(1.0);
     let (done, total) = queue.progress();
     let name = name_of(&target);
-    // **The way out, on every line — not once at the start.** `docs/ui.md` §1.4: name the state and
+    // **The way out, on every line — not once at the start.** Name the state and
     // the way out of it. The keys existed (`Shift+L` holds, `Shift+Y` abandons) and were announced
     // in the message that armed the walk, which is the one message guaranteed to be off screen by
     // the time somebody wants them: every mesh overwrites the note. Reported at the keyboard as

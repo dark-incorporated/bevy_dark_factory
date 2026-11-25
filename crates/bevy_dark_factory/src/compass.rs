@@ -152,7 +152,7 @@ fn spawn(mut commands: Commands, frame: Res<crate::chrome::Frame>) {
 
     // **Inside the hole the world is drawn through, not inside the window.** `bottom: MARGIN` on a
     // root node measures from the window edge, so the gizmo sat on top of the status bar; and
-    // `left` was a second statement of where the viewport starts — `MARGIN + TILES_CONTROLS_W +
+    // `left` was a second statement of where the viewport starts — `MARGIN + controls_w +
     // MARGIN`, which is only right while that panel is the widest thing in the dock and reaches the
     // bottom. `chrome::ViewportSlot` already answers both, and `surface.rs` hands the very same rect
     // to the map camera, so this is the one measurement rather than a third copy of it.
@@ -255,7 +255,7 @@ fn follow_the_camera(
 /// question that has one. What changes per tab is only whether it can be *seen*.
 ///
 /// **It no longer decides where, only whether.** This used to step the gizmo right by
-/// `MARGIN + TILES_CONTROLS_W + MARGIN` on the tabs with a wide left panel, to land it at what that
+/// `MARGIN + controls_w + MARGIN` on the tabs with a wide left panel, to land it at what that
 /// arithmetic believed was the bottom-left of the viewport. Two things were wrong with computing it
 /// here. The dock's width is *its widest visible panel*, so the constant is right only while that
 /// panel is the widest one in it; and the Map arm kept `MARGIN`, which is inside the dock's own

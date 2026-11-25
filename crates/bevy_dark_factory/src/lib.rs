@@ -38,7 +38,7 @@
 //! the editor and look at it. That meant taking over the machine's keyboard and display to answer
 //! questions like "is this resource registered", which is both slow and rude.
 //!
-//! The game crate made the same split for the same reason (`TESTING.md`). `main.rs` keeps only
+//! The game crate made the same split for the same reason, and the workspace's testing notes say so. `main.rs` keeps only
 //! argument parsing and the app; everything else lives here, where `tests/` can reach it.
 
 pub mod activity_bar;

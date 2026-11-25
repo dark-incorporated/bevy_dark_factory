@@ -26,12 +26,12 @@
 //! editor puts *commentary*. A question that blocks progress rendered in the same place, in the
 //! same colour, as "baked 82 palette thumbnails" is a question an author walks past. This is a
 //! gooey `dialog` over the whole window (UI-40, #234): a veil, a card in the middle, and the
-//! question as the only thing to answer. It was drawn by hand on `chrome::modal_card`, the shell
+//! question as the only thing to answer. It was drawn by hand on the old `chrome::modal_card`, the shell
 //! the three modals shared; the card and the scrim are the library's now.
 //!
 //! # The mouse answers it too
 //!
-//! Both buttons are clickable. `docs/ui.md` §4.2 wants everything reachable by mouse reachable by
+//! Both buttons are clickable. `docs/ui/vision.md`'s P11 wants everything reachable by mouse reachable by
 //! keyboard; this is the same rule read the other way, and it is the rule the chooser broke by
 //! being keyboard-*only* rather than keyboard-first.
 //!
@@ -472,7 +472,7 @@ fn answer_by_activate(
 /// is the editor's own: the style sheet's `metrics.z.modal`, in front of every panel, which gooey's default
 /// of 100 is not.
 ///
-/// **The card carries `Hovered`**, as `modal_card`'s did, so the question "is the pointer over UI"
+/// **The card carries `Hovered`**, as the old `modal_card`'s did, so the question "is the pointer over UI"
 /// still answers yes over an open dialog: without it, scrolling over a visible question zoomed the
 /// world behind it.
 ///

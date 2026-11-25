@@ -680,7 +680,7 @@ pub(crate) fn fill_sidebar(commands: &mut Commands, sidebar: Entity, launcher: &
                 // **Selection is a shape, not a shade.** `ROW_SELECTED` (L* 25.0) against `ROW_BG`
                 // (15.9) is a few ramp steps, and in the shipped screenshot the selected tab was not
                 // tellable from its neighbours. `ui::paint_marked_buttons` gives a `Selected` button
-                // the accent rail down its leading edge (`crate::chrome::SELECT_RAIL_W`), the same vocabulary
+                // the accent rail down its leading edge (the sheet's `layout.select_rail_w`), the same vocabulary
                 // the kit's rows use — so the tab strip and a kit's list say "this one" the same way.
                 nav.insert(Selected);
             }

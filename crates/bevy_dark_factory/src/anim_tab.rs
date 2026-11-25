@@ -1,8 +1,8 @@
 //! **The animation bench** — what a rig's clips are, and whether the asset still agrees.
 //!
 //! The editor's third tab. `blueprint_model::clips` measures a GLB and `assets/blueprint/rigs.yaml` records
-//! what the game plays; this is where an author sees both at once. `docs/animation.md` names the gap
-//! it closes: getting a gait's `(duration, phase_offset, cycle_distance)` was *"a manual offline step,
+//! what the game plays; this is where an author sees both at once. The gap it closes is the one the
+//! animation guide named: getting a gait's `(duration, phase_offset, cycle_distance)` was *"a manual offline step,
 //! not a repo tool"*, and `src/site/staff_anim.rs` calls that measuring *"the largest hidden cost in
 //! animating a new character"*.
 //!
@@ -71,7 +71,7 @@ pub struct BenchState {
 impl BenchState {
     /// The rig names, in manifest order. `Rigs` keeps a `BTreeMap`, so this is stable across runs —
     /// a list that reordered itself between sessions is one nobody can build a memory of
-    /// (`docs/ui.md` §3.5, Samp 2011).
+    /// (Samp 2011).
     pub fn names(&self) -> Vec<&str> {
         self.rigs
             .as_ref()
@@ -1492,7 +1492,8 @@ fn rebuild_slots(
                 };
                 // **The legend wraps** (#596): four gait chips on one non-wrapping row measured 346 px in a 324 px
                 // column, so the last one drew 22 px past the panel's own edge. Every other wrapping row in the
-                // editor says the same thing this way (`chrome.rs:3030`, `editor.rs:7265`, `project_page.rs:517`).
+                // editor says the same thing this way (`chrome::wrapping_row`, and the bare gooey rows at
+                // `editor.rs`'s palette headings and `project_page.rs`'s guide grid).
                 p.spawn((
                     bevy_gooey::row_with(0.0, bevy_gooey::RowLayout { wrap: Some(FlexWrap::Wrap), ..default() }),
                     crate::chrome::Gap::Row.class(),

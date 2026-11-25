@@ -82,7 +82,7 @@ impl Plugin for GuidePlugin {
         });
         let tile_open = app.register_system(|_: In<Value>, build: Res<Build>| build.open.is_some());
         // Not `Build::placing` alone and not `focused` alone: each was tried and each broke the
-        // opposite end of the Tiles tab. `docs/tiles_tab_contract.md` records both failures.
+        // opposite end of the Tiles tab. Both failures are in the commit history.
         let placing = app.register_system(|_: In<Value>, build: Res<Build>| {
             build.placing && crate::build::focused(&build)
         });

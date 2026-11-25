@@ -138,7 +138,7 @@ impl Workspace {
         }
     }
 
-    /// What a menu row and a receipt call it: sentence case, one word (vision §9).
+    /// What a menu row and a receipt call it: sentence case, one word (`docs/ui/vision.md` §9).
     pub const fn title(self) -> &'static str {
         match self {
             Workspace::Project => "Project",

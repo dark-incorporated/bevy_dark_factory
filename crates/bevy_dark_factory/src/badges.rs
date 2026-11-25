@@ -7,8 +7,7 @@
 //! phrase back to something on screen and hoping you matched the right one. Two verbs that had been
 //! bound the whole time — `R` turns a member, `Shift+Delete` empties the tile — were reported
 //! *missing* over two sessions, and both were on the list, collapsed onto one row reading
-//! `"turn / remove this / Shift: empty the tile"`
-//! (`docs/2026-08-15-usability-handoff.md` §2).
+//! `"turn / remove this / Shift: empty the tile"`.
 //!
 //! So the chord goes on the control. Malacria, Bailly, Harrison, Cockburn & Gutwin 2013, *Promoting
 //! Hotkey Use through Rehearsal with ExposeHK* (`10.1145/2470654.2470735`) is the measured form of
@@ -152,7 +151,7 @@ const CELL: f32 = 8.0;
 /// measurement, stated beside the size it belongs to.
 ///
 /// It sizes the legend's chord column to the longest chord *this* legend actually holds, so the
-/// descriptions line up down the block (`docs/ui.md` §3.1: a panel is rows, not strings) without a
+/// descriptions line up down the block (a panel is rows, not strings) without a
 /// constant wide enough for the fattest chord the census has ever had — which is the difference
 /// between a legend that fits the populated Meshes tab's free ground and one that measured wider
 /// than any of it.
@@ -260,7 +259,7 @@ type Painters<'w, 's> = Query<
 /// background with alpha, a border with width and colour, a `Text`, or an `ImageNode`.
 ///
 /// **The interface only.** What the world draws is not in here and is not dodged either: it is
-/// faded instead while the key is held (`chrome::WORLD_HELD`), which is why this census has one
+/// faded instead while the key is held (`chrome::stepped_back`, at the sheet's `layout.world_held`), which is why this census has one
 /// tier where it used to have two.
 ///
 /// **A [`chrome::Ground`] node paints nothing that counts, and that is the load-bearing exception.**
@@ -491,7 +490,7 @@ fn spawn_layer(
             // hidden through `Shown` until the key is down.
             bevy_gooey::cover(),
             bevy_gooey::Shown(false),
-            // **Per `docs/ui.md` §5 trap 7.** A full-screen container without this eats every world
+            // **A full-screen container without this eats every world
             // click. It must also never carry `Hovered`: `view::over_ui` and `view::drive` ask "is
             // the pointer on the interface" by looking for any true one, and a layer covering the
             // window would answer yes everywhere — killing zoom and click-to-place with nothing on
@@ -1394,7 +1393,7 @@ fn settle_legend(
     let cap = ((corner.y - stage.min.y).max(0.0) / CELL) as usize + taken.len() + 2;
     // **One walk, not two.** It used to run the whole search dodging the world's box and then again
     // without it, because a legend that stands somewhere is the one thing this block is for. The
-    // world is faded while the key is held now (`chrome::WORLD_HELD`), so there is nothing here to
+    // world is faded while the key is held now (`chrome::stepped_back`), so there is nothing here to
     // dodge and nothing to fall back from — see [`place_badges`] on why routing around the envelope
     // cost more ground than it saved.
     for x in columns.iter().copied() {
@@ -1556,7 +1555,7 @@ fn place_badges(
     // down with it, and the piece list's badge then had nowhere left to stand but on top of its
     // neighbour. One detour, three displaced boxes, and the overlap the author actually saw.
     //
-    // `chrome::WORLD_HELD` answers it at the source instead: while the key is held the envelope
+    // The sheet's `layout.world_held` answers it at the source instead: while the key is held the envelope
     // drops to a quarter alpha and reads as background, so a badge — opaque, bordered, and drawn
     // over it — is legible standing right on it. The author's own framing: *"we should use fading
     // of certain UI elements to ensure what we are visually communicating to users instead."*
@@ -2299,7 +2298,7 @@ fn place_badges(
 /// fast path beside a slow one **does not work on its own** — users plateau on the slow one, because
 /// no single moment hurts enough to justify switching. The fix they name is a *bridge* where the
 /// novice route rehearses the expert route, Kurtenbach & Buxton's marking menus being the canonical
-/// one. `docs/ui.md` §3.5 states the practical form: *"a control group that binds invisibly is a
+/// one. The practical form: *"a control group that binds invisibly is a
 /// control group nobody binds twice — the readout has to show it happened."*
 ///
 /// It is a strictly better bridge here than it was as a row in a list, and that is the whole change
@@ -2410,7 +2409,7 @@ fn one_badge(
         bevy::picking::Pickable::IGNORE,
     ))
     .with_children(|b| {
-        // **The chord holds a column** so the descriptions line up down the box — `docs/ui.md` §3.1's
+        // **The chord holds a column** so the descriptions line up down the box — the rule that a
         // argument that a panel is rows and not strings, applied to the last thing in this editor that
         // was still a string. Only inside a box: a bare chip in a band is its own object and hugs its
         // chord.

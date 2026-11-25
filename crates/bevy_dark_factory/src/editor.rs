@@ -3,7 +3,7 @@
 //! # The ghost is the contract
 //!
 //! Everything an author does here goes through a preview that stands where the thing will actually
-//! be. That is not polish; it is the rule `containment::cordon` states and the Site editor had to
+//! be. That is not polish; it is the rule [`brush_at`] states and the Site editor had to
 //! learn twice: a preview drawn somewhere the piece will not end up *"is worse than no preview,
 //! because it is a promise the game then breaks."* So the ghost is snapped, aimed, and lifted onto
 //! its host exactly as the real placement will be.
@@ -3067,11 +3067,11 @@ impl Plugin for EditorPlugin {
                             // **`or_eager` on the last rung, because `run_once` holds a `Local`.**
                             // `bevy_ecs-0.20.0/src/schedule/condition.rs:648` is
                             // `pub fn run_once(mut has_run: Local<bool>) -> bool`, and `or_else`
-                            // combines with `||` (same file, line 1564) — so on the very first
+                            // combines with `||` (same file, line 1576) — so on the very first
                             // frame, where `Project` was just inserted and answers true, `run_once`
                             // never ran and never spent its flag. It then fired on the first *later*
                             // frame where nothing else had changed, rebuilding the palette for
-                            // nothing some frames after startup. `or_eager` (`|`, line 1586) runs it.
+                            // nothing some frames after startup. `or_eager` (`|`, line 1598) runs it.
                             //
                             // The chain rungs above are stateless `resource_changed` conditions, so
                             // they keep `or_else` and its skip is free.
@@ -4226,11 +4226,11 @@ fn arm_the_first_shown_piece(palette: PaletteSource, mut state: ResMut<EditorSta
 ///
 /// Forty-one rows is a list you scroll past; grouped by what a thing IS it becomes a handful of
 /// headings you can skip. The grouping is the `kind` axis of the project's own vocabulary rather than
-/// a second taxonomy invented for the panel — `docs/ui.md` §1.2 names over-informing as the failure
+/// a second taxonomy invented for the panel — over-informing is the failure
 /// mode, and two competing category systems is the version of that which also makes people wrong.
 ///
-/// Categories appear in VOCABULARY order and never in frequency or recency order. Samp 2011, via
-/// §3.5: a menu's cost is paid at first sight, so fix positions permanently — a palette that
+/// Categories appear in VOCABULARY order and never in frequency or recency order. Samp 2011:
+/// a menu's cost is paid at first sight, so fix positions permanently — a palette that
 /// reshuffles as a map fills is one nobody builds a memory of.
 fn rebuild_palette(
     mut commands: Commands,
@@ -4465,8 +4465,7 @@ fn palette_categories(project: &Project,
     let offered = open.palette_namespaces(project);
     for (_, members) in out.iter_mut() {
         // **The filter narrows; it never reorders.** Rows that survive keep the positions they had,
-        // so what an author learned about where a piece sits is still true — Samp 2011, via
-        // `docs/ui.md` §3.5.
+        // so what an author learned about where a piece sits is still true — Samp 2011.
         members.retain(|ix| {
             project
                 .library
@@ -4672,7 +4671,7 @@ fn walk_palette(
 /// by editor panels. The moment the **menu** adopted the shared row vocabulary it spawned rows that
 /// carry `Button` too, and the first click on one panicked the whole application — `Res<Project>`
 /// does not exist on `Screen::Project`, and in Bevy 0.20 a missing `Res<T>` panics rather than skipping
-/// (`CLAUDE.md`; `bevy_ecs/error/handler.rs:130`).
+/// (`CLAUDE.md`; proved by `tests/a_missing_res_panics_the_system.rs`).
 ///
 /// The row query already answers "is this mine" — a menu row has no `PaletteRow` — so the guard was
 /// there and simply ran too late, after parameter validation. Found by adopting the vocabulary,
@@ -7907,9 +7906,9 @@ fn draw_map_grid(
 
 /// **The map's envelope in world space** — centre, then size.
 ///
-/// Extracted so the wireframe an author sees and the rect a badge must not cover are computed from
-/// one expression. `badges::sense_world_ink` projects this to screen and calls it ink; if the two
-/// ever disagreed, the overlay would carefully avoid a box that is not where the box is.
+/// Extracted so the wireframe an author sees and the box the camera frames are computed from one
+/// expression. Its two consumers are [`crate::view::depth_range_over`] and [`draw_bounds`]; if the
+/// two ever disagreed, the map would be framed against a box that is not where the map is.
 pub fn map_bounds(open: &OpenMap) -> (Vec3, Vec3) {
     // `floor_rect` is the floor PLAN — map space, centred on zero. Drawing happens in the world, so
     // the origin goes back on here.
@@ -8253,7 +8252,8 @@ fn draw_bounds(
 ) {
     let (centre, size) = map_bounds(&open);
     // Faded while the shortcut key is held, the same as the Tiles envelope — the two are the same
-    // claim about the world, so they step back together (`chrome::WORLD_HELD`).
+    // claim about the world, so they step back together (the sheet's `layout.world_held`, through
+    // `chrome::stepped_back`).
     let held = crate::keys::pressed(&keyboard, *live, crate::keys::Action::Shortcuts);
     // `cube`, not `cuboid` — 0.20 spells it `Gizmos::cube` and takes a transform whose SCALE is
     // the box's size (`bevy_gizmos-0.20.0/src/gizmos.rs:632`).
@@ -8820,7 +8820,7 @@ fn refresh_status(
         }
         let (want, tint) = match field {
             // Silent when the map agrees with itself, which is the common case and the one a standing
-            // line must not shout about. `docs/ui.md` §1.2: more information helps, noise does not.
+            // line must not shout about. More information helps; noise does not.
             Field::Edges => match faults.0.len() {
                 0 => ("ok".to_owned(), quiet),
                 1 => (faults.0[0].message.clone(), danger),
@@ -9198,7 +9198,8 @@ pub struct Fields<'w> {
     /// `token` line above records.
     // **`Option`, because these reads are also a run condition's** (`not_typing`): a `SystemParam`
     // whose field is a hard `Res` fails validation when the resource is absent, and a run condition
-    // that fails validation silently stops every system behind it (`keys.rs:3750` records the rule).
+    // that fails validation silently stops every system behind it (the rule stated on
+    // [`not_typing`], `:9281`).
     // The line below is `Option` for the same reason.
     pub compose_issue: Option<Res<'w, crate::issue_compose_panel::Composer>>,
 }
@@ -15048,7 +15049,7 @@ pub fn set_of_placements(
 
 /// **A set in hand becomes a reusable group.**
 ///
-/// The Map tab's half of `docs/2026-08-09-compose-authoring-plan.md` step 1. `Shift+B` already drags a
+/// The Map tab's half of the composition authoring plan. `Shift+B` already drags a
 /// box and holds a [`CloneSet`] whose pieces carry offset, yaw, tip, lift and a resolved [`CloneHost`]
 /// — which is a member list in all but name. This is the conversion, and it is **pure** so it can be
 /// tested with hand-built data rather than by booting an editor over the shipped corpus.
@@ -18087,7 +18088,7 @@ fn propose_from_grammar(
     //
     // Not two ways to do one thing — two sources with different information. A grammar learned from
     // placements derives no interfaces, so it has no walls to close and nothing to ask for; the
-    // composition grammar does. `docs/research/2026-08-10-expressive-range.md` measured the collapse
+    // composition grammar does. It was measured: the collapse
     // at zero enclosed regions in 128 solves and falsified both the vocabulary and the weight
     // explanations for it.
     let mut mint = || {
@@ -18350,7 +18351,7 @@ fn propose_region_blocks(project: &Project, open: &OpenMap) -> Result<Laid, Stri
 /// **Gizmo outlines rather than spawned meshes**, and that is a stated limit rather than a shortcut.
 /// The proposal is about *where things go* — a solver lays a layout, not a dressing — and an outline
 /// per cell answers that at a hundredth of the cost of instancing several hundred GLBs that are about
-/// to be thrown away. `docs/2026-08-11-editor-visual-inspection.md` measured what the instancing
+/// to be thrown away. Measured, the instancing
 /// costs here: a keystroke that changed nothing rebuilt 1,616 entities.
 fn draw_proposal(project: Res<Project>,
     open: Res<OpenMap>, proposal: Res<Proposal>, mut gizmos: Gizmos) {
@@ -19009,7 +19010,7 @@ fn drive_ghost(
     };
     let (y, _) = match blueprint_model::stack::placement_at(probe_map, &project.library, &ys, d, at) {
         Ok(found) => found,
-        // **The reason, while the cursor is still there.** `docs/ui.md` §1.4: an unmet condition is an
+        // **The reason, while the cursor is still there.** An unmet condition is an
         // instruction. A ghost that simply vanishes over bare floor reads as the editor being broken;
         // the sentence says which surface the piece wants and leaves the author holding the answer.
         Err(e) => {

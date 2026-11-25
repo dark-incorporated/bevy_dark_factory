@@ -1,7 +1,7 @@
 //! **Narrowing a list by typing at it.**
 //!
 //! The map palette is 41 rows and the tiles candidate list is 318. Grouping made the first one
-//! navigable — `docs/ui.md` §3.5, fixed positions, never reordered by recency — but grouping does not
+//! navigable — fixed positions, never reordered by recency — but grouping does not
 //! scale to three hundred, where the only way to reach a row is to remember which pack it came from
 //! and scroll. A filter is the escape hatch that does not disturb the ordering: the rows that survive
 //! stay in exactly the order they were in, so what an author learned about where things sit is still

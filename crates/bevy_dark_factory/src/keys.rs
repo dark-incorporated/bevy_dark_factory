@@ -1,6 +1,6 @@
 //! **The key census** — every binding this editor has, in one table, with a test.
 //!
-//! `docs/ui.md` §3.5 is unambiguous about why: key allocation in the game used to live in *five*
+//! The reason is unambiguous: key allocation in the game used to live in *five*
 //! hand-written prose censuses, and *"all five of which had drifted to the same wrong answer — every
 //! one named `T` as taken, long after the `T` hotkey was deleted."* The remedy there was to make
 //! every binding data and add `the_key_space_has_no_collisions`. This is the same move for the
@@ -10,12 +10,12 @@
 //!
 //! `M` steps the mount in tile configuration and means nothing on the map; `F` floods the map and
 //! means nothing in tile configuration. Two actions may share a key when their contexts can never be
-//! live at once — the same rule §3.5 states, and the same reason it gives: a flat uniqueness rule
+//! live at once — the rule the census exists for, and the reason it gives: a flat uniqueness rule
 //! *"would force a worse binding"*.
 //!
 //! [`Context::Typing`] is the one that overlaps everything. While a name or an id is being typed the
-//! keyboard belongs to that text, and every other action is suppressed — the focus guard §3.5 gives
-//! one home, because `research_room::editor` found the alternative the hard way when one `Space` both
+//! keyboard belongs to that text, and every other action is suppressed — the focus guard
+//! has one home, because `research_room::editor` found the alternative the hard way when one `Space` both
 //! clicked a focused button and toggled the pause.
 //!
 //! # Every key is stated where it is used
@@ -23,11 +23,11 @@
 //! Cockburn, Gutwin, Scarr & Malacria 2014 (`10.1145/2659796`) document the intermodal-transition
 //! failure: offering a fast path beside a slow one *does not work on its own*, and users plateau on
 //! the slow one. So a binding carries its own label and the panel renders it next to the thing it
-//! does — §4.2's rule that *"verb chips are clickable and keyed, and each chip states its key."*
+//! does — a verb chip is clickable and keyed, and each chip states its key.
 //!
 //! # Routing is by CONTEXT, not by focus — settled 2026-08-18
 //!
-//! `docs/research/2026-08-18-reusable-scroll-and-tab-widgets.md` §3.5 assumes the other model: it
+//! A scroll-and-tab widgets survey assumes the other model: it
 //! routes keyboard paging to *"the scroll view that currently owns focus"*. **This editor does not
 //! route a key by focus and is not going to.** `just_pressed(&ButtonInput, Live, Action)` is a *pull*
 //! helper each consumer polls, and `Live(Context, Stance, Holder::Tab)` is an ambient pair — **no
@@ -55,7 +55,7 @@
 //! `chrome::Follow` scrolls the selection into view — so `PageUp`/`PageDown`/`Home`/`End` would be
 //! four more rows in every context's list (`no_context_gains_a_key` ratchets the count), buying a
 //! second way to do what the
-//! arrows already do. `docs/ui.md` §3.5's own finding is that a fast path beside a slow one does not
+//! arrows already do. The finding behind that rule is that a fast path beside a slow one does not
 //! work on its own; a fast path beside an *equivalent* one is worse.
 //!
 //! Held to ~12 per context, which Zheng et al. 2018 (`10.1145/3173574.3173823`) found is learnable to
@@ -171,7 +171,7 @@ impl Context {
 /// actions on one key in one context, so the key is single and the **state** decides which job it
 /// does."*
 ///
-/// That is the second census §3.5 exists to prevent, and it cost exactly what a second census costs:
+/// That is the second census the rule exists to prevent, and it cost exactly what a second census costs:
 /// the arrows walk a list in three tabs and **move geometry** in a fourth, and the held-`K` overlay
 /// could not say which — it rendered one row, `"list / nudge the mesh / Shift: flush it"`, whatever
 /// was actually live. An author reading the key list got no answer to the only question a modal
@@ -184,7 +184,7 @@ impl Context {
 /// shows the one that is live.
 ///
 /// **This does not make the mode safe on its own, and the corpus cannot settle whether it is.**
-/// `docs/research/2026-08-10-snapping-corpus-vetting.md` records the gap — Raskin has never been
+/// The corpus cannot close the gap — Raskin has never been
 /// ingested, so there is no mode-error literature here to appeal to. The standing argument is
 /// `build.rs`'s: the mode is acceptable *because it is drawn*, a ghost standing on the grid. This adds
 /// a second place it is stated, which strictly improves on that; it does not replace it.
@@ -218,7 +218,7 @@ pub enum Stance {
     /// It is a stance rather than a flag for the same reason `Proposed` is: the arrows and `Enter`
     /// mean something different while it is on, and a key list that did not say so would be lying.
     /// **It costs no new key.** `left`/`right` were unused on this tab at `Idle`, and
-    /// `docs/tiles_tab_contract.md` recorded exactly why — *"There is one list on this tab, so there
+    /// The tab's own old rule was exactly that — *"There is one list on this tab, so there
     /// is nothing to switch between."* There are two pages now, so the reservation is spent.
     Browsing,
     /// **The composition picker has the arrows** — they walk the compositions, not the palette.
@@ -820,7 +820,7 @@ enumerated! {
     UndoTile,
     RedoTile,
     // ── Tiles: the lattice ───────────────────────────────────────────────────
-    // The subgrid was mouse-only, against §4.2's rule that everything reachable by mouse is
+    // The subgrid was mouse-only, against `docs/ui/vision.md` P11's rule that everything reachable by mouse is
     // reachable by keyboard — a rule `tiles.rs` quotes at itself and then did not follow.
     CellLeft,
     CellRight,
@@ -3158,7 +3158,7 @@ pub const BINDINGS: &[Binding] = &[
     //
     // The block draws the project's whole vocabulary — 55 chips on the shipped kit, of which a piece
     // holds three to six — and every one of them was a mouse target and nothing else: `on_tag_chip`
-    // was their only writer. `docs/ui.md` §4.2 is the rule that makes that a defect rather than a
+    // was their only writer, which is a defect rather than a
     // preference: everything reachable by mouse is reachable by keyboard and vice versa.
     //
     // **A row this context pays for, deliberately.** `no_context_gains_a_key` is a ratchet and
@@ -3626,7 +3626,7 @@ pub fn chord(action: Action) -> String {
 
 /// Everything live in one context, in declaration order — never sorted, never reordered by use.
 ///
-/// Samp 2011, via `docs/ui.md` §3.5: a menu's cost is paid at first sight, so **fix item positions
+/// Samp 2011: a menu's cost is paid at first sight, so **fix item positions
 /// permanently and never reorder by recency**. A key list that rearranges itself is one nobody can
 /// build a memory of.
 /// **What is live in one context, in one [`Stance`]** — declaration order, never sorted.
@@ -3643,7 +3643,7 @@ pub fn in_context(context: Context, stance: Stance) -> impl Iterator<Item = &'st
 /// How a binding READS: the bare key, or the platform modifier joined to it.
 ///
 /// **The only place a chord becomes text.** The panel, the verb chips and the tests all come through
-/// here, so `Cmd+S` cannot appear in one and `Ctrl+S` in another — the drift `docs/ui.md` §3.5 records
+/// here, so `Cmd+S` cannot appear in one and `Ctrl+S` in another — the drift that rule is about
 /// is exactly this, a second place that renders the same fact.
 pub fn chord_text(b: &Binding) -> String {
     let alt = if b.needs_alt { format!("{ALT_NAME}+") } else { String::new() };
@@ -3737,7 +3737,7 @@ impl Badge {
 /// and a row whose bindings disagreed would split rather than pick one of them — which is the honest
 /// answer and not a special case.
 ///
-/// Declaration order, never sorted, for the reason `rows` gives: Samp 2011 via `docs/ui.md` §3.5, a
+/// Declaration order, never sorted, for the reason `rows` gives: Samp 2011, a
 /// list that rearranges itself is one nobody can build a memory of. That matters more here than it did
 /// there, because a badge's *position* is half of what is being learned — ExposeHK's third goal
 /// (`10.1145/2470654.2470735`) is that hotkeys sit at the spatial location of the control they act
@@ -3799,7 +3799,7 @@ impl Badge {
 /// called `edit.active.take()`, the `not_typing` run condition re-evaluated to **true** in the same
 /// frame, `Enter` was still `just_pressed`, and finishing an edge token *also* imported the candidate
 /// into `assets/blueprint/library.yaml`. Six descriptors arrived there that way, and
-/// `docs/2026-08-04-emerge-mapper-handoff.md` blamed stray automation. The fix is [`Live`]: decided
+/// the handoff note for the mapper blamed stray automation. The fix is [`Live`]: decided
 /// **once**, in [`Phase::Sense`], so no system can observe a keyboard that changed owner halfway
 /// through its own frame. It is what makes `Enter` safe regardless of the order below.
 ///
@@ -4047,7 +4047,7 @@ pub(crate) struct KeyInput<'w> {
 /// Was this action just pressed, in a context where it is allowed to fire?
 ///
 /// The one place a `KeyCode` meets `ButtonInput`. Callers name an `Action` and pass the live context,
-/// which is what stops the census drifting from the code the way `docs/ui.md` §3.5 records it drifting
+/// which is what stops the census drifting from the code the way the game's five prose censuses drifted
 /// five ways at once.
 ///
 /// **The context is a parameter rather than a run condition** so that there is exactly one gate. A
@@ -4451,7 +4451,7 @@ mod tests {
         }
     }
 
-    /// **The key space has no collisions**, in the sense `docs/ui.md` §3.5 means: two actions may
+    /// **The key space has no collisions**: two actions may
     /// share a key only when their contexts can never be live together.
     ///
     /// This is the test whose absence let five prose censuses drift to the same wrong answer.
@@ -5093,7 +5093,7 @@ mod tests {
             // `tiles::on_tag_chip` was their only writer, on the tab whose argument is that
             // keystrokes are faster. `/` is a **new key to learn**, which the two rows above this one
             // were each able to avoid; it is charged knowingly, because the alternative was leaving
-            // the largest control in the pane keyboard-unreachable. `docs/ui.md` §4.2.
+            // the largest control in the pane keyboard-unreachable.
             // 34 -> 35: `NewToken`. `Shift+T` grows the vocabulary from the tag block — the `+`
             // chip's keyboard half. Costs no row: it shares `CellForward`'s, the same shape
             // `Shift+R`/`Shift+L` already use.
@@ -5699,7 +5699,7 @@ mod tests {
     /// **The four region-fills share one row, and the row pairs each chord with its source.**
     ///
     /// The collapse is what keeps the Map context inside the ceiling
-    /// `no_context_carries_more_than_a_learnable_vocabulary` enforces — they collapse only while they
+    /// `no_context_gains_a_key` enforces — they collapse only while they
     /// are adjacent and carry the same `does`, so this pins both.
     ///
     /// **The second assertion is the one that was missing.** The row used to read *"continue the

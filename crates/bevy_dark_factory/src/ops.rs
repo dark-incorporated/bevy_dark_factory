@@ -1665,7 +1665,7 @@ pub mod layout_accept {
             if proposed.preview_only {
                 return Err(Refusal::new(PREVIEW_ONLY));
             }
-            // **What it would clear**, read now. The count is the whole of `docs/ui.md` §3.2's delta:
+            // **What it would clear**, read now. The count is the whole of the delta:
             // what changes, beside what is there.
             let clears = if proposed.composes {
                 open.map.stamps.iter().filter(|s| proposed.replaces_stamp(&open.map, s)).count()

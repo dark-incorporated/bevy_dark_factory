@@ -489,7 +489,7 @@ pub(crate) fn new_kit_files(name: &str) -> (String, String) {
 /// the first tile is saved.
 ///
 /// No map either. The maps column will read *"no maps in `<kit>` yet — the `+ new map` row is the only one there"*, which is
-/// the instruction rather than a report (`docs/ui.md` §1.4) and is exactly what to do next.
+/// the instruction rather than a report, and is exactly what to do next.
 pub fn create_kit(root: &Path, raw_name: &str) -> Result<PathBuf, String> {
     let name = naming::to_snake_case(raw_name);
     if name.is_empty() {
@@ -754,7 +754,7 @@ pub fn create_map(
 ///
 /// Deleting a map removes a file, and there is no undo for it here — the editor's undo stack does not survive the map being
 /// gone. So the act is split in two: asking, which changes nothing, and agreeing, which is the answer to a question naming exactly
-/// what will go. `docs/ui.md` §1.4's rule applies to the question as much as to a refusal — it names the map and the file, because
+/// what will go. The same rule applies to the question as much as to a refusal — it names the map and the file, because
 /// "are you sure?" is not information.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Pending {
@@ -1494,7 +1494,7 @@ mod tests {
     }
 
     /// An empty kit is a kit with no maps, not an error — and the screen turns that into an
-    /// instruction rather than a report (`docs/ui.md` §1.4).
+    /// instruction rather than a report.
     #[test]
     fn an_empty_kit_reports_no_maps_rather_than_failing() {
         let root = Root::new("empty");
@@ -1535,7 +1535,7 @@ mod tests {
     }
 
     /// A root with no `assets/blueprint` is refused by name — the message tells the author what to do,
-    /// per §1.4, rather than reporting an empty list that looks like a project with no kits.
+    /// rather than reporting an empty list that looks like a project with no kits.
     #[test]
     fn a_root_that_is_not_a_project_says_so() {
         let dir = std::env::temp_dir().join(format!("chooser-bare-{}", std::process::id()));

@@ -813,7 +813,8 @@ pub fn sense_pointer(
 /// close, entered from the other side.
 ///
 /// So this reads the rects — through **`ComputedNode::contains_point`**, which is the same function
-/// `bevy_ui`'s picking backend and focus system call (`picking_backend.rs:206`, `focus.rs:259`).
+/// `bevy_ui`'s picking backend and focus system call
+/// (`bevy_ui-0.20.0/src/picking_backend.rs:205`, `bevy_ui-0.20.0/src/focus.rs:276`).
 /// Hand-rolling the rectangle test got two things wrong that the borrowed one cannot: the transform
 /// is [`bevy::ui::UiGlobalTransform`] and **not** `GlobalTransform` — a separate component in 0.20 —
 /// and the point has to be **physical**, the pointer being logical.

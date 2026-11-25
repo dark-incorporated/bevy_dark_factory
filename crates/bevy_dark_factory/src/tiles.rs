@@ -87,7 +87,7 @@ crate::keys::enumerated! {
 /// **The panels are one job at three levels of assembly.** Measured when the doors were built: four
 /// shipped guides cross between Meshes, Tiles and Compose mid-flow, `room_from_nothing.json` seven
 /// times, because a kit is *"parts -> sub-assemblies -> assemblies"*
-/// (`docs/research/2026-08-08-kitbashing-guidance.md`) and an author moves between the three
+/// and an author moves between the three
 /// constantly while making one. Splitting them across workspaces would put a boundary inside a
 /// single act; that is why they share the Kit workspace.
 impl Mode {
@@ -518,7 +518,7 @@ struct StageResources<'w> {
 #[derive(bevy::ecs::system::SystemParam)]
 struct SubjectMeasure<'w, 's> {
     // **The hole the world is drawn through**, whose shape decides how close the mesh stage can get.
-    // `surface::fit_viewport` hands this same rect to the camera as its viewport, so it is the frame
+    // `surface::fit_viewport_to_frame` hands this same rect to the camera as its viewport, so it is the frame
     // the subject actually has to fit inside — not the window.
     slot: Query<'w, 's, &'static bevy::ui::ComputedNode, With<crate::chrome::ViewportSlot>>,
     // **The mesh as it is actually drawn**, which is the only honest source for how big it is.
@@ -1606,8 +1606,8 @@ fn describe_cell(c: &blueprint_model::descriptor::SubCell) -> String {
     }
 }
 
-/// The glyph a cell button shows. **ASCII only** — `docs/ui.md` §5 records that the shipped face is
-/// checked per glyph and that several obvious box-drawing choices are simply absent from it.
+/// The glyph a cell button shows. **ASCII only** — the shipped face is checked per glyph, and
+/// several obvious box-drawing choices are simply absent from it.
 fn cell_glyph(c: Option<&blueprint_model::descriptor::SubCell>) -> &'static str {
     match c {
         None => ".",
@@ -1623,7 +1623,7 @@ fn cell_glyph(c: Option<&blueprint_model::descriptor::SubCell>) -> &'static str 
 /// This fires for *any* `Activate` in the application, not only ones inside this panel — and
 /// `Project` is a **door's** resource, removed by `screen::close_the_door`. On `Screen::Project` it does
 /// not exist, and in Bevy 0.20 a missing `Res<T>` **panics its system** rather than skipping
-/// (`bevy_ecs/error/handler.rs:130`).
+/// (proved by `tests/a_missing_res_panics_the_system.rs`).
 ///
 /// The `Query` below is the real guard — a menu row has no `CellVerb` — but parameters are validated
 /// *before* a body runs, so it never got the chance. This was invisible for as long as
@@ -1657,7 +1657,7 @@ fn on_cell_verb(
 /// **Do one of the four things to the selected cell.** The chip and the key both come here.
 ///
 /// Split out of the observer so the keyboard is not a second implementation of the same four verbs —
-/// `docs/ui.md` §4.2 requires everything reachable by mouse to be reachable by keyboard, and the way
+/// `docs/ui/vision.md`'s P11 requires everything reachable by mouse to be reachable by keyboard, and the way
 /// that requirement usually gets met is by writing it twice and letting the two drift.
 fn apply_verb(verb: CellVerb, edit: &mut CellEdit, project: &mut Project, state: &mut ImportState) {
     let Some(at) = edit.at else {
@@ -1902,7 +1902,7 @@ pub struct Derived {
 impl Derived {
     /// How many of the proposals would actually change something, and how many are already that.
     ///
-    /// Stated as a delta rather than a total, because `docs/ui.md` §3.2 asks for the change and
+    /// Stated as a delta rather than a total, because a reader wants the change and
     /// because "propose 48 cells" on a piece that already carries 48 identical tokens reads as work
     /// about to happen when none is.
     pub fn delta(&self, grid: Option<&blueprint_model::descriptor::Subgrid>) -> (usize, usize) {
@@ -2626,7 +2626,7 @@ fn draw_pick(
 
 /// **The lattice, by keyboard** — cursor, layer, and the four verbs.
 ///
-/// `docs/ui.md` §4.2 wants everything reachable by mouse reachable by keyboard, and every subgrid
+/// `docs/ui/vision.md`'s P11 wants everything reachable by mouse reachable by keyboard, and every subgrid
 /// control was an `Activate` observer, so none of it was. The verbs go through `apply_verb`, the same
 /// function the chips call, rather than being written a second time.
 fn lattice_keys(
@@ -2647,7 +2647,7 @@ fn lattice_keys(
 
     let pressed = |a| keys::just_pressed(&keyboard, *live, a);
 
-    // Everything reachable by mouse is reachable by key (`docs/ui.md` §4.2), so the scan chip has
+    // Everything reachable by mouse is reachable by key (`docs/ui/vision.md` P11), so the scan chip has
     // one too — and it goes through the same `scan_mesh` the chip calls, not a second copy.
     if pressed(Action::ScanMesh) {
         // **Only the asked-for scan stages a proposal** — see `scan_mesh`'s note on why the automatic
@@ -3199,7 +3199,7 @@ struct CellEdits<'w> {
 /// Candidates grouped by the directory they came from, in scan order.
 ///
 /// Scan order is sorted path order, so the groups come out stable across machines and never reorder
-/// — the same rule the palette follows and for the same reason (Samp 2011, via `docs/ui.md` §3.5).
+/// — the same rule the palette follows and for the same reason (Samp 2011).
 fn packs(candidates: &[Candidate]) -> Vec<(String, Vec<usize>)> {
     let mut out: Vec<(String, Vec<usize>)> = Vec::new();
     for (ix, c) in candidates.iter().enumerate() {
@@ -3668,7 +3668,7 @@ pub struct TabLabel;
 /// `Ink::danger`, and only the count: a persistent peripheral element wants medium intensity, not
 /// maximum (Lewandowska, Dziśko & Jankowski 2022, `10.1038/s41598-022-16284-2` — high contrast is
 /// burst-only, and habituation appears at low contrast only), and the word and the count are the
-/// non-colour channels `docs/ui.md` §1.3 requires; the hue is the redundant one.
+/// non-colour channels accessibility requires; the hue is the redundant one.
 #[derive(Component)]
 pub struct TabBadge;
 
@@ -4313,7 +4313,7 @@ fn style_tabs(
 /// **`F` puts the cursor in the filter box** — the keyboard half of a control that had only a
 /// mouse half.
 ///
-/// `docs/ui.md` §4.2 is the rule this satisfies: everything reachable by mouse is reachable by
+/// `docs/ui/vision.md`'s P11 is the rule this satisfies: everything reachable by mouse is reachable by
 /// keyboard and vice versa. The box was the standing exception — `filter::on_click` was its only
 /// writer — on the tab whose whole argument is that keystrokes are faster than reaching for the
 /// mouse, and with a 45-piece library to narrow.
@@ -4757,7 +4757,7 @@ fn enter_tab(
 ///
 /// The chips have looked pressable since they were written — `UiButton`, `Hovered`, a hover tint —
 /// and answered nothing: `on_tab_click` was deleted when the strip became per-door, leaving an
-/// affordance advertising a verb it did not have. `docs/ui.md` §4.2's parity rule says everything
+/// affordance advertising a verb it did not have. `docs/ui/vision.md` P11's parity rule says everything
 /// reachable by mouse is reachable by keyboard *and the reverse*.
 ///
 /// Restoring it as a `Button` was tried and **regressed
@@ -5616,7 +5616,7 @@ fn on_mount_chip(
 ///
 /// It was a system and nothing else, which made the mount value a word you could not act on: reported
 /// from the keyboard as *"I try to click on the unset, and it doesn't do anything. This is not clear
-/// at all."* `docs/ui.md` §4.2's rule runs the other way — everything reachable by mouse is reachable
+/// at all."* `docs/ui/vision.md` P11's rule runs the other way — everything reachable by mouse is reachable
 /// by keyboard — and it is just as true inverted here, because the value *looked* like a control. The
 /// same shape `enter_tab` has, for the same reason.
 fn step_mount(project: &mut Project, state: &mut ImportState) {
@@ -7080,7 +7080,7 @@ pub(crate) enum ListRow {
     /// A mesh under an open heading, by index into `ImportState::candidates`.
     Mesh(usize),
     /// **The `EXCLUDED` band itself.** It was mouse-only, so the one path back from an accidental
-    /// `Shift+R` needed the pointer — the §4.2 parity rule, broken on the row whose text explains
+    /// `Shift+R` needed the pointer — the `docs/ui/vision.md` P11 parity rule, broken on the row whose text explains
     /// how to restore a pack from inside the group it is hiding (the audit's M8).
     Excluded,
 }
@@ -7246,7 +7246,7 @@ type CandidateFollower<'w, 's> = Query<
 /// # Physical in, logical out
 ///
 /// `ComputedNode` and `UiGlobalTransform` are in **physical** pixels; `ScrollPosition` is in
-/// **logical** ones. `docs/2026-08-04-emerge-mapper-handoff.md` §4 records the cost of missing that
+/// **logical** ones. Missing that distinction cost this editor once already.
 /// distinction once already. `inverse_scale_factor` is the conversion, taken from the list itself.
 fn keep_selection_on_screen(
     state: Res<ImportState>,
@@ -7523,7 +7523,7 @@ pub(crate) fn library_ids(
 ///
 /// Reversed, and **only** reversed. A row's position changes when a new piece is defined and at no
 /// other time — editing a description does not move anything, which was the other half of the ask
-/// and was declined at the keyboard once the cost was named: `filter.rs` and `docs/ui.md` §3.5 both
+/// and was declined at the keyboard once the cost was named: `filter.rs` and this rule both
 /// hold *"fixed positions, never reordered by recency"*, on Sears & Shneiderman 1994
 /// (`10.1145/174630.174632`) measuring people slower on menus whose items moved, and preferring the
 /// ones that did not. A list that reshuffles as you work is the thing that finding is measured
@@ -7845,7 +7845,7 @@ fn drive_preview(
         // through. So the correction was compensating here for something the game never does, and
         // the preview promised a position nothing would honour.
         //
-        // `src/placement/furnish.rs:431` **does** apply `- rot * pivot`, and it is the one caller
+        // `bevy_coven`'s (the game crate) `src/placement/furnish.rs:431` **does** apply `- rot * pivot`, and it is the one caller
         // that does. Chosen at the keyboard: the mapper authors maps and tiles, so it previews the
         // path maps and tiles take. The visible consequence is deliberate — a mesh whose origin is
         // not its bounding-box centre now sits off its own footprint rectangle here, which is
@@ -8068,7 +8068,7 @@ const LATTICE_SET: Color = Color::srgb(0.62, 0.52, 0.82); // CHROME-OK: world in
 /// chose, and which cells they have marked.
 ///
 /// Only the marked cells get a filled box. Twenty-seven wireframe cubes over every prop would be the
-/// crowding failure `docs/ui.md` §1.2 names, on a tile instead of a panel — the lattice would hide the
+/// crowding failure Vicente & Rasmussen name, on a tile instead of a panel — the lattice would hide the
 /// mesh it describes.
 fn draw_subgrid(state: Res<ImportState>, project: Res<Project>, mut gizmos: Gizmos) {
     // As placed — the same layer `focused_div` range-checks against, so the grid an author clicks is
@@ -8232,7 +8232,7 @@ fn refresh_lines(
 // **The list's two tabs**, drawn as a strip so which one is showing is visible rather than inferred.
 //
 // `left`/`right` switch them, which costs no key: they were unbound on this tab while nothing was in
-// hand, and `docs/tiles_tab_contract.md` recorded exactly why — *"There is one list on this tab, so
+// hand, and the old rule was exactly that — *"There is one list on this tab, so
 // there is nothing to switch between."* There are two now.
 
 /// **Which shelf the list is showing.** Three, in the order work moves through them.
@@ -9041,7 +9041,7 @@ fn draw_pack_band(
         // **The pack's name, and — when it is excluded — the way back.**
         //
         // An excluded pack keeps its words because it names a state the chevron does NOT show,
-        // and the way out of it (`docs/ui.md` §1.4). They live in the growing column beside the
+        // and the way out of it. They live in the growing column beside the
         // name rather than in the count's column, because a sentence wraps and a tally must not.
         row.spawn(bevy_gooey::fill_text(if excluded {
             format!("{pack}  -  {} restores", keys::chord(Action::ExcludePack))
@@ -9062,7 +9062,7 @@ fn draw_excluded_band(p: &mut ChildSpawnerCommands, packs: usize, meshes: usize,
     p.spawn((bevy_gooey::band(), ExcludedHeader)).with_children(|row| {
         row.spawn((crate::marks::fold_mark(!open), bevy_gooey::Role::ButtonText));
         // **The name column wraps within itself; the tally does not.** The state and the way
-        // out of it both stay on the band (`docs/ui.md` §1.4) — what changed is that they now
+        // out of it both stay on the band — what changed is that they now
         // share the *growing* column, so the count can hold a column of its own rather than
         // being the last words of a sentence that wraps around it (F6).
         row.spawn(bevy_gooey::fill_text(format!("EXCLUDED  -  {} restores one", keys::chord(Action::ExcludePack))));
@@ -9344,7 +9344,7 @@ fn build_detail(p: &mut ChildSpawnerCommands, build: &crate::build::Build, proje
             crate::chrome::text::HINT,
         );
         // **And which member did it.** The line above is a consequence; on a tile with six members
-        // it left the author to find the cause by opening each one. `docs/ui.md` §3.2 asks for the
+        // it left the author to find the cause by opening each one. A delta asks for the
         // delta, and the delta here is a named piece and a distance.
         if let Some(why) = crate::build::what_made_it_big(&comp.members, &project.library, size) {
             line(p, why, crate::chrome::ink().dim, crate::chrome::text::HINT);
@@ -9466,10 +9466,10 @@ fn on_member_row(
 ///
 /// **It must be joined with `or_eager`, never `or_else`.** `SystemCondition::or_else` combines with
 /// `||` — `OrElseMarker::combine` is `Ok(a(..).unwrap_or(false) || b(..).unwrap_or(false))`,
-/// `bevy_ecs` `schedule/condition.rs` — so an earlier condition that returned true skips
+/// `bevy_ecs-0.20.0/src/schedule/condition.rs:1576` — so an earlier condition that returned true skips
 /// this one entirely and the `Local` stops tracking the text it exists to track: type into the tag
 /// box on a frame that also wrote `ImportState`, and the next keystroke compares against a string
-/// two edits old and reports no change. `or_eager` combines with `|` (same file, line 1586) and runs
+/// two edits old and reports no change. `or_eager` combines with `|` (`:1598`) and runs
 /// both. The `CLAUDE.md` trap — *all run conditions are evaluated* — is about the conditions of a
 /// `.run_if(..)` CHAIN, not about the two halves of one combinator.
 fn tag_filter_changed(filters: Res<crate::filter::Filters>, mut last: Local<String>) -> bool {
@@ -9832,7 +9832,7 @@ fn rebuild_detail(detail: DetailInputs<'_, '_>) {
             //   redundancy effect: the same information in two forms does not merely waste space,
             //   it *interferes*. `0.51` in the field and `0.51 w` in the note beside it was that,
             //   on one line, on every piece.
-            // - **Vicente & Rasmussen 1992** (`10.1109/21.156574`, already `docs/ui.md` §1.2):
+            // - **Vicente & Rasmussen 1992** (`10.1109/21.156574`):
             //   *"interfaces should be designed to allow people to effectively meet the demands of
             //   the task by relying on lower levels of cognitive control."* Dividing metres by the
             //   snap in your head to check the cell count is knowledge-based work for a fact the
@@ -10451,7 +10451,7 @@ fn rebuild_detail(detail: DetailInputs<'_, '_>) {
             //
             // So: a coloured rail down the left groups a message with its own remedy, the severity is
             // a *word* rather than only a hue, and the prose is plain `TEXT` — colour locates the
-            // thing, it does not shout it. `docs/ui.md` §1.2 (Vicente & Rasmussen): the test is "does
+            // thing, it does not shout it. Vicente & Rasmussen's test is "does
             // this force interpretation?", and the fix for a crowded panel is grouping and spacing
             // rather than deleting readouts.
             let findings: Vec<_> = cand.iter().flat_map(|c| c.findings.iter()).collect();
@@ -10642,7 +10642,7 @@ fn rebuild_detail(detail: DetailInputs<'_, '_>) {
             });
 
             // What the selected cell is, and the verbs that change it. Each chip states its own
-            // job — `docs/ui.md` §4.2's rule that a verb is clickable and named.
+            // job — `docs/ui/vision.md` P11's rule that a verb is clickable and named.
             let detail = match cell_edit.at {
                 Some(at) => match &cell_edit.active {
                     Some(raw) => format!("{},{},{}  edge `{raw}_`", at.0, at.1, at.2),

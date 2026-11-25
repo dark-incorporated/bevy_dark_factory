@@ -8,7 +8,7 @@
 //! names (`TEXT_DIM`/`DIM`, `ROW_ARMED`/`ROW_SELECTED`), so a change to one tab's greys silently was
 //! not a change to the other's.
 //!
-//! That is the failure `docs/ui.md` §3.5 records for key bindings, in a second place: a fact stated
+//! That is the failure the key census records for bindings, in a second place: a fact stated
 //! more than once drifts. Ousterhout's *A Philosophy of Software Design* ch. 17 is the general form —
 //! *"once you have learned how something is done in one place, you can use that knowledge to
 //! immediately understand other places that use the same approach."* Here that is literal: a third tab
@@ -68,7 +68,7 @@ use crate::keys::{self};
 ///
 /// # Why a struct, and why [`ink`] is a function of the skin and not a parameter
 ///
-/// The chrome is sixty-one spawn systems and helpers that hold no `Res<GooeySkin>`, and threading a
+/// The chrome is a body of spawn systems and helpers that hold no `Res<GooeySkin>`, and threading a
 /// skin through all of them would be a second parameter on every call. So the ink is one live value
 /// ([`ink`]), rebuilt by `crate::theme_ink::follow_the_skin` whenever the running skin changes colour,
 /// and the same system moves everything already on screen onto the new one: **a theme changes every
@@ -270,8 +270,10 @@ const INK_MATCH_TOLERANCE: f32 = 1.0e-3;
 /// by hand) the ink is rebuilt from it and everything already drawn is moved onto it. Until a skin says
 /// otherwise it is the editor's own style sheet's, `src/style/editor.yaml`.
 ///
-/// It is a process-wide value rather than a resource because 300 call sites paint from [`ink`] where no
-/// system parameter reaches — the same reason [`text_scale`] is one atomic. A process has one editor.
+/// It is a process-wide value rather than a resource because a painter calls [`ink`] where no system
+/// parameter reaches, and there are hundreds of them — the count is not kept here:
+/// `grep -rnoE '\bink\(\)' src` is the measurement. The same reason [`text_scale`] is one atomic.
+/// A process has one editor.
 static LIVE_INK: std::sync::LazyLock<std::sync::RwLock<Ink>> = std::sync::LazyLock::new(|| std::sync::RwLock::new(Ink::editor()));
 
 /// **The editor's ink now**, by value (28 colours, `Copy`): what a painter reads, whatever theme is
@@ -294,7 +296,7 @@ pub(crate) fn swap_ink(next: Ink) -> Ink {
 ///
 /// A free function rather than a resource because the drawers are ordinary `Update` systems with no
 /// stated order against anything in `badges`, and a resource written in one phase and read in
-/// another would be a frame stale on some runs and not others — the trap `sense_world_ink`'s own
+/// another would be a frame stale on some runs and not others — the trap [`crate::badges::ink`]'s own
 /// header records paying for.
 pub fn stepped_back(color: Color, held: bool) -> Color {
     if held {
@@ -438,8 +440,8 @@ impl Plugin for WidgetsPlugin {
 ///
 /// # Machinery, not greys — and that reconciliation is written down here because nowhere else has it
 ///
-/// `docs/ui.md` §5 says of `bevy_feathers`: *"its visuals are Bevy's editor skin — do not adopt
-/// them"*, and *"Do not add a UI framework crate"*. Both stand. What is adopted is the **mechanism**
+/// Two rules stand about `bevy_feathers`: *"its visuals are Bevy's editor skin — do not adopt
+/// them"*, and *"Do not add a UI framework crate"*. What is adopted is the **mechanism**
 /// — a token table, a themed scrollbar, and focus outlines that would otherwise be hand-written
 /// badly — and every colour this editor states comes from the constants above.
 ///
@@ -478,7 +480,7 @@ pub fn theme() -> bevy::feathers::theme::ThemeProps {
     // (`token_assignments`), and the semantic token maps to a colour, per surface level
     // (`semantic_base`, `semantic_overrides`). This editor has no surface levels, so each token it
     // restates gets a semantic token of its own — one colour, whatever the context — which is the
-    // port the 0.20 migration guide (`contextual_theming.md`) names as the quick one.
+    // 0.20 theme migration's quick path.
     let mut assign = |token: ThemeToken, color: Color| {
         let semantic = SemanticToken::new(format!("bevy_dark_factory.{token}").into());
         props.token_assignments.insert(token, semantic.clone());
@@ -509,8 +511,8 @@ pub fn theme() -> bevy::feathers::theme::ThemeProps {
 /// **The type scale, as roles rather than numbers.**
 ///
 /// The palette got named constants and the spacing got a scale; **size never got a name**, and the
-/// 2026-08-17 audit measured what that cost: six sizes across a hundred call sites with no rule
-/// between them. Section headings were 9 (`chrome::section`), 10 (the editor's and anim's
+/// 2026-08-17 audit (the owner's, at the keyboard on mac_air) measured what that cost: six sizes
+/// across a hundred-odd call sites with no rule between them. Section headings were 9 (`chrome::section`), 10 (the editor's and anim's
 /// hand-rolled ones) or 11 (Compose's three) — *three dialects for one role in one editor*. Compose
 /// showed two "COMPOSITIONS" headings, the real `section` plus an 11 px twin. Label/value pairs were
 /// 10/11, 10/10 or flat 11 depending on the tab. And the anim bench rendered its central pairing
@@ -533,8 +535,9 @@ pub mod text {
     ///
     /// The 2026-09-03 audit found the size ratchet had a laundering hole: `chrome_census.rs` scans
     /// for `from_font_size(<digit>`, and `chip`/`text_field` took `px: f32` and called
-    /// `from_font_size` *inside* `chrome.rs`, which the scan skips. Twenty call sites were passing
-    /// bare `9.0` / `10.0` / `11.0` through a function argument, in a crate whose own test claims a
+    /// `from_font_size` *inside* `chrome.rs`, which the scan skips. The 2026-09-03 audit (the
+    /// owner's, on mac_air) found twenty call sites passing bare `9.0` / `10.0` / `11.0` through a
+    /// function argument, in a crate whose own test claims a
     /// size is *"a role, never a number"*.
     ///
     /// A regex cannot close that; a type can. A builder takes a [`Role`], a `Role` is only ever one
@@ -706,11 +709,14 @@ pub fn resize_the_labels(
     }
 }
 
-/// **The person's text size, as every `chrome::font` call sees it** (UI-73, #251).
+/// **The person's text size, as every label the editor draws sees it** (UI-73, #251).
 ///
-/// `chrome::font` has 117 call sites, every one of them a label the editor draws by hand, and none of
-/// them has a system parameter to spare: a role's size is a fact of the type scale, and the scale a
-/// person chose is a fact about the editor. So the running scale is kept here, in one atomic, and
+/// Every hand-drawn label goes through [`typed`], which is the pair `(font(role), TypeRole(role))` —
+/// and that is a function called from a painter, with no system parameter to spare: a role's size is
+/// a fact of the type scale, and the scale a person chose is a fact about the editor. The count is
+/// not the point and is not kept here: `grep -rn 'chrome::typed(' src` is the measurement.
+///
+/// So the running scale is kept here, in one atomic, and
 /// [`set_text_scale`] is the only writer — a system turns the setting into it each frame
 /// ([`crate::ui::follow_the_text_size`]).
 ///
@@ -797,7 +803,7 @@ pub fn body_line_h() -> f32 {
 // not their absolute values — a panel where every gap is 4 px has no groups, however few things are
 // in it, and that is what the tiles detail block was.
 //
-// `docs/ui.md` §1.2 supplies the other half, and it cuts against reflexive minimalism: the test is
+// Density's other half cuts against reflexive minimalism: the test is
 // Vicente & Rasmussen's *"does this force interpretation?"*, not "how many things are on screen",
 // and Yang et al. 2017 measured more information **improving** performance. So the answer to a
 // crowded panel is spacing and grouping, not deletion.
@@ -981,7 +987,7 @@ pub fn panel_root<'a>(
 /// # Flex, deliberately, and not `Val::Percent`
 ///
 /// [`crate::style::metrics`]'s `layout.ui_scale` multiplies every `Val::Px` and every font size and leaves `Val::Percent`
-/// alone (`docs/ui.md` §5). A layout mixing percentage widths with pixel minimums would therefore
+/// alone. A layout mixing percentage widths with pixel minimums would therefore
 /// scale two ways at once on a 2x display, which is a bug that only appears on somebody else's
 /// monitor. `flex_grow` on the centre and pixel widths on the docks is responsive *and*
 /// density-correct, because the centre is defined as whatever is left.
@@ -999,7 +1005,7 @@ pub fn panel_root<'a>(
 #[derive(Resource)]
 pub struct Frame {
     pub root: Entity,
-    /// Above everything, and the same on every door — see `docs/2026-08-17-one-application.md` §4.1.
+    /// Above everything, and the same on every door.
     pub chrome_bar: Entity,
     /// The door's own strip of panels.
     pub door_strip: Entity,
@@ -1518,7 +1524,7 @@ pub fn spawn_frame(
     // viewport's own node was under a card, and `crate::view::OverUi` answered *yes* at its centre.
     //
     // gooey has no opt-out, and the path it does document is this one — *"a host that made one of them
-    // itself keeps it"* (`docs/guide/docks.md`) — so the body is the frame's, a `Display::None` node the
+    // itself keeps it"* (`bevy_gooey`'s own docs) — so the body is the frame's, a `Display::None` node the
     // layout is built into. A `Display::None` node has a zero rect, so nothing under it is laid out, drawn
     // or picked: the pages exist and are inert. **When the panels themselves move into this dock** (the rest
     // of UI-30, #224) this node becomes the real body and this paragraph goes with the change.
@@ -1709,7 +1715,7 @@ impl Problem {
 ///
 /// Sized to a panel rather than to memory: this is a list somebody reads down, and past a dozen or
 /// so a list stops being read and starts being scrolled, which is the same argument
-/// `keys::no_context_carries_more_than_a_learnable_vocabulary` makes one panel over.
+/// `keys::no_context_gains_a_key` makes one panel over.
 pub const MAX_PROBLEMS: usize = 12;
 
 impl Status {
@@ -2368,7 +2374,8 @@ pub fn scroll_gutter() -> f32 {
 /// **The bar overlays rather than reserving a gutter.** `Node.scrollbar_width` would reserve space,
 /// and it also turns on a shipped disagreement: `ScrollArea`'s wheel handler computes its maximum
 /// from `size()` while the scrollbar's own code subtracts `scrollbar_size`
-/// (`scrollarea.rs:27` vs `scrollbar.rs:173`), so the two disagree by exactly the gutter width.
+/// (`bevy_ui_widgets-0.20.0/src/scrollarea.rs:32` vs `bevy_ui_widgets-0.20.0/src/scrollbar.rs:176`), so the two
+/// disagree by exactly the gutter width.
 /// Overlaying sidesteps it.
 ///
 /// # It bounds itself with `flex_grow`, so it needs a bounded parent
@@ -3541,7 +3548,7 @@ fn spawn_name_box(mut commands: Commands) {
     commands
         .spawn((
             NameBox,
-            // **Per `docs/ui.md` §5 trap 7.** A full-screen container without this eats every world click: gooey's `cover` is `Pickable::IGNORE`, so a click while naming
+            // **A full-screen container without this eats every world click**: gooey's `cover` is `Pickable::IGNORE`, so a click while naming
             // falls through to the stage, which is right: the box is a prompt, not a modal that has to be dismissed before anything else works. Its card is centred in it,
             // and it is hidden through `Shown` until a tab asks a name (`paint_name_box`). The dim is the editor's own (`InkFollow`), not the skin's scrim.
             bevy_gooey::cover(),
@@ -4399,7 +4406,7 @@ pub fn where_you_are(
 /// `Ink::slot_bg`, the ground this editor uses for an inspector slot. It was reported missing again:
 /// *"When I enter kit editing, there's no clear way to get back to the main menu."*
 ///
-/// `docs/2026-08-17-one-application.md` §3 diagnosed why, and it was not the contrast: the encoding
+/// The diagnosis was that it was not the contrast: the encoding
 /// said *"a field of the thing you are looking at"* rather than *"a way out of it"*, because it read
 /// as a row in a list of rows, and **nothing at window level was navigation at all**. This repo
 /// already settled what to do when a signal fails twice — *"the encoding was not weak, it was

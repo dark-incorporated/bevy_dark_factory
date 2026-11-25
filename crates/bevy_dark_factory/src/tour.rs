@@ -264,7 +264,7 @@ fn on_the_offer_answered(action: On<ToastAction>, mut commands: Commands) {
 /// `guides/*.json` carries `"controls": {"Pick a piece": "Palette"}` beside its `steps`, so a step points at
 /// the control `badges.rs` can find and the badge and the pointer ask the same question with the same answer.
 /// The field lives at the top of the script rather than on a `Step` because `bevy_debugger_bevy::Step` is
-/// `deny_unknown_fields` and the card is the third-party crate's surface (`guided.rs:44`); the tour joins the
+/// `deny_unknown_fields` and the card is the third-party crate's surface (`guided.rs`'s `GuidePlugin` note); the tour joins the
 /// two by label, which is the one key both sides already carry.
 #[derive(Resource, Debug, Clone, Default)]
 pub struct ScriptControls {
@@ -333,7 +333,8 @@ const ARROW_GAP: f32 = 4.0;
 /// **Where the arrow goes for a target**, given the window and the arrow's own size.
 ///
 /// A target with its own height to spare under the window's foot gets the arrow below it; one within that of the
-/// bottom gets it above and pointing down — the case `renzora_tutorial/src/highlight.rs:1-20` names (the status-bar
+/// bottom gets it above and pointing down — the case `renzora_tutorial` (another repository)'s
+/// `src/highlight.rs` names (the status-bar
 /// menu). `arrow` is the arrow's own height, so "within its own height of the window's bottom" is the test.
 pub fn arrow_side(target: Rect, window: Rect, arrow: f32) -> ArrowSide {
     if target.max.y + ARROW_GAP + arrow <= window.max.y {

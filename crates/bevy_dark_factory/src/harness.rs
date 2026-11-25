@@ -198,7 +198,7 @@ pub fn add_editor_plugins(app: &mut App) -> &mut App {
 /// **`DebuggerPlugin` owns `RemotePlugin`.** Its `build` adds `RemotePlugin::default()
 /// .with_method_main(..)` to register the two custom methods, and Bevy rejects a duplicate plugin by
 /// name — so adding `RemotePlugin` here as well panics the moment the feature is switched on. Only
-/// the HTTP transport is ours to add. `docs/bevy_debugger_mcp.md` records this; the game paid for it
+/// the HTTP transport is ours to add. The game paid for this first;
 /// first.
 ///
 /// The port comes from **`BEVY_BRP_PORT`**, which is the variable `bevy_debugger_mcp`'s own config

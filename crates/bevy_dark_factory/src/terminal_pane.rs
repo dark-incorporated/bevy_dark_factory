@@ -597,8 +597,8 @@ fn the_pane_is_up(panes: Query<(), With<TerminalPaneRoot>>) -> bool {
 ///
 /// A row of the frame's own column rather than a floating layer: the body already stacks the docks
 /// and the viewport, so "docked across the bottom" is one child appended to it. A `GlobalZIndex`
-/// layer would paint over the status band and the docks' scrollbars, and z-order is the dialogs' — see
-/// [`chrome::MODAL_Z`].
+/// layer would paint over the status band and the docks' scrollbars, and z-order is the dialogs' — the
+/// sheet's `z.modal`.
 fn spawn_the_pane(
     mut commands: Commands,
     frame: Option<Res<chrome::Frame>>,
@@ -737,7 +737,7 @@ fn build_the_pane(
         .spawn((
             // The body: a gooey sized column that grows into what the bar and the grip leave (no least height), **clipped, and not a `ScrollArea`**. The scrollback belongs to the
             // emulator (`TerminalScreen::scroll`): a layout scroll would move the *drawn* rows while the shell's history lives in the grid, which is two answers to one question;
-            // `clip` is what stops a row painting over the status band. `BODY_INSET` in on each side (neither is a step of the scale).
+            // `clip` is what stops a row painting over the status band. The body's inset on each side (neither is a step of the scale).
             bevy_gooey::sized(bevy_gooey::Sizing { width: Some(bevy_gooey::Extent::Percent(100.0)), min_height: Some(bevy_gooey::Extent::Px(0.0)), clip: Some(true), ..default() }),
             bevy_gooey::RowLayout { direction: Some(FlexDirection::Column), ..default() },
             bevy_gooey::TextFlow { grow: Some(1.0), ..default() },
@@ -1208,8 +1208,8 @@ pub fn maximise_from_world(world: &mut World) {
 /// frame). Given back, it is in the frame's column again at the height it had ([`Terminal::height`], which `fit_the_pane_to_the_window`
 /// corrects when the person never chose one). Each write is compared first.
 ///
-/// **While it covers the window it is a layer of its own** ([`chrome::TERMINAL_MAXIMISED_Z`], #435): a local `ZIndex` only orders the pane among its
-/// siblings, so the map's overlays (`GlobalZIndex`, [`chrome::COMPASS_Z`]) stood over it. The layer is added when it is maximised and taken off when
+/// **While it covers the window it is a layer of its own** (the sheet's `z.terminal_maximised`, #435): a local `ZIndex` only orders the pane among its
+/// siblings, so the map's overlays (`GlobalZIndex`, the sheet's `z.compass`) stood over it. The layer is added when it is maximised and taken off when
 /// it is given back, because a `GlobalZIndex` on the pane in the frame's column would paint it over the status band and the docks' scrollbars.
 fn apply_the_maximise(
     mut commands: Commands,
@@ -1438,7 +1438,7 @@ fn spawn_the_find_box(commands: &mut Commands, body: Entity) {
     let frame = commands
         .spawn((
             // The find box floats over the scrollback it searches, as VS Code's terminal find does; it is not a panel `chrome::Frame` places: placed in the body's top right
-            // (`BODY_INSET.y` down, a panel's inset in), `FIND_BOX_W` wide, its parts' gap and its inset the sheet's `.terminal-float`, a hairline edge, in the editor's own colours (`InkFollow`).
+            // (`body_inset().y` down, a panel's inset in), `FIND_BOX_W` wide, its parts' gap and its inset the sheet's `.terminal-float`, a hairline edge, in the editor's own colours (`InkFollow`).
             bevy_gooey::placed(UiRect { top: Val::Px(crate::terminal_view::body_inset().y), right: Val::Px(chrome::space(chrome::STEP_PAD)), ..UiRect::all(Val::Auto) }),
             bevy_gooey::Sizing { width: Some(bevy_gooey::Extent::Px(FIND_BOX_W)), ..default() },
             bevy_gooey::RowLayout { direction: Some(FlexDirection::Row), align: Some(AlignItems::Center), ..default() },
@@ -1495,7 +1495,7 @@ fn spawn_the_agent_card(commands: &mut Commands, body: Entity, post: &crate::ter
     let card = commands
         .spawn((
             // The self-test card floats over the terminal it reports on, as the find box does; it is not a panel `chrome::Frame` places: placed at the body's top right
-            // (`BODY_INSET.y` down, a panel's inset in), as wide as its content from `AGENT_CARD_MIN_W` up to the terminal's own width, its rows' gap and its inset the sheet's
+            // (`body_inset().y` down, a panel's inset in), as wide as its content from `AGENT_CARD_MIN_W` up to the terminal's own width, its rows' gap and its inset the sheet's
             // `.terminal-float`, a hairline edge, in the editor's own colours (`InkFollow`). **`placed` is `Pickable::IGNORE`, which the card is**: the pointer goes through it to the shell.
             bevy_gooey::placed(UiRect { top: Val::Px(crate::terminal_view::body_inset().y), right: Val::Px(chrome::space(chrome::STEP_PAD)), ..UiRect::all(Val::Auto) }),
             bevy_gooey::Sizing { min_width: Some(bevy_gooey::Extent::Px(AGENT_CARD_MIN_W)), max_width: Some(bevy_gooey::Extent::Percent(100.0)), ..default() },
@@ -2242,7 +2242,7 @@ fn a_drag_ends(drag: On<bevy::picking::events::PointerDragEnd>, mut pane: ResMut
 }
 
 /// The cell the pointer is over, from the UI backend's normalized hit position: counted from where the rows
-/// begin, past the body's inset (`terminal_view::BODY_INSET`).
+/// begin, past the body's inset (`terminal_view::body_inset`).
 fn cell_under(
     hit: &bevy::picking::backend::HitData,
     node: &ComputedNode,

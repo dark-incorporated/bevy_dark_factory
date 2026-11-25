@@ -1017,7 +1017,7 @@ mod tests {
     /// `CLAUDE.md`'s one-path rule exists to prevent and which `box_fill`'s own doc comment already
     /// claims not to have.
     ///
-    /// Recorded in `docs/2026-08-15-blank-slate-handoff.md` §6 as `box_fill` only. It was both.
+    /// The blank-slate handoff recorded it as `box_fill` only. It was both.
     #[test]
     fn a_fill_lays_the_brush_tipped_the_way_the_author_tipped_it() {
         let m = map((4.0, 3.0, 4.0));

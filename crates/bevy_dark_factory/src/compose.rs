@@ -188,7 +188,7 @@ impl Default for ComposeState {
     }
 }
 
-/// One row of the panel, typed — `docs/ui.md` §3.1's rule, applied to the last tab that rendered
+/// One row of the panel, typed — the rule that a panel is rows rather than strings, applied to the last tab that rendered
 /// strings: the builders say WHAT a row is and the renderer owns how each kind looks, so a heading,
 /// a selectable row, prose and a railed refusal can never again differ only by wording and indent.
 enum Line {
@@ -616,7 +616,7 @@ fn spawn_compose_panel(mut commands: Commands, frame: Res<crate::chrome::Frame>)
         &mut commands,
         &frame,
         crate::chrome::Side::Left,
-        // The wider of the two panel widths. Measured, not guessed: at `CONTROLS_W` a member line
+        // The wider of the two panel widths. Measured, not guessed: at the sheet's `layout.controls_w` a member line
         // (`chair_north: dining_chair (0.0, -1.0) yaw 180`) wrapped, and a wrapped continuation
         // starts at column zero, which breaks the indentation the list reads by.
         crate::style::metrics().layout.controls_w,
@@ -1488,7 +1488,7 @@ pub fn slot_at(carousel: &Carousel, origin: Vec3, dir: Vec3) -> Option<usize> {
 /// tops off four 2.4 m tiles — measured in a captured frame, not predicted.
 ///
 /// **`usable_aspect` is the width of the hole the world is drawn through, over its height.** The
-/// camera's viewport is `chrome::ViewportSlot`'s rect, not the window (`surface::fit_viewport`), so
+/// camera's viewport is `chrome::ViewportSlot`'s rect, not the window (`surface::fit_viewport_to_frame`), so
 /// the panels cannot be drawn over — but a horizontal fit that ignores the ratio will still push a
 /// wide subject off the sides of that hole. Pass [`SQUARE`] to keep the old conservative assumption.
 ///
@@ -2243,7 +2243,7 @@ fn place_labels(
             }
         match placed {
             // Centred by measuring the string, which works because the shipped face is monospace —
-            // see `LABEL_CHAR_W`.
+            // see [`label_char_w`].
             Some((p, advance)) => {
                 // --- **The position the deconfliction chose**, not the raw projection: a neighbour
                 // --- that collided was pushed down one step, and it is drawn where it was put.
@@ -2707,9 +2707,9 @@ fn split_indent(text: &str) -> (usize, &str) {
 /// the gutter must not be in the wrapping column, and `min_width: 0` is load-bearing because a flex
 /// item will not shrink below its min-content width by default.
 ///
-/// The indent becomes a **width-only spacer node**, not a `Text` of spaces: `notice::collect_text`
+/// The indent becomes a **width-only spacer node**, not a `Text` of spaces: `notice::harvest`
 /// harvests every non-blank `Text` under the pane for `Cmd+C`, and a text gutter would split each
-/// row into two copied lines. The advance is the same monospace fact [`LABEL_CHAR_W`] states for
+/// row into two copied lines. The advance is the same monospace fact [`label_char_w`] states for
 /// the world labels, scaled from [`LABEL_PX`] to [`ROW_PX`].
 fn spawn_line(p: &mut ChildSpawnerCommands, text: &str, colour: Color) {
     let (indent, content) = split_indent(text);
@@ -3354,7 +3354,7 @@ fn detail(lines: &mut Vec<Line>, c: &Composition, comps: &[Composition], project
                     // indent — structure as text, in a pane where every other tab renders
                     // structure as layout. It aligned only because the shipped face is monospace,
                     // it broke its own indentation the moment a long fault message wrapped, and
-                    // `docs/ui.md` §3.1 records the game paying for exactly this shape.
+                    // the game paid for exactly this shape.
                     //
                     // The face is named once and its bands hang under it, so a doorway reads as one
                     // side that speaks three ways rather than as three sides — which the blank

@@ -530,8 +530,8 @@ type NotTheGuideCard = ();
 /// unchecked, and the bug class it warns about is already open: edit a tile in kit A, leave, open
 /// kit B, and A's undo stack is there to be replayed into B.
 ///
-/// So the list is the deliverable. **This changes no behaviour** — it is `docs/2026-08-17-one-application.md`
-/// §6 step 1, the step that makes the rest safe and that stands alone if the rest is dropped. What
+/// So the list is the deliverable. **This changes no behaviour** — it is step 1 of the one-application
+/// design, the step that makes the rest safe and that stands alone if the rest is dropped. What
 /// it buys today is that a new resource is a deliberate answer to "what happens to this when the
 /// door changes", asked when it is added rather than three weeks later when its stale value
 /// surfaces as something else.
@@ -739,8 +739,8 @@ pub const OWNERSHIP: &[(&str, Ownership)] = &[
     ("bevy_dark_factory::after_edit::ShotWait", Ownership::Session),
     ("bevy_dark_factory::after_edit::PictureMemory", Ownership::Session),
     // ── The door's own working state ────────────────────────────────────────────────────────────
-    // The undo stack is the one this list was written for: `docs/2026-08-17-one-application.md` §1
-    // names it as the value that survives into the next kit today.
+    // The undo stack is the one this list was written for: it is the value that survives into the
+    // next kit today.
     ("bevy_dark_factory::build::TileHistory", Ownership::Workspace),
     ("bevy_dark_factory::build::Build", Ownership::Workspace),
     ("bevy_dark_factory::editor::EditorState", Ownership::Workspace),

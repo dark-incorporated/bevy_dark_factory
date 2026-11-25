@@ -8,7 +8,7 @@
 //!
 //! It was a mode for a day. Bringing a mesh in and arranging meshes looked like the same activity a
 //! minute apart, so they shared a tab and a `C` key flipped between them — which worked, and was
-//! wrong for a reason the key budget hid: `docs/research/2026-08-08-kitbashing-guidance.md` says *"A
+//! wrong for a reason the key budget hid: *"A
 //! good kit is hierarchical: parts -> sub-assemblies -> assemblies"*, the editor already gave a tab
 //! to every other level, and only that one carried two.
 //!
@@ -17,7 +17,7 @@
 //! mode: a tab strip is a mode nobody can forget, which is Raskin's whole condition. FVS-R-21.
 //!
 //! The twelve-row cap is what made two contexts affordable —
-//! `no_context_carries_more_than_a_learnable_vocabulary`, and Liapis's **user fatigue**, one of whose
+//! `keys::no_context_gains_a_key` pins it, and Liapis's **user fatigue**, one of whose
 //! named causes is *"when there are too many options"*.
 //!
 //! # The grid is the piece's own span, deepened in thirds
@@ -35,7 +35,7 @@
 //! A piece lands with its **minimum corner** on the cell it was dropped in, the same rule
 //! `grid::snap_corner` states for the Map. Cell zero's corner *is* the tile's edge, so a 0.1 m wall
 //! dropped there has its centre at −0.45 — which is exactly the flush position
-//! `docs/2026-08-09-compose-authoring-plan.md` §4 records as *"off the lattice by construction"* and
+//! was recorded as *"off the lattice by construction"* and
 //! which the deleted `compose::flushed` verb existed to reach. Stating the rule on the corner rather
 //! than the centre reaches it without a verb.
 
@@ -503,8 +503,8 @@ pub fn host_for(
             }
             // **Name what would work.** The refusal knew what was missing and not what to do about
             // it, so an author was left to guess which of seventy-five rows offers a `support` —
-            // and the editor has that list. `docs/2026-08-11-editor-visual-inspection.md` records
-            // this exact shape as D2: *"The information exists; only the channel is missing."*
+            // and the editor has that list. The shape has a name — D2 in the visual audit:
+            // *"The information exists; only the channel is missing."*
             //
             // Three, then a count. A refusal naming twenty pieces is not read, and the three are
             // sorted so the same tile refuses the same way on every machine.
@@ -1338,9 +1338,9 @@ pub fn refit_tile(
     // about a 4 x 4, plus a note that three more had been dropped at the cap.
     //
     // The fact was right and the shape was wrong. "This group is too big for the solver" is a
-    // **property of the tile**, not an event in its history — `docs/ui.md` §3.2, show the state where
+    // **property of the tile**, not an event in its history — show the state where
     // the state lives. It is one line in the TILE block now, true exactly while it is on screen, and
-    // it costs the alert budget (§3.4) nothing.
+    // it costs the alert budget nothing.
     // **Bypassed, then flagged by hand.**
     //
     // `ResMut::deref_mut` flags the resource, so passing `&mut build` told every reader the tile had
@@ -1921,7 +1921,7 @@ pub fn build_keys(
 
     // **Drop what the library list has picked.** The piece is chosen on the mesh tab and dropped
     // here, which is the same right-hand list serving both tabs rather than a second browser — the
-    // objection §3.2 of the compose-authoring plan raised against adding one.
+    // objection the compose-authoring plan raised against adding one.
     if pressed(Action::BuildDrop) {
         let Some(d) = state.editing(&project.library).cloned() else {
             state
@@ -2404,8 +2404,8 @@ pub fn drive_build_preview(
 
 /// **The open tile's envelope in world space** — centre, then size — or `None` with no tile open.
 ///
-/// Extracted for the same reason as `editor::map_bounds`: the wireframe an author sees and the rect
-/// `badges::sense_world_ink` keeps clear are one expression, so they cannot drift apart.
+/// Extracted for the same reason as `editor::map_bounds`: the wireframe an author sees here and the
+/// box `editor::draw_bounds` draws are one expression, so they cannot drift apart.
 pub(crate) fn tile_envelope(build: &Build) -> Option<(Vec3, Vec3)> {
     let Envelope::Bounded { size } = build.open.as_ref().map(|c| c.envelope)? else {
         return None;
@@ -2444,7 +2444,8 @@ pub fn draw_build_grid(
     let size = (size.x, size.y, size.z);
 
     // The envelope. `cube` takes a transform whose SCALE is the size — 0.20 spells it that way.
-    // Faded while the shortcut key is held — see [`crate::chrome::WORLD_HELD`]. This box projects
+    // Faded while the shortcut key is held — see [`crate::chrome::stepped_back`], which reads the
+    // sheet's `layout.world_held`. This box projects
     // to the full-height verticals that made the Tiles overlay unreadable.
     let held = crate::keys::pressed(&keyboard, *live, crate::keys::Action::Shortcuts);
     gizmos.cube(

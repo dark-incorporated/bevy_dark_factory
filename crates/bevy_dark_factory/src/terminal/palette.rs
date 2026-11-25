@@ -74,7 +74,7 @@ fn ansi(ink: &chrome::Ink) -> [Color; 16] {
 /// What a cell draws when the child said nothing: the shell's own default.
 ///
 /// Taken from [`crate::chrome`] so a shell looks like the panel it is docked in — the same reasoning
-/// `docs/ui.md` §5 gives for keeping Bevy's Feathers greys out of the editor.
+/// the editor keeps Bevy's Feathers greys out of its own palette.
 pub fn default_fg() -> Color {
     chrome::ink().text
 }

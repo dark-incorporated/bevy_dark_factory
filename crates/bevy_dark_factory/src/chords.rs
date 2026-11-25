@@ -185,7 +185,7 @@ pub const CHORDS: &[NamedChord] = &[
         default: || primary_shift(KeyCode::KeyJ),
     },
     // **The chord a person uses most and could not find** (#640): `primary + Backquote` raises or lowers the pane.
-    // It was built inline at `terminal_pane.rs:1159` and restated at `terminal_view.rs:813`, so it was invisible to
+    // It was built inline in `terminal_pane.rs` and restated in `terminal_view.rs`, so it was invisible to
     // the keymap screen, to `keys.md` and to `no_two_fixed_chords_are_the_same_key`.
     NamedChord {
         fixed: Fixed::TerminalRaise,

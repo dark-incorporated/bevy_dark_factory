@@ -78,6 +78,73 @@ const CLOSED: &[Closed] = &[
         pattern: "editor_skin.yaml",
         exempt: &[],
     },
+    // #651: #543's own table listed these and closed claiming they were gone; the constants the
+    // 2026-11-22 style sheet deleted survived in twelve comments. Each is now the sheet's field.
+    Closed {
+        issue: 651,
+        claimed: "`chrome::WORLD_HELD` is the sheet's `layout.world_held`, read by `chrome::stepped_back`",
+        pattern: "WORLD_HELD",
+        // A test may still name the old constant as the opacity it was, so long as it says it was.
+        exempt: &["are *opacities*", "was `chrome::WORLD_HELD`"],
+    },
+    Closed {
+        issue: 651,
+        claimed: "`chrome::MODAL_Z` is the sheet's `z.modal`",
+        pattern: "MODAL_Z",
+        exempt: &[],
+    },
+    Closed {
+        issue: 651,
+        claimed: "`chrome::COMPASS_Z` is the sheet's `z.compass`",
+        pattern: "COMPASS_Z",
+        // The one test that names it names the layer the old constant gave its index.
+        exempt: &[],
+    },
+    Closed {
+        issue: 651,
+        claimed: "`chrome::TERMINAL_MAXIMISED_Z` is the sheet's `z.terminal_maximised`",
+        pattern: "TERMINAL_MAXIMISED_Z",
+        exempt: &[],
+    },
+    Closed {
+        issue: 651,
+        claimed: "`chrome::SELECT_RAIL_W` is the sheet's `layout.select_rail_w`",
+        pattern: "SELECT_RAIL_W",
+        exempt: &[],
+    },
+    Closed {
+        issue: 651,
+        claimed: "`chrome::CONTROLS_W` is the sheet's `layout.controls_w`",
+        pattern: "CONTROLS_W",
+        // A test that cites a deleted constant as deleted says so; the audit page is history.
+        exempt: &["was deleted", "were deleted", "`CONTROLS_W` → `controls_w`"],
+    },
+    Closed {
+        issue: 651,
+        claimed: "`chrome::modal_card` is gooey's `dialog`; the old name is history",
+        pattern: "modal_card",
+        // The history wording #651 asks for: "the old", "used to be", "retired".
+        exempt: &["old `", "used to be", "retired"],
+    },
+    // #655: the counts. Each is now the measurement the sentence names, or no number at all.
+    Closed {
+        issue: 655,
+        claimed: "`chrome::font` has 117 call sites",
+        pattern: "117 call sites",
+        exempt: &[],
+    },
+    Closed {
+        issue: 655,
+        claimed: "300 call sites paint from `ink()`",
+        pattern: "300 call sites",
+        exempt: &[],
+    },
+    Closed {
+        issue: 655,
+        claimed: "the chrome is sixty-one spawn systems",
+        pattern: "sixty-one",
+        exempt: &[],
+    },
 ];
 
 /// **Every `.rs` file under the editor's `src`**, as paths a failure can name.

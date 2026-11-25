@@ -61,7 +61,7 @@ const SAME_VIEW: f32 = 1e-4;
 /// **Where a person was looking**: the two axes of navigation, the selection, and the camera.
 ///
 /// `Debug` by hand rather than derived: `tiles::Mode` is a `keys::enumerated!` type that carries no
-/// `Debug` of its own (`keys.rs:359` is a macro that generates the enum from a table), so deriving it
+/// `Debug` of its own (`keys.rs:362` is a macro that generates the enum from a table), so deriving it
 /// here would be a request the type cannot answer. A `Place` is printed by the history panel and by a
 /// failing assertion, which is what [`Mode::label`] is for.
 #[derive(Clone, PartialEq)]

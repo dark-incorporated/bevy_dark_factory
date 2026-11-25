@@ -168,8 +168,8 @@ fn line_text(line: Line, draft: &Draft) -> String {
 /// **One dialog while the prompt is open, none otherwise, and its lines are the draft.** Guarded,
 /// because it runs every frame.
 ///
-/// The card is gooey's `dialog` and its `panel`, in the skin's colours, where this prompt carried
-/// its own scrim, padding and fills on `chrome::modal_card`. What stays the editor's own is what
+/// The card is gooey's `dialog` and its `panel`, in the skin's colours, where this prompt used to
+/// carry its own scrim, padding and fills on the old `chrome::modal_card`. What stays the editor's own is what
 /// made it a question rather than a floating box:
 ///
 /// - **The scrim eats the click.** A click reaching the map underneath and placing a piece nobody
@@ -177,7 +177,7 @@ fn line_text(line: Line, draft: &Draft) -> String {
 ///   (`editor::not_typing`) exists to prevent, and gooey's scrim is pickable.
 /// - **The card carries `Hovered`**, so "is the pointer over UI" still answers yes over an open
 ///   dialog; without it, scrolling on a visible prompt zoomed the world behind it.
-/// - **The z-order is [`crate::chrome::MODAL_Z`]**, in front of every panel.
+/// - **The z-order is the sheet's `z.modal`**, in front of every panel.
 ///
 /// The keys are not gooey's: this editor owns the arrows, `Enter` and `Esc` ([`token_keys`]), and
 /// gooey's `Cancel` on `Esc` is not observed.

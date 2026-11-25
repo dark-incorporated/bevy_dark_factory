@@ -211,7 +211,7 @@ pub fn submit_button(text: impl Into<String>) -> impl Bundle {
 ///
 /// **The rail is why this exists at all now.** A fill a few ramp steps lighter is not a selected state a person can see:
 /// measured in the shipped 0.2.4 screenshot on 2026-11-05, `Projects` — the selected tab — was not tellable from `Learn`. A
-/// shape can be, and the palette already has one (`crate::chrome::SELECT_RAIL_W`), so a selected button gains a strip down its
+/// shape can be, and the palette already has one (the sheet's `layout.select_rail_w`), so a selected button gains a strip down its
 /// leading edge. It is inserted by this system rather than by each caller: every `Selected` button already means "this one",
 /// so every one of them should say it the same way.
 #[derive(Component)]
@@ -280,7 +280,7 @@ fn paint_marked_buttons(
             (true, false) => {
                 commands.entity(entity).with_child((
                     SelectedRail,
-                    // A rail pinned to its own button's leading edge, the way `crate::chrome::SELECT_RAIL_W` is drawn on a kit's row: placed at the corner, the rail wide and the
+                    // A rail pinned to its own button's leading edge, the way a kit's row draws it: placed at the corner, the rail the sheet's `layout.select_rail_w` wide and the
                     // button tall. It has a `Role` like every gooey node, and its colour is `paint_marked_buttons`', not the skin's (`InkFollow`).
                     bevy_gooey::placed_at(0.0, 0.0),
                     bevy_gooey::Sizing {

@@ -594,7 +594,7 @@ pub fn agent_guide_view(page: &ProjectPage, store_root: Option<&crate::trusted::
 pub const GUIDE_ROWS: usize = 12;
 
 /// **How many characters wide that area is**, from gooey's own `TEXT_AREA_CHARS` at the pinned revision
-/// (`widgets.rs:185`, `26.0`). It is copied rather than imported because it is private there, and the copy
+/// (`bevy_gooey/src/widgets.rs:185`, `26.0`). It is copied rather than imported because it is private there, and the copy
 /// is what [`FULLY_SHOWN_CHARS`] is measured from — the number a person sees in a guide has to match the
 /// widget they are typing in.
 pub const GUIDE_COLUMNS: usize = 26;
@@ -602,7 +602,7 @@ pub const GUIDE_COLUMNS: usize = 26;
 /// **The Agent guide section's status words** (#519), and the section's one place that composes them.
 ///
 /// **One value a line, never two joined by a middle dot.** Each of these read
-/// `allowed · docs/agent-guide.md`: the state and where the file is, two values on one line with a
+/// `allowed · .dark_factory/AGENTS.md`: the state and where the file is — two values on one line with a
 /// caret between them, which the owner read as *"separate text values in one row. It looks jank."*
 /// The state keeps the first line, so a person scanning the section still lands on the word before
 /// the path, and every other fact gets a line of its own.

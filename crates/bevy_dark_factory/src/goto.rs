@@ -39,7 +39,7 @@
 //! # The rest never reorder by use
 //!
 //! Recent results sit under their own `Recent` heading and everything else keeps its kind's heading
-//! and its name (P5, `docs/ui/vision.md` §3.5: a list that reorders itself cannot be remembered). That
+//! and its name (P5: a list that reorders itself cannot be remembered). That
 //! is `bevy_gooey`'s own `PaletteHistory`, whose ranking puts a history entry first and leaves the
 //! rest on its label — the two rules are one mechanism rather than a second ranker beside it.
 //!

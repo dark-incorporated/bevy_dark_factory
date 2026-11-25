@@ -104,7 +104,7 @@ pub struct SurfaceGround;
 ///
 /// `IsDefaultUiCamera` is what puts *everyone's* tree on the image rather than only the one file
 /// that names a target: Bevy picks the highest-order camera rendering to the primary window when a
-/// node names none (`bevy_ui-0.20.0/src/ui_node.rs:2933`), so without this the guide overlay — which
+/// node names none (`bevy_ui-0.20.0/src/ui_node.rs:3403`), so without this the guide overlay — which
 /// spawns its root bare — went to the window camera and appeared in no capture.
 #[derive(Component)]
 pub struct SurfaceCamera;
@@ -408,8 +408,8 @@ pub const ORDER_WINDOW: isize = 0;
 /// measured as `docs/ui_audit.md` F2.
 ///
 /// **The obvious fix — a larger constant — was tried and is wrong**, and the way it announced itself
-/// is worth keeping: it is the density a *small* window also gets. At 1280 x 800 two
-/// `crate::chrome::CONTROLS_W` docks scaled by 1.45 leave almost no stage, and
+/// is worth keeping: it is the density a *small* window also gets. At 1280 x 800 two docks of the
+/// sheet's `layout.controls_w` scaled by 1.45 leave almost no stage, and
 /// `no_badge_cluster_draws_through_another` went red because the badge packer had nowhere to put a
 /// legend except on top of a control. A constant cannot answer a question about available room.
 ///

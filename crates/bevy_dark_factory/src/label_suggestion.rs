@@ -3,7 +3,7 @@
 //! said it ([`Provenance`]), and why a request produced none ([`LabelFailure`]). The one labelling path,
 //! [`crate::decide_labels`], reads and writes these.
 //!
-//! The rules the labeller works under, from `docs/llm_rule_authoring.md`:
+//! The rules the labeller works under:
 //!
 //! - **The model authors metadata dev-time only; it never runs in the sim.** This crate is the
 //!   editor, never shipped.

@@ -1,7 +1,7 @@
 //! **The Map's selection: one primary piece, and any number beside it** (UI-50, #236).
 //!
-//! Until this existed, "the selection" was `TargetLock`'s single id (`editor.rs:7450`: *"the Map has no
-//! multi-select, so 'the selection' is that one piece"*), so the inspector had nothing to show a
+//! Until this existed, "the selection" was `TargetLock`'s single id (`editor.rs:1036`: *"Which piece of
+//! a stack the piece-verbs mean"*), so the inspector had nothing to show a
 //! mixed value for and `placement_set_pose`'s `ids` form had no caller. The only multi-piece list was
 //! `NoteDraft.pieces`, which is the **note's** subject — binding anything else to it would mean closing
 //! a note cleared somebody's selection.

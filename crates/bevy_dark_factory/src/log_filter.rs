@@ -9,7 +9,7 @@
 //! ```
 //!
 //! The mechanism is not a bug in this crate: `rodio`'s `default_error_callback` logs once per failed
-//! `poll` (`rodio-0.22.2/src/stream.rs:164`), and ALSA returns `POLLERR` immediately and forever when
+//! `poll` (`rodio-0.22.2/src/stream.rs:164`, `default_error_callback`), and ALSA returns `POLLERR` immediately and forever when
 //! there is no device, so the callback never yields. `bevy_audio` is in `DefaultPlugins`, and the
 //! editor — a desk tool that needs sound only for the audio panel's Audition — links it whether or
 //! not a device exists.

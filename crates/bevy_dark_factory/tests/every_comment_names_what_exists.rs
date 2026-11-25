@@ -61,6 +61,18 @@ fn dead_names() -> Vec<String> {
         ["place", "on", "click"].join("_"),
         // The map's writer, which is `Map::to_yaml`.
         ["to", "ron"].join("_"),
+        // #652: `badges::ink()` collects UI rects; no world box is measured and dodged.
+        ["sense", "world", "ink"].join("_"),
+        // #652: the copy is `notice::harvest`.
+        ["collect", "text"].join("_"),
+        // #652: the advance is `compose::label_char_w()`, which reads `chrome::body_char_w()`.
+        ["LABEL", "CHAR", "W"].join("_"),
+        // #652: the containment rule is [`editor::brush_at`]'s; there is no `containment` module here.
+        ["containment", "::", "cordon"].join(""),
+        // #652: the ratchet is `keys::no_context_gains_a_key`.
+        ["no_context", "carries_more_than_a_learnable_vocabulary"].join("_"),
+        // #652: the system is `surface::fit_viewport_to_frame`. Matched whole, so that name does not fire.
+        ["fit", "viewport"].join("_"),
     ]
 }
 
@@ -282,4 +294,96 @@ fn the_activity_bar_draws_every_workspace_the_registry_declares() {
              and the table in `workspace.rs` are one fact (#603)"
         );
     }
+}
+
+/// **Every `docs/…md` a comment under the editor's `src` cites is a path the tree holds** (#660).
+///
+/// Ninety-seven of 135 such citations named a file this repository did not have, and `docs/ui.md` alone was
+/// cited 52 times as the authority for section-numbered rules (§1.2, §3.5, §4.2 …) in a file no commit here
+/// ever held. A dead symbol fails loudly when someone uses it; a dead **document citation** is the strongest
+/// possible claim of checkability — "the rule is written down, here, at §3.5" — and it costs more to disprove
+/// than to write, so nine comments can tell a reader the same rule is somewhere it is not.
+///
+/// **`CLAUDE.md` is not dead**, and this test is why the distinction is written down: each crate carries its
+/// own `CLAUDE.md` beside its `Cargo.toml`, so `crates/bevy_dark_factory/CLAUDE.md` resolves and a citation to
+/// it from `src/` is a path a reader can open. The check is therefore `fs::exists` against the crate and the
+/// repository root, never a list of names.
+#[test]
+fn every_document_a_comment_cites_is_in_the_tree() {
+    let repo = root();
+    let src = repo.join("crates/bevy_dark_factory/src");
+    let mut files = Vec::new();
+    files_under(&src, &mut files);
+    assert!(files.len() > 50, "the editor's src holds its modules; found {} .rs files", files.len());
+
+    // **The two places a `docs/…` in a comment may resolve from**: the repository root, and the crate's own
+    // directory (where its `CLAUDE.md` and `docs/` live). Both are paths a reader can actually open.
+    let bases = [repo.clone(), repo.join("crates/bevy_dark_factory")];
+
+    let mut found = Vec::new();
+    let mut resolved = 0usize;
+    for file in &files {
+        let Ok(text) = std::fs::read_to_string(file) else { continue };
+        let shown = file.strip_prefix(&repo).unwrap_or(file).display().to_string();
+        for (n, line) in text.lines().enumerate() {
+            for path in doc_paths(line) {
+                if bases.iter().any(|base| base.join(&path).exists()) {
+                    resolved += 1;
+                } else {
+                    found.push(format!("{shown}:{}: `{path}`", n + 1));
+                }
+            }
+        }
+    }
+    assert!(resolved > 0, "no document citation was found at all under {}, so this test proves nothing", src.display());
+    assert!(
+        found.is_empty(),
+        "**{} comment line(s) cite a document the tree does not hold**. Each is either the page that has the \
+         rule now — `docs/ui/vision.md` holds the UI principles as `P1`…`P13`, so §4.2's mouse/keyboard parity \
+         is `P11` — or nothing at all, in which case drop the citation and keep the sentence (#660):\n{}",
+        found.len(),
+        found.join("\n")
+    );
+}
+
+/// **The `docs/…md`, `CLAUDE.md`, `TESTING.md` and `contextual_theming.md` paths on one line of source**, in
+/// order.
+///
+/// The suffix set is the one #660 measured, not a guess: a `.md` path with no `docs/` in front of it is a bare
+/// file name that could belong to any of the seven crates, and that ambiguity is what made #653's seven bare
+/// `foo.rs` names uncheckable. `CLAUDE.md` is in the set because each crate carries one beside its
+/// `Cargo.toml`, so it resolves against the crate root the same way a `docs/` path resolves against the
+/// repository root. A path is returned as written so the failure quotes the comment's own words.
+fn doc_paths(line: &str) -> Vec<String> {
+    // **Only the doc extensions**: a `.rs` citation is #653's job, and a `.yaml` is the style sheet's.
+    let mut out = Vec::new();
+    let mut from = 0;
+    while let Some(at) = line[from..].find(".md") {
+        let end = from + at + 3;
+        // **Walk back over the characters a path may be made of**, on `char` boundaries: a comment in this
+        // crate is full of `—`, `§` and `·`, and stepping back a *byte* at a time would split one of those
+        // and index the string off its own boundary. The reverse order is what lets the `break` stop at the
+        // first character a path cannot hold.
+        let head = from + at;
+        let mut start = head;
+        for (at, c) in line[..head].char_indices().rev() {
+            if c.is_alphanumeric() || matches!(c, '/' | '_' | '-' | '.') {
+                start = at;
+            } else {
+                break;
+            }
+        }
+        let path = &line[start..end];
+        // **A `docs/…` path, or one of the two names #660 counted at the repository root.** A bare `layout.md`
+        // is skipped: it does not say which directory, and a checker that guessed would be the next lie.
+        let named = path.starts_with("docs/")
+            || path.ends_with("TESTING.md")
+            || path.ends_with("contextual_theming.md")
+            || path.ends_with("CLAUDE.md");
+        if named && !path.contains("://") {
+            out.push(path.to_string());
+        }
+        from = end;
+    }
+    out
 }
