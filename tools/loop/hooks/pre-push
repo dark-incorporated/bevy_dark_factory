@@ -70,13 +70,21 @@ if [ -z "$target" ]; then
 fi
 # Every gate run leaves one line per step in `<git-dir>/gate.log` (time, commit, step, seconds), so how long
 # the gate costs each worker is measured, not guessed: pass logs hold only the agent's final message.
-log="$(git rev-parse --git-dir)/gate.log"
+# **The shared `.git`, for the same reason #575 moved `gate-passed` to a note** (#673): a worktree's own
+# `--git-dir` is `.git/worktrees/<name>`, so this log held the timings of whichever worktree happened to push and the
+# next reader saw a fraction of the history.
+log="$(git rev-parse --git-common-dir)/gate.log"
 note() { printf '%s %s %s\n' "$(date +%FT%T)" "${target:0:9}" "$*" >> "$log"; }
 # **A refusal names the tests that failed, keyed by the tree** (#580). Seven of the 93 refused pushes in gate.log to 2026-11-23
 # failed a test that passed at the same commit on the next attempt, and a retry re-ran all 5,159 tests to learn what the failing
 # names would have said. `<git-dir>/gate-failed/<tree>` holds one nextest test id a line; the next push of that tree runs those
 # alone first, at full parallelism, and the whole suite only when one of them fails alone.
-failed_dir="$(git rev-parse --git-dir)/gate-failed"
+# **`--git-common-dir`, not `--git-dir`, for every memo** (#673). A worktree's `--git-dir` is
+# `.git/worktrees/<name>`, so a memo written there is invisible to every other worktree and to the main clone: measured
+# on big, **1 of 98 worktrees** had the failing-test memo, **1** had the clippy memo, and **none** had the test memo,
+# so **17 trees re-ran the suite and 5.0 hours were re-earned**. `--git-common-dir` is the one `.git` they share.
+# This is the defect #575 fixed for the merge record and left for these three.
+failed_dir="$(git rev-parse --git-common-dir)/gate-failed"
 mkdir -p "$failed_dir"
 refuse() { note "REFUSED $*"; echo "pre-push gate: REFUSED: $*" >&2; echo "pre-push gate: fix it, or log the item as blocked; never --no-verify." >&2; exit 1; }
 timed() { local name=$1 t0 rc; shift; t0=$(date +%s); "$@"; rc=$?; note "$name rc=$rc $(( $(date +%s) - t0 ))s"; return $rc; }
@@ -124,7 +132,7 @@ version_bump_only() {
   ! git diff -U0 --no-ext-diff "$remote" "$target" | grep -E '^[+-]' | grep -vE '^(\+\+\+|---) ' | grep -qvE '^[+-]version = "[^"]*"$'
 }
 if version_bump_only; then note "version bump only, no tests"; echo "pre-push gate: a version bump (manifest and Cargo.lock version lines only); the version policy check passed, no test run" >&2; exit 0; fi
-clippy_file="$(git rev-parse --git-dir)/gate-clippy"
+clippy_file="$(git rev-parse --git-common-dir)/gate-clippy"
 notes_ref=refs/notes/gated
 # A clone that has never gated anything still reads the records, because they were pushed with the commits. The merge,
 # not a forced refspec: this clone's own notes are records too, and overwriting the ref would drop the ones written here
@@ -244,7 +252,7 @@ else
     # *running*, and the `rm -f "$out"` below threw them away — so a gate's 1,300 s test step could not be split
     # into two numbers, and every attempt to make the gate faster was guessing. One file per tree, beside
     # `gate.log`, so the next reader can measure instead of assume.
-    keep="$(git rev-parse --git-dir)/gate-tests/$(printf '%s' "$tree" | cut -c1-9).log"
+    keep="$(git rev-parse --git-common-dir)/gate-tests/$(printf '%s' "$tree" | cut -c1-9).log"
     mkdir -p "$(dirname "$keep")" && cp "$out" "$keep" 2>/dev/null || true
     if [ "$rc" != 0 ]; then
       sed -n 's/.*FAIL \[[^]]*\] ([^)]*) //p' "$out" | sort -u > "$failed_dir/$tree"
