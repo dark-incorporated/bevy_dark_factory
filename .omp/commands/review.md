@@ -80,6 +80,21 @@ names which agents it started and what it ran in parallel.
   missing word, a wrong number, a width, a colour, a clipped label: fix it in your own worktree, one concept per
   commit, running only the module you touched. **A design call is not fixed** — it is reported with the picture and
   the options. The branch is `fix/uireview-<n>`, it is pushed for review, and the pass's report names every commit.
+- **The states the last sweep could not reach are the first targets of the next one** (owner, 2026-11-25). Every pass ends
+  its report with a **Gaps** list — a state it could not drive, a measurement it could not take. The next pass reads that
+  list first and spends its first hour there, because a gap is a state no review has ever looked at. Two passes in a row
+  reporting the same gap is a finding about the harness, not about the UI: file it.
+- **Wait for the gate before starting an editor.** `systemctl --user is-active fleet-gate-rel2` — an editor run beside a
+  gate competes for the same 8–15 GB and can OOM the gate, which then refuses for a reason that has nothing to do with the
+  branch. Check every two minutes and **say in the report how long you waited**; that wait is itself a build-speed
+  measurement (see lens 7).
+- **Capture the binary, not the target.** `cp ~/.cargo-target-gate/debug/bevy_dark_factory /tmp/<pass>/bin/` before the
+  run — a gate rebuilding that directory rewrites the executable under a running editor.
+- **A contrast claim is a colour pair and a ratio, never a sampled pixel.** A 2026-11-24 finding read `rgb(162,121,50)`
+  off a glyph stem and called it an 2.16:1 ink; the stem was **59.7% coverage** over `rgb(19,18,15)` and the row reads
+  **10.26:1**. If you solve a colour out of a screenshot, solve it per channel and check that the pixel is not a blend;
+  the honest instruments are the reflected `TextColor`/`BackgroundColor` for a painted text, and a pixel scan only for
+  geometry.
 - **What counts as a defect**: text outside its own content box; a label clipped mid-word where the row has room; a
   control outside its panel; a panel drawn empty or with its body collapsed; two inks where one is meant; a colour
   pair under 4.5:1 for body text or 3:1 for large; a scroll area with nothing in it; a picture at the wrong aspect; a
@@ -188,6 +203,18 @@ names which agents it started and what it ran in parallel.
 - **File** one issue per step worth a commit, labelled `enhancement` (or `bug` if a step is redundant by
   construction), with the measurement and the risk. A "make CI faster" issue with no number is not a finding.
 
+- **Separate the step's cost from the host's** (measured 2026-11-25, #624): the same tree and the same command took
+  **252 s to 2,201 s** across retries; the lowest passing test step is **384 s** and the median **1,300 s**, so **≈70% of a
+  median gate is waiting on other tenants**, not compiling or testing. Before proposing a shorter suite, check whether the
+  step's *floor* is already acceptable — if it is, the cost is contention and the fix is serialising the gate. Read
+  `gate.log` for repeated rows of one tree hash; the spread is the measurement.
+- **A fast path is only real if the log shows it firing.** Measured over 189 attempts: version-bump 4 hits (2.1%),
+  clean-merge **1 of 24**, already-gated 0 — 2.8% of gate wall in total. A path filed to fix a rate that still shows the
+  old rate is a finding about the path, and one `grep` answers it.
+- **The gate deletes its own compile/run split** (#625): `pre-push` runs nextest through a `mktemp` it removes, so
+  `gate.log` keeps the step's total and nobody can say how much is compiling. Ask for that line before judging any
+  compile-time proposal.
+
 ## Filing: search first, group second, one defect per issue
 
 1. **Search, then file.** For each finding: `gh issue list -R dark-incorporated/bevy_dark_factory --state open
@@ -216,6 +243,22 @@ names which agents it started and what it ran in parallel.
 7. **Never file** an upstream defect here: a `bevy_gooey` bug goes to `dark-incorporated/bevy_gooey` with
    `consumer` and `consumer:bevy_grimoire`.
 
+## A closed issue's check is a test, or it is not closed
+
+Four comment-cleanup issues (#543 #544 #546 #548) closed on a grep that **still returns hits today** (#614–#618), and one
+guard that exists to hold a number — `.omp/commands/build-loop.md`'s tool count — **returns early on the line it was
+written for** (#619). Both are the same failure: a claim of "verified" that nothing re-checks.
+
+So every finding that can be written as a grep, a count or a citation gets a **test**, not a close comment:
+- the test runs the issue's own acceptance pattern, so it cannot drift from what the issue asked;
+- its failure message names the issue number and the file:line of each hit;
+- it lives in `crates/bevy_dark_factory/tests/` and is registered in `all.rs`, or in `crates/dark_factory_mcp/tests/` when it
+  is about the server's own documents.
+
+**A guard that returns early is worse than no guard.** When you file one, state what makes it **fail** — a planted fault, a
+mutated constant, a deleted line — and report whether you ran that. `#619`'s guard found a line, took the part before the
+first `*`, found no digits, and returned; every count in that bullet would have passed it forever.
+
 ## An issue, not a paragraph (owner, 2026-11-24)
 
 **Every finding is an open GitHub issue on `dark-incorporated/bevy_dark_factory` before the pass ends.** The report is
@@ -230,6 +273,21 @@ build loop reads the issue list, not last week's markdown.
   options and a recommendation — the owner decides by answering the issue, not by reading a report.
 - The sweep's **fixes** are not issues: a fix that landed is a commit with its module's test; a fix the sweep decided
   not to make becomes an issue saying why.
+
+## Regressions first (measured 2026-11-25)
+
+This pass's sharpest findings were not new defects: **#543, #544, #546 and #548 had each closed on a grep that still
+returns hits** (#614–#618), #568's advisory ruling had reached one page of three (#620), and #560's chord had moved in the
+code while its alias stayed in `keys.md` (#623). Four of fifteen findings were the part a fix missed.
+
+So the search is not only "does an open issue name this" but also:
+
+- **Search the closed issues for the same words**, and if one closed as fixed, run its own acceptance check. A hit is a
+  **regression**, filed as `regressed from #N` with the old issue's check quoted.
+- **The report's first table is regressions**, before new findings: the issue, what its close claimed, what the check
+  returns today. That table is what tells the owner whether the closes can be trusted.
+- **A close comment's claim is a claim like any other** — quote it and test it. "a grep returns 4 hits, all historical" is
+  checkable in one command, and nobody checked it.
 
 ## The report (the pass's last act)
 
