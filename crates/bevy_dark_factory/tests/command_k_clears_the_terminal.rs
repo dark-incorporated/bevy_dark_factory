@@ -63,12 +63,11 @@ fn with_history(tag: &str) -> App {
 
 #[test]
 fn ctrl_k_clears_the_scrollback() {
-    // **`primary_key()`, not `SuperLeft`** (#637). `terminal.clear` is `Modifiers::CTRL` on every platform since
-    // c450152, so pressing Super (meta) matches nothing, `history` stays ~300, and this assertion fails. The name
-    // and the press both follow the binding now.
+    // **`ControlLeft`, not Super** (#637). `terminal.clear` is `Modifiers::CTRL` on every platform since c450152,
+    // so pressing Super (meta) matches nothing, `history` stays ~300, and this assertion fails. The name and the
+    // press both follow the binding.
     let mut app = with_history("ctrl_k_clears");
-    // **`ControlLeft`, not `primary_key()`** (#637): `terminal.clear` is `Modifiers::CTRL` on every platform,
-    // so a Mac's Command is the wrong key and nothing clears.
+    // **`Modifiers::CTRL` everywhere** (#637): a Mac's Command is the wrong key and nothing would clear.
     chord_k(&mut app, KeyCode::ControlLeft);
     assert_eq!(history(&app), 0, "Ctrl+K left the scrollback where it was");
     let mut terminal = app.world_mut().resource_mut::<Terminal>();
@@ -96,11 +95,4 @@ fn the_clear_is_ctrl_k_on_every_platform() {
 
     // The shell's own Ctrl+D is exercised end to end by `the_shell_keeps_its_ctrl_chords`, which drives a real
     // PTY; asserting it again here from the chord table would be a second, weaker copy of that test.
-}
-
-/// **The host's primary modifier key** (#638): the editor's chords are `Modifiers::PRIMARY`, which is `Control` on
-/// Linux and `Command` on macOS. This suite only ever ran on Linux, so a hardcoded `ControlLeft` passed everywhere
-/// it ran and would have failed on a Mac -- which is why `big_mac` could not be a second gate host.
-fn primary_key() -> KeyCode {
-    if cfg!(target_os = "macos") { KeyCode::SuperLeft } else { KeyCode::ControlLeft }
 }
