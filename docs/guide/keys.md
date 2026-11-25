@@ -64,6 +64,7 @@ These keys work in every workspace.
 | `Shift+Cmd+D` | Any time | Report about **this project**: writes the project report the `agents.md` channel describes. |
 | `Shift+Cmd+F` | Any time | Show or hide the **Frame profile**: the last frame's time, the heaviest system it ran and how much of the frame that was, over 120 frames of history. Opening it starts recording; closing it stops, so the cost with the panel away is one atomic load per measured system. `blueprint/state.frame.frame_ms` reports the same number the panel draws. `Shift+Ctrl+F` elsewhere. |
 | `Cmd+J` | Any time | Cycle the terminal through its three positions, in the owner's order: maximised, then collapsed, then a quarter of the window at the bottom, and round again (`Ctrl+J` elsewhere). It starts collapsed; the status band's **Terminal Cmd+J** label does the same, and its tooltip says what the next press will do. |
+| ``Cmd+` `` | Any time | Raise or lower the terminal pane, without changing which of its three positions it is in. ``Shift+Cmd+` `` closes the tab instead. |
 | `Shift+Cmd+J` | Any time | Make the terminal cover the whole window below the menu bar from whichever of the three positions it is in (`Shift+Ctrl+J` elsewhere; View ▸ Maximise terminal). From full, it gives back the height. |
 | `Cmd+P` | Any time | Go to anything: one finder over everything the project names. `>` first searches commands. |
 | `Cmd+[` / `Cmd+]` | Any time | Back and forward across workspaces and camera positions, up to 100 places (the mouse's back and forward buttons do the same). |
