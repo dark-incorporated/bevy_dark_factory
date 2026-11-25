@@ -158,10 +158,12 @@ fn the_tab_keys_close_reopen_and_cycle() {
     for _ in 0..SETTLE { app.update(); }
     assert_eq!(open_map(&app), "n");
 
-    chord(&mut app, &[primary_key(), KeyCode::Tab]);
+    // **`ControlLeft`, not `primary_key()`** (#638): `session.next_tab` is `Modifiers::CTRL` on every platform,
+    // so a Mac's Command (the primary key) matches nothing and this press would reach no handler.
+    chord(&mut app, &[KeyCode::ControlLeft, KeyCode::Tab]);
     assert_eq!(open_map(&app), "m", "Ctrl+Tab goes to the next tab, which wraps, and a map's tab opens that map");
     assert_eq!(tabs(&app, Workspace::Map).1.as_deref(), Some("m"));
-    chord(&mut app, &[primary_key(), KeyCode::ShiftLeft, KeyCode::Tab]);
+    chord(&mut app, &[KeyCode::ControlLeft, KeyCode::ShiftLeft, KeyCode::Tab]);
     assert_eq!(open_map(&app), "n", "and with Shift it goes the other way");
 
     chord(&mut app, &[primary(), KeyCode::KeyW]);

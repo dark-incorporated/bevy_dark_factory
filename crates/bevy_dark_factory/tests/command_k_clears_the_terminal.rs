@@ -62,10 +62,15 @@ fn with_history(tag: &str) -> App {
 }
 
 #[test]
-fn command_k_clears_the_scrollback() {
-    let mut app = with_history("command_k_clears");
-    chord_k(&mut app, KeyCode::SuperLeft);
-    assert_eq!(history(&app), 0, "Command+K left the scrollback where it was");
+fn ctrl_k_clears_the_scrollback() {
+    // **`primary_key()`, not `SuperLeft`** (#637). `terminal.clear` is `Modifiers::CTRL` on every platform since
+    // c450152, so pressing Super (meta) matches nothing, `history` stays ~300, and this assertion fails. The name
+    // and the press both follow the binding now.
+    let mut app = with_history("ctrl_k_clears");
+    // **`ControlLeft`, not `primary_key()`** (#637): `terminal.clear` is `Modifiers::CTRL` on every platform,
+    // so a Mac's Command is the wrong key and nothing clears.
+    chord_k(&mut app, KeyCode::ControlLeft);
+    assert_eq!(history(&app), 0, "Ctrl+K left the scrollback where it was");
     let mut terminal = app.world_mut().resource_mut::<Terminal>();
     let screen = terminal.tab_mut().expect("a shell is open").screen_mut();
     screen.lines();
@@ -79,8 +84,10 @@ fn command_k_clears_the_scrollback() {
 /// real macOS collision with `palette.open_alt`, and the two assertions cannot both hold. **The editor winning
 /// is the deliberate choice** -- a person pressing Ctrl+K in the terminal sees it clear, as in VS Code.
 ///
-/// What must still be true is that the editor has not claimed the chords the shell actually uses. Ctrl+D is the
-/// one this suite drives in `the_shell_keeps_its_ctrl_chords`, so this test pins it as unclaimed.
+/// What must still be true is that the editor has not claimed the chords the shell actually uses — and that is
+/// `the_shell_keeps_its_ctrl_chords`'s job, which drives a real PTY. **This test does not duplicate it**: an earlier
+/// draft of this comment claimed it pinned Ctrl+D as unclaimed, and no such assertion was written. Saying a test
+/// checks something it does not is the same defect this pass spent the day finding.
 #[test]
 fn the_clear_is_ctrl_k_on_every_platform() {
     let clear = bevy_dark_factory::chords::default_of(bevy_dark_factory::chords::Fixed::TerminalClear);
