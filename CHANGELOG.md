@@ -4,6 +4,8 @@ What each change added, newest first. A visible change has a clip: click the sti
 
 ## 2026-11-24
 
+- **542** The Files page's caret readout ends at its row's right edge and its field line is one control *No clip: two rects read from the layout, not a surface; proved by the_files_headers_two_readouts_stand_at_its_ends::the_position_readout_is_right_aligned_on_the_header_rows_edge and ::the_field_lines_words_stand_inside_its_own_box*
+- **540** The Files editor's minimap draws its bars on the frame a file opens, with no keystroke *No clip: two drawn lanes compared in the world, not on a surface; proved by the_minimap_lane_fills_when_a_file_opens::a_file_opened_with_no_keystroke_draws_a_bar_for_each_line_at_its_own_top and bevy_gooey's the_minimap_is_laid_out_on_the_frame_a_file_opens_with_no_keystroke*
 - **598** Cmd+J cycles the terminal, and blueprint/state says which position *No clip: a state field plus a chord's measured cycle; proved by three_cmd_j_presses_cycle_the_pane_and_the_state_says_so*
 - **599** The Files pane's field line says what it edits *No clip: one label on a field; proved by every_focusable_control_in_the_files_pane_is_labelled*
 - **600** The Sound workspace draws its buses, cues and log on a default build *No clip: a build feature plus the panel it fills; proved by every_workspace_the_strip_offers_can_fill_itself*

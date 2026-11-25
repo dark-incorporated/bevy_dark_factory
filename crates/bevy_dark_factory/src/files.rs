@@ -843,6 +843,17 @@ fn spawn_the_files_workspace(mut commands: Commands, frame: Res<Frame>) {
             // nothing, and the caret was the only thing that moved, so a person reading a long page had
             // no number to work with. The path is [`FileHeader`] and the position is [`FilePosition`],
             // one text each, because they change on different causes.
+            //
+            // **The readout's right edge is the row's** (#542). Measured on a 1360 x 850 surface, `Ln 1,
+            // Col 1` was drawn at `x 800..835` in a row running `462..1344` — 500 px from the row's right
+            // edge. **Neither text carried a `Role`**, and `apply_skin` writes a `TextFlow` only on a node
+            // it styles, so the path's `grow: 1` was never applied either: the two texts stood as wide as
+            // their own words and the readout sat wherever its neighbour ended.
+            //
+            // [`chrome::text_narrows`] and [`chrome::text_keeps_its_width`] put gooey's layout role
+            // (`Role::Sized`, which draws nothing and leaves the ink these two set themselves) beside the
+            // `TextFlow`, so the path takes the room the row has left and the readout keeps its words and
+            // stands at the row's end.
             host.spawn(bevy_gooey::row(1.0)).with_children(|line| {
                 line.spawn((
                     FileHeader,
@@ -850,7 +861,7 @@ fn spawn_the_files_workspace(mut commands: Commands, frame: Res<Frame>) {
                     TextColor(ink.text),
                     chrome::typed(chrome::text::LABEL),
                     TextLayout::new(Justify::Left, LineBreak::NoWrap),
-                    bevy_gooey::TextFlow { grow: Some(1.0), ..default() },
+                    chrome::text_narrows(),
                 ));
                 line.spawn((
                     FilePosition,
@@ -858,6 +869,7 @@ fn spawn_the_files_workspace(mut commands: Commands, frame: Res<Frame>) {
                     TextColor(ink.dim),
                     chrome::typed(chrome::text::LABEL),
                     TextLayout::new(Justify::Right, LineBreak::NoWrap),
+                    chrome::text_keeps_its_width(),
                 ));
             });
             // **The field line names itself** (#599). It was spawned with its placeholder as its only
@@ -866,9 +878,19 @@ fn spawn_the_files_workspace(mut commands: Commands, frame: Res<Frame>) {
             // the field's own name — gooey puts it beside the field, outside it, and reads it as the
             // control's accessible name — and the placeholder keeps the shape `<path> <value>`, which is
             // what the person types rather than what the field is.
+            //
+            // **And it is one control** (#542): `text_row` lays itself out `SpaceBetween` at its host's
+            // width, so in a column that stretches its children the label was drawn at the column's start
+            // and the field pushed to its far end — the report measured the words at `x 489` and the box
+            // at `x 1164`, 483 px apart, "two different columns". The row keeps its own words' width
+            // (`AlignSelf::FlexStart`), so the field stands beside the label that names it; and
+            // `.chrome-field-line` names the control, so the style inspector over it answers with the
+            // field rather than the page's card.
             host.spawn((
                 bevy_gooey::text_input(FIELD_LINE_LABEL, ""),
                 bevy_gooey::TextHint(FIELD_LINE_HINT.into()),
+                bevy_gooey::TextFlow { align: Some(AlignSelf::FlexStart), ..default() },
+                bevy_gooey::StyleClass::of("chrome-field-line"),
                 FieldLine,
                 observe(on_field_line),
             ));
