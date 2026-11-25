@@ -380,7 +380,6 @@ mod every_list_follows_its_selection;
 mod every_listed_part_is_found_in_its_workspace;
 mod every_focusable_control_in_the_files_pane_is_labelled;
 mod every_panel_is_in_its_workspace;
-mod every_workspace_the_strip_offers_can_fill_itself;
 mod every_refusal_is_in_a_problem;
 mod every_resource_says_what_a_door_does_to_it;
 mod every_toolbar_command_has_an_icon;

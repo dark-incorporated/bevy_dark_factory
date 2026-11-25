@@ -48,12 +48,6 @@ publish = false
 # **The port is the one caveat.** Both default to 15702, so running the game with its `debugger`
 # feature and this editor at the same time needs `BEVY_BRP_PORT` set on one of them, or the second
 # process fails to bind. That is a loud failure, not a silent one.
-# **`bevy_siren` is on by default** (the owner's decision, 2026-11-24, #600). The Sound workspace is
-# offered in the tab strip on every build, so the build has to fill it: a shipped editor whose Sound tab
-# says "build the editor with the bevy_siren feature" is an editor that cannot edit sound. The cost is
-# the feature's own: `serde` on the crate's types, and `bevy_audio`'s device, which `main.rs` opens only
-# when this feature is on (a headless box still builds and runs; the panel's lists read the project's
-# file and the crate's defaults, and an audition on a machine with no device says so in its own log).
 default = ["debugger"]
 debugger = ["bevy/bevy_remote", "dep:bevy_debugger_bevy"]
 # **Family crates (#96).** One optional feature per crate, named after it, off by default: a game

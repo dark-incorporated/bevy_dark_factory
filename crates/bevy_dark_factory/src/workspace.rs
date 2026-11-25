@@ -68,18 +68,11 @@ pub const VIEWPORT: &str = "viewport";
 /// The library the map places from.
 pub const PLACE: &str = "place";
 
-/// **The workspaces whose part is not built yet, each with the reason a refused chord answers with.**
+/// **The workspaces whose part is not built yet, each with the issue that brings it** (the sentence a refused chord answers with).
 ///
-/// Empty since the Project workspace (NV-08, #385) was the last of the workspaces that was waiting on an issue. The table stays, because
-/// the refusal it feeds ([`Workspace::missing`], `Command::enabled`, `Action::is_offered`) is how a *future* workspace's chord exists
-/// before its panel does, and `an_unbuilt_workspace_is_refused_with_its_reason.rs` proves that mechanism on a table that is not empty.
-///
-/// # One row, and it is a build's rather than an issue's (#600)
-///
-/// **The Sound workspace is offered in every build** (owner, 2026-11-24, #600): `bevy_siren` is a default feature, so
-/// every build a person runs draws the buses, cues and log; a build that turns it off still lists the project's cues
-/// and says beside them what it cannot do, because a cue is a name in the project's file and only *auditioning* one
-/// needs the crate (`a_sound_cue_is_listed_without_bevy_siren` is the test that holds this).
+/// Empty since the Project workspace (NV-08, #385) was the last: every workspace is registered. The table stays, because the refusal it
+/// feeds ([`Workspace::missing`], `Command::enabled`, `Action::is_offered`) is how a *future* workspace's chord exists before its panel
+/// does, and `an_unbuilt_workspace_is_refused_with_its_reason.rs` proves that mechanism on a table that is not empty.
 pub const WAITING: [(Workspace, &str); 0] = [];
 
 /// **What `workspace` is waiting for in `table`**, or `None` when it is not listed there. The lookup [`Workspace::missing`] makes, over a
