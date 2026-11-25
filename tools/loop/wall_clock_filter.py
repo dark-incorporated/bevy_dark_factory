@@ -47,6 +47,10 @@ WATCHED = (
     "the_history_scrolls_five_thousand_lines",
     "a_slow_load_shows_a_spinner_then_progress_then_the_editor",
     "the_animation_watch_follows_the_project_index",
+    # **A frame budget timed with a bare `Instant::now()`** (#643): the file matches neither `WATCHED` nor `BUDGET`,
+    # so it was never inspected and its budget test failed beside 2,000 others while this script said the tree was
+    # clean. Naming the module is the script's own mechanism for "inspect every test here".
+    "the_assessor_grades_each_turns_questions",
 )
 #: A frame-budget assert. Read by any test file, watched module or not: this is the rule's own subject.
 BUDGET = re.compile(r"\b(UiFrame|MAX_MS_PER_FRAME)\b")

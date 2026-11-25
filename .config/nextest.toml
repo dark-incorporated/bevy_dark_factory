@@ -38,5 +38,6 @@ filter = '''test(=the_profile_names_a_system_the_frame_ran::with_recording_off_t
 | test(=the_animation_watch_follows_the_project_index::an_edit_an_undo_and_a_redo_leave_the_tab_and_the_file_agreeing_with_the_clock_stopped)
 | test(=the_animation_watch_follows_the_project_index::a_manifest_that_cannot_be_read_is_said_once_per_look_and_read_again_when_the_index_moves)
 | test(=terminal::tests::a_session_knows_when_its_shell_has_left)
+| test(=the_assessor_grades_each_turns_questions::the_editors_frames_stay_in_budget_while_a_batch_runs)
 '''
 threads-required = "num-cpus"
