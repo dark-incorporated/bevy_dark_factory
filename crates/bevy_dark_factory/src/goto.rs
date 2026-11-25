@@ -130,7 +130,8 @@ pub enum Kind {
     Design,
     /// A script: a Rhai file of the project, opened in the Files workspace.
     Script,
-    /// Any other text file of the project, opened in the Files workspace.
+    /// Any other text file of the project — a language the editor colours, or a [`crate::crosslinks::PLAIN_TEXT_KINDS`]
+    /// kind such as a game's own `.rs` — opened in the Files workspace.
     File,
     Note,
     Settings,
