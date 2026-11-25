@@ -18,6 +18,7 @@
 
 use bevy::prelude::*;
 use bevy::ui::ComputedNode;
+use bevy::window::{PrimaryWindow, WindowResolution};
 use bevy_dark_factory::harness;
 use bevy_dark_factory::tiles::Mode;
 use bevy_dark_factory::workspace::Workspace;
@@ -62,7 +63,16 @@ fn editor(tag: &str) -> App {
     app.insert_resource(bevy::time::TimeUpdateStrategy::ManualDuration(std::time::Duration::from_secs_f64(
         1.0 / 60.0,
     )));
-    app.world_mut().spawn((Window::default(), bevy::window::PrimaryWindow));
+    // **Narrow, because the bug only exists when the chips do not fit.** The capture's panel was 324 px in a
+    // 1600-px window; a default window gives the legend room and the first version of this test passed the layout
+    // it was meant to catch (measured: row 16 px tall, tallest chip 16 px — one line, no wrap, no bug).
+    //
+    // 700 px physical with `ui_scale` 1.0 puts the Animation tab's column near 300 px after the docks, which is
+    // the capture's own figure.
+    app.world_mut().spawn((
+        Window { resolution: WindowResolution::new(700, 700), ..default() },
+        PrimaryWindow,
+    ));
     settle_support::settle(&mut app);
     app
 }
