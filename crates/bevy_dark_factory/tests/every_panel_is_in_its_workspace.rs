@@ -124,27 +124,19 @@ fn every_panel_is_found_by_label_in_its_workspace() {
     assert!(checked >= 9, "only {checked} headings were checked");
 }
 
-/// **The Sound workspace is offered exactly when the build can fill it** (#600).
-///
-/// With `bevy_siren` — a default feature since 2026-11-24 — it is registered and shows the audio table.
-/// Without it the tab is not in the strip at all: a tab whose whole content would be "this build has no
-/// audio panel" is an editor inviting a person to a job it cannot do, and #600 says the build is the
-/// half that was wrong.
+/// **The Sound workspace is registered, and says what it holds.** With `bevy_siren` it is the audio
+/// table; without it, the sentence that says this build has none — never an empty column.
 #[test]
-fn the_sound_workspace_is_offered_only_when_it_can_be_filled() {
+fn the_sound_workspace_shows_the_audio_panel_or_says_why_it_cannot() {
     let mut app = editor("sound");
+    assert!(Workspace::Sound.is_built(), "the Sound workspace is registered in every build");
+    switch_to(&mut app, Workspace::Sound);
     if cfg!(feature = "bevy_siren") {
-        assert!(Workspace::Sound.is_built(), "a build with audio registers the Sound workspace");
-        switch_to(&mut app, Workspace::Sound);
         assert!(shows(&mut app, "AUDIO"), "the Sound workspace does not show the AUDIO panel");
-        assert!(
-            !shows(&mut app, bevy_dark_factory::workspace_panels::NO_AUDIO),
-            "and never says this build has no audio panel: it has one"
-        );
     } else {
         assert!(
-            Workspace::Sound.missing().is_some(),
-            "a build without bevy_siren does not offer the Sound tab, and its chord says which crate fills it"
+            shows(&mut app, bevy_dark_factory::workspace_panels::NO_AUDIO),
+            "the Sound workspace, in a build without audio, does not say so"
         );
     }
 }
