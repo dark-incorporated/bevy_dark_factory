@@ -766,7 +766,7 @@ pub fn draw_the_tabs(
                 DocumentName,
                 Text::new(doc.name.clone()),
                 TextColor(ink.label),
-                crate::chrome::font(crate::chrome::text::TAB),
+                crate::chrome::typed(crate::chrome::text::TAB),
                 TextLayout::new(Justify::Left, LineBreak::NoWrap),
             ));
             if *is_dirty {
@@ -774,14 +774,14 @@ pub fn draw_the_tabs(
                     DirtyDot,
                     Text::new("\u{25CF}"),
                     TextColor(ink.accent),
-                    crate::chrome::font(crate::chrome::text::LABEL),
+                    crate::chrome::typed(crate::chrome::text::LABEL),
                 ));
             }
             c.spawn((
                 DocumentClose(doc.clone()),
                 Text::new("\u{00D7}"),
                 TextColor(ink.muted),
-                crate::chrome::font(crate::chrome::text::TAB),
+                crate::chrome::typed(crate::chrome::text::TAB),
             ))
             .observe(click_close);
         });
