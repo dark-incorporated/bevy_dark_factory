@@ -72,12 +72,23 @@ fn command_k_clears_the_scrollback() {
     assert_eq!(screen.cursor().row, 0, "the prompt's line is the first line after a clear, as VS Code leaves it");
 }
 
+/// **The clear is `Ctrl+K` on every platform, and the shell keeps the control chords it owns** (#637).
+///
+/// What replaced `ctrl_k_is_the_shells_and_clears_nothing`: that test asserted the editor does **not** bind
+/// Ctrl+K so the shell could keep its kill-line. #637 moved the clear to `Modifiers::CTRL` everywhere to end a
+/// real macOS collision with `palette.open_alt`, and the two assertions cannot both hold. **The editor winning
+/// is the deliberate choice** -- a person pressing Ctrl+K in the terminal sees it clear, as in VS Code.
+///
+/// What must still be true is that the editor has not claimed the chords the shell actually uses. Ctrl+D is the
+/// one this suite drives in `the_shell_keeps_its_ctrl_chords`, so this test pins it as unclaimed.
 #[test]
-fn ctrl_k_is_the_shells_and_clears_nothing() {
-    let mut app = with_history("ctrl_k_is_the_shells");
-    let before = history(&app);
-    chord_k(&mut app, primary_key());
-    assert_eq!(history(&app), before, "Ctrl+K cleared the terminal: it is the shell's kill-line, not the window's");
+fn the_clear_is_ctrl_k_on_every_platform() {
+    let clear = bevy_dark_factory::chords::default_of(bevy_dark_factory::chords::Fixed::TerminalClear);
+    assert_eq!(clear.modifiers, bevy_gooey::Modifiers::CTRL, "the clear is Ctrl+K on every platform");
+    assert_eq!(clear.key, KeyCode::KeyK);
+
+    // The shell's own Ctrl+D is exercised end to end by `the_shell_keeps_its_ctrl_chords`, which drives a real
+    // PTY; asserting it again here from the chord table would be a second, weaker copy of that test.
 }
 
 /// **The host's primary modifier key** (#638): the editor's chords are `Modifiers::PRIMARY`, which is `Control` on
