@@ -1,6 +1,6 @@
 ---
-description: A thorough review of the Dark Factory on seven lenses (visual, performance while driving, docs vs code, docs vs docs, stale comments, the family crates' API and style, build and CI speed), filing grouped issues after searching for duplicates.
-argument-hint: "[lens, e.g. visual | perf | docs-code | docs-docs | comments | family | build] (omit for all seven)"
+description: A thorough review of the Dark Factory on eight lenses — the UI as drawn, performance while driving it, documents against code, documents against themselves, stale comments, family-crate conformance, build and delivery speed, and where the editor's chrome can get out of a game-maker's way. Each lens proves what it finds with a measurement or a quote, searches the tracker first, and files grouped issues.
+argument-hint: "[lens, e.g. visual | chrome | perf | docs-code | docs-docs | comments | family | build] (omit for all eight)"
 disable-model-invocation: true
 ---
 
@@ -34,7 +34,7 @@ in every issue you file; a review that changes no code never runs the gate.
    left undone. A "finding" the last report already lists as a known limit is a **confirmation**, not a bug;
    file it only if the owner would act differently now.
 
-## The seven lenses
+## The eight lenses
 
 Each lens is one agent's whole job. **Two may run at once** (the driving/capture lenses need the GPU and the
 display, and two editors cannot share one BRP port); the other four run two at a time beside them. The pass
@@ -49,6 +49,7 @@ names which agents it started and what it ran in parallel.
 | 5 | **Stale and wrong comments**: a comment states a mechanism the code no longer has, or a number it cannot still be | the comment quoted, the code that contradicts it quoted, and the commit that changed it (`git log -S`) where one can be found | `documentation` (a comment is documentation) |
 | 6 | **Family conformance**: this crate's use of a `bevy_*` family crate disagrees with that crate's own API or style | the family crate's doc or `AGENTS.md` quoted, this repo's call site quoted, and a measurement if it is behavioural | `enhancement` or `bug`, plus `family` |
 | 7 | **Build and delivery speed**: where the build, the tests, CI or a release spends time that buys nothing | a measured wall-clock from the machine's own logs (`<git-dir>/gate.log`, `journalctl`, `tools/loop/fleet/timing.py`), the step it belongs to, and what the step catches that the step before it could not | `enhancement`, and `performance` where the repo has it |
+| 8 | **UI that can get out of the way**: where the editor's own chrome — panes, bars, badges, overlays, the terminal — takes space or attention a person making a game did not ask for, and what could collapse, hide or fade. Measured by what fraction of the window the game's own art occupies in each workspace. | a percentage of window area held by the editor's chrome, at two window sizes, and a named control that would give it back | `enhancement`, `ui` |
 
 ### Lens 1: visual (agent `ReviewVisual`)
 
@@ -324,7 +325,7 @@ So the search is not only "does an open issue name this" but also:
 
 ## The report (the pass's last act)
 
-One file, `docs/loop/iterations/<date>-review.md`, committed and pushed: the seven lenses run and by which agents;
+One file, `docs/loop/iterations/<date>-review.md`, committed and pushed: the eight lenses run and by which agents;
 every issue filed (number, title, group, the measurement that proves it); every **confirmation** and **not a
 finding** with the reason; the counts per lens; the comment survey (lens 5) with the numbers the owner asked
 for; and the **questions for the owner** (the decisions the review could not make). A docs-only push goes
@@ -345,6 +346,26 @@ through the pre-push fast path; the report is the only commit this command makes
 6. **File every finding as an open issue** (search first, comment on an existing one), then write the report, then
    push the report and the sweep's branch. If time runs out, the report goes and the filing stays.
 7. Stop after the report. The sweep's branch is gated by the next pass, not by this command.
+
+## Driving it (owner's shortcut, 2026-11-25)
+
+```sh
+/review                 # all eight lenses
+/review visual chrome   # only the lenses you name
+```
+
+Or headless, one pass, from a clone on a host with a warm target:
+
+```sh
+omp -p "$(cat .omp/commands/review.md)"
+```
+
+**The model is `ollama-cloud/deepseek-v4.1-flash:1017`** unless the owner's settings say otherwise; six agents
+run at once because the owner lifted the two-agent cap for reviews (2026-11-25). The visual and performance
+lenses want a display, so they run on `big_mac`; the reading lenses need nothing but a clone and run anywhere.
+
+**What makes a review worth running again:** the issues it files are the memory, not this file. A fresh pass
+starts by listing the open issues and skipping what is already there.
 
 ## What not to do
 
