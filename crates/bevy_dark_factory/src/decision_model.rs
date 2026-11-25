@@ -260,7 +260,20 @@ pub struct DecisionLedChip;
 #[derive(Component)]
 pub struct DecisionLed;
 
+/// **The step of `GooeySkin::type_scale` the decision chip is drawn in**: gooey's own example for a quiet readout in a status
+/// strip (`led.rs`'s `LedSize` doc), one step under the skin's `text_size` the label would otherwise take.
+///
+/// **The second step in the type scale is the menu titles' size**, which is what the chip was drawn at without it (#536,
+/// `bevy_gooey#110`): `led.rs` sizes the label and the state word from `skin.text_size` unless a step names another, so the
+/// band's readout was the same size as the verbs above it. Measured on this change: 9.9 → 9.0 skin px, with the dot and the
+/// word following (the dot is 1.1 of the step's text size, and the word is hidden — see [`quiet_the_word`]).
+pub const DECISION_LED_STEP: usize = 1;
+
 /// The LED and its hover, off (nothing has been asked), named for the shipped default until [`paint_the_led`] reads the setting.
+///
+/// **The size is gooey's to write, not this crate's** (`LedSize`, #536): a host that restyled the label's font instead would be
+/// the second writer `apply_skin` overwrites on every restyle — the same two-writers defect that made the divider's thickness a
+/// `bevy_gooey` component (`bevy_gooey#108`) rather than a host write.
 pub fn chip() -> impl Bundle {
     (
         (bevy_gooey::row_with(0.0, bevy_gooey::RowLayout { align: Some(AlignItems::Center), ..default() }), crate::chrome::Gap::Tight.class()),
@@ -268,7 +281,11 @@ pub fn chip() -> impl Bundle {
         DecisionLedChip,
         Tooltip::new(String::new()),
         Name::new("decision model"),
-        children![(bevy_gooey::led(DecisionModel::default().name(), LedState::Off), DecisionLed)],
+        children![(
+            bevy_gooey::led(DecisionModel::default().name(), LedState::Off),
+            bevy_gooey::LedSize(DECISION_LED_STEP),
+            DecisionLed,
+        )],
     )
 }
 

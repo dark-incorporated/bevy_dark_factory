@@ -110,10 +110,14 @@ const SLACK_PX: f32 = 1.0;
 const REPORT_LIMIT: usize = 8;
 
 /// **The most gooey table-cell texts the left pane may draw**: its history list is single-column, and its rows
-/// are the only cells there. gooey spawns every cell's text `NoWrap` (`widgets::ONE_LINE`), which no `TextLayout`
-/// written here can override — `bevy_gooey#109`, the exemption #482's test states. Counted rather than silently
-/// skipped, so it cannot quietly grow to cover a second widget.
-const MOST_GOOEY_CELLS: usize = 14;
+/// are the only cells there. gooey spawns every cell's text `NoWrap` (`widgets::ONE_LINE`) when the column does not ask to wrap,
+/// and `tree()` asks for nothing — `bevy_gooey#109`, the exemption #482's test states. Counted rather than silently skipped, so it
+/// cannot quietly grow to cover a second widget.
+///
+/// **14 → 1** (#536), for the reason the census's own constant gives: the exemption is now one widget — the history list, whose
+/// pool is at most 8 and whose fixture session records no change, so it holds the one node the map starts as. The DATA table, the
+/// editor's only other gooey table, wraps now (`editor::DATA_CELLS_WRAP`), so its cells are held to the pane rather than exempted.
+const MOST_GOOEY_CELLS: usize = 1;
 
 
 
@@ -248,6 +252,16 @@ fn name_of(world: &World, entity: Entity) -> String {
     }
 }
 
+/// **Whether a gooey table cell's text is drawn on one line**, which is the exemption's own condition (#536).
+///
+/// A cell whose column asks to wrap carries `LineBreak::WordOrCharacter` and is drawn inside its cell, so it is measured like every
+/// other text: the reason the exemption existed — *the cell cannot wrap, so a cell narrower than its words is a cut with nothing to
+/// scroll to* — is gone for it. Only a cell still drawn `NoWrap` is counted, which is gooey's `tree()`, whose one column a host
+/// cannot ask to wrap. A cell with no `TextLayout` is counted: an unmeasured cell is not evidence that it wraps.
+fn one_line(world: &World, entity: Entity) -> bool {
+    world.get::<TextLayout>(entity).is_none_or(|layout| layout.linebreak == LineBreak::NoWrap)
+}
+
 /// **Every descendant of `pane` ends at or inside `pane`'s content box**, as sentences naming what did not.
 ///
 /// The content box is the pane's border box less the inset it carries for its border and its padding — the
@@ -262,9 +276,12 @@ fn spills(app: &mut App, pane: Entity, tag: &str) -> Vec<String> {
     let mut cells = 0usize;
     let mut measured = 0usize;
     for entity in under(world, pane) {
-        // **gooey's table cell text is drawn on one line and this crate cannot change that** (`bevy_gooey#109`),
-        // the one exemption #482's test states. Counted, so it cannot grow unnoticed.
-        if matches!(world.get::<bevy_gooey::Role>(entity), Some(bevy_gooey::Role::TableCellText)) {
+        // **A gooey cell is exempt only while it cannot wrap** (#536). A column that asks to wrap (`Column::wrap`, `bevy_gooey#109`)
+        // is drawn inside its cell and held to the pane like every other text; what is left is `tree()`'s single column, whose
+        // wrap a host cannot ask for. Counted, so it cannot grow unnoticed.
+        if matches!(world.get::<bevy_gooey::Role>(entity), Some(bevy_gooey::Role::TableCellText))
+            && one_line(world, entity)
+        {
             cells += 1;
             continue;
         }

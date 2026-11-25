@@ -28,7 +28,7 @@
 //! pane may be drawn outside it.
 
 use bevy::prelude::*;
-use bevy::text::TextLayoutInfo;
+use bevy::text::{TextLayout, TextLayoutInfo};
 use bevy::ui::{ComputedNode, UiGlobalTransform, UiScale};
 use bevy::window::{PrimaryWindow, Window, WindowResolution};
 use bevy_dark_factory::harness;
@@ -48,9 +48,13 @@ const NARROW_PANE_PX: f32 = 460.0;
 const SLACK_PX: f32 = 1.0;
 
 
-/// **The most gooey table-cell texts one pane may hold**: the history list is single-column, and its
-/// visible rows are the only cells here. See the exemption in [`outside_the_pane`].
-const MOST_GOOEY_CELLS: usize = 12;
+/// **The most gooey table-cell texts one pane may hold**: the history list is single-column, and its visible rows are the only
+/// cells here. See the exemption in [`outside_the_pane`].
+///
+/// **12 → 1** (#536): one widget, a pool of at most 8 (`HISTORY_LIST_ROWS`), and a fixture whose session records no change, so the
+/// list holds the one node the map starts as. A `tree()`'s column cannot be wrapped by a host (`bevy_gooey#109`'s remainder), which
+/// is why this constant is not 0; the DATA table, the gooey table that now wraps, is not drawn in this fixture.
+const MOST_GOOEY_CELLS: usize = 1;
 
 /// How many texts must be drawn under the pane before the measurement means anything.
 const LEAST_TEXTS: usize = 4;
@@ -103,6 +107,16 @@ fn border_box(world: &World, entity: Entity) -> Option<Rect> {
     Some(Rect::from_center_size(at, computed.size()))
 }
 
+/// **Whether a gooey table cell's text is drawn on one line**, which is the exemption's own condition (#536).
+///
+/// A cell whose column asks to wrap carries `LineBreak::WordOrCharacter` and is drawn inside its cell, so it is measured like every
+/// other text: the reason the exemption existed — *the cell cannot wrap, so a cell narrower than its words is a cut with nothing to
+/// scroll to* — is gone for it. Only a cell still drawn `NoWrap` is counted, which is gooey's `tree()`, whose one column a host
+/// cannot ask to wrap. A cell with no `TextLayout` is counted: an unmeasured cell is not evidence that it wraps.
+fn one_line(world: &World, entity: Entity) -> bool {
+    world.get::<TextLayout>(entity).is_none_or(|layout| layout.linebreak == LineBreak::NoWrap)
+}
+
 /// **The pane's own border box and everything drawn outside it.**
 ///
 /// `left` is the frame's left region; its parent is gooey's `SplitPane`, which is the box the capture
@@ -127,14 +141,11 @@ fn outside_the_pane(app: &mut App, tag: &str) -> Vec<String> {
         if rect.width() <= 0.0 || rect.height() <= 0.0 {
             continue;
         }
-        // **gooey's table cell text is drawn on one line and this crate cannot change that.**
-        // `bevy_gooey`'s `table.rs:1343` spawns every cell's text with `ONE_LINE`
-        // (`widgets.rs:106`: `TextLayout::new(Justify::Left, LineBreak::NoWrap)`), so a cell narrower
-        // than its words is drawn out of it and no `TextLayout` written here can override it. The
-        // history list is a `TableRows`, so its rows are the one place in this pane the editor does
-        // not own the text of. Filed as **bevy_gooey#109**; named and counted rather than silently
-        // skipped, so this exemption cannot quietly grow to cover a second widget.
-        if world.get::<bevy_gooey::Role>(entity) == Some(&bevy_gooey::Role::TableCellText) {
+        // **A gooey cell is exempt only while it cannot wrap** (#536). A column that asks to wrap (`Column::wrap`,
+        // `bevy_gooey#109`) is drawn inside its cell and held to the pane like every other text. What is left is `tree()`'s single
+        // column — the history list — whose wrap a host cannot ask for: `tree()` hardcodes `Column::new("")`. Named and counted
+        // rather than silently skipped, so this exemption cannot quietly grow to cover a second widget.
+        if world.get::<bevy_gooey::Role>(entity) == Some(&bevy_gooey::Role::TableCellText) && one_line(world, entity) {
             gooey_cells += 1;
             continue;
         }

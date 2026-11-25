@@ -1623,9 +1623,31 @@ struct DataCellEdit {
 const DATA_COLUMN_FILE_W: f32 = 5.0;
 const DATA_COLUMN_PATH_W: f32 = 8.0;
 const DATA_COLUMN_VALUE_W: f32 = 9.0;
+
+/// **Whether the DATA table's cells wrap at their column's edge** (#536, `bevy_gooey#109`).
+///
+/// **`true` for all three, because a cell that does not wrap is not a narrower cell — it is a cell with a cut in it.** The
+/// columns are 5, 8 and 9 em against a 380 px inspector, so a leaf path such as `tuning.mob.attack_damage` (24 characters, 158 px
+/// at this skin's 6.6 px advance) is twice its 8 em column; `cell_node` clips the cell (`table.rs`'s `Overflow::clip()`), so
+/// unwrapped that path is drawn as `tuning.mob.` and the half a person needs to tell two leaves apart is not on the screen and
+/// cannot be scrolled to. Wrapped (`LineBreak::WordOrCharacter`), the path takes two rows and is all there.
+///
+/// **The cost, measured, because a wrapping column is not free**: gooey drops the row pool for a table with any wrapping column
+/// (`update_tables`: `let pool = if wraps { len } else { … }`), so every row is bound rather than the 6.5 in view. That is the
+/// right trade for this table and not for the history list — the DATA panel holds the leaves of one registry, tens of rows, where
+/// gooey's own note bounds a wrapping table to *"a few hundred rows of notes, not ten thousand"* (`divider-wrap-led-size.md`).
+/// The history list is the ten-thousand case and stays a `tree()`, whose one column gooey does not let a host wrap at all — that
+/// is what the three `MOST_GOOEY_CELLS` constants still count, and each says so.
+const DATA_CELLS_WRAP: bool = true;
 /// How many rows tall the DATA table stands before it scrolls: the inspector is a narrow column with a dozen sections, and a half row cut
 /// off at the foot says there is more.
 const DATA_TABLE_ROWS: f32 = 6.5;
+
+/// **One column of the DATA table**, wrapping its cells at the column's edge when `wrap` (`bevy_gooey`'s `Column::wrap`, #536).
+fn column(title: &str, width: f32, wrap: bool) -> bevy_gooey::Column {
+    let column = bevy_gooey::Column::new(title).width(width);
+    if wrap { column.wrap() } else { column }
+}
 
 /// **The DATA table's rows**: one per leaf of every registered file, as [`crate::ops_data::listing`] lists them.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -6871,9 +6893,9 @@ fn refresh_data_list(
                 p.spawn((
                     bevy_gooey::table(
                         [
-                            bevy_gooey::Column::new("File").width(DATA_COLUMN_FILE_W),
-                            bevy_gooey::Column::new("Path").width(DATA_COLUMN_PATH_W),
-                            bevy_gooey::Column::new("Value").width(DATA_COLUMN_VALUE_W),
+                            column("File", DATA_COLUMN_FILE_W, DATA_CELLS_WRAP),
+                            column("Path", DATA_COLUMN_PATH_W, DATA_CELLS_WRAP),
+                            column("Value", DATA_COLUMN_VALUE_W, DATA_CELLS_WRAP),
                         ],
                         DataRows(rows.clone()),
                     ),

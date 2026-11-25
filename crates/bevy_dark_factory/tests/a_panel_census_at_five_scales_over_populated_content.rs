@@ -46,11 +46,13 @@
 //! - **(b) no text is laid out wider than the panel's content box**, visible or not ([`Measured::laid_out_text`], at most
 //!   [`OVERHANG_PX`]). A text a pane clips is not an overhang on the screen, but a row that cannot wrap has only been
 //!   cut, and the part cut off cannot be read. A box with no width or no height is still measured by the glyphs it paints
-//!   (a text squeezed to nothing whose glyphs overflow is the shape of the defect). **gooey's table-cell texts are exempt
-//!   from (b)**: `measure` skips them, counting them only.
+//!   (a text squeezed to nothing whose glyphs overflow is the shape of the defect). **A gooey table-cell text that cannot
+//!   wrap is exempt from (b)**: `measure` skips it, counting it only.
 //!
-//! gooey's table-cell text is one line by construction (`bevy_gooey#109`) and is exempted exactly as
-//! `no_panel_draws_a_control_past_its_own_content_box` exempts it: counted, and capped.
+//! **Only a cell that cannot wrap is exempt** (#536). A column that asks to wrap (`Column::wrap`, `bevy_gooey#109`) is drawn
+//! inside its cell, so its text is held to (b) like every other, and the exemption is counted exactly as
+//! `no_panel_draws_a_control_past_its_own_content_box` counts it. What is left is gooey's `tree()`, whose one column a host
+//! cannot ask to wrap.
 //!
 //! # The window is read back, and it was once half the size it said (#535)
 //!
@@ -91,6 +93,7 @@ use std::path::{Path, PathBuf};
 
 use bevy::prelude::*;
 use bevy::text::TextLayoutInfo;
+use bevy::text::TextLayout;
 use bevy::ui::{ComputedNode, UiGlobalTransform, UiScale};
 use bevy::window::{PrimaryWindow, Window, WindowResolution};
 
@@ -178,9 +181,25 @@ const CLIPS: usize = 10;
 /// How many long tokens each tag axis (`kind`, `effects`, `look`) holds, and every piece carries.
 const TOKENS: usize = 8;
 
-/// **The most gooey table-cell texts one panel may draw** before the exemption for `bevy_gooey#109` is
-/// treated as having grown past what it was written for.
-const MOST_GOOEY_CELLS: usize = 40;
+/// How many leaves the census's tuning file registers, so the DATA panel's table is drawn: its paths are long enough to be twice
+/// their column, which is the wrap #536 asks the census to measure.
+const DATA_LEAVES: usize = 9;
+
+/// **The most gooey table-cell texts one panel may draw** before the exemption for `bevy_gooey#109` is treated as having grown
+/// past what it was written for.
+///
+/// **40 → 1** (#536). The 40 was written when this crate had no `Column::wrap` and every gooey cell was one line by
+/// construction: a cap on a family, not a measurement of one widget. Two changes make it one.
+///
+/// **The DATA table's cells wrap now** (`editor::DATA_CELLS_WRAP`), and this file's fixture registers a `data.yaml` so the table is
+/// laid out. A wrapping cell is drawn inside its cell, so it is measured like every other text and is no longer counted here at all
+/// — the exemption's own condition is that the cell *cannot* wrap (`one_line`).
+///
+/// **What is left is one widget**: the history list, gooey's `tree()` under REDO. `tree()` hardcodes `Column::new("")` and the
+/// pinned `8647648` exports no way to set a column's `wrap` on one (`TreeView` is private, so a `table()` cannot stand in without
+/// gaining a header row the panel does not have). Its pool is `min(ceil(HISTORY_LIST_ROWS) + 1, nodes)` — at most **8** — and the
+/// census's own sessions record no change, so the list holds the one node the map starts as: one cell.
+const MOST_GOOEY_CELLS: usize = 1;
 
 /// **What identifies a text of each of the four spawners #494 changed**, per panel, so a cell can say it *saw* one
 /// that was visible (not merely laid out): `(panel, signature)`.
@@ -289,6 +308,20 @@ fn project(tag: &str) -> PathBuf {
         }
     }
     std::fs::write(blueprint.join("rigs.yaml"), rigs).unwrap_or_else(|e| panic!("rigs.yaml: {e}"));
+
+    // **A tuning file with leaves, so the DATA table is drawn and its columns are measured.** The DATA panel is the editor's only
+    // gooey table a host can ask to wrap (`editor::DATA_CELLS_WRAP`), so a census that registered no `data.yaml` would never lay
+    // one out and could not tell a wrapping cell from a cut one (#536). The paths are long on purpose: they are twice their 8 em
+    // column, which is the width the wrap has to break.
+    let mut tuning = String::from("# the census's tuning file\n");
+    for i in 0..DATA_LEAVES {
+        tuning.push_str(&format!("{}\n  {}: {}\n", token("group", i), long("leaf", i), i));
+    }
+    std::fs::write(blueprint.join("census_tuning.yaml"), tuning).unwrap_or_else(|e| panic!("census_tuning.yaml: {e}"));
+    let registry = format!(
+        "version: 1\nfiles:\n- id: tuning/census_leaf_registry_with_a_long_id\n  path: census_tuning.yaml\n"
+    );
+    std::fs::write(blueprint.join("data.yaml"), registry).unwrap_or_else(|e| panic!("data.yaml: {e}"));
     root
 }
 
@@ -407,6 +440,16 @@ fn seen(world: &World, entity: Entity, rect: Rect) -> Option<Rect> {
         cut = cut.intersect(Rect::from_corners(a, b));
     }
     (cut.width() > 0.0 && cut.height() > 0.0).then_some(cut)
+}
+
+/// **Whether a gooey table cell's text is drawn on one line**, which is the exemption's own condition (#536).
+///
+/// A cell whose column asks to wrap carries `LineBreak::WordOrCharacter` and is drawn inside its cell, so it is measured like every
+/// other text: the reason the exemption existed — *the cell cannot wrap, so a cell narrower than its words is a cut with nothing to
+/// scroll to* — is gone for it. Only a cell still drawn `NoWrap` is counted, which is gooey's `tree()`, whose one column a host
+/// cannot ask to wrap. A cell with no `TextLayout` is counted: an unmeasured cell is not evidence that it wraps.
+fn one_line(world: &World, entity: Entity) -> bool {
+    world.get::<TextLayout>(entity).is_none_or(|layout| layout.linebreak == LineBreak::NoWrap)
 }
 
 fn is_a_tooltip(world: &World, entity: Entity) -> bool {
@@ -571,7 +614,11 @@ fn measure(world: &World, region: Entity) -> Option<Measured> {
     let left = region_box.min.x + inset.min_inset.x;
     let mut out = Measured { body_px: Some(region_box.height() - inset.min_inset.y - inset.max_inset.y), ..default() };
     for entity in under(world, region) {
-        if matches!(world.get::<bevy_gooey::Role>(entity), Some(bevy_gooey::Role::TableCellText)) {
+        // **A gooey cell is exempt only while it cannot wrap** (#536): a column that asks to wrap is drawn inside its cell, so its
+        // text is held to the content box like every other. What is left is `tree()`'s single column, counted and capped.
+        if matches!(world.get::<bevy_gooey::Role>(entity), Some(bevy_gooey::Role::TableCellText))
+            && one_line(world, entity)
+        {
             out.cells += 1;
             continue;
         }

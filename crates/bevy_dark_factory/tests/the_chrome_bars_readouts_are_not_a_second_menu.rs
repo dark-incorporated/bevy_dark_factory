@@ -110,9 +110,29 @@ fn drawn_rows(world: &World, root: Entity, ui_scale: f32) -> Vec<Drawn> {
     found
 }
 
-/// **The most words gooey's decision LED may draw at the menu's size**: its label and its hidden state
-/// word. See the exemption in the test.
-const MOST_GOOEY_LED_WORDS: usize = 2;
+
+
+/// Every entity in `root`'s subtree, `root` included.
+fn successors(root: Entity, world: &World) -> Vec<Entity> {
+    let mut out = Vec::new();
+    let mut stack = vec![root];
+    while let Some(at) = stack.pop() {
+        out.push(at);
+        if let Some(children) = world.get::<Children>(at) {
+            stack.extend(children.iter());
+        }
+    }
+    out
+}
+
+/// **The most words gooey's decision LED may draw at the menu's size**: **none**, since the chip carries a `LedSize` step
+/// (`decision_model::DECISION_LED_STEP`, #536, `bevy_gooey#110`).
+///
+/// **2 → 0.** The 2 was the chip's label and its hidden state word: without a step, `led.rs` draws both at `skin.text_size`,
+/// which is the menu titles' own size, and no `TextFont` written here survived `apply_skin`'s restyle — the two-writers defect
+/// `bevy_gooey#110` was filed for. With the step, both are drawn at `type_scale[1]` instead and the exemption has nothing in it.
+/// It stays as a count rather than being deleted: a second gooey LED added to this bar at the menu's size fails here and says so.
+const MOST_GOOEY_LED_WORDS: usize = 0;
 
 /// Whether this line is the decision chip's own label, which `bevy_gooey` sizes.
 ///
