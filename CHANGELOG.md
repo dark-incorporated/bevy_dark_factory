@@ -2,6 +2,10 @@
 
 What each change added, newest first. A visible change has a clip: click the still to play it. `python3 tools/changelog/changelog.py page --open` plays them all in one page.
 
+## 2026-11-25
+
+- **618** `d73cb2da` A closed comment issue's own grep is now a test, and four regressions it caught are fixed *No clip: a test and comment fixes; nobody can see this; proved by a_closed_comment_issues_grep_stays_clean*
+
 ## 2026-11-24
 
 - **598** Cmd+J cycles the terminal, and blueprint/state says which position *No clip: a state field plus a chord's measured cycle; proved by three_cmd_j_presses_cycle_the_pane_and_the_state_says_so*
