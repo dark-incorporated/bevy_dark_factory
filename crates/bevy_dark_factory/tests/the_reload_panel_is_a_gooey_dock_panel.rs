@@ -252,7 +252,7 @@ fn view_show_reload_panel_shows_the_dock_in_the_reference_window_and_unticking_h
     assert!(!app.world().entity(row).contains::<Checked>(), "the row starts unticked");
 
     app.world_mut().commands().trigger(ValueChange { source: row, value: true, is_final: true });
-    support::settle(&mut app);
+    support::settle_until_the_index_is_quiet(&mut app);
     assert_eq!(dock_display(&mut app), Display::Flex, "ticking the row shows the dock whatever the window");
     assert!(app.world().entity(row).contains::<Checked>(), "and the row says so");
     let drawn = {
@@ -267,7 +267,7 @@ fn view_show_reload_panel_shows_the_dock_in_the_reference_window_and_unticking_h
     assert!(drawn > 0, "the reload lines are laid out, with a size, in the dock the person asked for");
 
     app.world_mut().commands().trigger(ValueChange { source: row, value: false, is_final: true });
-    support::settle(&mut app);
+    support::settle_until_the_index_is_quiet(&mut app);
     assert_eq!(dock_display(&mut app), Display::None, "unticked, the room rule alone decides, and there is no room");
     assert!(!app.world().entity(row).contains::<Checked>(), "and the row is unticked");
 }

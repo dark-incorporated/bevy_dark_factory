@@ -34,7 +34,7 @@ fn project(tag: &str) -> (App, Ctx) {
     let seen = reads(&app);
     // Both files are new: the view reads the registry and the file it lists.
     support::until_seen(&mut app, "the registry and its file read", |a| reads(a) >= seen + 2);
-    support::settle(&mut app);
+    support::settle_until_the_index_is_quiet(&mut app);
     (app, ctx)
 }
 

@@ -41,7 +41,7 @@ fn editor(tag: &str, registry: bool) -> (App, std::path::PathBuf) {
     if registry {
         std::fs::write(dir.join("data.yaml"), "{version: 1, files: [{id: \"tuning/mob\", path: \"mob.yaml\", bounds: {\"mob.speed\": {min: 0.0, max: 9.0}}}]}").unwrap();
     }
-    support::settle(&mut app);
+    support::settle_until_the_index_is_quiet(&mut app);
     (app, file)
 }
 
@@ -87,7 +87,7 @@ fn a_cell_edited_in_place_is_one_data_set_in_the_log_and_the_file() {
         rows.key(at)
     };
     app.world_mut().commands().trigger(RowActivated { entity: table, key });
-    support::settle(&mut app);
+    support::settle_until_the_index_is_quiet(&mut app);
     // The field that has the keys is the cell's: it stands in a text row that holds the leaf's value as the file has it.
     let field = testing::focused(&app).expect("opening the row gives a field the keys");
     let row = app.world().get::<TextInputOf>(field).expect("the focus is on a text field").0;
@@ -97,7 +97,7 @@ fn a_cell_edited_in_place_is_one_data_set_in_the_log_and_the_file() {
     }
     testing::type_text(&mut app, "2.5");
     testing::press(&mut app, KeyCode::Enter);
-    support::settle(&mut app);
+    support::settle_until_the_index_is_quiet(&mut app);
 
     assert_eq!(std::fs::read_to_string(&file).unwrap(), "# tuning\nmob:\n  speed: 2.5\n  name: orc\n  hp: 7\nfast: false\n");
     let project = app.world().resource::<Project>().clone();

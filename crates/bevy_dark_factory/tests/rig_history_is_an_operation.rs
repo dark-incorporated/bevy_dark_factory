@@ -127,7 +127,7 @@ fn cmd_z_and_an_agent_step_the_benchs_history_through_one_operation() {
     let edited = rigs.to_yaml().expect("serialises");
     std::fs::write(&path, &edited).expect("write");
     until(&mut app, 30.0, "the tab holding the edit", |a| held(a) == edited);
-    support::settle(&mut app);
+    support::settle_until_the_index_is_quiet(&mut app);
 
     let mods = [bevy_dark_factory::keys::MOD_KEYS[0]];
     tap(&mut app, &mods, KeyCode::KeyZ);
@@ -138,7 +138,7 @@ fn cmd_z_and_an_agent_step_the_benchs_history_through_one_operation() {
     assert_eq!(lines[0].0, "human", "{:?}", lines[0]);
     assert_eq!(lines[0].1["params"]["by"], "back", "{:?}", lines[0]);
     assert_eq!(app.world().resource::<BenchState>().status.note_text(), "undid the last bench write");
-    support::settle(&mut app);
+    support::settle_until_the_index_is_quiet(&mut app);
 
     let said = apply(&mut app, "rig_history_step", json!({"by": "forward"}));
     assert_eq!(said["outcome"], "applied", "an agent's call is applied, not refused for want of a view: {said}");
@@ -147,16 +147,16 @@ fn cmd_z_and_an_agent_step_the_benchs_history_through_one_operation() {
     let lines = logged(&app, "rig_history_step");
     assert_eq!(lines.len(), 2, "the agent's call is logged too");
     assert_eq!(lines[1].0, "agent", "{:?}", lines[1]);
-    support::settle(&mut app);
+    support::settle_until_the_index_is_quiet(&mut app);
 
     // The key puts it back the other way, from what the agent's step left on the stacks.
     tap(&mut app, &mods, KeyCode::KeyZ);
     assert_eq!(on_disk(&path), original, "Cmd+Z takes back what an agent put back");
-    support::settle(&mut app);
+    support::settle_until_the_index_is_quiet(&mut app);
     tap(&mut app, &[mods[0], KeyCode::ShiftLeft], KeyCode::KeyZ);
     assert_eq!(on_disk(&path), edited, "Cmd+Shift+Z puts it again");
     assert_eq!(logged(&app, "rig_history_step").len(), 4, "{:?}", logged(&app, "rig_history_step"));
-    support::settle(&mut app);
+    support::settle_until_the_index_is_quiet(&mut app);
 
     // Nothing to put back is a refusal for an agent, and a direction that is not one is too.
     let refused = apply(&mut app, "rig_history_step", json!({"by": "forward"}));
@@ -169,7 +169,7 @@ fn cmd_z_and_an_agent_step_the_benchs_history_through_one_operation() {
     let said = apply(&mut app, "rig_history_step", json!({"by": "back"}));
     assert_eq!(said["outcome"], "applied", "{said}");
     assert_eq!(on_disk(&path), original);
-    support::settle(&mut app);
+    support::settle_until_the_index_is_quiet(&mut app);
     tap(&mut app, &mods, KeyCode::KeyZ);
     let bench = app.world().resource::<BenchState>();
     assert!(!bench.status.has_problem(), "nothing to undo is guidance, not a problem: {:?}", bench.status.problem_text());
@@ -199,7 +199,7 @@ fn a_step_whose_log_line_cannot_be_written_is_taken_back_with_its_history() {
     let edited = rigs.to_yaml().expect("serialises");
     std::fs::write(&path, &edited).expect("write");
     until(&mut app, 30.0, "the tab holding the edit", |a| held(a) == edited);
-    support::settle(&mut app);
+    support::settle_until_the_index_is_quiet(&mut app);
     let history = app.world().resource::<BenchState>().history();
     assert_eq!(history.undo.len(), 1, "the edit left one manifest to step back to: {history:?}");
     assert!(history.redo.is_empty(), "{history:?}");
@@ -214,7 +214,7 @@ fn a_step_whose_log_line_cannot_be_written_is_taken_back_with_its_history() {
     assert!(app.world().resource::<BenchState>().status.has_problem(), "the key says it could not step");
     let refused = apply(&mut app, "rig_history_step", json!({"by": "back"}));
     assert_eq!(refused["outcome"], "refused", "an agent's call is refused too: {refused}");
-    support::settle(&mut app);
+    support::settle_until_the_index_is_quiet(&mut app);
     assert_eq!(on_disk(&path), edited, "a step that could not be logged is taken back: rigs.yaml is as it was");
     assert_eq!(held(&app), edited, "and the bench still holds it");
     assert_eq!(app.world().resource::<BenchState>().history(), history, "and the history is exactly what it was, with no entry for the failed step");
@@ -250,7 +250,7 @@ fn a_step_keeps_the_selected_rig_by_name_and_clamps_when_it_is_gone() {
     let edited = rigs.to_yaml().expect("serialises");
     std::fs::write(&path, &edited).expect("write");
     until(&mut app, 30.0, "the tab holding the edit", |a| held(a) == edited);
-    support::settle(&mut app);
+    support::settle_until_the_index_is_quiet(&mut app);
     assert_eq!(on(&app), Some(chosen.clone()), "the edit under the tab keeps the rig selected by name");
 
     // Cmd+Z removes the added rig, which moves the chosen one back up the list: the selection goes with it.
@@ -258,7 +258,7 @@ fn a_step_keeps_the_selected_rig_by_name_and_clamps_when_it_is_gone() {
     tap(&mut app, &mods, KeyCode::KeyZ);
     assert_eq!(names(&app), before, "the step took the added rig out");
     assert_eq!(on(&app), Some(chosen.clone()), "the step keeps the rig selected by name, not by index");
-    support::settle(&mut app);
+    support::settle_until_the_index_is_quiet(&mut app);
     let said = apply(&mut app, "rig_history_step", json!({"by": "forward"}));
     assert_eq!(said["outcome"], "applied", "{said}");
     assert_eq!(on(&app), Some(chosen), "and so does an agent's step the other way");
@@ -266,7 +266,7 @@ fn a_step_keeps_the_selected_rig_by_name_and_clamps_when_it_is_gone() {
     // The selected rig is the one the step removes: the selection stays at the same place, or on the last rig.
     app.world_mut().resource_mut::<BenchState>().selected = 0;
     assert_eq!(on(&app).as_deref(), Some("aaa_first"));
-    support::settle(&mut app);
+    support::settle_until_the_index_is_quiet(&mut app);
     let said = apply(&mut app, "rig_history_step", json!({"by": "back"}));
     assert_eq!(said["outcome"], "applied", "{said}");
     assert_eq!(on(&app), Some(before[0].clone()), "the rig is gone, so the selection stays at the top of the list");

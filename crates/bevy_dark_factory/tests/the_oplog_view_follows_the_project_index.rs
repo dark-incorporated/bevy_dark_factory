@@ -56,7 +56,7 @@ fn a_line_damaged_while_the_editor_is_open_is_named_within_the_index_debounce() 
         make(&mut ctx, name);
     }
     support::until_seen(&mut app, "the log applied", |a| support::verdict(a, "oplog")["outcome"] == json!("applied"));
-    support::settle(&mut app);
+    support::settle_until_the_index_is_quiet(&mut app);
 
     let mut broken = lines(&ctx);
     let at = broken[1].find("\"at\"").unwrap_or_else(|| panic!("an entry has `at`")) + 5;
@@ -102,7 +102,7 @@ fn an_append_is_one_modified_event_and_one_read_of_the_whole_file() {
         std::fs::write(log_path(&ctx), &text).unwrap_or_else(|e| panic!("{e}"));
         let wrote = reads(&app);
         support::until_seen(&mut app, &format!("the {count}-line log read"), |a| reads(a) > wrote);
-        support::settle(&mut app);
+        support::settle_until_the_index_is_quiet(&mut app);
 
         // **The append**: the dispatcher's own, one operation.
         let (reads_before, heard_before) = (reads(&app), app.world().resource::<Heard>().0.len());
@@ -141,7 +141,7 @@ fn an_append_is_one_modified_event_and_one_read_of_the_whole_file() {
 #[test]
 fn an_undo_is_never_delayed_by_the_index_debounce() {
     let (mut app, mut ctx) = support::editor("oplog_follow_undo");
-    support::settle(&mut app);
+    support::settle_until_the_index_is_quiet(&mut app);
     // **The index cannot have noticed anything**: its sweep is ten minutes apart, and no frame is stepped between the operation and the undo.
     support::sweep_every(&app, Duration::from_secs(600));
     let before = reads(&app);

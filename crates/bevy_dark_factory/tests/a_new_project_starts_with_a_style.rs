@@ -167,20 +167,20 @@ fn run_the_wizard(tag: &str, holder: &std::path::Path) -> std::path::PathBuf {
     app.add_plugins((LoadingPlugin, LauncherPlugin, bevy_debugger_bevy::DebuggerPlugin::default(), OpsBridgePlugin));
     app.insert_resource(bevy_dark_factory::trusted::StoreRoot(holder.to_path_buf()));
     app.world_mut().resource_mut::<NextState<Screen>>().set(Screen::Launcher);
-    support::settle(&mut app);
+    support::settle_until_the_index_is_quiet(&mut app);
     let button = testing::find_by_label(&mut app, "New project").unwrap_or_else(|e| panic!("{e:?}"));
     app.world_mut().commands().trigger(Activate { entity: button });
-    support::settle(&mut app);
+    support::settle_until_the_index_is_quiet(&mut app);
     assert!(app.world().get_resource::<NewProjectForm>().is_some(), "the form is open");
     let name = app.world_mut().query_filtered::<Entity, With<NameField>>().single(app.world()).expect("the Name field");
     app.world_mut().commands().trigger(bevy::ui_widgets::ValueChange::<String> { source: name, value: tag.to_owned(), is_final: true });
     let location = app.world_mut().query_filtered::<Entity, With<LocationField>>().single(app.world()).expect("the Location field");
     app.world_mut().commands().trigger(bevy::ui_widgets::ValueChange::<String> { source: location, value: holder.to_string_lossy().into_owned(), is_final: true });
-    support::settle(&mut app);
+    support::settle_until_the_index_is_quiet(&mut app);
     let create = app.world_mut().query_filtered::<Entity, With<CreateButton>>().iter(app.world()).next().expect("Create is on the form");
     app.world_mut().commands().trigger(Activate { entity: create });
-    support::settle(&mut app);
-    support::settle(&mut app);
+    support::settle_until_the_index_is_quiet(&mut app);
+    support::settle_until_the_index_is_quiet(&mut app);
     let root = holder.join(tag);
     assert!(root.join("assets/blueprint").is_dir(), "the wizard made the project at {}", root.display());
     root
@@ -199,7 +199,7 @@ fn the_wizard_grants_the_style_so_blueprint_style_serves_it_and_asks_nothing() {
     let mut app = harness::build_headless(&root, new_project::FIRST_MAP, None).unwrap_or_else(|e| panic!("{e}"));
     app.add_plugins((bevy_debugger_bevy::DebuggerPlugin::default(), OpsBridgePlugin));
     app.insert_resource(bevy_dark_factory::trusted::StoreRoot(holder.clone()));
-    support::settle(&mut app);
+    support::settle_until_the_index_is_quiet(&mut app);
     assert!(app.world().resource::<EditorState>().trust.file.is_none(), "the store is the default one");
     use bevy::remote::{RemoteMethodSystemId, RemoteMethods};
     let id = match app.world().resource::<RemoteMethods>().get("blueprint/style") {
@@ -207,7 +207,7 @@ fn the_wizard_grants_the_style_so_blueprint_style_serves_it_and_asks_nothing() {
         _ => panic!("`blueprint/style` is not registered"),
     };
     let answer = app.world_mut().run_system_with(id, Some(json!({"map": new_project::FIRST_MAP}))).unwrap_or_else(|e| panic!("{e:?}")).unwrap_or_else(|e| panic!("{e:?}"));
-    support::settle(&mut app);
+    support::settle_until_the_index_is_quiet(&mut app);
     let file = answer["files"].as_array().and_then(|f| f.iter().find(|f| f["path"] == "design/style.md")).unwrap_or_else(|| panic!("design/style.md is not in {answer}"));
     assert_eq!(file["state"], "served", "{answer}");
     assert!(answer["text"].as_str().is_some_and(|t| t.contains("## Pillars")), "{answer}");

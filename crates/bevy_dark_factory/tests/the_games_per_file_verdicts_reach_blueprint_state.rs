@@ -60,7 +60,7 @@ fn each_files_verdict_is_in_the_state_and_a_refusal_names_its_file_and_field() {
         KindVerdict::refused("map", "maps/m.map.yaml", Some("placements[0].at[1]".to_owned()), "1:47: Expected float"),
     ];
     Verdict::with_kinds(7, "maps/m.map.yaml: refused", kinds).write(&dir).unwrap();
-    support::settle(&mut app);
+    support::settle_until_the_index_is_quiet(&mut app);
 
     let g = game(&mut app);
     assert_eq!(g["ok"], serde_json::json!(false), "{g}");

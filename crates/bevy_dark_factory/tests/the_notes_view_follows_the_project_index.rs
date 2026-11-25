@@ -37,7 +37,7 @@ fn path_of(app: &bevy::prelude::App) -> std::path::PathBuf {
 #[test]
 fn an_edit_made_while_the_editor_is_open_is_seen_within_the_index_debounce() {
     let (mut app, _ctx) = support::editor("notes_follow_edit");
-    support::settle(&mut app);
+    support::settle_until_the_index_is_quiet(&mut app);
     let path = path_of(&app);
     for marker in ["first-marker-edit", "second-marker-edit"] {
         std::fs::write(&path, some_notes(&[marker])).unwrap_or_else(|e| panic!("{e}"));
@@ -63,7 +63,7 @@ fn a_file_beside_the_notes_file_that_changes_makes_the_view_read_nothing() {
 #[test]
 fn a_note_the_editor_adds_shows_with_no_sweep_to_reveal_it() {
     let (mut app, mut ctx) = support::editor("notes_follow_own_write");
-    support::settle(&mut app);
+    support::settle_until_the_index_is_quiet(&mut app);
     // **A sweep ten minutes apart cannot reveal anything in this test**: only the operation's own word that it wrote can.
     support::sweep_every(&app, Duration::from_secs(600));
     let draft = NoteDraft { area: [0, 0, 2, 2], editing: None, text: "added by the editor".into(), pieces: Vec::new(), auto: false };

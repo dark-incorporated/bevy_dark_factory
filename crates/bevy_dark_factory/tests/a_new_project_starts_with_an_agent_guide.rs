@@ -66,7 +66,7 @@ fn call(app: &mut App) -> serde_json::Value {
         .run_system_with(id, Some(json!({})))
         .unwrap_or_else(|e| panic!("blueprint/agent_guide: {e:?}"))
         .unwrap_or_else(|e| panic!("blueprint/agent_guide: {e:?}"));
-    support::settle(app);
+    support::settle_until_the_index_is_quiet(app);
     answer
 }
 
@@ -100,7 +100,7 @@ fn run_the_wizard(tag: &str, holder: &Path) -> PathBuf {
     // names the real one, so no test reads or writes the developer's `trusted.yaml`.
     app.insert_resource(bevy_dark_factory::trusted::StoreRoot(holder.clone()));
     app.world_mut().resource_mut::<NextState<Screen>>().set(Screen::Launcher);
-    support::settle(&mut app);
+    support::settle_until_the_index_is_quiet(&mut app);
 
     // **The person's store is the default one** — `trust.file` stays `None` — and the store's folder is a
     // scratch folder of the test's (`trusted::StoreRoot`), so nothing here touches the real `trusted.yaml`.
@@ -113,7 +113,7 @@ fn run_the_wizard(tag: &str, holder: &Path) -> PathBuf {
 
     let button = testing::find_by_label(&mut app, "New project").unwrap_or_else(|e| panic!("{e:?}"));
     app.world_mut().commands().trigger(Activate { entity: button });
-    support::settle(&mut app);
+    support::settle_until_the_index_is_quiet(&mut app);
     assert!(app.world().get_resource::<NewProjectForm>().is_some(), "the form is open");
 
     let name = app.world_mut().query_filtered::<Entity, With<NameField>>().single(app.world()).expect("the Name field");
@@ -121,12 +121,12 @@ fn run_the_wizard(tag: &str, holder: &Path) -> PathBuf {
     app.world_mut().commands().trigger(bevy::ui_widgets::ValueChange::<String> { source: name, value: tag.to_owned(), is_final: true });
     let location = app.world_mut().query_filtered::<Entity, With<LocationField>>().single(app.world()).expect("the Location field");
     app.world_mut().commands().trigger(bevy::ui_widgets::ValueChange::<String> { source: location, value: folder.clone(), is_final: true });
-    support::settle(&mut app);
+    support::settle_until_the_index_is_quiet(&mut app);
 
     let create = app.world_mut().query_filtered::<Entity, With<CreateButton>>().iter(app.world()).next().expect("Create is on the form");
     app.world_mut().commands().trigger(Activate { entity: create });
-    support::settle(&mut app);
-    support::settle(&mut app);
+    support::settle_until_the_index_is_quiet(&mut app);
+    support::settle_until_the_index_is_quiet(&mut app);
 
     let root = Path::new(&folder).join(tag);
     assert!(root.join("assets/blueprint").is_dir(), "the wizard made the project at {}", root.display());
@@ -161,7 +161,7 @@ fn the_wizard_writes_the_four_section_guide_and_grants_it_so_an_agent_is_asked_n
     index_at_its_shortest_sweep(&mut app);    app.add_plugins(bevy_debugger_bevy::DebuggerPlugin::default());
     app.add_plugins(OpsBridgePlugin);
     app.insert_resource(bevy_dark_factory::trusted::StoreRoot(holder.clone()));
-    support::settle(&mut app);
+    support::settle_until_the_index_is_quiet(&mut app);
     assert!(app.world().resource::<EditorState>().trust.file.is_none(), "the store is still the default one");
     let answer = call(&mut app);
     assert_eq!(project_text(&answer).as_deref(), Some(text.as_str()), "the new project's guide is served: {answer}");

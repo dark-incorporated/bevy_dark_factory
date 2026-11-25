@@ -44,7 +44,7 @@ fn the_panel_lists_the_plan_in_order_and_follows_it() {
     let mut app = bevy_dark_factory::harness::build_headless(&root, "m", None).unwrap_or_else(|e| panic!("{e}"));
 
     // The index's shortest sweep, and the first listing waited for: what follows is a wait on the condition, not on a clock.
-    index_at_its_shortest_sweep(&mut app);    support::settle(&mut app);
+    index_at_its_shortest_sweep(&mut app);    support::settle_until_the_index_is_quiet(&mut app);
     assert_eq!(shown(&mut app), ["no plan"], "with no plan file the panel says so");
 
     let path = plan::path_for_map(&app.world().resource::<OpenMap>().map_path);
@@ -52,7 +52,7 @@ fn the_panel_lists_the_plan_in_order_and_follows_it() {
         .unwrap()
         .save(&path)
         .unwrap();
-    support::settle(&mut app);
+    support::settle_until_the_index_is_quiet(&mut app);
     assert_eq!(
         shown(&mut app),
         ["1 [done] lay the walls", "2 [doing] add a gate", "3 [pending] plant trees", "plan: 1 of 3 done"],
@@ -63,7 +63,7 @@ fn the_panel_lists_the_plan_in_order_and_follows_it() {
         .unwrap()
         .save(&path)
         .unwrap();
-    support::settle(&mut app);
+    support::settle_until_the_index_is_quiet(&mut app);
     assert_eq!(
         shown(&mut app),
         ["1 [done] lay the walls", "2 [done] add a gate", "3 [skipped] plant trees", "plan: 2 of 3 done"],
@@ -71,6 +71,6 @@ fn the_panel_lists_the_plan_in_order_and_follows_it() {
     );
 
     Plan::new(Vec::new()).unwrap().save(&path).unwrap();
-    support::settle(&mut app);
+    support::settle_until_the_index_is_quiet(&mut app);
     assert_eq!(shown(&mut app), ["no plan"], "a cleared plan leaves the panel empty again");
 }

@@ -59,14 +59,14 @@ fn the_verdict_is_null_pending_or_the_answer() {
     let mut old = Verdict::now(true, "town: 0 added");
     old.at_unix_ms -= 60_000;
     old.write(&dir).unwrap();
-    support::settle(&mut app);
+    support::settle_until_the_index_is_quiet(&mut app);
     assert_eq!(game(&mut app), serde_json::json!("pending"));
 
     // One written after the last write is the answer.
     std::fs::write(&map, std::fs::read_to_string(&map).unwrap()).unwrap();
     std::thread::sleep(Duration::from_millis(20));
     Verdict::now(false, "descriptor `x/y` does not resolve").write(&dir).unwrap();
-    support::settle(&mut app);
+    support::settle_until_the_index_is_quiet(&mut app);
     let g = game(&mut app);
     assert_eq!(g["ok"], serde_json::json!(false), "{g}");
     assert_eq!(g["message"], serde_json::json!("descriptor `x/y` does not resolve"));
@@ -77,6 +77,6 @@ fn without_live_the_file_is_never_read() {
     let mut app = editor("verdict_not_live", false);
     let dir = app.world().resource::<Project>().blueprint_dir.clone();
     Verdict::now(true, "ok").write(&dir).unwrap();
-    support::settle(&mut app);
+    support::settle_until_the_index_is_quiet(&mut app);
     assert_eq!(game(&mut app), serde_json::Value::Null);
 }

@@ -74,7 +74,7 @@ fn with_no_game_every_file_says_so_and_the_editors_own_refusal_rides_beside_it()
     let mut app = editor("reload_files_no_game", true);
     let (_, map) = paths(&app);
     std::fs::write(blueprint_model::notes::path_for_map(&map), BAD_NOTES).unwrap();
-    support::settle(&mut app);
+    support::settle_until_the_index_is_quiet(&mut app);
 
     let s = state(&mut app);
     assert_eq!(s["reload_files"]["game"]["connected"], json!(false), "{s}");
@@ -106,7 +106,7 @@ fn a_game_that_answered_shows_each_file_applied_with_when_refused_with_why_or_pe
         KindVerdict::refused("map", "maps/m.map.yaml", Some("placements[0].at[1]".to_owned()), "1:47: Expected float"),
     ];
     Verdict::with_kinds(3, "maps/m.map.yaml: refused", kinds).write(&project_dir).unwrap();
-    support::settle(&mut app);
+    support::settle_until_the_index_is_quiet(&mut app);
 
     let s = state(&mut app);
     assert_eq!(s["reload_files"]["game"]["connected"], json!(true), "{s}");
@@ -125,7 +125,7 @@ fn a_game_that_answered_shows_each_file_applied_with_when_refused_with_why_or_pe
 
     // An edit after the decision is one the game has not answered: pending, keeping the older decision.
     touch(&kits);
-    support::settle(&mut app);
+    support::settle_until_the_index_is_quiet(&mut app);
     let s = state(&mut app);
     let pending = row(&s, "kits.yaml");
     assert_eq!(pending["state"], json!("pending"), "{pending}");
@@ -136,7 +136,7 @@ fn a_game_that_answered_shows_each_file_applied_with_when_refused_with_why_or_pe
 
 /// (text, top y) of every drawn text.
 fn drawn(app: &mut App) -> Vec<(String, f32)> {
-    support::settle(app);
+    support::settle_until_the_index_is_quiet(app);
     let world = app.world_mut();
     let mut q = world.query::<(&Text, &ComputedNode, &UiGlobalTransform)>();
     q.iter(world)
@@ -207,7 +207,7 @@ fn a_refusal_about_how_files_fit_together_stays_a_refusal_when_a_file_is_made() 
     // The project directory's own time moves when a file is made in it; the entry names no file.
     std::thread::sleep(Duration::from_millis(30));
     std::fs::write(project_dir.join("scratch.txt"), "x").unwrap();
-    support::settle(&mut app);
+    support::settle_until_the_index_is_quiet(&mut app);
 
     let s = state(&mut app);
     let project = row(&s, ".");

@@ -50,14 +50,14 @@ fn ctrl_enter_in_the_panels_text_area_saves_the_note_on_two_lines_as_one_note_ed
     let mut n = Notes::default();
     n.add(vec![Target::Cell(0, 0)], "first draft").unwrap();
     n.save(&path).unwrap();
-    support::settle(&mut app);
+    support::settle_until_the_index_is_quiet(&mut app);
 
     let button = {
         let world = app.world_mut();
         world.query::<(Entity, &NoteEditButton)>().iter(world).find(|(_, b)| b.id == "n1").map(|(e, _)| e).expect("the note has an Edit button")
     };
     app.world_mut().commands().trigger(Activate { entity: button });
-    support::settle(&mut app);
+    support::settle_until_the_index_is_quiet(&mut app);
     assert_eq!(text_areas(&mut app), 1, "Edit opens one text area");
 
     // The area holds the note's text; replace it.
@@ -76,7 +76,7 @@ fn ctrl_enter_in_the_panels_text_area_saves_the_note_on_two_lines_as_one_note_ed
         app.update();
     }
     app.world_mut().resource_mut::<ButtonInput<KeyCode>>().release(KeyCode::ControlLeft);
-    support::settle(&mut app);
+    support::settle_until_the_index_is_quiet(&mut app);
 
     let saved = Notes::load(&path).unwrap();
     assert_eq!(saved.get("n1").map(|n| n.text.clone()).as_deref(), Some("first line\nsecond line"));

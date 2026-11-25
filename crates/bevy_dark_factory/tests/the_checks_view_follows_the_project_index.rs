@@ -47,7 +47,7 @@ fn reads(app: &App) -> u64 {
 #[test]
 fn an_edit_made_while_the_editor_is_open_is_seen_within_the_index_debounce() {
     let (mut app, _ctx) = support::editor("checks_follow_edit");
-    support::settle(&mut app);
+    support::settle_until_the_index_is_quiet(&mut app);
     for threshold in [0.35, 0.8] {
         std::fs::write(path(&app), good(threshold)).unwrap_or_else(|e| panic!("{e}"));
         // The view holds the checks as the file defines them: it is asked through `checks_for`, which answers with the view's held checks.
@@ -76,7 +76,7 @@ fn a_checks_file_the_index_does_not_follow_is_refused_and_not_read() {
     let (mut app, _ctx) = support::editor("checks_follow_ignored");
     std::fs::write(path(&app), good(0.5)).unwrap_or_else(|e| panic!("{e}"));
     support::until_seen(&mut app, "the checks read", |a| mine(a) == Some(0.5));
-    support::settle(&mut app);
+    support::settle_until_the_index_is_quiet(&mut app);
     let before = reads(&app);
 
     // The project now names the file in its `.gitignore`: the index stops listing it, and so cannot say it changes.
@@ -89,7 +89,7 @@ fn a_checks_file_the_index_does_not_follow_is_refused_and_not_read() {
     // moment, so how many looks it took is not the property and is not counted. The property is what holds from the refusal on: the view
     // looked at least once (it is the `.gitignore` it read that says why), and the file is not read again, whatever happens to it.
     assert!(reads(&app) > before, "the view looked, and it is the `.gitignore` it read that says why");
-    support::settle(&mut app);
+    support::settle_until_the_index_is_quiet(&mut app);
     let refused_at = reads(&app);
     // **An edit no event announces**: the file is valid and different. A view that read on a clock would read inside this window.
     std::fs::write(path(&app), good(0.9)).unwrap_or_else(|e| panic!("{e}"));
@@ -111,7 +111,7 @@ fn a_file_beside_a_checks_file_that_is_not_there_makes_the_view_look_at_nothing(
 #[test]
 fn a_rule_that_names_a_missing_checks_file_refuses_it_when_it_is_made() {
     let (mut app, _ctx) = support::editor("checks_follow_rule_later");
-    support::settle(&mut app);
+    support::settle_until_the_index_is_quiet(&mut app);
     assert!(!path(&app).exists());
     std::fs::write(root(&app).join(".gitignore"), "checks.yaml\n").unwrap_or_else(|e| panic!("{e}"));
     support::until_seen(&mut app, "the rule noticed", |a| support::verdict(a, "checks")["outcome"] == json!("refused"));

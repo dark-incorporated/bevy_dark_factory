@@ -82,7 +82,13 @@ pub fn until_seen(app: &mut App, what: &str, mut done: impl FnMut(&mut App) -> b
 }
 
 /// **Step until the index has published nothing for [`QUIET`]**, so what a test counts next is what the test did.
-pub fn settle(app: &mut App) {
+///
+/// **Named for the index, not `settle`** (#576). `settle_support::settle` steps until the *UI shape* stops
+/// changing; this one steps until the *index* publishes nothing, and panics `the index never went quiet` when it
+/// does not. Two helpers with one name and two meanings is a trap: fifteen files write
+/// `use crate::index_view_support as support;` and then `support::settle_until_the_index_is_quiet(app)`, which reads exactly like the shared
+/// one and waits for something else.
+pub fn settle_until_the_index_is_quiet(app: &mut App) {
     for _ in 0..25 {
         let before = published(app);
         pump(app, QUIET);
@@ -116,7 +122,7 @@ pub fn verdict(app: &mut App, kind: &str) -> Value {
 /// count, `ProjectIndex::published`, is the independent evidence that the index announced them), and then steps on for a while so a view
 /// that read on any announcement has had frames to do it. `reads` is the view's own count of its filesystem looks (files read, `.gitignore` reads, link checks). The followed file may be there or not.
 pub fn a_neighbour_is_not_read(app: &mut App, beside: &Path, reads: impl Fn(&App) -> u64) {
-    settle(app);
+    settle_until_the_index_is_quiet(app);
     let before = reads(app);
     let neighbour = beside.with_file_name("neighbour-of-the-followed-file.txt");
     for (n, text) in ["first", "a second, longer text"].into_iter().enumerate() {

@@ -44,7 +44,7 @@ fn show_the_block(app: &mut App) {
         world.query_filtered::<Entity, With<NightShiftItem>>().single(world).expect("the View menu carries one Show agent row")
     };
     app.world_mut().commands().trigger(ValueChange { source: row, value: true, is_final: true });
-    support::settle(app);
+    support::settle_until_the_index_is_quiet(app);
 }
 
 
