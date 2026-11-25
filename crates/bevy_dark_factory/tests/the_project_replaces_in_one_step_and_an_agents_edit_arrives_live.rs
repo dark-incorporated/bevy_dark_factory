@@ -222,7 +222,7 @@ fn chord_ctrl_shift(app: &mut App, code: KeyCode, name: &str) {
     key(app, code, Key::Character(name.into()), ButtonState::Pressed);
     key(app, code, Key::Character(name.into()), ButtonState::Released);
     key(app, KeyCode::ShiftLeft, Key::Shift, ButtonState::Released);
-    key(app, KeyCode::ControlLeft, Key::Control, ButtonState::Released);
+    key(app, primary_key(), Key::Control, ButtonState::Released);
     settle_support::settle(app);
 }
 
