@@ -209,7 +209,7 @@ fn note_box(tag: &str) -> App {
 fn a_modifier_alone_leaves_the_note_unchanged_and_saves_nothing() {
     for (code, logical, name) in [
         (MOD_KEYS[0], primary().1, "the platform's command modifier"),
-        (KeyCode::ControlLeft, Key::Control, "Control"),
+        (primary_key(), Key::Control, "Control"),
         (KeyCode::ShiftLeft, Key::Shift, "Shift"),
         (KeyCode::AltLeft, Key::Alt, "Option"),
     ] {
@@ -392,4 +392,11 @@ fn pasted_and_typed_text_is_exactly_what_the_note_keeps() {
         app.world().resource::<ReportEdit>().phase().is_none(),
         "Cmd+Enter ends the edit and the report is saved or refused, never left open"
     );
+}
+
+/// **The host's primary modifier key** (#638): the editor's chords are `Modifiers::PRIMARY`, which is `Control` on
+/// Linux and `Command` on macOS. This suite only ever ran on Linux, so a hardcoded `ControlLeft` passed everywhere
+/// it ran and would have failed on a Mac -- which is why `big_mac` could not be a second gate host.
+fn primary_key() -> KeyCode {
+    if cfg!(target_os = "macos") { KeyCode::SuperLeft } else { KeyCode::ControlLeft }
 }

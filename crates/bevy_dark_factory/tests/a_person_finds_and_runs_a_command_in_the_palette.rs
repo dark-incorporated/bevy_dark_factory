@@ -75,7 +75,7 @@ fn primary() -> KeyCode {
     if cfg!(target_os = "macos") {
         KeyCode::SuperLeft
     } else {
-        KeyCode::ControlLeft
+        primary_key()
     }
 }
 
@@ -232,4 +232,11 @@ fn escape_closes_the_palette_without_cancelling_what_is_armed() {
         armed,
         "the Esc that closed the palette must not also put the brush down"
     );
+}
+
+/// **The host's primary modifier key** (#638): the editor's chords are `Modifiers::PRIMARY`, which is `Control` on
+/// Linux and `Command` on macOS. This suite only ever ran on Linux, so a hardcoded `ControlLeft` passed everywhere
+/// it ran and would have failed on a Mac -- which is why `big_mac` could not be a second gate host.
+fn primary_key() -> KeyCode {
+    if cfg!(target_os = "macos") { KeyCode::SuperLeft } else { KeyCode::ControlLeft }
 }

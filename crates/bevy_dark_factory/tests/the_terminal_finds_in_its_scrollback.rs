@@ -148,7 +148,7 @@ fn tap(app: &mut App, key_code: KeyCode, logical_key: Key) {
 fn ctrl_f(app: &mut App) {
     let unidentified = || Key::Unidentified(NativeKey::Unidentified);
     for state in [ButtonState::Pressed, ButtonState::Released] {
-        send(app, KeyCode::ControlLeft, unidentified(), state);
+        send(app, primary_key(), unidentified(), state);
         send(app, KeyCode::KeyF, Key::Character("f".into()), state);
         app.update();
     }
@@ -227,4 +227,11 @@ fn primary_f_in_the_shell_opens_the_find_box_with_the_keys_and_escape_gives_them
         "closing the box clears the search"
     );
     assert!(app.world().resource::<TerminalFocus>().holds(), "Escape gives the keys back to the shell, not to the editor");
+}
+
+/// **The host's primary modifier key** (#638): the editor's chords are `Modifiers::PRIMARY`, which is `Control` on
+/// Linux and `Command` on macOS. This suite only ever ran on Linux, so a hardcoded `ControlLeft` passed everywhere
+/// it ran and would have failed on a Mac -- which is why `big_mac` could not be a second gate host.
+fn primary_key() -> KeyCode {
+    if cfg!(target_os = "macos") { KeyCode::SuperLeft } else { KeyCode::ControlLeft }
 }

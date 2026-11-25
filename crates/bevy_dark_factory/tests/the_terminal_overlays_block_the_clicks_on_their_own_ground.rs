@@ -50,7 +50,7 @@ fn ctrl_f(app: &mut App) {
     let window = app.world_mut().query_filtered::<Entity, With<PrimaryWindow>>().single(app.world()).expect("one primary window");
     let unidentified = || Key::Unidentified(NativeKey::Unidentified);
     for state in [ButtonState::Pressed, ButtonState::Released] {
-        for (key_code, logical_key) in [(KeyCode::ControlLeft, unidentified()), (KeyCode::KeyF, Key::Character("f".into()))] {
+        for (key_code, logical_key) in [(primary_key(), unidentified()), (KeyCode::KeyF, Key::Character("f".into()))] {
             app.world_mut().write_message(KeyboardInput {
                 key_code,
                 text: match (&logical_key, state) {
@@ -174,4 +174,11 @@ fn the_launchers_split_takes_exactly_what_the_terminal_leaves() {
     let (home_h, pane_h, split_h) = (height(world, home).unwrap_or(0.0), height(world, pane).unwrap_or(0.0), height(world, split).unwrap_or(0.0));
     assert!(pane_h > 0.0 && split_h > 0.0, "both are laid out: pane {pane_h}, split {split_h}");
     assert!((pane_h + split_h - home_h).abs() <= 1.0, "the split ({split_h}) takes exactly what the pane ({pane_h}) leaves of the home ({home_h})");
+}
+
+/// **The host's primary modifier key** (#638): the editor's chords are `Modifiers::PRIMARY`, which is `Control` on
+/// Linux and `Command` on macOS. This suite only ever ran on Linux, so a hardcoded `ControlLeft` passed everywhere
+/// it ran and would have failed on a Mac -- which is why `big_mac` could not be a second gate host.
+fn primary_key() -> KeyCode {
+    if cfg!(target_os = "macos") { KeyCode::SuperLeft } else { KeyCode::ControlLeft }
 }

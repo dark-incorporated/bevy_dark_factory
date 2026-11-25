@@ -76,6 +76,13 @@ fn command_k_clears_the_scrollback() {
 fn ctrl_k_is_the_shells_and_clears_nothing() {
     let mut app = with_history("ctrl_k_is_the_shells");
     let before = history(&app);
-    chord_k(&mut app, KeyCode::ControlLeft);
+    chord_k(&mut app, primary_key());
     assert_eq!(history(&app), before, "Ctrl+K cleared the terminal: it is the shell's kill-line, not the window's");
+}
+
+/// **The host's primary modifier key** (#638): the editor's chords are `Modifiers::PRIMARY`, which is `Control` on
+/// Linux and `Command` on macOS. This suite only ever ran on Linux, so a hardcoded `ControlLeft` passed everywhere
+/// it ran and would have failed on a Mac -- which is why `big_mac` could not be a second gate host.
+fn primary_key() -> KeyCode {
+    if cfg!(target_os = "macos") { KeyCode::SuperLeft } else { KeyCode::ControlLeft }
 }
