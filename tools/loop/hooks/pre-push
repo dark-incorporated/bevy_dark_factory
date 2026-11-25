@@ -239,6 +239,13 @@ else
     out=$(mktemp)
     timed test $cargo nextest run --workspace --no-fail-fast 2>&1 | tee "$out"
     rc=${PIPESTATUS[0]}
+    # **Keep the test log, do not delete it** (#625). `nextest`'s own `Summary [N s]` line and cargo's
+    # `Compiling`/`Finished` lines are the only record of how much of this step was *compiling* and how much was
+    # *running*, and the `rm -f "$out"` below threw them away — so a gate's 1,300 s test step could not be split
+    # into two numbers, and every attempt to make the gate faster was guessing. One file per tree, beside
+    # `gate.log`, so the next reader can measure instead of assume.
+    keep="$(git rev-parse --git-dir)/gate-tests/$(printf '%s' "$tree" | cut -c1-9).log"
+    mkdir -p "$(dirname "$keep")" && cp "$out" "$keep" 2>/dev/null || true
     if [ "$rc" != 0 ]; then
       sed -n 's/.*FAIL \[[^]]*\] ([^)]*) //p' "$out" | sort -u > "$failed_dir/$tree"
       cat "$failed_dir/$tree"
