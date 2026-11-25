@@ -88,6 +88,14 @@ names which agents it started and what it ran in parallel.
   gate competes for the same 8–15 GB and can OOM the gate, which then refuses for a reason that has nothing to do with the
   branch. Check every two minutes and **say in the report how long you waited**; that wait is itself a build-speed
   measurement (see lens 7).
+- **A code reading is not a measurement, and a claim about why something does not happen needs the
+  decision point read, not the path into it** (measured 2026-11-25). Two reviews running filed issues from
+  reading a handler and concluding a feature was broken: `Cmd+J` "inert" (the press was Super where the host
+  binds Ctrl), and "the terminal never spawns a shell" (true on `+`, but the whole condition lives in
+  `pump_the_terminal`'s `if !terminal.invites_the_agent() && terminal.is_empty()`, which neither reviewer
+  opened — the editor was offering its agent instead of a bare shell, by design). Before filing "X never
+  happens", find the **branch that decides X**, not the function that would perform it. If you have not read
+  the condition, say `[INFERENCE]` and drive it.
 - **A chord pressed over BRP must be the chord the host binds** (measured 2026-11-25). gooey's
   `Modifiers::PRIMARY` is `Platform::current()` — **Ctrl on Linux**, Command on a mac. A drive that presses Super on
   big presses nothing, and the 2026-11-24 sweep filed `Cmd+J` as inert on exactly that. Press the host's spelling, and
