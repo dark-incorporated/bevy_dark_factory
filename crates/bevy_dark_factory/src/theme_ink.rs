@@ -4,7 +4,7 @@
 //!
 //! Picking another theme in Settings changed gooey's widgets and nothing else. `chrome.rs` draws its
 //! headings, rows, hints, chips and status band with [`crate::chrome::Ink`], and `Ink` was read once from
-//! `editor_skin.yaml` and never again, so those colours were the dark theme's whatever ran. The owner's
+//! the skin (`src/style/editor.yaml`) and never again, so those colours were the dark theme's whatever ran. The owner's
 //! saved theme was High contrast and the editor looked as it always had (`feedback-1794240972472`:
 //! *"Changing the theme doesn't seem to change the UI at all"*).
 //!

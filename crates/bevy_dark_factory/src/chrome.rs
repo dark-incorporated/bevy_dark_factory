@@ -1094,7 +1094,7 @@ pub struct BandGround;
 /// **The fills a panel and a band take from the running skin** (UI-02, #210, slice 4b).
 ///
 /// `panel_root` used to spawn `Ink::panel_bg` and `Ink::bar_bg` — constants — so every panel in the editor was
-/// painted once, at spawn, and never asked the skin again. A project's `editor_skin.yaml`, or a
+/// painted once, at spawn, and never asked the skin again. A project's `src/style/editor.yaml`, or a
 /// `family/bevy_gooey.yaml` edit at run time, therefore reached the list rows and the migrated ink but
 /// **not the largest surface on screen**.
 ///
@@ -3171,8 +3171,9 @@ pub fn list_row<'a>(
 ///
 /// That was invisible while `list_row` was only ever called by editor panels. The moment the menu
 /// adopted the shared row vocabulary, its first click panicked: `Res<Project>` does not exist on
-/// `Screen::Project`. Two observers were fixed to take `Option`; twenty-two were not, and each is the
-/// same landmine for the next caller.
+/// `Screen::Project`. The observers that take a Map-door resource directly are each the same landmine
+/// for the next caller, so the count is not the point and is not kept here: `grep -rn 'On<Activate>'`
+/// is the measurement, and it moves with every panel added.
 ///
 /// So a row that brings its own click handling says so, and stays off the bus. It keeps everything
 /// that makes a row *look* like a row — [`RowRest`], `Hovered`, the fill, the padding — and

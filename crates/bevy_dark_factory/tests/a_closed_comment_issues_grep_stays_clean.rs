@@ -46,6 +46,38 @@ const CLOSED: &[Closed] = &[
         pattern: "twenty-four global",
         exempt: &[],
     },
+    // The 2026-11-25 pass found these four still in the tree after #614 and #617 had each closed
+    // claiming otherwise, and added them to this guard rather than closing them twice on the same grep.
+    Closed {
+        issue: 614,
+        claimed: "`cursor_ground`'s fourteen call sites were re-counted",
+        pattern: "fourteen call sites",
+        exempt: &[],
+    },
+    Closed {
+        issue: 614,
+        claimed: "`two observers were fixed; twenty-two were not` was replaced by the mechanism",
+        pattern: "twenty-two were not",
+        exempt: &[],
+    },
+    Closed {
+        issue: 617,
+        claimed: "`CHIP_PAD` was replaced by the sheet's own rule",
+        pattern: "CHIP_PAD",
+        exempt: &[],
+    },
+    Closed {
+        issue: 617,
+        claimed: "`COL_TIGHT` was replaced by the column it names",
+        pattern: "COL_TIGHT",
+        exempt: &[],
+    },
+    Closed {
+        issue: 617,
+        claimed: "`editor_skin.yaml` was replaced by the file the tree holds",
+        pattern: "editor_skin.yaml",
+        exempt: &[],
+    },
 ];
 
 /// **Every `.rs` file under the editor's `src`**, as paths a failure can name.

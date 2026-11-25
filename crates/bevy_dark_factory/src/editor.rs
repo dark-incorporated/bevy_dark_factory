@@ -3948,8 +3948,8 @@ fn spawn_panel(mut commands: Commands, frame: Res<crate::chrome::Frame>) {
                 for axis in [Axis::X, Axis::Y, Axis::Z] {
                     crate::chrome::gapped_row(s, Some(crate::chrome::Gap::Tight), crate::chrome::NO_MARGIN, AlignItems::Center)
                     .with_children(|row| {
-                        // `COL_TIGHT`: the label is a single axis letter, which is exactly what that
-                        // column is for. It was a bare 14.
+                        // `Col::Tight`'s column (`chrome-col-tight`): the label is a single axis
+                        // letter, which is exactly what that column is for. It was a bare 14.
                         crate::chrome::row_label(row, crate::chrome::Col::Tight.name(), axis.label());
                         // **A field, not a pair of nudges.** Stepping to 48 m from 32 was four
                         // clicks and no way to say the number; the author knows the size they want,

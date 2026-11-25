@@ -37,7 +37,7 @@
 //!
 //! - **`cursor_ground`/`cursor_ray`** feed `Camera::viewport_to_world`, which measures against
 //!   `logical_viewport_rect` (`bevy_camera-0.20.0/src/camera.rs:458`) — the image's, now physical.
-//!   Match, with no change at any of the fourteen call sites.
+//!   Match, with no change at any of `cursor_ground`'s call sites.
 //! - **`crate::view::over_ui`** multiplies the pointer by `camera.target_scaling_factor()`, taken
 //!   from the same place `bevy_ui`'s backend takes it. Against an image target that factor is
 //!   **1.0**, and a pointer already in surface space needs no second conversion. Also unchanged.

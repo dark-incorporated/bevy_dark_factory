@@ -886,7 +886,7 @@ fn projects_body(body: &mut ChildSpawnerCommands, launcher: &Launcher, art: &mut
 /// it was not being used. Four changes, each a finding:
 ///
 /// - **The type was already sane, and the review's first pass said otherwise.** A whole-line band made the
-///   title and the prose look identical; a single glyph against a known baseline (`editor_skin.yaml`'s
+///   title and the prose look identical; a single glyph against a known baseline (`src/style/editor.yaml`'s
 ///   `text_size: 11.0`) measures them at 15 and 11, and the sidebar at 11. So the title and prose stay on
 ///   gooey's own `heading`/`label` builders, and the claim is withdrawn rather than "fixed" by a no-op.
 /// - **The copy says what Dark Factory is for.** The old sentence named a blueprint without defining it, and the
