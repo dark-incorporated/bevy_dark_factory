@@ -222,6 +222,33 @@ Measured 2026-10-28 with both Ollama accounts at their weekly limit: omp tried t
 
 **One stored key per account.** On a usage-limit error omp first switches to a sibling stored key of the same provider, and Ollama's quota is per account, so extra keys of an exhausted account are extra failures before the fallback. On 2026-10-28 the laptop held nine `ollama-cloud` keys for two accounts plus a dead one; `omp_keys.py ollama-cloud keep <digest> <digest>` left one per account on each host (laptop and big_mac `fef2f5a0` and `6bce445a`, big `5341594b` and `6bce445a`). It names keys by the first 8 hex of their SHA-256 and never prints one; `keep` disables softly and prints the `restore` that undoes it; `export <digest> | ssh <host> python3 omp_keys.py ollama-cloud import` copies a key to a host that lacks one (`probe` says which account a key belongs to: a 429 names it).
 
+## big's swap is zram, so "free swap" is free RAM (measured 2026-11-25)
+
+`/proc/swaps` shows one device, `/dev/zram0`, and `zramctl` explains why that matters:
+
+```
+NAME    ALGORITHM  DISKSIZE  DATA   COMPR  TOTAL
+zram0   zstd       31.2G     23.2G  10.1G  10.2G
+```
+
+`DATA 23.2G` compresses into **`COMPR 10.1G`** — 24 GB of "swap used" is really **10.1 GB of big's 31 GB RAM**
+holding compressed pages, mostly from processes that have exited. **Stopping containers does not reclaim it**: the
+three containers on big total 235 MB, and the pages they left are still in zram.
+
+Four things follow, and each cost this loop a gate:
+
+1. **`SwapFree` is not disk headroom.** 7 GB of free swap is ~3 GB of usable RAM at the observed 2.3:1 ratio, so a
+   headroom test of `MemAvailable + SwapFree >= 18 GB` passes on a host that cannot finish the run. It did on
+   2026-11-25: **SIGKILLed at test 3,315 of 5,211**, `Failed with result 'oom-kill'`, after 1 h 20 min of CPU in
+   19 min of wall clock.
+2. **`CARGO_BUILD_JOBS` is not the lever on this host.** The constraint is compressed-page storage, which is RAM, so
+   more parallel rustc means more of it. The gate that died was already using four cores.
+3. **A killed gate and a failing test print the same thing** — `rc=1` and a truncated log. Only
+   `journalctl --user -u fleet-gate-rel2 | grep oom-kill` tells them apart, and nobody looks there when a push fails.
+4. **The gate now also requires `SwapFree >= 12 GB`**, which refuses today's host rather than starting a run that
+   dies at 64%. The durable fix is a **disk-backed swap file** beside zram; the immediate one is a **reboot**, which
+   clears zram. Both are the owner's, since big is shared — filed on #636 with the numbers.
+
 ## Facts that cost a cycle
 
 - **A loop cannot simply be moved to the idle machine, because the disk is the binding constraint, not
