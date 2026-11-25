@@ -66,7 +66,7 @@ pub(crate) fn editor_with_terminal(tag: &str) -> App {
         .id();
     for _ in 0..10 { app.update(); }
     for state in [ButtonState::Pressed, ButtonState::Released] {
-        for key in [KeyCode::ControlLeft, KeyCode::Backquote] {
+        for key in [primary_key(), KeyCode::Backquote] {
             app.world_mut().write_message(KeyboardInput {
                 key_code: key,
                 logical_key: Key::Unidentified(NativeKey::Unidentified),
@@ -193,4 +193,11 @@ fn a_selection_paints_its_cells_and_only_them() {
     assert_eq!(left.ground, None, "an unselected cell keeps the pane's ground: {left:?}");
     assert_eq!(right.ink, left.ink, "a selection keeps the cells' own ink");
     assert_ne!(ground, right.ink, "the selection's ground is not the ink it sits under");
+}
+
+/// **The host's primary modifier key** (#638): the editor's chords are `Modifiers::PRIMARY`, which is `Control` on
+/// Linux and `Command` on macOS. This suite only ever ran on Linux, so a hardcoded `ControlLeft` passed everywhere
+/// it ran and would have failed on a Mac -- which is why `big_mac` could not be a second gate host.
+fn primary_key() -> KeyCode {
+    if cfg!(target_os = "macos") { KeyCode::SuperLeft } else { KeyCode::ControlLeft }
 }

@@ -413,7 +413,7 @@ fn editor_with_its_terminal_raised(tag: &str, machine: Option<MachineAgent>) -> 
         app.update();
     }
     for state in [ButtonState::Pressed, ButtonState::Released] {
-        for key in [KeyCode::ControlLeft, KeyCode::Backquote] {
+        for key in [primary_key(), KeyCode::Backquote] {
             app.world_mut().write_message(KeyboardInput {
                 key_code: key,
                 logical_key: Key::Unidentified(NativeKey::Unidentified),
@@ -469,4 +469,11 @@ fn the_pane_offers_the_agent_on_a_machine_that_has_it_and_a_shell_on_one_that_do
         !offers("machine_never_asked", None),
         "an app that never asked — every test editor — opens a shell"
     );
+}
+
+/// **The host's primary modifier key** (#638): the editor's chords are `Modifiers::PRIMARY`, which is `Control` on
+/// Linux and `Command` on macOS. This suite only ever ran on Linux, so a hardcoded `ControlLeft` passed everywhere
+/// it ran and would have failed on a Mac -- which is why `big_mac` could not be a second gate host.
+fn primary_key() -> KeyCode {
+    if cfg!(target_os = "macos") { KeyCode::SuperLeft } else { KeyCode::ControlLeft }
 }

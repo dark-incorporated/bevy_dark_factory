@@ -264,7 +264,7 @@ fn a_terminal_runs_a_shell_inside_the_editor() {
         "the editor opens with its own keyboard: the terminal takes the keys only when asked"
     );
 
-    chord(&mut app, &[KeyCode::ControlLeft, KeyCode::Backquote]);
+    chord(&mut app, &[primary_key(), KeyCode::Backquote]);
 
     assert!(
         app.world_mut()
@@ -308,7 +308,7 @@ fn a_terminal_runs_a_shell_inside_the_editor() {
 fn a_key_goes_to_the_shell_and_not_to_the_editor() {
     let _shell = use_posix_shell();
     let mut app = editor("terminal_swallows_keys");
-    chord(&mut app, &[KeyCode::ControlLeft, KeyCode::Backquote]);
+    chord(&mut app, &[primary_key(), KeyCode::Backquote]);
     assert!(
         app.world().resource::<TerminalFocus>().holds(),
         "a raised pane starts with the keyboard; a terminal nobody can type into is a screenshot"
@@ -340,7 +340,7 @@ fn a_key_goes_to_the_shell_and_not_to_the_editor() {
 
     // **`Ctrl+\`` closes it**, and gives the editor its keys back. Without this a person who lowered
     // the pane would be left with a dead keyboard and nothing on screen to explain it.
-    chord(&mut app, &[KeyCode::ControlLeft, KeyCode::Backquote]);
+    chord(&mut app, &[primary_key(), KeyCode::Backquote]);
     let lowered = app
         .world_mut()
         .query_filtered::<&Node, With<TerminalPaneRoot>>()
@@ -407,7 +407,7 @@ fn the_terminal_takes_its_column_count_from_its_own_width() {
 
 /// Raise the terminal in `app` and return `(cols, body width in logical px)`.
 fn columns_and_body(mut app: App) -> (u16, f32) {
-    chord(&mut app, &[KeyCode::ControlLeft, KeyCode::Backquote]);
+    chord(&mut app, &[primary_key(), KeyCode::Backquote]);
     for _ in 0..8 { app.update(); }
     // The body's width, and its resolved padding left and right: the rows are drawn inside the padding, so
     // the padding is no part of a row (feedback-1794011769640: this read `body.x - 4.0`, the 2 px a side the
@@ -454,7 +454,7 @@ fn columns_and_body(mut app: App) -> (u16, f32) {
 fn the_shell_outlives_the_door() {
     let _shell = use_posix_shell();
     let mut app = editor("terminal_outlives_the_door");
-    chord(&mut app, &[KeyCode::ControlLeft, KeyCode::Backquote]);
+    chord(&mut app, &[primary_key(), KeyCode::Backquote]);
     for _ in 0..4 { app.update(); }
 
     let before = app.world().resource::<Terminal>().len();
@@ -499,7 +499,7 @@ fn the_shell_outlives_the_door() {
 fn a_shell_is_never_started_at_a_size_too_small_to_be_a_terminal() {
     let _shell = use_posix_shell();
     let mut app = editor("terminal_never_a_column");
-    chord(&mut app, &[KeyCode::ControlLeft, KeyCode::Backquote]);
+    chord(&mut app, &[primary_key(), KeyCode::Backquote]);
     for _ in 0..1 { app.update(); }
 
     let terminal = app.world().resource::<Terminal>();
@@ -528,7 +528,7 @@ fn a_shell_is_never_started_at_a_size_too_small_to_be_a_terminal() {
 fn the_cd_chip_moves_a_running_shell_to_the_open_project() {
     let _shell = use_posix_shell();
     let mut app = editor("terminal_cd_chip");
-    chord(&mut app, &[KeyCode::ControlLeft, KeyCode::Backquote]);
+    chord(&mut app, &[primary_key(), KeyCode::Backquote]);
     for _ in 0..6 { app.update(); }
 
     // **Start the shell somewhere else**, the way a door crossing leaves it: the next project is a
@@ -598,7 +598,7 @@ fn the_cd_chip_moves_a_running_shell_to_the_open_project() {
 fn the_terminal_menu_offers_copy_paste_and_clear_and_clear_clears() {
     let _shell = use_posix_shell();
     let mut app = editor("terminal_menu");
-    chord(&mut app, &[KeyCode::ControlLeft, KeyCode::Backquote]);
+    chord(&mut app, &[primary_key(), KeyCode::Backquote]);
     for _ in 0..6 { app.update(); }
 
     // **The body names the menu**, which is what makes a right-click over the scrollback open it. The
@@ -706,7 +706,7 @@ fn the_pane_spans_the_window_and_sits_above_the_status_band() {
     const W: u32 = 1280;
     const H: u32 = 720;
     let mut app = editor_sized("terminal_pane_is_a_window_row", W, H);
-    chord(&mut app, &[KeyCode::ControlLeft, KeyCode::Backquote]);
+    chord(&mut app, &[primary_key(), KeyCode::Backquote]);
     for _ in 0..8 { app.update(); }
 
     let (pane, pane_size, pane_cx) = {
@@ -763,4 +763,11 @@ fn the_pane_spans_the_window_and_sits_above_the_status_band() {
              body (so it is below the map) and before the band (so the band stays at the foot)"
         );
     }
+}
+
+/// **The host's primary modifier key** (#638): the editor's chords are `Modifiers::PRIMARY`, which is `Control` on
+/// Linux and `Command` on macOS. This suite only ever ran on Linux, so a hardcoded `ControlLeft` passed everywhere
+/// it ran and would have failed on a Mac -- which is why `big_mac` could not be a second gate host.
+fn primary_key() -> KeyCode {
+    if cfg!(target_os = "macos") { KeyCode::SuperLeft } else { KeyCode::ControlLeft }
 }

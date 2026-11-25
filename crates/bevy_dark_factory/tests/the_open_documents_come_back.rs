@@ -158,10 +158,10 @@ fn the_tab_keys_close_reopen_and_cycle() {
     for _ in 0..SETTLE { app.update(); }
     assert_eq!(open_map(&app), "n");
 
-    chord(&mut app, &[KeyCode::ControlLeft, KeyCode::Tab]);
+    chord(&mut app, &[primary_key(), KeyCode::Tab]);
     assert_eq!(open_map(&app), "m", "Ctrl+Tab goes to the next tab, which wraps, and a map's tab opens that map");
     assert_eq!(tabs(&app, Workspace::Map).1.as_deref(), Some("m"));
-    chord(&mut app, &[KeyCode::ControlLeft, KeyCode::ShiftLeft, KeyCode::Tab]);
+    chord(&mut app, &[primary_key(), KeyCode::ShiftLeft, KeyCode::Tab]);
     assert_eq!(open_map(&app), "n", "and with Shift it goes the other way");
 
     chord(&mut app, &[primary(), KeyCode::KeyW]);
@@ -340,4 +340,11 @@ fn an_unreadable_session_file_is_never_overwritten() {
         newer,
         "the file a newer editor wrote is byte-identical, even after the tabs change"
     );
+}
+
+/// **The host's primary modifier key** (#638): the editor's chords are `Modifiers::PRIMARY`, which is `Control` on
+/// Linux and `Command` on macOS. This suite only ever ran on Linux, so a hardcoded `ControlLeft` passed everywhere
+/// it ran and would have failed on a Mac -- which is why `big_mac` could not be a second gate host.
+fn primary_key() -> KeyCode {
+    if cfg!(target_os = "macos") { KeyCode::SuperLeft } else { KeyCode::ControlLeft }
 }
