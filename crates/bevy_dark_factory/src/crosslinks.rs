@@ -67,8 +67,8 @@ pub struct Named {
     pub line: usize,
 }
 
-/// **What a read of the project's files found**: the text files the project index lists, the references in the YAML ones, and the
-/// index generation they were read at.
+/// **What a read of the project's files found**: the text files ([`is_text_file`]) the project index lists, the references in the YAML
+/// ones, and the index generation they were read at.
 #[derive(Clone, Debug, Default)]
 pub struct Scan {
     pub files: Vec<String>,
@@ -79,9 +79,18 @@ pub struct Scan {
     read: HashMap<String, crate::project_index::FileStamp>,
 }
 
-/// **Whether a file is one the editor opens and the finder lists**: a language the editor colours, or a plain text kind a project holds.
+/// **The plain-text kinds a project holds that the editor does not colour**: no syntax of their own, but text a person reads and
+/// `files::open_file` shows, so the finder lists them and choosing one is a page rather than the dead link NV-07 (#384) forbids.
+///
+/// **The source kinds are here because a game's own code lives in its project.** `assets/big_source.rs` is what the 2026-11-25 review
+/// tried to open (#630) and could not find, and a list naming only the kinds *this* repository's files happen to use would file the
+/// same report for the next person's `.py`. A kind not named here is not a row: a `.glb`, a `.png` or a `.ttf` is bytes the file editor
+/// refuses, and a finder row for one would be exactly the dead link that keeps assets out of it.
+pub const PLAIN_TEXT_KINDS: [&str; 10] = ["toml", "json", "txt", "csv", "rs", "py", "ts", "tsx", "js", "sh"];
+
+/// **Whether a file is one the editor opens and the finder lists**: a language the editor colours, or a [`PLAIN_TEXT_KINDS`] file.
 pub fn is_text_file(rel: &str) -> bool {
-    Lang::of(rel) != Lang::Plain || matches!(rel.rsplit_once('.').map(|(_, e)| e.to_ascii_lowercase()).as_deref(), Some("toml" | "json" | "txt"))
+    Lang::of(rel) != Lang::Plain || rel.rsplit_once('.').is_some_and(|(_, e)| PLAIN_TEXT_KINDS.contains(&e.to_ascii_lowercase().as_str()))
 }
 
 /// **Read the project's text files and the references in them**, from the project index's listing (#501): **no `stat`, no

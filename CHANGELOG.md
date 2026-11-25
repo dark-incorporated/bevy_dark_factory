@@ -4,6 +4,7 @@ What each change added, newest first. A visible change has a clip: click the sti
 
 ## 2026-11-24
 
+- **630** A source file the finder lists opens: the index's text-file test names the plain text kinds a project holds *For you: Ctrl+P now finds and opens a project's own code files (.rs, .py, .ts, .js, .sh, .csv), not only the kinds the editor colours* *No clip: an index row and a page, not a screen recording; proved by tests/a_listed_source_file_opens_from_the_finder.rs and tests/the_first_finder_query_searches_everything.rs*
 - **598** Cmd+J cycles the terminal, and blueprint/state says which position *No clip: a state field plus a chord's measured cycle; proved by three_cmd_j_presses_cycle_the_pane_and_the_state_says_so*
 - **599** The Files pane's field line says what it edits *No clip: one label on a field; proved by every_focusable_control_in_the_files_pane_is_labelled*
 - **600** The Sound workspace draws its buses, cues and log on a default build *No clip: a build feature plus the panel it fills; proved by every_workspace_the_strip_offers_can_fill_itself*
