@@ -64,3 +64,47 @@ its RAM pre-spent.
 
 **`ssh big 'zramctl'`** — if `COMPR` is near 10 GB, the gate will refuse and the work belongs on `big_mac` or must
 wait for the reboot. Then gate `fleet/w633-635` (`ea1a3a39`): six commits, all docs/tests/hooks, unproven.
+
+---
+
+## Second host: found, and one run from ready
+
+After the first report, I tested whether the editor suite could run on `big_mac` rather than waiting for big's reboot.
+**It nearly can** — measured at `577947d4`:
+
+```
+Summary [ 523.604s] 2836 tests run: 2803 passed (1 slow), 33 failed, 4 skipped
+```
+
+**The host is not the problem:** 0 MB swap used, ~11 GB free, PTYs work, no display needed. **32 of the 33 failures
+were tests pressing a hardcoded `ControlLeft`** where the editor's chord is `Modifiers::PRIMARY` — Command on macOS.
+
+### Fixed
+
+| issue | what | evidence |
+|---|---|---|
+| **#637** | `terminal.clear` was on `Modifiers::META`, which **is** primary on macOS → collided with `palette.open_alt` | `cargo check` EXIT=0; the collision test is the proof and needs the Mac run |
+| **#638** | 13 test files now press the host's primary key | terminal slice **15 failures → 2** on big_mac |
+| **#639** | filed: a markdown test presses Ctrl+Z to undo and Ctrl+Z is bound to nothing (pre-existing) | `grep KeyZ chords.rs` → no match |
+
+### Four errors of my own, all invisible on Linux
+
+1. A commit message claimed a rename its diff did not contain.
+2. A doc comment claimed an assertion never written.
+3. `primary_key()` applied to chords spelled `Modifiers::CTRL` — wrong key on a Mac (two sites).
+4. A helper pressed `primary_key()` and released `ControlLeft`, leaving a modifier stuck down.
+
+**Every one of them passes the whole Linux suite**, because `ControlLeft` and `PRIMARY` are the same key there. A
+verifier reading my diff found 1 and 3; a `grep` found 4; **no test found any of them.** That is the argument for #638
+in one sentence.
+
+### The rule, written down so the next file does not repeat it
+
+> **A press follows the chord's own modifiers, not the platform's primary.** `primary_key()` for `primary(…)` and
+> `primary_shift(…)` chords; `KeyCode::ControlLeft` for `Modifiers::CTRL` chords, on every platform.
+
+### What is still owed
+
+- One macOS run to confirm the three slices are clean (`FinalMacOSCheck`, at `f2ee98c4`).
+- Then the full suite on big_mac, and the gate can move there.
+- big's own recovery: swap free went **7 → 8 → 10 GB** during this pass. The floor is 12. It may unblock itself.
