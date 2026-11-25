@@ -88,6 +88,16 @@ names which agents it started and what it ran in parallel.
   gate competes for the same 8–15 GB and can OOM the gate, which then refuses for a reason that has nothing to do with the
   branch. Check every two minutes and **say in the report how long you waited**; that wait is itself a build-speed
   measurement (see lens 7).
+- **Measure the gate's utilisation before believing its duration is the work's fault** (measured 2026-11-25).
+  A 24-core host ran every gate with `CARGO_BUILD_JOBS=1` and `NEXTEST_TEST_THREADS=4`, holding an exclusive lock
+  for the whole push, at **96.5% idle** — so a gate's wall time was one core's serial work plus a block on every
+  other job. Before proposing a faster gate, run `top -bn1 | grep ^%Cpu` **during** a gate and compare it with the
+  thread caps in `gate-rel.sh`. A cap with evidence behind it (`NEXTEST_TEST_THREADS=4`, starved by a 1 s file
+  watcher, #527) is not the same as a cap with none (`CARGO_BUILD_JOBS=1`) — change only the second, and measure
+  its ceiling against **memory**, since one rustc peaks near 15.6 GB on a 31 GB host.
+- **Put the host-agnostic checks on the idle hosts.** Clippy, `cargo doc` and the doctests need no display, so
+  they can run on any host with the same toolchain while big keeps the one thing only it can do — the editor
+  tests. A 24-core host serialising clippy is 23 cores doing nothing.
 - **A code reading is not a measurement, and a claim about why something does not happen needs the
   decision point read, not the path into it** (measured 2026-11-25). Two reviews running filed issues from
   reading a handler and concluding a feature was broken: `Cmd+J` "inert" (the press was Super where the host
