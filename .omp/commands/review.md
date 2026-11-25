@@ -88,6 +88,11 @@ names which agents it started and what it ran in parallel.
   gate competes for the same 8–15 GB and can OOM the gate, which then refuses for a reason that has nothing to do with the
   branch. Check every two minutes and **say in the report how long you waited**; that wait is itself a build-speed
   measurement (see lens 7).
+- **A chord pressed over BRP must be the chord the host binds** (measured 2026-11-25). gooey's
+  `Modifiers::PRIMARY` is `Platform::current()` — **Ctrl on Linux**, Command on a mac. A drive that presses Super on
+  big presses nothing, and the 2026-11-24 sweep filed `Cmd+J` as inert on exactly that. Press the host's spelling, and
+  **assert the press landed** (`ui.focus`, or the state field the chord moves) before concluding the chord is broken.
+  A gesture that changed nothing may be a gesture that never arrived.
 - **Capture the binary, not the target.** `cp ~/.cargo-target-gate/debug/bevy_dark_factory /tmp/<pass>/bin/` before the
   run — a gate rebuilding that directory rewrites the executable under a running editor.
 - **A contrast claim is a colour pair and a ratio, never a sampled pixel.** A 2026-11-24 finding read `rgb(162,121,50)`
