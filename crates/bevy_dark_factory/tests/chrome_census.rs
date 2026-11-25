@@ -239,9 +239,9 @@ fn spacing_comes_from_the_scale() {
     }
     assert!(
         loose.is_empty(),
-        "spacing written as numbers outside chrome.rs. Name it — `GAP_TIGHT` / `GAP_ROW` / \
-         `GAP_GROUP` / `PAD` / `MARGIN` / `CHIP_PAD` / `BUTTON_PAD` / `FIELD_PAD` / `COL_TIGHT` / \
-         `COL_LABEL` / `COL_WIDE` — or state the decision with `// CHROME-OK: <why>`:\n{}",
+        "spacing written as numbers outside chrome.rs. Name it — `STEP_TIGHT` / `STEP_ROW` / \
+         `STEP_GROUP` (the three steps), a `chrome::Col` variant, or the sheet's `.chrome-*` class —\
+         or state the decision with `// CHROME-OK: <why>`:\n{}",
         loose.join("\n")
     );
 }
