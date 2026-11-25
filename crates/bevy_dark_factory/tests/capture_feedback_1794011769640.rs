@@ -91,7 +91,7 @@ fn the_capture_editor() -> App {
     let window = app.world_mut().spawn((Window { resolution, ..default() }, PrimaryWindow)).id();
     for _ in 0..10 { app.update(); }
     for state in [ButtonState::Pressed, ButtonState::Released] {
-        for key in [KeyCode::ControlLeft, KeyCode::Backquote] {
+        for key in [primary_key(), KeyCode::Backquote] {
             app.world_mut().write_message(KeyboardInput {
                 key_code: key,
                 logical_key: Key::Unidentified(NativeKey::Unidentified),
@@ -185,4 +185,11 @@ fn the_caret_is_on_the_cell_its_column_is_drawn_at() {
          x = {caret} px, {:.1} cells off",
         (caret - want) / cell_px
     );
+}
+
+/// **The host's primary modifier key** (#638): the editor's chords are `Modifiers::PRIMARY`, which is `Control` on
+/// Linux and `Command` on macOS. This suite only ever ran on Linux, so a hardcoded `ControlLeft` passed everywhere
+/// it ran and would have failed on a Mac -- which is why `big_mac` could not be a second gate host.
+fn primary_key() -> KeyCode {
+    if cfg!(target_os = "macos") { KeyCode::SuperLeft } else { KeyCode::ControlLeft }
 }

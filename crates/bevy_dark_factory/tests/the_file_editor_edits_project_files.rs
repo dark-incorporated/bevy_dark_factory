@@ -150,7 +150,7 @@ fn key(app: &mut App, code: KeyCode, logical: Key, state: ButtonState) {
 }
 
 fn chord_ctrl(app: &mut App, code: KeyCode, name: &str) {
-    key(app, KeyCode::ControlLeft, Key::Control, ButtonState::Pressed);
+    key(app, primary_key(), Key::Control, ButtonState::Pressed);
     key(app, code, Key::Character(name.into()), ButtonState::Pressed);
     key(app, code, Key::Character(name.into()), ButtonState::Released);
     key(app, KeyCode::ControlLeft, Key::Unidentified(NativeKey::Unidentified), ButtonState::Released);
@@ -827,4 +827,11 @@ fn a_ten_thousand_line_map_is_coloured_folded_and_read_inside_a_budget() {
         let _ = files_lang::diagnose(MAP_YAML, &long);
     });
     assert!(read < Duration::from_millis(1500), "the loader's reading of 10k lines took {read:?}");
+}
+
+/// **The host's primary modifier key** (#638): the editor's chords are `Modifiers::PRIMARY`, which is `Control` on
+/// Linux and `Command` on macOS. This suite only ever ran on Linux, so a hardcoded `ControlLeft` passed everywhere
+/// it ran and would have failed on a Mac -- which is why `big_mac` could not be a second gate host.
+fn primary_key() -> KeyCode {
+    if cfg!(target_os = "macos") { KeyCode::SuperLeft } else { KeyCode::ControlLeft }
 }

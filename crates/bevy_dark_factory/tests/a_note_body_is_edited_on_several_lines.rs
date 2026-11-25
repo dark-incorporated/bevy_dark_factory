@@ -69,7 +69,7 @@ fn ctrl_enter_in_the_panels_text_area_saves_the_note_on_two_lines_as_one_note_ed
     testing::type_text(&mut app, "second line");
 
     // Ctrl+Enter ends the edit.
-    app.world_mut().resource_mut::<ButtonInput<KeyCode>>().press(KeyCode::ControlLeft);
+    app.world_mut().resource_mut::<ButtonInput<KeyCode>>().press(primary_key());
     let window = app.world_mut().query_filtered::<Entity, With<PrimaryWindow>>().single(app.world()).unwrap();
     for state in [ButtonState::Pressed, ButtonState::Released] {
         app.world_mut().write_message(KeyboardInput { key_code: KeyCode::Enter, logical_key: Key::Enter, state, text: None, repeat: false, window });
@@ -84,4 +84,11 @@ fn ctrl_enter_in_the_panels_text_area_saves_the_note_on_two_lines_as_one_note_ed
     let edits = ops::read_entries(&ops::oplog_path(&project)).into_iter().filter(|e| e.op == "note_edit").count();
     assert_eq!(edits, 1, "one note_edit line in the log");
     assert_eq!(text_areas(&mut app), 0, "the area is gone once it has saved");
+}
+
+/// **The host's primary modifier key** (#638): the editor's chords are `Modifiers::PRIMARY`, which is `Control` on
+/// Linux and `Command` on macOS. This suite only ever ran on Linux, so a hardcoded `ControlLeft` passed everywhere
+/// it ran and would have failed on a Mac -- which is why `big_mac` could not be a second gate host.
+fn primary_key() -> KeyCode {
+    if cfg!(target_os = "macos") { KeyCode::SuperLeft } else { KeyCode::ControlLeft }
 }
