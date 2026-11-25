@@ -53,6 +53,17 @@ use std::time::{Duration, SystemTime};
 /// A temp file this old is a dead writer's: no write takes an hour.
 pub const STALE_AFTER: Duration = Duration::from_secs(3600);
 
+/// **How often one directory is swept for orphans** (#671): a minute, against a [`STALE_AFTER`] of an hour, so the
+/// sweep is 60 times more frequent than it needs to be and still cannot miss one. The point of the interval is not
+/// promptness — a day-old temp file is as dead as a minute-old one — it is that a save must not pay a `readdir` of
+/// a directory that grows with the project.
+pub const SWEEP_EVERY: Duration = Duration::from_secs(60);
+
+/// The directories this process has swept, and when. A `Mutex` because [`put`] is called from whatever thread
+/// lands a write, and a map rather than a single `Option` because a project is not one directory.
+static SWEPT: std::sync::LazyLock<std::sync::Mutex<std::collections::HashMap<std::path::PathBuf, std::time::SystemTime>>> =
+    std::sync::LazyLock::new(|| std::sync::Mutex::new(std::collections::HashMap::new()));
+
 /// The suffix of every temp name, without its dot.
 const TEMP_EXTENSION: &str = "tmp";
 
@@ -195,9 +206,24 @@ fn is_temp_of(target_name: &str, file_name: &str) -> bool {
 /// Remove `target`'s temp files that a dead writer left: older than [`STALE_AFTER`]. Best effort.
 fn sweep_stale(parent: &Path, target: &Path) {
     let Some(name) = target.file_name() else { return };
+    // **Once per directory per [`SWEEP_EVERY`], not once per write** (#671). This walked the whole directory on
+    // every `Flush::Full` write and `atomic_file::write` is always `Flush::Full`, so every save paid a `readdir` of
+    // a directory that grows with the project: measured 7.66 ms of 17.75 ms per write into 5,100 entries, 43% of
+    // the cost, and the slowest test in the suite is 10,200 such writes.
+    //
+    // **[`STALE_AFTER`] is an hour**, so a sweep every [`SWEEP_EVERY`] still catches every orphan at the first save
+    // after it ages — the sweep is not a guarantee of promptness and never was. The map holds the directories this
+    // process has swept recently, so a save into a directory of any size is a hash lookup after the first.
+    let now = SystemTime::now();
+    {
+        let Ok(mut swept) = SWEPT.lock() else { return };
+        if swept.get(parent).is_some_and(|at| now.duration_since(*at).is_ok_and(|d| d < SWEEP_EVERY)) {
+            return;
+        }
+        swept.insert(parent.to_path_buf(), now);
+    }
     let name = name.to_string_lossy();
     let Ok(entries) = fs::read_dir(parent) else { return };
-    let now = SystemTime::now();
     for entry in entries.flatten() {
         if !is_temp_of(&name, &entry.file_name().to_string_lossy()) {
             continue;
