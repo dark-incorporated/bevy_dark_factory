@@ -38,7 +38,7 @@ const SURFACE: (u32, u32) = (1600, 1000);
 /// A map file of 80 lines against a window of about 30, so the lane has more lines than slots and
 /// every bar is its own row — the shape the report measured (`bedroom.map.yaml`).
 fn longer_than_the_window() -> String {
-    let mut text = String::from("version: 3\nname: long\norigin:\n- 0.0\n- 0.0\n- 0.0\nbounds:\n- 10.0\n- 3.0\n- 10.0\nplacements:\n");
+    let mut text = String::from("version: 3\nname: m\norigin:\n- 0.0\n- 0.0\n- 0.0\nbounds:\n- 10.0\n- 3.0\n- 10.0\nplacements:\n");
     for i in 0..70 {
         text.push_str(&format!("- id: floor@{i}\n  descriptor: alpha/floor\n  at:\n  - {}.0\n  - 0.0\n  yaw: 0.0\n", i % 5));
     }
