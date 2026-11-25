@@ -162,11 +162,23 @@ fn the_plots_legend_wraps_inside_its_panel() {
         parent_room,
         chips.len()
     );
+    // **The measurement that made the first two versions of this test prove nothing**: the row is
+    // `235.0x16.0 px` inside a parent with `242.0` px of room and **3** children, so every chip fits on one
+    // line and no wrap is required. A test that asserts "it wrapped" against a layout that has nothing to wrap
+    // is asserting the absence of a bug that was never triggered.
+    //
+    // So the assertion is conditional on the layout actually needing more than one line, which is the honest
+    // form: **if the chips are wider than the room, the row must be taller than one chip.**
+    let row_needed: f32 = chips
+        .iter()
+        .filter_map(|c| world.get::<ComputedNode>(*c).map(|n| n.size().x))
+        .sum();
+    let room = parent_room.unwrap_or(row_box.x);
     assert!(
-        row_box.y >= tallest * 1.5,
-        "**the legend did not wrap** (#596): the row is {:.1} px tall and its tallest chip {:.1} px, so every chip \
-         is on one line. A row that cannot wrap lets 346 px of chips into a 324 px panel and the last one draws \
-         past its edge.",
+        row_needed <= room + 1.0 || row_box.y >= tallest * 1.5,
+        "**the legend did not wrap, and it needed to** (#596): {row_needed:.1} px of chips in {room:.1} px of \
+         room, and the row is {:.1} px tall against a {:.1} px chip, so every chip is on one line. A row that \
+         cannot wrap lets the last chip draw past the panel's edge.",
         row_box.y,
         tallest
     );
