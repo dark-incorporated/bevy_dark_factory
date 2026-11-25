@@ -149,6 +149,19 @@ fn the_plots_legend_wraps_inside_its_panel() {
         .filter_map(|c| world.get::<ComputedNode>(*c).map(|n| n.size().y))
         .fold(0.0_f32, f32::max);
     assert!(tallest > 0.0, "the chips were laid out, so a height is meaningful");
+    // **The measurement the diagnosis needs**: how wide the legend is, and how much room its parent gives it.
+    let parent_room = world
+        .get::<ChildOf>(row)
+        .and_then(|p| world.get::<ComputedNode>(p.parent()))
+        .map(|n| n.size().x);
+    eprintln!(
+        "legend: row {:.1}x{:.1} px, tallest chip {:.1} px, parent room {:?} px, {} children",
+        row_box.x,
+        row_box.y,
+        tallest,
+        parent_room,
+        chips.len()
+    );
     assert!(
         row_box.y >= tallest * 1.5,
         "**the legend did not wrap** (#596): the row is {:.1} px tall and its tallest chip {:.1} px, so every chip \
