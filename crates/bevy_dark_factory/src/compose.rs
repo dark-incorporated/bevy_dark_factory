@@ -1619,7 +1619,7 @@ fn label_char_w() -> f32 {
 /// Each group is spawned under one parent carrying its slot's translation *and* scale, with the pieces
 /// themselves built at a local origin. Scaling a group any other way would mean scaling each piece
 /// about the stage rather than about its own group, which shears the arrangement rather than shrinking
-/// it. Despawning the parent takes the pieces with it — `ChildOf` is `linked_spawn` in Bevy 0.19.
+/// it. Despawning the parent takes the pieces with it — `ChildOf` is `linked_spawn`.
 fn restage_group(
     mut commands: Commands,
     assets: Res<AssetServer>,
@@ -1959,8 +1959,8 @@ fn rebuild_labels(
 /// projection answers at x 1765 — so the box's left is `(1765 - 412/2) / 2.4 = 649.58` logical,
 /// and the drawn ink starts at 649.58 × 2.4 = 1559 physical, which is the group's own centre.
 ///
-/// **The width is the node's own size, not `chars × BODY_CHAR_W`.** The constant is right — the
-/// measurement above gives 6.60 logical px per glyph against `BODY_CHAR_W`'s 6.6 — but the *node*
+/// **The width is the node's own size, not `chars × 6.6`.** The advance is right — the measurement
+/// above gives 6.60 logical px per glyph — but the *node*
 /// is what is drawn, and a collision test against a width that is not the drawn width is a
 /// collision test against the wrong thing. A `…` marker, a different face, or a glyph that is not
 /// the width of the rest measures itself.
@@ -2068,10 +2068,10 @@ pub fn label_anchor(cam: &Camera, cam_tf: &GlobalTransform, slot: &Slot) -> Opti
 ///
 /// ## What was wrong, and it was three things at once
 ///
-/// 1. **The width.** `chars × BODY_CHAR_W` is a *logical* measurement, and the node's size is
+/// 1. **The width.** `chars × 6.6` is a *logical* measurement, and the node's size is
 ///    *physical* — so the two could not be compared without a division. The measurement confirms
-///    the constant is right: the focal node's 412 physical px over 26 characters is **6.60**
-///    logical px per glyph, and `BODY_CHAR_W` is **6.6**. The neighbour's 312 over 24 is **5.42**,
+///    the advance is right: the focal node's 412 physical px over 26 characters is **6.60**
+///    logical px per glyph. The neighbour's 312 over 24 is **5.42**,
 ///    and `6.6 × 9/11` is **5.4**. So the advance is right and the *space* was the problem.
 /// 2. **The position.** The label is a child of the stage's panel, so `Val::Px` is relative to
 ///    **that panel**, and the projection is relative to the **camera's viewport rect**. Those are

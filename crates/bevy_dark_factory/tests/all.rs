@@ -16,6 +16,7 @@
 
 mod a_click_that_never_moved_places_one_piece;
 mod a_chord_shows_the_problems_list;
+mod a_closed_comment_issues_grep_stays_clean;
 mod a_drag_is_one_placement_move;
 mod a_custom_agent_without_a_command_is_a_settings_problem;
 mod a_dock_tab_reordered_glides_to_its_place;

@@ -3829,7 +3829,7 @@ impl Plugin for KeysPlugin {
         app.init_resource::<Live>()
             .init_resource::<Repeat>()
             // `chain()` makes the sets run in the order listed
-            // (`bevy-0.19.0/examples/ecs/ecs_guide.rs:330`).
+            // (Bevy's `ecs_guide` example, `configure_sets` section).
             .configure_sets(
                 Update,
                 (

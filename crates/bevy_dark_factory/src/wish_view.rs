@@ -1213,7 +1213,7 @@ fn spawn_the_chip(mut commands: Commands, frame: Res<crate::chrome::Frame>) {
     let chip = commands
         .spawn((
             WishChip,
-            // **Not a `Button`**, deliberately: the editor has twenty-four global `Activate` observers, and this is a quiet status item whose one gesture is a click.
+            // **Not a `Button`**, deliberately: the editor has many global `Activate` observers, and this is a quiet status item whose one gesture is a click.
             // `jobs.rs` documents the day a band item on that bus took the application down; gooey's `status_item_quiet` stays off it and `Shown` hides it until a row waits.
             bevy_gooey::status_item_quiet(String::new()),
             bevy_gooey::Shown(false),

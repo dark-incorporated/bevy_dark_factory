@@ -3163,7 +3163,7 @@ pub fn list_row<'a>(
 ///
 /// # Why this exists, which is worth reading before merging the two back together
 ///
-/// This editor has **twenty-four global `Activate` observers**, and most take a Map-door resource:
+/// This editor has **many global `Activate` observers**, and most take a Map-door resource:
 /// `on_row_click` wants `Res<Project>`, `on_tag_chip` wants `ResMut<Project>`. A global observer
 /// fires for *any* `Activate` anywhere in the application, and in Bevy 0.20 a missing `Res<T>`
 /// **panics** rather than skipping — so the first click on a `Button` outside the editor takes the

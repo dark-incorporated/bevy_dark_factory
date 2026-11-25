@@ -2966,7 +2966,7 @@ fn refresh_cells(
     project: Res<Project>,
     edits: CellEdits<'_>,
     // **The proposals, because the box this repaints shows them.** `Option`, since the labeler is a
-    // feature a project may never have used and a missing `Res<T>` panics its system in Bevy 0.19.
+    // feature a project may never have used and a missing `Res<T>` panics its system.
     suggestions: Option<Res<crate::labels::Suggestions>>,
     cells: Query<(Entity, &CellButton, &CellLayer, Has<bevy_gooey::PrimaryButton>)>,
     mut commands: Commands,
@@ -8913,7 +8913,7 @@ fn draw_ink(
                 // the only reader was `editor::rebuild_palette`, gated to the map door (N10).
                 //
                 // `align_items` is set through `entry` rather than a second `Node`, because a
-                // bundle carrying two of the same component panics at spawn in Bevy 0.19.
+                // bundle carrying two of the same component panics at spawn.
                 let mut library_row = crate::chrome::list_row(p, false, LibraryRow(id.clone()));
                 library_row
                     .insert(bevy_gooey::RowLayout { direction: Some(FlexDirection::Row), align: Some(AlignItems::Center), ..default() });
@@ -9466,7 +9466,7 @@ fn on_member_row(
 ///
 /// **It must be joined with `or_eager`, never `or_else`.** `SystemCondition::or_else` combines with
 /// `||` — `OrElseMarker::combine` is `Ok(a(..).unwrap_or(false) || b(..).unwrap_or(false))`,
-/// bevy_ecs 0.19.0 `schedule/condition.rs:1564` — so an earlier condition that returned true skips
+/// `bevy_ecs` `schedule/condition.rs` — so an earlier condition that returned true skips
 /// this one entirely and the `Local` stops tracking the text it exists to track: type into the tag
 /// box on a frame that also wrote `ImportState`, and the next keystroke compares against a string
 /// two edits old and reports no change. `or_eager` combines with `|` (same file, line 1586) and runs

@@ -333,7 +333,7 @@ fn copy_out(
     // **The frame first, then every other root.** `Frame::root` is the window's own column and
     // therefore reads top-to-bottom; the overlays (the shortcut card, the name box, a guide step)
     // are roots of their own and belong after it rather than interleaved. `Option` because
-    // `Screen::Editor` can run a pass before the door is built, and a missing `Res` panics in 0.19.
+    // `Screen::Editor` can run a pass before the door is built, and a missing `Res` panics its system.
     screen_roots: UiRoots,
 ) {
     let keys::KeyInput { keyboard, live } = input;

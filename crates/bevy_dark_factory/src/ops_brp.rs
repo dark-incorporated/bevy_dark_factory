@@ -1264,7 +1264,7 @@ pub struct StateParams {
 fn editor_state(
     In(params): In<StateParams>,
     // **What the editor is doing** (UI-22, #223). `Option`, like every other resource here: the harness
-    // that never added `JobsPlugin` still answers, and a missing `Res<T>` panics its system in Bevy 0.19.
+    // that never added `JobsPlugin` still answers, and a missing `Res<T>` panics its system.
     jobs: Option<Res<crate::jobs::Jobs>>,
     loaded: Loaded,
     state: Option<Res<crate::editor::EditorState>>,

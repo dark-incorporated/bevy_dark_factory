@@ -263,8 +263,8 @@ impl FieldInk {
 /// **`chrome::text_field`, where this hand-rolled the same box.** It was one of the five modules
 /// the 2026-09-03 audit found using no shared builder at all (F9), and what it had built by hand
 /// was a text field: a box that owns the keyboard, with a readout inside it. Adopting the builder
-/// costs the `CHIP_PAD` inset and buys `FIELD_PAD`, a `crate::chrome::MIN_FIELD_H` floor (an
-/// unstated field height lays out at 7 px while empty) and the same shape as the four other fields
+/// costs the chip's inset and buys the field's padding, a height floor (an unstated field height
+/// lays out at 7 px while empty) and the same shape as the four other fields
 /// in the editor — which is the whole of D4.
 pub fn spawn(parent: &mut ChildSpawnerCommands, pane: Pane, skin: Option<&bevy_gooey::GooeySkin>) {
     let ink = FieldInk::of(skin);

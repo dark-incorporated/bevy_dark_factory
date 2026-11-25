@@ -232,7 +232,7 @@ impl Plugin for JobsPlugin {
 fn spawn_band_item(mut commands: Commands, frame: Res<crate::chrome::Frame>) {
     let item = commands
         .spawn((
-            // **Not a `bevy::ui_widgets::Button`**, deliberately: this editor has twenty-four global `Activate` observers and a `Button` fires `Activate` for every one of them.
+            // **Not a `bevy::ui_widgets::Button`**, deliberately: this editor has many global `Activate` observers and a `Button` fires `Activate` for every one of them.
             // `quiet_row` documents the day that took the application down; gooey's `status_item_quiet` is a status item that stays off the bus, hidden through `Shown` until
             // a job runs. A job in progress is plain state (an `Info` kind), so the mark is not drawn.
             bevy_gooey::status_item_quiet(String::new()),
