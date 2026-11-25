@@ -113,28 +113,46 @@ fn a_lens_marked_unbuilt_names_nothing_that_exists() {
 /// **And the count in the lens list is checked against the server**, so a lens that says "14 tools" or
 /// "partially built" cannot survive the server declaring more.
 ///
-/// The command's #3 lens says *"14 tools today"*; the server declared **17** on 2026-11-03. This reads the
-/// server's own table, so the number in the message above is never a recollection.
+/// **A guard that returns on the case it was written for is worse than the stale number** (#619): this test
+/// used to take `line.split('*').next()`, which on `- **A small…surface** … 14 tools today` is `"- "` — no
+/// digits — so every count in that bullet passed forever, including the `14` it was written to catch.
+///
+/// It now reads the number **stated before `tools today`**, and a line with no number there is a failure
+/// rather than a return: a claim the guard cannot parse is a claim nothing checks.
 #[test]
 fn the_tool_count_the_command_quotes_is_the_servers() {
-    let Some(text) = command() else { return };
-    let Some(claim) = text
+    let text = command().expect("the build-loop command is in this checkout (#619)");
+    let line = text
         .lines()
         .find(|l| l.contains("tools today"))
-        .and_then(|l| l.split('*').next())
-    else {
-        return;
-    };
-    let Some(quoted) = claim
-        .split_whitespace()
-        .find_map(|w| w.trim_matches(|c: char| !c.is_ascii_digit()).parse::<usize>().ok())
-    else {
-        return;
-    };
+        .expect("build-loop states its tool surface as `N tools today` (#619)");
+    // **The digits before `tools today`, not anything before the first `*`.** The bullet opens with a bold
+    // phrase, so `split('*').next()` is the empty marker; the number sits after the italic aside.
+    let quoted = line
+        .split("tools today")
+        .next()
+        .expect("the split yields the text before the phrase")
+        .split(|c: char| !c.is_ascii_digit())
+        .filter(|run| !run.is_empty())
+        .next_back()
+        .and_then(|run| run.parse::<usize>().ok())
+        .unwrap_or_else(|| {
+            panic!(
+                "**the tool count cannot be read, which is the defect this test exists for** (#619): the line \
+                 states `tools today` with no number before it, so no count is checked. Write the count \
+                 (`N tools today`) or drop the phrase. The line is:\n  {line}"
+            )
+        });
     // The server's own declaration, not a number in a doc: the same source `docs/mcp-tools.md` renders from.
     let server = std::fs::read_to_string(repo_root().join("crates/dark_factory_mcp/src/docs.rs"))
         .unwrap_or_default();
-    let declared = server.matches("ToolDoc {").count();
+    // **Rows only.** `server.matches("ToolDoc {").count()` is 33 because it also matches
+    // `pub struct ToolDoc {`, which is the type and not a tool — the guard compared a count against a
+    // count-plus-one and would have passed a command quoting 33 for a server holding 32.
+    let declared = server
+        .lines()
+        .filter(|l| l.trim_start().starts_with("ToolDoc {"))
+        .count();
     assert!(declared > 0, "the tool table could not be read, so this check proves nothing");
     assert_eq!(
         quoted, declared,

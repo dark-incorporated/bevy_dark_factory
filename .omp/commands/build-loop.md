@@ -463,7 +463,7 @@ A log line that repeats an earlier pass's reasons for shipping nothing is itself
   layer.** A `layout_constrain` taking relations (`in front of`, `reachable from`, `clear in front of`,
   `faces`, `along path`, `visible from`), stored as data beside the map, reporting which soft constraints
   it could not satisfy, is the largest unbuilt item in the research and the best single candidate.
-- **A small, searchable tool surface** *(research #3 — partially built)*. 14 tools today, and
+- **A small, searchable tool surface** *(research #3 — partially built)*. 32 tools today, and
   tool-selection accuracy falls off past ~10–30. Every new capability must go through generic apply, not a
   new tool; if the count grows, the tool to build is a capability *search*, not a fifteenth tool.
 - **Kit admission rules from shipped practice** *(research #4 — not built)*. Project-wide standards
