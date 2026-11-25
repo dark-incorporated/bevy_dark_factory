@@ -103,6 +103,11 @@ names which agents it started and what it ran in parallel.
 - **Put the host-agnostic checks on the idle hosts.** Clippy, `cargo doc` and the doctests need no display, so
   they can run on any host with the same toolchain while big keeps the one thing only it can do — the editor
   tests. A 24-core host serialising clippy is 23 cores doing nothing.
+- **`chords.rs` and `keys.rs` both bind keys; grep both before saying nothing binds one.** Measured 2026-11-25:
+  a pass filed "Ctrl+Z is bound to nothing" from `grep KeyCode::KeyZ crates/bevy_dark_factory/src/chords.rs` → no
+  match. `keys.rs:1812` binds `Action::Undo` to `Control + KeyZ`, beside `Action::Redo` at `:1822`. The two files
+  split the job — `chords.rs` the fixed rebindable chords, `keys.rs` the contextual action bindings — and searching
+  one and generalising to both produced a wrong issue. **Name the file you searched.**
 - **A code reading is not a measurement, and a claim about why something does not happen needs the
   decision point read, not the path into it** (measured 2026-11-25). Two reviews running filed issues from
   reading a handler and concluding a feature was broken: `Cmd+J` "inert" (the press was Super where the host
