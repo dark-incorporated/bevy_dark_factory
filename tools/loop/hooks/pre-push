@@ -22,6 +22,20 @@
 # (tree, toolchain, RUSTFLAGS) that linted clean, and both paths consult it before linting.
 set -u
 cargo="${LOOP_GATE_CARGO:-cargo}"
+# **The gate gets its own target dir, so a push never queues behind an editor** (#633, measured 2026-11-25).
+# `~/.zshrc` exports `CARGO_TARGET_DIR=$HOME/.cargo-target-shared/global`, and VS Code's `rust-analyzer` runs
+# `cargo check --workspace` against that same dir and holds cargo's exclusive build lock for the whole check.
+# A push then waits in `Blocking waiting for file lock on build directory` until the editor goes idle -- measured
+# at **over an hour**, across three pushes killed as "hung" before the cause was found. They were not hung.
+#
+# A caller who set the variable keeps it; only the inherited one is replaced. The cost is a cold build the first
+# time this dir fills, which is cheaper than a push that depends on whether a person has their editor open.
+# **Keyed on the shared dir's own name, not on "was it set"** -- a shell profile exports it for every command, so
+# "set" is true for the caller who chose it and for the one who inherited it alike. Only the well-known shared path
+# is diverted; any other `CARGO_TARGET_DIR` is a deliberate choice and is left exactly as given.
+case "${CARGO_TARGET_DIR:-}" in
+  */.cargo-target-shared/global) export CARGO_TARGET_DIR="${CARGO_TARGET_DIR%/global}-gate" ;;
+esac
 zero=0000000000000000000000000000000000000000
 target="" remote="" code=0
 # The pushed refs arrive on stdin once; `git lfs pre-push` below needs them too.
