@@ -1156,7 +1156,8 @@ fn toggle_on_the_chord(
     mut focus: ResMut<TerminalFocus>,
     mut terminal: ResMut<Terminal>,
 ) {
-    let chord = bevy_gooey::Shortcut::new(bevy_gooey::Modifiers::PRIMARY, KeyCode::Backquote);
+    // **Read from the chord table** (#640), so it can be rebound and the collision test can see it.
+    let chord = crate::chords::chord(crate::chords::Fixed::TerminalRaise);
     if !chord.just_pressed(&keys) {
         return;
     }

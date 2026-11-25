@@ -810,7 +810,8 @@ fn type_keys(
     // **The close chord is the pane's**, and it is read from `ButtonInput` by `toggle_on_the_chord`
     // (which runs in `TerminalChordSet`, after this system). Forwarding it to the shell as well would
     // send a `\x1c`-ish byte every time somebody lowered the pane.
-    let closes = bevy_gooey::Shortcut::new(bevy_gooey::Modifiers::PRIMARY, KeyCode::Backquote);
+    // **The same binding the pane reads** (#640): one source, so the swallow and the action cannot drift.
+    let closes = crate::chords::chord(crate::chords::Fixed::TerminalRaise);
     let shift = keys.pressed(KeyCode::ShiftLeft) || keys.pressed(KeyCode::ShiftRight);
     let mut out: Vec<u8> = Vec::new();
     for event in events.read() {

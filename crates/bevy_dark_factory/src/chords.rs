@@ -46,6 +46,10 @@ pub enum Fixed {
     TerminalCloseTab,
     TerminalCollapse,
     TerminalMaximise,
+    /// **Raise or lower the pane** with `primary + Backquote` (#640). It lived only as a `Shortcut::new` in
+    /// `terminal_pane.rs`, so it could not be rebound, the collision test could not see it, and the guard in
+    /// `terminal_view.rs` had to restate the chord to know what to swallow.
+    TerminalRaise,
     EditorDevAgent,
 }
 
@@ -179,6 +183,15 @@ pub const CHORDS: &[NamedChord] = &[
         id: "terminal.maximise",
         title: "Maximise the terminal",
         default: || primary_shift(KeyCode::KeyJ),
+    },
+    // **The chord a person uses most and could not find** (#640): `primary + Backquote` raises or lowers the pane.
+    // It was built inline at `terminal_pane.rs:1159` and restated at `terminal_view.rs:813`, so it was invisible to
+    // the keymap screen, to `keys.md` and to `no_two_fixed_chords_are_the_same_key`.
+    NamedChord {
+        fixed: Fixed::TerminalRaise,
+        id: "terminal.raise",
+        title: "Raise or lower the terminal",
+        default: || primary(KeyCode::Backquote),
     },
     // **The editor development agent** (`.omp/commands/editor-dev.md`): `D` for developers, beside `Cmd+D`'s report to them, with Alt
     // so it is neither the report nor the project report. A fixed chord rather than a census verb: what it opens is a terminal tab,
