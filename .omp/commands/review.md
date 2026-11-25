@@ -88,6 +88,11 @@ names which agents it started and what it ran in parallel.
   gate competes for the same 8–15 GB and can OOM the gate, which then refuses for a reason that has nothing to do with the
   branch. Check every two minutes and **say in the report how long you waited**; that wait is itself a build-speed
   measurement (see lens 7).
+- **`AGENTS.md` is generated; a local edit is a deleted edit.** It comes from `agent-guidance/general/AGENTS.md` +
+  `machines/<host>/AGENTS.md` through `compile.py push`, so changing the file in a project is overwritten on the next
+  push and never reaches the other hosts. A fix that looks like a one-word typo there is a change in that repo, or it
+  is nothing. Measured 2026-11-25: a pass edited `AGENTS.md` and `.omp/commands/build-loop.md` to correct a label,
+  both being protected/generated, and had to revert both.
 - **Measure the gate's utilisation before believing its duration is the work's fault** (measured 2026-11-25).
   A 24-core host ran every gate with `CARGO_BUILD_JOBS=1` and `NEXTEST_TEST_THREADS=4`, holding an exclusive lock
   for the whole push, at **96.5% idle** — so a gate's wall time was one core's serial work plus a block on every
