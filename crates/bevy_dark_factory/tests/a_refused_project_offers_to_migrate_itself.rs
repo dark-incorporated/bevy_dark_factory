@@ -105,6 +105,11 @@ fn a_registry_naming_a_ron_file_is_offered_the_migration() {
     assert!(problem.line().contains("mob.ron"), "{}", problem.line());
 
     let offered = migrate_offer(Some(&request(&root)), true);
-    assert_eq!(offered.as_deref(), Some(root.as_path()), "and that refusal offers the migration: {problem:?}", problem = problem.line());
+    // **Canonicalised on both sides, the second site** (#635). The first is at line 39; this was missed because one
+    // `grep` for the pattern found a single occurrence and the reviewer stopped. On macOS `/var` is a symlink to
+    // `/private/var`, so the raw spellings differ for one directory and this failed on macOS alone.
+    let want = std::fs::canonicalize(&root).expect("the scratch project exists");
+    let got = std::fs::canonicalize(offered.expect("an offer")).expect("the offered path exists");
+    assert_eq!(got, want, "and that refusal offers the migration: {problem:?}", problem = problem.line());
     let _ = std::fs::remove_dir_all(&root);
 }
