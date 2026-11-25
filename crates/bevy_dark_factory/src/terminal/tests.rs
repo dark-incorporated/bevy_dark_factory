@@ -239,8 +239,15 @@ fn a_session_knows_when_its_shell_has_left() {
     let mut session = TerminalSession::spawn(80, 24, Path::new("/tmp"), &[]).expect("a shell starts");
     assert!(!session.has_exited(), "a shell that has just started has not left");
     session.write(b"exit\n").expect("the shell takes input");
+    // **Drain as it waits** (#642). A PTY child whose last write sits unread in a full master cannot finish
+    // exiting: measured on big_mac, polling `has_exited` alone never noticed for 4 s and the child sat in `ps`
+    // state `?Es` (`E` = exiting), while the same loop **with a read on the master** reported the exit in 20 ms.
+    // The running editor drains every frame, so this is what it does; the test was the only place that waited
+    // without listening.
+    let mut sink = Vec::new();
     let deadline = Instant::now() + PATIENCE;
     while !session.has_exited() && Instant::now() < deadline {
+        session.drain(&mut sink).expect("the shell's last output is readable");
         std::thread::sleep(Duration::from_millis(20));
     }
     assert!(session.has_exited(), "the shell was told `exit` and the session never noticed it had left");

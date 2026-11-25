@@ -191,8 +191,12 @@ impl TerminalSession {
     /// **Has the shell left?** Asked without collecting it: the child stays this process's zombie until
     /// the session is dropped (`child_has_left`), so the pid is still the shell's and never a stranger's.
     ///
-    /// The pane asks **before** it drains, so everything the shell wrote before it went is already in the
-    /// pipe when the answer is yes, and one drain reads it all.
+    /// The pane drains **then** asks while a shell may be leaving (#642): a PTY child whose final write sits
+    /// unread in the master cannot finish exiting -- measured on big_mac, polling alone never noticed for 4 s and
+    /// the child sat in `ps` state `?Es`, while the same loop with a read on the master reported the exit in 20 ms.
+    /// Asking first is right for a shell that has already gone and wrong for the last moment of it going, because
+    /// the output that blocks the exit is exactly what the drain would read. Once the answer is yes, one drain
+    /// still reads everything the shell wrote before it went.
     #[cfg(unix)]
     pub fn has_exited(&self) -> bool {
         i32::try_from(self.pty.child().id()).ok().and_then(rustix::process::Pid::from_raw).is_some_and(child_has_left)
