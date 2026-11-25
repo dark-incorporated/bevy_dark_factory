@@ -110,10 +110,17 @@ def main() -> int:
 
     named = named_by_filter()
     everywhere: dict[tuple[str, str], bool] = {}
+    # **What this pass did not look at** (#643): a file matching neither `WATCHED` nor `BUDGET` is *skipped*, not
+    # "found clean", and the old message -- "no watched clock-reading test is unnamed" -- was true of the population
+    # it inspected and false of the tree. A frame-budget test timed with a bare `Instant::now()` lived in exactly
+    # such a file and failed beside 2,000 others while this script said the tree was clean.
+    skipped: list[str] = []
     for path in sorted(TESTS.glob("*.rs")):
         if path.name == "all.rs":
             continue
         src = path.read_text()
+        if path.stem not in WATCHED and not BUDGET.search(src):
+            skipped.append(path.stem)
         # A watched module: every test, clock-read or not, so a narrowed name can be shown to still read one.
         # Any other file: only its tests, and only if the file reads a frame budget at all.
         if path.stem in WATCHED or BUDGET.search(src):
@@ -143,6 +150,12 @@ def main() -> int:
                 f".config/nextest.toml names {module}::{test}, which reads no clock or budget, so it holds every "
                 f"thread for nothing (remove it)"
             )
+    # **Say the size of the population it checked, not only that it found nothing** (#643).
+    print(
+        f"{len(everywhere)} test(s) inspected across {len({m for m, _ in everywhere})} module(s); "
+        f"{len(skipped)} module(s) not inspected (no `WATCHED` entry, no `BUDGET` marker)",
+        file=sys.stderr,
+    )
     for problem in problems:
         print(problem, file=sys.stderr)
     if problems:
