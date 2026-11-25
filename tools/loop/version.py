@@ -24,10 +24,9 @@ Pre-1.0 SemVer, one bump per **release**, and digits with a ceiling:
   run id, not a commit count, not a lint. It is `previous + one`, or it does not change.
 - **A bump is its own commit**, `release: <version>`, carrying the manifest and `Cargo.lock` and
   nothing else — so the tag's source is exactly what was tested.
-- **A release needs a benchmark run** (BM-05, #415), checked by the release step and not here, because it
-  needs the history and the committed reports: `tools/release/bench_gate.py check` refuses a release with no
-  report for its code (the `release:` commit is judged as the parent it bumps), or one that is `worse` than
-  the previous release's.
+- **A release prints the benchmark comparison and is not stopped by it** (owner, 2026-11-16; BM-05, #415).
+  `tools/release/bench_advisory.sh` runs `tools/release/bench_gate.py check "$@" || true` and exits 0, so a
+  release with no report, or one `worse` than the previous release's, is visible in the log and still ships.
 
 # What `check` looks at
 

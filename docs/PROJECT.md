@@ -117,7 +117,7 @@ This is the section to read if you are reading someone else's project.
 - **The repository writes down why.** Module docs argue rather than describe: `stack.rs` states the bounded claim of its overlap rule, and the changelog says for every change whether someone can see it and what proves it.
 - **Refusal over degradation.** A file that does not read is refused with its file, field and line and the last good state stays loaded; a baked release refuses stale data naming the file; a blank `rules.yaml` is refused instead of read as "no rules".
 - **The data is the project, and it hot-reloads.** The editor checks the project every quarter of a second and re-reads what changed; a running game can follow ([the reload contract](guide/reload-contract.md)).
-- **Failing-before discipline.** A change's test is written first and its failing text is quoted in the report; a release is stopped by the benchmark.
+- **Failing-before discipline.** A change's test is written first and its failing text is quoted in the report. A release **prints** the benchmark comparison but is **not stopped by it** (owner, 2026-11-16, `tools/release/bench_advisory.sh`).
 
 ---
 
