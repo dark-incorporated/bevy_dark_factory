@@ -25,7 +25,7 @@ fn project(tag: &str, registry: bool) -> (Ctx, std::path::PathBuf) {
         .unwrap();
     }
     assert_ne!(dir, root, "the registry lives in the blueprint directory, not the project root (#116)");
-    let listed = bevy_dark_factory::ops_data::listing(&dir);
+    let (listed, _why) = bevy_dark_factory::ops_data::listing(&dir);
     assert_eq!(listed.is_empty(), !registry);
     (Ctx { project: Some(project), session: "test".to_owned(), ..Ctx::default() }, file)
 }
@@ -104,10 +104,10 @@ fn an_agent_cannot_send_the_undos_own_form() {
 #[test]
 fn the_data_panel_lists_each_registered_leaf_with_its_token() {
     let (ctx, _) = project("listing", true);
-    let rows = bevy_dark_factory::ops_data::listing(&ctx.project.as_ref().unwrap().blueprint_dir);
+    let (rows, _why) = bevy_dark_factory::ops_data::listing(&ctx.project.as_ref().unwrap().blueprint_dir);
     let got: Vec<(&str, &str, &str)> = rows.iter().map(|r| (r.file.as_str(), r.path.as_str(), r.value.as_str())).collect();
     assert!(got.contains(&("tuning/mob", "mob.speed", "1.50")), "{got:?}");
     assert!(got.contains(&("tuning/mob", "fast", "false")), "{got:?}");
     let (ctx, _) = project("listing_none", false);
-    assert!(bevy_dark_factory::ops_data::listing(&ctx.project.as_ref().unwrap().blueprint_dir).is_empty());
+    assert!(bevy_dark_factory::ops_data::listing(&ctx.project.as_ref().unwrap().blueprint_dir).0.is_empty());
 }

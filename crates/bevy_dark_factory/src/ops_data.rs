@@ -163,17 +163,43 @@ pub struct LeafRow {
     pub value: String,
 }
 
-/// **Every leaf of every registered file**, in registry then file order. No `data.yaml` is an empty
-/// list; a file that cannot be read or parsed contributes no rows (`data_set` names why on use).
-pub fn listing(blueprint_dir: &std::path::Path) -> Vec<LeafRow> {
-    let Ok(Some(reg)) = DataFiles::load(blueprint_dir) else {
-        return Vec::new();
+/// **Every leaf of every registered file**, in registry then file order, **and why any file was
+/// left out** (#631).
+///
+/// The rows alone could not say the difference between three unlike states: no registry at all, a
+/// registry this build refuses, and a registry whose files are all unreadable. All three drew the
+/// same "no data files registered", so a game whose `data.yaml` was present and valid — but whose
+/// *entry* named a file that was not there — looked exactly like a project that had never had one.
+/// The measured consequence: a review saw `data_files: []` beside a valid `data.yaml` naming
+/// `../data/tuning.yaml` (2,002 lines) and could not learn which of the three it was.
+///
+/// A refusal is now a sentence the panel draws, naming the registry or the entry and the fault, the
+/// way every other loader in the editor does. `data_set` still names its own reason on use.
+pub fn listing(blueprint_dir: &std::path::Path) -> (Vec<LeafRow>, Option<String>) {
+    let reg = match DataFiles::load(blueprint_dir) {
+        Ok(Some(reg)) => reg,
+        // No registry is not a fault: a project with no data files is a project with no data files.
+        Ok(None) => return (Vec::new(), None),
+        Err(why) => return (Vec::new(), Some(why)),
     };
     let mut rows = Vec::new();
+    let mut refusals: Vec<String> = Vec::new();
     for f in &reg.files {
-        let Ok(text) = std::fs::read_to_string(reg.resolve(f)) else { continue };
-        let Ok(leaves) = data_files::leaves(&text) else { continue };
-        rows.extend(leaves.into_iter().map(|(path, value)| LeafRow { file: f.id.clone(), path, value }));
+        let path = reg.resolve(f);
+        let text = match std::fs::read_to_string(&path) {
+            Ok(text) => text,
+            Err(e) => {
+                refusals.push(format!("`{}` ({}): {e}", f.id, path.display()));
+                continue;
+            }
+        };
+        match data_files::leaves(&text) {
+            Ok(leaves) => {
+                rows.extend(leaves.into_iter().map(|(path, value)| LeafRow { file: f.id.clone(), path, value }))
+            }
+            Err(why) => refusals.push(format!("`{}` ({}): {why}", f.id, path.display())),
+        }
     }
-    rows
+    let refusal = (!refusals.is_empty()).then(|| format!("{} could not be read: {}", refusals.len(), refusals.join("; ")));
+    (rows, refusal)
 }

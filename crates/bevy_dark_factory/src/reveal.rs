@@ -831,7 +831,7 @@ fn reveal_the_data_row(
     children: &Query<&Children>,
     scrolls: &mut Query<(&ComputedNode, &UiGlobalTransform, &bevy_gooey::ListView, &mut ScrollPosition)>,
 ) -> bool {
-    let leaves = crate::ops_data::listing(&project.blueprint_dir);
+    let (leaves, _why) = crate::ops_data::listing(&project.blueprint_dir);
     let Some(row) = leaves.iter().position(|l| l.file == file) else {
         // The registry has not been read, or it does not list this file: the panel's own text says
         // which, and the caller waits on the first and reports on the second.

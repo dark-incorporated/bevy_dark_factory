@@ -64,7 +64,7 @@ fn the_registered_leaves_are_one_table_with_a_row_each() {
     let table = tables(&mut app);
     assert_eq!(table.len(), 1, "one table");
     let dir = app.world().resource::<Project>().blueprint_dir.clone();
-    let want = bevy_dark_factory::ops_data::listing(&dir);
+    let (want, _why) = bevy_dark_factory::ops_data::listing(&dir);
     assert!(!want.is_empty());
     let shown = app.world().get::<Table>(table[0]).unwrap().source::<DataRows>().map(RowSource::len);
     assert_eq!(shown, Some(want.len()), "a row per leaf");

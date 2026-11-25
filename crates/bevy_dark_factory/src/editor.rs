@@ -6847,7 +6847,9 @@ fn refresh_data_list(
         return;
     }
     *since = 0.0;
-    let rows = project.map(|p| crate::ops_data::listing(&p.blueprint_dir)).unwrap_or_default();
+    let (rows, refusal) = project
+        .map(|p| crate::ops_data::listing(&p.blueprint_dir))
+        .unwrap_or_default();
     // A list with no children is one a door change just respawned: it is filled again even when the files did not change.
     if shown.as_ref() == Some(&rows) && lists.iter().all(|(_, filled)| filled) {
         return;
@@ -6857,9 +6859,13 @@ fn refresh_data_list(
         if rows.is_empty() {
             commands.entity(list).despawn_related::<Children>();
             commands.entity(list).with_children(|p| {
+                // **A registry the loader refused says so** (#631). The empty state alone could not
+                // tell "no data.yaml" from "a data.yaml this build will not read", and a review
+                // measured a valid registry drawing the same words as an absent one.
+                let words = refusal.clone().unwrap_or_else(|| "no data files registered (data.yaml)".to_owned());
                 p.spawn((
-                    Text::new("no data files registered (data.yaml)"),
-                    TextColor(ink.quiet),
+                    Text::new(words),
+                    TextColor(if refusal.is_some() { ink.danger } else { ink.quiet }),
                     crate::chrome::typed(crate::chrome::text::LABEL),
                 ));
             });
