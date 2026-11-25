@@ -150,12 +150,16 @@ pub const CHORDS: &[NamedChord] = &[
     NamedChord { fixed: Fixed::ShellZen, id: "shell.zen", title: "Begin or end Zen mode", default: || primary_shift(KeyCode::KeyM) },
     // **The terminal's own, read before the shell hears anything** (#326, #426): a shell never sees them from this pane.
     NamedChord { fixed: Fixed::TerminalFind, id: "terminal.find", title: "Find in the terminal", default: || primary(KeyCode::KeyF) },
-    // On the Command key rather than the primary one, so off a mac Ctrl+K stays the shell's kill-line, as VS Code leaves it.
+    // **Ctrl+K on every platform** (#637). This was `Modifiers::META`, which is *the primary modifier on
+    // macOS*, so on a Mac the chord collided with `palette.open_alt` (`primary(KeyK)`) and
+    // `no_two_fixed_chords_are_the_same_key` failed there while passing on Linux — a real collision the
+    // Linux gate could not see. `CONTROL` is what "Ctrl+K" means everywhere, and off a mac it is still
+    // the shell's kill-line, which is the intent the old comment stated.
     NamedChord {
         fixed: Fixed::TerminalClear,
         id: "terminal.clear",
         title: "Clear the terminal",
-        default: || Shortcut::new(Modifiers::META, KeyCode::KeyK),
+        default: || Shortcut::new(Modifiers::CTRL, KeyCode::KeyK),
     },
     NamedChord {
         fixed: Fixed::TerminalCloseTab,
