@@ -67,15 +67,42 @@ fn editor(tag: &str) -> App {
     app
 }
 
-/// **The legend's row**, found by the wrap it must carry: the only `Row` whose node wraps.
-fn the_wrapping_row(app: &mut App) -> Option<Entity> {
+/// **The legend's row**, found by its content.
+///
+/// Six rows in the editor carry `FlexWrap::Wrap` (`anim_tab.rs:1497`, `chrome.rs:3030`, `editor.rs:7276`,
+/// `project_page.rs:517`, `:831`, `settings_screen.rs:1127`), so "the first wrapping row" is whichever the query
+/// happened to yield — the first version of this test took that and found a row whose children had no height,
+/// because it was not the legend at all.
+///
+/// The legend's cells hold `Text` reading `"<n> - clip <m>"` (`anim_tab.rs:1501`). That is the anchor: the row is
+/// the one with such a cell under it.
+fn the_legends_row(app: &mut App) -> Option<Entity> {
     let world = app.world_mut();
-    let mut query = world.query::<(Entity, &Node, &bevy_gooey::Role)>();
-    query
+    // Every entity whose text is a legend cell ("0 - clip 0").
+    let mut texts = world.query::<(Entity, &Text)>();
+    let legend_cells: Vec<Entity> = texts
         .iter(world)
-        .filter(|(_, node, role)| **role == bevy_gooey::Role::Row && node.flex_wrap == FlexWrap::Wrap)
-        .map(|(entity, _, _)| entity)
-        .next()
+        .filter(|(_, text)| {
+            let t = text.0.as_str();
+            t.split_once(" - clip ").is_some_and(|(n, m)| n.parse::<usize>().is_ok() && m.parse::<usize>().is_ok())
+        })
+        .map(|(entity, _)| entity)
+        .collect();
+    if legend_cells.is_empty() {
+        return None;
+    }
+    // Walk up from a legend cell to the nearest wrapping `Row`.
+    let mut here = *legend_cells.first()?;
+    for _ in 0..6 {
+        let entity = world.get_entity(here).ok()?;
+        if let Some(node) = entity.get::<Node>()
+            && node.flex_wrap == FlexWrap::Wrap
+        {
+            return Some(here);
+        }
+        here = entity.get::<ChildOf>()?.parent();
+    }
+    None
 }
 
 #[test]
@@ -94,7 +121,7 @@ fn the_plots_legend_wraps_inside_its_panel() {
     app.world_mut().insert_resource(Mode::Anim);
     settle_support::settle(&mut app);
 
-    let row = the_wrapping_row(&mut app).expect(
+    let row = the_legends_row(&mut app).expect(
         "no wrapping row was drawn — the PLOTS legend is the one row in the Animation tab that must wrap (#596)",
     );
 
