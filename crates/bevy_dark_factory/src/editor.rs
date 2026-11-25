@@ -6839,7 +6839,11 @@ fn refresh_data_list(
     skin: Option<Res<bevy_gooey::GooeySkin>>,
     lists: Query<(Entity, Has<Children>), With<DataList>>,
     mut tables: Query<&mut bevy_gooey::Table, With<DataTable>>,
-    mut shown: Local<Option<Vec<crate::ops_data::LeafRow>>>,
+    // **The refusal is part of what was last drawn**, not only the rows (#631): a registry that was
+    // refused and is then fixed draws the same *empty* list, so comparing rows alone would leave the
+    // refusal's sentence on screen after the fault was gone — the panel would keep telling a person
+    // about a file they had just repaired.
+    mut shown: Local<Option<(Vec<crate::ops_data::LeafRow>, Option<String>)>>,
     mut since: Local<f32>,
 ) {
     *since += time.delta_secs();
@@ -6851,26 +6855,27 @@ fn refresh_data_list(
         .map(|p| crate::ops_data::listing(&p.blueprint_dir))
         .unwrap_or_default();
     // A list with no children is one a door change just respawned: it is filled again even when the files did not change.
-    if shown.as_ref() == Some(&rows) && lists.iter().all(|(_, filled)| filled) {
+    let drawing = (rows, refusal);
+    if shown.as_ref() == Some(&drawing) && lists.iter().all(|(_, filled)| filled) {
         return;
     }
     let ink = crate::compose::PanelInk::of(skin.as_deref());
     for (list, _) in &lists {
-        if rows.is_empty() {
+        if drawing.0.is_empty() {
             commands.entity(list).despawn_related::<Children>();
             commands.entity(list).with_children(|p| {
                 // **A registry the loader refused says so** (#631). The empty state alone could not
                 // tell "no data.yaml" from "a data.yaml this build will not read", and a review
                 // measured a valid registry drawing the same words as an absent one.
-                let words = refusal.clone().unwrap_or_else(|| "no data files registered (data.yaml)".to_owned());
+                let words = drawing.1.clone().unwrap_or_else(|| "no data files registered (data.yaml)".to_owned());
                 p.spawn((
                     Text::new(words),
-                    TextColor(if refusal.is_some() { ink.danger } else { ink.quiet }),
+                    TextColor(if drawing.1.is_some() { ink.danger } else { ink.quiet }),
                     crate::chrome::typed(crate::chrome::text::LABEL),
                 ));
             });
         } else if let Ok(mut table) = tables.single_mut() {
-            table.set_source(DataRows(rows.clone()));
+            table.set_source(DataRows(drawing.0.clone()));
         } else {
             commands.entity(list).despawn_related::<Children>();
             commands.entity(list).with_children(|p| {
@@ -6881,7 +6886,7 @@ fn refresh_data_list(
                             bevy_gooey::Column::new("Path").width(DATA_COLUMN_PATH_W),
                             bevy_gooey::Column::new("Value").width(DATA_COLUMN_VALUE_W),
                         ],
-                        DataRows(rows.clone()),
+                        DataRows(drawing.0.clone()),
                     ),
                     DataTable,
                     bevy_gooey::TableRows(DATA_TABLE_ROWS),
@@ -6890,7 +6895,7 @@ fn refresh_data_list(
             });
         }
     }
-    *shown = Some(rows);
+    *shown = Some(drawing);
 }
 
 /// **A row opened (Enter, or a double click) puts a text field over its value** (UI-56): the field holds the leaf's value as the file

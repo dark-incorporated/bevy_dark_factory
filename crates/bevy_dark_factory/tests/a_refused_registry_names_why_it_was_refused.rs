@@ -80,7 +80,27 @@ fn a_refused_registry_names_why_it_was_refused() {
     assert_eq!(rows.len(), 1, "the one leaf is listed: {rows:?}");
     assert_eq!(rows[0].path, "mob.speed");
 
-    for dir in [empty, wrong, missing, good] {
+    // 5. **The refusal is part of what the panel compares before it redraws.** A registry that was
+    // refused and is then repaired draws the *same empty list*, so a panel comparing rows alone would
+    // leave the refusal's sentence on screen after the fault was gone — telling a person about a file
+    // they had just fixed. The two listings below have identical rows and different refusals, which is
+    // exactly the pair a rows-only comparison cannot tell apart.
+    let repaired = scratch("repaired");
+    std::fs::create_dir_all(repaired.parent().expect("a parent").join("data")).ok();
+    write(&repaired, "data.yaml", "version: 99\nfiles: []\n");
+    let (before_rows, before_why) = listing(&repaired);
+    write(&repaired, "data.yaml", "version: 1\nfiles: []\n");
+    let (after_rows, after_why) = listing(&repaired);
+    assert_eq!(before_rows, after_rows, "both list nothing, so the rows cannot tell them apart");
+    assert!(before_why.is_some(), "the broken registry is a refusal");
+    assert_eq!(after_why, None, "the repaired one is not");
+    assert_ne!(
+        (before_rows, before_why),
+        (after_rows, after_why),
+        "the pair the panel compares must differ, or the repaired panel keeps the old sentence"
+    );
+
+    for dir in [empty, wrong, missing, good, repaired] {
         let _ = std::fs::remove_dir_all(&dir);
         let _ = std::fs::remove_dir_all(dir.parent().expect("a parent").join("data"));
     }
