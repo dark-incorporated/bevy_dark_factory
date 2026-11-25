@@ -38,7 +38,5 @@ filter = '''test(=the_profile_names_a_system_the_frame_ran::with_recording_off_t
 | test(=the_animation_watch_follows_the_project_index::an_edit_an_undo_and_a_redo_leave_the_tab_and_the_file_agreeing_with_the_clock_stopped)
 | test(=the_animation_watch_follows_the_project_index::a_manifest_that_cannot_be_read_is_said_once_per_look_and_read_again_when_the_index_moves)
 | test(=terminal::tests::a_session_knows_when_its_shell_has_left)
-| test(=a_machine_with_the_agent_installed_starts_with_it_chosen::the_pane_offers_the_agent_on_a_machine_that_has_it_and_a_shell_on_one_that_does_not)
-| test(=a_rebound_chord_runs_its_command::the_palette_and_the_badges_name_the_rebound_chord)
 '''
 threads-required = "num-cpus"
