@@ -163,7 +163,14 @@ fn the_palette_and_the_badges_name_the_rebound_chord() {
             .next()
             .expect("Save has a badge")
     };
-    assert_eq!(badge_for_save(&live.3), ctrl_shift_y().label(), "the badge says the new chord");
+    // **The badge spells the chord in Words, not glyphs** (#638). `ui.rs:78` sets `chord_glyphs: ChordGlyphs::Words`
+    // because Fira Mono maps none of `⌘ ⌃ ⌥`; `Shortcut::label()` returns the glyph form on a Mac. On Linux the two
+    // spellings are the same string, so this compared equal there and only a Mac could see it.
+    assert_eq!(
+        badge_for_save(&live.3),
+        ctrl_shift_y().label_with(bevy_gooey::Platform::current(), bevy_gooey::ChordGlyphs::Words),
+        "the badge says the new chord, spelled the way the host is set to spell it"
+    );
     assert_ne!(badge_for_save(&live.3), badge_for_save(&keys::Rebound::NONE), "and not the default");
 }
 

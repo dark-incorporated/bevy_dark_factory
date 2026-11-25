@@ -72,7 +72,11 @@ fn a_second_command_on_ctrl_s_shows_the_clash_and_saves_nothing_until_save_moves
     press_chord_on(&mut app, "Undo", ctrl_s());
     assert!(!user.exists(), "a refused rebinding writes no file");
     let lines = said(&mut app);
-    assert!(lines.iter().any(|t| t.contains(&ctrl_s().label()) && t.contains("already Save") && t.contains("Nothing was saved")), "the screen names the clash: {lines:?}");
+    // **The screen spells the chord in Words** (#638): `ui.rs:78` sets `chord_glyphs: ChordGlyphs::Words` because the
+    // shipped face has none of `⌘ ⌃ ⌥`, so the message says `Cmd+S` while `Shortcut::label()` returns `⌘S` on a Mac.
+    // Identical strings on Linux, which is why only a Mac could see the difference.
+    let spelled = ctrl_s().label_with(bevy_gooey::Platform::current(), bevy_gooey::ChordGlyphs::Words);
+    assert!(lines.iter().any(|t| t.contains(&spelled) && t.contains("already Save") && t.contains("Nothing was saved")), "the screen names the clash: {lines:?}");
 
     // The way through: Save goes elsewhere first.
     narrow_to(&mut app, "save");
