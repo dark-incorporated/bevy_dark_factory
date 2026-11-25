@@ -32,7 +32,13 @@ fn request(root: &std::path::Path) -> LoadRequest {
 fn a_project_holding_ron_is_offered_the_migration() {
     let root = project("offered", true);
     let offered = migrate_offer(Some(&request(&root)), true);
-    assert_eq!(offered.as_deref(), Some(root.as_path()), "the project the screen was asked to open, and nothing else");
+    // **Canonicalised on both sides** (#635). `request` builds its path from `root.to_string_lossy()`, and on macOS
+    // the temp dir is reached through `/var`, a symlink to `/private/var` — so the two sides can name one directory
+    // by two spellings. Comparing the raw strings made this fail on macOS alone, which reads as a defect in the
+    // editor when it is a defect in the comparison.
+    let want = std::fs::canonicalize(&root).expect("the scratch project exists");
+    let got = std::fs::canonicalize(offered.expect("an offer")).expect("the offered path exists");
+    assert_eq!(got, want, "the project the screen was asked to open, and nothing else");
     let _ = std::fs::remove_dir_all(&root);
 }
 
