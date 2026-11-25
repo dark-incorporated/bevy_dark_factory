@@ -791,7 +791,7 @@ pub fn sense_pointer(
     // A window reports its cursor in logical pixels, and every camera in this application renders
     // into an image sized in physical ones at `scale_factor: 1.0` — so the image's logical pixels
     // *are* physical pixels (`crate::surface`, "the one conversion"). Converting here rather than at
-    // each reader is what keeps `cursor_ground`'s fourteen call sites and `over_ui`'s factor correct
+    // each reader is what keeps `cursor_ground`'s call sites and `over_ui`'s factor correct
     // without touching either: against an image target `target_scaling_factor()` is 1.0, so a
     // pointer already in surface space is multiplied by one.
     let next = match (&window, next) {

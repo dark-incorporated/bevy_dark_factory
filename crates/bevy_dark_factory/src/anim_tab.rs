@@ -1532,8 +1532,9 @@ fn rebuild_slots(
                     ));
                     // The transient adopt-exclude chip — gaits only, since adopt writes nothing
                     // else. The durable form is `keep:` in the manifest; this is "not this once".
-                    // `CHIP_PAD` like every other chip (its 4/1 was the last padding outlier;
-                    // unified 2026-08-17), keeping its quieter 9 px word.
+                    // The chip's inset, like every other chip (its 4/1 was the last padding outlier;
+                    // unified 2026-08-17 against the sheet's `.chrome-chip` rule), keeping its quieter
+                    // 9 px word.
                     if matches!(slot.playback, Playback::Gait { .. }) {
                         crate::chrome::chip(
                             row,
