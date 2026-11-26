@@ -759,6 +759,104 @@ fn keys_legend_words(page: &str) -> Vec<String> {
     words
 }
 
+/// **The commands the push gate runs on the tree**, each with the text the documents have to carry (#657).
+///
+/// The hook's own steps are its `timed <label> <command>` lines; `clippy-merge` and `rustdoc-merge` are the
+/// clean-merge path's versions of the same two checks, so they map onto the same commands. Everything else in
+/// the hook is a guard about the caller's state (uncommitted files, conflict markers, a ref that would be
+/// refused) rather than a check of the tree, and no document enumerates those.
+const GATE_STEPS: &[(&str, &str)] = &[
+    ("clippy", "cargo clippy --workspace --all-targets"),
+    ("clippy-merge", "cargo clippy --workspace --all-targets"),
+    ("test", "cargo nextest run --workspace"),
+    ("doc", "cargo test --workspace --doc"),
+    ("rustdoc", "cargo doc --workspace --no-deps"),
+    ("rustdoc-merge", "cargo doc --workspace --no-deps"),
+];
+
+/// **Every document that enumerates the push gate names every step the hook runs** (#657).
+///
+/// Three pages listed the gate as "clippy, nextest, doctests" and stopped there after `f7e85e7` added
+/// `RUSTDOCFLAGS="-D warnings" cargo doc` as its own step (#549). The omission was not cosmetic: `AGENTS.md`
+/// uses the list to argue that a hand-run is redundant, and clippy plus a crate's tests together cannot see a
+/// doc comment — which is the one class of defect the gate catches and no crate-scoped run does.
+///
+/// **The ratchet is two-sided.** It reads the hook for its `timed` labels, so a step added to the gate fails
+/// here until this table and the four documents name it; and it reads each document for the four commands, so
+/// a document that drops one fails.
+#[test]
+fn the_documents_that_list_the_gate_list_every_timed_step() {
+    let hook = read("tools/loop/hooks/pre-push");
+    // **The labels the hook times**, which is its own statement of which steps are the gate's.
+    let mut labels: BTreeSet<&str> = BTreeSet::new();
+    for line in hook.lines() {
+        let Some(rest) = line.trim().strip_prefix("timed ") else {
+            continue;
+        };
+        let label = rest.split_whitespace().next().unwrap_or_default();
+        if !label.is_empty() {
+            labels.insert(label);
+        }
+    }
+    let covered: BTreeSet<&str> = GATE_STEPS.iter().map(|(label, _)| *label).collect();
+    let mut unknown: Vec<&str> = labels.difference(&covered).copied().collect();
+    unknown.sort_unstable();
+    assert!(
+        unknown.is_empty(),
+        "**`tools/loop/hooks/pre-push` times step(s) this test does not know**: {unknown:?}. Add each to \
+         `GATE_STEPS` and name its command in AGENTS.md, `docs/guide/loop.md`, `.omp/commands/build-loop.md` \
+         and `.omp/commands/debug-response.md` (#657)."
+    );
+    // **The command beside each label**, so a renamed step fails here rather than in a reader's head.
+    for (label, command) in GATE_STEPS {
+        assert!(
+            hook.lines().any(|line| {
+                let trimmed = line.trim();
+                trimmed.strip_prefix("timed ").is_some_and(|rest| rest.starts_with(label)
+                    && rest.contains(command))
+            }),
+            "**`tools/loop/hooks/pre-push` no longer runs `{command}` in its `{label}` step**. This test reads \
+             the gate's steps and the four documents that list them, so both sides move together (#657)."
+        );
+    }
+
+    // **The pages an agent reads before deciding what it may skip by hand.**
+    let documents = [
+        "AGENTS.md",
+        "docs/guide/loop.md",
+        ".omp/commands/build-loop.md",
+        ".omp/commands/debug-response.md",
+    ];
+    let mut omissions = Vec::new();
+    for document in documents {
+        let text = read(document);
+        for command in ["cargo clippy --workspace --all-targets", "cargo nextest run --workspace", "cargo test --workspace --doc", "cargo doc --workspace --no-deps"] {
+            if !text.contains(command) {
+                omissions.push(format!("{document} does not name `{command}`"));
+            }
+        }
+        // **The rustdoc step's whole point is the flags**, so the page that names the command names them.
+        if !text.contains("RUSTDOCFLAGS=\"-D warnings\"") {
+            omissions.push(format!("{document} does not name `RUSTDOCFLAGS=\"-D warnings\"`"));
+        }
+        // **The three pre-flight checks**, by the script each one runs: `backlog.py`, `changelog.py` and
+        // `version.py`. They read the commit rather than the tree and the hook refuses on each.
+        for check in ["backlog", "changelog", "version"] {
+            if !text.to_lowercase().contains(check) {
+                omissions.push(format!("{document} does not name the `{check}` check"));
+            }
+        }
+    }
+    assert!(
+        omissions.is_empty(),
+        "**{} gate step(s) are missing from the documents that enumerate the push gate**: {}. The gate is four \
+         checks plus three pre-flight scripts, and a page that lists three of the four tells an agent a \
+         crate-scoped run covers everything (#657).",
+        omissions.len(),
+        omissions.join(", ")
+    );
+}
+
 /// **A chord split into its prefix and its last digit**, when it is `…+<digit>`: the shape a page writes a
 /// range in (`` `Cmd+1` to `Cmd+9` ``). `None` for any chord that is not one.
 fn split_digit_chord(chord: &str) -> Option<(String, char)> {
