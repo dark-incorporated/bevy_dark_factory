@@ -915,12 +915,6 @@ pub fn panel_root<'a>(
             (
                 bevy_gooey::RowLayout { direction: Some(FlexDirection::Column), ..default() },
                 bevy_gooey::TextFlow { grow: full_height.then_some(1.0), ..default() },
-                // **The panel's role** (#650): gooey's `Role::Panel` is what makes this a box in the
-                // accessibility tree a reader can enter, and what derives its inset from `skin.pad()` and
-                // its corner and row gap from the skin — so the density a skin declares reaches every dock
-                // panel, which a class rule in px never could. The class carries what the role does not
-                // (see `.chrome-panel` in the sheet).
-                bevy_gooey::Role::Panel,
                 bevy_gooey::StyleClass::of("chrome-panel"),
                 bevy_gooey::BorderPx(bevy_gooey::Sides::all(crate::style::metrics().layout.edge_w)),
                 bevy_gooey::InkFollow,
