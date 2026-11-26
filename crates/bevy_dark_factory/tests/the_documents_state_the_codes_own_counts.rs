@@ -34,6 +34,113 @@ fn count_before(text: &str, marker: &str) -> Option<usize> {
     head.chars().rev().collect::<String>().parse().ok()
 }
 
+/// **Every line count `docs/PROJECT.md` states names the commit it was counted at, and the editor's is spelled
+/// one way** (#659).
+///
+/// The page said `294,204` in its crate table, `294,204 … (343,045 today)` in §6.1 and `343,000` in its closing
+/// line — three numbers for one measurement, and the two "today" numbers were 4,361 lines stale at
+/// `2fa6cce`. The banner at `:5` promised that "every other number is the snapshot's, counted at `198b82ae`
+/// where the sentence says so", and nothing read the sentence for the "where it says so" half, so a number
+/// presented as today's read as a measurement of the tree.
+///
+/// **The other numbers that change without a commit** are outside a test's reach: an `Open issues` count is a
+/// GitHub query, not a repository fact, and the page now says so and links to the live list. That is why this
+/// test reads line counts only — they are the ones the tree decides.
+#[test]
+fn the_project_pages_line_counts_name_their_commit() {
+    let page = read("docs/PROJECT.md");
+    let mut claims: Vec<(usize, String, String)> = Vec::new();
+    let mut unsourced = Vec::new();
+    let mut editor_counts: BTreeSet<String> = BTreeSet::new();
+    for (n, line) in page.lines().enumerate() {
+        let mut from = 0;
+        while let Some(at) = line[from..].find(|c: char| c.is_ascii_digit()) {
+            let start = from + at;
+            // **The digits with their thousands separators**, then the word that makes them a line count.
+            let digits: String = line[start..].chars().take_while(|c| c.is_ascii_digit() || *c == ',').collect();
+            let rest = &line[start + digits.len()..];
+            let unit = if rest.starts_with("-line") {
+                Some("-line")
+            } else if rest.starts_with(" lines") || rest.starts_with(" line") {
+                Some("lines")
+            } else {
+                None
+            };
+            let Some(unit) = unit else {
+                from = start + digits.len();
+                continue;
+            };
+            from = start + digits.len() + unit.len();
+            let Some(value) = digits.replace(',', "").parse::<usize>().ok() else { continue };
+            // **A count under ten thousand is not a line count of this repository** (`4 lines`, `9 lines` in
+            // prose about something else), so only the six-figure ones are read.
+            if value < 10_000 {
+                continue;
+            }
+            claims.push((n + 1, value.to_string(), line.to_owned()));
+            // **The commit, in the same sentence** — or, for a table row, in the header that columns it. A
+            // crate table states its commit once in the header (`| Crate | Lines (at `198b82ae`) |`) and every
+            // row below inherits it, which is the same claim; a row that named a commit of its own would be a
+            // different number in the same column.
+            let sentence_start = line[..start].rfind(". ").map(|i| i + 2).unwrap_or(0);
+            let mut cited = cites_a_commit(&line[sentence_start..]);
+            if !cited && line.starts_with('|') {
+                cited = table_header_before(&page, n).is_some_and(|header| cites_a_commit(&header));
+            }
+            if !cited {
+                unsourced.push(format!(":{}: `{digits}{unit}` names no commit", n + 1));
+            }
+            // **The editor's own count**, whose three spellings disagreed.
+            if line.contains("bevy_dark_factory` is") || line.contains("editor at its centre") || line.contains("| `bevy_dark_factory` |") {
+                editor_counts.insert(value.to_string());
+            }
+        }
+    }
+    assert!(claims.len() >= 3, "only {} line count(s) were read from docs/PROJECT.md: the page's shape has changed", claims.len());
+    assert!(
+        unsourced.is_empty(),
+        "**{} line count(s) in docs/PROJECT.md name no commit**: {}. A count with no commit reads as a \
+         measurement of the tree, and today's tree is a different number (#659).",
+        unsourced.len(),
+        unsourced.join(", ")
+    );
+    assert_eq!(
+        editor_counts.len(),
+        1,
+        "**docs/PROJECT.md states the editor's line count as {editor_counts:?}**, more than one number for one \
+         measurement. The crate table, §6.1 and the closing line say the same quantity, so they say the same \
+         digits (#659)."
+    );
+}
+
+/// **Whether a fragment of the page names a commit**: a backticked short sha (seven or more hex characters, at
+/// least one a digit, so a word of a-f letters is not read as one).
+fn cites_a_commit(text: &str) -> bool {
+    text.split('`').skip(1).step_by(2).any(|span| {
+        span.len() >= 7 && span.chars().all(|c| c.is_ascii_hexdigit()) && span.chars().any(|c| c.is_ascii_digit())
+    })
+}
+
+/// **The header row above a markdown table row**, walking back to the line that opens with `| ---`, then to
+/// the header above it. `None` when the row is not inside a table.
+fn table_header_before(page: &str, row: usize) -> Option<String> {
+    let lines: Vec<&str> = page.lines().collect();
+    // `row` is the 1-based line number of the data row, so `lines[row - 1]` is it.
+    let mut at = row.checked_sub(1)?;
+    while at > 0 {
+        at -= 1;
+        let line = lines.get(at)?.trim();
+        if !line.starts_with('|') {
+            return None;
+        }
+        // **The `| --- | --- |` separator**: the line above it is the header.
+        if line.chars().filter(|c| *c == '-').count() >= 3 && line.chars().all(|c| c == '|' || c == '-' || c == ':' || c == ' ') {
+            return lines.get(at.checked_sub(1)?).map(|header| (*header).to_owned());
+        }
+    }
+    None
+}
+
 /// **Every row `ops::registry()` builds**, counted from its own source: the total the document's
 /// "`ops::registry()`" clause names, feature gates included.
 fn registry_rows() -> usize {
@@ -314,6 +421,117 @@ fn the_reload_contracts_kind_counts_are_the_registrys() {
     for name in &gained {
         assert!(sampled.contains(name.as_str()), "the slice-2 bullet names `{name}`, which `versioned()` does not sample");
     }
+}
+
+/// **The reload contract's second census — the one that restates the first as three clauses and a sum —
+/// names every kind the code's three lists hold** (#654).
+///
+/// Line 119 already named all 15 the editor's layer covers; line 149 said the same thing in different words,
+/// named 5 of the 8 watchers and called the result exhaustive — 33 accounted for in a 39-kind registry. The
+/// page's own tests read only the "`check` covers N of the M kinds" sentence, so a correct census and a stale
+/// one sat beside each other with every test green.
+///
+/// **Three assertions, each a way the sentence can be wrong**: the counts it gives are the lengths of the three
+/// lists; the sum it states is the registry's; and each clause spells exactly the ids its list holds, so a
+/// count and a list cannot agree while both are wrong.
+#[test]
+fn the_reload_contracts_second_census_names_the_three_lists() {
+    let guide = read("docs/guide/reload-contract.md");
+    let sentence = guide
+        .split("With these two, every kind in the registry has a reader")
+        .nth(1)
+        .unwrap_or_else(|| panic!("docs/guide/reload-contract.md no longer has the second census sentence"));
+    let sentence = sentence.split("\n\n").next().unwrap_or(sentence);
+
+    let checked = blueprint_model::reload::KINDS.len() - unchecked_count();
+    let read_here: BTreeSet<&str> = bevy_dark_factory::map_files::READ_HERE.iter().copied().collect();
+    let watched: BTreeSet<&str> = bevy_dark_factory::map_files::WATCHED_HERE.iter().copied().collect();
+    let still = still_unchecked();
+    assert_eq!(
+        checked + read_here.len() + watched.len() + still.len(),
+        blueprint_model::reload::KINDS.len(),
+        "the four lists do not partition the registry: {checked} + {} + {} + {} != {}",
+        read_here.len(),
+        watched.len(),
+        still.len(),
+        blueprint_model::reload::KINDS.len()
+    );
+
+    // **The three numbers the sentence states**, each a fact about a list.
+    let said_checked = count_between(sentence, "`reload_check::check` for ", ",")
+        .unwrap_or_else(|| panic!("the second census no longer says how many kinds `check` covers"));
+    assert_eq!(said_checked, checked, "the second census says `check` covers {said_checked} and it covers {checked}");
+    // **The sum the sentence spells**, which is the registry's whole list.
+    let sum_at = sentence
+        .find("That is ")
+        .unwrap_or_else(|| panic!("the second census no longer states its sum (`That is 24 + 4 + 8 + 3 = 39`)"));
+    let sum_text: String = sentence[sum_at + "That is ".len()..].chars().take_while(|c| *c != ',' && *c != '.').collect();
+    let parts: Vec<usize> = sum_text
+        .split('=')
+        .next()
+        .unwrap_or_default()
+        .split('+')
+        .filter_map(|part| part.trim().parse().ok())
+        .collect();
+    let stated_total: Option<usize> = sum_text.split('=').nth(1).and_then(|n| n.trim().parse().ok());
+    assert_eq!(parts.len(), 4, "the sum `That is {sum_text}` no longer adds four numbers: {parts:?}");
+    assert_eq!(
+        parts,
+        vec![checked, read_here.len(), watched.len(), still.len()],
+        "the second census adds {parts:?} and the four lists are [check {checked}, READ_HERE {}, WATCHED_HERE {}, \
+         STILL_UNCHECKED {}]",
+        read_here.len(),
+        watched.len(),
+        still.len()
+    );
+    assert_eq!(
+        stated_total,
+        Some(blueprint_model::reload::KINDS.len()),
+        "the second census says the sum is {stated_total:?} and the registry has {} kinds",
+        blueprint_model::reload::KINDS.len()
+    );
+
+    // **Each clause spells the ids its list holds.** The first clause's `24` is a number alone (the 24 are
+    // core's, and the sentence has no room for them), so only the two named clauses are read here, and the
+    // ratchet list's three.
+    let readers = clause_names(sentence, "the editor's readers for ", ", its watchers");
+    assert_eq!(readers, read_here, "the readers clause spells {readers:?} and `READ_HERE` is {read_here:?}");
+    let named_watchers = clause_names(sentence, "its watchers for ", ", and the mapper's ratchet");
+    assert_eq!(named_watchers, watched, "the watchers clause spells {named_watchers:?} and `WATCHED_HERE` is {watched:?}");
+    let named_still = clause_names(sentence, "(`STILL_UNCHECKED`) for ", ", which cannot name a field");
+    assert_eq!(named_still, still, "the ratchet clause spells {named_still:?} and `STILL_UNCHECKED` is {still:?}");
+}
+
+/// **The backticked ids a census clause spells** between `lead` and `tail`, as a set, borrowed from `sentence`.
+fn clause_names<'a>(sentence: &'a str, lead: &str, tail: &str) -> BTreeSet<&'a str> {
+    let at = sentence.find(lead).unwrap_or_else(|| panic!("no clause `{lead}`")) + lead.len();
+    let end = sentence[at..].find(tail).unwrap_or_else(|| panic!("no clause tail `{tail}`")) + at;
+    sentence[at..end].split('`').skip(1).step_by(2).collect()
+}
+
+/// **The kinds on the editor's own ratchet of kinds nothing reads**, read from the test that holds the list:
+/// `a_file_that_does_not_read_is_never_overwritten.rs`'s `STILL_UNCHECKED`, which is checked in and ratcheted.
+fn still_unchecked() -> BTreeSet<&'static str> {
+    const SOURCE: &str = include_str!("a_file_that_does_not_read_is_never_overwritten.rs");
+    let at = SOURCE.find("const STILL_UNCHECKED: &[&str] = &[").expect("the ratchet declares `STILL_UNCHECKED`");
+    let body = &SOURCE[at..];
+    let end = body.find("];").expect("the list closes");
+    // **The ids are the quoted spans on their own lines**, and the reasons above them are comments: one id per
+    // line, a `//` line skipped.
+    let mut ids: BTreeSet<&str> = BTreeSet::new();
+    for line in body[..end].lines().skip(1) {
+        let trimmed = line.trim();
+        if trimmed.starts_with("//") || trimmed.is_empty() {
+            continue;
+        }
+        if let Some(rest) = trimmed.strip_prefix('"')
+            && let Some(id) = rest.split('"').next()
+        {
+            ids.insert(id);
+        }
+    }
+    assert!(!ids.is_empty(), "no ids were read from `STILL_UNCHECKED`");
+    ids
 }
 
 /// **The names a version-section bullet spells** after its colon, as `"id"`s: `` `forest`, `people` `` reads
@@ -657,6 +875,206 @@ fn the_keys_page_names_every_chord_with_a_modifier() {
     );
 }
 
+/// **Every distinct "Works when" value on `docs/guide/keys.md` is a word its own legend defines** (#661).
+///
+/// The page's legend at the top of the page offers six words for the column, and nothing read the column: a
+/// row could invent a state word and every ratchet stayed green. Two had, and both read as near-misses of a
+/// word that *is* defined — `Not browsing tiles` for `While browsing tiles`, `No piece in hand` for
+/// `Nothing in hand` — which is worse than a typo, because the requirement is the opposite of the word it
+/// resembles. The eight `Not browsing tiles` rows are `Stances::AnyBut(Stance::Browsing)` and the one
+/// `No piece in hand` row is `AnyBut(Stance::Holding)`; `keys.rs` says outright that what those rows share
+/// "is not a stance", so a legend of five stances could never have described them.
+///
+/// **A value passes one of two ways**, which is the shape the acceptance asks for: it is a word the legend
+/// defines, or it is one of those words with an extra condition after a comma. An extra condition that says
+/// *which* stance a row excludes — `Any time, but not while browsing tiles` — must name a stance the legend
+/// defines, so a reader can look it up; any other must begin `when ` or `with ` and say what it adds.
+#[test]
+fn the_keys_pages_works_when_words_are_the_legends() {
+    let page = read("docs/guide/keys.md");
+    let legend = keys_legend_words(&page);
+    assert!(
+        legend.len() >= 6,
+        "only {} word(s) were read from `docs/guide/keys.md`'s legend ({legend:?}): the bullets' shape has changed",
+        legend.len()
+    );
+
+    let mut undefined = Vec::new();
+    for (index, line) in page.lines().enumerate() {
+        if !line.starts_with("| `") {
+            continue;
+        }
+        let cells: Vec<&str> = line.split('|').collect();
+        if cells.len() < 4 {
+            continue;
+        }
+        let when = cells[2].trim();
+        if when.is_empty() || legend.iter().any(|word| word == when) {
+            continue;
+        }
+        let Some((head, tail)) = when.split_once(", ") else {
+            undefined.push(format!("line {}: `{when}`", index + 1));
+            continue;
+        };
+        if !legend.iter().any(|word| word == head) {
+            undefined.push(format!("line {}: `{when}` (its first word `{head}` is not defined)", index + 1));
+            continue;
+        }
+        // **An exclusion has to name a stance the reader can look up**: the row says *any time but* this one,
+        // and `keys.rs`'s own note is that the requirement is not a stance at all but the page still needs a
+        // word for what it is not.
+        if let Some(excluded) = tail.strip_prefix("but not while ") {
+            let as_a_legend_word = format!("While {excluded}");
+            if !legend.contains(&as_a_legend_word) {
+                undefined.push(format!(
+                    "line {}: `{when}` excludes `{excluded}`, and the legend defines no `{as_a_legend_word}`",
+                    index + 1
+                ));
+            }
+            continue;
+        }
+        // **Anything else is a stated extra condition**, and it has to read as one rather than as a new state.
+        if !(tail.starts_with("when ") || tail.starts_with("with ")) {
+            undefined.push(format!("line {}: `{when}` (the extra condition `{tail}` states no condition)", index + 1));
+        }
+    }
+
+    assert!(
+        undefined.is_empty(),
+        "**docs/guide/keys.md uses {} \"Works when\" value(s) its legend does not define**: {}. The column is \
+         the page's statement of the state a key needs, and a reader has only the legend to decode it — a word \
+         that is not there, or an exclusion that does not name a stance, reads as the word it resembles (#661).",
+        undefined.len(),
+        undefined.join(", ")
+    );
+}
+
+/// **The words `docs/guide/keys.md`'s legend defines**, read from the bullets under the sentence that
+/// introduces the column. Bounded to that paragraph on purpose: later sections of the page carry bullets of
+/// their own (`- **The shell holds its keys.**`) that are not state words.
+fn keys_legend_words(page: &str) -> Vec<String> {
+    let mut words = Vec::new();
+    let mut started = false;
+    for line in page.lines() {
+        if line.starts_with("The \"Works when\" column names the state") {
+            started = true;
+            continue;
+        }
+        if !started {
+            continue;
+        }
+        let Some(rest) = line.strip_prefix("- **") else {
+            // The bullets end at the first line that is not one, and the paragraph after them is prose.
+            if words.is_empty() {
+                continue;
+            }
+            break;
+        };
+        if let Some(end) = rest.find("**") {
+            words.push(rest[..end].to_owned());
+        }
+    }
+    words
+}
+
+/// **The commands the push gate runs on the tree**, each with the text the documents have to carry (#657).
+///
+/// The hook's own steps are its `timed <label> <command>` lines; `clippy-merge` and `rustdoc-merge` are the
+/// clean-merge path's versions of the same two checks, so they map onto the same commands. Everything else in
+/// the hook is a guard about the caller's state (uncommitted files, conflict markers, a ref that would be
+/// refused) rather than a check of the tree, and no document enumerates those.
+const GATE_STEPS: &[(&str, &str)] = &[
+    ("clippy", "cargo clippy --workspace --all-targets"),
+    ("clippy-merge", "cargo clippy --workspace --all-targets"),
+    ("test", "cargo nextest run --workspace"),
+    ("doc", "cargo test --workspace --doc"),
+    ("rustdoc", "cargo doc --workspace --no-deps"),
+    ("rustdoc-merge", "cargo doc --workspace --no-deps"),
+];
+
+/// **Every document that enumerates the push gate names every step the hook runs** (#657).
+///
+/// Three pages listed the gate as "clippy, nextest, doctests" and stopped there after `f7e85e7` added
+/// `RUSTDOCFLAGS="-D warnings" cargo doc` as its own step (#549). The omission was not cosmetic: `AGENTS.md`
+/// uses the list to argue that a hand-run is redundant, and clippy plus a crate's tests together cannot see a
+/// doc comment — which is the one class of defect the gate catches and no crate-scoped run does.
+///
+/// **The ratchet is two-sided.** It reads the hook for its `timed` labels, so a step added to the gate fails
+/// here until this table and the four documents name it; and it reads each document for the four commands, so
+/// a document that drops one fails.
+#[test]
+fn the_documents_that_list_the_gate_list_every_timed_step() {
+    let hook = read("tools/loop/hooks/pre-push");
+    // **The labels the hook times**, which is its own statement of which steps are the gate's.
+    let mut labels: BTreeSet<&str> = BTreeSet::new();
+    for line in hook.lines() {
+        let Some(rest) = line.trim().strip_prefix("timed ") else {
+            continue;
+        };
+        let label = rest.split_whitespace().next().unwrap_or_default();
+        if !label.is_empty() {
+            labels.insert(label);
+        }
+    }
+    let covered: BTreeSet<&str> = GATE_STEPS.iter().map(|(label, _)| *label).collect();
+    let mut unknown: Vec<&str> = labels.difference(&covered).copied().collect();
+    unknown.sort_unstable();
+    assert!(
+        unknown.is_empty(),
+        "**`tools/loop/hooks/pre-push` times step(s) this test does not know**: {unknown:?}. Add each to \
+         `GATE_STEPS` and name its command in AGENTS.md, `docs/guide/loop.md`, `.omp/commands/build-loop.md` \
+         and `.omp/commands/debug-response.md` (#657)."
+    );
+    // **The command beside each label**, so a renamed step fails here rather than in a reader's head.
+    for (label, command) in GATE_STEPS {
+        assert!(
+            hook.lines().any(|line| {
+                let trimmed = line.trim();
+                trimmed.strip_prefix("timed ").is_some_and(|rest| rest.starts_with(label)
+                    && rest.contains(command))
+            }),
+            "**`tools/loop/hooks/pre-push` no longer runs `{command}` in its `{label}` step**. This test reads \
+             the gate's steps and the four documents that list them, so both sides move together (#657)."
+        );
+    }
+
+    // **The pages an agent reads before deciding what it may skip by hand.**
+    let documents = [
+        "AGENTS.md",
+        "docs/guide/loop.md",
+        ".omp/commands/build-loop.md",
+        ".omp/commands/debug-response.md",
+    ];
+    let mut omissions = Vec::new();
+    for document in documents {
+        let text = read(document);
+        for command in ["cargo clippy --workspace --all-targets", "cargo nextest run --workspace", "cargo test --workspace --doc", "cargo doc --workspace --no-deps"] {
+            if !text.contains(command) {
+                omissions.push(format!("{document} does not name `{command}`"));
+            }
+        }
+        // **The rustdoc step's whole point is the flags**, so the page that names the command names them.
+        if !text.contains("RUSTDOCFLAGS=\"-D warnings\"") {
+            omissions.push(format!("{document} does not name `RUSTDOCFLAGS=\"-D warnings\"`"));
+        }
+        // **The three pre-flight checks**, by the script each one runs: `backlog.py`, `changelog.py` and
+        // `version.py`. They read the commit rather than the tree and the hook refuses on each.
+        for check in ["backlog", "changelog", "version"] {
+            if !text.to_lowercase().contains(check) {
+                omissions.push(format!("{document} does not name the `{check}` check"));
+            }
+        }
+    }
+    assert!(
+        omissions.is_empty(),
+        "**{} gate step(s) are missing from the documents that enumerate the push gate**: {}. The gate is four \
+         checks plus three pre-flight scripts, and a page that lists three of the four tells an agent a \
+         crate-scoped run covers everything (#657).",
+        omissions.len(),
+        omissions.join(", ")
+    );
+}
+
 /// **A chord split into its prefix and its last digit**, when it is `…+<digit>`: the shape a page writes a
 /// range in (`` `Cmd+1` to `Cmd+9` ``). `None` for any chord that is not one.
 fn split_digit_chord(chord: &str) -> Option<(String, char)> {
@@ -690,6 +1108,116 @@ fn chord_parts(chord: &str) -> BTreeSet<String> {
             .to_owned()
         })
         .collect()
+}
+
+// ── #656: every repository path a loop command names exists ──────────────────────────────────────
+
+/// **A repository path a loop command names that the tree does not hold, and why it is allowed.**
+///
+/// The rule is #656's: a command that tells an agent to read a report directory under `tools/loop/` which
+/// nothing creates sends it to `ls: No such file or directory`. The two ways a path is allowed to be absent
+/// are both here, with the reason, rather than as a silent exception in the code.
+///
+/// **The dead path is spelled in pieces below**, on the same rule the dead-name guard states: this file lives
+/// under `crates/`, so a grep for the path would find this test rather than only a document that points at it.
+const PATHS_THAT_ARE_NOT_HERE: &[(&str, &str)] = &[
+    // `.omp/commands/build-loop.md`'s rename record: the paragraph says in its own words that these three
+    // crates "exist only as history", so naming them is the point of it.
+    ("crates/bevy_blueprint_mapper", "the rename record, which says the crate is history"),
+    ("crates/bevy_blueprint_mapper/tests/all.rs", "the rename record, which says the crate is history"),
+    ("crates/bevy_blueprint_mcp", "the rename record, which says the crate is history"),
+    ("crates/bevy_blueprint_decide", "the rename record, which says the crate is history"),
+    // A consumer's command file, in Sanctuary's clone, not this repository's.
+    (".omp/commands/emerge-loop.md", "Sanctuary's command file, named as a callsite in that game's clone"),
+];
+
+/// **Every repository path ` .omp/commands/*.md` names in backticks exists** (#656).
+///
+/// `review.md` sent the review agent to a report directory under `tools/loop/` for "the fleet's own reports"
+/// and, 294 lines later, told it to write its own report to `docs/loop/iterations/`. That `tools/` path has
+/// never existed — it was named once in the whole repository, on that line — and the reports are in
+/// `docs/loop/iterations/`, which is where `docs/guide/loop.md` also says they go. An agent following the
+/// first line found nothing and either skipped the duplicate-suppression step or filed the missing directory
+/// as a finding.
+///
+/// **A path is a backticked span that begins with one of the repository's own top-level directories** and is a
+/// literal: a span with a glob, a placeholder, a space (a script plus its arguments) or a `:line` suffix is not
+/// a path a reader would `ls`. The test is the same shape as [`every_guide_markdown_fragment_resolves`], which
+/// holds the guide's links to the files they name.
+#[test]
+fn every_path_a_loop_command_names_exists() {
+    let root = root();
+    // **The repository's own top-level directories**, read from the tree so a new one is covered without an
+    // edit here. `src/` and `tests/` are deliberately absent: a command names those relative to a crate.
+    let mut tops: Vec<String> = Vec::new();
+    for entry in std::fs::read_dir(&root).unwrap_or_else(|e| panic!("{}: {e}", root.display())) {
+        let path = entry.expect("a directory entry").path();
+        let Some(name) = path.file_name().and_then(|n| n.to_str()) else { continue };
+        // A dotted directory is the tree's (`docs/`, `.github/`) but `.git/` is not a path a document sends
+        // anyone to, and `..` would read as a top-level directory.
+        if path.is_dir() && name != ".git" {
+            tops.push(format!("{name}/"));
+        }
+    }
+    assert!(tops.len() >= 8, "only {tops:?} were read as the repository's top-level directories");
+
+    let allow: BTreeSet<&str> = PATHS_THAT_ARE_NOT_HERE.iter().map(|(path, _)| *path).collect();
+    let commands = root.join(".omp/commands");
+    let mut files: Vec<PathBuf> = std::fs::read_dir(&commands)
+        .unwrap_or_else(|e| panic!("{}: {e}", commands.display()))
+        .filter_map(|e| e.ok().map(|e| e.path()))
+        .filter(|path| path.extension().and_then(|e| e.to_str()) == Some("md"))
+        .collect();
+    files.sort();
+    assert!(!files.is_empty(), "no command files were read under {}", commands.display());
+
+    let mut missing = Vec::new();
+    for file in &files {
+        let text = std::fs::read_to_string(file).unwrap_or_else(|e| panic!("{}: {e}", file.display()));
+        let shown = file.strip_prefix(&root).unwrap_or(file).display().to_string();
+        let mut fenced = false;
+        for (n, line) in text.lines().enumerate() {
+            if line.trim_start().starts_with("```") {
+                fenced = !fenced;
+                continue;
+            }
+            if fenced {
+                continue;
+            }
+            // **The backticked spans**, in pairs, which is the same walk the chord ratchets do.
+            for span in line.split('`').skip(1).step_by(2) {
+                let span = span.trim();
+                if !tops.iter().any(|top| span.starts_with(top.as_str())) {
+                    continue;
+                }
+                // A placeholder, a glob or a shell line is not a path a reader would `ls`.
+                if span.contains(['*', '<', '>', '{', '}', ' ', '$', '|', '#']) {
+                    continue;
+                }
+                // **A `path:line` citation names the file**, and the line is checked by its own reader.
+                let path = span.split_once(':').map(|(p, rest)| if rest.chars().all(|c| c.is_ascii_digit()) { p } else { span }).unwrap_or(span);
+                if allow.contains(path) {
+                    continue;
+                }
+                let on_disk = root.join(path);
+                // **A trailing slash is a directory**, which `exists()` answers for either kind; a path with
+                // one that names a file is the same defect the other way round, so the kind is compared too.
+                if path.ends_with('/') && !on_disk.is_dir() {
+                    missing.push(format!("{shown}:{}: `{path}` is not a directory", n + 1));
+                } else if !path.ends_with('/') && !on_disk.exists() {
+                    missing.push(format!("{shown}:{}: `{path}` does not exist", n + 1));
+                }
+            }
+        }
+    }
+    assert!(
+        missing.is_empty(),
+        "**{} repository path(s) a loop command names do not exist**:\n{}\nA command that sends an agent to a \
+         path the tree does not hold is either skipped or filed as a finding of its own (#656). Fix the path, \
+         or add it to `PATHS_THAT_ARE_NOT_HERE` with the reason it is absent.",
+        missing.len(),
+        missing.join("\n")
+    );
 }
 
 // ── #568 and #570: every intra-repo markdown fragment resolves ───────────────────────────────────

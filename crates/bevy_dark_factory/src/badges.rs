@@ -2291,8 +2291,8 @@ fn place_badges(
 ///
 /// Holding `K` and pressing `G` already *works*: `editor::sense_context` never suppressed actions
 /// while the overlay is up, so every key on screen is live the whole time. What was missing, before
-/// its ancestor `chrome::flash_live_rows`, is that nothing said it had happened — and an unremarked
-/// coincidence is not a bridge.
+/// this function, is that nothing said it had happened — and an unremarked coincidence is not a
+/// bridge. (This was `flash_live_rows`; it is `flash_live_badges` now that the rows are badges.)
 ///
 /// Cockburn, Gutwin, Scarr & Malacria 2014 (`10.1145/2659796`) is the reason it matters: offering a
 /// fast path beside a slow one **does not work on its own** — users plateau on the slow one, because

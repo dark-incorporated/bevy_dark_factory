@@ -21,6 +21,8 @@ The "Works when" column names the state the editor must be in:
 - **While browsing tiles** means the Tiles panel is live, and the arrow keys walk the tiles.
 - **While a composition is being picked** means the composition picker has the keys that walk it.
 
+A row that says **Any time, but not while …** works in every state of its tab except the one it names, which is the state where the page on screen owns the keys. The key is a stance's opposite rather than a stance: it fires on both sides of a state, not only inside one.
+
 A key marked "in filter boxes" still walks its list while a filter box has focus. Every other key pauses while you type in a name, an id, or a filter box. Typing the letter `S` in a name does not save the map, because saving is `Cmd+S`.
 
 ## Every key is a command
@@ -130,7 +132,7 @@ These keys work on the Meshes panel of the Kit workspace.
 | `I` | Any time | Type an id. |
 | `M` | Any time | Mount. |
 | `Enter` | Nothing in hand | Add or update this tile. |
-| `Space` | No piece in hand | Open or close the pack. |
+| `Space` | Any time, but not while a piece is in hand | Open or close the pack. |
 | `Enter` | While a derivation waits | Keep the derived edges. |
 | `Esc` | While a derivation waits | Throw the derived edges away. |
 | `R` | Any time | Rescan. |
@@ -169,18 +171,18 @@ These keys work on the Tiles panel of the Kit workspace.
 | `Left` / `Right` | While a piece is in hand | Move the piece left and right. |
 | `,` / `.` | While a piece is in hand | Step to the previous / next member. |
 | `Shift` + arrow | While a piece is in hand | Flush the piece to that side. |
-| `Space` | Not browsing tiles | Take the piece. `Esc` puts it back. |
-| `[` / `]` | Not browsing tiles | Move the layer down / up. |
-| `J` | Not browsing tiles | Make the grid deeper by thirds, wrapping around. |
+| `Space` | Any time, but not while browsing tiles | Take the piece. `Esc` puts it back. |
+| `[` / `]` | Any time, but not while browsing tiles | Move the layer down / up. |
+| `J` | Any time, but not while browsing tiles | Make the grid deeper by thirds, wrapping around. |
 | `Enter` | Nothing in hand | Drop the piece. |
 | `Shift+Enter` | Nothing in hand | Drop the piece into a slot. |
-| `R` | Not browsing tiles | Turn this piece. |
-| `Delete` | Not browsing tiles | Remove this piece from the tile. |
-| `Shift+Delete` | Not browsing tiles | Empty the tile. |
+| `R` | Any time, but not while browsing tiles | Turn this piece. |
+| `Delete` | Any time, but not while browsing tiles | Remove this piece from the tile. |
+| `Shift+Delete` | Any time, but not while browsing tiles | Empty the tile. |
 | `N` | Any time | Name a new tile. |
 | `C` | Any time | Close the tile. |
-| `Cmd+Z` | Not browsing tiles | Undo this tab's last change. |
-| `Cmd+Shift+Z` | Not browsing tiles | Redo this tab's last change. |
+| `Cmd+Z` | Any time, but not while browsing tiles | Undo this tab's last change. |
+| `Cmd+Shift+Z` | Any time, but not while browsing tiles | Redo this tab's last change. |
 
 ## Anim
 

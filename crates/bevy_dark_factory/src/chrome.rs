@@ -270,10 +270,8 @@ const INK_MATCH_TOLERANCE: f32 = 1.0e-3;
 /// by hand) the ink is rebuilt from it and everything already drawn is moved onto it. Until a skin says
 /// otherwise it is the editor's own style sheet's, `src/style/editor.yaml`.
 ///
-/// It is a process-wide value rather than a resource because a painter calls [`ink`] where no system
-/// parameter reaches, and there are hundreds of them — the count is not kept here:
-/// `grep -rnoE '\bink\(\)' src` is the measurement. The same reason [`text_scale`] is one atomic.
-/// A process has one editor.
+/// It is a process-wide value rather than a resource because painters call [`ink`] where no system
+/// parameter reaches — the same reason [`text_scale`] is one atomic. A process has one editor.
 static LIVE_INK: std::sync::LazyLock<std::sync::RwLock<Ink>> = std::sync::LazyLock::new(|| std::sync::RwLock::new(Ink::editor()));
 
 /// **The editor's ink now**, by value (28 colours, `Copy`): what a painter reads, whatever theme is
@@ -535,9 +533,8 @@ pub mod text {
     ///
     /// The 2026-09-03 audit found the size ratchet had a laundering hole: `chrome_census.rs` scans
     /// for `from_font_size(<digit>`, and `chip`/`text_field` took `px: f32` and called
-    /// `from_font_size` *inside* `chrome.rs`, which the scan skips. The 2026-09-03 audit (the
-    /// owner's, on mac_air) found twenty call sites passing bare `9.0` / `10.0` / `11.0` through a
-    /// function argument, in a crate whose own test claims a
+    /// `from_font_size` *inside* `chrome.rs`, which the scan skips. Twenty call sites were passing
+    /// bare `9.0` / `10.0` / `11.0` through a function argument, in a crate whose own test claims a
     /// size is *"a role, never a number"*.
     ///
     /// A regex cannot close that; a type can. A builder takes a [`Role`], a `Role` is only ever one
@@ -711,13 +708,10 @@ pub fn resize_the_labels(
 
 /// **The person's text size, as every label the editor draws sees it** (UI-73, #251).
 ///
-/// Every hand-drawn label goes through [`typed`], which is the pair `(font(role), TypeRole(role))` —
-/// and that is a function called from a painter, with no system parameter to spare: a role's size is
-/// a fact of the type scale, and the scale a person chose is a fact about the editor. The count is
-/// not the point and is not kept here: `grep -rn 'chrome::typed(' src` is the measurement.
-///
-/// So the running scale is kept here, in one atomic, and
-/// [`set_text_scale`] is the only writer — a system turns the setting into it each frame
+/// Every hand-drawn label goes through [`typed`], the pair `(font(role), TypeRole(role))`, which is
+/// a function a painter calls with no system parameter to spare: a role's size is a fact of the type
+/// scale, the scale a person chose is a fact about the editor, and the count is not the point.
+/// The running scale is kept here in one atomic, and [`set_text_scale`] is its only writer
 /// ([`crate::ui::follow_the_text_size`]).
 ///
 /// **`u32` thousandths rather than an `f32`**, because an `AtomicU32` is lock-free on every target
@@ -2372,9 +2366,8 @@ pub fn scroll_gutter() -> f32 {
 /// **The bar overlays rather than reserving a gutter.** `Node.scrollbar_width` would reserve space,
 /// and it also turns on a shipped disagreement: `ScrollArea`'s wheel handler computes its maximum
 /// from `size()` while the scrollbar's own code subtracts `scrollbar_size`
-/// (`bevy_ui_widgets-0.20.0/src/scrollarea.rs:32` vs `bevy_ui_widgets-0.20.0/src/scrollbar.rs:176`), so the two
-/// disagree by exactly the gutter width.
-/// Overlaying sidesteps it.
+/// (`bevy_ui_widgets-0.20.0/src/scrollarea.rs:32` vs `bevy_ui_widgets-0.20.0/src/scrollbar.rs:176`),
+/// so the two disagree by exactly the gutter width. Overlaying sidesteps it.
 ///
 /// # It bounds itself with `flex_grow`, so it needs a bounded parent
 ///
