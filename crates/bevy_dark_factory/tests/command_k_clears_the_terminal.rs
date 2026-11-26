@@ -38,9 +38,12 @@ fn send(app: &mut App, key_code: KeyCode, logical_key: Key, state: ButtonState) 
 
 /// A modifier held round K, as a hand makes the chord.
 fn chord_k(app: &mut App, modifier: KeyCode) {
+    // **`Shift` too** (#680): `terminal.clear` is `primary_shift(K)` since plain `Ctrl+K` turned out to be
+    // `palette.open_alt` on Linux as well as macOS. A clear is a deliberate act, and Shift says so.
     let unidentified = || Key::Unidentified(NativeKey::Unidentified);
     for state in [ButtonState::Pressed, ButtonState::Released] {
         send(app, modifier, unidentified(), state);
+        send(app, KeyCode::ShiftLeft, unidentified(), state);
         send(app, KeyCode::KeyK, Key::Character("k".into()), state);
         app.update();
     }
@@ -88,9 +91,14 @@ fn ctrl_k_clears_the_scrollback() {
 /// draft of this comment claimed it pinned Ctrl+D as unclaimed, and no such assertion was written. Saying a test
 /// checks something it does not is the same defect this pass spent the day finding.
 #[test]
-fn the_clear_is_ctrl_k_on_every_platform() {
+fn the_clear_is_shift_primary_k_on_every_platform() {
     let clear = bevy_dark_factory::chords::default_of(bevy_dark_factory::chords::Fixed::TerminalClear);
-    assert_eq!(clear.modifiers, bevy_gooey::Modifiers::CTRL, "the clear is Ctrl+K on every platform");
+    assert_eq!(
+        clear.modifiers,
+        bevy_gooey::Modifiers::PRIMARY | bevy_gooey::Modifiers::SHIFT,
+        "the clear is Shift+primary+K on every platform: plain Ctrl+K is palette.open_alt on Linux and \
+         plain Command+K is palette.open_alt on macOS (#637, #680)"
+    );
     assert_eq!(clear.key, KeyCode::KeyK);
 
     // The shell's own Ctrl+D is exercised end to end by `the_shell_keeps_its_ctrl_chords`, which drives a real
