@@ -781,6 +781,42 @@ fn frame_busy_end(mut busy: ResMut<FrameBusy>) {
     }
 }
 
+/// **The viewport's rect and the window's, in logical px** (#665).
+///
+/// `viewport` is the `ComputedNode` of the node carrying [`crate::chrome::ViewportSlot`] — the hole
+/// `surface::fit_viewport_to_frame` hands the map camera — and `window` is the largest laid-out node
+/// that is not a viewport, which in this shell is the root the window sized. Both are `[x, y, w, h]`
+/// with the origin at the window's top left, and both are `null` before the first layout.
+pub fn viewport_and_window(
+    rects: &Query<(&ComputedNode, &bevy::ui::UiGlobalTransform, Has<crate::chrome::ViewportSlot>)>,
+) -> serde_json::Value {
+    // **`UiGlobalTransform` carries the translation, not `ComputedNode`**: it reflects as the affine
+    // `[a, b, c, d, tx, ty]`, so `translation` is the node's top-left in physical px.
+    let rect = |node: &ComputedNode, at: &bevy::ui::UiGlobalTransform| {
+        let scale = node.inverse_scale_factor();
+        let size = node.size() * scale;
+        let top_left = at.translation * scale;
+        json!([top_left.x, top_left.y, size.x, size.y])
+    };
+    let viewport = rects
+        .iter()
+        .find(|(_, _, is_viewport)| *is_viewport)
+        .map(|(node, at, _)| rect(node, at));
+    // **The window is the widest node that is not the viewport**: the shell's root is sized from the
+    // window, and no dock is ever wider than it, so a max by width finds the root without a marker.
+    let window = rects
+        .iter()
+        .filter(|(_, _, is_viewport)| !*is_viewport)
+        .max_by(|(a, _, _), (b, _, _)| {
+            a.size()
+                .x
+                .partial_cmp(&b.size().x)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        })
+        .map(|(node, at, _)| rect(node, at));
+    json!({"viewport": viewport, "window": window})
+}
+
 /// The `frame` section of `blueprint/state`: nulls until a frame has been measured.
 fn frame_json(
     store: Option<&bevy::diagnostic::DiagnosticsStore>,
@@ -1291,6 +1327,12 @@ fn editor_state(
     // field above answers "which screen" and never the pane's own state — #598 measured a drive that pressed
     // the chord three times and learned nothing, because nothing in this answer named the pane.
     terminal: Option<Res<crate::terminal::Terminal>>,
+    // **Where the art is, and how big the window is** (#665). Both are the editor's own laid-out
+    // nodes: `chrome::ViewportSlot`'s `ComputedNode` is the hole the map camera draws through, and
+    // the primary window's `ComputedNode` is what `surface::fit_viewport_to_frame` sized it from. An
+    // agent reading *"the art is 32% of the window"* needs the two numbers, and without them it has
+    // only a picture to guess from.
+    rects: Query<(&ComputedNode, &bevy::ui::UiGlobalTransform, Has<crate::chrome::ViewportSlot>)>,
     // **The preview's clock** (#282): what the crate is actually told the hour is, and what the
     // scrubber asked for. The two are separate on purpose — the changelog line says the scrubber
     // "holds the preview at an hour of day", and the only way to tell whether the preview follows is
@@ -1579,6 +1621,11 @@ fn editor_state(
         // the editor wrote on the person's Keep, and `discarded` that the person dropped it. **No text of a page**: only names, paths and numbers.
         "style_proposals": style_proposals.as_deref().map(|s| s.state_json()).unwrap_or(Value::Null),
         "frame": frame_json(diagnostics.as_deref(), busy.as_deref(), profiler.as_deref()),
+        // **The two rectangles behind the art's share of the window** (#665). An agent asking
+        // *"is the art most of the screen"* had to `world.query` for `Camera` and `ComputedNode`
+        // to find out, which is the gap this closes. Logical px, from the laid-out nodes; `None`
+        // before the first layout, so a caller can tell "not laid out yet" from "zero".
+        "rects": viewport_and_window(&rects),
         // **The game's verdict on the last reload** (S3.5): null, "pending", or {ok, message, at_unix_ms}.
         "game": game.as_deref().map_or(Value::Null, |g| g.state_json(open.as_ref().map(|o| o.map_path.as_path()))),
         // **The editor's own verdicts** on the files it watches and draws (#200, H3): `{ok, seq, kinds}`,
