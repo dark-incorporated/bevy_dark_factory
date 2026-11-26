@@ -83,39 +83,39 @@ const CLOSED: &[Closed] = &[
     Closed {
         issue: 651,
         claimed: "`chrome::WORLD_HELD` is the sheet's `layout.world_held`, read by `chrome::stepped_back`",
-        pattern: "WORLD_HELD",
+        pattern: "chrome::WORLD_HELD",
         // A test may still name the old constant as the opacity it was, so long as it says it was.
         exempt: &["are *opacities*", "was `chrome::WORLD_HELD`"],
     },
     Closed {
         issue: 651,
         claimed: "`chrome::MODAL_Z` is the sheet's `z.modal`",
-        pattern: "MODAL_Z",
+        pattern: "chrome::MODAL_Z",
         exempt: &[],
     },
     Closed {
         issue: 651,
         claimed: "`chrome::COMPASS_Z` is the sheet's `z.compass`",
-        pattern: "COMPASS_Z",
+        pattern: "chrome::COMPASS_Z",
         // The one test that names it names the layer the old constant gave its index.
         exempt: &[],
     },
     Closed {
         issue: 651,
         claimed: "`chrome::TERMINAL_MAXIMISED_Z` is the sheet's `z.terminal_maximised`",
-        pattern: "TERMINAL_MAXIMISED_Z",
+        pattern: "chrome::TERMINAL_MAXIMISED_Z",
         exempt: &[],
     },
     Closed {
         issue: 651,
         claimed: "`chrome::SELECT_RAIL_W` is the sheet's `layout.select_rail_w`",
-        pattern: "SELECT_RAIL_W",
+        pattern: "chrome::SELECT_RAIL_W",
         exempt: &[],
     },
     Closed {
         issue: 651,
         claimed: "`chrome::CONTROLS_W` is the sheet's `layout.controls_w`",
-        pattern: "CONTROLS_W",
+        pattern: "chrome::CONTROLS_W",
         // A test that cites a deleted constant as deleted says so; the audit page is history.
         exempt: &["was deleted", "were deleted", "`CONTROLS_W` → `controls_w`"],
     },
