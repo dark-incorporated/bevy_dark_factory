@@ -163,3 +163,36 @@ fn the_state_says_the_screen_the_workspace_the_panels_and_who_has_the_keys() {
     assert_eq!(ui["panels"], json!(["MAP"]), "the Map door shows one panel: {ui}");
     assert_eq!(ui["focus"], json!("viewport"), "nothing holds the keys but the viewport: {ui}");
 }
+
+/// **A chord id is refused with the key it stands for**, not with "not a command id" (#668).
+///
+/// Twenty-six controls live in `chords::CHORDS` and not in `commands::all()` — the terminal, Zen mode, the
+/// left panel, the palette, settings, the console — so an agent staging a capture cannot run them. A refusal
+/// that says only "not a command id" leaves the caller with no way to find out that `terminal.clear` is
+/// Shift+Cmd+K, so this asserts the refusal names the chord.
+#[test]
+fn a_chord_id_is_refused_and_names_its_key() {
+    let mut app = editor("chord_refused");
+    let answer = run(&mut app, "terminal.clear");
+
+    assert_eq!(
+        answer["outcome"], "refused",
+        "a chord id is not a command id yet: {answer}"
+    );
+    let why = answer["why"].as_str().expect("a reason");
+    assert!(
+        why.contains("is a chord, not a command"),
+        "**the refusal does not say the id is a chord** (#668): {why}"
+    );
+    let chord = answer["chord"].as_str().expect("the chord it stands for");
+    assert!(
+        chord.contains('K'),
+        "and it names the key, so a caller can press it: {chord:?} in {answer}"
+    );
+    assert!(
+        !answer["did_you_mean"]
+            .as_array()
+            .is_some_and(|near| near.is_empty()),
+        "and it still offers near command ids: {answer}"
+    );
+}

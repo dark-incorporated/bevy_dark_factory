@@ -3574,10 +3574,43 @@ fn run_command(
             .take(5)
             .collect();
         did_you_mean.extend(parts);
+        // **An id that is a chord says so, and names the key** (#668). Twenty-six controls live in
+        // `chords::CHORDS` and not in `commands::all()` — the terminal, Zen mode, the left panel, the
+        // palette, settings, the console — so an agent staging a capture cannot reach them, and "not a
+        // command id" told it nothing about why. The chord is spelled the way the keymap screen spells
+        // it, so a caller can press that key or find the command that does the same thing.
+        let as_a_chord = crate::chords::CHORDS
+            .iter()
+            .find(|named| named.id == p.id)
+            .map(|named| named.fixed);
+        let why = match as_a_chord {
+            Some(fixed) => {
+                let key = crate::chords::chord(fixed)
+                    .label_with(bevy_gooey::Platform::current(), bevy_gooey::ChordGlyphs::Words);
+                let title = crate::chords::CHORDS
+                    .iter()
+                    .find(|named| named.fixed == fixed)
+                    .map_or("", |named| named.title);
+                format!(
+                    "`{}` is a chord, not a command: \"{title}\" is {key}. Press that key, or run the \
+                     command that does the same thing",
+                    p.id
+                )
+            }
+            None => format!(
+                "`{}` is not a command id; ids are `<category>.<verb>`, such as `edit.undo`",
+                p.id
+            ),
+        };
+        let chord = as_a_chord.map(|fixed| {
+            crate::chords::chord(fixed)
+                .label_with(bevy_gooey::Platform::current(), bevy_gooey::ChordGlyphs::Words)
+        });
         return Ok(json!({
             "outcome": "refused",
             "id": p.id,
-            "why": format!("`{}` is not a command id; ids are `<category>.<verb>`, such as `edit.undo`", p.id),
+            "why": why,
+            "chord": chord,
             "did_you_mean": did_you_mean,
         }));
     };
