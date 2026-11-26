@@ -103,3 +103,34 @@ thing that buys the room back, and `docs/loop/RUNNING-A-LOOP.md` now says to `mk
 **A log was lost to this, again.** big's `gate-tests/` compile and run timings died with `/tmp`; big_mac's five
 copies are the only survivors. That is the second time a log I needed was not kept somewhere durable, which is
 the argument for memos living in the shared `.git` (`#673`) rather than in a worktree.
+
+## Two hosts, and the two bugs only the second one could see
+
+The objective was to use every host. Measured: `big` (24 cores) was at load 74 while `ps` accounted for
+~600% CPU — **I/O wait**, not arithmetic — and `big_mac` (10 cores) sat at load 2. `bmb` cannot help: 3.6 GB
+free. So the fleet ran on two hosts, and the same commit gated on both.
+
+**That was not redundancy. Each host caught a bug the other could not see.**
+
+| bug | Linux gate | arm64 gate | why |
+|---|---|---|---|
+| `command_k_clears_the_terminal` pressed `ControlLeft` for a `primary_shift(K)` chord | **green** | **red** — scrollback stayed 293, never 0 | `Modifiers::PRIMARY` is `Command` on macOS, `Control` on Linux |
+| `the_text_roles_citations_land_on_their_symbols` pins the strings `chrome.rs:531`/`:827` | red | red | not platform — a real conflict, below |
+
+The first is the class of bug a single-host gate *structurally cannot find*: the test is correct on the host
+that runs it and wrong on the other. `no_two_fixed_chords_are_the_same_key` is the same shape, and it was the
+sole failure of a 5,213-test Linux run earlier tonight.
+
+**The conflict, for #680.** The docs merge rewrote comments in `chrome.rs` (+31 −24 = **+7 net**), which moved
+`pub mod text` 531 → 533 and `pub fn section` 827 → 833. Two protected tests now disagree:
+
+- `a_documents_citations_resolve` needs the page's citation to **reach the symbol's real line** → 533/833.
+- `the_text_roles_citations_land_on_their_symbols` asserts the page **contains the literal `chrome.rs:531`**.
+
+Both were green on `e309c056`. On `main` no choice satisfies both, so the issue carries the three options and a
+recommendation (derive the line; same shape as #613) and is labelled `blocked` — a protected test is not mine
+to re-point, even when the new number is the right one.
+
+**What I got wrong:** I saw this on the Linux gate first and read it as a stale citation, so I re-pointed the
+docs. That fixed the resolving test and broke the pinning one. One host's failure told me *what* broke and not
+*which side was authoritative*; only running both did.
