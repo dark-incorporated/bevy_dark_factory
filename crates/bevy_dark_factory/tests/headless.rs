@@ -11182,7 +11182,8 @@ fn a_scrollbar_shows_exactly_when_there_is_somewhere_to_scroll() {
 /// alternatives are — and AccessKit has exactly that shape, a `TabList` of `Tab`s.
 ///
 /// The label is asserted against `Mode::label()` rather than a string, because a second copy of a
-/// panel's name is a second thing to rename: `chrome::key_census` keeps the same rule for chords.
+/// panel's name is a second thing to rename: `keys::BINDINGS` keeps the same rule for chords, one
+/// row per verb with its chord spelled once.
 #[test]
 fn the_tab_strip_describes_itself() {
     let root = Fixture::new("strip-a11y")
@@ -12093,8 +12094,8 @@ fn a_key_still_fires_while_k_is_held() {
 /// Cockburn, Gutwin, Scarr & Malacria 2014 (`10.1145/2659796`): a fast path offered beside a slow
 /// one does not get adopted on its own, because no single moment hurts enough to justify switching.
 /// What works is a bridge where the novice route *rehearses* the expert route — and the badge under
-/// your finger lighting on the control is that rehearsal made visible. Its ancestor
-/// `chrome::flash_live_rows`, the row-lighting this grew out of, never had a test; this is it.
+/// your finger lighting on the control is that rehearsal made visible. The row-lighting this grew out
+/// of, `flash_live_rows`, never had a test; this is it, and it is `flash_live_badges` now.
 #[test]
 fn a_badge_lights_while_its_key_is_down() {
     use bevy_dark_factory::badges::Badge;
