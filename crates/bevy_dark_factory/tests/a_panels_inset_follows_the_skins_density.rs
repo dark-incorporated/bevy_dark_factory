@@ -124,43 +124,75 @@ fn the_shipped_densitys_panel_inset_is_the_twelve_pixels_it_always_was() {
     }
 }
 
-/// **The density reaches a panel the moment the sheet stops overriding it.**
+/// **The density reaches a panel as soon as the sheet stops stating an inset** — the lever, measured.
 ///
-/// The shipped rule states the panel's inset (`padding: !Step 2`, this editor's deliberate 12 px over
-/// `skin.pad()`), and gooey applies a node's `Spacing` **after** `Role::Panel`'s arm — so a stated
-/// override wins, which is what keeps the editor's look while `density: Compact` halves `pad()`. The
-/// proof that the role's `pad()` is what is underneath, and not a dead end, is a person's style layer
-/// that drops the override: the drawn `Node`'s padding then **is** `skin.pad()`, and it is half as
-/// much at `Compact` as at `Comfortable`.
+/// # Why this edits the *base* sheet and not a user layer
 ///
-/// This is the half a role-presence test cannot make, and the half that failed before #650: with a
-/// `Role::Sized` panel there was no role padding at all, so dropping the rule left the panel with
-/// **no inset** — 0 px, not `pad()`.
+/// A later style layer **cannot** remove a declaration: `StyleDecl::padding` is `Sides<Space>` and
+/// layers merge per side with `Sides::overlaid`, whose rule is `over.top.or(self.top)` — a side a later
+/// layer leaves `None` keeps the value underneath (`bevy_gooey` `src/box_model.rs:117-125`). So a layer
+/// that writes `{margin: !Step 2}` leaves the shipped `padding: !Step 2` in force, and one that writes
+/// `padding: !Step 0` draws 3 px rather than `skin.pad()`. Neither is the panel's role padding. The
+/// **base sheet** is the layer that owns the declaration, and it is a live file the editor watches
+/// (`the_style_sheet_reloads_live.rs` edits it the same way), so removing it there is the honest test.
+///
+/// # What it proves
+///
+/// With the declaration gone the drawn `Node`'s padding is `skin.pad()` — 6 px at the shipped
+/// `Density::Compact`, half the 12 px the rule states — which is the role's arm
+/// (`bevy_gooey` `src/skin.rs:4091`) and nothing else. Before #650 the panel was `Role::Sized`, whose
+/// arm writes no padding at all, so the same sheet left every panel drawing **0 px**: the lever did
+/// not exist.
 #[test]
-fn without_the_override_the_drawn_padding_is_the_skins_pad() {
-    let root = fixtures::Fixture::new(&format!("panel_inset_layer_{}", std::process::id()))
+fn without_the_declaration_the_drawn_padding_is_the_skins_pad() {
+    let root = fixtures::Fixture::new(&format!("panel_inset_base_{}", std::process::id()))
         .descriptor("site/wall", "alpha")
         .build("m");
+    // A checkout the editor reads its sheet from, so the base layer can be edited without touching
+    // this repository (the shape `the_style_sheet_reloads_live.rs` uses).
+    let checkout = root.join("checkout");
+    let style_dir = checkout.join("crates/bevy_dark_factory/src/style");
+    std::fs::create_dir_all(&style_dir).expect("a style folder");
+    std::fs::write(checkout.join("crates/bevy_dark_factory/Cargo.toml"), "[package]\nname = \"bevy_dark_factory\"\n")
+        .expect("a manifest");
+    let shipped = include_str!("../src/style/editor.yaml");
+    assert!(
+        shipped.contains("\".chrome-panel\": {padding: !Step 2, margin: !Step 2}"),
+        "this test edits the panel rule, so it must find it as written"
+    );
+    let without = shipped.replace(
+        "\".chrome-panel\": {padding: !Step 2, margin: !Step 2}",
+        "\".chrome-panel\": {margin: !Step 2}",
+    );
+    std::fs::write(style_dir.join("editor.yaml"), &without).expect("the base sheet, without the declaration");
+
+    // The settings file that names the checkout as `editor_source`.
     let config = root.join("user_config");
     std::fs::create_dir_all(&config).expect("a config folder");
-    let style = config.join("style.yaml");
-    // A layer whose panel rule is empty: the role's own inset, nothing on top of it.
-    std::fs::write(&style, "version: 1\nrules: {\".chrome-panel\": {margin: !Step 2}}\n").expect("a style layer");
+    let settings = config.join("settings.yaml");
+    std::fs::write(&settings, format!("version: 1\neditor_source: {}\n", checkout.display())).expect("a settings file");
+
     let mut app = bevy_dark_factory::harness::build_headless(&root, "m", None).unwrap_or_else(|e| panic!("{e}"));
-    app.insert_resource(bevy_dark_factory::style::UserStyleFile(style));
-    settle_support::settle(&mut app);
+    app.insert_resource(bevy_dark_factory::settings::UserSettingsFile(settings));
+    // **Wait for the checkout's sheet to be the one running**, not merely for the frames to go quiet: the
+    // binary starts on its compiled copy of the sheet, and the edited file reaches the skin when the
+    // file index has listed it. A panel drawn 12 px in is still the compiled copy's declaration.
+    settle_support::until(&mut app, "the checkout's sheet, with the panel's declaration gone", |app| {
+        let drawn = panel_paddings(app);
+        !drawn.is_empty() && drawn.iter().all(|(_, left, _)| *left != 12.0)
+    });
 
     let skin = app.world().resource::<GooeySkin>().clone();
-    assert_eq!(skin.density, Density::Compact, "the shipped sheet's density, unchanged by the layer");
+    assert_eq!(skin.density, Density::Compact, "the base sheet's density is the shipped one");
     let pad = skin.pad();
-    assert_ne!(pad, skin.padding, "a compact skin's `pad()` is not its `padding`: {pad} against {}", skin.padding);
+    assert_eq!(pad, 6.0, "a compact skin's `pad()` is half its 12 px padding");
     let drawn = panel_paddings(&mut app);
     assert!(!drawn.is_empty(), "the editor draws dock panels");
     for (name, left, top) in &drawn {
         assert_eq!(
             (*left, *top),
             (pad, pad),
-            "with the rule's override gone, `{name}`'s drawn padding must be `skin.pad()` ({pad} px): \
+            "with the sheet's declaration gone, `{name}`'s drawn padding must be `skin.pad()` ({pad} px): \
              the role's own arm, which is what makes the density reach a panel"
         );
     }
