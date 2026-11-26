@@ -29,7 +29,7 @@ panel is three things stacked, and the note is about all three:
 
 | what a person sees | drawn by | role | size then (before #518) | size now |
 |---|---|---|---|---|
-| `TERRAIN`, `WATER`, `FOREST`, `LIGHTS` | `chrome::section` (`chrome.rs:833`) | [`text::HEADING`] | 10 px, uppercase, `Ink::label` | **11 px**, the sheet's `metrics.type.heading` |
+| `TERRAIN`, `WATER`, `FOREST`, `LIGHTS` | `chrome::section` (`chrome.rs:827`) | [`text::HEADING`] | 10 px, uppercase, `Ink::label` | **11 px**, the sheet's `metrics.type.heading` |
 | `set on the TERRAIN line: water ...` | `chrome::body` (`world_lists.rs:128`) | [`text::BODY`] | 11.67 px, gooey `Role::Label` | **11 px**, the sheet's `metrics.type.body` |
 | `no water placed` | `chrome::body` (`world_lists.rs:128`) | [`text::BODY`] | 11.67 px, gooey `Role::Label` | **11 px**, the sheet's `metrics.type.body` |
 
@@ -62,7 +62,7 @@ resolved against `chrome.rs` and `world_lists.rs` by `the_text_roles_citations_l
 
 ## 2. The roles, measured
 
-`chrome::text` is seven roles over five sizes (`chrome.rs:533`), and every one is `role.px() * text_scale()` when drawn:
+`chrome::text` is seven roles over five sizes (`chrome.rs:531`), and every one is `role.px() * text_scale()` when drawn:
 
 | role | px | what it is for | where it is measured from |
 |---|---|---|---|
