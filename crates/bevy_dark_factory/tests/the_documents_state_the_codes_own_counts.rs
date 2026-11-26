@@ -34,6 +34,83 @@ fn count_before(text: &str, marker: &str) -> Option<usize> {
     head.chars().rev().collect::<String>().parse().ok()
 }
 
+/// **Every line count `docs/PROJECT.md` states names the commit it was counted at, and the editor's is spelled
+/// one way** (#659).
+///
+/// The page said `294,204` in its crate table, `294,204 … (343,045 today)` in §6.1 and `343,000` in its closing
+/// line — three numbers for one measurement, and the two "today" numbers were 4,361 lines stale at
+/// `2fa6cce`. The banner at `:5` promised that "every other number is the snapshot's, counted at `198b82ae`
+/// where the sentence says so", and nothing read the sentence for the "where it says so" half, so a number
+/// presented as today's read as a measurement of the tree.
+///
+/// **The other numbers that change without a commit** are outside a test's reach: an `Open issues` count is a
+/// GitHub query, not a repository fact, and the page now says so and links to the live list. That is why this
+/// test reads line counts only — they are the ones the tree decides.
+#[test]
+fn the_project_pages_line_counts_name_their_commit() {
+    let page = read("docs/PROJECT.md");
+    let mut claims: Vec<(usize, String, String)> = Vec::new();
+    let mut unsourced = Vec::new();
+    let mut editor_counts: BTreeSet<String> = BTreeSet::new();
+    for (n, line) in page.lines().enumerate() {
+        let mut from = 0;
+        while let Some(at) = line[from..].find(|c: char| c.is_ascii_digit()) {
+            let start = from + at;
+            // **The digits with their thousands separators**, then the word that makes them a line count.
+            let digits: String = line[start..].chars().take_while(|c| c.is_ascii_digit() || *c == ',').collect();
+            let rest = &line[start + digits.len()..];
+            let unit = if rest.starts_with("-line") {
+                Some("-line")
+            } else if rest.starts_with(" lines") || rest.starts_with(" line") {
+                Some("lines")
+            } else {
+                None
+            };
+            let Some(unit) = unit else {
+                from = start + digits.len();
+                continue;
+            };
+            from = start + digits.len() + unit.len();
+            let Some(value) = digits.replace(',', "").parse::<usize>().ok() else { continue };
+            // **A count under ten thousand is not a line count of this repository** (`4 lines`, `9 lines` in
+            // prose about something else), so only the six-figure ones are read.
+            if value < 10_000 {
+                continue;
+            }
+            claims.push((n + 1, value.to_string(), line.to_owned()));
+            // **The commit, in the same sentence**: a backticked short sha, or the word "snapshot" as the
+            // sentence in §5 that defers to the banner uses it.
+            let sentence_start = line[..start].rfind(". ").map(|i| i + 2).unwrap_or(0);
+            let sentence = &line[sentence_start..];
+            let cited = sentence.split('`').skip(1).step_by(2).any(|span| {
+                span.len() >= 7 && span.chars().all(|c| c.is_ascii_hexdigit()) && span.chars().any(|c| c.is_ascii_digit())
+            });
+            if !cited {
+                unsourced.push(format!(":{}: `{digits}{unit}` names no commit", n + 1));
+            }
+            // **The editor's own count**, whose three spellings disagreed.
+            if line.contains("bevy_dark_factory` is") || line.contains("editor at its centre") || line.contains("| `bevy_dark_factory` |") {
+                editor_counts.insert(value.to_string());
+            }
+        }
+    }
+    assert!(claims.len() >= 3, "only {} line count(s) were read from docs/PROJECT.md: the page's shape has changed", claims.len());
+    assert!(
+        unsourced.is_empty(),
+        "**{} line count(s) in docs/PROJECT.md name no commit**: {}. A count with no commit reads as a \
+         measurement of the tree, and today's tree is a different number (#659).",
+        unsourced.len(),
+        unsourced.join(", ")
+    );
+    assert_eq!(
+        editor_counts.len(),
+        1,
+        "**docs/PROJECT.md states the editor's line count as {editor_counts:?}**, more than one number for one \
+         measurement. The crate table, §6.1 and the closing line say the same quantity, so they say the same \
+         digits (#659)."
+    );
+}
+
 /// **Every row `ops::registry()` builds**, counted from its own source: the total the document's
 /// "`ops::registry()`" clause names, feature gates included.
 fn registry_rows() -> usize {
