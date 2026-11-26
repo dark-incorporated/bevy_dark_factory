@@ -3077,9 +3077,51 @@ pub fn gap_cell(row: &mut ChildSpawnerCommands, width_px: f32) {
     row.spawn(bevy_gooey::cell(width_px / text::BODY.px()));
 }
 
-/// **A chip** — one small clickable word. `chrome-chip`'s padding and a permanent 1 px border whose COLOUR
-/// asks the questions (a ghost proposal lights it `Ink::suggest`; everything else runs [`Color::NONE`]),
-/// so a chip never changes size when its state does.
+/// **A chip** — one small clickable word, and one of **gooey's chips**.
+///
+/// # What it was, and what the missing role cost (#551)
+///
+/// It was a raw `bevy::ui_widgets::Button` with a `RowRest` fill, the editor's own border and a bare
+/// `Text` child, and it carried **no `Role`**. Two things follow from a role, and neither is visible in
+/// a screenshot: `bevy_gooey`'s `apply_skin` styles a node by what its role says it is, and its
+/// accessibility pass ([`bevy_gooey`]'s `access.rs`) is one exhaustive `match` over the same role — so a
+/// node without one was styled by neither, and a screen reader met 55 clickable tags as unnamed
+/// buttons. The node now carries `Role::Chip`, which is the arm that reads *"A chip is a button named by
+/// its words"*.
+///
+/// # Why it is not `bevy_gooey::chip(label)`, measured
+///
+/// `bevy_gooey::chip` (rev `8647648`, `src/widgets.rs:4403`) is the family's chip and this one is built
+/// from the same parts — its `Node` and its `Role` are gooey's, its box is the style sheet's
+/// `.chrome-chip` rule, and its name is gooey's `Role::Chip` arm. What it is **not** is gooey's
+/// *spawn function*, for three measured reasons:
+///
+/// 1. **`chip()` owns its one `Text` child**, and `apply_skin` writes that child's font from the skin
+///    (`Role::ChipText`, `skin.text_size`) on every restyle. `skin.text_size` is 11 px here, snapped to
+///    a device pixel at `UiScale` 1.2 = **11.666 px** — the exact size [`body`]'s doc records as the
+///    defect of #518 (*"550 of 602 texts on screen were drawn at 11.666 px … one window held two body
+///    sizes"*). Every editor chip is [`text::CONTROL`] (10 px) and follows the person's text size
+///    through [`resize_the_labels`], which a skin-written font overrides. So the words stay the
+///    editor's, and the chip is not `chip()`.
+/// 2. **`chip()` carries `TabIndex(0)`**, which is what turns on click-to-focus. This editor routes by
+///    `Context` and `tests/the_sweep_is_finished.rs::focus_traversal_stays_off_until_somebody_reopens_it`
+///    records why a `TabIndex` here is a measured defect rather than a feature (an injected click
+///    focuses whatever the *physical* pointer rests on).
+/// 3. **The skin's `Role::Chip` arm floors a chip at the skin's 24 px target.** The editor's chips are
+///    20 px — the height of the rows they stand in, pinned by
+///    `tests/the_g87_nodes_are_gooeys.rs::the_chips_buttons_and_rows_keep_their_drawn_heights` — so the
+///    floor is lifted for a chip (`min_height: Auto`, below). Adoption is not a redesign.
+///
+/// # The paint is still the editor's, and why
+///
+/// The node is marked [`bevy_gooey::InkFollow`], so the skin writes **neither its fill nor its edge**
+/// and [`style_list_rows`] keeps painting them (rest, hover, press, disabled) from `RowRest`,
+/// `Hovered` and the held-key state — one painter for every row and chip in the editor. That is
+/// deliberate: gooey's own chip fills agree at rest (`skin.surface_raised` **is** [`Ink::row_bg`]) and
+/// under the pointer (`skin.hovered()`), but a pressed chip is `skin.accent` where the editor's rows are
+/// `skin.pressed`, and a *held* chip is the ladder's seventh step, not the accent. Removing the editor's
+/// paint would repaint every held and pressed chip in the window, which is the redesign #551 says it is
+/// not.
 ///
 /// **`marker` must not contain a `Node`, and the failure is a panic rather than a warning.** This
 /// builder spawns one, and a bundle carrying two of the same component panics at spawn in Bevy 0.20
@@ -3097,6 +3139,19 @@ pub fn chip<'a>(
     border: Color,
 ) -> EntityCommands<'a> {
     let mut c = parent.spawn((
+        // **gooey's chip's own `Node`**: a row, so a chip that grows a count or an icon beside its
+        // word stands them side by side. It is `bevy_gooey::chip`'s first component, written here
+        // because the words below are the editor's (see the doc comment).
+        Node::default(),
+        // **The role is what makes the chip a chip** (#551): `apply_skin`'s `Role::Chip` arm draws its
+        // box, and `access.rs`'s arm names it. Without it the node is invisible to both.
+        bevy_gooey::Role::Chip,
+        // **The name a screen reader hears**, and the chip's words, stated once. gooey's `Chip` arm
+        // names a chip from its `ChipText` children, and this chip's words are the editor's text (for
+        // [`resize_the_labels`]), which carries no gooey role — so the host names it, through the one
+        // override `bevy_gooey`'s `describe` honours for every role
+        // (`if let Some(label) = facts.label { wanted.name = Some(label.0.clone()); }`).
+        AccessibleLabel(label.to_owned()),
         bevy::ui_widgets::Button,
         Hovered::default(),
         // **A chip answers the pointer, like every row does.** It carried `Hovered` from the day it
@@ -3107,18 +3162,25 @@ pub fn chip<'a>(
         // `style_list_rows` already keys on it and has never needed to know what it is painting.
         RowRest(fill),
         marker,
-        // **A chip narrows before the row wraps it to a second line** (#526, owner's rule: *"shrink the
-        // buttons, then, when they can't shrink more due to the text, then make it a new row"*). Its
-        // label breaks at a word (`LineBreak::WordOrCharacter` below), so a narrowed chip reflows inside
-        // itself rather than cutting its word — which is what the `the_terminal_bar_keeps_every_chip_whole`
-        // sweeps actually protect, and they pass 3/3 with this. The old `0.0` here was #494's fixed-target
-        // rule; #526 supersedes it and `the_g87_nodes_are_gooeys` moves with the contract.
-        held_box(
-            "chrome-chip",
-            bevy_gooey::Sides::all(crate::style::metrics().layout.edge_w),
-            Some(1.0),
-            bevy_gooey::Sizing { max_width: Some(bevy_gooey::Extent::Percent(100.0)), ..default() },
-        ),
+        // **The box is the style sheet's, and the role writes the rest.** `.chrome-chip` carries the
+        // inset and the corner (6 x 3 px, 3 px radius, measured unchanged); the role's `Chip` arm writes
+        // the 1 px frame, the row direction's spacing and its narrowing. **Not `held_box`**: that is a
+        // `bevy_gooey::sized` box and carries `Role::Sized`, and a bundle with two `Role`s panics.
+        //
+        // **`min_height: Auto` lifts the skin's 24 px target for a chip** (the role floors it there),
+        // so a chip is the height of its own words again — 20 px, what
+        // `the_chips_buttons_and_rows_keep_their_drawn_heights` pins. **`max_width: 100%`** is #494's
+        // rule: a chip is never laid out wider than the line it stands on.
+        bevy_gooey::StyleClass::of("chrome-chip"),
+        bevy_gooey::BorderPx(bevy_gooey::Sides::all(crate::style::metrics().layout.edge_w)),
+        bevy_gooey::Sizing {
+            min_height: Some(bevy_gooey::Extent::Auto),
+            max_width: Some(bevy_gooey::Extent::Percent(100.0)),
+            ..default()
+        },
+        // **The editor paints this node's fill and edge, not the skin** — see the doc comment. With
+        // `InkFollow` the skin writes neither, and `style_list_rows` stays the one painter of both.
+        bevy_gooey::InkFollow,
         BorderColor::all(border),
         BackgroundColor(fill),
     ));

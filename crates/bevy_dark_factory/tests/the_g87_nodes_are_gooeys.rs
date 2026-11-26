@@ -60,7 +60,16 @@ fn the_frame_is_gooey_rows_and_columns_with_the_numbers_it_had() {
     assert_eq!((body.width, body.flex_grow, body.min_height, body.flex_direction, body.align_items), (Val::Percent(100.0), 1.0, Val::ZERO, FlexDirection::Row, AlignItems::Stretch), "the body is a row of what the bars leave");
 }
 
-/// **A chip is a gooey row the editor still paints**: rest, hover and its own edge colour (a held tag chip's accent), and its words are not a button's.
+/// **A chip is gooey's chip and the editor still paints it**: rest, hover and its own edge colour (a held tag chip's accent), and its words are not a button's.
+///
+/// **Owner exception (2026-11-26, #551): this test used to assert `Role::Sized` on a chip**, because
+/// `chrome::chip` was a `bevy_gooey::sized` box — a box with a layout role and no idea what it was. #551's
+/// acceptance is that a chip carries `Role::Chip`, so the node's role is gooey's chip role and the skin's
+/// `Role::Chip` arm draws its frame; the numbers below are the same ones as before (`6 x 3 px` in, a `1 px`
+/// edge, narrowing), now written by the class rule and the role together instead of by `held_box`.
+/// **`Role::Sized` could not stay**: a node carries one `Role`, and the whole point of the change is which
+/// one. Nothing is loosened — every colour and every number is still compared exactly, and
+/// `tests/a_chip_is_named_by_its_words.rs` proves the role buys the name that was missing.
 #[test]
 fn a_chip_is_a_row_the_editor_paints_by_state() {
     let mut app = editor("chip");
@@ -73,7 +82,7 @@ fn a_chip_is_a_row_the_editor_paints_by_state() {
     for _ in 0..4 {
         app.update();
     }
-    assert_eq!(app.world().get::<Role>(chip), Some(&Role::Sized), "a chip is a gooey sized box laid out as a row");
+    assert_eq!(app.world().get::<Role>(chip), Some(&Role::Chip), "a chip is gooey's chip (#551)");
     assert!(app.world().get::<bevy_gooey::InkFollow>(chip).is_some());
     assert_eq!(app.world().get::<BackgroundColor>(chip).map(|b| b.0), Some(rest), "at rest it is its fill");
     assert_eq!(app.world().get::<BorderColor>(chip).map(|b| b.top), Some(edge), "and its edge is the colour it was given, not the skin's outline");
