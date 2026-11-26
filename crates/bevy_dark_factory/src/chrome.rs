@@ -294,7 +294,7 @@ pub(crate) fn swap_ink(next: Ink) -> Ink {
 ///
 /// A free function rather than a resource because the drawers are ordinary `Update` systems with no
 /// stated order against anything in `badges`, and a resource written in one phase and read in
-/// another would be a frame stale on some runs and not others — the trap [`crate::badges::ink`]'s own
+/// another would be a frame stale on some runs and not others — the trap `badges::ink`'s own
 /// header records paying for.
 pub fn stepped_back(color: Color, held: bool) -> Color {
     if held {
