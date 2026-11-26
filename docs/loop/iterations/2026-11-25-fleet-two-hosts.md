@@ -78,3 +78,102 @@ widths, so one convention covers both. It checks the fact rather than a snapshot
 
 Read `docs/loop/RUNNING-A-LOOP.md`'s host section, check `#680` for the owner's answer, and if it is answered,
 re-gate both branches and land them. If it is not, take a cluster that does not touch `chrome.rs` line numbers.
+
+## What landed, and the gate that finally said yes
+
+`c3c84395` reached `main` through the live pre-push gate: **5,220 tests run, 5,220 passed, 13 skipped, 763 s.**
+It carries the arm64 chord fix, all seven doc issues, the line-neutral `chrome.rs` fix, and two rustdoc link
+corrections.
+
+**Getting there took four refusals, and every one was a real finding:**
+
+| refusal | what it was |
+|---|---|
+| `no_two_fixed_chords_are_the_same_key` | the chord table had a Linux-only collision |
+| `the_text_roles_citations_land_on_their_symbols` | #680: two tests pinning citations that had drifted apart |
+| `clippy -D warnings` (twice) | two lints in the new ratchet test, neither an assertion change |
+| `RUSTDOCFLAGS=-D warnings cargo doc` | two public doc comments linking **private** items |
+
+The last is the one I would have missed by reading: the suite was **5,220 of 5,220 green** and the push still
+refused, because the gate's final step is rustdoc. A gate that has more steps than "tests pass" is worth more
+than the sum of them.
+
+**The pattern in three of the four:** the fix was right and something *adjacent* was wrong — a chord that moved a
+collision to the other platform, a comment rewrite that moved a line number, a shortened sentence that kept a
+link to an item that had become private. None of these is visible in the file being edited.
+
+## #664's cause, measured in Bevy's source
+
+`world.query` answered `[]` for every component because `bevy_remote` resolves each name through the app's
+`AppTypeRegistry` and **silently skips** what it cannot find unless the caller passes `strict`:
+
+```rust
+let maybe_component_tuple = get_component_type_registration(type_registry, &component_path)
+    .ok()
+    .and_then(|tr| world.components().get_valid_id(tr.type_id()).map(|id| (tr.type_id(), id)));
+if let Some(..) = maybe_component_tuple { component_ids.push(..) } else if strict { return Err(..) }
+```
+
+Every component skipped means an empty filter, which matches every entity, which serialises to `[]`. The editor
+had registered only its own types — never `Node`, `Name`, `Text`, `Camera` or `GlobalTransform`. The registration
+is now `harness::register_the_components_an_agent_queries`, reached from `main.rs:250` under `debugger`, and two
+tests prove it: **2 tests run, 2 passed**.
+
+**The first version of that test was wrong and the test caught it** — it hard-coded
+`bevy_render::camera::camera::Camera`, and the registry had no such path. It now compares `TypeId::of::<T>()`,
+which cannot be misspelled in the same way a caller can.
+
+## A merge that was green on both sides and red in the middle
+
+The gooey branch and `main` each passed their own tests. The **merge** failed **1,364 tests**, and every one of
+them named something unrelated to the change:
+
+```
+Bundle ((bevy_ui::ui_node::Node, bevy_gooey::skin::Role, …), (… Role, …))
+  has duplicate components: ["bevy_gooey::skin::Role"]
+```
+
+`bevy_gooey::sized()` already bundles `Role::Sized`, and the branch's `#650` commit added a second `Role::Panel`
+to the same tuple. Bevy rejects that bundle at spawn, so **every test that spawns a dock panel** panicked —
+1,364 of them, none of which is about a panel.
+
+**How it was found, and why the obvious reading was wrong:**
+
+- `9bd0700d` (type scale): passes.
+- `46830a3b` (`edge_tab`): passes.
+- `d40f1a57` (**the merge**): fails.
+
+Both parents green, the merge red. That is a semantic conflict, and no per-commit test run can see it — only a
+gate on the merged tree. It also explains why the failure list looked like a catastrophe rather than one
+duplicate field: the panic is raised by the ECS bundle checker, not by the test, so the test names are just
+"whatever spawned a panel first".
+
+**The rule this earns:** a branch that merges `main` is a **new tree** and must be gated as one, even when both
+sides were gated. `git merge` succeeding means the text did not conflict, not that the result is coherent.
+
+## What was refused, and why that is the point
+
+Three changes were written, tested and **not** shipped. Each had a green-looking commit and a failing test:
+
+| change | the failure | outcome |
+|---|---|---|
+| `bevy_gooey::scroll_to_reveal` adoption (#649) | all **13** `scroll_tests`: `left: None, right: Some(0.0)` — the two functions use different frames, and gooey reads a non-finite position as "no position" | reverted to main's body; #649 open with the analysis |
+| `edge_tab` (#645) | its **own** test, at its own commit: `two maps, two document tabs: []` | reverted on the landing branch; #645 open |
+| the type-scale derivation (#648) | `(11.0, 11.666666)` — the one declaration is in place, the two derivations disagree by 0.667 px | #648 open with both numbers named |
+
+**A fourth was fixed rather than refused:** the duplicate `Role` that made `sized()`'s `Role::Sized` and the
+branch's `Role::Panel` coexist in one bundle. That panicked at spawn and failed **1,364 tests**, none of which was
+about a panel.
+
+**The pattern worth carrying forward:** in every one of these, the code compiled, the *diff* looked right, and a
+test the author wrote or that already existed disagreed. The two that shipped are the two where the tests
+agreed. That is the whole argument for never closing an issue on a reading.
+
+## Where the next pass starts
+
+1. `#680` is resolved (`5fba17a7`, on main in `c3c84395`); do not re-point either citation test.
+2. `#649`, `#645`, `#648` each have a comment naming the exact assertion and both sides of it. Pick one, read
+   it, fix the one line it points at.
+3. The gooey branch's verified parts are on `land/gooey-verified`; it is **not** on main because the two
+   failures above are in the same tree.
+4. `world.query` works again (#664, `cfff7116`): the registration is in `harness.rs`, reached from `main.rs:250`.
