@@ -100,6 +100,12 @@ pub fn read_audio(
     project: Option<Res<Project>>,
     mut settings: ResMut<bevy_siren::SirenSettings>,
     mut table: ResMut<bevy_siren::CueTable>,
+    // **The handles Audition needs** (#555). `Play::cue` refuses with `MissingSound` unless the
+    // `SirenSounds` map already holds a handle for the key, and nothing in this editor ever loaded
+    // one — so the button could only ever refuse, and the panel's own note ("a cue that cannot play
+    // says what it is missing") was the only thing it ever said.
+    mut sounds: ResMut<bevy_siren::SirenSounds>,
+    server: Option<Res<AssetServer>>,
     mut state: ResMut<EditorState>,
 ) {
     let Some(project) = project else {
@@ -151,6 +157,13 @@ pub fn read_audio(
             panel.cues = table_read.names().map(str::to_owned).collect();
             *settings = read;
             *table = table_read;
+            // **Ask the asset server for the project's sounds** (#555): `<root>/audio/<key>`, which is
+            // where a game puts them and where `bevy_siren`'s own quick start reads from. A project with
+            // no `audio/` folder still refuses a cue, but the panel can now name the file it wanted
+            // (`SirenSounds::missing`) instead of saying it has no handle.
+            if let Some(server) = server.as_deref() {
+                sounds.load_table(server, &table, "audio");
+            }
         }
         Err(problem) => state.status.problem(problem),
     }
@@ -196,6 +209,8 @@ pub fn on_audition(
     buttons: Query<(), With<AuditionButton>>,
     selected: Option<Res<crate::world_lists::SelectedCue>>,
     mut plays: MessageWriter<bevy_siren::Play>,
+    sounds: Option<Res<bevy_siren::SirenSounds>>,
+    table: Option<Res<bevy_siren::CueTable>>,
     mut state: ResMut<EditorState>,
 ) {
     if buttons.get(activate.entity).is_err() {
@@ -207,8 +222,42 @@ pub fn on_audition(
             .problem("no cue is selected to audition".to_owned());
         return;
     };
+    // **What the cue cannot sound, said before it is asked to** (#555): `Play::cue` answers
+    // `Refused { MissingSound }` and the log explains it a frame later, but the button's own answer
+    // should be the file a person has to deliver. A project with no `audio/` folder is the ordinary
+    // case, and "no file `audio/step_01` in this project" is a thing an author can act on.
+    // The cue's own sound keys, from the table the panel already holds.
+    let wanted: Vec<String> = table
+        .as_deref()
+        .and_then(|table| table.get(&cue))
+        .map(|cue| cue.sounds.iter().map(|slot| slot.sound.clone()).collect())
+        .unwrap_or_default();
+    let unloaded: Vec<String> = sounds.as_deref().map_or_else(Vec::new, |sounds| {
+        sounds
+            .missing(table.as_deref().expect("a cue was found in the table"))
+            .into_iter()
+            .filter(|key| wanted.iter().any(|w| w == key))
+            .collect()
+    });
     plays.write(bevy_siren::Play::cue(cue.clone()));
-    state.status.note(format!("auditioning `{cue}`"));
+    if unloaded.is_empty() {
+        state.status.note(format!("auditioning `{cue}`"));
+    } else {
+        state.status.problem(format!(
+            "`{cue}` cannot sound: nothing is loaded for {}. Put the file in the project's \
+             `audio/` folder as {}",
+            unloaded
+                .iter()
+                .map(|key| format!("`{key}`"))
+                .collect::<Vec<_>>()
+                .join(", "),
+            unloaded
+                .iter()
+                .map(|key| format!("`audio/{key}`"))
+                .collect::<Vec<_>>()
+                .join(", "),
+        ));
+    }
 }
 
 /// The rows the panel draws: one line per bus, from this frame's mix.

@@ -324,3 +324,33 @@ fn the_panel_draws_the_buses_the_cues_and_the_log() {
     let moved = rows_of(&app, "cue");
     assert!(moved[0].starts_with(bevy_dark_factory::world_lists::CUE_MARK), "the mark follows the selection: {moved:?}");
 }
+
+/// **The panel asks the asset server for the cue's sound, which nothing did before** (#555).
+///
+/// `Play::cue` refuses with `MissingSound` unless `SirenSounds` holds a handle for the key, and until this
+/// change nothing in the editor ever asked for one — so Audition could only ever refuse. The proof is the
+/// handle: after the panel has read the file, `SirenSounds` knows the cue's key.
+///
+/// The file is **RON** whatever its `.yaml` name: `read_file` deserialises the crate's own `SirenSettings`
+/// and `CueTable` through `ron`.
+#[test]
+fn the_panel_asks_the_asset_server_for_the_cues_sound() {
+    let text = r#"{settings: {max_voices: 8, buses: [{name: "Effects"}], ducks: []}, cues: {cues: [{name: "ui.click", sounds: [{sound: "step_01"}]}]}}"#;
+    let root = project("missing_sound", text);
+    let mut app = harness::build_headless(&root, "m", None).unwrap_or_else(|e| panic!("{e}"));
+    // **The headless harness has no `AudioPlugin`** (nothing opens a device), so the `AudioSource` asset
+    // type is absent — and `read_audio` takes `Option<Res<AssetServer>>`, so without this it would skip the
+    // load and this assertion would hold against an editor that asked for nothing.
+    app.init_asset::<AudioSource>();
+    for _ in 0..4 {
+        app.update();
+    }
+
+    let sounds = app.world().resource::<bevy_siren::SirenSounds>();
+    assert!(
+        sounds.keys().any(|key| key == "step_01"),
+        "**the panel never asked the asset server for `step_01`** (#555), so `Play::cue` can only refuse \
+         with `MissingSound` and the button is a control that cannot work. Keys held: {:?}",
+        sounds.keys().collect::<Vec<_>>()
+    );
+}
