@@ -268,10 +268,15 @@ fn select_in_the_outliner(app: &mut App) {
 }
 
 /// **In every skin, every word under a selected row, tab or chip of every surface clears 4.5:1 against what it is drawn on.**
-#[test]
-fn every_selected_row_reads_at_aa_contrast_in_every_skin() {
+/// **One skin's selected words, at AA against the ground each is drawn on.**
+///
+/// **A function of the theme, not a loop over all three** (#672). The original test built **27 editors** —
+/// three themes by nine surfaces — inside one test function, so nextest put the whole 48 s on a single core:
+/// measured on this host, `every_selected_row_reads_at_aa_contrast_in_every_skin` was 48.304 s of test time
+/// while the suite around it ran in parallel. The cases are independent (each spawns its own editor and reads
+/// only its own nodes), so one test per theme lets them run side by side.
+fn one_skin_is_readable(theme: Theme) {
     let mut refused = Vec::new();
-    for theme in THEMES {
         for (surface, opener, must_find) in SURFACES {
             let mut app = editor(theme);
             VISITED.with(|v| v.borrow_mut().clear());
@@ -288,8 +293,22 @@ fn every_selected_row_reads_at_aa_contrast_in_every_skin() {
                 }
             }
         }
-    }
     refused.sort();
     refused.dedup();
     assert!(refused.is_empty(), "{} selected word(s) are not readable:\n{}", refused.len(), refused.join("\n"));
+}
+
+#[test]
+fn every_selected_row_is_readable_in_the_tool_dark_skin() {
+    one_skin_is_readable(Theme::ToolDark);
+}
+
+#[test]
+fn every_selected_row_is_readable_in_the_parchment_skin() {
+    one_skin_is_readable(Theme::Parchment);
+}
+
+#[test]
+fn every_selected_row_is_readable_in_the_high_contrast_skin() {
+    one_skin_is_readable(Theme::HighContrast);
 }
