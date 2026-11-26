@@ -249,6 +249,32 @@ Four things follow, and each cost this loop a gate:
    dies at 64%. The durable fix is a **disk-backed swap file** beside zram; the immediate one is a **reboot**, which
    clears zram. Both are the owner's, since big is shared — filed on #636 with the numbers.
 
+## A hand-run cargo on `big` must set `CARGO_BUILD_JOBS=1` (measured 2026-11-26)
+
+Without it, `systemd-oomd` kills **the SSH session that ran the command**, and the failure reads as a network drop:
+
+```
+Connection to 192.168.1.110 closed by remote host        # three runs in a row, at 166-170 s
+journalctl: Marked /user.slice/user-1000.slice/session-1561.scope for killing (Swap Usage: 10G)
+```
+
+One rustc at 7.0 GB plus `llama-server` at 2.7 GB is enough on a 32 GB box, and **33 OOM lines appeared in 15
+minutes**. What does not work, measured: `systemd-run --property=MemoryMax=12G` — 12 GB is under one 7 GB rustc
+plus its link, the unit dies, and its journal is empty, so it looks like nothing ran.
+
+What does: wait for the gate's own headroom, then take the slot and set the jobs:
+
+```sh
+ssh big bash -s <<'EOF'
+cd ~/worktrees/<wt>
+export CARGO_TARGET_DIR=$HOME/.cargo-target-gate CARGO_BUILD_JOBS=1
+flock -x /tmp/fleet/big-cargo-slot.lock flock -s /tmp/fleet/big-heavy.lock \
+  timeout 1400 cargo nextest run -p bevy_dark_factory --test editor -E 'test(<module>)'
+EOF
+```
+
+`gpu-tenant` arbitrates the GPU and nothing arbitrates the CPU, so this is the only guard there is.
+
 ## Which host runs what (measured 2026-11-25)
 
 **Three hosts can run the editor suite. One of them was doing all the work.**

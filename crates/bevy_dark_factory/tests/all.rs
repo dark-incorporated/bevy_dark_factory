@@ -68,6 +68,7 @@ mod shift_primary_j_maximises_the_terminal;
 mod the_agent_and_the_decision_model_share_one_place;
 mod the_agent_workspace_takes_a_change_back_from_its_row;
 mod the_agent_query_reaches_the_widgets;
+mod the_state_reports_the_rects;
 mod the_checks_view_follows_the_project_index;
 mod the_commands_never_order_a_destructive_git;
 mod the_data_view_follows_the_project_index;

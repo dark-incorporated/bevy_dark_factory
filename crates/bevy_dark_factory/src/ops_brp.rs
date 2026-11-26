@@ -781,6 +781,43 @@ fn frame_busy_end(mut busy: ResMut<FrameBusy>) {
     }
 }
 
+/// **The viewport's rect and the window's, in logical px** (#665).
+///
+/// `viewport` is the `ComputedNode` of the node carrying [`crate::chrome::ViewportSlot`] — the hole
+/// `surface::fit_viewport_to_frame` hands the map camera — and `window` is the largest laid-out node
+/// that is not a viewport, which in this shell is the root the window sized. Both are `[x, y, w, h]`
+/// with the origin at the window's top left, and both are `null` before the first layout.
+/// **The two rectangles behind the art's share of the window**, from the nodes' own numbers (#665).
+///
+/// `rect` is the shape every other state field uses: `[x, y, w, h]` in logical px, or `null` before the
+/// first layout so a caller can tell "not laid out yet" from "zero".
+/// **One node's rect in logical px**: where its top-left is drawn, and how big it is.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct NodeRect {
+    pub x: f32,
+    pub y: f32,
+    pub w: f32,
+    pub h: f32,
+}
+
+pub fn the_rects(viewport: Option<NodeRect>, window: Option<NodeRect>) -> serde_json::Value {
+    let at = |r: Option<NodeRect>| {
+        r.map_or(serde_json::Value::Null, |r| json!([r.x, r.y, r.w, r.h]))
+    };
+    json!({"viewport": at(viewport), "window": at(window)})
+}
+
+/// **One node's rect in logical px** — its laid-out size and where its top-left is drawn.
+///
+/// `UiGlobalTransform` carries the translation, not `ComputedNode`: it reflects as the affine
+/// `[a, b, c, d, tx, ty]`, so `translation` is the node's top-left in physical px.
+pub fn node_rect(node: &ComputedNode, at: &bevy::ui::UiGlobalTransform) -> NodeRect {
+    let scale = node.inverse_scale_factor();
+    let size = node.size() * scale;
+    let top_left = at.translation * scale;
+    NodeRect { x: top_left.x, y: top_left.y, w: size.x, h: size.y }
+}
+
 /// The `frame` section of `blueprint/state`: nulls until a frame has been measured.
 fn frame_json(
     store: Option<&bevy::diagnostic::DiagnosticsStore>,
@@ -1291,6 +1328,12 @@ fn editor_state(
     // field above answers "which screen" and never the pane's own state — #598 measured a drive that pressed
     // the chord three times and learned nothing, because nothing in this answer named the pane.
     terminal: Option<Res<crate::terminal::Terminal>>,
+    // **Where the art is, and how big the window is** (#665). Both are the editor's own laid-out
+    // nodes: `chrome::ViewportSlot`'s `ComputedNode` is the hole the map camera draws through, and
+    // the primary window's `ComputedNode` is what `surface::fit_viewport_to_frame` sized it from. An
+    // agent reading *"the art is 32% of the window"* needs the two numbers, and without them it has
+    // only a picture to guess from.
+    rects: Query<(&ComputedNode, &bevy::ui::UiGlobalTransform, Has<crate::chrome::ViewportSlot>)>,
     // **The preview's clock** (#282): what the crate is actually told the hour is, and what the
     // scrubber asked for. The two are separate on purpose — the changelog line says the scrubber
     // "holds the preview at an hour of day", and the only way to tell whether the preview follows is
@@ -1302,6 +1345,23 @@ fn editor_state(
     let Loaded { project, open, game, reloads, live, diagnostics, busy, profiler, files, session, style_proposals } = loaded;
     // **Is the workbench the screen?** Read once, because two fields ask it: `screen` names the screen and
     // `mode` only means anything while this holds (#601).
+    // **The viewport is the marked node; the window is the widest unmarked one** — the root the shell
+    // is sized from, and no dock is ever wider than it, so a max by width finds it without a marker.
+    // Computed here rather than inside `json!`: that macro's parser reads a `>` in a type annotation as
+    // a comparison and refuses the whole object (#665).
+    let (viewport_rect, window_rect) = {
+        let mut viewport: Option<NodeRect> = None;
+        let mut window: Option<NodeRect> = None;
+        for (node, at, is_viewport) in rects.iter() {
+            let r = node_rect(node, at);
+            if is_viewport {
+                viewport = Some(r);
+            } else if window.is_none() || r.w > window.expect("just checked").w {
+                window = Some(r);
+            }
+        }
+        (viewport, window)
+    };
     let workbench = screen.as_ref().is_some_and(|s| *s.get() == crate::screen::Screen::Editor);
     // **The agent's presentation, and the person's answer to it** (S1.7). `None` until an agent
     // presents something; then an object whose `answer` is `null` while the question is up. This is
@@ -1579,6 +1639,11 @@ fn editor_state(
         // the editor wrote on the person's Keep, and `discarded` that the person dropped it. **No text of a page**: only names, paths and numbers.
         "style_proposals": style_proposals.as_deref().map(|s| s.state_json()).unwrap_or(Value::Null),
         "frame": frame_json(diagnostics.as_deref(), busy.as_deref(), profiler.as_deref()),
+        // **The two rectangles behind the art's share of the window** (#665). An agent asking
+        // *"is the art most of the screen"* had to `world.query` for `Camera` and `ComputedNode`
+        // to find out, which is the gap this closes. Logical px, from the laid-out nodes; `None`
+        // before the first layout, so a caller can tell "not laid out yet" from "zero".
+        "rects": the_rects(viewport_rect, window_rect),
         // **The game's verdict on the last reload** (S3.5): null, "pending", or {ok, message, at_unix_ms}.
         "game": game.as_deref().map_or(Value::Null, |g| g.state_json(open.as_ref().map(|o| o.map_path.as_path()))),
         // **The editor's own verdicts** on the files it watches and draws (#200, H3): `{ok, seq, kinds}`,
