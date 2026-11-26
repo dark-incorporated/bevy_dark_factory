@@ -32,6 +32,7 @@ import json
 import os
 import re
 import shutil
+import concurrent.futures
 import subprocess
 import sys
 import tempfile
@@ -94,6 +95,25 @@ def probe_seconds(path):
 
 
 # --- clip -----------------------------------------------------------------------------------------
+
+def probe_seconds_each(paths):
+    """**The same answer for many files, `ffprobe` run beside itself** (#675).
+
+    `ffprobe` takes one file per process and there is no batch mode, so the cost of 160 of them is 160
+    process starts -- measured on big as **7.1 s of the gate's 7.8 s changelog step**, which is a third of
+    clippy for a check nobody sees in `gate.log`. They are independent reads, so they run concurrently;
+    the answer for each file is the same function's, and a refusal is still a refusal.
+    """
+    if not paths:
+        return {}
+    workers = min(16, len(paths))
+    with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as pool:
+        futures = {pool.submit(probe_seconds, path): path for path in paths}
+        out = {}
+        for future in concurrent.futures.as_completed(futures):
+            out[futures[future]] = future.result()
+        return out
+
 
 def encode(source_args, out, crf, seek, duration, pre=""):
     scale = pre + "scale='min({w},iw)':-2:flags=lanczos,format=yuv420p".format(w=MAX_WIDTH)
@@ -335,6 +355,15 @@ def check(repo, since=None):
     if names and subprocess.run(["git", "lfs", "version"], stdout=subprocess.PIPE,
                                 stderr=subprocess.PIPE).returncode != 0:
         problems.append("git-lfs is not installed: a clip committed now would go into git itself")
+    # **Every clip's duration, measured once and concurrently** (#675): `ffprobe` has no batch mode, and
+    # 160 serial process starts were 7.1 s of this check's 7.8 s.
+    seconds_of = probe_seconds_each(
+        [
+            os.path.join(repo, "{}/{}".format(MEDIA_DIR, name))
+            for name in names
+            if name.endswith(".mp4")
+        ]
+    )
     for name in names:
         rel = "{}/{}".format(MEDIA_DIR, name)
         path = os.path.join(repo, rel)
@@ -346,7 +375,7 @@ def check(repo, since=None):
             size = os.path.getsize(path)
             if size > MAX_BYTES:
                 problems.append("{}: {:.2f} MB, over the {:.0f} MB cap".format(rel, size / 1048576.0, MAX_BYTES / 1048576.0))
-            seconds = probe_seconds(path)
+            seconds = seconds_of[path]
             if seconds > MAX_SECONDS + 0.5:
                 problems.append("{}: {:.1f} s, over the {:.0f} s cap".format(rel, seconds, MAX_SECONDS))
             if not os.path.isfile(os.path.splitext(path)[0] + ".png"):
