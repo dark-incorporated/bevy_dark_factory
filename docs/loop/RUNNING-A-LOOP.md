@@ -275,6 +275,22 @@ git config filter.lfs.smudge cat
 git config filter.lfs.process ""
 ```
 
+**What the big_mac workaround costs (measured 2026-11-25): exactly two tests.**
+
+`GIT_LFS_SKIP_SMUDGE=1` leaves `docs/changelog/media/**` as pointer files, and
+`bevy_oracle/tests/support/smoke_request.rs` reads one of them as its public image
+(`docs/changelog/media/2026-10-24-S1.5.png`). Both fail on a skipped-smudge clone and pass with real LFS data:
+
+```
+bevy_oracle::openrouter an_lfs_pointer_is_recognised_and_is_not_the_recorded_image
+bevy_oracle::openrouter the_recorded_openrouter_exchange_replays_with_no_network
+```
+
+The first is literally `assert!(!is_lfs_pointer(public_image_path()))`, so it *cannot* pass on a pointer-only
+checkout. Big's Linux gate has `git-lfs` and is authoritative for those two; a big_mac run's `3 failed` there
+means "2 LFS + 1 real" and the real one is the count that matters. Do not report a big_mac run as green without
+subtracting these, and do not delete or re-point the test to make them pass.
+
 **Two rules from breaking this, both worth more than the time they cost:**
 
 1. **A loop's clone is read-only.** `big_mac:~/dark-incorporated/bevy_dark_factory` is a loop clone with its
