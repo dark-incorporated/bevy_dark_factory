@@ -524,10 +524,10 @@ fn still_unchecked() -> BTreeSet<&'static str> {
         if trimmed.starts_with("//") || trimmed.is_empty() {
             continue;
         }
-        if let Some(rest) = trimmed.strip_prefix('"') {
-            if let Some(id) = rest.split('"').next() {
-                ids.insert(id);
-            }
+        if let Some(rest) = trimmed.strip_prefix('"')
+            && let Some(id) = rest.split('"').next()
+        {
+            ids.insert(id);
         }
     }
     assert!(!ids.is_empty(), "no ids were read from `STILL_UNCHECKED`");
@@ -925,7 +925,7 @@ fn the_keys_pages_works_when_words_are_the_legends() {
         // word for what it is not.
         if let Some(excluded) = tail.strip_prefix("but not while ") {
             let as_a_legend_word = format!("While {excluded}");
-            if !legend.iter().any(|word| *word == as_a_legend_word) {
+            if !legend.contains(&as_a_legend_word) {
                 undefined.push(format!(
                     "line {}: `{when}` excludes `{excluded}`, and the legend defines no `{as_a_legend_word}`",
                     index + 1
