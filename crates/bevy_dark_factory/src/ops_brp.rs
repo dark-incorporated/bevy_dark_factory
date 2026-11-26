@@ -791,8 +791,19 @@ fn frame_busy_end(mut busy: ResMut<FrameBusy>) {
 ///
 /// `rect` is the shape every other state field uses: `[x, y, w, h]` in logical px, or `null` before the
 /// first layout so a caller can tell "not laid out yet" from "zero".
-pub fn the_rects(viewport: Option<[f32; 4]>, window: Option<[f32; 4]>) -> serde_json::Value {
-    let at = |r: Option<[f32; 4]>| r.map_or(serde_json::Value::Null, |[x, y, w, h]| json!([x, y, w, h]));
+/// **One node's rect in logical px**: where its top-left is drawn, and how big it is.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct NodeRect {
+    pub x: f32,
+    pub y: f32,
+    pub w: f32,
+    pub h: f32,
+}
+
+pub fn the_rects(viewport: Option<NodeRect>, window: Option<NodeRect>) -> serde_json::Value {
+    let at = |r: Option<NodeRect>| {
+        r.map_or(serde_json::Value::Null, |r| json!([r.x, r.y, r.w, r.h]))
+    };
     json!({"viewport": at(viewport), "window": at(window)})
 }
 
@@ -800,12 +811,11 @@ pub fn the_rects(viewport: Option<[f32; 4]>, window: Option<[f32; 4]>) -> serde_
 ///
 /// `UiGlobalTransform` carries the translation, not `ComputedNode`: it reflects as the affine
 /// `[a, b, c, d, tx, ty]`, so `translation` is the node's top-left in physical px.
-pub fn node_rect(node: &ComputedNode, at: &bevy::ui::UiGlobalTransform) -> [f32; 4] {
+pub fn node_rect(node: &ComputedNode, at: &bevy::ui::UiGlobalTransform) -> NodeRect {
     let scale = node.inverse_scale_factor();
     let size = node.size() * scale;
     let top_left = at.translation * scale;
-    [top_left.x, top_left.y, size.x, size.y]
-}
+    NodeRect { x: top_left.x, y: top_left.y, w: size.x, h: size.y }
 }
 
 /// The `frame` section of `blueprint/state`: nulls until a frame has been measured.
@@ -1335,6 +1345,23 @@ fn editor_state(
     let Loaded { project, open, game, reloads, live, diagnostics, busy, profiler, files, session, style_proposals } = loaded;
     // **Is the workbench the screen?** Read once, because two fields ask it: `screen` names the screen and
     // `mode` only means anything while this holds (#601).
+    // **The viewport is the marked node; the window is the widest unmarked one** — the root the shell
+    // is sized from, and no dock is ever wider than it, so a max by width finds it without a marker.
+    // Computed here rather than inside `json!`: that macro's parser reads a `>` in a type annotation as
+    // a comparison and refuses the whole object (#665).
+    let (viewport_rect, window_rect) = {
+        let mut viewport: Option<NodeRect> = None;
+        let mut window: Option<NodeRect> = None;
+        for (node, at, is_viewport) in rects.iter() {
+            let r = node_rect(node, at);
+            if is_viewport {
+                viewport = Some(r);
+            } else if window.map_or(true, |widest| r.w > widest.w) {
+                window = Some(r);
+            }
+        }
+        (viewport, window)
+    };
     let workbench = screen.as_ref().is_some_and(|s| *s.get() == crate::screen::Screen::Editor);
     // **The agent's presentation, and the person's answer to it** (S1.7). `None` until an agent
     // presents something; then an object whose `answer` is `null` while the question is up. This is
@@ -1616,21 +1643,7 @@ fn editor_state(
         // *"is the art most of the screen"* had to `world.query` for `Camera` and `ComputedNode`
         // to find out, which is the gap this closes. Logical px, from the laid-out nodes; `None`
         // before the first layout, so a caller can tell "not laid out yet" from "zero".
-        "rects": {
-            // **The viewport is the marked node; the window is the widest unmarked one** — the root the
-            // shell is sized from, and no dock is ever wider than it, so a max by width finds it.
-            let mut viewport = None;
-            let mut window: Option<([f32; 4], f32)> = None;
-            for (node, at, is_viewport) in rects.iter() {
-                let r = node_rect(node, at);
-                if is_viewport {
-                    viewport = Some(r);
-                } else if window.is_none_or(|(_, w)| r[2] > w) {
-                    window = Some((r, r[2]));
-                }
-            }
-            the_rects(viewport, window.map(|(r, _)| r))
-        },
+        "rects": the_rects(viewport_rect, window_rect),
         // **The game's verdict on the last reload** (S3.5): null, "pending", or {ok, message, at_unix_ms}.
         "game": game.as_deref().map_or(Value::Null, |g| g.state_json(open.as_ref().map(|o| o.map_path.as_path()))),
         // **The editor's own verdicts** on the files it watches and draws (#200, H3): `{ok, seq, kinds}`,

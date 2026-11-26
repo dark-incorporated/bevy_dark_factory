@@ -12,7 +12,7 @@
 use bevy::prelude::*;
 use bevy::ui::{ComputedNode, UiGlobalTransform};
 use bevy_dark_factory::chrome::ViewportSlot;
-use bevy_dark_factory::ops_brp::{node_rect, the_rects};
+use bevy_dark_factory::ops_brp::{node_rect, the_rects, NodeRect};
 
 /// **A laid-out app**: one root the width of a window, and one `ViewportSlot` inside it.
 ///
@@ -60,7 +60,7 @@ fn the_state_reports_the_viewport_and_the_window() {
     // answer. A test has no socket to call `editor_state` over, so the parts that decide the numbers are
     // exercised directly and the only untested line is the one that forwards them.
     let (viewport_rect, window_rect) = {
-        let world = app.world();
+        let world = app.world_mut();
         let viewport = world
             .query::<(&ComputedNode, &UiGlobalTransform, Has<ViewportSlot>)>()
             .iter(world)
@@ -72,7 +72,7 @@ fn the_state_reports_the_viewport_and_the_window() {
             .iter(world)
             .filter(|(_, _, is_viewport)| !*is_viewport)
             .map(|(node, at, _)| node_rect(node, at))
-            .max_by(|a, b| a[2].partial_cmp(&b[2]).expect("finite widths"))
+            .max_by(|a, b| a.w.partial_cmp(&b.w).expect("finite widths"))
             .expect("a root is laid out");
         (viewport, window)
     };
@@ -115,16 +115,16 @@ fn a_dock_is_not_reported_as_the_window() {
     app.update();
 
     let window_rect = {
-        let world = app.world();
+        let world = app.world_mut();
         world
             .query::<(&ComputedNode, &UiGlobalTransform, Has<ViewportSlot>)>()
             .iter(world)
             .filter(|(_, _, is_viewport)| !*is_viewport)
             .map(|(node, at, _)| node_rect(node, at))
-            .max_by(|a, b| a[2].partial_cmp(&b[2]).expect("finite widths"))
+            .max_by(|a, b| a.w.partial_cmp(&b.w).expect("finite widths"))
             .expect("a root is laid out")
     };
-    let section = the_rects(Some([485.0, 153.0, 810.0, 638.0]), Some(window_rect));
+    let section = the_rects(Some(NodeRect { x: 485.0, y: 153.0, w: 810.0, h: 638.0 }), Some(window_rect));
     assert_eq!(
         section["window"],
         serde_json::json!([0.0, 0.0, 1600.0, 1000.0]),
