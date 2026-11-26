@@ -45,7 +45,6 @@ const FRAME_S: f32 = 1.0 / 60.0;
 const WINDOW_PX: (u32, u32) = (1280, 720);
 /// WCAG AA for text, as a ratio of luminances (1.4.3).
 const AA: f32 = bevy_gooey::TEXT_CONTRAST;
-const THEMES: [Theme; 3] = [Theme::ToolDark, Theme::Parchment, Theme::HighContrast];
 
 
 
