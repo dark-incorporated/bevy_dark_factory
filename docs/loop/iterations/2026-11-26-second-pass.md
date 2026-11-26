@@ -87,6 +87,38 @@ tools` is empty, so gating `acc26aab` proves the same suite for the tag's code.
 which is why the notes could not be pushed. Moved aside to `/tmp/fleet/corrupt-objects-20261126-*` (not deleted);
 git reads 57,323 objects again. This is what an unclean reboot leaves behind.
 
+## The lock that is not a lock: a shared `CARGO_TARGET_DIR` starves the gate
+
+Measured again from the other side today, and it cost about forty minutes of wall-clock across one gate run.
+
+Three workers and one gate were all pointed at `$HOME/.cargo-target-gate`. The heavy `flock` I give each cargo call
+does not help, because **cargo takes its own build-directory lock underneath it**:
+
+```
+pre-push gate: clippy and the test suite on c5d222aaa; this takes minutes
+    Blocking waiting for file lock on build directory
+```
+
+The gate held `big-heavy.lock` and sat idle while a worker's `cargo nextest` owned the directory. Both were
+"running"; neither was compiling. The `flock` wrapper rations *memory* — it serialises compiles so two Bevy builds
+cannot drive the host into swap — but a shared `CARGO_TARGET_DIR` serialises them again inside cargo, where no
+wrapper can see it and neither party can report it.
+
+**The rule, now in the briefs:** one `CARGO_TARGET_DIR` per role.
+
+| role | directory |
+|---|---|
+| the gate | `$HOME/.cargo-target-gate` |
+| a worker | `$HOME/.cargo-target-w<issue>` |
+| a person, or `rust-analyzer` | `$HOME/.cargo-target-shared/global` |
+
+The hook already diverts a caller who inherits `…-shared/global` into `…-gate` (line 37), so a person's push is
+safe. What it cannot fix is an agent that follows a brief naming `-gate` explicitly — which mine did. One cold
+build per role, paid once, against a stall that is unbounded and silent.
+
+**The lock is not the bug.** The gate holding `big-heavy.lock` exclusively is correct: it keeps a 5,200-test suite
+from racing a worker's compile for RAM. The shared directory is.
+
 ## Open
 
 **42 issues, 462 branches.** The fleet has been generating branches faster than they merge; that backlog, not any
