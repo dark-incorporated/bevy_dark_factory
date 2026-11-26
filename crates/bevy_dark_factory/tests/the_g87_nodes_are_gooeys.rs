@@ -29,6 +29,15 @@ fn px(v: Val) -> f32 {
     }
 }
 
+/// **A px measure a shipped sheet rule states**, by the rule's selector and the field on it: the number a test
+/// holds a node to is the sheet's, not a copy of it (#613).
+fn rule_px(selector: &str, field: impl Fn(&bevy_gooey::StyleDecl) -> Option<bevy_gooey::Extent>) -> f32 {
+    match bevy_dark_factory::style::shipped_rule(selector).and_then(|rule| field(&rule)) {
+        Some(bevy_gooey::Extent::Px(px)) => px,
+        other => panic!("the sheet's {selector} is a px measure, not {other:?}"),
+    }
+}
+
 /// **The frame's bars, strip, docks, viewport and body are gooey rows and columns with the raw nodes' numbers.**
 #[test]
 fn the_frame_is_gooey_rows_and_columns_with_the_numbers_it_had() {
@@ -36,10 +45,13 @@ fn the_frame_is_gooey_rows_and_columns_with_the_numbers_it_had() {
     let frame = app.world().resource::<Frame>();
     let node = |e: Entity| app.world().get::<Node>(e).unwrap_or_else(|| panic!("{e:?} has a Node"));
     let role = |e: Entity| app.world().get::<Role>(e).copied();
+    // **The bar's height is the sheet's `layout.bar_h`**, so a spacing change moves this test with the layout
+    // rather than against it (#613).
+    let bar_h = bevy_dark_factory::style::metrics().layout.bar_h;
     for (bar, border_bottom, border_top, what) in [(frame.chrome_bar, 1.0, 0.0, "the chrome bar"), (frame.status, 0.0, 1.0, "the status bar")] {
         assert_eq!(role(bar), Some(Role::Row), "{what} is a gooey row");
         let n = node(bar);
-        assert_eq!((n.width, n.height), (Val::Percent(100.0), Val::Px(26.0)), "{what} is the window wide and 26 px tall");
+        assert_eq!((n.width, n.height), (Val::Percent(100.0), Val::Px(bar_h)), "{what} is the window wide and {bar_h} px tall");
         assert_eq!((n.column_gap, n.flex_shrink, n.align_items), (Val::Px(16.0), 0.0, AlignItems::Center), "{what}: 16 px between its parts, never shrinking, centred");
         assert_eq!((px(n.padding.left), px(n.padding.right), n.padding.top), (12.0, 12.0, Val::ZERO), "{what} is 12 px in from each end");
         assert_eq!((px(n.border.bottom), px(n.border.top)), (border_bottom, border_top), "{what} has its 1 px edge on one side");
@@ -115,7 +127,13 @@ fn a_text_field_keeps_its_inset_its_floor_and_its_width() {
     }
     assert_eq!(app.world().get::<Role>(field), Some(&Role::Sized));
     let n = app.world().get::<Node>(field).expect("a Node");
-    assert_eq!((n.width, n.min_height, n.flex_shrink), (Val::Px(62.0), Val::Px(18.0), 0.0), "62 px wide, 18 px at least, never shrinking");
+    // **The field's width and floor are the sheet's**, `".chrome-field-number"` and `".chrome-field"` (#613), so
+    // a rule edit moves this test with the rule rather than against it.
+    let (wide, tall) = (
+        rule_px(".chrome-field-number", |rule| rule.width),
+        rule_px(".chrome-field", |rule| rule.min_height),
+    );
+    assert_eq!((n.width, n.min_height, n.flex_shrink), (Val::Px(wide), Val::Px(tall), 0.0), "{wide} px wide, {tall} px at least, never shrinking");
     assert_eq!((px(n.padding.left), px(n.padding.top)), (4.0, 2.0), "4 x 2 px in");
     assert_eq!(app.world().get::<BackgroundColor>(field).map(|b| b.0), Some(chrome::ink().row_bg), "in the editor's field colour");
 }

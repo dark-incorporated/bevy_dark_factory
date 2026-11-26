@@ -84,6 +84,13 @@ fn the_frames_regions_fit_the_window() {
     );
     // The viewport is "what is left", so it must be the widest of the three and hold a usable
     // share of the window rather than the sliver a content basis would give it.
+    //
+    // **The 0.5 is a design floor, not `metrics.layout.viewport_share`** (#613): measured at this
+    // window, the drawn viewport is 644 px of a 1280 px body, while `viewport_share` (0.52) promises
+    // 666. The share is what `fit_docks_to_the_window` *owes* the map before either dock gets more
+    // than its floor; here the docks are already inside their preferred widths, so what is left is
+    // less than the share and this test's floor is the weaker claim, "half of the body, at least".
+    // Deriving it from the share would make the assertion fail on the layout it is meant to accept.
     assert!(
         viewport.x >= body.x * 0.5,
         "the viewport is {} px of a {} px body: under half the window is left for the world",

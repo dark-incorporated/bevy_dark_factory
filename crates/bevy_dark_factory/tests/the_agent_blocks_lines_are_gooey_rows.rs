@@ -162,7 +162,13 @@ fn a_readouts_label_keeps_its_column_through_textflow() {
         q.iter(world).find(|(_, text)| text.0 == "HEARD").map(|(e, _)| e).expect("the NightShift block has its HEARD label")
     };
     let node = app.world().get::<Node>(label).expect("a label has a Node");
-    assert_eq!(node.min_width, Val::Px(58.0), "at least the readout label column (58 px) wide");
+    // **The column's floor is the sheet's**, `".editor-readout-label"`'s `min_width` (#613): the label is as wide
+    // as the sheet says, so a spacing change moves this with the rule rather than against it.
+    let column = match bevy_dark_factory::style::shipped_rule(".editor-readout-label").and_then(|rule| rule.min_width) {
+        Some(bevy_gooey::Extent::Px(px)) => px,
+        other => panic!("the sheet's readout-label column is a floor in px, not {other:?}"),
+    };
+    assert_eq!(node.min_width, Val::Px(column), "at least the readout label column ({column} px) wide");
     assert_eq!(node.flex_shrink, 0.0, "never shrunk");
     assert_eq!(node.margin.right, Val::Px(bevy_dark_factory::chrome::space(bevy_dark_factory::chrome::STEP_ROW)), "and a 5 px margin of its own");
     assert_eq!(app.world().get::<TextColor>(label).map(|c| c.0), Some(bevy_dark_factory::chrome::ink().label), "in the label ink");
