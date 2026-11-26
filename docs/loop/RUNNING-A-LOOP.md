@@ -249,6 +249,41 @@ Four things follow, and each cost this loop a gate:
    dies at 64%. The durable fix is a **disk-backed swap file** beside zram; the immediate one is a **reboot**, which
    clears zram. Both are the owner's, since big is shared — filed on #636 with the numbers.
 
+## Which host runs what (measured 2026-11-25)
+
+**Three hosts can run the editor suite. One of them was doing all the work.**
+
+| host | cores | typical load when idle | role |
+|---|---|---|---|
+| `big` | 24 | 70+ under this fleet | the only host with a display (Xvfb `:99`); I/O-bound, not CPU-bound |
+| `big_mac` | 10 | 2 | full suite proven: **5,207 tests in 564 s**, green |
+| `bmb` | 14 | 1 | has the repo and nextest; not yet used for a gate |
+
+Load 74 on 24 cores while `ps` accounts for only ~600% CPU is **I/O wait**, so adding cores to `big` was
+never the lever. Fanning one tree across two hosts is, and they can gate the *same* commit at once because
+they are different platforms — the arm64 run catches `Modifiers::PRIMARY`-class bugs that the Linux run
+cannot, and vice versa.
+
+**The thing that made the Macs look unusable, and is not real:** `git-lfs` is not installed on `big_mac`, and
+`filter.lfs.required=true` makes *any* checkout die with `git-lfs: command not found` — `worktree add`
+included. The only LFS paths are `docs/changelog/media/**`, which a cargo gate never reads. In the clone's own
+config (never a tracked file, never a check bypass):
+
+```sh
+git config filter.lfs.required false
+git config filter.lfs.smudge cat
+git config filter.lfs.process ""
+```
+
+**Two rules from breaking this, both worth more than the time they cost:**
+
+1. **A loop's clone is read-only.** `big_mac:~/dark-incorporated/bevy_dark_factory` is a loop clone with its
+   own commits (`b51bfd264`, `a72c70561`) that exist on no other host. A `git checkout --detach` there
+   half-failed and left 686 tracked files dirtied; restoring them took `git restore --source=HEAD` over the
+   modified list only, with the untracked build output left alone. Gate work goes in a worktree.
+2. **Never kill `nextest` by PID on a shared host.** Doing that took the real gate down with it
+   (`1117399 Killed`, then `error: Broken pipe`) because a hook re-execs itself and I matched the child.
+
 ## Two things that stop every gate, and neither is the code (measured 2026-11-25)
 
 Both hit in one session and both read as a hook failure rather than an environment one.
