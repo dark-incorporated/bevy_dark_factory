@@ -123,3 +123,46 @@ from racing a worker's compile for RAM. The shared directory is.
 
 **42 issues, 462 branches.** The fleet has been generating branches faster than they merge; that backlog, not any
 single defect, is now the work.
+
+## What the first gate-8 run found that no worker's report could
+
+Three branches merged clean to `e293d7d6`, and the gate refused at **clippy**, not at the suite:
+
+```
+error[E0382]: borrow of moved value: `panels`
+  --> crates/bevy_dark_factory/tests/a_panels_inset_follows_the_skins_density.rs:96
+```
+
+**#650's new 167-line density test had never compiled.** `for panel in panels` moved the `Vec<Entity>` and two
+later uses read `panels.len()`. Three more errors followed it: two `world.get(panel)` calls in that function needed
+`*panel` once it iterated by reference, and one needed *not* to, because the file's second function iterates by
+value — a blanket replace broke it. Then a redundant `left` format argument that clippy counted twice.
+
+Every one of those is invisible to a worker whose runs were all OOM-killed before reaching the compile. The gate is
+not a formality that confirms a report; it is the first thing that looks at the tree.
+
+## Four failures that are not four regressions
+
+The earlier `big_mac` run of main + #645 produced four `bevy_dark_factory::editor` failures. Each passes alone on
+the same tree, and `g91` passes on the *baseline* too (`4 tests run: 4 passed`, `67c343d3`):
+
+```
+an_unknown_key_is_a_diagnostic        PASS [6.495s]  (suite: FAIL)
+the_g91_the_pane_root_and_the_agent_card  PASS 4/4    (suite: FAIL, and PASS on baseline)
+the_plan_panel_lists_the_agents_steps     PASS        (suite: FAIL)
+the_reference_view_follows_the_project    PASS        (suite: FAIL)
+```
+
+Two are `a Node` panics — an `expect("a Node")` on a component that was not yet there under suite load and is there
+when the test runs alone. This is #580's fault, measured again: 7 refused pushes, 2 h 59 m re-earned. The three-test
+run above is the settling retry, and it took **9 minutes of compiles to answer a 3-second question**.
+
+## A gate on a second host is not the same gate
+
+I moved a run to `big_mac` because `big` sat at load 42. `big_mac` has **no `git-lfs`**, so two
+`bevy_oracle::openrouter` tests failed — `an_lfs_pointer_is_recognised_and_is_not_the_recorded_image` and the
+recorded-exchange replay — because the image fixtures there are un-smudged pointers. Both tests were right: one
+exists to refuse a pointer. `big` has `git-lfs 3.8.1` and passes them.
+
+So a refusal from `big_mac` means "this host cannot supply a fixture", never "this patch is wrong". A gate that
+runs anywhere but `big` needs that written in its log.
