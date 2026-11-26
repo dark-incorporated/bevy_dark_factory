@@ -432,3 +432,5 @@ impl bevy::prelude::Plugin for AudioPanelPlugin {
         );
     }
 }
+
+fn deliberate_compile_error() -> u32 { "not a number" }
