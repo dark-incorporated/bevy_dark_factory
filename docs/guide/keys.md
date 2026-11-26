@@ -66,6 +66,8 @@ These keys work in every workspace.
 | `Cmd+J` | Any time | Cycle the terminal through its three positions, in the owner's order: maximised, then collapsed, then a quarter of the window at the bottom, and round again (`Ctrl+J` elsewhere). It starts collapsed; the status band's **Terminal Cmd+J** label does the same, and its tooltip says what the next press will do. |
 | `Cmd+Backquote` | Any time | Raise or lower the terminal pane, without changing which of its three positions it is in. `Shift+Cmd+Backquote` closes the tab instead. |
 | `Shift+Cmd+J` | Any time | Make the terminal cover the whole window below the menu bar from whichever of the three positions it is in (`Shift+Ctrl+J` elsewhere; View ▸ Maximise terminal). From full, it gives back the height. |
+| `Shift+Cmd+K` | Any time | Clear the terminal (`Shift+Ctrl+K` elsewhere). Not plain `Cmd+K`, which is the command palette on both platforms: `Modifiers::PRIMARY` is `Cmd` on a Mac and `Ctrl` elsewhere, so a clear on plain `Ctrl+K` would run the palette as well. |
+| `Shift+Cmd+Backquote` | Any time | Close the terminal's active tab, keeping the shell alive in the list. |
 | `Cmd+P` | Any time | Go to anything: one finder over everything the project names. `>` first searches commands. |
 | `Cmd+[` / `Cmd+]` | Any time | Back and forward across workspaces and camera positions, up to 100 places (the mouse's back and forward buttons do the same). |
 | `Cmd+W` | Any time | Close the active document tab (`Ctrl+W` elsewhere). `Shift+Cmd+T` opens the one you closed last. |
