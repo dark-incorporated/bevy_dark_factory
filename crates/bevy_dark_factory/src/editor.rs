@@ -7907,7 +7907,7 @@ fn draw_map_grid(
 /// **The map's envelope in world space** — centre, then size.
 ///
 /// Extracted so the wireframe an author sees and the box the camera frames are computed from one
-/// expression. Its two consumers are [`crate::view::depth_range_over`] and [`draw_bounds`]; if the
+/// expression. Its two consumers are [`crate::view::depth_range_over`] and `draw_bounds`; if the
 /// two ever disagreed, the map would be framed against a box that is not where the map is.
 pub fn map_bounds(open: &OpenMap) -> (Vec3, Vec3) {
     // `floor_rect` is the floor PLAN — map space, centred on zero. Drawing happens in the world, so

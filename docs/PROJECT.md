@@ -2,7 +2,7 @@
 
 An outside-in description of the project. **The snapshot's numbers were measured on 2026-11-15 at commit `198b82ae` (2,055 commits)**, and every one of them can be re-counted at that commit with the command named beside it; the tool count is today's and a test re-counts it on every build (below). Where a sentence is a judgement and not a count it says so. It is the one page that lists what does not work.
 
-**Which numbers are live.** The tool count — in §3, in the crate table, in §4 and in §8 — is re-counted on every build by `dark_factory_mcp`'s `every_document_states_the_servers_tool_count`, so it cannot drift, and the operation counts are re-counted by `the_documents_state_the_codes_own_counts`. Every other number is the snapshot's, counted at `198b82ae` where the sentence says so: the line counts in §3 and §6 and the test-file count in §3 and §8 are that commit's, and today's are larger.
+**Which numbers are live.** The tool count — in §3, in the crate table, in §4 and in §8 — is re-counted on every build by `dark_factory_mcp`'s `every_document_states_the_servers_tool_count`, so it cannot drift, and the operation counts are re-counted by `the_documents_state_the_codes_own_counts`. Every other number is the snapshot's, counted at `198b82ae` where the sentence says so: the line counts in §3 and §6 and the test-file count in §3 and §8 are that commit's, and today's are larger. The `Open issues` row is not a number of either kind: it is a live GitHub query and the row links to it.
 
 The names: the editor is the Dark Factory (this repository, `bevy_dark_factory`). Its binary and crates are named for it in snake_case (`bevy_dark_factory`, `dark_factory_mcp`); its earlier name was the Cauldron. What it writes and a game loads is still a blueprint (`bevy_blueprint*`, `assets/blueprint/`).
 
@@ -93,7 +93,7 @@ This is the section to read if you are reading someone else's project.
 
 ### Structural problems
 
-**1. The editor crate is enormous and unaudited.** `bevy_dark_factory` is 294,204 lines of Rust with its tests, as counted at `198b82ae` (343,045 today), written by AI agents working from a human's direction (the Vibe Coded banner on the README says so). It is covered by tests, and the tests are good, but a test suite proves the properties someone thought to assert, not that the code is comprehensible to the next person.
+**1. The editor crate is enormous and unaudited.** `bevy_dark_factory` is 294,204 lines of Rust with its tests, as counted at `198b82ae`, written by AI agents working from a human's direction (the Vibe Coded banner on the README says so). It is covered by tests, and the tests are good, but a test suite proves the properties someone thought to assert, not that the code is comprehensible to the next person.
 
 **2. Two copies of each tool's parameters.** The MCP server cannot depend on the editor crate (it is the bridge's client), so each tool's parameter struct in `dark_factory_mcp` and the editor's own in `bevy_dark_factory::ops_brp` are separate and kept in step by a hand-written `json!` body. They drifted once (B-052, a `turn` field accepted by the server and never sent) and the fix is a source-text ratchet, `a_tools_body_names_every_field`, which catches the drift and does not remove the duplication. A shared parameters crate would.
 
@@ -131,6 +131,6 @@ This is the section to read if you are reading someone else's project.
 | Test files (at `198b82ae`) | 844 under `crates/*/tests/` |
 | Published | `bevy_blueprint`, `_core`, `_solver`, `_rng`, `_anim`, `_rhai` and `_snip` on crates.io; what `blueprint_model` 0.12 removed (the `references` module and `trust::GuideGrant`) is under "Upgrading from 0.11" in [its README](https://github.com/dark-incorporated/bevy_dark_factory/blob/main/crates/blueprint_model/README.md) |
 | Editor release | the macOS app, on the [releases](https://github.com/dark-incorporated/bevy_dark_factory/releases) page |
-| Open issues | 7 |
+| Open issues | a GitHub query, not a snapshot number: [`gh issue list --state open`](https://github.com/dark-incorporated/bevy_dark_factory/issues). It changes when anyone files or closes one, so it is not counted at a commit and no row here can keep it. |
 
-It runs, a game can load what it writes, and an agent can drive it end to end from the shipped guide alone. It also has an unaudited 343,000-line editor at its centre and a review process that is a model reading a diff. Both are true at once, and a document that said only one of them would be lying.
+It runs, a game can load what it writes, and an agent can drive it end to end from the shipped guide alone. It also has an unaudited 294,204-line editor at its centre, as counted at `198b82ae`, and a review process that is a model reading a diff. Both are true at once, and a document that said only one of them would be lying.

@@ -52,12 +52,119 @@ rigs:
       note: cipher_jog
 ";
 
-fn editor(tag: &str) -> App {
+/// **A 4-slot rig draws one legend row per slot, and a 10-slot rig draws ten** (#676).
+///
+/// The issue measured "3 children for 4 slots" from the legend's own boxes and read that as a dropped slot.
+/// **It is not**: the legend is one row per slot (`anim_tab.rs:1470`'s `for (i, slot) in rig.slots.iter()`
+/// spawns a row and puts the cells in it), so a row's three children are `slot_cell`, `kind_cell` and the
+/// detail `Text` — a *Free* slot's row, and a gait's has a fourth, the skip chip. The count that says whether a
+/// slot is dropped is the number of legend **rows** against the number of slots, and nothing counted it.
+///
+/// So this counts both: the rows the parser's own rig produced against `slots.len()`, and the rows the legend
+/// drew. A ten-slot rig is the second case because `anim_tab.rs:1505`'s own comment names it — the old fixed
+/// pixel column wrapped `"0 - clip 14"` onto two lines and made "a ten-slot rig unreadable".
+#[test]
+fn a_rig_draws_one_legend_row_per_slot() {
+    for slots in [4usize, 10] {
+        let mut app = editor(&format!("count{slots}"), &rigs_with(slots));
+        app.world_mut().insert_resource(Mode::Anim);
+        settle_support::settle(&mut app);
+
+        // **What the parser made of the file**, which is the other half of "a slot went missing": a bad fixture
+        // would fail here and not in the legend. The bench holds the parsed manifest it read from
+        // `rigs.yaml`, so this reads the same value the tab draws from.
+        let parsed = {
+            let bench = app.world().resource::<bevy_dark_factory::anim_tab::BenchState>();
+            bench.rigs.as_ref().and_then(|rigs| rigs.rigs.get("hound")).map(|rig| rig.slots.len())
+        };
+        assert_eq!(
+            parsed,
+            Some(slots),
+            "the fixture declares {slots} slot(s) and the bench parsed {parsed:?} — a fixture fault, not a \
+             legend one"
+        );
+
+        let rows = legend_rows(&mut app);
+        assert_eq!(
+            rows.len(),
+            slots,
+            "**the rig declares {slots} slot(s) and the PLOTS legend drew {} row(s)** (#676). The legend spawns \
+             one row per slot, so a short count is a slot the person cannot see.",
+            rows.len()
+        );
+        // **And every row is reachable as its own slot**: the first cell of row `i` reads `"{i} - clip {n}"`.
+        for (i, row) in rows.iter().enumerate() {
+            let world = app.world();
+            let first = world
+                .get::<Children>(*row)
+                .and_then(|kids| kids.iter().next())
+                .expect("a legend row's first child is its slot cell");
+            let label = world.get::<Children>(first).and_then(|kids| kids.iter().next());
+            let text = label.and_then(|cell| world.get::<Text>(cell)).map(|t| t.0.clone()).unwrap_or_default();
+            assert!(
+                text.starts_with(&format!("{i} - clip ")),
+                "legend row {i} reads `{text}`, which is not slot {i}'s cell — a row is out of order or missing"
+            );
+        }
+    }
+}
+
+/// **The legend's rows**, in the order they were spawned: one `Row` per slot, each holding a cell whose text is
+/// `"<n> - clip <m>"`.
+fn legend_rows(app: &mut App) -> Vec<Entity> {
+    let world = app.world_mut();
+    let mut texts = world.query::<(Entity, &Text)>();
+    let cells: Vec<Entity> = texts
+        .iter(world)
+        .filter(|(_, text)| {
+            let t = text.0.as_str();
+            t.split_once(" - clip ").is_some_and(|(n, m)| n.parse::<usize>().is_ok() && m.parse::<usize>().is_ok())
+        })
+        .map(|(entity, _)| entity)
+        .collect();
+    let mut rows: Vec<Entity> = Vec::new();
+    for cell in cells {
+        // The cell's parent is the `cell` wrapper; the row is its parent.
+        let Some(cell_wrapper) = world.get::<ChildOf>(cell).map(|c| c.parent()) else { continue };
+        let Some(row) = world.get::<ChildOf>(cell_wrapper).map(|c| c.parent()) else { continue };
+        // **A row once**, by entity: `dedup` alone removes only neighbours, and the query's order is arbitrary.
+        if !rows.contains(&row) {
+            rows.push(row);
+        }
+    }
+    // **In slot order**, read from each row's own `"<n> - clip <m>"` cell, so the caller's `rows[i]` is slot
+    // `i` and a missing or doubled slot is what the length check sees.
+    rows.sort_by_key(|row| {
+        world
+            .get::<Children>(*row)
+            .and_then(|kids| kids.iter().next())
+            .and_then(|cell| world.get::<Children>(cell))
+            .and_then(|kids| kids.iter().next())
+            .and_then(|text| world.get::<Text>(text))
+            .and_then(|t| t.0.split_once(" - clip ").and_then(|(n, _)| n.parse::<usize>().ok()))
+            .unwrap_or(usize::MAX)
+    });
+    rows
+}
+
+/// **`rigs.yaml` with `slots` Free slots**, each a distinct clip index.
+fn rigs_with(slots: usize) -> String {
+    let mut out = String::from(
+        "version: 3\nrigs:\n  hound:\n    mesh: characters/hound.glb\n    scale: 1.0\n    slots:\n",
+    );
+    for clip in 0..slots {
+        out.push_str(&format!("    - clip: {clip}\n      playback: !Free\n        speed: 1.0\n      note: gait{clip}\n"));
+    }
+    out
+}
+
+/// **The bench, with `rigs` written where the Animation tab reads it.**
+fn editor(tag: &str, rigs: &str) -> App {
     let root = fixtures::Fixture::new(&format!("legend_wrap_{tag}_{}", std::process::id()))
         .descriptor("stool", "alpha")
         .place("stool", (0.0, 0.0))
         .build("m");
-    std::fs::write(root.join("assets/blueprint/rigs.yaml"), RIGS)
+    std::fs::write(root.join("assets/blueprint/rigs.yaml"), rigs)
         .unwrap_or_else(|e| panic!("rigs.yaml: {e}"));
     let mut app = harness::build_headless(&root, "m", None).unwrap_or_else(|e| panic!("{e}"));
     app.insert_resource(bevy::time::TimeUpdateStrategy::ManualDuration(std::time::Duration::from_secs_f64(
@@ -117,7 +224,7 @@ fn the_legends_row(app: &mut App) -> Option<Entity> {
 
 #[test]
 fn the_plots_legend_wraps_inside_its_panel() {
-    let mut app = editor("wrap");
+    let mut app = editor("wrap", RIGS);
     // The Animation workspace is where the legend lives; the clip finder is the test-side way in.
     app.world_mut().resource_mut::<Workspace>();
     assert_eq!(

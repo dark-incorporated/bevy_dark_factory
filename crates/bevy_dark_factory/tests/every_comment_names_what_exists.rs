@@ -44,42 +44,57 @@ fn files_under(dir: &Path, out: &mut Vec<PathBuf>) {
     }
 }
 
-/// **The dead names, assembled rather than spelled.**
+/// **The dead names, assembled rather than spelled, each with the live name a line may carry instead.**
 ///
 /// **A guard that greps for a word may not itself contain the word**, and this file lives under `crates/`,
 /// so the acceptance grep would find the guard. Each name is therefore built from its pieces, and the comment
 /// beside it says what it is.
-fn dead_names() -> Vec<String> {
+///
+/// **The second field is the `None`/`Some` split**: `None` is a name the tree must not carry at all, and
+/// `Some(live)` is a name that may appear only on a line that also names `live` — the `(This was X; it is Y
+/// now.)` shape `badges.rs` uses for `chrome::CensusRow`, which keeps the history and puts the reader within
+/// one name of the thing that exists.
+fn dead_names() -> Vec<(String, Option<&'static str>)> {
     vec![
         // The module that used to hold the persistence rule, folded into each format's own `parse`.
-        ["persist", "rs"].join("."),
+        (["persist", "rs"].join("."), None),
         // The 15-degree step, now `bevy_dark_factory::settings::ViewSettings::yaw_step_deg`.
-        ["YAW", "STEP"].join("_"),
+        (["YAW", "STEP"].join("_"), None),
         // The fixed pixel column, now the computed `anim_tab::slot_cell()`.
-        ["SLOT", "COL"].join("_"),
+        (["SLOT", "COL"].join("_"), None),
         // The placement system, which is `editor::drive_place`.
-        ["place", "on", "click"].join("_"),
+        (["place", "on", "click"].join("_"), None),
         // The map's writer, which is `Map::to_yaml`.
-        ["to", "ron"].join("_"),
+        (["to", "ron"].join("_"), None),
         // #652: `badges::ink()` collects UI rects; no world box is measured and dodged.
-        ["sense", "world", "ink"].join("_"),
+        (["sense", "world", "ink"].join("_"), None),
         // #652: the copy is `notice::harvest`.
-        ["collect", "text"].join("_"),
+        (["collect", "text"].join("_"), None),
         // #652: the advance is `compose::label_char_w()`, which reads `chrome::body_char_w()`.
-        ["LABEL", "CHAR", "W"].join("_"),
+        (["LABEL", "CHAR", "W"].join("_"), None),
         // #652: the containment rule is [`editor::brush_at`]'s; there is no `containment` module here.
-        ["containment", "::", "cordon"].join(""),
+        (["containment", "::", "cordon"].join(""), None),
         // #652: the ratchet is `keys::no_context_gains_a_key`.
-        ["no_context", "carries_more_than_a_learnable_vocabulary"].join("_"),
+        (["no_context", "carries_more_than_a_learnable_vocabulary"].join("_"), None),
         // #652: the system is `surface::fit_viewport_to_frame`. Matched whole, so that name does not fire.
-        ["fit", "viewport"].join("_"),
+        (["fit", "viewport"].join("_"), None),
+        // #658: the hold-`K` overlay is `badges::rebuild_badges` (clusters) and `badges::place_badges`
+        // (geometry); no system drives a shortcuts overlay of its own.
+        (["drive", "shortcuts", "overlay"].join("_"), Some("rebuild_badges")),
+        // #658: the key census is `keys::BINDINGS`/`keys::rows`, read by `badges::rebuild_badges`; there is no
+        // `chrome` function that counts keys.
+        (["key", "census"].join("_"), Some("BINDINGS")),
+        // #658: the row-lighting is `badges::flash_live_badges`; the rows became badges.
+        (["flash", "live", "rows"].join("_"), Some("flash_live_badges")),
     ]
 }
 
-/// **No dead name survives anywhere under `crates/`** (#591, #605, #606).
+/// **No dead name survives anywhere under `crates/`** (#591, #605, #606, #658).
 ///
-/// The five names are a closed list, not a heuristic: each one was a real citation the review found, and each
-/// has a replacement this test names in the failure. A new one belongs in [`dead_names`] with its own line.
+/// The list is closed, not a heuristic: each one was a real citation the review found, and each has a
+/// replacement this test names in the failure. A new one belongs in [`dead_names`] with its own line. A name
+/// whose entry carries a live counterpart may stand on a line that names that counterpart, which is how a
+/// comment keeps the history without sending a reader after a symbol that was never written.
 #[test]
 fn no_comment_names_a_symbol_the_tree_does_not_have() {
     let crates = root().join("crates");
@@ -98,7 +113,7 @@ fn no_comment_names_a_symbol_the_tree_does_not_have() {
         let Ok(text) = std::fs::read_to_string(file) else { continue };
         let shown = file.strip_prefix(root()).unwrap_or(file).display().to_string();
         for (n, line) in text.lines().enumerate() {
-            for name in &names {
+            for (name, live) in &names {
                 // **A name is matched whole**: the step's constant may not fire on `YAW_STEP_MAX_DEG`, which
                 // exists and is a different thing (the largest turn a person may set, not the step).
                 let mut from = 0;
@@ -106,7 +121,10 @@ fn no_comment_names_a_symbol_the_tree_does_not_have() {
                     let start = from + at;
                     let after = line[start + name.len()..].chars().next();
                     let whole = !after.is_some_and(|c| c.is_alphanumeric() || c == '_');
-                    if whole {
+                    // **The live name on the same line** is what makes the history a history: without it, a
+                    // reader who follows the old name to `chrome::` finds nothing.
+                    let paired = live.is_some_and(|live| line.contains(live));
+                    if whole && !paired {
                         found.push(format!("{shown}:{}: `{name}`", n + 1));
                     }
                     from = start + name.len();
@@ -119,7 +137,11 @@ fn no_comment_names_a_symbol_the_tree_does_not_have() {
         "**{} line(s) name something the tree does not have**. Where each one really lives, in the order \
          `dead_names` lists them: `blueprint_model::format_version` and each format's own `parse`/`validate`; \
          `settings::ViewSettings::yaw_step_deg` (15.0 by default); `anim_tab::slot_cell()`; \
-         `editor::drive_place`; `blueprint_model::map::Map::to_yaml` (#591, #605, #606):\n{}",
+         `editor::drive_place`; `blueprint_model::map::Map::to_yaml` (#591, #605, #606); \
+         `badges::ink()`; `notice::harvest`; `compose::label_char_w()`; `editor::brush_at`; \
+         `keys::no_context_gains_a_key`; `surface::fit_viewport_to_frame` (#652); \
+         `badges::rebuild_badges`/`badges::place_badges`, `keys::BINDINGS` and `badges::flash_live_badges` \
+         (#658):\n{}",
         found.len(),
         found.join("\n")
     );

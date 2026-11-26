@@ -30,8 +30,9 @@ in every issue you file; a review that changes no code never runs the gate.
 3. `docs/PROJECT.md`, `docs/guide/README.md`, `docs/design/*.md`, `docs/ui/*.md`, `docs/mcp-tools.md`: the
    architecture and guidance the review holds the code to. `AGENTS.md` says which crates and documents own
    which facts.
-4. `tools/loop/iterations/`: the fleet's own reports say what was measured recently and what was knowingly
-   left undone. A "finding" the last report already lists as a known limit is a **confirmation**, not a bug;
+4. `docs/loop/iterations/`: the fleet's own reports say what was measured recently and what was knowingly
+   left undone. One file per pass and release, named `<date>-<area>-<sha>.md`, plus the `*-review.md` this
+   command writes. A "finding" the last report already lists as a known limit is a **confirmation**, not a bug;
    file it only if the owner would act differently now.
 
 ## The eight lenses
