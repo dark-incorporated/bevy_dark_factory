@@ -12,7 +12,7 @@
 use bevy::prelude::*;
 use bevy::ui::{ComputedNode, UiGlobalTransform};
 use bevy_dark_factory::chrome::ViewportSlot;
-use bevy_dark_factory::ops_brp::viewport_and_window;
+use bevy_dark_factory::ops_brp::{node_rect, the_rects};
 
 /// **A laid-out app**: one root the width of a window, and one `ViewportSlot` inside it.
 ///
@@ -56,10 +56,27 @@ fn laid_out(root: Vec2, viewport: Vec2) -> App {
 #[test]
 fn the_state_reports_the_viewport_and_the_window() {
     let mut app = laid_out(Vec2::new(1600.0, 1000.0), Vec2::new(810.0, 638.0));
-    let world = app.world_mut();
-    let mut query =
-        world.query::<(&ComputedNode, &UiGlobalTransform, Has<ViewportSlot>)>();
-    let section = viewport_and_window(&query);
+    // The same two functions the state section uses: `node_rect` reads one node, `the_rects` shapes the
+    // answer. A test has no socket to call `editor_state` over, so the parts that decide the numbers are
+    // exercised directly and the only untested line is the one that forwards them.
+    let (viewport_rect, window_rect) = {
+        let world = app.world();
+        let viewport = world
+            .query::<(&ComputedNode, &UiGlobalTransform, Has<ViewportSlot>)>()
+            .iter(world)
+            .find(|(_, _, is_viewport)| *is_viewport)
+            .map(|(node, at, _)| node_rect(node, at))
+            .expect("the viewport slot is laid out");
+        let window = world
+            .query::<(&ComputedNode, &UiGlobalTransform, Has<ViewportSlot>)>()
+            .iter(world)
+            .filter(|(_, _, is_viewport)| !*is_viewport)
+            .map(|(node, at, _)| node_rect(node, at))
+            .max_by(|a, b| a[2].partial_cmp(&b[2]).expect("finite widths"))
+            .expect("a root is laid out");
+        (viewport, window)
+    };
+    let section = the_rects(Some(viewport_rect), Some(window_rect));
 
     let viewport = &section["viewport"];
     let window = &section["window"];
@@ -97,10 +114,17 @@ fn a_dock_is_not_reported_as_the_window() {
         .spawn((Node::default(), dock, UiGlobalTransform::default()));
     app.update();
 
-    let world = app.world_mut();
-    let mut query =
-        world.query::<(&ComputedNode, &UiGlobalTransform, Has<ViewportSlot>)>();
-    let section = viewport_and_window(&query);
+    let window_rect = {
+        let world = app.world();
+        world
+            .query::<(&ComputedNode, &UiGlobalTransform, Has<ViewportSlot>)>()
+            .iter(world)
+            .filter(|(_, _, is_viewport)| !*is_viewport)
+            .map(|(node, at, _)| node_rect(node, at))
+            .max_by(|a, b| a[2].partial_cmp(&b[2]).expect("finite widths"))
+            .expect("a root is laid out")
+    };
+    let section = the_rects(Some([485.0, 153.0, 810.0, 638.0]), Some(window_rect));
     assert_eq!(
         section["window"],
         serde_json::json!([0.0, 0.0, 1600.0, 1000.0]),

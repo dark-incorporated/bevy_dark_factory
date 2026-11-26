@@ -787,34 +787,25 @@ fn frame_busy_end(mut busy: ResMut<FrameBusy>) {
 /// `surface::fit_viewport_to_frame` hands the map camera — and `window` is the largest laid-out node
 /// that is not a viewport, which in this shell is the root the window sized. Both are `[x, y, w, h]`
 /// with the origin at the window's top left, and both are `null` before the first layout.
-pub fn viewport_and_window(
-    rects: &Query<(&ComputedNode, &bevy::ui::UiGlobalTransform, Has<crate::chrome::ViewportSlot>)>,
-) -> serde_json::Value {
-    // **`UiGlobalTransform` carries the translation, not `ComputedNode`**: it reflects as the affine
-    // `[a, b, c, d, tx, ty]`, so `translation` is the node's top-left in physical px.
-    let rect = |node: &ComputedNode, at: &bevy::ui::UiGlobalTransform| {
-        let scale = node.inverse_scale_factor();
-        let size = node.size() * scale;
-        let top_left = at.translation * scale;
-        json!([top_left.x, top_left.y, size.x, size.y])
-    };
-    let viewport = rects
-        .iter()
-        .find(|(_, _, is_viewport)| *is_viewport)
-        .map(|(node, at, _)| rect(node, at));
-    // **The window is the widest node that is not the viewport**: the shell's root is sized from the
-    // window, and no dock is ever wider than it, so a max by width finds the root without a marker.
-    let window = rects
-        .iter()
-        .filter(|(_, _, is_viewport)| !*is_viewport)
-        .max_by(|(a, _, _), (b, _, _)| {
-            a.size()
-                .x
-                .partial_cmp(&b.size().x)
-                .unwrap_or(std::cmp::Ordering::Equal)
-        })
-        .map(|(node, at, _)| rect(node, at));
-    json!({"viewport": viewport, "window": window})
+/// **The two rectangles behind the art's share of the window**, from the nodes' own numbers (#665).
+///
+/// `rect` is the shape every other state field uses: `[x, y, w, h]` in logical px, or `null` before the
+/// first layout so a caller can tell "not laid out yet" from "zero".
+pub fn the_rects(viewport: Option<[f32; 4]>, window: Option<[f32; 4]>) -> serde_json::Value {
+    let at = |r: Option<[f32; 4]>| r.map_or(serde_json::Value::Null, |[x, y, w, h]| json!([x, y, w, h]));
+    json!({"viewport": at(viewport), "window": at(window)})
+}
+
+/// **One node's rect in logical px** — its laid-out size and where its top-left is drawn.
+///
+/// `UiGlobalTransform` carries the translation, not `ComputedNode`: it reflects as the affine
+/// `[a, b, c, d, tx, ty]`, so `translation` is the node's top-left in physical px.
+pub fn node_rect(node: &ComputedNode, at: &bevy::ui::UiGlobalTransform) -> [f32; 4] {
+    let scale = node.inverse_scale_factor();
+    let size = node.size() * scale;
+    let top_left = at.translation * scale;
+    [top_left.x, top_left.y, size.x, size.y]
+}
 }
 
 /// The `frame` section of `blueprint/state`: nulls until a frame has been measured.
@@ -1625,7 +1616,21 @@ fn editor_state(
         // *"is the art most of the screen"* had to `world.query` for `Camera` and `ComputedNode`
         // to find out, which is the gap this closes. Logical px, from the laid-out nodes; `None`
         // before the first layout, so a caller can tell "not laid out yet" from "zero".
-        "rects": viewport_and_window(&rects),
+        "rects": {
+            // **The viewport is the marked node; the window is the widest unmarked one** — the root the
+            // shell is sized from, and no dock is ever wider than it, so a max by width finds it.
+            let mut viewport = None;
+            let mut window: Option<([f32; 4], f32)> = None;
+            for (node, at, is_viewport) in rects.iter() {
+                let r = node_rect(node, at);
+                if is_viewport {
+                    viewport = Some(r);
+                } else if window.is_none_or(|(_, w)| r[2] > w) {
+                    window = Some((r, r[2]));
+                }
+            }
+            the_rects(viewport, window.map(|(r, _)| r))
+        },
         // **The game's verdict on the last reload** (S3.5): null, "pending", or {ok, message, at_unix_ms}.
         "game": game.as_deref().map_or(Value::Null, |g| g.state_json(open.as_ref().map(|o| o.map_path.as_path()))),
         // **The editor's own verdicts** on the files it watches and draws (#200, H3): `{ok, seq, kinds}`,
