@@ -657,6 +657,108 @@ fn the_keys_page_names_every_chord_with_a_modifier() {
     );
 }
 
+/// **Every distinct "Works when" value on `docs/guide/keys.md` is a word its own legend defines** (#661).
+///
+/// The page's legend at the top of the page offers six words for the column, and nothing read the column: a
+/// row could invent a state word and every ratchet stayed green. Two had, and both read as near-misses of a
+/// word that *is* defined — `Not browsing tiles` for `While browsing tiles`, `No piece in hand` for
+/// `Nothing in hand` — which is worse than a typo, because the requirement is the opposite of the word it
+/// resembles. The eight `Not browsing tiles` rows are `Stances::AnyBut(Stance::Browsing)` and the one
+/// `No piece in hand` row is `AnyBut(Stance::Holding)`; `keys.rs` says outright that what those rows share
+/// "is not a stance", so a legend of five stances could never have described them.
+///
+/// **A value passes one of two ways**, which is the shape the acceptance asks for: it is a word the legend
+/// defines, or it is one of those words with an extra condition after a comma. An extra condition that says
+/// *which* stance a row excludes — `Any time, but not while browsing tiles` — must name a stance the legend
+/// defines, so a reader can look it up; any other must begin `when ` or `with ` and say what it adds.
+#[test]
+fn the_keys_pages_works_when_words_are_the_legends() {
+    let page = read("docs/guide/keys.md");
+    let legend = keys_legend_words(&page);
+    assert!(
+        legend.len() >= 6,
+        "only {} word(s) were read from `docs/guide/keys.md`'s legend ({legend:?}): the bullets' shape has changed",
+        legend.len()
+    );
+
+    let mut undefined = Vec::new();
+    for (index, line) in page.lines().enumerate() {
+        if !line.starts_with("| `") {
+            continue;
+        }
+        let cells: Vec<&str> = line.split('|').collect();
+        if cells.len() < 4 {
+            continue;
+        }
+        let when = cells[2].trim();
+        if when.is_empty() || legend.iter().any(|word| word == when) {
+            continue;
+        }
+        let Some((head, tail)) = when.split_once(", ") else {
+            undefined.push(format!("line {}: `{when}`", index + 1));
+            continue;
+        };
+        if !legend.iter().any(|word| word == head) {
+            undefined.push(format!("line {}: `{when}` (its first word `{head}` is not defined)", index + 1));
+            continue;
+        }
+        // **An exclusion has to name a stance the reader can look up**: the row says *any time but* this one,
+        // and `keys.rs`'s own note is that the requirement is not a stance at all but the page still needs a
+        // word for what it is not.
+        if let Some(excluded) = tail.strip_prefix("but not while ") {
+            let as_a_legend_word = format!("While {excluded}");
+            if !legend.iter().any(|word| *word == as_a_legend_word) {
+                undefined.push(format!(
+                    "line {}: `{when}` excludes `{excluded}`, and the legend defines no `{as_a_legend_word}`",
+                    index + 1
+                ));
+            }
+            continue;
+        }
+        // **Anything else is a stated extra condition**, and it has to read as one rather than as a new state.
+        if !(tail.starts_with("when ") || tail.starts_with("with ")) {
+            undefined.push(format!("line {}: `{when}` (the extra condition `{tail}` states no condition)", index + 1));
+        }
+    }
+
+    assert!(
+        undefined.is_empty(),
+        "**docs/guide/keys.md uses {} \"Works when\" value(s) its legend does not define**: {}. The column is \
+         the page's statement of the state a key needs, and a reader has only the legend to decode it — a word \
+         that is not there, or an exclusion that does not name a stance, reads as the word it resembles (#661).",
+        undefined.len(),
+        undefined.join(", ")
+    );
+}
+
+/// **The words `docs/guide/keys.md`'s legend defines**, read from the bullets under the sentence that
+/// introduces the column. Bounded to that paragraph on purpose: later sections of the page carry bullets of
+/// their own (`- **The shell holds its keys.**`) that are not state words.
+fn keys_legend_words(page: &str) -> Vec<String> {
+    let mut words = Vec::new();
+    let mut started = false;
+    for line in page.lines() {
+        if line.starts_with("The \"Works when\" column names the state") {
+            started = true;
+            continue;
+        }
+        if !started {
+            continue;
+        }
+        let Some(rest) = line.strip_prefix("- **") else {
+            // The bullets end at the first line that is not one, and the paragraph after them is prose.
+            if words.is_empty() {
+                continue;
+            }
+            break;
+        };
+        if let Some(end) = rest.find("**") {
+            words.push(rest[..end].to_owned());
+        }
+    }
+    words
+}
+
 /// **A chord split into its prefix and its last digit**, when it is `…+<digit>`: the shape a page writes a
 /// range in (`` `Cmd+1` to `Cmd+9` ``). `None` for any chord that is not one.
 fn split_digit_chord(chord: &str) -> Option<(String, char)> {
