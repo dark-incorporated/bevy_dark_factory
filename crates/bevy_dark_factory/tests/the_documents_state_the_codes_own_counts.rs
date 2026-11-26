@@ -316,6 +316,117 @@ fn the_reload_contracts_kind_counts_are_the_registrys() {
     }
 }
 
+/// **The reload contract's second census — the one that restates the first as three clauses and a sum —
+/// names every kind the code's three lists hold** (#654).
+///
+/// Line 119 already named all 15 the editor's layer covers; line 149 said the same thing in different words,
+/// named 5 of the 8 watchers and called the result exhaustive — 33 accounted for in a 39-kind registry. The
+/// page's own tests read only the "`check` covers N of the M kinds" sentence, so a correct census and a stale
+/// one sat beside each other with every test green.
+///
+/// **Three assertions, each a way the sentence can be wrong**: the counts it gives are the lengths of the three
+/// lists; the sum it states is the registry's; and each clause spells exactly the ids its list holds, so a
+/// count and a list cannot agree while both are wrong.
+#[test]
+fn the_reload_contracts_second_census_names_the_three_lists() {
+    let guide = read("docs/guide/reload-contract.md");
+    let sentence = guide
+        .split("With these two, every kind in the registry has a reader")
+        .nth(1)
+        .unwrap_or_else(|| panic!("docs/guide/reload-contract.md no longer has the second census sentence"));
+    let sentence = sentence.split("\n\n").next().unwrap_or(sentence);
+
+    let checked = blueprint_model::reload::KINDS.len() - unchecked_count();
+    let read_here: BTreeSet<&str> = bevy_dark_factory::map_files::READ_HERE.iter().copied().collect();
+    let watched: BTreeSet<&str> = bevy_dark_factory::map_files::WATCHED_HERE.iter().copied().collect();
+    let still = still_unchecked();
+    assert_eq!(
+        checked + read_here.len() + watched.len() + still.len(),
+        blueprint_model::reload::KINDS.len(),
+        "the four lists do not partition the registry: {checked} + {} + {} + {} != {}",
+        read_here.len(),
+        watched.len(),
+        still.len(),
+        blueprint_model::reload::KINDS.len()
+    );
+
+    // **The three numbers the sentence states**, each a fact about a list.
+    let said_checked = count_between(sentence, "`reload_check::check` for ", ",")
+        .unwrap_or_else(|| panic!("the second census no longer says how many kinds `check` covers"));
+    assert_eq!(said_checked, checked, "the second census says `check` covers {said_checked} and it covers {checked}");
+    // **The sum the sentence spells**, which is the registry's whole list.
+    let sum_at = sentence
+        .find("That is ")
+        .unwrap_or_else(|| panic!("the second census no longer states its sum (`That is 24 + 4 + 8 + 3 = 39`)"));
+    let sum_text: String = sentence[sum_at + "That is ".len()..].chars().take_while(|c| *c != ',' && *c != '.').collect();
+    let parts: Vec<usize> = sum_text
+        .split('=')
+        .next()
+        .unwrap_or_default()
+        .split('+')
+        .filter_map(|part| part.trim().parse().ok())
+        .collect();
+    let stated_total: Option<usize> = sum_text.split('=').nth(1).and_then(|n| n.trim().parse().ok());
+    assert_eq!(parts.len(), 4, "the sum `That is {sum_text}` no longer adds four numbers: {parts:?}");
+    assert_eq!(
+        parts,
+        vec![checked, read_here.len(), watched.len(), still.len()],
+        "the second census adds {parts:?} and the four lists are [check {checked}, READ_HERE {}, WATCHED_HERE {}, \
+         STILL_UNCHECKED {}]",
+        read_here.len(),
+        watched.len(),
+        still.len()
+    );
+    assert_eq!(
+        stated_total,
+        Some(blueprint_model::reload::KINDS.len()),
+        "the second census says the sum is {stated_total:?} and the registry has {} kinds",
+        blueprint_model::reload::KINDS.len()
+    );
+
+    // **Each clause spells the ids its list holds.** The first clause's `24` is a number alone (the 24 are
+    // core's, and the sentence has no room for them), so only the two named clauses are read here, and the
+    // ratchet list's three.
+    let readers = clause_names(sentence, "the editor's readers for ", ", its watchers");
+    assert_eq!(readers, read_here, "the readers clause spells {readers:?} and `READ_HERE` is {read_here:?}");
+    let named_watchers = clause_names(sentence, "its watchers for ", ", and the mapper's ratchet");
+    assert_eq!(named_watchers, watched, "the watchers clause spells {named_watchers:?} and `WATCHED_HERE` is {watched:?}");
+    let named_still = clause_names(sentence, "(`STILL_UNCHECKED`) for ", ", which cannot name a field");
+    assert_eq!(named_still, still, "the ratchet clause spells {named_still:?} and `STILL_UNCHECKED` is {still:?}");
+}
+
+/// **The backticked ids a census clause spells** between `lead` and `tail`, as a set.
+fn clause_names(sentence: &str, lead: &str, tail: &str) -> BTreeSet<&str> {
+    let at = sentence.find(lead).unwrap_or_else(|| panic!("no clause `{lead}`")) + lead.len();
+    let end = sentence[at..].find(tail).unwrap_or_else(|| panic!("no clause tail `{tail}`")) + at;
+    sentence[at..end].split('`').skip(1).step_by(2).collect()
+}
+
+/// **The kinds on the editor's own ratchet of kinds nothing reads**, read from the test that holds the list:
+/// `a_file_that_does_not_read_is_never_overwritten.rs`'s `STILL_UNCHECKED`, which is checked in and ratcheted.
+fn still_unchecked() -> BTreeSet<&'static str> {
+    const SOURCE: &str = include_str!("a_file_that_does_not_read_is_never_overwritten.rs");
+    let at = SOURCE.find("const STILL_UNCHECKED: &[&str] = &[").expect("the ratchet declares `STILL_UNCHECKED`");
+    let body = &SOURCE[at..];
+    let end = body.find("];").expect("the list closes");
+    // **The ids are the quoted spans on their own lines**, and the reasons above them are comments: one id per
+    // line, a `//` line skipped.
+    let mut ids: BTreeSet<&str> = BTreeSet::new();
+    for line in body[..end].lines().skip(1) {
+        let trimmed = line.trim();
+        if trimmed.starts_with("//") || trimmed.is_empty() {
+            continue;
+        }
+        if let Some(rest) = trimmed.strip_prefix('"') {
+            if let Some(id) = rest.split('"').next() {
+                ids.insert(id);
+            }
+        }
+    }
+    assert!(!ids.is_empty(), "no ids were read from `STILL_UNCHECKED`");
+    ids
+}
+
 /// **The names a version-section bullet spells** after its colon, as `"id"`s: `` `forest`, `people` `` reads
 /// as two. The clause after the last name (`; slice 3`) and a `from slice 3` note are not names.
 fn spelled_names(guide: &str, lead: &str) -> Vec<String> {
