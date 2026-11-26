@@ -108,10 +108,11 @@ fn the_state_reports_the_viewport_and_the_window() {
 fn a_dock_is_not_reported_as_the_window() {
     let mut app = laid_out(Vec2::new(1600.0, 1000.0), Vec2::new(810.0, 638.0));
     // A left dock, narrower than the root.
-    let mut dock = ComputedNode::default();
-    dock.size = Vec2::new(426.0, 638.0);
-    app.world_mut()
-        .spawn((Node::default(), dock, UiGlobalTransform::default()));
+    app.world_mut().spawn((
+        Node::default(),
+        ComputedNode { size: Vec2::new(426.0, 638.0), ..default() },
+        UiGlobalTransform::default(),
+    ));
     app.update();
 
     let window_rect = {

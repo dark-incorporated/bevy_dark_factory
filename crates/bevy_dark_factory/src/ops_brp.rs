@@ -1356,7 +1356,7 @@ fn editor_state(
             let r = node_rect(node, at);
             if is_viewport {
                 viewport = Some(r);
-            } else if window.map_or(true, |widest| r.w > widest.w) {
+            } else if window.is_none() || r.w > window.expect("just checked").w {
                 window = Some(r);
             }
         }
