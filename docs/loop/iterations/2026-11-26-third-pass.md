@@ -59,3 +59,50 @@ killed at minute eight with 35 processes.
 
 **39 issues.** Four branches are built and reviewed; three are mergeable once the status-band mark is understood,
 and #551 (`d56c3106`) is ready to join them.
+
+## What the gate found, in the order it found it
+
+Five separate defects, none of which any worker's report could contain, because every worker's runs were
+OOM-killed before reaching the compile:
+
+| found | what it was |
+|---|---|
+| `borrow of moved value: panels` | #650's 167-line test **had never compiled** |
+| `6 citation(s) land on something else` | #650 moved `chrome.rs` +42 net; six design-page citations pointed at unrelated lines |
+| `left: (12.0, 12.0)`, expected `(6.0, 6.0)` | the density test asserted a lever the style vocabulary cannot express |
+| `left: Srgba(0.95, 0.71, 0.3)` == `right: Srgba(0.95, 0.71, 0.3)` | the status-band test compared a colour **with itself** |
+| `chrome.rs carries 3 raw Node literals and is counted at 2` | #551 wrote `Node::default()` where `bevy_gooey::row(0.0)` is the chip's own first part |
+
+**Every one was fixed, and every fix was in a test or a comment except the raw node.** The `src/` changes the
+workers made were sound; what they could not do was see their own work compile.
+
+## The style vocabulary has no unset
+
+The density failure is the most useful finding of the day, because it is a limit someone will hit again.
+
+`StyleDecl::overlaid` merges a box per side with `over.top.or(self.top)` (`bevy_gooey`
+`src/box_model.rs:117-125`). A `None` contributes nothing. So:
+
+| a layer writes | drawn padding |
+|---|---|
+| `{margin: !Step 2}` | 12 px — the shipped `padding` survives |
+| `padding: !Step 0` | 3 px — narrower, not a clear |
+| `padding: Zero` | 0 px |
+| no matching rule states `padding` | **`skin.pad()` — 6 px** |
+
+A later layer can narrow a property but never clear one. Only the layer that **owns** the declaration can drop
+it, and that layer is the base sheet — a live file the editor watches. So the honest claim for #650 is narrow: *a
+person who edits their own sheet's `.chrome-panel` rule gets `skin.pad()` behind their panels.* Before the change
+the panel was `Role::Sized`, whose arm writes no padding, so the same edit left every panel at **0 px**.
+
+## The host, measured
+
+| fault | cost |
+|---|---|
+| `ollama`'s `llama-server` at 350–480 % CPU for 3 h 40 m | a *system* unit, so `gpu-tenant`'s focus eviction (which unloads llama-swap models) never touched it, even while I held the lease |
+| `sccache` with no systemd unit | died with every ssh disconnect: "The server looks like it shut down unexpectedly, compiling locally instead". Every build after a disconnect was cold. |
+| the gate at `MemoryMax=20G` | OOM-killed with 35 processes at minute eight; services held ~7 GB of 31 |
+| my own `sccache.service` at `SCCACHE_CACHE_SIZE=80G` | `systemd-oomd` killed 72 processes in its unit, because a `oneshot` unit with `RemainAfterExit` owns every descendant |
+
+**The recipe that finally worked:** `RUSTC_WRAPPER=` cleared entirely, `CARGO_BUILD_JOBS=3`, and a host at load 8
+with 8 GB free. A 445-second suite had taken four attempts and three hours.
