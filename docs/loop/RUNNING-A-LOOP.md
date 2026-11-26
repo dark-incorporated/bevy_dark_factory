@@ -249,6 +249,28 @@ Four things follow, and each cost this loop a gate:
    dies at 64%. The durable fix is a **disk-backed swap file** beside zram; the immediate one is a **reboot**, which
    clears zram. Both are the owner's, since big is shared — filed on #636 with the numbers.
 
+## "Reads no clock" is not "cannot be starved" (measured 2026-11-26)
+
+`tools/loop/wall_clock_filter.py` asks whether a test's own body reads `Instant`, and that question has a
+different answer from the one a failing gate needs. Three tests were called flaky tonight and all three are
+bounded waits on **the app's own frames**:
+
+| test | the bound | quiet-host duration |
+|---|---|---|
+| `the_frame_a_change_lands_on_stays_inside_two_milliseconds` | 2 ms budget | 0.6 s |
+| `the_game_workspace_runs_the_game::a_crash_stays_on_screen…` | `WAIT` 60 s | 0.8 s |
+| `the_reference_view_follows_the_project_index::a_picture_that_stops_being_a_picture…` | `SHOWN_WITHIN` | **2.1 s** |
+
+Each is a `pump_until(&mut app, <a Duration>, …)`: the wait is wall-clock, the progress it waits for is a frame,
+and a starved app never reaches the predicate. So the failure reads as a product bug, which is what #644 and #580
+both spent a cycle on.
+
+**Before calling a test flaky, check how long it takes when it passes.** 2.1 s against a bound that a loaded host
+can stretch tenfold is a scheduling question; a test at 0.05 s is not.
+
+The verifier's rule is a protected contract and a loop pass must not widen it. The list worth having — tests whose
+signature takes a `Duration` — is named on #644.
+
 ## A hand-run cargo on `big` must set `CARGO_BUILD_JOBS=1` (measured 2026-11-26)
 
 Without it, `systemd-oomd` kills **the SSH session that ran the command**, and the failure reads as a network drop:
