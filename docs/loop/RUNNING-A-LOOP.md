@@ -249,6 +249,29 @@ Four things follow, and each cost this loop a gate:
    dies at 64%. The durable fix is a **disk-backed swap file** beside zram; the immediate one is a **reboot**, which
    clears zram. Both are the owner's, since big is shared — filed on #636 with the numbers.
 
+## A worktree must be branched from a clean tree (measured 2026-11-25, #634)
+
+**Three branches were pushed in one session carrying the same uncommitted work**, because a worker ran
+`worktree add -b <branch>` from the manager's clone while that clone held a half-applied refactor. Each branch's
+own commit was clean; the tree underneath was not, and one of them could not compile. `git diff origin/main <branch>`
+did not reveal it — it showed sixteen files, most inherited — and the mismatch was only visible by comparing a
+signature against a call site.
+
+**The rule, and the one line a brief should carry:**
+
+> `worktree add` from `origin/main` (`git worktree add -b <branch> <path> origin/main`), never from a working tree.
+
+`origin/main` is a commit, not a directory, so a dirty clone cannot leak into it.
+
+**A second guard, now in `launch-gate.sh`:** before the gate takes its unit, it runs
+`cargo check -p bevy_dark_factory --all-targets` under the heavy lock and refuses if the tree does not compile. 37 s
+against a 726 s gate. **It cannot see a `#[cfg]`-gated module** — `audio_panel.rs` is behind `bevy_siren`, and an
+error there passes the check — so a branch that touches a gated module needs the feature passed to the check, or the
+gate is the first thing to look.
+
+**When a branch turns out to be a superset by inheritance, do not merge it.** Cherry-pick its own commits onto
+`origin/main` (`-x`), which is what the 2026-11-25 detour did by hand.
+
 ## "Reads no clock" is not "cannot be starved" (measured 2026-11-26)
 
 `tools/loop/wall_clock_filter.py` asks whether a test's own body reads `Instant`, and that question has a
