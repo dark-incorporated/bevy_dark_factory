@@ -9,18 +9,21 @@
 //!
 //! 1. **Every file applied says nothing.** A band that said "0 problems" on every frame is a row a
 //!    reader stops seeing, and it is the state the editor is in almost all the time.
-//! 2. **A refused file turns the item to the warning kind**, in the running skin's `accent`, which
-//!    is the issue's own wording and gooey's rule for [`bevy_gooey::StatusKind::Warning`]. The editor
-//!    keeps running and the previous state stays; what did not take is what the mark is for.
+//! 2. **A refused file turns the item to the warning kind**, drawn in the running skin's `accent`,
+//!    which is the issue's own wording and gooey's rule for [`bevy_gooey::StatusKind::Warning`]. The
+//!    editor keeps running and the previous state stays; what did not take is what the mark is for.
 //! 3. **A file that reads but needs a restart is the same kind**, and a person fixing one still has
 //!    to see the other, so both counts are named.
 //!
-//! The readout is `chrome::reload_readout`, and both the system and this file call it, so an
-//! assertion here is an assertion about what is painted rather than about a resource that happens
-//! to hold the same value.
+//! **The readout is gooey's status item** (#647): the kind is on the item, where gooey reads it for
+//! the `status_mark()` child it spawns, and the words are a `ControlText` child under it. The colour
+//! read here is therefore the one `apply_skin` wrote — the mark's fill — and not a `TextColor` this
+//! crate computed from the same kind, which is what it asserted before #647 and what made the band
+//! paint a second, hand-written copy of a fact the skin already owns.
 
 use bevy::prelude::*;
 use bevy_dark_factory::harness;
+use bevy_gooey::{Role, StatusKind};
 use blueprint_model::live::KindVerdict;
 
 use crate::fixtures;
@@ -37,15 +40,36 @@ fn editor(name: &str) -> (std::path::PathBuf, App) {
     (root, app)
 }
 
-/// What the band currently says, and the kind it says it as, or `None` when the readout is absent.
-fn said(app: &mut App) -> Option<(String, bevy_gooey::StatusKind, Color)> {
-    let mut q = app.world_mut().query_filtered::<
-        (&Text, &bevy_gooey::StatusKind, &TextColor),
-        With<bevy_dark_factory::chrome::ProblemsCount>,
-    >();
-    q.iter(app.world())
-        .next()
-        .map(|(t, k, c)| (t.0.clone(), *k, c.0))
+/// What the band currently says, the kind it says it as, and the ink gooey drew the mark in, or
+/// `None` when the readout is absent.
+///
+/// The words are the item's `Text` child — gooey's `status_item_quiet` spawns the words under the
+/// item, and the item itself carries no `Text` — and the ink is the `status_mark()` child's
+/// `BackgroundColor`, which is `apply_skin`'s.
+fn said(app: &mut App) -> Option<(String, StatusKind, Color)> {
+    let world = app.world_mut();
+    let item = world
+        .query_filtered::<Entity, With<bevy_dark_factory::chrome::ProblemsCount>>()
+        .single(world)
+        .ok()?;
+    let kids: Vec<Entity> = world.get::<Children>(item).map(|c| c.iter().collect())?;
+    let words = kids.iter().find(|k| world.get::<Text>(**k).is_some())?;
+    let mark = kids.iter().find(|k| world.get::<Role>(**k) == Some(&Role::StatusMark))?;
+    let text = world.get::<Text>(*words)?.0.clone();
+    let kind = *world.get::<StatusKind>(item)?;
+    let ink = world.get::<BackgroundColor>(*mark)?.0;
+    Some((text, kind, ink))
+}
+
+/// Whether the item is drawn at all. A readout with nothing to say is `Shown(false)`, gooey's rule
+/// for a status item that is not there (the job row and the wish chip are hidden the same way).
+fn shown(app: &mut App) -> Option<bool> {
+    let world = app.world_mut();
+    let item = world
+        .query_filtered::<Entity, With<bevy_dark_factory::chrome::ProblemsCount>>()
+        .single(world)
+        .ok()?;
+    world.get::<bevy_gooey::Shown>(item).map(|s| s.0)
 }
 
 fn skin(app: &App) -> bevy_gooey::GooeySkin {
@@ -74,10 +98,21 @@ fn a_band_with_nothing_wrong_says_nothing() {
     );
     assert_eq!(
         kind,
-        bevy_gooey::StatusKind::Info,
+        StatusKind::Info,
         "nothing wrong is `Info`, not a mark beside a word"
     );
-    assert_eq!(ink, skin(&app).text_muted, "an empty readout is drawn in the muted ink");
+    assert_eq!(
+        shown(&mut app),
+        Some(false),
+        "and an empty readout is not drawn at all: an item with nothing to say would hold a \\
+         target's width of the band open on every frame"
+    );
+    assert_eq!(
+        ink,
+        Color::NONE,
+        "plain state draws no mark: gooey's `StatusKind::Info` is the absence of one, and the skin \\
+         asks its `accent` for nothing here"
+    );
 }
 
 /// **A refused file turns the item to the warning kind, in the skin's `accent`.**
@@ -95,10 +130,11 @@ fn a_refused_file_turns_the_item_to_the_warning_kind() {
     );
     assert_eq!(
         kind,
-        bevy_gooey::StatusKind::Warning,
-        "a refused reload turns the problems item to the warning kind: the editor keeps running on \
+        StatusKind::Warning,
+        "a refused reload turns the problems item to the warning kind: the editor keeps running on \\
          the previous state, and a person has to see that their edit did not take"
     );
+    assert_eq!(shown(&mut app), Some(true), "and the item is drawn once it has something to say");
     assert_eq!(
         ink,
         skin(&app).accent,
@@ -118,7 +154,7 @@ fn a_file_needing_a_restart_is_a_warning_under_a_refusal() {
     assert_eq!(text, "1 needs a restart");
     assert_eq!(
         kind,
-        bevy_gooey::StatusKind::Warning,
+        StatusKind::Warning,
         "a valid file the program cannot take live is a warning: nothing was lost, something waits"
     );
     assert_eq!(ink, skin(&app).accent, "a warning's ink is the skin's `accent`");
@@ -133,6 +169,6 @@ fn a_file_needing_a_restart_is_a_warning_under_a_refusal() {
         text, "1 refused · 1 needs a restart",
         "both counts, because a person who fixes the refusal still has a restart owed"
     );
-    assert_eq!(kind, bevy_gooey::StatusKind::Warning);
+    assert_eq!(kind, StatusKind::Warning);
     assert_eq!(ink, skin(&app).accent);
 }

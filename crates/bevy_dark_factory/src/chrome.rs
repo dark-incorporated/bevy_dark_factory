@@ -3918,9 +3918,13 @@ impl Plugin for ChromePlugin {
             // resource, because a set is picked up and put down long after the screen is entered.
             // Registering it in the `OnEnter` tuple above would run it once, on the frame the band is
             // spawned, and never again.
+            // **Before gooey styles them**, so the frame the kind changes is the frame the mark draws:
+            // `apply_skin` restyles off `Changed<StatusKind>`, and a write after it would be seen a
+            // frame late (`jobs::refresh_band` is ordered the same way, for the same reason).
             .add_systems(
                 Update,
                 (show_selection_count, show_problems_count)
+                    .before(bevy_gooey::GooeySystems::Style)
                     .run_if(in_state(crate::screen::Screen::Editor)),
             )
             .add_systems(
@@ -4551,17 +4555,33 @@ pub fn spawn_status_band(mut commands: Commands, frame: Res<Frame>, project: Opt
         // the band answers the one question a person asks before a stamp — how many am I carrying —
         // without them counting from the ghost. Empty when nothing is held rather than `"0 selected"`:
         // a count of nothing is a row that says the same thing on every frame and teaches nobody.
-        // **What the reloads say** (UI-34, #228): a count of files refused or needing a restart, in the
-        // warning ink when there are any, empty when every file applied. A person driving over BRP asks
-        // this in `blueprint_state.reloads`; the band answers it where they are looking.
-        band.spawn((
-            ProblemsCount,
-            bevy_gooey::StatusKind::Info,
-            Text::new(String::new()),
-            TextColor(ink().dim),
-            typed(text::LABEL),
-            bevy::picking::Pickable::IGNORE,
-        ));
+        // **What the reloads say** (UI-34, #228, #647): a count of files refused or needing a restart,
+        // in gooey's own status item, so the kind is the kind a mark is drawn from and the ink is the
+        // running skin's rather than a colour this band writes beside it. Empty when every file
+        // applied, and `StatusKind::Info` then draws no mark at all: nothing wrong is the absence of a
+        // mark, never a quiet bar. A person driving over BRP asks this in `blueprint_state.reloads`;
+        // the band answers it where they are looking.
+        //
+        // **A quiet item**, because a readout is not on the `Activate` bus: this editor has many global
+        // `Activate` observers and a `Button` fires all of them (`jobs.rs` documents the day that took
+        // the application down). Its words become `Role::ControlText` for the same family of reason
+        // (`the_words_of_a_quiet_item_are_a_control`): the interface's tests count `ButtonText` over
+        // the world to say what a dialog's answers are.
+        // **Closed while it has nothing to say** (`Shown`, gooey's rule for an item that is not there:
+        // the job row and the wish chip are hidden the same way). A status item reserves its padding and
+        // a target's height even with empty words, so an item left open on a clean band would stand in
+        // the row as a blank box on every frame, where the bare label it replaces took no width.
+        let problems = band
+            .spawn((
+                ProblemsCount,
+                bevy_gooey::status_item_quiet(String::new()),
+                bevy_gooey::Shown(false),
+                bevy::picking::Pickable::IGNORE,
+            ))
+            .id();
+        // **No `typed(..)` marker on these words**: gooey's `Role::ControlText` inks and sets them as a
+        // control's, so a `TypeRole` here would be a second size fighting `resize_the_labels`.
+        the_words_of_a_quiet_item_are_a_control(band.commands_mut(), problems, ());
         band.spawn((
             SelectionCount,
             Text::new(String::new()),
@@ -4665,11 +4685,11 @@ pub struct LabelerLine;
 #[derive(Component)]
 pub struct ProblemsCount;
 
-/// **What the band says about the reloads, and the kind it says it as** (UI-34, #228).
+/// **What the band says about the reloads, and the kind it says it as** (UI-34, #228, #647).
 ///
-/// The system and `tests/the_status_band_says_when_a_file_needs_attention.rs` both call this, so an
-/// assertion about the band is an assertion about what is painted, not about a resource that happens
-/// to hold the same value.
+/// The test that pins it does not restate these rules: it writes a verdict and reads what the band
+/// drew, so an assertion about the band is an assertion about what is painted, not about a resource
+/// that happens to hold the same value.
 ///
 /// **Four rules, each with a reason:**
 ///
@@ -4684,12 +4704,12 @@ pub struct ProblemsCount;
 /// - **Nothing wrong says nothing**, rather than `"0 problems"` — the band is silent in the state it
 ///   is in almost all the time.
 ///
-/// The ink comes from the running skin, so a theme edit reaches the band in the same frame; with no
-/// skin (a hand-built harness, never the editor) it falls back to the panel colours.
-pub fn reload_readout(
-    kinds: &[blueprint_model::live::KindVerdict],
-    skin: Option<&bevy_gooey::GooeySkin>,
-) -> (String, bevy_gooey::StatusKind, Color) {
+/// **The kind is the whole answer, and no ink comes out of here** (#647). gooey draws a
+/// `StatusKind::Warning` as the skin's `accent` and a `StatusKind::Error` as its `danger`, on the mark
+/// its `status_item` spawns, and inks the words as a `ControlText` in the skin's `text`. A colour
+/// computed here from the same kind was a second copy of one fact, and only the copy nothing drew was
+/// the one that said a mark existed at all.
+pub fn reload_readout(kinds: &[blueprint_model::live::KindVerdict]) -> (String, bevy_gooey::StatusKind) {
     use blueprint_model::live::Outcome;
     let refused = kinds.iter().filter(|k| k.outcome == Outcome::Refused).count();
     let waiting = kinds.iter().filter(|k| k.outcome == Outcome::NeedsRestart).count();
@@ -4711,40 +4731,47 @@ pub fn reload_readout(
     } else {
         bevy_gooey::StatusKind::Warning
     };
-    let ink = match (kind, skin) {
-        (bevy_gooey::StatusKind::Info, Some(s)) => s.text_muted,
-        (bevy_gooey::StatusKind::Info, None) => ink().dim,
-        (_, Some(s)) => s.accent,
-        (_, None) => ink().accent,
-    };
-    (parts.join(" \u{b7} "), kind, ink)
+    (parts.join(" \u{b7} "), kind)
 }
 
 /// **Say what became of the reloads, when the answer changes.**
 ///
-/// Gated on `EditorReloads` (a file was decided) or `GooeySkin` (a theme edit), so a band with nothing
-/// wrong writes no text on any frame. Every write is compared in place as well, which is
-/// `tests/no_system_writes_every_frame.rs`'s rule: the text, the kind and the ink are change-detected,
-/// and everything downstream reads that detection.
+/// Gated on `EditorReloads` (a file was decided) or on the item itself being new, so a band with
+/// nothing wrong writes no text on any frame — and the band still reads the reloads it inherited on
+/// the frame it is built, rather than waiting for the next edit to show a refusal that already
+/// happened (`apply_style` decides the layers before the editor's first frame). Every write is
+/// compared in place as well, which is `tests/no_system_writes_every_frame.rs`'s rule: the words, the
+/// kind and whether the item is drawn are change-detected, and gooey's `apply_skin` restyles the
+/// item's mark and words off the kind in the same frame.
+///
+/// **Two facts, two components, two owners** (#647): the text is this crate's and goes on the item's
+/// words; the kind is stated on the item, where gooey reads it for the mark. Nothing here writes a
+/// colour — the mark's fill and the words' ink are `apply_skin`'s, from the kind and the skin.
 pub fn show_problems_count(
     reloads: Option<Res<crate::live::EditorReloads>>,
-    skin: Option<Res<bevy_gooey::GooeySkin>>,
-    mut counts: Query<(&mut Text, &mut TextColor, &mut bevy_gooey::StatusKind), With<ProblemsCount>>,
+    mut counts: Query<(&mut bevy_gooey::StatusKind, &mut bevy_gooey::Shown, Option<&Children>), With<ProblemsCount>>,
+    fresh: Query<(), Added<ProblemsCount>>,
+    mut words: Query<&mut Text>,
 ) {
     let Some(reloads) = reloads else { return };
-    if !reloads.is_changed() && !skin.as_ref().is_some_and(|s| s.is_changed()) {
+    if !reloads.is_changed() && fresh.is_empty() {
         return;
     }
-    let (said, kind, ink) = reload_readout(reloads.kinds(), skin.as_deref());
-    for (mut text, mut painted, mut told) in &mut counts {
-        if text.0 != said {
-            text.0 = said.clone();
-        }
-        if painted.0 != ink {
-            painted.0 = ink;
+    let (said, kind) = reload_readout(reloads.kinds());
+    let on = !said.is_empty();
+    for (mut told, mut shown, children) in &mut counts {
+        for child in children.into_iter().flat_map(|c| c.iter()) {
+            if let Ok(mut text) = words.get_mut(child)
+                && text.0 != said
+            {
+                text.0 = said.clone();
+            }
         }
         if *told != kind {
             *told = kind;
+        }
+        if shown.0 != on {
+            shown.0 = on;
         }
     }
 }

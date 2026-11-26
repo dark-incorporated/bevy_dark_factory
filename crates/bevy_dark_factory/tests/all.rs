@@ -555,6 +555,7 @@ mod the_theme_reaches_the_editors_own_labels;
 mod the_viewport_keeps_the_arrow_keys;
 mod the_status_band_counts_the_set_in_hand;
 mod the_status_band_says_when_a_file_needs_attention;
+mod the_status_bands_kind_draws_a_mark;
 mod the_toolbar_arms_a_tool_through_its_key;
 mod the_layout_score_counts_crossings;
 mod the_left_dock_slides_and_peeks_under_the_pointer;
