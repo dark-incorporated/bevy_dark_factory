@@ -40,7 +40,7 @@ Two things to note before any defect is named:
 
 - **The panel asks for 380 and is drawn at 206.** The controls panel's preferred width is 380 logical px, the sheet's
   **`metrics.layout.controls_w`** (`style/editor.yaml`, read as `layout.controls_w`; the constant `CONTROLS_W` this page
-  used to cite is gone), and `fit_docks_to_the_window` (`chrome.rs:1183`) squeezes it when the window cannot pay both
+  used to cite is gone), and `fit_docks_to_the_window` (`chrome.rs:1177`) squeezes it when the window cannot pay both
   docks and the viewport's share. At this window the squeeze is `206 / 380 = 0.54`.
 - **The panel's content is 180 px wide because the panel is 206 and keeps a margin of 12 each side, a pad of 12 each
   side, a 1 px border, and the scroll viewport's own `scroll_gutter()` (`scroll_bar_w` 5 + `scroll_bar_inset` 1) on its
@@ -75,7 +75,7 @@ window root                                   Sized, 100% x 100vh
 └─ status                                     row, 100% x bar_h, 1 px top edge
 ```
 
-The whole tree is built by `spawn_frame` (`chrome.rs:1282`), which is why every measure in it is a local read of the
+The whole tree is built by `spawn_frame` (`chrome.rs:1276`), which is why every measure in it is a local read of the
 sheet rather than a constant.
 
 ### 2.2 The sizing rules, which are the model
@@ -85,9 +85,9 @@ Each part answers exactly one question, and the whole model is these four answer
 | Rule | What holds it | Where |
 |---|---|---|
 | **A panel's preferred width** | a sheet value per panel role: `metrics.layout.controls_w` 380 for a controls panel, `metrics.layout.list_w` 264 for a list; and the one that is still a constant, `WORKSPACE_PAGE_W` 560, for the Project page | the two dock widths are **sheet values** in `crates/bevy_dark_factory/src/style/editor.yaml` (`controls_w`, `list_w`), read as `layout.controls_w` and `layout.list_w`, because the constants that held them are gone; `WORKSPACE_PAGE_W` (`project_page.rs:354`) |
-| **A dock's width** | **not stated**: it is its widest *visible* panel plus that panel's 2x margin, because a gooey dock takes its widest child (its automatic minimum) | `fit_docks_to_the_window` (`chrome.rs:1183`) |
-| **A panel's drawn width** | its preferred width, squeezed by `fit_docks_to_the_window` so the docks + the split divider + the viewport's owed share fit the window | `fit_docks_to_the_window` (`chrome.rs:1183`) |
-| **A pane's width** | the split's `SplitFraction` of the row, less the divider, held to `SplitMin` for each pane — *except* that `size_the_shell_split` overwrites the fraction to make the first pane as wide as the panel in it, and `the_left_panel_follows_its_pane` writes the panel back from the pane once a person has dragged | `size_the_shell_split` (`chrome.rs:3812`), `the_left_panel_follows_its_pane` (`chrome.rs:3877`) |
+| **A dock's width** | **not stated**: it is its widest *visible* panel plus that panel's 2x margin, because a gooey dock takes its widest child (its automatic minimum) | `fit_docks_to_the_window` (`chrome.rs:1177`) |
+| **A panel's drawn width** | its preferred width, squeezed by `fit_docks_to_the_window` so the docks + the split divider + the viewport's owed share fit the window | `fit_docks_to_the_window` (`chrome.rs:1177`) |
+| **A pane's width** | the split's `SplitFraction` of the row, less the divider, held to `SplitMin` for each pane — *except* that `size_the_shell_split` overwrites the fraction to make the first pane as wide as the panel in it, and `the_left_panel_follows_its_pane` writes the panel back from the pane once a person has dragged | `size_the_shell_split` (`chrome.rs:3813`), `the_left_panel_follows_its_pane` (`chrome.rs:3878`) |
 
 **Which are fixed and which flex:**
 
