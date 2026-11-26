@@ -3309,8 +3309,14 @@ fn style_list_rows(
 ) {
     let fills = RowFills::of(skin.as_deref());
     let (panel, pressed_col, hover_col) = (fills.rest_panel, fills.pressed, fills.hover);
-    // gooey has no `selected` role, so a selected row keeps the editor's own colour — the honest
-    // half-measure until that constant group moves.
+    // **gooey does have a selected row, and this comment used to say it did not** (#552). At the pin
+    // `Role::ListRow` is styled for `Selected` — the fill lifts and the left border lights in
+    // `skin.accent` (`bevy_gooey/src/skin.rs` fill and `BorderColor` arms) — and `list_row` /
+    // `quiet_list_row` spawn it (`widgets.rs:4465`). The copy here is the editor's own rail and fill,
+    // which is what a migration to that role would delete; until it does, a selected row keeps the
+    // editor's colour, and that is the state this line describes rather than a gap in the crate's API.
+    // The migration is filed as #552's remaining work: it needs `RowRest`/`RowSelected` retired across
+    // nine test files that read them, which is its owner's call and not a change of this function alone.
     let selected_col = ink().row_selected;
     let held = mouse.pressed(MouseButton::Left);
     for ((rest, hovered, pressed, disabled), mut bg) in &mut rows {
