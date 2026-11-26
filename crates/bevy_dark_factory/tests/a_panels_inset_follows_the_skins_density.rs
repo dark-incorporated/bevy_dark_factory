@@ -165,3 +165,32 @@ fn without_the_override_the_drawn_padding_is_the_skins_pad() {
         );
     }
 }
+
+/// **The role draws the same corner and row gap the deleted rule stated** — the numbers, off the
+/// drawn `Node`s.
+///
+/// The rule used to say `gap: !Step 1` and `radius: !Step 1`, which resolve to `skin.space(1)` and
+/// `skin.corner(1)`. `Role::Panel`'s arm says `skin.gap` and `skin.radius` (`bevy_gooey`
+/// src/skin.rs:4086-4092). Those are the same two numbers only because the shipped sheet's `gap` is
+/// `spacing[1]` and its `radius` is `radii[1]` — an identity a theme can break, which is why this
+/// measures rather than asserts it from the file.
+#[test]
+fn the_roles_corner_and_gap_are_the_numbers_the_rule_stated() {
+    // The identity the swap depends on, in the shipped skin.
+    let skin = bevy_dark_factory::style::compiled_default().skin;
+    assert_eq!(skin.gap, skin.space(1), "the shipped skin's `gap` is spacing step 1, which the rule named");
+    assert_eq!(skin.radius, skin.corner(1), "the shipped skin's `radius` is radii step 1, which the rule named");
+
+    let mut app = editor("corner_gap");
+    let world = app.world_mut();
+    let panels: Vec<Entity> = world.query_filtered::<Entity, With<PanelWidth>>().iter(world).collect();
+    assert!(!panels.is_empty(), "the editor draws dock panels");
+    for panel in panels {
+        let name = world.get::<AccessibleLabel>(panel).map_or_else(|| format!("{panel:?}"), |l| l.0.clone());
+        let node = world.get::<Node>(panel).expect("a panel is laid out");
+        let gap = px(node.row_gap);
+        let corner = px(node.border_radius.top_left.x);
+        assert_eq!(gap, skin.space(1), "`{name}`'s row gap is the 5 px the sheet's `!Step 1` stated");
+        assert_eq!(corner, skin.corner(1), "`{name}`'s corner is the 4 px the sheet's `!Step 1` stated");
+    }
+}
