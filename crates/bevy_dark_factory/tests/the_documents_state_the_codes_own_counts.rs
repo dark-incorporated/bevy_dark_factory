@@ -78,13 +78,15 @@ fn the_project_pages_line_counts_name_their_commit() {
                 continue;
             }
             claims.push((n + 1, value.to_string(), line.to_owned()));
-            // **The commit, in the same sentence**: a backticked short sha, or the word "snapshot" as the
-            // sentence in §5 that defers to the banner uses it.
+            // **The commit, in the same sentence** — or, for a table row, in the header that columns it. A
+            // crate table states its commit once in the header (`| Crate | Lines (at `198b82ae`) |`) and every
+            // row below inherits it, which is the same claim; a row that named a commit of its own would be a
+            // different number in the same column.
             let sentence_start = line[..start].rfind(". ").map(|i| i + 2).unwrap_or(0);
-            let sentence = &line[sentence_start..];
-            let cited = sentence.split('`').skip(1).step_by(2).any(|span| {
-                span.len() >= 7 && span.chars().all(|c| c.is_ascii_hexdigit()) && span.chars().any(|c| c.is_ascii_digit())
-            });
+            let mut cited = cites_a_commit(&line[sentence_start..]);
+            if !cited && line.starts_with('|') {
+                cited = table_header_before(&page, n).is_some_and(|header| cites_a_commit(&header));
+            }
             if !cited {
                 unsourced.push(format!(":{}: `{digits}{unit}` names no commit", n + 1));
             }
@@ -109,6 +111,34 @@ fn the_project_pages_line_counts_name_their_commit() {
          measurement. The crate table, §6.1 and the closing line say the same quantity, so they say the same \
          digits (#659)."
     );
+}
+
+/// **Whether a fragment of the page names a commit**: a backticked short sha (seven or more hex characters, at
+/// least one a digit, so a word of a-f letters is not read as one).
+fn cites_a_commit(text: &str) -> bool {
+    text.split('`').skip(1).step_by(2).any(|span| {
+        span.len() >= 7 && span.chars().all(|c| c.is_ascii_hexdigit()) && span.chars().any(|c| c.is_ascii_digit())
+    })
+}
+
+/// **The header row above a markdown table row**, walking back to the line that opens with `| ---`, then to
+/// the header above it. `None` when the row is not inside a table.
+fn table_header_before(page: &str, row: usize) -> Option<String> {
+    let lines: Vec<&str> = page.lines().collect();
+    // `row` is the 1-based line number of the data row, so `lines[row - 1]` is it.
+    let mut at = row.checked_sub(1)?;
+    while at > 0 {
+        at -= 1;
+        let line = lines.get(at)?.trim();
+        if !line.starts_with('|') {
+            return None;
+        }
+        // **The `| --- | --- |` separator**: the line above it is the header.
+        if line.chars().filter(|c| *c == '-').count() >= 3 && line.chars().all(|c| c == '|' || c == '-' || c == ':' || c == ' ') {
+            return lines.get(at.checked_sub(1)?).map(|header| (*header).to_owned());
+        }
+    }
+    None
 }
 
 /// **Every row `ops::registry()` builds**, counted from its own source: the total the document's
@@ -472,8 +502,8 @@ fn the_reload_contracts_second_census_names_the_three_lists() {
     assert_eq!(named_still, still, "the ratchet clause spells {named_still:?} and `STILL_UNCHECKED` is {still:?}");
 }
 
-/// **The backticked ids a census clause spells** between `lead` and `tail`, as a set.
-fn clause_names(sentence: &str, lead: &str, tail: &str) -> BTreeSet<&str> {
+/// **The backticked ids a census clause spells** between `lead` and `tail`, as a set, borrowed from `sentence`.
+fn clause_names<'a>(sentence: &'a str, lead: &str, tail: &str) -> BTreeSet<&'a str> {
     let at = sentence.find(lead).unwrap_or_else(|| panic!("no clause `{lead}`")) + lead.len();
     let end = sentence[at..].find(tail).unwrap_or_else(|| panic!("no clause tail `{tail}`")) + at;
     sentence[at..end].split('`').skip(1).step_by(2).collect()
