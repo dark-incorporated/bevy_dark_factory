@@ -739,36 +739,24 @@ pub fn draw_the_tabs(
         ))
         .id();
     commands.entity(frame.door_strip).add_child(strip);
-    for (i, (doc, is_dirty)) in want.tabs.iter().enumerate() {
-        let active = want.active == Some(i);
-        let chip = commands
-            .spawn((
-                DocumentTab(doc.clone()),
-                // A document tab: its words a row step apart, the same inset as the workspace strip's tabs (12 px across, 8 px down: not a step of the scale, so a literal)
-                // and the active-tab marker's 3 px edge along the bottom (exactly 3 px).
-                (bevy_gooey::row_with(0.0, bevy_gooey::RowLayout { align: Some(AlignItems::Center), ..default() }), crate::chrome::Gap::Row.class()),
-                bevy_gooey::Spacing {
-                    padding: bevy_gooey::Sides { top: Some(bevy_gooey::Space::Px(8.0)), right: Some(crate::chrome::STEP_PAD), bottom: Some(bevy_gooey::Space::Px(8.0)), left: Some(crate::chrome::STEP_PAD) },
-                    ..default()
-                },
-                bevy_gooey::BorderPx(bevy_gooey::Sides { bottom: Some(3.0), ..default() }),
-                bevy_gooey::InkOverride { edge: Some(if active { ink.accent } else { Color::NONE }), ..default() },
-                BorderColor::all(if active { ink.accent } else { Color::NONE }),
-                BackgroundColor(if active { ink.panel_bg } else { ink.row_bg }),
-                bevy::a11y::AccessibilityNode::from(accesskit::Node::new(accesskit::Role::Tab)),
-                bevy::prelude::AccessibleLabel::new(doc.name.clone()),
-            ))
-            .observe(click_tab)
-            .id();
-        commands.entity(strip).add_child(chip);
-        commands.entity(chip).with_children(|c| {
-            c.spawn((
-                DocumentName,
-                Text::new(doc.name.clone()),
-                TextColor(ink.label),
-                crate::chrome::typed(crate::chrome::text::TAB),
-                TextLayout::new(Justify::Left, LineBreak::NoWrap),
-            ));
+    for (doc, is_dirty) in want.tabs.iter() {
+        // **Gooey's `edge_tab`** (#645), the same widget `tiles.rs` builds its strip from: the tab's own
+        // inset and a bottom edge that is *always laid out* and lit only while the tab is `Selected`, so
+        // changing document changes a colour and moves no neighbour. It carries `Role::EdgeTab`, and with
+        // it the skin's styling and a `Hovered` state -- neither of which the hand-built row could show,
+        // because its colour was baked at spawn.
+        //
+        // **It takes no focus and answers no `Enter`**, which is why the click stays an observer rather
+        // than an `Activate`: a document tab is reached with the pointer.
+        let mut chip = commands.spawn((
+            bevy_gooey::edge_tab(doc.name.clone()),
+            DocumentTab(doc.clone()),
+            bevy::prelude::AccessibleLabel::new(doc.name.clone()),
+        ));
+        // `edge_tab` spawns its label as a child, so the marker goes on that text rather than on a
+        // second one -- a tab that drew the name twice would measure twice.
+        tag_the_words(&mut chip, DocumentName);
+        chip.with_children(|c| {
             if *is_dirty {
                 c.spawn((
                     DirtyDot,
@@ -784,9 +772,50 @@ pub fn draw_the_tabs(
                 crate::chrome::typed(crate::chrome::text::TAB),
             ))
             .observe(click_close);
-        });
+        })
+        .observe(click_tab);
+        let chip = chip.id();
+        commands.entity(strip).add_child(chip);
     }
     *drawn = want;
+}
+
+/// **A marker on a widget's own words.** `edge_tab` spawns its label as a child, so a marker for the tab's
+/// name cannot go in the bundle. This queues it onto the first `Text` among the widget's children, which is
+/// the one the bundle spawned -- the same helper `tiles.rs` uses, and for the same reason: the panel tags
+/// before it adds any child of its own.
+fn tag_the_words<B: Bundle>(widget: &mut EntityCommands, markers: B) {
+    widget.queue(move |mut entity: EntityWorldMut| {
+        let id = entity.id();
+        entity.world_scope(|world| {
+            let words = world
+                .get::<Children>(id)
+                .and_then(|children| children.iter().find(|child| world.get::<Text>(*child).is_some()));
+            if let Some(words) = words {
+                world.entity_mut(words).insert(markers);
+            }
+        });
+    });
+}
+
+/// **The tab's look is gooey's; all this decides is which tab is `Selected`.** `Role::EdgeTab`'s skin arm
+/// continues the surface under a selected tab and lights its bottom edge, and shades it under the pointer
+/// otherwise, so a change of document changes a colour and moves no neighbour. Writing the marker only when
+/// it differs is what keeps a settled strip free of commands.
+fn select_the_tab(
+    open: Option<Res<OpenMap>>,
+    tabs: Query<(Entity, &DocumentTab, Has<bevy::ui::Selected>)>,
+    mut commands: Commands,
+) {
+    let active = open.as_ref().map(|o| o.map.name.clone());
+    for (entity, tab, selected) in &tabs {
+        let is_active = active.as_deref() == Some(tab.0.name.as_str());
+        if is_active && !selected {
+            commands.entity(entity).insert(bevy::ui::Selected);
+        } else if !is_active && selected {
+            commands.entity(entity).remove::<bevy::ui::Selected>();
+        }
+    }
 }
 
 fn click_tab(click: On<PointerClick>, tabs: Query<&DocumentTab>, mut commands: Commands) {
@@ -825,7 +854,7 @@ impl Plugin for SessionPlugin {
         app.init_resource::<Session>().add_systems(
             Update,
             (
-                (restore, follow_the_open_map, close_the_missing, save, draw_the_tabs).chain(),
+                (restore, follow_the_open_map, close_the_missing, save, draw_the_tabs, select_the_tab).chain(),
                 tab_keys,
             )
                 .run_if(in_state(crate::screen::Screen::Editor)),

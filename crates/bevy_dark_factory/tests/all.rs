@@ -110,6 +110,7 @@ mod a_broken_stack_still_opens_framed;
 mod a_build_is_watched_and_the_game_relaunches;
 mod a_build_is_watched_in_the_band_not_a_page;
 mod audio_panel_reads_the_crates_file;
+mod the_document_tab_is_gooeys_edge_tab;
 mod a_capture_sequence_takes_one_frame_at_a_time;
 mod a_clock_edit_walks_the_hour;
 mod a_change_says_what_it_broke;
