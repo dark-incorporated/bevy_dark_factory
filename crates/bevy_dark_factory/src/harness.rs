@@ -224,7 +224,34 @@ pub fn add_debugger_plugins(app: &mut App) -> &mut App {
         // commands that dispatch through `crate::ops::dispatch` — the same function the key
         // handlers call — so an agent and a person are doing one thing, not two.
         crate::ops_brp::OpsBridgePlugin,
-    ))
+    ));
+    // **And the reflection the query needs**, after the transport is up: `world.query` reads the
+    // registry, so a component missing from it matches nothing and the answer is `[]` (#664).
+    register_the_components_an_agent_queries(app)
+}
+
+/// **The components `world.query` can see, because an agent asks about them by name** (#664).
+///
+/// BRP's `world.query` resolves each component through the app's `AppTypeRegistry`, and a component
+/// that is not registered is **silently skipped** unless the caller passes `strict`
+/// (`bevy_remote::builtin_methods::get_component_ids`). With every named component skipped the filter
+/// is empty, the query matches every entity, and the response is `[]` — which a caller reads as "this
+/// component is on nothing". That is what the editor answered for `Node`, `Name`, `Text`, `Camera` and
+/// `GlobalTransform` while `blueprint/state` on the same socket was correct.
+///
+/// So the reflection is added here, beside the transport that needs it, and only with the feature: an
+/// ordinary build carries no reflection it does not use. Each registration is a component a scripted
+/// click or a review lens asks for; `record.py`'s `click_label` is the caller that paid for this.
+pub fn register_the_components_an_agent_queries(app: &mut App) -> &mut App {
+    use bevy::prelude::*;
+    app.register_type::<Name>()
+        .register_type::<Node>()
+        .register_type::<Text>()
+        .register_type::<Camera>()
+        .register_type::<GlobalTransform>()
+        .register_type::<Transform>()
+        .register_type::<Visibility>()
+        .register_type::<bevy::window::Window>()
 }
 
 /// **The port the editor's remote protocol listens on**: `BEVY_BRP_PORT`, or Bevy's default. The one
