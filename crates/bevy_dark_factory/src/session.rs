@@ -741,34 +741,34 @@ pub fn draw_the_tabs(
     commands.entity(frame.door_strip).add_child(strip);
     for (i, (doc, is_dirty)) in want.tabs.iter().enumerate() {
         let active = want.active == Some(i);
-        let chip = commands
-            .spawn((
-                DocumentTab(doc.clone()),
-                // A document tab: its words a row step apart, the same inset as the workspace strip's tabs (12 px across, 8 px down: not a step of the scale, so a literal)
-                // and the active-tab marker's 3 px edge along the bottom (exactly 3 px).
-                (bevy_gooey::row_with(0.0, bevy_gooey::RowLayout { align: Some(AlignItems::Center), ..default() }), crate::chrome::Gap::Row.class()),
-                bevy_gooey::Spacing {
-                    padding: bevy_gooey::Sides { top: Some(bevy_gooey::Space::Px(8.0)), right: Some(crate::chrome::STEP_PAD), bottom: Some(bevy_gooey::Space::Px(8.0)), left: Some(crate::chrome::STEP_PAD) },
-                    ..default()
-                },
-                bevy_gooey::BorderPx(bevy_gooey::Sides { bottom: Some(3.0), ..default() }),
-                bevy_gooey::InkOverride { edge: Some(if active { ink.accent } else { Color::NONE }), ..default() },
-                BorderColor::all(if active { ink.accent } else { Color::NONE }),
-                BackgroundColor(if active { ink.panel_bg } else { ink.row_bg }),
+        // **The tab is gooey's `edge_tab`** (#645): its inset is the skin's `pad() * 1.5`, its bottom
+        // edge `skin.border * EDGE_TAB_LINES` always laid out, its fill and edge arm's; so a document tab
+        // and a workspace tab are drawn from one place, and a skin or density change reaches this strip
+        // the frame it lands. The host's half of the contract is one component — `Selected` — which is
+        // what the active tab carries below.
+        let mut chip = commands.spawn((bevy_gooey::edge_tab(doc.name.clone()), DocumentTab(doc.clone())));
+        if active {
+            chip.insert(bevy::ui::Selected);
+        }
+        let chip = chip
+            .insert((
                 bevy::a11y::AccessibilityNode::from(accesskit::Node::new(accesskit::Role::Tab)),
                 bevy::prelude::AccessibleLabel::new(doc.name.clone()),
             ))
             .observe(click_tab)
             .id();
         commands.entity(strip).add_child(chip);
+        // **`edge_tab` brings its own label child**, and it is the one a reader and a test look for: mark
+        // it `DocumentName` (the `tiles` strip's `tag_the_words` does the same for `TabLabel`), so the
+        // strip's words are found by the same marker they were found by before this tab was gooey's.
+        commands.queue(move |world: &mut World| {
+            let words = world.get::<Children>(chip).and_then(|children| children.iter().find(|child| world.get::<Text>(*child).is_some()));
+            if let Some(words) = words {
+                world.entity_mut(words).insert(DocumentName);
+            }
+        });
+        // The dirty dot and the close button are the editor's, added beside the label.
         commands.entity(chip).with_children(|c| {
-            c.spawn((
-                DocumentName,
-                Text::new(doc.name.clone()),
-                TextColor(ink.label),
-                crate::chrome::typed(crate::chrome::text::TAB),
-                TextLayout::new(Justify::Left, LineBreak::NoWrap),
-            ));
             if *is_dirty {
                 c.spawn((
                     DirtyDot,
