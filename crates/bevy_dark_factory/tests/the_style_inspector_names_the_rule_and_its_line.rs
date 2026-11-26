@@ -71,7 +71,10 @@ fn a_point_on_a_panel_names_the_panel_rule_its_file_and_its_line() {
         .unwrap_or_else(|| panic!("the panel's rule is named: {answer}"));
     assert_eq!(rule["line"], json!(line_of(".chrome-panel")), "the line the rule was written on: {rule}");
     assert!(rule["layer"].as_str().is_some_and(|layer| layer.ends_with("editor.yaml")), "the editor's own sheet wrote it: {rule}");
-    assert_eq!(rule["sets"]["gap"], answer["resolved"]["gap"], "and nothing later overrides its gap: {answer}");
+    // **The rule's inset, not its gap** (#650): `Role::Panel` supplies the panel's row gap and corner, so
+    // the sheet states only its margin and its stated inset override. Asking about `padding` keeps this
+    // an assertion that the rule the inspector names is the one that decides a drawn property.
+    assert_eq!(rule["sets"]["padding"], answer["resolved"]["padding"], "and nothing later overrides its inset: {answer}");
 }
 
 #[test]

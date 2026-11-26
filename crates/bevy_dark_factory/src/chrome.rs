@@ -897,25 +897,40 @@ pub fn panel_root<'a>(
     // walks every ground is what makes it the skin's, once per frame, comparing before it writes.
     let panel = commands
         .spawn((
-            // A panel: a gooey sized box laid out as a column, `width` wide (`fit_docks_to_the_window` and the left pane write that `Sizing` width, so the skin never fights them), its
-            // gap, inset, margin and corner from the sheet's `.chrome-panel`, a hairline edge; it grows into what the dock leaves when `full_height`. Its fill and edge are
-            // the editor's (`InkFollow`: `Ground`, `PanelEdge` lit by focus and the theme move them). `display` is the tabs' to write (`ShownFollow`), and a hidden panel starts closed.
-            bevy_gooey::sized(bevy_gooey::Sizing {
-                width: Some(bevy_gooey::Extent::Px(width)),
-                // **No `max_width` here** (#494): a `Percent(100)` ceiling was tried and reverted. It
-                // narrowed every panel to its pane, which made a panel's own content wrap to an extra
-                // line and pushed the MAP SIZE row down 16 px — `a_hint_does_not_push_map_size_down`
-                // and `a_receipt_does_not_move_the_panel` both refused it, correctly: a hint that comes
-                // and goes with the cursor must not move the panel under the pointer. The overflow this
-                // was meant to fix is a *child* inset 29 px inside its parent, not the panel's width,
-                // and that is measured on the issue.
-                min_height: full_height.then_some(bevy_gooey::Extent::Px(0.0)),
-                ..default()
-            }),
+            // **A panel, in gooey's own sense of the word** (#650): `Role::Panel` is what makes this a box
+            // in the accessibility tree a reader can enter, and what gives it the skin's fill
+            // (`skin.surface`), its corner and its row gap. It is `bevy_gooey::panel()` — a column, and the
+            // role — with the `Sizing` the editor writes, because `fit_docks_to_the_window` and the left
+            // pane own the width. **One `Role` per bundle**: `bevy_ecs` panics on a duplicate component, so
+            // this replaces the `sized` box the panel used to be rather than stacking beside it.
+            //
+            // Its **margin** stays the sheet's `.chrome-panel`, because a panel's place is its dock's and no
+            // role property states one; its **inset** is the sheet's stated override of `skin.pad()` (see the
+            // rule), which is how a person's density still reaches it. A hairline edge, and it grows into
+            // what the dock leaves when `full_height`. Its fill and edge are the editor's (`InkFollow`:
+            // `Ground`, `PanelEdge` lit by focus and the theme move them). `display` is the tabs' to write
+            // (`ShownFollow`), and a hidden panel starts closed.
+            (
+                bevy_gooey::panel(),
+                bevy_gooey::Sizing {
+                    width: Some(bevy_gooey::Extent::Px(width)),
+                    // **No `max_width` here** (#494): a `Percent(100)` ceiling was tried and reverted. It
+                    // narrowed every panel to its pane, which made a panel's own content wrap to an extra
+                    // line and pushed the MAP SIZE row down 16 px — `a_hint_does_not_push_map_size_down`
+                    // and `a_receipt_does_not_move_the_panel` both refused it, correctly: a hint that comes
+                    // and goes with the cursor must not move the panel under the pointer. The overflow this
+                    // was meant to fix is a *child* inset 29 px inside its parent, not the panel's width,
+                    // and that is measured on the issue.
+                    min_height: full_height.then_some(bevy_gooey::Extent::Px(0.0)),
+                    ..default()
+                },
+            ),
             (
                 bevy_gooey::RowLayout { direction: Some(FlexDirection::Column), ..default() },
                 bevy_gooey::TextFlow { grow: full_height.then_some(1.0), ..default() },
-                // Its gap, padding, margin and corner are the style sheet's `.chrome-panel`.
+                // Its margin and its inset are the sheet's `.chrome-panel`: the first because a panel's
+                // place is its dock's, the second because this editor wants twice the air a dialog's
+                // panel gets. The role supplies the corner and the row gap, so the rule states neither.
                 bevy_gooey::StyleClass::of("chrome-panel"),
                 bevy_gooey::BorderPx(bevy_gooey::Sides::all(crate::style::metrics().layout.edge_w)),
                 bevy_gooey::InkFollow,

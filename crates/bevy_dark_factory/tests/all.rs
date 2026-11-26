@@ -222,6 +222,7 @@ mod a_proposal_says_how_varied_it_is;
 mod a_question_is_asked_in_a_gooey_dialog;
 mod a_pan_cannot_walk_the_map_out_of_the_depth_range;
 mod a_panels_ground_comes_from_the_skin;
+mod a_panels_inset_follows_the_skins_density;
 mod a_pane_in_the_left_dock_can_be_clicked;
 mod a_receipt_does_not_move_the_panel;
 mod a_rebound_chord_runs_its_command;
