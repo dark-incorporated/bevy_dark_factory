@@ -36,15 +36,31 @@ fn send(app: &mut App, key_code: KeyCode, logical_key: Key, state: ButtonState) 
     });
 }
 
+/// The platform's primary modifier, which `primary_shift(K)` names (#668): Command on a mac, Control
+/// elsewhere. The chord is built from `Modifiers::PRIMARY`, which is a *runtime* value, so a test that
+/// presses `ControlLeft` on arm64 presses the wrong key and the clear never fires (left 293, right 0).
+fn primary() -> KeyCode {
+    if cfg!(target_os = "macos") { KeyCode::SuperLeft } else { KeyCode::ControlLeft }
+}
+
 /// A modifier held round K, as a hand makes the chord.
 fn chord_k(app: &mut App, modifier: KeyCode) {
     // **`Shift` too** (#680): `terminal.clear` is `primary_shift(K)` since plain `Ctrl+K` turned out to be
     // `palette.open_alt` on Linux as well as macOS. A clear is a deliberate act, and Shift says so.
+    // **Shift is held across K's whole press and release, and released last.** `keys::shift_ok` reads
+    // `ButtonInput` at the frame K is matched, so releasing Shift in the same iteration as K's release
+    // leaves `shift_held` false and the chord matches nothing: the test then fails with the scrollback
+    // untouched (left 293, right 0 on arm64).
     let unidentified = || Key::Unidentified(NativeKey::Unidentified);
+    send(app, modifier, unidentified(), ButtonState::Pressed);
+    send(app, KeyCode::ShiftLeft, unidentified(), ButtonState::Pressed);
+    app.update();
     for state in [ButtonState::Pressed, ButtonState::Released] {
-        send(app, modifier, unidentified(), state);
-        send(app, KeyCode::ShiftLeft, unidentified(), state);
         send(app, KeyCode::KeyK, Key::Character("k".into()), state);
+        if state == ButtonState::Released {
+            send(app, modifier, unidentified(), ButtonState::Released);
+            send(app, KeyCode::ShiftLeft, unidentified(), ButtonState::Released);
+        }
         app.update();
     }
     for _ in 0..3 { app.update(); }
@@ -65,14 +81,13 @@ fn with_history(tag: &str) -> App {
 }
 
 #[test]
-fn ctrl_k_clears_the_scrollback() {
-    // **`ControlLeft`, not Super** (#637). `terminal.clear` is `Modifiers::CTRL` on every platform since c450152,
-    // so pressing Super (meta) matches nothing, `history` stays ~300, and this assertion fails. The name and the
-    // press both follow the binding.
+fn shift_ctrl_k_clears_the_scrollback() {
+    // **`ControlLeft` plus Shift, not Super** (#637, #668). `terminal.clear` is `primary_shift(K)` on every
+    // platform, so on a Mac the primary is Command and Shift is still needed: pressing Super alone matches
+    // nothing, `history` stays ~300, and this assertion fails. The name and the press both follow the binding.
     let mut app = with_history("ctrl_k_clears");
-    // **`Modifiers::CTRL` everywhere** (#637): a Mac's Command is the wrong key and nothing would clear.
-    chord_k(&mut app, KeyCode::ControlLeft);
-    assert_eq!(history(&app), 0, "Ctrl+K left the scrollback where it was");
+    chord_k(&mut app, primary());
+    assert_eq!(history(&app), 0, "Shift+primary+K left the scrollback where it was");
     let mut terminal = app.world_mut().resource_mut::<Terminal>();
     let screen = terminal.tab_mut().expect("a shell is open").screen_mut();
     screen.lines();
