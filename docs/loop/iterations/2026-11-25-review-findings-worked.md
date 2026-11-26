@@ -55,3 +55,51 @@ reading is not a measurement; find the branch that decides, not the function tha
   canonical. Both need the owner's word.
 - **#624**'s wait is **fixed** (one headroom number, 18 GB = the old floors' sum; three gates paid 30 min
   each before, two since started in seconds). Its 70% contention figure stands and is #632's subject.
+
+## The `PRIMARY` collision, and why one chord took three attempts
+
+`terminal.clear` was placed wrongly twice, and each placement looked right on the host it was read on. The
+gate settled it on the first Linux run.
+
+| attempt | chord | collides on macOS | collides on Linux |
+|---|---|---|---|
+| original | `Modifiers::META` + `K` | **yes** — `META` *is* `PRIMARY`, so `palette.open_alt` (`primary(K)`) | no |
+| "fix" | `Modifiers::CTRL` + `K` | no | **yes** — `CTRL` *is* `PRIMARY`, same chord |
+| fix | `primary_shift(K)` | no | no |
+
+The failure the gate printed, which reading could not have produced:
+
+```
+**two fixed chords are the same key**:
+Modifiers { ctrl: true, shift: false, alt: false, meta: false } KeyK
+  -> ["palette.open_alt", "terminal.clear"]
+```
+
+**`Modifiers::PRIMARY` is a runtime value**: `META` on macOS, `CTRL` elsewhere. Any chord written with
+`PRIMARY`, `META` or `CTRL` has to be checked with **both** substitutions, and the only thing that decides it
+is `no_two_fixed_chords_are_the_same_key` on the opposite platform. That test earned its keep — it was the
+sole failure of a 5,213-test run (5,212 passed), so it isolated one mistake in an otherwise sound branch.
+
+**What the rest of that gate said:** nothing. 5,212 of 5,213 passed, so `#637`'s move and everything merged
+beside it were fine; the chord table was the only defect.
+
+## The reboot that looked like five bugs
+
+Every symptom chased for an hour was one event: **big rebooted at 16:42**, 68 minutes before I started
+diagnosing.
+
+| symptom | cause |
+|---|---|
+| `/tmp/fleet` missing, launcher failing at its own postflight line | tmpfs cleared by the reboot |
+| `git fetch` → *"did not send all necessary objects"* | a **zero-byte** `refs/notes/gated-origin`, left by a fetch interrupted at shutdown |
+| the gate cycling with `Failed with result 'exit-code'`, no error in its log | its log file was gone, so `systemd-run`'s redirect failed at start |
+| zram holding 23 GB of unreclaimable pages | **cleared by the reboot**: 7 GB → 23 GB free swap |
+
+`#624`'s recommendation was right and is now demonstrated: a reboot clears the compressed pages that stopping
+containers cannot, and the gate went from *30 minutes then death at 64%* to `starting with 41 GB headroom and
+22 GB free swap`. It is not a fix for the cause — zram refills as the same services run — but it is the only
+thing that buys the room back, and `docs/loop/RUNNING-A-LOOP.md` now says to `mkdir -p /tmp/fleet` after one.
+
+**A log was lost to this, again.** big's `gate-tests/` compile and run timings died with `/tmp`; big_mac's five
+copies are the only survivors. That is the second time a log I needed was not kept somewhere durable, which is
+the argument for memos living in the shared `.git` (`#673`) rather than in a worktree.

@@ -249,6 +249,37 @@ Four things follow, and each cost this loop a gate:
    dies at 64%. The durable fix is a **disk-backed swap file** beside zram; the immediate one is a **reboot**, which
    clears zram. Both are the owner's, since big is shared — filed on #636 with the numbers.
 
+## Two things that stop every gate, and neither is the code (measured 2026-11-25)
+
+Both hit in one session and both read as a hook failure rather than an environment one.
+
+**1. `/tmp/fleet` missing.** Every gate artifact lives there (`gate-rel.sh`, `gate-push.sh`, `launch-gate.sh`), and
+`/tmp` on big is **tmpfs, so a reboot erases it**. The symptom is
+`launch-gate.sh: line 51: /tmp/fleet/gate-fleet-gate-rel2-postflight.log: No such file or directory` and a unit that
+starts then reports `inactive`. The fix is one word:
+
+```sh
+ssh big 'mkdir -p /tmp/fleet'
+```
+
+**2. A zero-byte ref under `refs/notes/`.** `git fetch` then fails with
+`error: github.com:dark-incorporated/bevy_dark_factory.git did not send all necessary objects`, which reads as a
+network fault and is not: `git for-each-ref refs/notes/` prints
+`warning: ignoring broken ref refs/notes/gated-origin`, and the file is **0 bytes**. A zero-length ref is broken, and
+a fetch that touches it aborts.
+
+```sh
+ssh big 'cd ~/worktrees/bevy_dark_factory-fleet-push && \
+  f="$(git rev-parse --git-common-dir)/refs/notes/gated-origin"; \
+  [ -f "$f" ] && [ ! -s "$f" ] && rm -f "$f" && echo removed'
+```
+
+Deleting a **zero-byte** ref destroys nothing — it names no commit. Never delete a `refs/notes/` file with a size in
+it; those are the gate's records.
+
+**Both are worth checking first when a gate "fails before running"**, because neither produces a message that names
+the environment, and one of them (`/tmp/fleet`) returns after every reboot.
+
 ## Facts that cost a cycle
 
 - **A loop cannot simply be moved to the idle machine, because the disk is the binding constraint, not
