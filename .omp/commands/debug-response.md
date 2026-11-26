@@ -68,7 +68,7 @@ Before any capture is read, these must hold. Fixing them is the pass's first job
 
 2. **Nothing is unpushed.** If `git status -sb` shows `main` ahead of `origin/main`, a previous pass died between commit and push. Push it and let the gate judge. If the gate refuses, move those commits aside with `git branch parked/pass-<N>` and then `git reset --hard origin/main`, log it, and continue.
 3. **The ledger and history are valid.** `python3 tools/loop/captures.py check` exits 0, and the history check in "The history" passes. If a ledger row is wrong, repair it with `captures.py set`. Never edit an existing line of `cases.jsonl`. If you cannot repair either, log why and stop.
-4. **`main` builds and the gate runs.** If `main` does not build, fix exactly that first. If the push gate itself is broken, repair it under the rule in "The protected evaluator". Then continue. Neither counts as the pass's capture.
+4. **`main` builds and the gate runs.** The push gate is `tools/loop/hooks/pre-push`: four checks first — `backlog`, `changelog`, `version` and `wall-clock-filter` — then `clippy`, the suite, the doctests and `rustdoc`. If `main` does not build, fix exactly that first. If the push gate itself is broken, repair it under the rule in "The protected evaluator". Then continue. Neither counts as the pass's capture.
 
 ## 2. Review or capture?
 

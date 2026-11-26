@@ -42,7 +42,8 @@ Games depend on these crates by path and the editor runs on a game as its projec
 - **Run only the crate or module you touched** (`cargo nextest run -p <crate>`, or
   `cargo nextest run -p bevy_dark_factory --test editor -E 'test(<module>::)'`), never the whole workspace by
   hand: the push is the full gate (`tools/loop/hooks/pre-push` runs `python3 tools/loop/backlog.py check`,
-  `python3 tools/changelog/changelog.py check` and `python3 tools/loop/version.py check`, then
+  `python3 tools/changelog/changelog.py check`, `python3 tools/loop/version.py check` and
+  `python3 tools/loop/wall_clock_filter.py` (the `backlog`, `changelog`, `version` and `wall-clock-filter` checks), then
   `cargo clippy --workspace --all-targets -- -D warnings`, `cargo nextest run --workspace`,
   `cargo test --workspace --doc` and `RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps`), and a
   hand-run is a second full pass for nothing. **The rustdoc step is the one no crate-scoped run covers**:

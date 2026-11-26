@@ -286,7 +286,9 @@ Orient, and let it drive a tuning.
   `python3 tools/loop/steps.py report --state ~/.local/state/wiggum/bevy_emerge_loop --last 12` and
   say in the log line which sink is biggest this pass. That report is what a tuning is judged against.
 - Read `docs/loop/focus.md`: what is below its `---` line is the owner's focus; nothing there, or no file, means no focus. It governs Phase 2.
-- `python3 tools/loop/backlog.py check`.
+- The four pre-push checks, by the script each runs: `python3 tools/loop/backlog.py check`,
+  `python3 tools/changelog/changelog.py check`, `python3 tools/loop/version.py check` and
+  `python3 tools/loop/wall_clock_filter.py` — the `backlog`, `changelog`, `version` and `wall-clock-filter` steps.
 - Record `uptime`, `df -h /`, `free -g`. On a machine with fewer than 20 GB free or under 4 GB available
   RAM, run tests with `-- --test-threads=4` and **do not start a build you cannot finish** — see
   "Machines" below.

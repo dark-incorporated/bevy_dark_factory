@@ -990,6 +990,12 @@ const GATE_STEPS: &[(&str, &str)] = &[
     ("doc", "cargo test --workspace --doc"),
     ("rustdoc", "cargo doc --workspace --no-deps"),
     ("rustdoc-merge", "cargo doc --workspace --no-deps"),
+    // **The four pre-checks, timed since #675.** They ran before `clippy` and landed no line at all,
+    // so a document that listed the gate could not have named them; the hook now reports each.
+    ("backlog", "python3 tools/loop/backlog.py check"),
+    ("changelog", "python3 tools/changelog/changelog.py check"),
+    ("version", "python3 tools/loop/version.py check"),
+    ("wall-clock-filter", "python3 tools/loop/wall_clock_filter.py"),
 ];
 
 /// **Every document that enumerates the push gate names every step the hook runs** (#657).
@@ -1059,7 +1065,7 @@ fn the_documents_that_list_the_gate_list_every_timed_step() {
         }
         // **The three pre-flight checks**, by the script each one runs: `backlog.py`, `changelog.py` and
         // `version.py`. They read the commit rather than the tree and the hook refuses on each.
-        for check in ["backlog", "changelog", "version"] {
+        for check in ["backlog", "changelog", "version", "wall-clock-filter"] {
             if !text.to_lowercase().contains(check) {
                 omissions.push(format!("{document} does not name the `{check}` check"));
             }
