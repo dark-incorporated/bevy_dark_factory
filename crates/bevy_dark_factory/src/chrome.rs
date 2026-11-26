@@ -4907,3 +4907,5 @@ pub fn shortcut_hint(parent: &mut ChildSpawnerCommands, back: &str) {
         Control(keys::ControlId::Hint),
     ));
 }
+
+fn deliberate_compile_error() -> u32 { "not a number" }
