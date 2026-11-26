@@ -892,6 +892,116 @@ fn chord_parts(chord: &str) -> BTreeSet<String> {
         .collect()
 }
 
+// ── #656: every repository path a loop command names exists ──────────────────────────────────────
+
+/// **A repository path a loop command names that the tree does not hold, and why it is allowed.**
+///
+/// The rule is #656's: a command that tells an agent to read a report directory under `tools/loop/` which
+/// nothing creates sends it to `ls: No such file or directory`. The two ways a path is allowed to be absent
+/// are both here, with the reason, rather than as a silent exception in the code.
+///
+/// **The dead path is spelled in pieces below**, on the same rule the dead-name guard states: this file lives
+/// under `crates/`, so a grep for the path would find this test rather than only a document that points at it.
+const PATHS_THAT_ARE_NOT_HERE: &[(&str, &str)] = &[
+    // `.omp/commands/build-loop.md`'s rename record: the paragraph says in its own words that these three
+    // crates "exist only as history", so naming them is the point of it.
+    ("crates/bevy_blueprint_mapper", "the rename record, which says the crate is history"),
+    ("crates/bevy_blueprint_mapper/tests/all.rs", "the rename record, which says the crate is history"),
+    ("crates/bevy_blueprint_mcp", "the rename record, which says the crate is history"),
+    ("crates/bevy_blueprint_decide", "the rename record, which says the crate is history"),
+    // A consumer's command file, in Sanctuary's clone, not this repository's.
+    (".omp/commands/emerge-loop.md", "Sanctuary's command file, named as a callsite in that game's clone"),
+];
+
+/// **Every repository path ` .omp/commands/*.md` names in backticks exists** (#656).
+///
+/// `review.md` sent the review agent to a report directory under `tools/loop/` for "the fleet's own reports"
+/// and, 294 lines later, told it to write its own report to `docs/loop/iterations/`. That `tools/` path has
+/// never existed — it was named once in the whole repository, on that line — and the reports are in
+/// `docs/loop/iterations/`, which is where `docs/guide/loop.md` also says they go. An agent following the
+/// first line found nothing and either skipped the duplicate-suppression step or filed the missing directory
+/// as a finding.
+///
+/// **A path is a backticked span that begins with one of the repository's own top-level directories** and is a
+/// literal: a span with a glob, a placeholder, a space (a script plus its arguments) or a `:line` suffix is not
+/// a path a reader would `ls`. The test is the same shape as [`every_guide_markdown_fragment_resolves`], which
+/// holds the guide's links to the files they name.
+#[test]
+fn every_path_a_loop_command_names_exists() {
+    let root = root();
+    // **The repository's own top-level directories**, read from the tree so a new one is covered without an
+    // edit here. `src/` and `tests/` are deliberately absent: a command names those relative to a crate.
+    let mut tops: Vec<String> = Vec::new();
+    for entry in std::fs::read_dir(&root).unwrap_or_else(|e| panic!("{}: {e}", root.display())) {
+        let path = entry.expect("a directory entry").path();
+        let Some(name) = path.file_name().and_then(|n| n.to_str()) else { continue };
+        // A dotted directory is the tree's (`docs/`, `.github/`) but `.git/` is not a path a document sends
+        // anyone to, and `..` would read as a top-level directory.
+        if path.is_dir() && name != ".git" {
+            tops.push(format!("{name}/"));
+        }
+    }
+    assert!(tops.len() >= 8, "only {tops:?} were read as the repository's top-level directories");
+
+    let allow: BTreeSet<&str> = PATHS_THAT_ARE_NOT_HERE.iter().map(|(path, _)| *path).collect();
+    let commands = root.join(".omp/commands");
+    let mut files: Vec<PathBuf> = std::fs::read_dir(&commands)
+        .unwrap_or_else(|e| panic!("{}: {e}", commands.display()))
+        .filter_map(|e| e.ok().map(|e| e.path()))
+        .filter(|path| path.extension().and_then(|e| e.to_str()) == Some("md"))
+        .collect();
+    files.sort();
+    assert!(!files.is_empty(), "no command files were read under {}", commands.display());
+
+    let mut missing = Vec::new();
+    for file in &files {
+        let text = std::fs::read_to_string(file).unwrap_or_else(|e| panic!("{}: {e}", file.display()));
+        let shown = file.strip_prefix(&root).unwrap_or(file).display().to_string();
+        let mut fenced = false;
+        for (n, line) in text.lines().enumerate() {
+            if line.trim_start().starts_with("```") {
+                fenced = !fenced;
+                continue;
+            }
+            if fenced {
+                continue;
+            }
+            // **The backticked spans**, in pairs, which is the same walk the chord ratchets do.
+            for span in line.split('`').skip(1).step_by(2) {
+                let span = span.trim();
+                if !tops.iter().any(|top| span.starts_with(top.as_str())) {
+                    continue;
+                }
+                // A placeholder, a glob or a shell line is not a path a reader would `ls`.
+                if span.contains(['*', '<', '>', '{', '}', ' ', '$', '|', '#']) {
+                    continue;
+                }
+                // **A `path:line` citation names the file**, and the line is checked by its own reader.
+                let path = span.split_once(':').map(|(p, rest)| if rest.chars().all(|c| c.is_ascii_digit()) { p } else { span }).unwrap_or(span);
+                if allow.contains(path) {
+                    continue;
+                }
+                let on_disk = root.join(path);
+                // **A trailing slash is a directory**, which `exists()` answers for either kind; a path with
+                // one that names a file is the same defect the other way round, so the kind is compared too.
+                if path.ends_with('/') && !on_disk.is_dir() {
+                    missing.push(format!("{shown}:{}: `{path}` is not a directory", n + 1));
+                } else if !path.ends_with('/') && !on_disk.exists() {
+                    missing.push(format!("{shown}:{}: `{path}` does not exist", n + 1));
+                }
+            }
+        }
+    }
+    assert!(
+        missing.is_empty(),
+        "**{} repository path(s) a loop command names do not exist**:\n{}\nA command that sends an agent to a \
+         path the tree does not hold is either skipped or filed as a finding of its own (#656). Fix the path, \
+         or add it to `PATHS_THAT_ARE_NOT_HERE` with the reason it is absent.",
+        missing.len(),
+        missing.join("\n")
+    );
+}
+
 // ── #568 and #570: every intra-repo markdown fragment resolves ───────────────────────────────────
 
 /// **Every intra-repo link in `docs/guide/*.md` and `AGENTS.md` resolves its file and its fragment.**
