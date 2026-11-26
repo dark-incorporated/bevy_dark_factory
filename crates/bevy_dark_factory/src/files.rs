@@ -858,6 +858,11 @@ fn spawn_the_files_workspace(mut commands: Commands, frame: Res<Frame>) {
                     TextColor(ink.dim),
                     chrome::typed(chrome::text::LABEL),
                     TextLayout::new(Justify::Right, LineBreak::NoWrap),
+                    // **Pushed to the row's far edge** (#542): `align_self` moves a flex item along the
+                    // row's main axis, so the readout stands on the far edge. Its `Justify::Right` needs a
+                    // box wider than its words to have any effect, and `grow` would share the free width
+                    // with the path, leaving the readout in the middle.
+                    bevy_gooey::TextFlow { align: Some(AlignSelf::End), ..default() },
                 ));
             });
             // **The field line names itself** (#599). It was spawned with its placeholder as its only
