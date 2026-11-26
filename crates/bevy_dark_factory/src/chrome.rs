@@ -921,7 +921,12 @@ pub fn panel_root<'a>(
             (
                 bevy_gooey::RowLayout { direction: Some(FlexDirection::Column), ..default() },
                 bevy_gooey::TextFlow { grow: full_height.then_some(1.0), ..default() },
-                // Its gap, padding, margin and corner are the style sheet's `.chrome-panel`.
+                // **The panel's role** (#650): gooey's `Role::Panel` is what makes this a box in the
+                // accessibility tree a reader can enter, and what derives its inset from `skin.pad()` and
+                // its corner and row gap from the skin — so the density a skin declares reaches every dock
+                // panel, which a class rule in px never could. The class carries what the role does not
+                // (see `.chrome-panel` in the sheet).
+                bevy_gooey::Role::Panel,
                 bevy_gooey::StyleClass::of("chrome-panel"),
                 bevy_gooey::BorderPx(bevy_gooey::Sides::all(crate::style::metrics().layout.edge_w)),
                 bevy_gooey::InkFollow,
@@ -2294,29 +2299,22 @@ pub fn scroll_to_reveal(
     inverse_scale: f32,
 ) -> Option<f32> {
     let (row_top, row_bottom) = (row.0 - row.1, row.0 + row.1);
-    let (top, bottom) = (list.0 - list.1, list.0 + list.1);
+    let top = list.0 - list.1;
     let (row_h, list_h) = (row.1 * 2.0, list.1 * 2.0);
-    // The largest margin that still leaves the row itself room, so a short viewport degrades to
-    // flush rather than to a fight between two margins it cannot satisfy.
-    let margin = (crate::style::metrics().layout.context_rows * row_h).min(((list_h - row_h) * 0.5).max(0.0));
-    // Above the fold, or below it. Never both — the above check winning is what sends an
-    // over-tall row to its top.
-    let delta = if row_top - margin < top {
-        row_top - margin - top
-    } else if row_bottom + margin > bottom {
-        row_bottom + margin - bottom
-    } else {
-        return None;
-    };
-    // Further than a viewport is a jump, not a step: put the row in the middle.
-    let delta = if delta.abs() > list_h { row.0 - list.0 } else { delta };
-    // **Clamped at BOTH ends.** The floor was always here; the ceiling is what the two-row margin
-    // made necessary — a reveal at the end of a list asks for `max + margin`, Bevy clamps only
-    // `ComputedNode::scroll_position` (`bevy_ui-0.20.0/src/layout/mod.rs:493-496`, through
-    // `bypass_change_detection`), and the component every caller reads back keeps the surplus. The
-    // list then stands still while the highlight walks off it — the 2026-09-03 seed, reintroduced
-    // by its own fix.
-    let want = (scroll_y + delta * inverse_scale).clamp(0.0, max_scroll_y.max(0.0));
+    let inv = if inverse_scale.is_finite() && inverse_scale > 0.0 { inverse_scale } else { 1.0 };
+    // **The editor's frame is the screen and gooey's is the content**, so the edges are re-expressed
+    // before the call: a physical `y` on the list becomes `scroll + (y - list_top) * inverse_scale`,
+    // which is where that line of content sits when the viewport starts at `scroll`.
+    let at = |y: f32| scroll_y + (y - top) * inv;
+    // The context the editor keeps is its own decision, in the sheet (`layout.context_rows` rows of the
+    // revealed row's own height); the *arithmetic* — the clamp that degrades to flush on a short
+    // viewport, and the re-centre of a jump wider than one viewport — is gooey's, so a list here and a
+    // list in the crate cannot drift.
+    let margin = crate::style::metrics().layout.context_rows * row_h * inv;
+    // gooey answers a scroll position in the same space it was given, which is the logical space
+    // `scroll_y` and `max_scroll_y` already live in.
+    let want = bevy_gooey::scroll_to_reveal(at(row_top), at(row_bottom), list_h * inv, scroll_y, max_scroll_y, margin);
+    let want = want.clamp(0.0, max_scroll_y.max(0.0));
     ((scroll_y - want).abs() > 0.5).then_some(want)
 }
 

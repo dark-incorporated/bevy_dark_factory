@@ -23,8 +23,7 @@
 use bevy::prelude::*;
 
 use bevy_dark_factory::harness;
-use bevy_dark_factory::session::{self, Doc, Kind, Session};
-use bevy_dark_factory::workspace::Workspace;
+use bevy_dark_factory::session;
 
 use crate::fixtures;
 use crate::settle_support;

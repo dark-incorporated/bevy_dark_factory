@@ -595,6 +595,7 @@ mod the_state_carries_a_frame_clock;
 mod the_style_sheet_reloads_live;
 mod the_type_scale_is_declared_once;
 mod the_document_tab_is_gooeys_edge_tab;
+mod the_reveal_arithmetic_is_gooeys;
 mod the_surface_and_the_camera_agree;
 mod the_sweep_is_finished;
 mod the_toast_is_on_screen;
