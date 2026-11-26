@@ -54,6 +54,14 @@ use crate::settings::{Feed, Theme};
 /// The one version of a style layer this build reads.
 pub const STYLE_VERSION: u32 = 1;
 
+/// **The `skin` type fields the editor derives from `metrics.type`, so no layer may state them** (#648).
+///
+/// gooey's `text_size`, `heading_size` and `type_scale` are one scale said in gooey's own vocabulary;
+/// the editor's seven role names are the same scale in its own. Keeping both declared is what split a
+/// window into two body sizes, so [`one_type_scale`] writes these three from `metrics.type` after the
+/// merge and [`read_layer`] refuses a layer that names one.
+pub const DERIVED_SKIN_TYPE_FIELDS: [&str; 3] = ["text_size", "heading_size", "type_scale"];
+
 /// The reload registry's kind for every style layer (`blueprint_model::reload::KINDS`).
 pub const KIND: &str = "editor_style";
 
@@ -402,6 +410,19 @@ pub fn read_layer(name: &str, text: &str) -> Result<StyleLayer, Refusal> {
         Some(Value::Object(map)) => map.clone(),
         _ => Map::new(),
     };
+    // **A layer may not state gooey's three type fields**: they are derived from `metrics.type`
+    // (#648), so a file that set one would be a second authority this merge would silently discard.
+    // Refused by name, the way an unknown key is, so the person is told rather than misled.
+    if let Some(Value::Object(skin)) = json.get("skin") {
+        for field in DERIVED_SKIN_TYPE_FIELDS {
+            if skin.contains_key(field) {
+                return Err(refuse(
+                    Some(&format!("skin.{field}")),
+                    format!("`skin.{field}` is derived from `metrics.type` (#648); state the size under `metrics: {{type: ...}}`"),
+                ));
+            }
+        }
+    }
     let mut rules = check.rules;
     for rule in &mut rules.0 {
         rule.source = name.to_owned();
@@ -455,7 +476,37 @@ pub fn merge(layers: &[&StyleLayer]) -> Result<EditorStyle, String> {
     }
     let skin: GooeySkin = serde_json::from_value(Value::Object(skin)).map_err(|e| format!("the merged skin does not read: {e}"))?;
     let metrics: EditorMetrics = serde_json::from_value(Value::Object(metrics)).map_err(|e| format!("the merged metrics do not read: {e}"))?;
-    Ok(EditorStyle { skin, metrics, rules, lines })
+    Ok(EditorStyle { skin: one_type_scale(skin, &metrics), metrics, rules, lines })
+}
+
+/// **One type scale, and it is `metrics.type`** (#648).
+///
+/// gooey's three type fields are *derived* here rather than declared beside the editor's seven role
+/// names, because two declarations of one scale is how a window gets two body sizes: a person editing
+/// `metrics.type.body` — the documented way to change the editor's text size — moved every
+/// `chrome::typed` label and left every `bevy_gooey` one at the old size (#518 measured the result as
+/// 550 of 602 texts at 11.666 px).
+///
+/// `type_scale` is gooey's ascending five-step ladder, and the editor's names map onto it by size:
+/// `hint` < `label`/`control` < `body`/`heading` < `tab` < `title`. `text_size` is the body — the size
+/// gooey draws a [`Role::Label`](bevy_gooey::Role::Label) at — and `heading_size` is the title, which
+/// is the size the sheet already declared for it.
+///
+/// **The ladder is sorted**, because gooey's own rule is that a `type_scale` never falls
+/// ([`bevy_gooey::SkinProblem::BadScale`]) and a person editing one role — `body: 14.0` beside a
+/// `tab: 13.0` — would otherwise make the editor's own sheet break the library's rule and put a
+/// problem on the status line for doing what the sheet documents.
+///
+/// A layer that states one of the three is refused by [`read_layer`], so there is no second authority
+/// to drift: the only way to say a type size is `metrics.type`.
+fn one_type_scale(mut skin: GooeySkin, metrics: &EditorMetrics) -> GooeySkin {
+    let size = &metrics.r#type;
+    let mut steps = [size.hint, size.label, size.body, size.tab, size.title];
+    steps.sort_by(f32::total_cmp);
+    skin.type_scale = steps;
+    skin.text_size = size.body;
+    skin.heading_size = size.title;
+    skin
 }
 
 /// The compiled base and theme layers, read once: their text is in the binary, so a failure is a build that

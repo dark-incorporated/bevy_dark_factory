@@ -593,6 +593,7 @@ mod the_stage_labels_do_not_collide;
 mod the_stage_labels_live_in_one_space;
 mod the_state_carries_a_frame_clock;
 mod the_style_sheet_reloads_live;
+mod the_type_scale_is_declared_once;
 mod the_surface_and_the_camera_agree;
 mod the_sweep_is_finished;
 mod the_toast_is_on_screen;
