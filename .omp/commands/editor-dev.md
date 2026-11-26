@@ -75,4 +75,4 @@ line through `tools/changelog/changelog.py add`, and the push through the gate.
 | A class's padding, margin, gap, size, corner, colours | `rules:` (`".chrome-chip": {padding: !Step 0}`) | yes |
 | The camera's nearest and furthest, wheel step, pan speed, a piece's turn | the person's `settings.yaml` `view:` | yes |
 | Every chord, the census's and the fixed ones (console, terminal, palette) | `settings.yaml` `keymap:` | yes |
-| The words of the interface, the icon atlas `assets/ui/icons.png`, toast and loading timings | Rust and assets | no: build and relaunch |
+| The words of the interface, the icon atlas `crates/bevy_dark_factory/assets/ui/icons.png`, toast and loading timings | Rust and assets | no: build and relaunch |

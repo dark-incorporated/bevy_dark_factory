@@ -41,9 +41,14 @@ Games depend on these crates by path and the editor runs on a game as its projec
 - Every API change lists the consumer callsites it breaks.
 - **Run only the crate or module you touched** (`cargo nextest run -p <crate>`, or
   `cargo nextest run -p bevy_dark_factory --test editor -E 'test(<module>::)'`), never the whole workspace by
-  hand: the push is the full gate (`tools/loop/hooks/pre-push` runs clippy over every target,
-  `cargo nextest run --workspace` and `cargo test --workspace --doc`), and a hand-run is a second full pass
-  for nothing. A consumer (`Sanctuary`, `bevy_emerge`) is checked with `cargo nextest run` in its own clone.
+  hand: the push is the full gate (`tools/loop/hooks/pre-push` runs `python3 tools/loop/backlog.py check`,
+  `python3 tools/changelog/changelog.py check` and `python3 tools/loop/version.py check`, then
+  `cargo clippy --workspace --all-targets -- -D warnings`, `cargo nextest run --workspace`,
+  `cargo test --workspace --doc` and `RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps`), and a
+  hand-run is a second full pass for nothing. **The rustdoc step is the one no crate-scoped run covers**:
+  neither `cargo nextest run -p <crate>` nor `cargo clippy -p <crate>` reads a doc comment, so a change to one
+  is checked only by the push. A consumer (`Sanctuary`, `bevy_emerge`) is checked with `cargo nextest run` in
+  its own clone.
 - If a consumer change depends on an unpushed commit here, the consumer's agents are told which commit (Sanctuary: `AGENTS_CHAT.md`).
 
 Consumers: Sanctuary (`/Users/ladvien/sanctuary`, decision 0087).

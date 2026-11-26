@@ -633,11 +633,12 @@ fn spawn_compose_panel(mut commands: Commands, frame: Res<crate::chrome::Frame>)
         // be scrolled to is a problem that gets missed.
         // **No inline key census here, and its absence is the fix.**
         //
-        // This tab was the only one still calling `chrome::key_census` in its own panel. The other
-        // three dropped it when the hold-`K` overlay arrived — `drive_shortcuts_overlay` builds the
-        // same rows from the same function, and its own note says "the same order the panels *used*".
-        // Compose kept the old call, so it drew twenty rows of key list permanently AND the same
-        // twenty again on `K`: two paths to one answer, and the panel paying for both.
+        // This tab was the only one still drawing a key list in its own panel. The other three
+        // dropped it when the hold-`K` overlay arrived: `badges::rebuild_badges` builds the
+        // clusters, one per `chrome::Control` home, from `keys::pressed(…, Action::Shortcuts)`, and
+        // `badges::place_badges` lays them against the controls they name. Compose kept the old
+        // list, so it drew twenty rows of keys permanently AND the same twenty again on `K`: two
+        // paths to one answer, and the panel paying for both.
         //
         // Harmless while this context had three rows; step 3 took it to eight, and with Global's
         // twelve the group list was pushed off the bottom of the screen. Found by an author trying to

@@ -4134,8 +4134,8 @@ fn spawn_tab_strip(
                     bevy_gooey::edge_tab(mode.label()),
                     Tab(mode),
                     // The label the reader hears. `mode.label()` rather than a second string, so a
-                    // panel renamed once is renamed everywhere — the same rule `chrome::key_census`
-                    // keeps for chords.
+                    // panel renamed once is renamed everywhere — the same rule `keys::BINDINGS`
+                    // keeps for a chord: one entry per verb, spelled once.
                     bevy::prelude::AccessibleLabel::new(mode.label()),
                 ));
                 // Before the badge is added: the first text among the tab's children is the label `edge_tab` made.
