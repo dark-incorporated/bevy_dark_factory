@@ -20,8 +20,20 @@ use bevy_dark_factory::project_index::{ChangeKind, ProjectFileChanged};
 use serde_json::{Value, json};
 
 use crate::index_view_support as support;
+use crate::settle_support::Frames;
 
 const LOG_REL: &str = "assets/blueprint/oplog.jsonl";
+
+/// The pause between the frames an append's read is waited over.
+const APPEND_PAUSE: Duration = Duration::from_millis(5);
+/// Frames an append's read is given: at least 10 s at [`APPEND_PAUSE`], counted so a starved host does not run it out
+/// early (#644).
+const APPEND_READ_WITHIN: Frames = Frames::covering(Duration::from_secs(10), APPEND_PAUSE);
+/// Frames stepped after an append is read, so a second read would show: at least 400 ms at [`support::STEP`].
+const AFTER_THE_READ: Frames = Frames::covering(Duration::from_millis(400), support::STEP);
+/// The most an undo may take on the wall clock: one second, the window [`support::SEEN_WITHIN`] covers at its pause. The
+/// undo is the subject, so this is a measurement and not a wait (#644).
+const AN_UNDO_TAKES_UNDER: Duration = Duration::from_secs(1);
 
 fn make(ctx: &mut Ctx, name: &str) -> String {
     match ops::dispatch(ctx, "map_create", &json!({"name": name, "bounds": [8.0, 4.0, 8.0]})) {
@@ -112,17 +124,19 @@ fn an_append_is_one_modified_event_and_one_read_of_the_whole_file() {
         let appended = len_after - len_before;
 
         // Step frames, timing each, until the view has read; the frame that did is the cost on the UI thread.
-        let start = Instant::now();
         let mut read_frame = Duration::ZERO;
-        while reads(&app) == reads_before && start.elapsed() < Duration::from_secs(10) {
+        for _ in 0..APPEND_READ_WITHIN.0 {
+            if reads(&app) != reads_before {
+                break;
+            }
             let frame = Instant::now();
             app.update();
             if reads(&app) != reads_before {
                 read_frame = frame.elapsed();
             }
-            std::thread::sleep(Duration::from_millis(5));
+            std::thread::sleep(APPEND_PAUSE);
         }
-        support::pump(&mut app, Duration::from_millis(400));
+        support::pump(&mut app, AFTER_THE_READ);
 
         let heard = app.world().resource::<Heard>().0[heard_before..].to_vec();
         assert!(!heard.is_empty() && heard.iter().all(|e| e.kind == ChangeKind::Modified), "an append is a Modified event: {heard:?}");
@@ -155,7 +169,7 @@ fn an_undo_is_never_delayed_by_the_index_debounce() {
         let took = started.elapsed();
         eprintln!("oplog undo of `{name}` made at once after its operation, the log's view not yet reading it: {took:?}");
         assert!(!maps.join(format!("{name}.map.yaml")).exists(), "the undo took `{name}` away");
-        assert!(took < support::SEEN_WITHIN, "the undo took {took:?}");
+        assert!(took < AN_UNDO_TAKES_UNDER, "the undo took {took:?}");
     }
     // A frame now: the index has noticed nothing (its sweep is ten minutes apart), so the view still has not read the log, though the undo is done.
     app.update();

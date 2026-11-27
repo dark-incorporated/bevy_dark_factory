@@ -9,7 +9,7 @@
 //! 2. **Open file lands in the Files workspace on that entity file, at the line of the component.**
 
 use std::path::{Path, PathBuf};
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use bevy::prelude::*;
 use bevy::time::TimeUpdateStrategy;
@@ -30,11 +30,13 @@ use bevy_gooey::CodeEditor;
 use bevy_gooey::testing::click;
 
 use crate::fixtures;
+use crate::settle_support::Frames;
 
 /// One frame of the test clock, in seconds.
 const FRAME_S: f32 = 0.1;
-/// How long a test waits for something the stub process does at its own pace.
-const WAIT: Duration = Duration::from_secs(60);
+/// How long a test waits for something the stub process does at its own pace: frames, not seconds,
+/// so a starved host does not run it out early. Covers at least 60 s at [`PAUSE`] (#644).
+const WAIT: Frames = Frames::covering(Duration::from_secs(60), PAUSE);
 /// The wall-clock pause between frames while waiting.
 const PAUSE: Duration = Duration::from_millis(15);
 
@@ -134,8 +136,7 @@ fn words(app: &mut App) -> Vec<String> {
 }
 
 fn until(app: &mut App, what: &str, mut done: impl FnMut(&mut App) -> bool) {
-    let start = Instant::now();
-    while start.elapsed() < WAIT {
+    for _ in 0..WAIT.0 {
         app.update();
         if done(app) {
             return;

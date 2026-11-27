@@ -31,7 +31,7 @@
 //! notches it spent, or the presses it made trying — rather than a zero.
 
 use std::path::{Path, PathBuf};
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use bevy::camera::{ImageRenderTarget, NormalizedRenderTarget};
 use bevy::input::ButtonState;
@@ -52,7 +52,7 @@ use bevy_dark_factory::tiles::{ImportState, Mode};
 use bevy_gooey::testing::{click, find_by_label};
 
 use crate::fixtures;
-use crate::settle_support;
+use crate::settle_support::{self, Frames};
 
 /// **Frames the editor is given to finish opening** before a route starts. A door's `OnEnter` spawns
 /// the panels, and a fixture measures its meshes on the way in; ten frames is what the editor's own
@@ -61,11 +61,12 @@ const WARM_UP_FRAMES: usize = 10;
 
 
 /// **How long a route may wait for something the clock paces** — the loading screen between the
-/// project page and a door — before the row is called unreachable.
+/// project page and a door — before the row is called unreachable: frames covering 30 s at
+/// [`WAIT_POLL`], counted rather than timed so a starved host cannot run it out (#644).
 ///
 /// Generous on purpose: this loop returns the moment it arrives, so a large budget costs nothing when
 /// the editor is quick and keeps the test from flaking when the gate's host is loaded.
-const WAIT_BUDGET: Duration = Duration::from_secs(30);
+const WAIT_BUDGET: Frames = Frames::covering(Duration::from_secs(30), WAIT_POLL);
 
 /// How long the real-time wait sleeps between frames.
 const WAIT_POLL: Duration = Duration::from_millis(10);
@@ -277,12 +278,11 @@ impl Driver {
             .unwrap_or_else(|| panic!("nothing on screen starts `{prefix}`; on screen: {:#?}", self.words()))
     }
 
-    /// **Frames in real time until `done`**, for the loading screen, which is paced by the clock
-    /// rather than by frames. Returns the moment it arrives, so the budget costs nothing when the
+    /// **Frames, [`WAIT_POLL`] apart, until `done`**, for the loading screen, which is paced by the
+    /// clock rather than by frames. Returns the moment it arrives, so the budget costs nothing when the
     /// editor is quick.
     fn until(&mut self, mut done: impl FnMut(&mut Self) -> bool) -> bool {
-        let start = Instant::now();
-        while start.elapsed() < WAIT_BUDGET {
+        for _ in 0..WAIT_BUDGET.0 {
             self.app.update();
             if done(self) {
                 return true;

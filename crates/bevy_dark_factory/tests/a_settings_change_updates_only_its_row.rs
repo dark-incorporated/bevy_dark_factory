@@ -22,6 +22,7 @@ use bevy_gooey::testing::{click, find_by_label};
 use bevy_gooey::{ChoiceValue, ListView};
 
 use crate::fixtures;
+use crate::settle_support::Frames;
 
 /// How many frames each test records after a change.
 const FRAMES_AFTER: usize = 8;
@@ -33,21 +34,24 @@ const MARK_NODES: usize = 6;
 /// The most the changed row's height may move: the Reset button is taller than the text beside it (measured: 12 px).
 const MARK_GROWTH_PX: f32 = 24.0;
 
-/// How long a test waits, on the wall clock, for the editor to see a settings file an edit made by hand changed: the file is followed by
-/// an index (#501 item 18), so the edit is seen after the index's sweep and debounce, which a number of frames does not wait for.
-const WATCH_PATIENCE_S: f64 = 10.0;
+/// The pause between two of [`until`]'s frames.
+const WATCH_PAUSE: std::time::Duration = std::time::Duration::from_millis(15);
 
-/// Step frames until `done`, for at most [`WATCH_PATIENCE_S`] on the wall clock.
+/// How many frames a test steps for the editor to see a settings file an edit made by hand changed: the file is followed by an index
+/// (#501 item 18), so the edit is seen after the index's sweep and debounce, which a fixed few frames do not wait for. A count, not a
+/// wall-clock window, so a starved host does not cut it short (#644); at [`WATCH_PAUSE`] apart they cover at least 10 s.
+const WATCH_PATIENCE: Frames = Frames::covering(std::time::Duration::from_secs(10), WATCH_PAUSE);
+
+/// Step frames until `done`, for at most [`WATCH_PATIENCE`].
 fn until(app: &mut App, what: &str, mut done: impl FnMut(&mut App) -> bool) {
-    let started = std::time::Instant::now();
-    while started.elapsed().as_secs_f64() < WATCH_PATIENCE_S {
+    for _ in 0..WATCH_PATIENCE.0 {
         app.update();
         if done(app) {
             return;
         }
-        std::thread::sleep(std::time::Duration::from_millis(15));
+        std::thread::sleep(WATCH_PAUSE);
     }
-    panic!("never saw: {what}");
+    panic!("never saw: {what} (waited {WATCH_PATIENCE:?})");
 }
 
 struct Rig {

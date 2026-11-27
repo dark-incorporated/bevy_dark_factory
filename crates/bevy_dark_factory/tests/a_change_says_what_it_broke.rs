@@ -24,6 +24,11 @@ use bevy_dark_factory::harness;
 use bevy_dark_factory::sequencer::{Operation, SequenceParams, Sequencer};
 
 use crate::fixtures;
+use crate::settle_support::{Frames, STEP};
+
+/// **How many frames the sequence gets to finish** (#644): frames, not seconds, so a loaded host that starves the editor's frames
+/// does not end the wait early; at [`STEP`] apart they cover at least the 20 s the wait used to read off the wall clock.
+const SEQUENCE_ENDS_WITHIN: Frames = Frames::covering(std::time::Duration::from_secs(20), STEP);
 
 /// **The editor with the bridge open**, on whichever map the fixture wrote.
 ///
@@ -285,9 +290,9 @@ fn a_sequence_reports_the_same_checks() {
         sequencer.start(&params, 0.0).expect("the sequence starts")
     };
 
-    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(20);
     let mut status = serde_json::Value::Null;
-    while std::time::Instant::now() < deadline {
+    for _ in 0..SEQUENCE_ENDS_WITHIN.0 {
+        std::thread::sleep(STEP);
         app.update();
         status = app.world().resource::<Sequencer>().status(id);
         if matches!(

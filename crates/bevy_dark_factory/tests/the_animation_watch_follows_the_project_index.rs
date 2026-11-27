@@ -27,17 +27,21 @@ use bevy_dark_factory::tiles::Mode;
 use blueprint_model::rigs::Rigs;
 
 use crate::fixtures;
+use crate::settle_support::Frames;
 
-/// How long a test waits for the tab to follow a write.
-const WAIT_SECONDS: f64 = 60.0;
 /// The wall-clock pause between frames while waiting.
-const PAUSE_MILLIS: u64 = 10;
+const PAUSE: Duration = Duration::from_millis(10);
+/// How long a test waits for the tab to follow a write: frames, not seconds, covering at least 60 s at [`PAUSE`], so a
+/// starved host does not run it out early (#644).
+const WAIT: Frames = Frames::covering(Duration::from_secs(60), PAUSE);
 /// How long a file is touched, and how often: the touching stops well inside the index's longest hold (2 s) and well outside its debounce
 /// (100 ms), so a measure during it can only be a debounce that does not hold.
 const TOUCHING_MILLIS: u64 = 700;
 const TOUCH_EVERY_MILLIS: u64 = 20;
-/// How long a test lets the watch run, to show that something it must not do is not done.
-const QUIET_SECONDS: f64 = 1.5;
+/// How long a test lets the watch run, to show that something it must not do is not done: at least 1.5 s at [`PAUSE`].
+const QUIET: Frames = Frames::covering(Duration::from_millis(1500), PAUSE);
+/// How long the watch runs over an unreadable manifest: at least 2 s at [`PAUSE`].
+const UNREADABLE_FOR: Frames = Frames::covering(Duration::from_secs(2), PAUSE);
 
 fn workspace_asset(rel: &str) -> std::path::PathBuf {
     std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../assets").join(rel)
@@ -61,15 +65,14 @@ fn editor(tag: &str) -> (App, std::path::PathBuf) {
 }
 
 fn until(app: &mut App, what: &str, done: impl Fn(&App) -> bool) {
-    let started = Instant::now();
-    while started.elapsed().as_secs_f64() < WAIT_SECONDS {
+    for _ in 0..WAIT.0 {
         if done(app) {
             return;
         }
         app.update();
-        std::thread::sleep(Duration::from_millis(PAUSE_MILLIS));
+        std::thread::sleep(PAUSE);
     }
-    panic!("never happened within {WAIT_SECONDS} s: {what}");
+    panic!("never happened within {WAIT:?}: {what}");
 }
 
 fn fingerprint(app: &App, rig: &str) -> Option<u64> {
@@ -158,12 +161,11 @@ fn held(app: &App) -> String {
     app.world().resource::<BenchState>().text.clone().expect("the bench holds a manifest")
 }
 
-/// Run frames for `seconds` of wall clock, so the index has had its sweep and its debounce.
-fn run_for(app: &mut App, seconds: f64) {
-    let started = Instant::now();
-    while started.elapsed().as_secs_f64() < seconds {
+/// Run `frames` frames [`PAUSE`] apart, so the index has had its sweep and its debounce (#644).
+fn run_for(app: &mut App, frames: Frames) {
+    for _ in 0..frames.0 {
         app.update();
-        std::thread::sleep(Duration::from_millis(PAUSE_MILLIS));
+        std::thread::sleep(PAUSE);
     }
 }
 
@@ -195,13 +197,13 @@ fn an_edit_an_undo_and_a_redo_leave_the_tab_and_the_file_agreeing_with_the_clock
     // Cmd+Z puts the original back, on disk and in the tab, and the watch does not take that write for someone else's edit.
     tap(&mut app, &mods, KeyCode::KeyZ);
     assert_eq!((on_disk(), held(&app)), (original.clone(), original.clone()), "Cmd+Z wrote the manifest the edit replaced");
-    run_for(&mut app, QUIET_SECONDS);
+    run_for(&mut app, QUIET);
     assert_eq!((on_disk(), held(&app)), (original.clone(), original.clone()), "the undo's own write was not taken as an edit");
 
     // Cmd+Shift+Z puts the edit back.
     tap(&mut app, &[mods[0], KeyCode::ShiftLeft], KeyCode::KeyZ);
     assert_eq!((on_disk(), held(&app)), (first.clone(), first.clone()), "Cmd+Shift+Z put the edit back");
-    run_for(&mut app, QUIET_SECONDS);
+    run_for(&mut app, QUIET);
     assert_eq!((on_disk(), held(&app)), (first.clone(), first.clone()), "the redo's own write was not taken as an edit");
 
     // A second edit by hand is a step of its own: two undos walk back through both.
@@ -210,14 +212,14 @@ fn an_edit_an_undo_and_a_redo_leave_the_tab_and_the_file_agreeing_with_the_clock
     until(&mut app, "the tab holds the second edit", |a| held(a) == second);
     tap(&mut app, &mods, KeyCode::KeyZ);
     assert_eq!((on_disk(), held(&app)), (first.clone(), first.clone()), "one undo back to the first edit");
-    run_for(&mut app, QUIET_SECONDS);
+    run_for(&mut app, QUIET);
     tap(&mut app, &mods, KeyCode::KeyZ);
     assert_eq!((on_disk(), held(&app)), (original.clone(), original.clone()), "a second undo back to the original");
-    run_for(&mut app, QUIET_SECONDS);
+    run_for(&mut app, QUIET);
     tap(&mut app, &[mods[0], KeyCode::ShiftLeft], KeyCode::KeyZ);
     tap(&mut app, &[mods[0], KeyCode::ShiftLeft], KeyCode::KeyZ);
     assert_eq!((on_disk(), held(&app)), (second.clone(), second.clone()), "two redos forward to the second edit");
-    run_for(&mut app, QUIET_SECONDS);
+    run_for(&mut app, QUIET);
     assert_eq!((on_disk(), held(&app)), (second.clone(), second.clone()), "and it stays");
 }
 
@@ -271,7 +273,7 @@ fn a_manifest_that_cannot_be_read_is_said_once_per_look_and_read_again_when_the_
             std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o644)).expect("chmod");
             return;
         }
-        run_for(&mut app, 2.0);
+        run_for(&mut app, UNREADABLE_FOR);
         assert_eq!(said(), 1, "the unreadable manifest is said once at the look, not on every frame: {:?}", seen.lock().map(|m| m.clone()));
         assert_eq!(held(&app), original, "the tab keeps the manifest it holds");
 

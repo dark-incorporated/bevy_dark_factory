@@ -1,7 +1,7 @@
 //! **The forest is redrawn when the project index says a file of it moved, and not on a clock** (#501, `forest_view::POLL_S` retired).
 //!
 //! The view used to `stat` the forest file and every tree file twice a second. It reads the project index's stamps now, so these tests
-//! change files the way an editor, an agent or a hand does (a plain `std::fs` write) and wait, on the wall clock, for the drawing to
+//! change files the way an editor, an agent or a hand does (a plain `std::fs` write) and wait, for a bounded number of frames, for the drawing to
 //! agree with what the test wrote:
 //!
 //! - the **forest file** changes its tree count (more, fewer, none because the file is gone), and the view follows each;
@@ -15,7 +15,7 @@
 #![cfg(feature = "bevy_flora")]
 
 use std::path::Path;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use bevy::prelude::*;
 use bevy::time::TimeUpdateStrategy;
@@ -27,11 +27,13 @@ use bevy_flora::ProceduralTree;
 use serde_json::json;
 
 use crate::fixtures;
+use crate::settle_support::Frames;
 
-/// How long a test waits for the drawing to follow a write: the index's sweep and debounce are a fraction of it.
-const WAIT_SECONDS: f64 = 20.0;
 /// The wall-clock pause between frames while waiting.
 const PAUSE_MILLIS: u64 = 10;
+/// How many frames a test waits for the drawing to follow a write: at least twenty seconds at [`PAUSE_MILLIS`], counted in frames so a
+/// starved host is not read as a write never followed (#644). The index's sweep and debounce are a fraction of it.
+const WAIT: Frames = Frames::covering(Duration::from_secs(20), Duration::from_millis(PAUSE_MILLIS));
 
 fn open(tag: &str) -> (App, Project) {
     let root = fixtures::Fixture::new(&format!("{tag}_{}", std::process::id())).descriptor("site/wall", "alpha").build("m");
@@ -47,17 +49,16 @@ fn open(tag: &str) -> (App, Project) {
     (app, project)
 }
 
-/// Step frames until `done`, on the wall clock.
+/// Step frames until `done`, for at most [`WAIT`] frames.
 fn until(app: &mut App, what: &str, mut done: impl FnMut(&mut App) -> bool) {
-    let started = Instant::now();
-    while started.elapsed().as_secs_f64() < WAIT_SECONDS {
+    for _ in 0..WAIT.0 {
         app.update();
         if done(app) {
             return;
         }
         std::thread::sleep(Duration::from_millis(PAUSE_MILLIS));
     }
-    panic!("never happened within {WAIT_SECONDS} s: {what}");
+    panic!("never happened within {WAIT:?}: {what}");
 }
 
 /// **A forest file of `trees` placed oaks**, each a hand-grown tree (a seed), so no pool has to be built.

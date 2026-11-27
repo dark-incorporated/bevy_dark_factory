@@ -7,7 +7,7 @@
 //! per file, in `blueprint_state.reloads`: `applied`, or `refused` with the field and the reason, and
 //! a refusal leaves what was drawn as it was, so the view never shows half an edit.
 
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use bevy::prelude::*;
 use bevy_dark_factory::editor::EditorState;
@@ -16,6 +16,15 @@ use bevy_dark_factory::terrain_view::TerrainView;
 use serde_json::{Value, json};
 
 use crate::fixtures;
+use crate::settle_support::Frames;
+
+/// The pause between the frames [`pump`] and [`until`] step: the view looks twice a second.
+const PAUSE: Duration = Duration::from_millis(40);
+/// How many frames [`until`] steps before it gives up: at least 6 s at [`PAUSE`], counted in frames
+/// so a starved host does not run it out early (#644).
+const SEEN_WITHIN: Frames = Frames::covering(Duration::from_secs(6), PAUSE);
+/// Frames with nothing edited: at least 1.6 s at [`PAUSE`].
+const QUIET: Frames = Frames::covering(Duration::from_millis(1600), PAUSE);
 
 const GROUND: &str = "{origin: [0.0, 0.0], cell_m: 1.0, width: 2, depth: 2, heights: [0.0, 0.0, 0.0, 0.0]}";
 const WATER: &str = "{origin: [0.0, 0.0], cell_m: 1.0, width: 2, depth: 2, depth_m: [0.5, 0.0, 0.0, 0.0], settled: true, steps: 3}";
@@ -40,25 +49,23 @@ fn write(app: &App, dir: &str, file: &str, text: &str) {
     std::thread::sleep(Duration::from_millis(30));
 }
 
-/// Frames for `secs` seconds of wall time: the view looks twice a second.
-fn pump(app: &mut App, secs: f64) {
-    let start = Instant::now();
-    while start.elapsed().as_secs_f64() < secs {
+/// Steps `frames` frames, pausing [`PAUSE`] between them (#644).
+fn pump(app: &mut App, frames: Frames) {
+    for _ in 0..frames.0 {
         app.update();
-        std::thread::sleep(Duration::from_millis(40));
+        std::thread::sleep(PAUSE);
     }
 }
 
 fn until(app: &mut App, what: &str, done: impl Fn(&mut App) -> bool) {
-    let start = Instant::now();
-    while start.elapsed().as_secs_f64() < 6.0 {
+    for _ in 0..SEEN_WITHIN.0 {
         if done(app) {
             return;
         }
         app.update();
-        std::thread::sleep(Duration::from_millis(40));
+        std::thread::sleep(PAUSE);
     }
-    panic!("never saw: {what}; reloads {}", reloads(app));
+    panic!("never saw in {SEEN_WITHIN:?}: {what}; reloads {}", reloads(app));
 }
 
 fn reloads(app: &mut App) -> Value {
@@ -152,7 +159,7 @@ fn one_edit_is_one_verdict_however_many_frames_pass_and_a_fix_applies() {
     assert_eq!(refused_at, before + 1, "one edit, one decision");
     let said = app.world().resource::<EditorState>().status.raised();
 
-    pump(&mut app, 1.6);
+    pump(&mut app, QUIET);
     assert_eq!(reloads(&mut app)["seq"].as_u64().unwrap(), refused_at, "no new decision while nothing was edited");
     assert_eq!(app.world().resource::<EditorState>().status.raised(), said, "the refusal is said once, not every half second");
 

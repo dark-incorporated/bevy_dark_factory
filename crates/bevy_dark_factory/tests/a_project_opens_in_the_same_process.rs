@@ -5,7 +5,7 @@
 //! outlived the door that loaded it. The `App` is never exited across the switch.
 
 use std::path::{Path, PathBuf};
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use bevy::prelude::*;
 use bevy_dark_factory::launcher::LauncherPlugin;
@@ -15,9 +15,13 @@ use bevy_dark_factory::project_assets::{ProjectRoot, open_project};
 use bevy_dark_factory::screen::Screen;
 
 use crate::fixtures::Fixture;
+use crate::settle_support::Frames;
 
-/// How long a screen change or a load may take before the test calls it stuck.
-const PATIENCE: Duration = Duration::from_secs(20);
+/// The pause between the frames [`until`] steps.
+const PAUSE: Duration = Duration::from_millis(5);
+/// How long a screen change or a load may take before the test calls it stuck: frames, not seconds,
+/// covering at least 20 s at [`PAUSE`], so a starved host does not run it out early (#644).
+const PATIENCE: Frames = Frames::covering(Duration::from_secs(20), PAUSE);
 
 /// Triangles in project A's mesh, and in B's. Chosen so that neither equals a mesh the editor builds for itself.
 const TRIANGLES_A: usize = 17;
@@ -83,17 +87,16 @@ fn screen_of(app: &App) -> Screen {
     *app.world().resource::<State<Screen>>().get()
 }
 
-/// Steps the app until `done`, in real time, because a project opens on a thread and a mesh loads on the task pool.
+/// Steps the app until `done`, pausing between frames, because a project opens on a thread and a mesh loads on the task pool.
 fn until(app: &mut App, what: &str, mut done: impl FnMut(&mut App) -> bool) {
-    let start = Instant::now();
-    while start.elapsed() < PATIENCE {
+    for _ in 0..PATIENCE.0 {
         app.update();
         if done(app) {
             return;
         }
-        std::thread::sleep(Duration::from_millis(5));
+        std::thread::sleep(PAUSE);
     }
-    panic!("never got there: {what} (screen {:?})", screen_of(app));
+    panic!("never got there in {PATIENCE:?}: {what} (screen {:?})", screen_of(app));
 }
 
 /// Every mesh alive, as its triangle count: the unindexed fixture meshes are three vertices a triangle.

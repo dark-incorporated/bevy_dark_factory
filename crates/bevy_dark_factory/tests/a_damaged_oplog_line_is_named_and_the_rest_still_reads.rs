@@ -7,7 +7,7 @@
 //! as kind `oplog`: `applied` while every line reads, `refused` with the file, the line and the field of
 //! the first line that does not, and an undo refuses naming the same line and field.
 
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use bevy::prelude::*;
 use bevy_dark_factory::editor::EditorState;
@@ -16,8 +16,17 @@ use bevy_dark_factory::project::Project;
 use serde_json::{Value, json};
 
 use crate::fixtures;
+use crate::settle_support::Frames;
 
 const FILE: &str = "oplog.jsonl";
+
+/// **How long one frame of a wait here sleeps.**
+const PAUSE: Duration = Duration::from_millis(40);
+/// **The frames [`until`] waits for a verdict**: at least six seconds at [`PAUSE`], counted in frames so a starved host is
+/// not read as a missed verdict (#644).
+const SEEN_WITHIN: Frames = Frames::covering(Duration::from_secs(6), PAUSE);
+/// **The frames a [`pump`] steps** so the watcher hears an edit: at least 0.4 s at [`PAUSE`].
+const PUMPED: Frames = Frames::covering(Duration::from_millis(400), PAUSE);
 
 fn editor(tag: &str) -> (App, Ctx) {
     let root = fixtures::Fixture::new(tag).descriptor("site/wall", "alpha").place("site/wall", (1.5, 1.5)).build("m");
@@ -78,22 +87,20 @@ fn seq(app: &mut App) -> u64 {
 }
 
 fn until(app: &mut App, what: &str, done: impl Fn(&mut App) -> bool) {
-    let start = Instant::now();
-    while start.elapsed().as_secs_f64() < 6.0 {
+    for _ in 0..SEEN_WITHIN.0 {
         if done(app) {
             return;
         }
         app.update();
-        std::thread::sleep(Duration::from_millis(40));
+        std::thread::sleep(PAUSE);
     }
-    panic!("never saw: {what}; reloads {}", reloads(app));
+    panic!("never saw: {what} within {SEEN_WITHIN:?}; reloads {}", reloads(app));
 }
 
-fn pump(app: &mut App, secs: f64) {
-    let start = Instant::now();
-    while start.elapsed().as_secs_f64() < secs {
+fn pump(app: &mut App, frames: Frames) {
+    for _ in 0..frames.0 {
         app.update();
-        std::thread::sleep(Duration::from_millis(40));
+        std::thread::sleep(PAUSE);
     }
 }
 
@@ -128,7 +135,7 @@ fn a_damaged_line_is_named_once_per_edit_and_the_rest_of_the_log_still_reads() {
         let mut broken = good.clone();
         broken[1] = damage(&good[1]);
         write(&ctx, &broken);
-        pump(&mut app, 0.4);
+        pump(&mut app, PUMPED);
 
         let v = verdict(&mut app);
         assert_eq!(v["outcome"], json!("refused"), "{what}: {v}");
@@ -158,7 +165,7 @@ fn a_damaged_line_is_named_once_per_edit_and_the_rest_of_the_log_still_reads() {
 
         // Nothing was edited, so no new decision, however many frames pass.
         let refused_at = seq(&mut app);
-        pump(&mut app, 0.4);
+        pump(&mut app, PUMPED);
         assert_eq!(seq(&mut app), refused_at, "{what}: nothing was edited, so no new decision");
 
         // Repaired: the verdict says so, and the undo works again (resolving it changes nothing).
@@ -179,7 +186,7 @@ fn an_operation_appended_to_a_log_that_reads_decides_nothing() {
     let decided = seq(&mut app);
     make(&mut ctx, "west");
     make(&mut ctx, "north");
-    pump(&mut app, 0.4);
+    pump(&mut app, PUMPED);
     assert_eq!(lines(&ctx).len(), 3);
     assert_eq!(seq(&mut app), decided, "two more operations on a log that reads are not a new verdict");
 }

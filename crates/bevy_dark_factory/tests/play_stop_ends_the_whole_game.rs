@@ -9,9 +9,10 @@
 use bevy_dark_factory::ops::{self, Applied, Ctx};
 use bevy_dark_factory::ops_play::fairy_ready;
 use serde_json::json;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use crate::fixtures;
+use crate::settle_support::Frames;
 
 /// The game: answers `bevy_fairy/status` with `ready: true` on the port in its first argument.
 const GAME: &str = r#"
@@ -102,11 +103,14 @@ fn stop_ends_the_game_behind_a_launcher(tag: &str) {
     assert_eq!(after["ready"], true, "the game behind the launcher answered: {}", outcome.summary);
 
     let Applied::Done { .. } = ops::dispatch(&mut c, "play_stop", &json!({})).unwrap() else { panic!("stop refused") };
-    // **A wait on the thing asserted**: the port is asked until it stops answering, for at most five seconds, one step at a
-    // time; the step is how often it is asked, not how long the test waits.
+    // **A wait on the thing asserted**: the port is asked until it stops answering, at most [`Frames`] covering five seconds,
+    // one step at a time; the step is how often it is asked, and the count, not the clock, ends the wait (#644).
     const ASK_EVERY: Duration = Duration::from_millis(20);
-    let deadline = Instant::now() + Duration::from_secs(5);
-    while fairy_ready(port) && Instant::now() < deadline {
+    const ASKS: Frames = Frames::covering(Duration::from_secs(5), ASK_EVERY);
+    for _ in 0..ASKS.0 {
+        if !fairy_ready(port) {
+            break;
+        }
         std::thread::sleep(ASK_EVERY);
     }
     assert!(

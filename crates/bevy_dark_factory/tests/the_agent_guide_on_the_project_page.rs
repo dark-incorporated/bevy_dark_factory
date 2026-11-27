@@ -506,10 +506,14 @@ fn a_guide_shown_in_part_is_read_only() {
 fn a_guide_written_outside_the_editor_reaches_the_section_with_the_clock_stopped() {
     use bevy::time::TimeUpdateStrategy;
     use bevy_dark_factory::project_index::{MIN_SWEEP, OutsideFiles};
-    use std::time::{Duration, Instant};
+    use crate::settle_support::Frames;
+    use std::time::Duration;
 
-    /// How long a test waits for the section to follow a file.
-    const WAIT_SECONDS: f64 = 30.0;
+    /// How long one frame of the wait sleeps.
+    const PAUSE: Duration = Duration::from_millis(10);
+    /// How many frames a test waits for the section to follow a file: at least thirty seconds at [`PAUSE`], counted in frames so a
+    /// starved host is not read as a section that never followed (#644).
+    const WAIT: Frames = Frames::covering(Duration::from_secs(30), PAUSE);
 
     let (root, store, mut app) = on_the_page("follows");
     app.insert_resource(TimeUpdateStrategy::ManualDuration(Duration::ZERO));
@@ -522,16 +526,15 @@ fn a_guide_written_outside_the_editor_reaches_the_section_with_the_clock_stopped
         app.world_mut().query_filtered::<&TextInputValue, With<AgentGuideText>>().iter(app.world()).map(|v| v.0.clone()).next()
     };
     let until = |app: &mut App, what: &str, done: &dyn Fn(&mut App, &str) -> bool| {
-        let started = Instant::now();
         let on_disk = || std::fs::read_to_string(guide_path(&root)).unwrap_or_default();
-        while started.elapsed().as_secs_f64() < WAIT_SECONDS {
+        for _ in 0..WAIT.0 {
             app.update();
             if done(app, &on_disk()) {
                 return;
             }
-            std::thread::sleep(Duration::from_millis(10));
+            std::thread::sleep(PAUSE);
         }
-        panic!("never happened within {WAIT_SECONDS} s: {what}");
+        panic!("never happened within {WAIT:?}: {what}");
     };
 
     // A guide appears where there was none: the section goes from `missing` to `waiting for you`, showing what the file says.

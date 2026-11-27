@@ -5,7 +5,7 @@
 //! alias, which the pipeline only gives a face it registered) and every label laid out.
 
 use std::path::{Path, PathBuf};
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use bevy::prelude::*;
 use bevy_dark_factory::launcher::LauncherPlugin;
@@ -15,8 +15,14 @@ use bevy_dark_factory::project_assets::open_project;
 use bevy_dark_factory::screen::Screen;
 
 use crate::fixtures::Fixture;
+use crate::settle_support::Frames;
 
-const PATIENCE: Duration = Duration::from_secs(20);
+/// The pause between two of [`until`]'s frames.
+const PAUSE: Duration = Duration::from_millis(5);
+
+/// **Frames [`until`] steps before it gives up** (#644): a count, not a wall-clock window, so a starved host does not cut it short;
+/// at [`PAUSE`] apart they cover at least 20 s.
+const PATIENCE: Frames = Frames::covering(Duration::from_secs(20), PAUSE);
 
 /// Trailing bytes that make project B's font file differ from A's; a font's tables are found through its directory, so it is still the face.
 const B_EXTRA_BYTES: usize = 8;
@@ -40,15 +46,14 @@ fn screen_of(app: &App) -> Screen {
 }
 
 fn until(app: &mut App, what: &str, mut done: impl FnMut(&mut App) -> bool) {
-    let start = Instant::now();
-    while start.elapsed() < PATIENCE {
+    for _ in 0..PATIENCE.0 {
         app.update();
         if done(app) {
             return;
         }
-        std::thread::sleep(Duration::from_millis(5));
+        std::thread::sleep(PAUSE);
     }
-    panic!("never got there: {what} (screen {:?})", screen_of(app));
+    panic!("never got there: {what} (screen {:?}, waited {PATIENCE:?})", screen_of(app));
 }
 
 /// The face under the editor's font id: its size in bytes, and whether the text pipeline registered it (gave it an alias).

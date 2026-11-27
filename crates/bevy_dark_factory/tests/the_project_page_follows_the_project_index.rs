@@ -3,12 +3,12 @@
 //!
 //! The page used to list the blueprint folder and the maps folder every second. It reads the index's listing now: the open project's index
 //! when it follows the page's project, and, when no project is open (the page is shown before one is), the blueprint folder followed as a
-//! second root. Both tests change the maps folder with plain `std::fs` and wait, on the wall clock, for the page's catalog to agree with a
-//! listing the test reads itself. The clock is frozen (a manual time step of nothing) and the index's sweep is at its floor, so a page that
-//! still waited for a second of `Time` could not pass.
+//! second root. Both tests change the maps folder with plain `std::fs` and wait, real time a counted number of frames apart, for the
+//! page's catalog to agree with a listing the test reads itself. The clock is frozen (a manual time step of nothing) and the index's
+//! sweep is at its floor, so a page that still waited for a second of `Time` could not pass.
 
 use std::path::{Path, PathBuf};
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use bevy::prelude::*;
 use bevy::time::TimeUpdateStrategy;
@@ -20,9 +20,13 @@ use bevy_dark_factory::project_index::{MIN_SWEEP, OutsideFiles, ProjectIndex};
 use bevy_dark_factory::project_page::ProjectPage;
 
 use crate::fixtures::Fixture;
+use crate::settle_support::Frames;
 
-/// How long a test waits for the page to follow a file.
-const WAIT_SECONDS: f64 = 30.0;
+/// The pause between frames while the page is waited for.
+const PAUSE: Duration = Duration::from_millis(10);
+/// How long a test waits for the page to follow a file: frames covering 30 s at [`PAUSE`], counted rather than timed so a starved
+/// host cannot run it out (#644).
+const WAIT: Frames = Frames::covering(Duration::from_secs(30), PAUSE);
 
 fn on_the_page(tag: &str) -> (PathBuf, App) {
     let root = Fixture::new(&format!("page_follows_{tag}_{}", std::process::id())).descriptor("site/wall", "alpha").place("site/wall", (0.0, 0.0)).build("m");
@@ -55,15 +59,14 @@ fn maps_on_the_page(app: &App) -> Vec<String> {
 }
 
 fn until_the_page_agrees(app: &mut App, root: &Path, what: &str) {
-    let started = Instant::now();
-    while started.elapsed().as_secs_f64() < WAIT_SECONDS {
+    for _ in 0..WAIT.0 {
         app.update();
         if maps_on_the_page(app) == maps_on_disk(root) {
             return;
         }
-        std::thread::sleep(Duration::from_millis(10));
+        std::thread::sleep(PAUSE);
     }
-    panic!("never happened within {WAIT_SECONDS} s: {what}: the page lists {:?}, the folder holds {:?}", maps_on_the_page(app), maps_on_disk(root));
+    panic!("never happened within {WAIT:?}: {what}: the page lists {:?}, the folder holds {:?}", maps_on_the_page(app), maps_on_disk(root));
 }
 
 fn made_and_removed(app: &mut App, root: &Path) {

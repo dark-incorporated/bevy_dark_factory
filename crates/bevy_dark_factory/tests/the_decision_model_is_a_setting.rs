@@ -20,6 +20,13 @@ use blueprint_model::live::Outcome;
 use bevy_oracle::{DecisionModel, Endpoints, REMOTE_WITHOUT_KEY};
 
 use crate::fixtures;
+use crate::settle_support::Frames;
+
+/// **How long one step of [`until`] sleeps.**
+const PAUSE: Duration = Duration::from_millis(20);
+/// **The steps [`until`] takes before it says what it never saw**: at least eight seconds at [`PAUSE`], counted in steps so a
+/// starved host is not read as a setting that never took (#644).
+const SEEN_WITHIN: Frames = Frames::covering(Duration::from_secs(8), PAUSE);
 
 struct Rig {
     app: App,
@@ -53,15 +60,14 @@ fn updates(app: &mut App, n: usize) {
 }
 
 fn until(app: &mut App, what: &str, done: impl Fn(&mut App) -> bool) {
-    let start = std::time::Instant::now();
-    while start.elapsed() < Duration::from_secs(8) {
+    for _ in 0..SEEN_WITHIN.0 {
         updates(app, 2);
         if done(app) {
             return;
         }
-        std::thread::sleep(Duration::from_millis(20));
+        std::thread::sleep(PAUSE);
     }
-    panic!("never saw: {what}");
+    panic!("never saw: {what} within {SEEN_WITHIN:?}");
 }
 
 fn layer(text: &str) -> SettingsLayer {

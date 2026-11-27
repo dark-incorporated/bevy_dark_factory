@@ -27,11 +27,16 @@ use bevy_dark_factory::setting_catalogue::{self, Value};
 use bevy_dark_factory::settings::{EditorSettings, ExternalEdits, SettingsLayer};
 
 use crate::fixtures;
+use crate::settle_support::Frames;
 
 const FRAME: f32 = 1.0 / 60.0;
 
 /// The watcher's own poll, in real time: `crate::watch::POLL`.
 const POLL: std::time::Duration = std::time::Duration::from_millis(250);
+/// The pause between frames while the watcher is given its poll.
+const QUARTER_POLL: std::time::Duration = std::time::Duration::from_millis(POLL.as_millis() as u64 / 4);
+/// Three of the watcher's polls, as frames a [`QUARTER_POLL`] apart.
+const PAST_THE_POLL: Frames = Frames::covering(POLL.saturating_mul(3), QUARTER_POLL);
 
 fn project(tag: &str) -> PathBuf {
     fixtures::Fixture::new(&format!("policy_{tag}_{}", std::process::id()))
@@ -64,13 +69,13 @@ fn editor(root: &Path, policy: ExternalEdits) -> App {
 
 /// **Step the editor past the watcher's poll.** `watch` looks at its files on `std::time::Instant` and `POLL` is 250 ms of
 /// **real** time, which `TimeUpdateStrategy::ManualDuration` does not move — that strategy advances `Time<Virtual>`, which is
-/// what the draft and the periodic save read, and the watcher deliberately does not. So this waits real milliseconds and
-/// steps a frame each time, which is the only way a headless test reaches the map's re-read.
+/// what the draft and the periodic save read, and the watcher deliberately does not. So this sleeps real milliseconds and
+/// steps a frame each time, which is the only way a headless test reaches the map's re-read: [`PAST_THE_POLL`] frames, a
+/// quarter poll apart, so at least three polls go by however slow the host is (#644).
 fn watch_the_file_change(app: &mut App) {
-    let started = std::time::Instant::now();
-    while started.elapsed() < POLL * 3 {
+    for _ in 0..PAST_THE_POLL.0 {
         app.update();
-        std::thread::sleep(POLL / 4);
+        std::thread::sleep(QUARTER_POLL);
     }
     for _ in 0..4 {
         app.update();

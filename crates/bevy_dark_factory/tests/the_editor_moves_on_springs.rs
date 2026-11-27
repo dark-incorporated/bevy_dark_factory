@@ -13,9 +13,16 @@ use bevy::window::PrimaryWindow;
 use bevy_gooey::{CommandPalette, GooeySkin, Leaving, MotionSettings};
 
 use crate::fixtures;
+use crate::settle_support::Frames;
 
 /// One frame of the test clock, seconds.
 const FRAME: f32 = 1.0 / 60.0;
+
+/// The real pause between frames while the settings file is read.
+const READ_PAUSE: Duration = Duration::from_millis(20);
+/// How long a settings edit has to reach the editor: frames covering 6 s at [`READ_PAUSE`], counted so a starved host cannot run
+/// it out (#644).
+const READ_WITHIN: Frames = Frames::covering(Duration::from_secs(6), READ_PAUSE);
 
 fn editor(tag: &str) -> App {
     let root = fixtures::Fixture::new(&format!("{tag}_{}", std::process::id()))
@@ -121,13 +128,12 @@ fn the_players_reduced_motion_is_gooeys_and_only_that_flag() {
     app.insert_resource(bevy_dark_factory::settings::UserSettingsFile(user.clone()));
     app.insert_resource(MotionSettings { duration_scale: 1.5, reduced: false });
     let until = |app: &mut App, want: bool| {
-        let start = std::time::Instant::now();
-        while start.elapsed().as_secs_f64() < 6.0 {
+        for _ in 0..READ_WITHIN.0 {
             app.update();
             if app.world().resource::<MotionSettings>().reduced == want {
                 return true;
             }
-            std::thread::sleep(Duration::from_millis(20));
+            std::thread::sleep(READ_PAUSE);
         }
         false
     };

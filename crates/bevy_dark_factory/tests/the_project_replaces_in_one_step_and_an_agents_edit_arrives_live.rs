@@ -73,21 +73,26 @@ fn editor_of(app: &mut App) -> Entity {
     world.query_filtered::<Entity, With<CodeEditor>>().single(world).unwrap_or_else(|e| panic!("one code editor: {e}"))
 }
 
-/// **Step frames until `done`, for at most this many seconds of wall time.** An open file reads when the project index says it moved (#501),
-/// on the index's own clock, so neither a sleep nor a number of frames is a wait for it.
+/// **How long one look of [`wait_until_heard`] sleeps** after its settle.
+const HEARD_PAUSE: Duration = Duration::from_millis(20);
+
+/// **How many looks [`wait_until_heard`] takes at most**: at least twenty seconds, counted in looks so a starved host is not read as a
+/// change never heard (#644). One look is a settle and [`HEARD_PAUSE`], so it lasts at least `settle_support::SETTLE_TAKES_AT_LEAST` plus
+/// the pause. An open file reads when the project index says it moved (#501), on the index's own clock, so neither a sleep nor a number
+/// of frames is a wait for it.
 /// Re-pointed from the sleeps of the retired `files::POLL_S` (the commit body lists each test).
-const HEARD_WITHIN_S: f64 = 20.0;
+const HEARD_WITHIN: settle_support::Frames =
+    settle_support::Frames::covering(Duration::from_secs(20), settle_support::SETTLE_TAKES_AT_LEAST.saturating_add(HEARD_PAUSE));
 
 fn wait_until_heard(app: &mut App, what: &str, mut done: impl FnMut(&mut App) -> bool) {
-    let started = std::time::Instant::now();
-    while started.elapsed().as_secs_f64() < HEARD_WITHIN_S {
+    for _ in 0..HEARD_WITHIN.0 {
         settle_support::settle(app);
         if done(app) {
             return;
         }
-        std::thread::sleep(Duration::from_millis(20));
+        std::thread::sleep(HEARD_PAUSE);
     }
-    panic!("{what}: not seen within {HEARD_WITHIN_S} s");
+    panic!("{what}: not seen within {HEARD_WITHIN:?}");
 }
 
 /// **GD-13, acceptance 1**: one replace over three files, one undo, every file byte for byte as before.

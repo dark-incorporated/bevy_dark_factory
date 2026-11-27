@@ -32,10 +32,17 @@ fn an_open_editor_draws_a_warm_triangle_in_the_carved_grounds_material() {
 #[cfg(feature = "isomesh")]
 #[test]
 fn the_warm_triangle_has_the_vertex_layout_of_a_carved_chunk() {
+    use crate::settle_support::Frames;
     use bevy_dark_factory::ops::{self, Applied, Ctx};
     use bevy_dark_factory::terrain_view::TerrainView;
     use blueprint_model::heightfield::Heightfield;
     use serde_json::json;
+
+    /// How long one frame of the wait for the carved chunk sleeps.
+    const PAUSE: std::time::Duration = std::time::Duration::from_millis(50);
+    /// The frames the carved chunk is given to be drawn: at least five seconds at [`PAUSE`], counted in frames so a starved host is not
+    /// read as a chunk that was never drawn (#644).
+    const DRAWN_WITHIN: Frames = Frames::covering(std::time::Duration::from_secs(5), PAUSE);
 
     let root = Fixture::new("pipeline_layout").descriptor("flat", "alpha").build("m");
     let mut app = bevy_dark_factory::harness::build_headless(&root, "m", None).unwrap_or_else(|e| panic!("{e}"));
@@ -51,7 +58,7 @@ fn the_warm_triangle_has_the_vertex_layout_of_a_carved_chunk() {
         Applied::Done { .. } => {}
         Applied::Refused(e) => panic!("refused: {}", e.0),
     }
-    let start = std::time::Instant::now();
+    let mut frames = 0;
     let chunk = loop {
         app.update();
         let world = app.world_mut();
@@ -59,8 +66,9 @@ fn the_warm_triangle_has_the_vertex_layout_of_a_carved_chunk() {
         if let Some(handle) = found {
             break handle;
         }
-        assert!(start.elapsed().as_secs_f64() < 5.0, "no carved chunk was drawn");
-        std::thread::sleep(std::time::Duration::from_millis(50));
+        frames += 1;
+        assert!(frames < DRAWN_WITHIN.0, "no carved chunk was drawn within {DRAWN_WITHIN:?}");
+        std::thread::sleep(PAUSE);
     };
     let meshes = app.world().resource::<Assets<Mesh>>();
     let chunk = meshes.get(&chunk).expect("the chunk's mesh");

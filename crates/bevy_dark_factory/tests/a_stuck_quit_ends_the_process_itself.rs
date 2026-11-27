@@ -30,6 +30,8 @@ use bevy_dark_factory::exit_watchdog::{
     Cut, EXIT_GRACE_S, ExitWatchdog, ExitWatchdogPlugin, SecondPress, arm_exit, end_this_process, last_cut, waiting,
 };
 
+use crate::settle_support::Frames;
+
 /// The environment variable that tells this same binary it is the child, and which role to play.
 const ROLE_ENV: &str = "DARK_FACTORY_QUIT_ROLE";
 
@@ -100,8 +102,18 @@ const RECORD_BOUND_MS: u64 = 0;
 /// How far past a deadline a process may be ended and the test still call it inside it, seconds: a loaded machine, and the look that follows.
 const SLACK_S: u64 = 2;
 
-/// The most a test waits for anything, seconds. Past every deadline below and far inside [`SHELL_LIFE_S`].
-const PATIENCE_S: u64 = 40;
+/// How long one look for a child's file sleeps.
+const LOOK: Duration = Duration::from_millis(5);
+
+/// The most looks a test gives a child to write a file: at least forty seconds at [`LOOK`], counted in looks so a starved
+/// host is not read as a child that never got there (#644). Past every deadline below and far inside [`SHELL_LIFE_S`].
+const PATIENCE: Frames = Frames::covering(Duration::from_secs(40), LOOK);
+
+/// How long one look for the terminal's shell to be gone sleeps.
+const SHELL_LOOK: Duration = Duration::from_millis(10);
+
+/// The looks the kernel is given to deliver the group's kill to the shell: at least [`SLACK_S`] at [`SHELL_LOOK`] (#644).
+const SHELL_GONE_WITHIN: Frames = Frames::covering(Duration::from_secs(SLACK_S), SHELL_LOOK);
 
 /// How long a second press may take to end the process, seconds: at once, not at a deadline twenty times as far.
 const MOST_A_SECOND_PRESS_MAY_TAKE_S: u64 = 5;
@@ -277,19 +289,19 @@ fn start_child(role: &str, scratch: &Path) -> KillOnDrop {
     KillOnDrop(child)
 }
 
-/// Waits for the child to write `name`, failing if it goes first: a child that is gone before it is stuck proved nothing.
+/// Waits for the child to write `name`, failing if it goes first: a child that is gone before it is stuck proved nothing. Says
+/// when it saw the file, on the wall clock, which is what the deadlines below are measured from.
 fn wait_for_file(child: &mut Child, dir: &Path, name: &str) -> Instant {
-    let started = Instant::now();
-    loop {
+    for _ in 0..PATIENCE.0 {
         if dir.join(name).exists() {
             return Instant::now();
         }
         if let Some(status) = child.try_wait().unwrap_or_else(|e| panic!("{e}")) {
             panic!("the child went before it wrote `{name}`: {status}; record: {}", record(dir));
         }
-        assert!(started.elapsed() < Duration::from_secs(PATIENCE_S), "the child never wrote `{name}`: {}", record(dir));
-        std::thread::sleep(Duration::from_millis(5));
+        std::thread::sleep(LOOK);
     }
+    panic!("the child never wrote `{name}` within {PATIENCE:?}: {}", record(dir));
 }
 
 /// **How long the child took to be gone**, and how it went.
@@ -422,9 +434,11 @@ fn a_quit_that_has_to_end_the_process_ends_the_terminals_shell_too() {
     let took = asked.elapsed();
 
     // The shell is its own process group, and the watchdog ends the group: give the kernel a moment to deliver, then require it gone.
-    let started = Instant::now();
-    while alive(shell_pid) && started.elapsed() < Duration::from_secs(SLACK_S) {
-        std::thread::sleep(Duration::from_millis(10));
+    for _ in 0..SHELL_GONE_WITHIN.0 {
+        if !alive(shell_pid) {
+            break;
+        }
+        std::thread::sleep(SHELL_LOOK);
     }
     if alive(shell_pid) {
         end_the_leftover_shell(&dir);

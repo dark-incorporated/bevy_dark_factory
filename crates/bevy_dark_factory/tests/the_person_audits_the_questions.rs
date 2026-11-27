@@ -12,7 +12,7 @@
 //!
 //! (DL-06's export of the holdout into its own file is not built yet; `Read::holdout` is the one place it will ask.)
 
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use bevy::input::ButtonState;
 use bevy::input::keyboard::{Key, KeyboardInput};
@@ -26,11 +26,13 @@ use bevy_dark_factory::turn_store::{AssessedQuestion, Assessment, AssessorRef, L
 use bevy_dark_factory::workspace::Workspace;
 
 use crate::a_turn_is_recorded_for_learning::{editor, ledger_of, place, present, until_written};
+use crate::settle_support::Frames;
 
-/// How long a test waits for the row to follow a write.
-const WAIT: Duration = Duration::from_secs(30);
 /// The wall-clock pause between frames while waiting.
 const PAUSE: Duration = Duration::from_millis(10);
+/// How many frames a test steps for the row to follow a write (#644): a count, not a wall-clock window, so a starved host does not
+/// cut it short; at [`PAUSE`] apart they cover at least 30 s.
+const WAIT: Frames = Frames::covering(Duration::from_secs(30), PAUSE);
 
 /// An editor with one turn recorded, pictures and all, and the Agent workspace open.
 fn recorded(tag: &str) -> (App, std::path::PathBuf) {
@@ -236,15 +238,15 @@ fn a_line_another_process_appends_reaches_the_row_with_the_clock_stopped() {
     };
     Store::new(labels.clone()).append(&Line::assessment(assessment)).expect("the assessment is appended");
 
-    let started = Instant::now();
-    loop {
+    let mut second = None;
+    for _ in 0..WAIT.0 {
         app.update();
-        let second = app.world().resource::<Audit>().offers.get(1).map(|o| o.question.clone());
+        second = app.world().resource::<Audit>().offers.get(1).map(|o| o.question.clone());
         if second.as_deref() == Some(target.as_str()) {
             break;
         }
-        assert!(started.elapsed() < WAIT, "the assessment reached the row within {WAIT:?}: the second offer is {second:?}, not {target}");
         std::thread::sleep(PAUSE);
     }
+    assert!(second.as_deref() == Some(target.as_str()), "the assessment reached the row within {WAIT:?}: the second offer is {second:?}, not {target}");
     assert_eq!(app.world().resource::<Audit>().offers[0].question, offered[0].1, "the question on screen stays under the person's hand");
 }

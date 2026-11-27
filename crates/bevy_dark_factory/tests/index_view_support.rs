@@ -1,9 +1,9 @@
 //! **What the tests of the four views that follow the project index share** (#501, items 5 to 8): an editor whose index sweeps fast,
-//! a wall-clock wait that says how long a change took to be seen, and the proof that a file the view does not follow makes it read
-//! nothing. There are no tests here.
+//! a wait bounded in frames that says how many frames a change took to be seen (#644), and the proof that a file the view does not
+//! follow makes it read nothing. There are no tests here.
 
 use std::path::Path;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use bevy::prelude::*;
 use bevy_dark_factory::ops::Ctx;
@@ -12,24 +12,26 @@ use bevy_dark_factory::project_index::ProjectIndex;
 use serde_json::{Value, json};
 
 use crate::fixtures;
+use crate::settle_support::Frames;
 
-/// **How long a change may take to be seen**, a literal: the index's sweep is set to 25 ms below, its debounce is 100 ms, and a frame
-/// is stepped every 5 ms. The number is not derived from any constant of the code under test, so a view that waited on a clock of its
-/// own (or never looked again) cannot pass by moving a constant.
-pub const SEEN_WITHIN: Duration = Duration::from_millis(1000);
+/// **How many frames a change may take to be seen**, from a literal: the index's sweep is set to 25 ms below, its debounce is 100 ms,
+/// and each frame pauses [`STEP`], so one second of frames. The number is not derived from any constant of the code under test, so a
+/// view that waited on a clock of its own (or never looked again) cannot pass by moving a constant.
+pub const SEEN_WITHIN: Frames = Frames::covering(Duration::from_millis(1000), STEP);
 
-/// How long a test waits for something that must happen before it says it never did.
-const GIVE_UP: Duration = Duration::from_secs(10);
+/// How many frames a test steps waiting for something that must happen before it says it never did: ten seconds at [`STEP`].
+const GIVE_UP: Frames = Frames::covering(Duration::from_secs(10), STEP);
 
-/// How long the editor is stepped, with nothing written, to say a frame had nothing left to do.
-const QUIET: Duration = Duration::from_millis(400);
+/// How many frames the editor is stepped, with nothing written, to say a frame had nothing left to do: 400 ms at [`STEP`].
+const QUIET: Frames = Frames::covering(Duration::from_millis(400), STEP);
 
-/// **How long the editor is stepped after each write to a neighbour**, a literal: twice this is 2.6 s, so a view that still re-read
-/// once a second (the retired timer) would read at least twice, and a count that held steady cannot be the timer's quiet.
-const NEIGHBOUR_WATCH: Duration = Duration::from_millis(1300);
+/// **How many frames the editor is stepped after each write to a neighbour**, from a literal: 1.3 s at [`STEP`], so twice this covers
+/// at least 2.6 s and a view that still re-read once a second (the retired timer) would read at least twice, and a count that held
+/// steady cannot be the timer's quiet.
+const NEIGHBOUR_WATCH: Frames = Frames::covering(Duration::from_millis(1300), STEP);
 
-/// How long one step of a wait sleeps.
-const STEP: Duration = Duration::from_millis(5);
+/// How long one frame of a wait pauses, so the index's thread has the wall clock it needs between frames.
+pub const STEP: Duration = Duration::from_millis(5);
 
 /// **An editor open on a one-map project, whose index sweeps every 25 ms** (the shortest it accepts), with the operations bridge so
 /// `blueprint/state` can be asked.
@@ -59,26 +61,24 @@ pub fn published(app: &App) -> u64 {
     app.world().resource::<ProjectIndex>().published()
 }
 
-/// Step the editor for `how_long` of the wall clock.
-pub fn pump(app: &mut App, how_long: Duration) {
-    let start = Instant::now();
-    while start.elapsed() < how_long {
+/// **Step the editor `how_long` frames**, each pausing [`STEP`] (#644).
+pub fn pump(app: &mut App, how_long: Frames) {
+    for _ in 0..how_long.0 {
         app.update();
         std::thread::sleep(STEP);
     }
 }
 
-/// **Step until `done`, and say how long it took**; panics after [`GIVE_UP`].
-pub fn until_seen(app: &mut App, what: &str, mut done: impl FnMut(&mut App) -> bool) -> Duration {
-    let start = Instant::now();
-    while start.elapsed() < GIVE_UP {
+/// **Step until `done`, and say how many frames it took**; panics after [`GIVE_UP`].
+pub fn until_seen(app: &mut App, what: &str, mut done: impl FnMut(&mut App) -> bool) -> Frames {
+    for frame in 1..=GIVE_UP.0 {
         app.update();
         if done(app) {
-            return start.elapsed();
+            return Frames(frame);
         }
         std::thread::sleep(STEP);
     }
-    panic!("never saw: {what} (waited {GIVE_UP:?}); reloads {}", reloads(app));
+    panic!("never saw: {what} (stepped {GIVE_UP:?}); reloads {}", reloads(app));
 }
 
 /// **Step until the index has published nothing for [`QUIET`]**, so what a test counts next is what the test did.

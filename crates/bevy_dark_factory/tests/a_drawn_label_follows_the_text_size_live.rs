@@ -20,6 +20,12 @@ use bevy::text::{FontSize, TextFont};
 use bevy_dark_factory::chrome::{self, text, TypeRole};
 
 use crate::fixtures;
+use crate::settle_support::Frames;
+
+/// The pause between frames while the hand edit is waited for.
+const PAUSE: std::time::Duration = std::time::Duration::from_millis(15);
+/// How long the hand edit is waited for: frames, not seconds, covering at least 10 s at [`PAUSE`] (#644).
+const TAKEN_WITHIN: Frames = Frames::covering(std::time::Duration::from_secs(10), PAUSE);
 
 /// Every label the editor drew through [`chrome::typed`], as `(entity, the role it is drawn at, its
 /// size in logical pixels)` — the whole set the live resize has to move.
@@ -69,13 +75,16 @@ fn a_label_already_drawn_follows_the_text_size_when_it_changes() {
 
     // **After the build**, the person asks for larger text.
     std::fs::write(&settings_file, "{version: 1, text_scale: 1.75}").expect("a settings file");
-    // **The edit is followed by an index, not polled** (#501 item 18): it is seen after the index's sweep and debounce on the wall clock,
-    // which a fixed number of frames does not wait for (Owner exception 2026-11-14: the wait is for the condition).
-    let began = std::time::Instant::now();
-    while app.world().resource::<bevy_dark_factory::settings::EditorSettings>().text_scale != 1.75 {
-        assert!(began.elapsed().as_secs_f64() < 10.0, "the editor never took the hand-edited text size");
+    // **The edit is followed by an index, not polled** (#501 item 18): it is seen after the index's sweep and debounce,
+    // so the wait is for the condition (Owner exception 2026-11-14), bounded by [`TAKEN_WITHIN`] frames rather than a
+    // time, so a starved host does not run it out early.
+    for frame in 0..=TAKEN_WITHIN.0 {
+        if app.world().resource::<bevy_dark_factory::settings::EditorSettings>().text_scale == 1.75 {
+            break;
+        }
+        assert!(frame < TAKEN_WITHIN.0, "the editor never took the hand-edited text size in {TAKEN_WITHIN:?}");
         app.update();
-        std::thread::sleep(std::time::Duration::from_millis(15));
+        std::thread::sleep(PAUSE);
     }
     for _ in 0..12 {
         app.update();

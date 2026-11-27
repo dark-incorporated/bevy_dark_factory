@@ -15,7 +15,7 @@
 //!   person plays again.
 
 use std::path::{Path, PathBuf};
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use bevy::prelude::*;
 use bevy::time::TimeUpdateStrategy;
@@ -34,11 +34,13 @@ use bevy_dark_factory::workspace::Workspace;
 use bevy_gooey::testing::click;
 
 use crate::fixtures;
+use crate::settle_support::Frames;
 
 /// One frame of the test clock, in seconds: ten frames are a second, which is what the editor's polls count in.
 const FRAME_S: f32 = 0.1;
-/// How long a test waits for something the stub process does at its own pace.
-const WAIT: Duration = Duration::from_secs(60);
+/// How long a test waits for something the stub process does at its own pace: frames, not seconds, covering at least
+/// 60 s at [`PAUSE`], so a starved host does not run it out early (#644).
+const WAIT: Frames = Frames::covering(Duration::from_secs(60), PAUSE);
 /// The wall-clock pause between frames while waiting, so the stub gets the processor.
 const PAUSE: Duration = Duration::from_millis(15);
 
@@ -133,10 +135,9 @@ fn switch_to(app: &mut App, workspace: Workspace) {
     assert_eq!(app.world().resource::<Workspace>(), &workspace, "`{id}` did not open the {} workspace", workspace.title());
 }
 
-/// **Frames, paced by the wall clock, until `done`** — for what a child process does in its own time.
+/// **Frames, [`PAUSE`] apart, until `done`** — for what a child process does in its own time.
 fn until(app: &mut App, what: &str, mut done: impl FnMut(&mut App) -> bool) {
-    let start = Instant::now();
-    while start.elapsed() < WAIT {
+    for _ in 0..WAIT.0 {
         app.update();
         if done(app) {
             return;
@@ -325,10 +326,11 @@ fn a_crash_is_shown_with_its_last_output_in_the_same_frame() {
     until(&mut app, "the stub's boot line", |app| shows_part(app, "stub game booted"));
     std::fs::write(root.join("go"), "").unwrap_or_else(|e| panic!("{e}"));
     // The editor is not stepped while the stub crashes, so the next frame is the one that finds the exit.
-    let deadline = Instant::now() + WAIT;
+    let mut looked = 0;
     while ops_play::running_pid(&root).is_some() {
-        assert!(Instant::now() < deadline, "the stub never crashed on its cue");
+        assert!(looked < WAIT.0, "the stub never crashed on its cue in {WAIT:?}");
         std::thread::sleep(PAUSE);
+        looked += 1;
     }
     app.update();
     assert!(shows_part(&mut app, "exit code 3"), "the crash is shown the frame it is found: {:#?}", words(&mut app));

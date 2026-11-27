@@ -55,21 +55,24 @@ const FILE: &str = "name: m\nversion: 3\nbounds:\n- 10.0\n- 3.0\nenabled: true\n
 /// drawn rather than about what it means.
 const REL: &str = "assets/blueprint/colours.yaml";
 
-/// **How long a change to the settings file may take to reach the drawn spans**, in seconds.
-const HEARD_WITHIN_S: f64 = 20.0;
+/// The pause between two of [`until`]'s settles.
+const PAUSE: Duration = Duration::from_millis(20);
+
+/// **How many settles a change to the settings file may take to reach the drawn spans** (#644): a count, not a wall-clock window,
+/// so a starved host does not cut it short; at [`PAUSE`] apart they cover at least 20 s.
+const HEARD_WITHIN: settle_support::Frames = settle_support::Frames::covering(Duration::from_secs(20), PAUSE);
 
 
 
 fn until(app: &mut App, what: &str, mut done: impl FnMut(&mut App) -> bool) {
-    let started = std::time::Instant::now();
-    while started.elapsed().as_secs_f64() < HEARD_WITHIN_S {
+    for _ in 0..HEARD_WITHIN.0 {
         settle_support::settle(app);
         if done(app) {
             return;
         }
-        std::thread::sleep(Duration::from_millis(20));
+        std::thread::sleep(PAUSE);
     }
-    panic!("{what}: not seen within {HEARD_WITHIN_S} s");
+    panic!("{what}: not seen within {HEARD_WITHIN:?}");
 }
 
 /// The editor on the fixture, the YAML file open in the Files workspace and focused, and the settings file

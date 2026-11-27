@@ -15,6 +15,12 @@ use bevy_dark_factory::settings::{SettingsLayer, UserSettingsFile};
 use bevy_gooey::{Modifiers, Shortcut};
 
 use crate::fixtures;
+use crate::settle_support::Frames;
+
+/// The pause between the frames [`until_the_keymap_is_empty`] steps.
+const PAUSE: std::time::Duration = std::time::Duration::from_millis(15);
+/// How many frames [`until_the_keymap_is_empty`] steps at most: at least 10 s at [`PAUSE`] (#644).
+const TAKEN_WITHIN: Frames = Frames::covering(std::time::Duration::from_secs(10), PAUSE);
 
 fn rig(tag: &str, rebound: &[(&str, Shortcut)]) -> (App, PathBuf, PathBuf) {
     let root = fixtures::Fixture::new(tag).descriptor("site/wall", "alpha").build("m");
@@ -43,14 +49,17 @@ fn updates(app: &mut App, n: usize) {
     }
 }
 
-/// **Wait on the wall clock until the editor has taken a keymap edit made by hand** (#501 item 18: the settings files are followed by an
-/// index, not polled, so an edit is seen after the index's sweep and debounce, which a fixed number of frames does not wait for). The
-/// assertions after it are unchanged.
+/// **Step frames until the editor has taken a keymap edit made by hand** (#501 item 18: the settings files are followed by an
+/// index, not polled, so an edit is seen after the index's sweep and debounce, which a fixed number of frames does not wait for).
+/// It gives up after [`TAKEN_WITHIN`] frames, not a time, so a starved host does not run it out early. The assertions after it
+/// are unchanged.
 fn until_the_keymap_is_empty(app: &mut App) {
-    let began = std::time::Instant::now();
-    while !app.world().resource::<bevy_dark_factory::settings::EditorSettings>().keymap.is_empty() && began.elapsed() < std::time::Duration::from_secs(10) {
+    for _ in 0..TAKEN_WITHIN.0 {
+        if app.world().resource::<bevy_dark_factory::settings::EditorSettings>().keymap.is_empty() {
+            return;
+        }
         app.update();
-        std::thread::sleep(std::time::Duration::from_millis(15));
+        std::thread::sleep(PAUSE);
     }
 }
 

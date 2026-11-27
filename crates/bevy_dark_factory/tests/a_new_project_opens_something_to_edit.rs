@@ -5,7 +5,7 @@
 //! offers Choose… for the place, and opens clean: what the home last refused is not carried into it.
 
 use std::path::{Path, PathBuf};
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use bevy::prelude::*;
 use bevy::ui_widgets::{Activate, ValueChange};
@@ -20,9 +20,14 @@ use bevy_dark_factory::screen::Screen;
 use bevy_gooey::{Role, TextInputValue, Toast, ToastKind};
 
 use crate::fixtures::Fixture;
+use crate::settle_support::Frames;
 
-/// How long a screen change or a load may take before the test calls it stuck.
-const PATIENCE: Duration = Duration::from_secs(30);
+/// How long one frame of [`until`] sleeps.
+const PAUSE: Duration = Duration::from_millis(5);
+
+/// How many frames a screen change or a load may take before the test calls it stuck: at least thirty seconds at
+/// [`PAUSE`], counted in frames so a starved host is not read as a stuck screen (#644).
+const PATIENCE: Frames = Frames::covering(Duration::from_secs(30), PAUSE);
 
 fn scratch(tag: &str) -> PathBuf {
     let dir = std::env::temp_dir().join(format!("blueprint_new_project_{tag}_{}", std::process::id()));
@@ -50,17 +55,17 @@ fn screen_of(app: &App) -> Screen {
     *app.world().resource::<State<Screen>>().get()
 }
 
-/// Steps the app until `done`, in real time, because a project opens on a thread and a mesh loads on the task pool.
+/// Steps the app until `done`, for at most [`PATIENCE`] frames that sleep between them, because a project opens on a
+/// thread and a mesh loads on the task pool.
 fn until(app: &mut App, what: &str, mut done: impl FnMut(&mut App) -> bool) {
-    let start = Instant::now();
-    while start.elapsed() < PATIENCE {
+    for _ in 0..PATIENCE.0 {
         app.update();
         if done(app) {
             return;
         }
-        std::thread::sleep(Duration::from_millis(5));
+        std::thread::sleep(PAUSE);
     }
-    panic!("never got there: {what} (screen {:?})", screen_of(app));
+    panic!("never got there within {PATIENCE:?}: {what} (screen {:?})", screen_of(app));
 }
 
 fn press(app: &mut App, text: &str) {

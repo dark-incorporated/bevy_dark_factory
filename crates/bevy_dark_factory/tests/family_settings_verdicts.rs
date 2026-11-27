@@ -5,7 +5,7 @@
 //! editor over BRP could not ask whether its edit had landed. The verdict names the file under the
 //! game's root (`family/bevy_elements.yaml`), says why a refusal is one, and goes when the file does.
 
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use bevy::prelude::*;
 use bevy_dark_factory::family_host::FamilySettings;
@@ -13,6 +13,17 @@ use bevy_dark_factory::live::EditorReloads;
 use serde_json::Value;
 
 use crate::fixtures;
+use crate::settle_support::Frames;
+
+/// The pause between the frames [`until`] and [`pump`] step.
+const PAUSE: Duration = Duration::from_millis(50);
+/// How many frames [`until`] steps before it gives up: at least 5 s at [`PAUSE`], counted in frames
+/// so a starved host does not run it out early (#644).
+const SEEN_WITHIN: Frames = Frames::covering(Duration::from_secs(5), PAUSE);
+/// Frames with nothing edited: at least 1.5 s at [`PAUSE`].
+const QUIET: Frames = Frames::covering(Duration::from_millis(1500), PAUSE);
+/// Frames after another file's edit: at least 0.6 s at [`PAUSE`].
+const AFTER_THE_OTHER_EDIT: Frames = Frames::covering(Duration::from_millis(600), PAUSE);
 
 /// **A real `ElementsSettings`, as `bevy_elements` writes one, at a given hour.**
 ///
@@ -42,22 +53,21 @@ fn seq(app: &App) -> u64 {
 }
 
 fn until(app: &mut App, what: &str, done: impl Fn(&App) -> bool) {
-    let start = Instant::now();
-    while start.elapsed().as_secs_f64() < 5.0 {
+    for _ in 0..SEEN_WITHIN.0 {
         if done(app) {
             return;
         }
         app.update();
-        std::thread::sleep(Duration::from_millis(50));
+        std::thread::sleep(PAUSE);
     }
-    panic!("never saw: {what}; reloads {}", app.world().resource::<EditorReloads>().state_json());
+    panic!("never saw in {SEEN_WITHIN:?}: {what}; reloads {}", app.world().resource::<EditorReloads>().state_json());
 }
 
-fn pump(app: &mut App, secs: f64) {
-    let start = Instant::now();
-    while start.elapsed().as_secs_f64() < secs {
+/// Steps `frames` frames, pausing [`PAUSE`] between them (#644).
+fn pump(app: &mut App, frames: Frames) {
+    for _ in 0..frames.0 {
         app.update();
-        std::thread::sleep(Duration::from_millis(50));
+        std::thread::sleep(PAUSE);
     }
 }
 
@@ -98,7 +108,7 @@ fn a_settings_edit_is_one_verdict_a_bad_one_is_refused_naming_the_file_and_a_rem
     assert_eq!(app.world().resource::<EditorReloads>().state_json()["ok"], false);
     let refused_at = seq(&app);
     assert_eq!(refused_at, before + 2);
-    pump(&mut app, 1.5);
+    pump(&mut app, QUIET);
     assert_eq!(seq(&app), refused_at, "nothing was edited, so nothing is decided again");
 
     // Undoing the typo, back to exactly the settings in force, is no change to the settings, and the
@@ -150,7 +160,7 @@ fn a_file_broken_before_the_editor_started_is_named_decided_once_and_goes_when_d
     std::thread::sleep(Duration::from_millis(50));
     std::fs::write(dir.join("bevy_elements.yaml"), settings_at("9.0")).unwrap();
     until(&mut app, "the other file applied", |a| a.world().resource::<FamilySettings>().text["bevy_elements"] == settings_at("9.0"));
-    pump(&mut app, 0.6);
+    pump(&mut app, AFTER_THE_OTHER_EDIT);
     assert_eq!(seq(&app), before + 1, "one edit, one decision: the broken file was not re-decided");
     assert_eq!(kinds(&app).len(), 2);
     assert_eq!(verdict(&app, "family/bevy_lights.yaml")["outcome"], "refused");

@@ -12,6 +12,7 @@ use bevy_dark_factory::loading::{LoadPhase, LoadRequest, LoadTiming, LoadingPlug
 use bevy_dark_factory::screen::Screen;
 
 use crate::fixtures::Fixture;
+use crate::settle_support::Frames;
 
 /// The windows the band is laid out in, in logical px.
 const WINDOWS_PX: [(u32, u32); 2] = [(1024, 640), (1280, 720)];
@@ -19,6 +20,11 @@ const WINDOWS_PX: [(u32, u32); 2] = [(1024, 640), (1280, 720)];
 const BAND_STANDS: Duration = Duration::from_secs(600);
 /// Frames run after the hand-over, for layout to settle.
 const SETTLE_FRAMES: usize = 20;
+/// The real pause between frames while the project loads.
+const LOAD_PAUSE: Duration = Duration::from_millis(5);
+/// How long the load has to reach the editor: frames covering 20 s at [`LOAD_PAUSE`], counted so a starved host cannot run it
+/// out (#644).
+const ENTERED_WITHIN: Frames = Frames::covering(Duration::from_secs(20), LOAD_PAUSE);
 
 /// A node's rect in logical px: `(left, top, right, bottom)`.
 fn rect(app: &App, entity: Entity) -> (f32, f32, f32, f32) {
@@ -44,11 +50,12 @@ fn open(tag: &str, window: (u32, u32)) -> App {
         .insert_resource(LoadTiming { spinner_after: Duration::from_secs(60), progress_after: Duration::from_secs(600) })
         .insert_resource(SettleBudget { frame: Duration::ZERO, quiet_frames: u32::MAX, cap: BAND_STANDS });
     app.world_mut().resource_mut::<NextState<Screen>>().set(Screen::Loading);
-    let start = std::time::Instant::now();
+    let mut stepped = Frames(0);
     while *app.world().resource::<State<Screen>>().get() != Screen::Editor {
-        assert!(start.elapsed() < Duration::from_secs(20), "the editor was never entered (phase {:?})", app.world().get_resource::<LoadPhase>());
+        assert!(stepped < ENTERED_WITHIN, "the editor was never entered (phase {:?})", app.world().get_resource::<LoadPhase>());
         app.update();
-        std::thread::sleep(Duration::from_millis(5));
+        std::thread::sleep(LOAD_PAUSE);
+        stepped.0 += 1;
     }
     bevy_dark_factory::harness::resize_surface(&mut app, window.0, window.1).unwrap_or_else(|e| panic!("{e}"));
     for _ in 0..SETTLE_FRAMES {

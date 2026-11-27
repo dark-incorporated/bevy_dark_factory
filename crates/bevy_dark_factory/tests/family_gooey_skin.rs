@@ -21,14 +21,24 @@ use bevy_dark_factory::ui_skin::GameSkin;
 use bevy_gooey::GooeySkin;
 
 use crate::fixtures;
+use crate::settle_support::Frames;
 
 const BLUE: &str = "{accent: !Srgba {red: 0.2, green: 0.6, blue: 0.9, alpha: 1.0}}";
 
+/// The pause between two of [`run_until`]'s frames.
+const PAUSE: std::time::Duration = std::time::Duration::from_millis(50);
+
+/// **Frames [`run_until`] steps at most** (#644): a count, not a wall-clock window, so a starved host does not cut it short; at
+/// [`PAUSE`] apart they cover at least 5 s.
+const SEEN_WITHIN: Frames = Frames::covering(std::time::Duration::from_secs(5), PAUSE);
+
 fn run_until(app: &mut App, done: impl Fn(&World) -> bool) {
-    let start = std::time::Instant::now();
-    while start.elapsed().as_secs_f64() < 5.0 && !done(app.world()) {
+    for _ in 0..SEEN_WITHIN.0 {
+        if done(app.world()) {
+            break;
+        }
         app.update();
-        std::thread::sleep(std::time::Duration::from_millis(50));
+        std::thread::sleep(PAUSE);
     }
 }
 

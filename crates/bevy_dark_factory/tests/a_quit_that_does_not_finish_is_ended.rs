@@ -11,11 +11,17 @@ use std::time::{Duration, Instant};
 use bevy::prelude::*;
 use bevy_dark_factory::exit_watchdog::{ExitWatchdog, ExitWatchdogPlugin, arm_after};
 
+use crate::settle_support::Frames;
+
 /// The grace the tests use: long enough to tell "not yet" from "done", short enough to wait for.
 const GRACE: Duration = Duration::from_millis(300);
 
-/// The most a test waits for the watchdog to act.
-const PATIENCE: Duration = Duration::from_secs(10);
+/// How long one look for the watchdog sleeps.
+const PAUSE: Duration = Duration::from_millis(10);
+
+/// The most looks a test gives the watchdog to act: at least ten seconds at [`PAUSE`], counted in looks so a starved host
+/// is not read as a watchdog that never acted (#644).
+const PATIENCE: Frames = Frames::covering(Duration::from_secs(10), PAUSE);
 
 static ENDED_BY_ARM_AFTER: AtomicUsize = AtomicUsize::new(0);
 static ENDED_BY_THE_PLUGIN: AtomicUsize = AtomicUsize::new(0);
@@ -28,13 +34,17 @@ fn ended_by_the_plugin() {
     ENDED_BY_THE_PLUGIN.fetch_add(1, Ordering::SeqCst);
 }
 
+/// Waits for the watchdog to have acted `at_least` times and says how long that took on the wall clock, which is what the
+/// grace is measured in; the wait itself is bounded by [`PATIENCE`] looks.
 fn wait_for(count: &AtomicUsize, at_least: usize) -> Duration {
     let started = Instant::now();
-    while count.load(Ordering::SeqCst) < at_least {
-        assert!(started.elapsed() < PATIENCE, "the watchdog never acted");
-        std::thread::sleep(Duration::from_millis(10));
+    for _ in 0..PATIENCE.0 {
+        if count.load(Ordering::SeqCst) >= at_least {
+            return started.elapsed();
+        }
+        std::thread::sleep(PAUSE);
     }
-    started.elapsed()
+    panic!("the watchdog never acted within {PATIENCE:?}");
 }
 
 #[test]

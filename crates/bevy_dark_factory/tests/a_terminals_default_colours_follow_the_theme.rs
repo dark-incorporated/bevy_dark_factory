@@ -15,9 +15,11 @@ use bevy_dark_factory::terminal::TerminalScreen;
 use bevy_gooey::GooeySkin;
 
 use crate::fixtures;
+use crate::settle_support::{Frames, STEP};
 
-/// Seconds the file watcher's wall-clock poll is given to see a settings file change.
-const WATCH_PATIENCE_S: u64 = 10;
+/// Frames the file watcher is given to see a settings file change: at least 10 s at [`STEP`], counted in frames so a
+/// starved host does not run it out early (#644).
+const WATCH_PATIENCE: Frames = Frames::covering(std::time::Duration::from_secs(10), STEP);
 /// How far two sRGB channels may differ and still be the same colour: under one 8-bit step.
 const SAME: f32 = 1.0e-3;
 
@@ -55,9 +57,12 @@ fn editor(tag: &str, theme: Theme) -> (App, std::path::PathBuf) {
 fn choose(app: &mut App, file: &std::path::Path, theme: Theme) {
     std::fs::write(file, format!("{{version: 1, theme: {}}}", named(theme))).expect("a settings file");
     let want = bevy_dark_factory::style::compiled_for(theme).skin.surface;
-    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(WATCH_PATIENCE_S);
-    while app.world().resource::<GooeySkin>().surface != want && std::time::Instant::now() < deadline {
+    for _ in 0..WATCH_PATIENCE.0 {
+        if app.world().resource::<GooeySkin>().surface == want {
+            break;
+        }
         app.update();
+        std::thread::sleep(STEP);
     }
     for _ in 0..6 {
         app.update();

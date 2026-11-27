@@ -2,13 +2,13 @@
 //! `design_view::REFRESH_S` and `design_areas::REFRESH_S` retired).
 //!
 //! Both used to read the design tree (the page and its board; the level's areas) every half second. They read when the index says a file under
-//! `design/` moved. These tests write files the way a person's own editor or an agent does (plain `std::fs`) and wait, on the wall clock, for
+//! `design/` moved. These tests write files the way a person's own editor or an agent does (plain `std::fs`) and wait, in frames that sleep, for
 //! the editor to agree with the file read back with `std::fs`. The clock is frozen (a manual time step of nothing) and the index's sweep is at
 //! its floor, so a reader that still waited for half a second of `Time` could not pass, and only the index's debounce stands between a write and
 //! the screen.
 
 use std::path::Path;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use bevy::prelude::*;
 use bevy::time::TimeUpdateStrategy;
@@ -19,9 +19,13 @@ use bevy_dark_factory::project_index::{MIN_SWEEP, ProjectIndex};
 use bevy_dark_factory::workspace::Workspace;
 
 use crate::fixtures;
+use crate::settle_support::Frames;
 
-/// How long a test waits for the editor to follow a file.
-const WAIT_SECONDS: f64 = 30.0;
+/// The wall-clock pause between the frames [`until`] steps.
+const PAUSE: Duration = Duration::from_millis(10);
+/// How long a test waits for the editor to follow a file: frames, not seconds, covering at least 30 s at [`PAUSE`], so a
+/// starved host does not run it out early (#644).
+const WAIT: Frames = Frames::covering(Duration::from_secs(30), PAUSE);
 
 fn write(root: &Path, rel: &str, text: &str) {
     let full = root.join(rel);
@@ -42,15 +46,14 @@ fn editor(tag: &str, before: impl FnOnce(&Path)) -> (std::path::PathBuf, App) {
 }
 
 fn until(app: &mut App, what: &str, mut done: impl FnMut(&mut App) -> bool) {
-    let started = Instant::now();
-    while started.elapsed().as_secs_f64() < WAIT_SECONDS {
+    for _ in 0..WAIT.0 {
         app.update();
         if done(app) {
             return;
         }
-        std::thread::sleep(Duration::from_millis(10));
+        std::thread::sleep(PAUSE);
     }
-    panic!("never happened within {WAIT_SECONDS} s: {what}");
+    panic!("never happened within {WAIT:?}: {what}");
 }
 
 /// The text of the page the Design workspace shows, when it shows one that read.

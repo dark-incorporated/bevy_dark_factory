@@ -21,6 +21,12 @@ use bevy_dark_factory::harness;
 use bevy_dark_factory::sequencer::{Operation, SequenceParams, Sequencer};
 
 use crate::fixtures;
+use crate::settle_support::Frames;
+
+/// The pause between frames while the sequence runs.
+const PAUSE: std::time::Duration = std::time::Duration::from_millis(20);
+/// How long a sequence has to end: frames covering 20 s at [`PAUSE`], counted so a starved host cannot run it out (#644).
+const A_SEQUENCE_ENDS_WITHIN: Frames = Frames::covering(std::time::Duration::from_secs(20), PAUSE);
 
 /// **A project with one map, one piece, and a map that has been saved.**
 fn project(name: &str) -> std::path::PathBuf {
@@ -66,9 +72,8 @@ fn an_operation_inside_a_sequence_is_redrawn_on_the_screen() {
         sequencer.start(&params, 0.0).expect("the sequence starts")
     };
 
-    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(20);
     let mut status = serde_json::Value::Null;
-    while std::time::Instant::now() < deadline {
+    for _ in 0..A_SEQUENCE_ENDS_WITHIN.0 {
         app.update();
         status = app.world().resource::<Sequencer>().status(id);
         if matches!(
@@ -77,7 +82,7 @@ fn an_operation_inside_a_sequence_is_redrawn_on_the_screen() {
         ) {
             break;
         }
-        std::thread::sleep(std::time::Duration::from_millis(20));
+        std::thread::sleep(PAUSE);
     }
     let _ = std::fs::remove_dir_all(&out);
 

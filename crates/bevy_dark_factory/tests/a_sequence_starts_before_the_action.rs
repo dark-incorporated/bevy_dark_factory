@@ -24,6 +24,14 @@ use bevy_dark_factory::harness;
 use bevy_dark_factory::sequencer::{SequenceParams, Sequencer};
 
 use crate::fixtures;
+use crate::settle_support::Frames;
+
+/// The pause between two of the frames the test steps while the sequence runs.
+const PAUSE: std::time::Duration = std::time::Duration::from_millis(20);
+
+/// **How many frames the sequence gets to finish** (#644): a count, not a wall-clock deadline, so a starved host does not cut it
+/// short; at [`PAUSE`] apart they cover at least 20 s.
+const SEQUENCE_ENDS_WITHIN: Frames = Frames::covering(std::time::Duration::from_secs(20), PAUSE);
 
 /// **A project with one map and one piece.**
 fn project(name: &str) -> std::path::PathBuf {
@@ -75,10 +83,9 @@ fn a_sequence_starts_before_the_action_and_continues_after_it() {
 
     // **Enough frames for the whole sequence.** The editor's own clock drives the schedule, and a
     // headless run's frames are fast, so the frames are taken quickly — but the *schedule* is in
-    // seconds, so the test has to let real time pass.
-    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(20);
+    // seconds, so the test has to let real time pass: [`PAUSE`] after every frame.
     let mut status = serde_json::Value::Null;
-    while std::time::Instant::now() < deadline {
+    for _ in 0..SEQUENCE_ENDS_WITHIN.0 {
         app.update();
         status = {
             let sequencer = app.world().resource::<Sequencer>();
@@ -88,7 +95,7 @@ fn a_sequence_starts_before_the_action_and_continues_after_it() {
         if done {
             break;
         }
-        std::thread::sleep(std::time::Duration::from_millis(20));
+        std::thread::sleep(PAUSE);
     }
 
     // **The sequence finished.**

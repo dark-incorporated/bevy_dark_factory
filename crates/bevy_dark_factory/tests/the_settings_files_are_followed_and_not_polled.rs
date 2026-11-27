@@ -29,9 +29,14 @@ use bevy_gooey::testing::find_by_label;
 use bevy_gooey::{Modifiers, Shortcut};
 
 use crate::fixtures;
+use crate::settle_support::Frames;
 
-/// The longest a test waits on the wall clock for something an index must publish: a ceiling, never the measurement.
-const WAIT_S: f64 = 10.0;
+/// The pause between the frames [`pump`] steps.
+const PAUSE: Duration = Duration::from_millis(5);
+
+/// The most frames a test waits for something an index must publish: a ceiling, never the measurement. At least 10 s at [`PAUSE`],
+/// counted so a starved host does not run it out early (#644).
+const WAIT: Frames = Frames::covering(Duration::from_secs(10), PAUSE);
 
 /// **A sweep short enough that a hand edit is found at once**; the debounce still holds the change until it has been steady.
 const FAST_SWEEP: Duration = Duration::from_millis(50);
@@ -39,16 +44,29 @@ const FAST_SWEEP: Duration = Duration::from_millis(50);
 /// **A sweep so long that only a note can reveal a change inside a test.**
 const NO_SWEEP: Duration = Duration::from_secs(60);
 
-/// What a hand edit must be seen within, measured from the write: a sweep, the debounce and the thread's tick with a loaded machine's
-/// room. It is not derived from those constants; it is the number the owner's "within a second or so" allows.
-const HAND_EDIT_SEEN_WITHIN: Duration = Duration::from_millis(1500);
+/// What a hand edit must be seen within, in frames stepped from the write: a sweep, the debounce and the thread's tick with a loaded
+/// machine's room. It is not derived from those constants; it covers the 1.5 s the owner's "within a second or so" allows, at [`PAUSE`].
+const HAND_EDIT_SEEN_WITHIN: Frames = Frames::covering(Duration::from_millis(1500), PAUSE);
 
 /// How long a frame that looks at nothing is given to see a change that no one told of: longer than a hand edit's budget, so a poll
-/// at any rhythm the old code had (a quarter of a second, a second) would have shown it.
-const NOT_POLLED_FOR: Duration = Duration::from_millis(1800);
+/// at any rhythm the old code had (a quarter of a second, a second) would have shown it. At least 1.8 s at [`PAUSE`].
+const NOT_POLLED_FOR: Frames = Frames::covering(Duration::from_millis(1800), PAUSE);
 
-/// The ceiling on a hand edit at the default sweep (one second between sweeps, plus the debounce, with a loaded machine's room).
-const DEFAULT_SWEEP_HAND_EDIT_WITHIN: Duration = Duration::from_millis(2500);
+/// The ceiling on a hand edit at the default sweep (one second between sweeps, plus the debounce, with a loaded machine's room), in
+/// frames covering 2.5 s at [`PAUSE`].
+const DEFAULT_SWEEP_HAND_EDIT_WITHIN: Frames = Frames::covering(Duration::from_millis(2500), PAUSE);
+
+/// Frames for what a change set off to finish: at least 0.5 s at [`PAUSE`].
+const SETTLE: Frames = Frames::covering(Duration::from_millis(500), PAUSE);
+
+/// Frames before and after unrelated files move: at least 0.8 s at [`PAUSE`].
+const UNRELATED_FOR: Frames = Frames::covering(Duration::from_millis(800), PAUSE);
+
+/// Frames an unlisted file's change is given to be (wrongly) heard: at least 0.4 s at [`PAUSE`].
+const UNLISTED_FOR: Frames = Frames::covering(Duration::from_millis(400), PAUSE);
+
+/// The step between the default-sweep test's edits, so each lands at a different point of the sweep: at least 0.3 s at [`PAUSE`].
+const BETWEEN_EDITS: Frames = Frames::covering(Duration::from_millis(300), PAUSE);
 
 struct Rig {
     app: App,
@@ -78,11 +96,12 @@ impl Rig {
         self.app.world().resource::<ProjectIndex>().set_sweep(every);
     }
 
-    /// Step frames until `done`, for at most `WAIT_S` on the wall clock; how long it took.
-    fn until(&mut self, what: &str, done: impl FnMut(&mut App) -> bool) -> Duration {
-        let began = Instant::now();
-        assert!(pump(&mut self.app, WAIT_S, done), "never saw: {what}; settings {:?}", self.settings());
-        began.elapsed()
+    /// Step frames until `done`, for at most [`WAIT`] frames; how many it stepped (#644).
+    fn until(&mut self, what: &str, done: impl FnMut(&mut App) -> bool) -> Frames {
+        match pump(&mut self.app, WAIT, done) {
+            Some(stepped) => stepped,
+            None => panic!("never saw in {WAIT:?}: {what}; settings {:?}", self.settings()),
+        }
     }
 
     fn settings(&self) -> EditorSettings {
@@ -101,16 +120,16 @@ impl Drop for Rig {
     }
 }
 
-fn pump(app: &mut App, seconds: f64, mut done: impl FnMut(&mut App) -> bool) -> bool {
-    let started = Instant::now();
-    while started.elapsed().as_secs_f64() < seconds {
+/// Step frames [`PAUSE`] apart until `done`, for at most `within` of them; how many it stepped, or `None` if `done` never held (#644).
+fn pump(app: &mut App, within: Frames, mut done: impl FnMut(&mut App) -> bool) -> Option<Frames> {
+    for frame in 0..within.0 {
         app.update();
         if done(app) {
-            return true;
+            return Some(Frames(frame + 1));
         }
-        std::thread::sleep(Duration::from_millis(5));
+        std::thread::sleep(PAUSE);
     }
-    false
+    None
 }
 
 fn text_scale(app: &App) -> f32 {
@@ -171,7 +190,7 @@ fn a_frame_that_looks_at_nothing_does_not_see_an_edit_no_one_told_of() {
     r.set_sweeps(NO_SWEEP);
     assert!(r.app.world().resource::<OutsideFiles>().wait_ready(&r.dir, Duration::from_secs(10)));
     std::fs::write(&r.user, "{version: 1, text_scale: 2.0}").expect("a hand edit");
-    assert!(!pump(&mut r.app, NOT_POLLED_FOR.as_secs_f64(), |a| text_scale(a) == 2.0), "a frame saw an edit that no sweep and no note had revealed: that is a poll");
+    assert!(pump(&mut r.app, NOT_POLLED_FOR, |a| text_scale(a) == 2.0).is_none(), "a frame saw an edit that no sweep and no note had revealed: that is a poll");
     note_path_written(&r.user);
     r.app.update();
     assert_eq!(text_scale(&r.app), 2.0, "told, the next frame shows it");
@@ -229,7 +248,7 @@ fn a_person_who_never_saved_a_setting_is_shown_no_error_and_the_file_is_seen_whe
     assert!(!r.dir.exists(), "the person's folder does not exist yet");
     r.set_sweeps(FAST_SWEEP);
     assert!(r.app.world().resource::<OutsideFiles>().wait_ready(&r.dir, Duration::from_secs(10)), "an absent folder still has a first listing");
-    pump(&mut r.app, 0.5, |_| false);
+    pump(&mut r.app, SETTLE, |_| false);
     {
         let outside = r.app.world().resource::<OutsideFiles>();
         assert_eq!(outside.failure(&r.dir), None, "an absent folder is not a failure");
@@ -400,25 +419,25 @@ fn a_file_that_no_one_changed_is_not_read_and_only_the_file_that_moved_is_read_a
     for _ in 0..4 {
         r.app.update();
     }
-    pump(&mut r.app, 0.8, |_| false);
+    pump(&mut r.app, UNRELATED_FOR, |_| false);
     let base = file_reads_on_this_thread();
 
     // Files that are not settings files: one in the project, one beside the person's file.
     let unrelated_in_project = r.project.with_file_name("unrelated.yaml");
     std::fs::write(&unrelated_in_project, "a: 1\n").expect("an unrelated project file");
     std::fs::write(r.dir.join("unrelated.yaml"), "a: 1\n").expect("an unrelated file beside the person's");
-    pump(&mut r.app, 0.8, |_| false);
+    pump(&mut r.app, UNRELATED_FOR, |_| false);
     assert_eq!(file_reads_on_this_thread(), base, "an unrelated file moved and a settings file was read");
 
     std::fs::write(&r.user, "{version: 1, text_scale: 1.25}").expect("a hand edit of the person's file");
     r.until("the person's edit", |a| text_scale(a) == 1.25);
-    pump(&mut r.app, 0.5, |_| false);
+    pump(&mut r.app, SETTLE, |_| false);
     assert_eq!(file_reads_on_this_thread() - base, 2, "the person's file is read by `sync_settings` and by the open screen, and the project's file by neither");
 
     let base = file_reads_on_this_thread();
     std::fs::write(&r.project, "{version: 1, text_scale: 2.0}").expect("a hand edit of the project's file");
     r.until("the project's edit", |a| text_scale(a) == 2.0);
-    pump(&mut r.app, 0.5, |_| false);
+    pump(&mut r.app, SETTLE, |_| false);
     assert_eq!(file_reads_on_this_thread() - base, 2, "the project's file is read by `sync_settings` and by the open screen, and the person's file by neither");
 }
 
@@ -429,9 +448,9 @@ fn at_the_default_sweep_a_hand_edit_takes_up_to_about_a_second_and_a_tenth() {
     let mut r = rig("outside_default_sweep");
     std::fs::create_dir_all(&r.dir).expect("the person's folder");
     assert!(r.app.world().resource::<OutsideFiles>().wait_ready(&r.dir, Duration::from_secs(10)));
-    let mut longest = Duration::ZERO;
-    for (n, scale) in ["1.25", "1.75", "2.25"].into_iter().enumerate() {
-        pump(&mut r.app, 0.3 * (n as f64 + 1.0), |_| false);
+    let mut longest = Frames(0);
+    for (n, scale) in (1u32..).zip(["1.25", "1.75", "2.25"]) {
+        pump(&mut r.app, Frames(BETWEEN_EDITS.0 * n), |_| false);
         std::fs::write(&r.user, format!("{{version: 1, text_scale: {scale}}}")).expect("a hand edit");
         let seen = r.until("a hand edit at the default sweep", |a| text_scale(a) == scale.parse::<f32>().expect("a number"));
         longest = longest.max(seen);
@@ -485,13 +504,13 @@ fn an_outside_folder_is_followed_for_its_names_only_and_note_written_reaches_it(
     // An unrelated file changing is not heard, even when a note names it: the index follows only its names.
     std::fs::write(dir.join("other_7.txt"), "changed").expect("an unrelated write");
     note_written(&dir, "other_7.txt");
-    pump(&mut app, 0.4, |_| false);
+    pump(&mut app, UNLISTED_FOR, |_| false);
     assert!(app.world().resource::<Heard>().0.is_empty(), "an unlisted file was heard: {:?}", app.world().resource::<Heard>().0);
 
     // A note (the sweep is a minute away) shows the append of the named file, with its length.
     std::fs::write(dir.join("turns.jsonl"), "one\ntwo\n").expect("an append");
     note_written(&dir, "turns.jsonl");
-    assert!(pump(&mut app, WAIT_S, |a| !heard_of(a, "turns.jsonl").is_empty()), "the note was never published");
+    assert!(pump(&mut app, WAIT, |a| !heard_of(a, "turns.jsonl").is_empty()).is_some(), "the note was never published");
     let event = app.world().resource::<Heard>().0.iter().find(|e| e.rel == "turns.jsonl").expect("an event").clone();
     assert_eq!((event.kind, event.dir, event.root.as_path()), (ChangeKind::Modified, false, dir.as_path()));
     assert_eq!(event.stamp.map(|s| s.len), Some(std::fs::metadata(dir.join("turns.jsonl")).expect("an independent stat").len()));

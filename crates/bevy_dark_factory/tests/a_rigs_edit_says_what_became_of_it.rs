@@ -6,7 +6,7 @@
 //! the tab keeps what it holds; a file that is gone is `needs_restart`, because the tab has no manifest
 //! to take in its place. Each distinct edit is decided once into `blueprint_state.reloads` as kind `rigs`.
 
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use bevy::prelude::*;
 use bevy_dark_factory::anim_tab::BenchState;
@@ -15,10 +15,23 @@ use bevy_dark_factory::tiles::Mode;
 use serde_json::{Value, json};
 
 use crate::fixtures;
+use crate::settle_support::Frames;
 
 const FILE: &str = "rigs.yaml";
 const GOOD: &str = "{version: 3, rigs: {}}";
 const EDITED: &str = "{version: 3, note: \"edited by hand\", rigs: {}}";
+
+/// **How long one frame of a wait here sleeps.**
+const PAUSE: Duration = Duration::from_millis(40);
+/// **The frames a wait for a verdict or a held text takes** before it gives up: at least six seconds at [`PAUSE`], counted
+/// in frames so a starved host is not read as a missed verdict (#644).
+const SEEN_WITHIN: Frames = Frames::covering(Duration::from_secs(6), PAUSE);
+/// **The frames an untouched manifest is left to say something**: at least 1.2 s at [`PAUSE`].
+const A_WHILE: Frames = Frames::covering(Duration::from_millis(1200), PAUSE);
+/// **The frames after a decision in which it must not be decided again**: at least 2.2 s at [`PAUSE`].
+const MANY_FRAMES: Frames = Frames::covering(Duration::from_millis(2200), PAUSE);
+/// **The frames a door change is given to load the file afresh**: at least 1.5 s at [`PAUSE`].
+const A_RELOAD: Frames = Frames::covering(Duration::from_millis(1500), PAUSE);
 
 /// The three ways to break it, and the field the verdict must name (`None`: the file is cut off, so
 /// where reading stopped is all the position says).
@@ -86,47 +99,44 @@ fn held(app: &App) -> Option<String> {
     app.world().resource::<BenchState>().text.clone()
 }
 
-fn pump(app: &mut App, secs: f64) {
-    let start = Instant::now();
-    while start.elapsed().as_secs_f64() < secs {
+fn pump(app: &mut App, frames: Frames) {
+    for _ in 0..frames.0 {
         app.update();
-        std::thread::sleep(Duration::from_millis(40));
+        std::thread::sleep(PAUSE);
     }
 }
 
-/// Frames until the `rigs` verdict has this outcome (`""`: none at all).
+/// Frames until the `rigs` verdict has this outcome (`""`: none at all), for at most [`SEEN_WITHIN`].
 fn until_outcome(app: &mut App, outcome: &str) {
-    let start = Instant::now();
-    while start.elapsed().as_secs_f64() < 6.0 {
+    for _ in 0..SEEN_WITHIN.0 {
         let v = verdict(app);
         if v["outcome"].as_str().unwrap_or("") == outcome {
             return;
         }
         app.update();
-        std::thread::sleep(Duration::from_millis(40));
+        std::thread::sleep(PAUSE);
     }
-    panic!("never saw outcome `{outcome}` for rigs; reloads {}", reloads(app));
+    panic!("never saw outcome `{outcome}` for rigs within {SEEN_WITHIN:?}; reloads {}", reloads(app));
 }
 
 /// Frames until the tab holds exactly `text`: an `applied` verdict that an earlier edit left cannot
 /// satisfy this, so it waits for the edit it was written for.
 fn until_held(app: &mut App, text: &str) {
-    let start = Instant::now();
-    while start.elapsed().as_secs_f64() < 6.0 {
+    for _ in 0..SEEN_WITHIN.0 {
         if held(app).as_deref() == Some(text) {
             return;
         }
         app.update();
-        std::thread::sleep(Duration::from_millis(40));
+        std::thread::sleep(PAUSE);
     }
-    panic!("the tab never took `{text}`; it holds {:?}; reloads {}", held(app), reloads(app));
+    panic!("the tab never took `{text}` within {SEEN_WITHIN:?}; it holds {:?}; reloads {}", held(app), reloads(app));
 }
 
 #[test]
 fn a_valid_edit_is_applied_once_and_the_tab_takes_it() {
     let (mut app, path) = editor("rigs_edit_applied");
     // Nothing edited: no verdict, and the reload state is fine.
-    pump(&mut app, 1.2);
+    pump(&mut app, A_WHILE);
     assert_eq!(verdict(&mut app), Value::Null, "an untouched manifest has nothing to say");
     assert_eq!(reloads(&mut app)["ok"], json!(true));
 
@@ -142,7 +152,7 @@ fn a_valid_edit_is_applied_once_and_the_tab_takes_it() {
     assert_eq!(seq(&mut app), before + 1, "one edit is one decision");
 
     // However many frames pass, the same edit is not decided again.
-    pump(&mut app, 2.2);
+    pump(&mut app, MANY_FRAMES);
     assert_eq!(seq(&mut app), before + 1, "one edit is one verdict however many frames pass");
     assert_eq!(verdict(&mut app)["outcome"], json!("applied"));
 
@@ -182,7 +192,7 @@ fn a_broken_edit_is_refused_naming_the_file_and_the_field_once() {
         assert_eq!(held(&app).as_deref(), Some(GOOD), "{what}: the tab keeps the manifest it read");
         assert_eq!(seq(&mut app), before + 1, "{what}: one edit is one decision");
 
-        pump(&mut app, 2.2);
+        pump(&mut app, MANY_FRAMES);
         assert_eq!(seq(&mut app), before + 1, "{what}: the same bad file is decided once, not every frame");
         let raised = (app.world().resource::<EditorState>().status.raised() - raised_before) as usize;
         let said: Vec<String> = app.world().resource::<EditorState>().status.problems().iter().rev().take(raised).map(|p| p.text.clone()).collect();
@@ -207,7 +217,7 @@ fn a_manifest_that_did_not_read_when_the_tab_loaded_is_refused_and_its_fix_is_ta
     until_outcome(&mut app, "refused");
     let v = verdict(&mut app);
     assert_eq!((v["file"].clone(), v["field"].clone()), (json!(FILE), json!("version")), "{v}");
-    pump(&mut app, 2.2);
+    pump(&mut app, MANY_FRAMES);
     let said: Vec<String> =
         app.world().resource::<EditorState>().status.problems().iter().map(|p| p.text.clone()).filter(|t| t.contains(FILE)).collect();
     assert_eq!(said.len(), 1, "the refusal is said once, however many frames pass: {said:?}");
@@ -234,7 +244,7 @@ fn a_door_change_loads_the_file_afresh_and_decides_nothing_more() {
     // A door change resets the bench (`BenchState` is the door's): the next entry to the tab loads
     // the file as it is, which is what the tab already took, so nothing is decided again.
     *app.world_mut().resource_mut::<BenchState>() = BenchState::default();
-    pump(&mut app, 1.5);
+    pump(&mut app, A_RELOAD);
     assert_eq!(held(&app).as_deref(), Some(EDITED), "the tab loaded the edited file afresh");
     assert_eq!(seq(&mut app), decided, "a reload of what is on disk is no new decision");
     assert_eq!(verdict(&mut app)["outcome"], json!("applied"), "the verdict about the edit is still true");
