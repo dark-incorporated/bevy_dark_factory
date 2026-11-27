@@ -158,6 +158,41 @@ fn the_decision_model_is_not_drawn_in_the_chrome_bar() {
     }
 }
 
+/// **Both lights' words are drawn at the band's label rung, a step under the body's size** (#536). `bevy_gooey::led` draws its
+/// label and state word at the skin's body size (`text_size × text_scale`) unless the LED names a step of the type scale
+/// (`LedSize`); the band's readouts are `text::LABEL`, the rung under the body, so a light without the step was a size
+/// louder than the band it stands in. Measured on the drawn `TextFont`s against the running skin's own numbers.
+#[test]
+fn the_band_lights_are_drawn_at_the_bands_label_rung() {
+    let mut app = editor("band_led_size", NO_AGENT);
+    until(&mut app, "the status band's agent light", |app| {
+        app.world_mut().query_filtered::<Entity, With<AgentBandLed>>().iter(app.world()).next().is_some()
+    });
+    for _ in 0..4 {
+        app.update();
+    }
+    let leds = [one::<AgentBandLed>(&mut app), one::<DecisionLed>(&mut app)];
+    let world = app.world();
+    let skin = world.resource::<bevy_gooey::GooeySkin>();
+    let rung = skin.type_size(bevy_dark_factory::chrome::BAND_LED_STEP);
+    let body = skin.text_size * skin.text_scale;
+    assert!(rung < body, "the band's rung {rung} px is not under the body's {body} px, so the lights cannot be quieter than it");
+    let mut words = 0usize;
+    for led in leds {
+        for child in world.get::<Children>(led).map(|c| c.to_vec()).unwrap_or_default() {
+            let Some(text) = world.get::<Text>(child) else { continue };
+            words += 1;
+            let drawn = world.get::<TextFont>(child).map(|font| font.font_size);
+            assert!(
+                matches!(drawn, Some(FontSize::Px(px)) if (px - rung).abs() < 0.01),
+                "a band light's `{}` is drawn at {drawn:?}, not the band's rung {rung} px (the body is {body} px)",
+                text.0
+            );
+        }
+    }
+    assert!(words >= 4, "the two lights draw a label and a state word each; found {words} words");
+}
+
 /// **The agent's state is stated in words in that region, and the region says what to press when nothing runs.**
 #[test]
 fn the_region_states_the_agents_state_and_how_to_start_one() {

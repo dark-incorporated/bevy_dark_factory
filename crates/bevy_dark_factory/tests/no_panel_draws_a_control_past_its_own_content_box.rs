@@ -109,11 +109,12 @@ const SLACK_PX: f32 = 1.0;
 /// How many spills one pane reports before the message becomes a wall.
 const REPORT_LIMIT: usize = 8;
 
-/// **The most gooey table-cell texts the left pane may draw**: its history list is single-column, and its rows
-/// are the only cells there. gooey spawns every cell's text `NoWrap` (`widgets::ONE_LINE`), which no `TextLayout`
-/// written here can override — `bevy_gooey#109`, the exemption #482's test states. Counted rather than silently
-/// skipped, so it cannot quietly grow to cover a second widget.
-const MOST_GOOEY_CELLS: usize = 14;
+/// **The most one-line gooey table-cell texts the left pane may draw**: its history list's rows. gooey spawns a
+/// cell's text `NoWrap` (`widgets::ONE_LINE`) unless its column wraps (`Column::wrap`, `bevy_gooey#109`), and the
+/// history list is a `tree`, whose one column a host cannot make wrap (`bevy_gooey#124`) — the exemption #482's
+/// test states. **Measured 1** at both interface scales on `integrate/1127` with the exemption narrowed to
+/// one-line cells (#536, was 14): the fixture's one history row. Counted, so it cannot grow to cover a second widget.
+const MOST_GOOEY_CELLS: usize = 1;
 
 
 
@@ -262,9 +263,12 @@ fn spills(app: &mut App, pane: Entity, tag: &str) -> Vec<String> {
     let mut cells = 0usize;
     let mut measured = 0usize;
     for entity in under(world, pane) {
-        // **gooey's table cell text is drawn on one line and this crate cannot change that** (`bevy_gooey#109`),
-        // the one exemption #482's test states. Counted, so it cannot grow unnoticed.
-        if matches!(world.get::<bevy_gooey::Role>(entity), Some(bevy_gooey::Role::TableCellText)) {
+        // **A gooey table cell's text drawn on one line** is the one exemption #482's test states (`bevy_gooey#109`);
+        // a cell of a column the editor made wrap (`Column::wrap`, #536) is measured like every other text. Counted,
+        // so it cannot grow unnoticed.
+        if world.get::<bevy_gooey::Role>(entity) == Some(&bevy_gooey::Role::TableCellText)
+            && world.get::<TextLayout>(entity).is_some_and(|layout| layout.linebreak == bevy::text::LineBreak::NoWrap)
+        {
             cells += 1;
             continue;
         }

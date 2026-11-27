@@ -4725,6 +4725,7 @@ pub fn spawn_agent_band(band: &mut ChildSpawnerCommands) {
             .with_children(|half| {
                 half.spawn((
                     bevy_gooey::led(AGENT_LABEL, bevy_gooey::LedState::Off),
+                    bevy_gooey::LedSize(BAND_LED_STEP),
                     AgentBandLed,
                 ));
             });
@@ -4733,6 +4734,12 @@ pub fn spawn_agent_band(band: &mut ChildSpawnerCommands) {
         region.spawn(crate::decision_model::chip());
     });
 }
+
+/// **The step of the skin's type scale the band's two lights are drawn at** (`bevy_gooey::LedSize`, #536): rung 1, the
+/// [`text::LABEL`] the band's other readouts (`SelectionCount`, `LabelerLine`) are typed at — `style::type_scale_of` sorts
+/// the sheet's `hint`, `label`, `body`, `tab`, `title` into the skin's five rungs. Without it gooey draws an LED at the
+/// body's size, a step louder than every word beside it.
+pub const BAND_LED_STEP: usize = 1;
 
 /// **The status band's one agent-and-decision-model region** (#514). See [`spawn_agent_band`].
 #[derive(Component)]

@@ -256,7 +256,7 @@ pub fn led_view(chosen: DecisionModel, key_set: bool, seen: &Seen) -> LedView {
 #[derive(Component)]
 pub struct DecisionLedChip;
 
-/// **The top bar's decision-model LED** (DM-03, #454): [`Led`] on it, the model's name as its label.
+/// **The status band's decision-model LED** (DM-03, #454; moved from the top bar by #514): [`Led`] on it, the model's name as its label.
 #[derive(Component)]
 pub struct DecisionLed;
 
@@ -268,7 +268,11 @@ pub fn chip() -> impl Bundle {
         DecisionLedChip,
         Tooltip::new(String::new()),
         Name::new("decision model"),
-        children![(bevy_gooey::led(DecisionModel::default().name(), LedState::Off), DecisionLed)],
+        children![(
+            bevy_gooey::led(DecisionModel::default().name(), LedState::Off),
+            bevy_gooey::LedSize(crate::chrome::BAND_LED_STEP),
+            DecisionLed
+        )],
     )
 }
 
