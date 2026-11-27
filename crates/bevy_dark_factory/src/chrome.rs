@@ -951,9 +951,6 @@ pub fn panel_root<'a>(
             // `Focused` lands, so a panel nobody has focused keeps `PANEL_EDGE`.
             PanelEdge,
             Hovered::default(),
-            // **A panel, and a switch's to take down** (#695, #678): it is a child of a dock, so the roots
-            // sweep cannot reach it, and the frame it stands in is spared with the scene.
-            crate::screen::WorkspacePanel,
         ))
         .id();
     if hidden {
@@ -1296,13 +1293,7 @@ pub fn spawn_frame(
     mut commands: Commands,
     settings: Option<Res<crate::settings::EditorSettings>>,
     workspace: Option<Res<crate::workspace::Workspace>>,
-    // **A switch keeps the frame, so a second one would stand on top of it** (#695, #678): the resource
-    // survives the workspace reset and its root is spared, so there is already a frame to draw into.
-    already: Option<Res<Frame>>,
 ) {
-    if already.is_some() {
-        return;
-    }
     // **The workspace's own arrangement, else its default** (UI-33, #227; per workspace since
     // NV-02, #379). `sync_settings` has read the files by the time a frame is built, so this is the
     // layout the editor opens on — and it is keyed by the workspace, so Map's inspector being wide
@@ -1594,10 +1585,6 @@ pub fn spawn_frame(
     commands
         .entity(root)
         .add_children(&[chrome_bar, door_strip, body, bottom, status]);
-
-    // **The frame is the window's, and every workspace that shows the map draws into it** (#695, #678): a
-    // switch between Map, World, Kit and Animation changes which panels are in it, not the frame itself.
-    commands.entity(root).insert(crate::screen::KeptAcrossASwitch);
 
     commands.insert_resource(Frame {
         root,
