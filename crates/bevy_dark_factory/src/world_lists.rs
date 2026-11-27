@@ -114,6 +114,11 @@ impl Plugin for WorldListsPlugin {
                 refresh_water.run_if(Workspace::world_is_open),
                 refresh_forest.run_if(Workspace::world_is_open),
                 refresh_lights.run_if(Workspace::world_is_open),
+                // **After the arrow that moved it**, so a press and the mark it moves land in one frame
+                // (#557). The walk is the audio panel's, ordered here because this reader draws its result.
+                #[cfg(feature = "bevy_siren")]
+                refresh_cues.run_if(Workspace::sound_is_open).after(crate::audio_panel::TheCueWalk),
+                #[cfg(not(feature = "bevy_siren"))]
                 refresh_cues.run_if(Workspace::sound_is_open),
                 refresh_cue_uses.run_if(Workspace::sound_is_open),
             )
@@ -225,8 +230,19 @@ fn one_line(text: &str) -> String {
 /// **The cues list of the AUDIO section**, drawn in every build under the heading the caller draws.
 pub fn spawn_cue_list(p: &mut ChildSpawnerCommands) {
     chrome::body(p, CUES_HINT, chrome::ink().dim);
-    p.spawn((CueList, list_node()));
+    spawn_cue_column(p);
     p.spawn((CueUses, list_node()));
+}
+
+/// **The cue names, as the one `CueList` this reader fills** — spawned by [`spawn_cue_list`] without the crate,
+/// and by the audio panel's own section with it (#600). One list, one reader, one selection.
+///
+/// The panel already reads `family/bevy_siren.yaml` as the crate's `SirenSettings` and `CueTable` when it is
+/// built, so [`refresh_cues`] takes this list's names from the panel there rather than reading the file a
+/// second time; a second reader would be a second wording for one failure, which is how the Sound workspace
+/// came to say a broken file twice and the panel once.
+pub fn spawn_cue_column(p: &mut ChildSpawnerCommands) {
+    p.spawn((CueList, list_node()));
 }
 
 /// **Just the `used by` column**, for a build where the audio panel already names the cues (#600).
@@ -516,6 +532,9 @@ struct Held {
 #[derive(Default)]
 struct CuesHeld {
     rows: Option<Vec<String>>,
+    /// **Only the no-crate reader follows a file itself.** With `bevy_siren` the audio panel is the reader and
+    /// this list takes the panel's answer, so there is no `Follow` here to keep.
+    #[cfg(not(feature = "bevy_siren"))]
     file: Follow,
     names: Option<Result<Vec<String>, String>>,
 }
@@ -524,6 +543,40 @@ fn changed<T: Resource>(resource: &Option<Res<T>>) -> bool {
     resource.as_ref().is_some_and(|r| r.is_changed())
 }
 
+/// **The cue list's rows, from the reader that owns them.**
+///
+/// Two readers, one per build, and never both: a build with `bevy_siren` takes the names from the audio
+/// panel, which has already parsed the file as the crate's own `SirenSettings` and `CueTable` and knows why it
+/// did not read; a build without the crate reads the `cues:` names as plain values ([`cue_names_at`]).
+#[cfg(feature = "bevy_siren")]
+fn refresh_cues(
+    mut commands: Commands,
+    selected: Option<Res<SelectedCue>>,
+    panel: Option<Res<crate::audio_panel::AudioPanel>>,
+    lists: Query<(Entity, Has<Children>), With<CueList>>,
+    mut held: Local<CuesHeld>,
+) {
+    // **No panel, no rows**: the crate's store is what the panel reads into, and a build that never made one
+    // has nothing to show. Waiting for it is the honest answer, not a second reader with a second wording.
+    let Some(panel) = panel else { return };
+    let CuesHeld { rows, names } = &mut *held;
+    let read = match panel.unread.as_deref() {
+        Some(why) => Err(why.to_owned()),
+        None => Ok(panel.cues.clone()),
+    };
+    // **A choice is shown on the frame it is made**, and a file that changed on disk is re-read by the panel
+    // (whose `text` is what its own comparison holds), so this list follows the panel's answer and nothing else.
+    let stale = changed(&selected) || !panel.is_changed() && rows.is_none() || names.as_ref() != Some(&read);
+    *names = Some(read);
+    let chosen = selected.as_deref().and_then(|s| s.0.as_deref());
+    let names = names.clone();
+    keep(&mut commands, rows, &lists, stale, || {
+        names.map(|read| cue_rows_of(read, chosen))
+    });
+}
+
+/// **The cue list's rows read from the file** (a build without `bevy_siren`, where no crate parses it).
+#[cfg(not(feature = "bevy_siren"))]
 fn refresh_cues(
     mut commands: Commands,
     index: Res<ProjectIndex>,

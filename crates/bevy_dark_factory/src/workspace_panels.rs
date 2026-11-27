@@ -108,7 +108,13 @@ fn spawn_world_panel(mut commands: Commands, frame: Res<Frame>) {
             // budget from where the camera looks, and draws the heading itself. After the terrain line, which keeps its place.
             block(p).with_children(|s| {
                 #[cfg(feature = "bevy_lights")]
-                crate::ops_pool::spawn_section(s);
+                {
+                    // **One LIGHTS heading, then the fixtures under it** (NV-11, #395): the crate's section used to draw its
+                    // own heading for the pool button, so a build with it had the heading twice and a test counting one
+                    // failed on a correct screen. The list follows the heading the other build already draws.
+                    chrome::section(s, "LIGHTS");
+                    crate::ops_pool::spawn_buttons(s);
+                }
                 #[cfg(not(feature = "bevy_lights"))]
                 chrome::section(s, "LIGHTS");
                 crate::world_lists::spawn_lights_list(s);

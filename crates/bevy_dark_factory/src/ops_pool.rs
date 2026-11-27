@@ -127,10 +127,13 @@ impl Operation for LightPoolBudget {
 #[derive(Component, Clone, Copy, Debug, PartialEq)]
 pub struct PoolHere;
 
-/// The LIGHTS section of the controls panel.
-pub fn spawn_section(s: &mut ChildSpawnerCommands) {
-    use crate::chrome::{Severity, button, section};
-    section(s, "LIGHTS");
+/// **The LIGHTS section's controls**, under the heading the World panel draws for every build.
+///
+/// It used to draw its own `section(s, "LIGHTS")`, which put the heading on screen twice in a build with this crate and
+/// left a test counting one reading two (`a_maps_lights_are_listed_without_bevy_lights`, #395). The heading is the panel's,
+/// because the fixtures list under it is drawn in every build; a section that drew a second one would drift from it.
+pub fn spawn_buttons(s: &mut ChildSpawnerCommands) {
+    use crate::chrome::{Severity, button};
     button(s, PoolHere, "Pool here", Severity::Plain);
 }
 
