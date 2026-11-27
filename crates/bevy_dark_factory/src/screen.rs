@@ -28,6 +28,11 @@
 //! that survives into the next door. A reload cannot be wrong; a partial teardown can be, silently,
 //! and the bug lands weeks later looking like something else.
 //!
+//! **One exception, named in one place**: a switch to a workspace that shows the map keeps the map's
+//! scene — the camera, its key light and what the map draws — because Map, World, Kit and Animation share
+//! one viewport (#695). `TheMapsScene` is the whole list; everything else is still swept and spawned
+//! again, and the two spawners that would draw the scene twice skip what stands.
+//!
 //! # Doors are reached through the menu — and now also through a key
 //!
 //! **The menu is still the way a door is _opened_**, and it is still the only one. A key does not
@@ -156,19 +161,8 @@ fn open_the_door(world: &mut World) {
 /// reach. `tests/the_arm_crosses_the_door.rs` calls it directly, which is the only way to ask *"what
 /// does a door change do to this resource?"* without standing up a second application.
 pub fn close_the_door(world: &mut World) {
-    // **A switch takes the panels and keeps everything else** (#695, #678). `despawn_scene` is a leave's
-    // tool: it sweeps by reachability, and every panel is a child of a dock, so a switch that ran it would
-    // either spare the panels with the frame or take the frame with them. A switch therefore sweeps the one
-    // kind of entity it means to replace — a [`WorkspacePanel`] — and leaves the frame, the map camera and
-    // the map's pieces standing. `OnEnter(Editor)` builds the new workspace's panels as it always has.
-    if world.contains_resource::<Crossing>() {
-        for e in world.query_filtered::<Entity, With<WorkspacePanel>>().iter(world).collect::<Vec<_>>() {
-            if let Ok(entity) = world.get_entity_mut(e) {
-                entity.despawn();
-            }
-        }
-        return close_a_switch(world);
-    }
+    // **A switch to a workspace that shows the map spares the map's scene** (#695): `scene_roots` says which
+    // roots, so this stays one sweep with one rule.
     despawn_scene(world);
     // **A switch is in flight: the project, the map and the workspace stay.**
     //
@@ -179,21 +173,7 @@ pub fn close_the_door(world: &mut World) {
     // **What the teardown still does, unchanged:** the entity sweep and the workspace's own working
     // state. The teardown is a teardown; only the resources that now belong to the *next* workspace
     // are spared.
-    close_a_switch(world)
-}
-
-/// **The reset half of a switch**: the workspace's own working state, with the frame and the selection kept.
-fn close_a_switch(world: &mut World) {
-    {
-        let switching = world.remove_resource::<Crossing>().is_some();
-        // **A leave drops the project and the map with the door**; a switch keeps both, because the new
-        // workspace draws the same project (#695, #378). One helper, two answers, and the answer is the
-        // marker the switch put down.
-        if !switching {
-            crate::args::Opened::remove_from(world);
-            reset_door_state(world);
-            return;
-        }
+    if world.remove_resource::<Crossing>().is_some() {
         // **The receipt is carried over the reset (cycle 8, gap 7).** The reset puts `EditorState`
         // back empty, which erased the receipt of whoever asked for this door: the window changed
         // doors with no word of who did it. The receipt is what the person reads on arrival, so it is
@@ -206,14 +186,7 @@ fn close_a_switch(world: &mut World) {
         // #379), and the selection follows the lock (`selection::follow_the_lock`), so emptying it
         // here would drop the selection the decision says a switch never drops.
         let lock = world.remove_resource::<crate::editor::TargetLock>();
-        // **And the frame's own slots**, for the same reason: the frame root is spared, so the resource that
-        // names its docks has to survive the reset or `panel_root` would find nothing to put a panel in
-        // (#695). `spawn_frame` skips when it is already there, so the frame is built once per editor.
-        let frame = world.remove_resource::<crate::chrome::Frame>();
         reset_door_state(world);
-        if let Some(frame) = frame {
-            world.insert_resource(frame);
-        }
         if let Some(lock) = lock {
             world.insert_resource(lock);
         }
@@ -222,25 +195,11 @@ fn close_a_switch(world: &mut World) {
         {
             state.status.note(receipt);
         }
+        return;
     }
+    crate::args::Opened::remove_from(world);
+    reset_door_state(world);
 }
-
-/// **A panel a workspace put on screen**, so a switch can take it down and build the next workspace's.
-///
-/// Every panel is spawned by `chrome::panel_root`, and every one of them is a *child of a dock* — so the
-/// roots-only sweep cannot reach them, and the frame they stand in is spared (#695, #678).
-#[derive(Component)]
-pub struct WorkspacePanel;
-
-/// **What a switch between the four workspaces that share the viewport keeps** (#695, #678): a root carrying
-/// this is not swept by [`despawn_scene`] while a switch is in flight.
-///
-/// The scene is the map's and the frame is the window's, and `docs/ui/vision.md` §4 says Map, World, Kit and
-/// Animation share one viewport — so a switch between them changes which *panels* are drawn and nothing else.
-/// A root marked here is one every one of the four shows: the frame, the map camera and lights, and the map's
-/// pieces. Everything else the old workspace made is swept, which is how the panels that differ go away.
-#[derive(Component)]
-pub struct KeptAcrossASwitch;
 
 /// **A door change is in flight** — the teardown is part of a switching, not of a leave.
 ///
@@ -335,17 +294,11 @@ pub fn cross(world: &mut World, to: crate::workspace::Workspace) -> Result<(), S
 /// `close_the_door` reads it and spares the workspace's own resources — the project, the map, the
 /// selection — while still sweeping every entity the old door made and resetting its working panels. The
 /// transition is what rebuilds the frame and the strip, so a switch is one frame rather than a reload.
+///
+/// **The picture is the exception** (#695): when the new workspace shows the map, the sweep spares the map's
+/// scene (`scene_roots`), so World, Kit and Animation draw the room Map drew rather than an empty viewport.
 pub fn rebuild_the_door(world: &mut World) {
     world.insert_resource(Crossing);
-    // **The transition still runs, because it is what builds the new workspace's panels** (#695, #678):
-    // `OnEnter(Editor)` is the one place the strip, the inspector and the lists are spawned, and a switch
-    // that skipped it left World's WATER heading undrawn. What changes on a switch is that
-    // `despawn_scene` spares the roots all four workspaces share (`KeptAcrossASwitch`) and takes only the
-    // panels, which is the picture moving rather than the whole door being rebuilt.
-    //
-    // **Measured before this**, on `37219dc7` at 1600x1000: a map -> kit -> map round trip kept 2 of 2,600
-    // `ComputedNode` entities and cost 205-275 ms a switch, and the map's 45 `Mesh3d` entities were gone
-    // after a switch to World, Kit or Animation.
     if let Some(mut next) = world.get_resource_mut::<NextState<Screen>>() {
         next.set(Screen::Editor);
     }
@@ -541,12 +494,12 @@ pub(crate) fn despawn_scene(world: &mut World) {
 ///
 /// Windows and monitors are excluded because they outlive both screens; that is the one thing here
 /// that is genuinely shared.
+///
+/// **And the map's scene, during a switch to a workspace that shows the map** (#695): see [`TheMapsScene`].
 pub(crate) fn scene_roots(world: &mut World) -> Vec<Entity> {
-    let switching = world.contains_resource::<Crossing>();
-    // **Gathered in one pass, then filtered**, because the filter reads the world the query borrows:
-    // a closure holding `world` beside `iter(world)` is two borrows of one thing.
-    let kept: std::collections::HashSet<Entity> = if switching {
-        world.query_filtered::<Entity, With<KeptAcrossASwitch>>().iter(world).collect()
+    // **Gathered first, then filtered**: the filter reads entities the root query is iterating.
+    let kept: std::collections::HashSet<Entity> = if keeps_the_scene(world) {
+        world.query_filtered::<Entity, TheMapsScene>().iter(world).collect()
     } else {
         std::collections::HashSet::new()
     };
@@ -570,9 +523,6 @@ pub(crate) fn scene_roots(world: &mut World) -> Vec<Entity> {
             NotTheGuideCard,
         )>()
         .iter(world)
-        // **And what every workspace that shows the map shares** (#695, #678) — but only while a switch is in
-        // flight. A leave must still sweep it: the next door is another project, and the map it draws is not
-        // this one's.
         .filter(|e| !kept.contains(e))
         .collect()
 }
@@ -583,6 +533,36 @@ pub(crate) fn scene_roots(world: &mut World) -> Vec<Entity> {
 type NotTheGuideCard = Without<bevy_debugger_bevy::GuideOverlay>;
 #[cfg(not(feature = "debugger"))]
 type NotTheGuideCard = ();
+
+/// **The map's scene: the picture a switch between the workspaces that show the map leaves standing** (#695).
+///
+/// `docs/ui/vision.md` §4 says Map, World, Kit and Animation share one viewport, and the door sweep took the
+/// picture out of it: after a switch to World, Kit or Animation the map's meshes were gone and the viewport was
+/// black. The scene is the camera and its key light, and what the map draws — its pieces, the stamped and run
+/// sets, and its ground and water. **Nothing else is kept**: the frame, its panels, the Map's own tool tiles and
+/// whatever a workspace stages of its own are swept and spawned again, as on every door change, so a switch cannot
+/// leave a duplicate or a stale node behind. What would draw the scene a second time skips what stands:
+/// `view::setup` (one main camera), `editor::spawn_existing` (one entity per placement), and the stamp, run and
+/// terrain redraws, which redraw on a change to the map and take down what they drew.
+type TheMapsScene = Or<(
+    With<crate::view::MainCamera>,
+    With<crate::view::EditorKeyLight>,
+    With<crate::editor::Placement>,
+    With<crate::editor::StampInstance>,
+    With<crate::editor::RunInstance>,
+    With<crate::terrain_view::TerrainView>,
+)>;
+
+/// **Whether this teardown keeps [`TheMapsScene`]**: a switch, to a workspace that shows the map. A leave sweeps
+/// it, because the next door is another project; a switch to a workspace whose middle is not the world sweeps it
+/// too, so no scene stands behind a page that does not draw it and those switches are the full rebuild they were.
+/// `cross` puts the new workspace in before this runs, so the workspace read here is the one being entered.
+fn keeps_the_scene(world: &World) -> bool {
+    world.contains_resource::<Crossing>()
+        && world
+            .get_resource::<crate::workspace::Workspace>()
+            .is_some_and(|workspace| workspace.shows_the_map())
+}
 
 /// **What a door change does to a resource** — the answer, for every one of them, in one place.
 ///

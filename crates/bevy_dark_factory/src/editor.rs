@@ -11776,49 +11776,25 @@ pub fn next_id_after(map: &blueprint_model::map::Map) -> u32 {
     placements.chain(stamps).chain(runs).max().unwrap_or(0)
 }
 
+/// **The map's pieces, on entering the Map**: drawn from the open map, through the one redraw that leaves a piece
+/// already standing where the map wants it alone ([`draw_every_placement`]).
+///
+/// A switch to a workspace that shows the map keeps the pieces standing (#695, `screen::TheMapsScene`), so the
+/// way back to Map finds them drawn: spawning the map again here put two entities on every id, and undo despawns by
+/// id. A change made while the Map was not open (an agent's, on the Agent workspace) is drawn here, because the
+/// map's own redraws run only while it is.
 fn spawn_existing(
     mut commands: Commands,
     assets: Res<AssetServer>,
     project: Res<Project>,
     open: Res<OpenMap>,
     mut state: ResMut<EditorState>,
+    placed: Query<(Entity, &Placement)>,
+    transforms: Query<&Transform>,
 ) {
     state.next_id = next_id_after(&open.map);
-    let ys = match heights(&project, &open) {
-        Ok(ys) => ys,
-        Err(e) => {
-            error!("{e}");
-            return;
-        }
-    };
-    let paints = bevy_blueprint::drawn_paints(&open.map, &project.library);
-    for (i, p) in open.map.placements.iter().enumerate() {
-        let Some(d) = descriptor_of(&project.library, p) else {
-            // Loud, not silent: a placement naming a descriptor the library does not have is a hole
-            // in the map, and an author must be told which one rather than counting missing crates.
-            warn!(
-                "placement `{}` names descriptor `{}`, which this library does not have",
-                p.id, p.descriptor
-            );
-            continue;
-        };
-        let Some(&y) = ys.get(i) else { continue };
-        if let Some(e) = spawn_piece(
-            &mut commands,
-            &assets,
-            Pose { d: &d, yaw: p.yaw, tip: p.tip },
-            p.at,
-            open.map.origin,
-            y,
-        ) {
-            // **A piece on the map is the map's** (#695, #678): a switch between the four workspaces that
-            // show it keeps it, so the room is still there on World, Kit and Animation.
-            commands.entity(e).insert((Placement(p.id.clone()), crate::screen::KeptAcrossASwitch));
-            let paint = paints[i];
-            if paint != 0 {
-                commands.entity(e).insert(bevy_blueprint::Paint(paint));
-            }
-        }
+    if let Err(e) = draw_every_placement(&mut commands, &assets, &project, &open, &placed, &transforms) {
+        error!("{e}");
     }
 }
 
@@ -14954,11 +14930,16 @@ fn draw_every_placement(
             commands.entity(entity).despawn();
         }
     }
+    // **The drawn paint goes on as the piece is spawned**, as `redraw_placements` puts it on, so a piece is never
+    // drawn at the wrong level for the frames until `relevel_placements` notices.
+    let paints = bevy_blueprint::drawn_paints(&open.map, &project.library);
     for (i, p) in open.map.placements.iter().enumerate() {
         if keep.contains(p.id.as_str()) {
             continue;
         }
         let Some(d) = descriptor_of(&project.library, p) else {
+            // Loud, not silent: a placement naming a descriptor the library does not have is a hole
+            // in the map, and an author must be told which one rather than counting missing crates.
             warn!(
                 "placement `{}` names descriptor `{}`, which this library does not have",
                 p.id, p.descriptor
@@ -14975,6 +14956,9 @@ fn draw_every_placement(
             y,
         ) {
             commands.entity(e).insert(Placement(p.id.clone()));
+            if let Some(&paint) = paints.get(i).filter(|paint| **paint != 0) {
+                commands.entity(e).insert(bevy_blueprint::Paint(paint));
+            }
         }
     }
     Ok(())
