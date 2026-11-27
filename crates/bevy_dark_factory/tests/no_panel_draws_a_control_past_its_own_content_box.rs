@@ -401,13 +401,43 @@ fn no_panel_draws_a_control_past_its_own_content_box() {
     );
 }
 
+/// **Where each laid-out line of a text ends, counted in painted letters**: a space paints nothing, so the painted
+/// glyphs are the letters, in order. `None` when the text is not laid out.
+fn line_ends(world: &World, text: Entity) -> Option<Vec<usize>> {
+    let info = world.get::<TextLayoutInfo>(text)?;
+    let mut letters_per_line: Vec<usize> = Vec::new();
+    for glyph in info.glyphs.iter().filter(|glyph| glyph.atlas_info.rect.size().min_element() > 0.0) {
+        let line = glyph.line_index as usize;
+        if letters_per_line.len() <= line {
+            letters_per_line.resize(line + 1, 0);
+        }
+        letters_per_line[line] += 1;
+    }
+    Some(
+        letters_per_line
+            .iter()
+            .filter(|letters| **letters > 0)
+            .scan(0, |letters, on_line| {
+                *letters += on_line;
+                Some(*letters)
+            })
+            .collect(),
+    )
+}
+
+/// Marks the column [`the_agent_panels_title_breaks_between_its_words`] stands a title in.
+#[derive(Component)]
+struct NarrowColumn;
+
 /// **The Agent panel is titled `NIGHT SHIFT` and breaks between its two words, never inside one** (#692; owner,
 /// 2026-11-27: the agent is the Night Shift, two words, as the README spells it).
 ///
 /// The one-word `NIGHTSHIFT` was wider than the AGENT panel at the capture's window, and the title's letter break
-/// (`LineBreak::WordOrCharacter`) wrapped it as `NIGHTSHIF` / `T`. Staged at both interface scales, the title's
-/// painted glyphs are counted per laid-out line, and every line must end where a word of the name ends. The
-/// title must wrap at one scale at least, so the break is measured rather than assumed.
+/// (`LineBreak::WordOrCharacter`) wrapped it as `NIGHTSHIF` / `T`. Staged at both interface scales, the panel's own
+/// title must end each laid-out line where a word of the name ends. Now that the Agent workspace gives its panel
+/// the centre (#694) the title fits on one line there, so the same title, built by the same `chrome::title`, is
+/// also stood in a column three quarters of its one-line width — narrower than the name, wider than either word —
+/// where it must wrap, and must wrap as `NIGHT` / `SHIFT`.
 #[test]
 fn the_agent_panels_title_breaks_between_its_words() {
     use bevy_dark_factory::follow::AGENT_NAME;
@@ -421,7 +451,6 @@ fn the_agent_panels_title_breaks_between_its_words() {
             Some(*letters)
         })
         .collect();
-    let mut wrapped = false;
     for interface_scale in INTERFACE_SCALES {
         let tag = format!("[interface scale {interface_scale}]");
         let mut agent = editor("agent_title", Mode::Agent, interface_scale);
@@ -433,31 +462,35 @@ fn the_agent_panels_title_breaks_between_its_words() {
             .into_iter()
             .find(|at| world.get::<Text>(*at).is_some_and(|text| text.0 == title))
             .unwrap_or_else(|| panic!("{tag}: the AGENT panel has no `{title}` title"));
-        let info = world.get::<TextLayoutInfo>(heading).unwrap_or_else(|| panic!("{tag}: the title is not laid out"));
-        // A space paints nothing, so the painted glyphs are the letters, in order.
-        let mut letters_per_line: Vec<usize> = Vec::new();
-        for glyph in info.glyphs.iter().filter(|glyph| glyph.atlas_info.rect.size().min_element() > 0.0) {
-            let line = glyph.line_index as usize;
-            if letters_per_line.len() <= line {
-                letters_per_line.resize(line + 1, 0);
-            }
-            letters_per_line[line] += 1;
-        }
-        let painted: usize = letters_per_line.iter().sum();
-        assert_eq!(painted, *word_ends.last().unwrap_or(&0), "{tag}: the title paints {painted} letters of `{title}`: {letters_per_line:?}");
-        let line_ends: Vec<usize> = letters_per_line
-            .iter()
-            .filter(|letters| **letters > 0)
-            .scan(0, |letters, on_line| {
-                *letters += on_line;
-                Some(*letters)
-            })
-            .collect();
+        let ends = line_ends(world, heading).unwrap_or_else(|| panic!("{tag}: the title is not laid out"));
+        assert_eq!(ends.last(), word_ends.last(), "{tag}: the title paints every letter of `{title}`: {ends:?}");
         assert!(
-            line_ends.iter().all(|end| word_ends.contains(end)),
-            "{tag}: `{title}` breaks inside a word: letters per line {letters_per_line:?}, words end at {word_ends:?}"
+            ends.iter().all(|end| word_ends.contains(end)),
+            "{tag}: the panel's `{title}` breaks inside a word: lines end at letters {ends:?}, words at {word_ends:?}"
         );
-        wrapped |= line_ends.len() > 1;
+
+        // The same title in a column narrower than it: three quarters of its one-line width, in logical px.
+        let one_line = world.get::<TextLayoutInfo>(heading).map(|info| info.size.x).unwrap_or_default();
+        let to_logical = world.get::<ComputedNode>(heading).map(ComputedNode::inverse_scale_factor).unwrap_or(1.0);
+        assert!(one_line > 0.0, "{tag}: the title has no width");
+        let narrow = 0.75 * one_line * to_logical;
+        agent.world_mut().commands().entity(panel).with_children(|p| {
+            p.spawn((Node { width: Val::Px(narrow), ..default() }, NarrowColumn)).with_children(|c| chrome::title(c, &title));
+        });
+        agent.world_mut().flush();
+        settle_support::settle(&mut agent);
+        let column = one::<NarrowColumn>(&mut agent, "the narrow column is spawned");
+        let world = agent.world();
+        let narrowed = under(world, column)
+            .into_iter()
+            .find(|at| world.get::<Text>(*at).is_some())
+            .unwrap_or_else(|| panic!("{tag}: the narrow column holds no title"));
+        let ends = line_ends(world, narrowed).unwrap_or_else(|| panic!("{tag}: the narrowed title is not laid out"));
+        assert_eq!(
+            ends, word_ends,
+            "{tag}: `{title}` in a {narrow:.0} px column (its one line is {:.0} px) must wrap between its words, one \
+             word a line; its lines end at letters {ends:?}",
+            one_line * to_logical
+        );
     }
-    assert!(wrapped, "`{title}` fits on one line at every staged scale, so this test never saw where it breaks");
 }
