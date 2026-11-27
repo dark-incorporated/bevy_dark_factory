@@ -168,8 +168,14 @@ fn the_prose_states_the_registrys_own_row_count() {
 #[test]
 fn the_prose_states_what_this_default_build_registers() {
     let built = bevy_dark_factory::ops::registry().len();
-    // **The default-build number is this build's own**, measured by calling the registry rather than
-    // derived from the source, so the clause means what it says: what a default build has.
+    // **A `family_all` build is the one that registers every row** (the gate builds it, #687), so it is held to
+    // the registry's own total; a default build is held to the document's default-build number. Each build checks
+    // the number that describes it, measured by calling the registry rather than derived from the source.
+    if cfg!(feature = "family_all") {
+        let rows = registry_rows();
+        assert_eq!(built, rows, "a family_all build registers {built} operations and `ops::registry()` has {rows} rows: every row is compiled in");
+        return;
+    }
     let said = count_before(PROJECT, " in a default build");
     assert_eq!(
         said,
