@@ -4428,7 +4428,7 @@ fn rebuild_palette(
                                 crate::chrome::typed(crate::chrome::text::BODY),
                             ))
                             .entry::<bevy_gooey::TextFlow>()
-                            .and_modify(|mut flow| flow.align = top.align);
+                            .and_modify(move |mut flow| flow.align = top.align);
                             // **The triangle cost keeps its own ink** (`cost_tint`: the accent past a busy piece, the danger past the
                             // importer's limit), which gooey's `count_text` would not: the skin writes that text's colour.
                             // **And it is the cell that gives way** (#693): the count yields before the name it stands beside,
@@ -4442,7 +4442,7 @@ fn rebuild_palette(
                                 crate::chrome::typed(crate::chrome::text::LABEL),
                             ))
                             .entry::<bevy_gooey::TextFlow>()
-                            .and_modify(|mut flow| flow.align = top.align);
+                            .and_modify(move |mut flow| flow.align = top.align);
                     });
                 }
             }
