@@ -175,21 +175,38 @@ record_gated() {
 clippy_key() { printf '%s\n' "$(git rev-parse "$1^{tree}") rustc $(rustc -vV | tr '\n' ' ') RUSTFLAGS ${RUSTFLAGS:-} ${features[*]}"; }
 clippy_ok() { [ -f "$clippy_file" ] && grep -qxF "$(clippy_key "$1")" "$clippy_file"; }
 record_clippy() { clippy_key "$1" >> "$clippy_file"; }
+# **A merge that pays the full gate says which condition it missed** (#626). The path fired on 1 of 24 clean merges in
+# the 2026-11-12..24 logs and on 0 of the 13 merges big's shared `gate.log` holds from 2026-11-12 to 2026-11-27. All 13
+# were exactly `git merge-tree`'s tree; in every one the side that was not on main (a `fix/*` or `merge/*` branch) carried
+# no record, because a push that is not to main runs no gate. A record exists only for a commit that passed the full gate
+# and then lost the race to main, so that is the one merge this path can take. `merge_miss` is the reason, for gate.log.
 clean_merge_of_main() {
   local parents p1 p2 tree
+  merge_miss=""
   parents=$(git rev-list --parents -n 1 "$target")
   set -- $parents
   [ $# -eq 3 ] || return 1
   p1=$2 p2=$3
   { gated "$p1" && git merge-base --is-ancestor "$p2" "$remote"; } ||
-    { gated "$p2" && git merge-base --is-ancestor "$p1" "$remote"; } || return 1
-  tree=$(git merge-tree --write-tree "$p1" "$p2" 2>/dev/null) || return 1
-  [ "$tree" = "$(git rev-parse "$target^{tree}")" ]
+    { gated "$p2" && git merge-base --is-ancestor "$p1" "$remote"; } ||
+    { merge_miss="no parent has a gate record while the other is on main: $(merge_side "$p1"), $(merge_side "$p2")"; return 1; }
+  tree=$(git merge-tree --write-tree "$p1" "$p2" 2>/dev/null) || { merge_miss="git merge-tree finds a conflict"; return 1; }
+  [ "$tree" = "$(git rev-parse "$target^{tree}")" ] || { merge_miss="the tree is not git merge-tree's (a resolved conflict or a hand edit)"; return 1; }
 }
+merge_side() {
+  printf '%s record=%s on-main=%s' "${1:0:9}" "$(gated "$1" && echo yes || echo no)" \
+    "$(git merge-base --is-ancestor "$1" "$remote" 2>/dev/null && echo yes || echo no)"
+}
+# **The settings every step time depends on, once per gate** (#636, #624). One tree's test step has measured 252 s to
+# 2,201 s, and `gate.log` could not say whether a slow one ran at `CARGO_BUILD_JOBS=1` (big's `gate-rel.sh`) or 4 (a gate
+# run by hand), on how many cores, or beside what load, so neither the jobs question (#636) nor the contention one (#624)
+# could be read from the gate's own record. `load` is the one-minute load average, here and at the end of the test step.
+load1() { uptime 2>/dev/null | sed -E 's/.*load averages?: *([0-9.]+).*/\1/'; }
 # Git opens the connection before this hook runs, and GitHub drops it while a 30-minute gate runs
 # ("Connection to github.com closed by remote host", bevy_emerge_loop, 2026-10-29): the gate passed,
 # the push did not. Pushing the same commit again needs no second gate.
 if gated "$target"; then note "already gated, pushing again"; echo "pre-push gate: ${target:0:9} already passed the gate in this clone; pushing it again" >&2; exit 0; fi
+note "env host=$(uname -n) cores=$(getconf _NPROCESSORS_ONLN 2>/dev/null) load=$(load1) CARGO_BUILD_JOBS=${CARGO_BUILD_JOBS:-unset} NEXTEST_TEST_THREADS=${NEXTEST_TEST_THREADS:-unset} CARGO_TARGET_DIR=${CARGO_TARGET_DIR:-unset}"
 start=$(date +%s)
 if clean_merge_of_main; then
   echo "pre-push gate: ${target:0:9} is a clean merge of main into a commit that carries a gate record; clippy over every target only" >&2
@@ -205,6 +222,10 @@ if clean_merge_of_main; then
   # cached or not: a cached lint says nothing about the doc comments.
   timed rustdoc-merge env RUSTDOCFLAGS="-D warnings" $cargo doc --workspace --no-deps "${features[@]}" -q || refuse "RUSTDOCFLAGS=\"-D warnings\" cargo doc --workspace --no-deps failed on the merge (a doc comment links a private item or names nothing that exists)"
 else
+  if [ -n "${merge_miss:-}" ]; then
+    note "clean-merge path not taken: $merge_miss"
+    echo "pre-push gate: ${target:0:9} is a merge, but not one the clean-merge path takes: $merge_miss" >&2
+  fi
   echo "pre-push gate: clippy and the test suite on ${target:0:9}; this takes minutes, so give git push a timeout of 1800 s or more" >&2
   if clippy_ok "$target"; then
     note "clippy cached 0s (a previous attempt at this tree linted clean)"
@@ -279,13 +300,21 @@ else
     out=$(mktemp)
     timed test $cargo nextest run --workspace "${features[@]}" --no-fail-fast 2>&1 | tee "$out"
     rc=${PIPESTATUS[0]}
-    # **Keep the test log, do not delete it** (#625). `nextest`'s own `Summary [N s]` line and cargo's
+    # **Keep the test log, on a pass and on a refusal alike** (#625). `nextest`'s own `Summary [N s]` line and cargo's
     # `Compiling`/`Finished` lines are the only record of how much of this step was *compiling* and how much was
-    # *running*, and the `rm -f "$out"` below threw them away — so a gate's 1,300 s test step could not be split
-    # into two numbers, and every attempt to make the gate faster was guessing. One file per tree, beside
-    # `gate.log`, so the next reader can measure instead of assume.
+    # *running*, and a refusal's copy also holds the failing tests' own output. One file per tree, beside `gate.log`,
+    # which the next attempt at the same tree overwrites, so the next reader can measure instead of assume.
     keep="$(git rev-parse --git-common-dir)/gate-tests/$(printf '%s' "$tree" | cut -c1-9).log"
     mkdir -p "$(dirname "$keep")" && cp "$out" "$keep" 2>/dev/null || true
+    # **And the two numbers, one line in `gate.log`** (#625): cargo's ``Finished `test` profile ... in 7m 08s`` closes the
+    # build of the test binaries and nextest's `Summary [ 364.487s]` is the run. Read from the 26 logs big kept from
+    # 2026-11-25 to 11-27: compile 0-996 s (median 496), run 362-1,358 s (median 732), and the other 2-4 s of the step is
+    # nextest listing the tests. A run that never printed its Summary (a compile error, a kill) writes no line.
+    split=$(awk '{ gsub(/\033\[[0-9;]*m/, "") }
+      /Finished `test` profile/ { s = $NF; sub(/s$/, "", s); c = s; if ($(NF-1) ~ /^[0-9]+m$/) { m = $(NF-1); sub(/m$/, "", m); c = m * 60 + s } }
+      /Summary \[/ { r = $0; sub(/.*Summary \[ */, "", r); sub(/s\].*/, "", r) }
+      END { if (c == "" || r == "") exit 1; printf "compile=%ds run=%ds\n", c + 0.5, r + 0.5 }' "$out") &&
+      note "test-split $split load=$(load1)"
     if [ "$rc" != 0 ]; then
       sed -n 's/.*FAIL \[[^]]*\] ([^)]*) //p' "$out" | sort -u > "$failed_dir/$tree"
       cat "$failed_dir/$tree"
