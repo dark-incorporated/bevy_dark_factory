@@ -103,9 +103,9 @@ pub struct LightMapToggle;
 
 /// The LIGHT MAP section of the controls panel.
 pub fn spawn_section(s: &mut ChildSpawnerCommands) {
-    use crate::chrome::{Severity, button, section};
+    use crate::chrome::section;
     section(s, "LIGHT MAP");
-    button(s, LightMapToggle, "Show / hide", Severity::Plain);
+    s.spawn((bevy_gooey::button("Show / hide"), LightMapToggle));
 }
 
 /// **Show or hide the overlay, for `want`, and say what happened** — the one path both doors take

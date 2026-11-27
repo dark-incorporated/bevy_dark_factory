@@ -287,7 +287,7 @@ fn refresh_problems_list(
                                 words.spawn((Text::new(row.words.clone()), TextColor(colour), crate::chrome::typed(crate::chrome::text::BODY)));
                             });
                             if !row.pieces.is_empty() {
-                                crate::chrome::button(line, ProblemGoTo { pieces: row.pieces.clone() }, "Go to", crate::chrome::Severity::Plain);
+                                line.spawn((bevy_gooey::button("Go to"), ProblemGoTo { pieces: row.pieces.clone() }));
                             }
                         });
                 }

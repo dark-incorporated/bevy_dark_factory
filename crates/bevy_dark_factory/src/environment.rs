@@ -491,31 +491,31 @@ impl EnvAction {
 
 /// The ENVIRONMENT section of the controls panel.
 pub fn spawn_section(s: &mut ChildSpawnerCommands) {
-    use crate::chrome::{Gap, Severity, button, section};
+    use crate::chrome::{Gap, section};
     section(s, "ENVIRONMENT");
     let row = |s: &mut ChildSpawnerCommands, items: &mut dyn FnMut(&mut ChildSpawnerCommands)| {
         crate::chrome::wrapping_row(s, Some(Gap::Tight), crate::chrome::NO_MARGIN, AlignItems::Stretch).with_children(|r| items(r));
     };
     row(s, &mut |r| {
         for (hour, label) in EnvAction::HOURS {
-            button(r, EnvAction::Scrub(hour), label, Severity::Plain);
+            r.spawn((bevy_gooey::button(label), EnvAction::Scrub(hour)));
         }
-        button(r, EnvAction::ReleaseClock, "Run", Severity::Plain);
+        r.spawn((bevy_gooey::button("Run"), EnvAction::ReleaseClock));
     });
     row(s, &mut |r| {
         for (preset, label) in [(WeatherPreset::Clear, "Clear"), (WeatherPreset::Fog, "Fog"), (WeatherPreset::Rain, "Rain")] {
-            button(r, EnvAction::Force(preset), label, Severity::Plain);
+            r.spawn((bevy_gooey::button(label), EnvAction::Force(preset)));
         }
-        button(r, EnvAction::ReleaseWeather, "Release", Severity::Plain);
+        r.spawn((bevy_gooey::button("Release"), EnvAction::ReleaseWeather));
     });
     row(s, &mut |r| {
         for (month, label) in EnvAction::SEASONS {
-            button(r, EnvAction::Month(month), label, Severity::Plain);
+            r.spawn((bevy_gooey::button(label), EnvAction::Month(month)));
         }
     });
     row(s, &mut |r| {
         for (preset, label) in ClimatePreset::ALL {
-            button(r, EnvAction::Climate(preset), label, Severity::Plain);
+            r.spawn((bevy_gooey::button(label), EnvAction::Climate(preset)));
         }
     });
 }

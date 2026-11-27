@@ -75,7 +75,7 @@ window root                                   Sized, 100% x 100vh
 └─ status                                     row, 100% x bar_h, 1 px top edge
 ```
 
-The whole tree is built by `spawn_frame` (`chrome.rs:1292`), which is why every measure in it is a local read of the
+The whole tree is built by `spawn_frame` (`chrome.rs:1296`), which is why every measure in it is a local read of the
 sheet rather than a constant.
 
 ### 2.2 The sizing rules, which are the model
@@ -87,7 +87,7 @@ Each part answers exactly one question, and the whole model is these four answer
 | **A panel's preferred width** | a sheet value per panel role: `metrics.layout.controls_w` 380 for a controls panel, `metrics.layout.list_w` 264 for a list; and the one that is still a constant, `WORKSPACE_PAGE_W` 560, for the Project page | the two dock widths are **sheet values** in `crates/bevy_dark_factory/src/style/editor.yaml` (`controls_w`, `list_w`), read as `layout.controls_w` and `layout.list_w`, because the constants that held them are gone; `WORKSPACE_PAGE_W` (`project_page.rs:354`) |
 | **A dock's width** | **not stated**: it is its widest *visible* panel plus that panel's 2x margin, because a gooey dock takes its widest child (its automatic minimum) | `fit_docks_to_the_window` (`chrome.rs:1193`) |
 | **A panel's drawn width** | its preferred width, squeezed by `fit_docks_to_the_window` so the docks + the split divider + the viewport's owed share fit the window | `fit_docks_to_the_window` (`chrome.rs:1193`) |
-| **A pane's width** | the split's `SplitFraction` of the row, less the divider, held to `SplitMin` for each pane — *except* that `size_the_shell_split` overwrites the fraction to make the first pane as wide as the panel in it, and `the_left_panel_follows_its_pane` writes the panel back from the pane once a person has dragged | `size_the_shell_split` (`chrome.rs:3924`), `the_left_panel_follows_its_pane` (`chrome.rs:4005`) |
+| **A pane's width** | the split's `SplitFraction` of the row, less the divider, held to `SplitMin` for each pane — *except* that `size_the_shell_split` overwrites the fraction to make the first pane as wide as the panel in it, and `the_left_panel_follows_its_pane` writes the panel back from the pane once a person has dragged | `size_the_shell_split` (`chrome.rs:3856`), `the_left_panel_follows_its_pane` (`chrome.rs:3937`) |
 
 **Which are fixed and which flex:**
 

@@ -32,7 +32,7 @@ use bevy::ui::InteractionDisabled;
 use bevy_gooey::Activate;
 use serde_json::Value;
 
-use crate::chrome::{self, Frame, FrameSystems, Severity, Side};
+use crate::chrome::{self, Frame, FrameSystems, Side};
 use crate::night_shift::{AgentPause, HandBackHere};
 use crate::project::{OpenMap, Project};
 use crate::screen::Screen;
@@ -286,13 +286,11 @@ fn draw_the_history(
                     r.spawn(bevy_gooey::fill_column(0.0)).with_children(|col| {
                         chrome::row_value(col, row.text.clone(), chrome::ink().text, AgentChangeRow);
                     });
-                    chrome::button(
-                        r,
+                    r.spawn((
+                        bevy_gooey::button("Look"),
                         AgentChangeLook { operation: row.operation.clone(), params: row.params.clone(), text: row.text.clone() },
-                        "Look",
-                        Severity::Plain,
-                    );
-                    chrome::button(r, AgentChangeUndo(row.operation_id.clone()), "Undo this", Severity::Plain);
+                    ));
+                    r.spawn((bevy_gooey::button("Undo this"), AgentChangeUndo(row.operation_id.clone())));
                 });
         }
         // **The hand-backs the person kept** (BM-07, #417): a result is a benchmark task once somebody accepted it. Drawn only when there is
@@ -304,7 +302,7 @@ fn draw_the_history(
                         chrome::row_value(col, format!("kept: {}", hand.title), chrome::ink().text, AgentHandBackRow);
                     });
                     let label = if hand.draft.is_some() { "Open the benchmark task" } else { "Make a benchmark task" };
-                    let mut button = chrome::button(r, AgentMakeTask(hand.id.clone()), label, Severity::Plain);
+                    let mut button = r.spawn((bevy_gooey::button(label), AgentMakeTask(hand.id.clone())));
                     if let Some(why) = &hand.cannot {
                         button.insert((InteractionDisabled, bevy_gooey::Tooltip::new(why.clone())));
                     }

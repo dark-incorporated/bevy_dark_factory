@@ -315,7 +315,7 @@ fn mirror_the_link(
             .spawn((StyleBlock, Name::new("style block"), (bevy_gooey::column(0.0), crate::chrome::Gap::Tight.class())))
             .with_children(|block| {
                 crate::chrome::list_heading(block, "STYLE");
-                crate::chrome::button(block, StyleLink(page), &label, crate::chrome::Severity::Plain);
+                block.spawn((bevy_gooey::button(&label), StyleLink(page)));
             })
             .id();
         commands.entity(pane).insert_children(0, &[block]);

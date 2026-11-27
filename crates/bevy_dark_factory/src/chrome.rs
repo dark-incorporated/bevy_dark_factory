@@ -806,7 +806,7 @@ pub fn body_line_h() -> f32 {
 // editor), named below as [`STEP_TIGHT`] (between items that belong to each other), [`STEP_ROW`] (between
 // the rows of one block), [`STEP_PAD`] (inside a panel, and a panel from the window's edge) and
 // [`STEP_GROUP`] (between blocks: several times the tight step, which is the whole point). A node takes its
-// room from a class rule in the sheet (`.chrome-chip`, `.chrome-field`, `.chrome-button`, the label columns
+// room from a class rule in the sheet (`.chrome-chip`, `.chrome-field`, the label columns
 // `.chrome-col-*`); arithmetic about the same room reads [`space`], so the two cannot disagree.
 
 /// **A step of the sheet's spacing scale, logical px** — for code that measures with a step rather than
@@ -2198,7 +2198,7 @@ pub fn notifications_overlay(mut commands: Commands, frame: Res<Frame>) {
             typed(text::LABEL),
         ));
         // Asks the project's after-edit checks about the picture on screen now. A person's click only: nothing runs while they are simply editing.
-        button(p, crate::after_edit::CheckViewButton, "Check view", Severity::Plain);
+        p.spawn((bevy_gooey::button("Check view"), crate::after_edit::CheckViewButton));
         p.spawn(bevy_gooey::notification_center());
     });
     commands.entity(overlay).insert(ChildOf(frame.viewport));
@@ -2949,7 +2949,7 @@ pub fn the_words_of_a_quiet_item_are_a_control(commands: &mut Commands, item: En
 }
 
 /// **The shape of a small box that holds one edge colour** (#260): a sized box laid out as a row, its inset and corner the style sheet's
-/// rule for `class` (`chrome-chip`, `chrome-button`), and a `px` border in `edge`, which is passed as `InkOverride` because the skin paints any
+/// rule for `class` (`chrome-chip`), and a `px` border in `edge`, which is passed as `InkOverride` because the skin paints any
 /// `BorderPx` edge in its outline unless the host's colour is pinned (so a box whose edge the host changes by state cannot be this: see the chip's
 /// GAP4). A row writes only what it is asked to, so a caller's `entry::<Node>()` stands; `shrink` is `Some(0.0)` for a box that never gives way to
 /// its neighbours.
@@ -2964,7 +2964,7 @@ pub fn small_box(class: &str, border: bevy_gooey::Sides<f32>, edge: Color, shrin
 }
 
 /// **The shape of a small box whose colours the editor paints** (#260, G-87): a sized box laid out as a row, its inset and corner the style sheet's
-/// rule for `class` (`chrome-chip`, `chrome-row`, `chrome-button`), a `px` border, marked `InkFollow`, so the skin writes neither its fill nor its
+/// rule for `class` (`chrome-chip`, `chrome-row`), a `px` border, marked `InkFollow`, so the skin writes neither its fill nor its
 /// edge and the editor's `RowRest`/`style_list_rows`, tag painters and `theme_ink::follow_the_skin` stay the one thing that colours it (by state:
 /// rest, hover, press, held, selected). A row writes only what it is asked to, so a caller's `entry::<Node>()` (a margin, a centred `align_items`)
 /// stands; `shrink` is `Some(0.0)` for a box that never gives way to its neighbours.
@@ -3407,74 +3407,6 @@ fn style_list_rows(
             bg.0 = want;
         }
     }
-}
-
-/// **What a control does, which is the half its shape cannot say.**
-///
-/// Shape says *kind* — a [`chip`] toggles, a [`button`] happens — and this says *severity*, which is
-/// the 2026-09-03 split. It has exactly three values on purpose: before it, `clear this cell` was
-/// red, `rescan mesh` was amber and every other verb was grey, with no rule between them, so red
-/// meant "destructive or expensive or the author felt strongly" and therefore meant nothing.
-#[derive(Clone, Copy, PartialEq, Eq)]
-pub enum Severity {
-    /// The ordinary case. Most verbs.
-    Plain,
-    /// The one obvious thing to do here — a single button per block at most.
-    Primary,
-    /// **Throws work away.** The only thing in this editor that is red.
-    Destructive,
-}
-
-impl Severity {
-    /// The word's ink. The *fill* is `Ink::row_bg` in every case: a filled red button in a panel of
-    /// grey ones is a stop sign, and most destructive verbs here are ordinary editing.
-    /// Public because `confirm`'s card is built once and repainted per question: which button is
-    /// destructive depends on which question is up, so the mapping has to be readable from outside
-    /// without being restated outside.
-    pub fn ink(self) -> Color {
-        match self {
-            Severity::Plain => ink().text,
-            Severity::Primary => ink().accent,
-            Severity::Destructive => ink().danger,
-        }
-    }
-}
-
-/// **A command button** — a control that makes something happen, as opposed to a [`chip`], which is
-/// a control that is on or off.
-///
-/// The two were the same box until 2026-09-03, in the same row, in the same panel: on the Meshes tab
-/// the tag chips (toggles), `solid`/`edge`/`clear` (cell commands) and `rescan mesh` (an expensive
-/// action) all rendered as one grey rectangle. The only way to learn which was which was to press
-/// one. So a button is now visibly heavier — `chrome-button`'s padding rather than `chrome-chip`'s, and a lit
-/// `Ink::panel_edge` border where a chip's border is `Color::NONE` unless it has something to say.
-///
-/// **`marker` must not contain a `Node`** — see [`chip`] for why that is a panic rather than a
-/// warning.
-pub fn button<'a>(
-    parent: &'a mut ChildSpawnerCommands,
-    marker: impl Bundle,
-    label: &str,
-    severity: Severity,
-) -> EntityCommands<'a> {
-    let mut b = parent.spawn((
-        bevy::ui_widgets::Button,
-        Hovered::default(),
-        RowRest(ink().row_bg),
-        marker,
-        held_box("chrome-button", bevy_gooey::Sides::all(crate::style::metrics().layout.edge_w), Some(0.0), bevy_gooey::Sizing::default()),
-        BorderColor::all(ink().panel_edge),
-        BackgroundColor(ink().row_bg),
-    ));
-    b.with_children(|b| {
-        b.spawn((
-            Text::new(label.to_owned()),
-            TextColor(severity.ink()),
-            typed(text::CONTROL),
-            TextLayout::new(Justify::Left, LineBreak::NoWrap),
-        ));
-    });
-    b
 }
 
 // ── the overlay stack, in one place ──────────────────────────────────────────────────────────────

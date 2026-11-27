@@ -10721,16 +10721,10 @@ fn rebuild_detail(detail: DetailInputs<'_, '_>) {
                     // **The lit fill that marked "this cell is already solid" goes with the
                     // chip.** A command has no on-state, and `SelectedCellLine` directly above
                     // this row already says what the picked cell holds.
-                    crate::chrome::button(
-                        chips,
-                        verb,
-                        verb.label(),
-                        if verb == CellVerb::Clear {
-                            crate::chrome::Severity::Destructive
-                        } else {
-                            crate::chrome::Severity::Plain
-                        },
-                    );
+                    let mut button = chips.spawn((bevy_gooey::button(verb.label()), verb));
+                    if verb == CellVerb::Clear {
+                        button.insert(bevy_gooey::ButtonVariant::Danger);
+                    }
                 }
 
                 // **Turning the mesh sits beside the lattice, because it reshapes it.** A quarter
@@ -10744,14 +10738,9 @@ fn rebuild_detail(detail: DetailInputs<'_, '_>) {
                     .into_iter()
                     .enumerate()
                 {
-                    let mut turn = crate::chrome::button(
-                        chips,
-                        axis,
-                        axis.label(),
-                        crate::chrome::Severity::Plain,
-                    );
+                    let mut turn = chips.spawn((bevy_gooey::button(axis.label()), axis));
                     if i == 0 {
-                        turn.insert(bevy_gooey::StyleClass::of("chrome-button chrome-button-apart"));
+                        turn.insert(bevy_gooey::StyleClass::of("chrome-button-apart"));
                     }
                 }
 
@@ -10760,16 +10749,10 @@ fn rebuild_detail(detail: DetailInputs<'_, '_>) {
                 // never runs on import, because it overwrites hand-authored cells and an author
                 // who tuned a lattice must not lose it to re-importing.
                 //
-                // `Severity::Plain`, where the chip drew its word in `ACCENT`. It is **expensive,
+                // A plain button, where the chip drew its word in `ACCENT`. It is **expensive,
                 // not destructive**: amber means a live edit and nothing else now, and a verb that
                 // read the same as `clear this cell` is how an author learns to ignore a colour.
-                crate::chrome::button(
-                    chips,
-                    ScanMeshButton,
-                    "rescan mesh",
-                    crate::chrome::Severity::Plain,
-                )
-                .insert(bevy_gooey::StyleClass::of("chrome-button chrome-button-apart"));
+                chips.spawn((bevy_gooey::button("rescan mesh"), ScanMeshButton, bevy_gooey::StyleClass::of("chrome-button-apart")));
 
                 // **The triangle count, beside the mesh it counts.**
                 //

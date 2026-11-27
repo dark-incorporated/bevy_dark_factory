@@ -324,16 +324,20 @@ fn a_global_observer_never_demands_a_doors_resource() {
     );
 }
 
-/// **Nothing carries a `TabIndex` while routing is by `Context`.**
+/// **Nothing in this crate's source writes a `TabIndex` while routing is by `Context`.**
 ///
 /// `keys.rs`'s header records the decision taken 2026-08-18: routing is by `Live(Context, Stance)`,
 /// not by focus, because a second answer to "who gets this key" is what this crate's rules forbid
 /// and `Live` is decided once per frame in `Phase::Sense` precisely so ownership cannot move
 /// mid-frame.
 ///
-/// `FeathersPlugins` brings `acquire_focus` and `click_to_focus` and they are **inert** — they only
-/// do anything for an entity with a `TabIndex`, and nothing has one. That is the correct amount of
-/// inert, and this is what keeps it true.
+/// `FeathersPlugins` brings `acquire_focus` and `click_to_focus`, which act on an entity with a
+/// `TabIndex`. **gooey's widgets carry one inside their bundles** — `bevy_gooey::button`, the
+/// editor's one button since #684, and its menu items, tabs and fields — where this scan, which
+/// reads this crate's text, cannot see it: a running editor counted 265 on the Map workspace
+/// (#684, 2026-11-27, at `a0782796`), and a click there moved `InputFocus`. That is accepted with the
+/// widgets, which are the family's. What this test keeps true is that the editor adds no `TabIndex`
+/// of its own by accident.
 ///
 /// # Why a test rather than a note
 ///

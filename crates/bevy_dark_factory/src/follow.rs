@@ -681,7 +681,7 @@ impl Plugin for FollowPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<Following>()
             .init_resource::<LookChip>()
-            // **The chip's Look button** (round 2 of the review): `chrome::button` puts the node on the
+            // **The chip's Look button** (round 2 of the review): gooey's `button` puts the node on the
             // `Activate` bus, and an observer is what answers it. Without this line the handler existed
             // and nothing called it — `grep add_observer` found only the definition, and the button did
             // nothing at all.
@@ -1269,7 +1269,7 @@ fn draw_the_look_chip(
             ));
             // **Look**, the button the issue names: show the oldest change now rather than waiting out
             // the person's gesture, the dwell or the toggle.
-            crate::chrome::button(chip_node, LookButton, "Look", crate::chrome::Severity::Primary);
+            chip_node.spawn((crate::ui::submit_button("Look"), LookButton));
         });
 }
 

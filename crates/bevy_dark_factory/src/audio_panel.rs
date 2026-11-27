@@ -62,9 +62,9 @@ pub struct AuditionButton;
 /// the crate's log. Each list is an empty column here and filled by a system in [`AudioPanelPlugin`], so
 /// what a person reads is this frame's mix and log, not a snapshot of the frame the panel was built.
 pub fn spawn_section(s: &mut ChildSpawnerCommands) {
-    use crate::chrome::{Severity, button, section};
+    use crate::chrome::section;
     section(s, "AUDIO");
-    button(s, AuditionButton, "Audition cue", Severity::Plain);
+    s.spawn((bevy_gooey::button("Audition cue"), AuditionButton));
     s.spawn((BusList, list_column()));
     // **The cue column is `world_lists`' own list** (#392, #600), not a column of this panel: its reader
     // names the cues from the project's file in *both* builds, marks the one `world_lists::SelectedCue`

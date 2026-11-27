@@ -494,10 +494,10 @@ fn a_clickable_is_one_of_the_three_shapes() {
     }
     assert!(
         hand_rolled.is_empty(),
-        "a `Button` spawned outside chrome.rs is a fourth shape. Use `chrome::list_row`, \
-         `chrome::chip` or `chrome::button`, which carry `RowRest` and therefore get rest / hover / \
-         pressed / selected / disabled from one repainter — or state the decision with \
-         `// CHROME-OK: <why>`:\n{}",
+        "a `Button` spawned outside chrome.rs is a fourth shape. Use `chrome::list_row` or \
+         `chrome::chip`, which carry `RowRest` and therefore get rest / hover / pressed / selected / \
+         disabled from one repainter, or `bevy_gooey::button`, which the skin paints — or state the \
+         decision with `// CHROME-OK: <why>`:\n{}",
         hand_rolled.join("\n")
     );
 }
