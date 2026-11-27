@@ -17,24 +17,34 @@
 //! button runs the command `F` runs and refuses when the pointer is not over the map — see
 //! `tests/a_tool_arms_the_same_from_a_button_and_a_key.rs`, which measured this.
 //!
+//! **The bar is the workspace's** (#690, the owner's "per workspace", 2026-11-27). It is drawn on the
+//! workspaces that have the map's tools — Map, World and Kit, [`Workspace::has_the_toolbar`] — and on no
+//! other, so a workspace without them has no bar and its panels have the 46 px it took. **A control is
+//! enabled exactly where its command acts**, read from the binding its key is judged by: World and Kit draw
+//! the bar, but the modes, Fill, undo and redo are the Map tab's, so there they are disabled and drawn unlit,
+//! and only Save and the snip (live on every tab) can be pressed. Undo, redo and save stay on the bar rather
+//! than moving: the menus and the keys reach them on every workspace, as before.
+//!
 //! The bar's own look — height, gaps, the icon's tint and size — is `bevy_gooey`'s, from the running
 //! `GooeySkin`. This module picks *which* commands it shows and marks the armed tool; it draws no
 //! colour and sizes no glyph.
 
 use bevy::prelude::*;
-use bevy::ui::{ComputedNode, UiGlobalTransform};
+use bevy::ui::{ComputedNode, InteractionDisabled, UiGlobalTransform};
 
 use crate::commands::{self, Command};
 use crate::editor::{EditorState, Tool};
 use crate::icons;
+use crate::tiles::Mode;
+use crate::workspace::Workspace;
 
 /// The id on a toolbar button, so a click can be resolved back to the command it stands for and a test
 /// can find the armed tool's button by name rather than by position.
 #[derive(Component, Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ToolbarCommand(pub &'static str);
 
-/// **The toolbar is spawned once per editor**, at the foot of the door strip's parent — a band of its
-/// own, under the chrome bar and above the docks, as `docs/ui/vision.md` §4 lays the workbench out.
+/// **The bar itself**: a band of its own straight after the chrome bar, under it and above the docks, as
+/// `docs/ui/vision.md` §4 lays the workbench out — on the workspaces that have the map's tools, and no other.
 #[derive(Component)]
 pub struct Toolbar;
 
@@ -45,13 +55,19 @@ impl Plugin for ToolbarPlugin {
         if !app.is_plugin_added::<crate::command_run::CommandRunPlugin>() {
             app.add_plugins(crate::command_run::CommandRunPlugin);
         }
-        app.add_systems(
-            OnEnter(crate::screen::Screen::Editor),
-            spawn_toolbar.after(crate::chrome::FrameSystems),
-        )
+        app.add_systems(OnEnter(crate::screen::Screen::Editor), decode_the_sheet)
         .add_systems(
             Update,
-            (the_group_follows_the_armed_tool, mark_the_armed_tool, label_the_primary_group)
+            (
+                // **Before gooey styles**, so the frame a control is enabled or disabled is the frame it is drawn
+                // so, and a bar spawned on this frame has its group's value before its option is lit.
+                (the_bar_follows_the_workspace, quiet_what_cannot_act_here, the_group_follows_the_armed_tool)
+                    .chain()
+                    .after(crate::chrome::FrameSystems)
+                    .before(bevy_gooey::GooeySystems::Style),
+                mark_the_armed_tool,
+                label_the_primary_group,
+            )
                 .run_if(in_state(crate::screen::Screen::Editor)),
         )
         // After gooey has styled a chip, so the place it was given is the one this replaces.
@@ -164,28 +180,25 @@ pub fn shown() -> Vec<Command> {
 }
 
 /// **The icon sheet, decoded once**, so a bar with no project and no working directory still has its
-/// glyphs: the PNG is embedded in the binary ([`icons::ATLAS_PNG`]).
+/// glyphs: the PNG is embedded in the binary ([`icons::ATLAS_PNG`]). The activity bar and the panels' help
+/// marks draw from it too, so it is decoded on every workspace, whether or not that workspace draws a bar.
 #[derive(Resource)]
 pub struct ToolbarAtlas {
     pub image: Handle<Image>,
     pub layout: Handle<TextureAtlasLayout>,
 }
 
-/// **Decode the sheet and spawn the bar**, once, on the frame the editor screen opens.
-///
-/// The bar is a gooey [`toolbar`](bevy_gooey::toolbar) inserted straight after the chrome bar, so it is
-/// the window's shape and nothing a panel adds: the docks get what is left, as they did before there
-/// was a toolbar.
-pub fn spawn_toolbar(
+/// **Decode the sheet**, on the first frame the editor screen opens: the atlas is the session's
+/// (`screen::OWNERSHIP`), so a later door finds it and decodes nothing.
+pub fn decode_the_sheet(
     mut commands: Commands,
     mut images: ResMut<Assets<Image>>,
     mut layouts: ResMut<Assets<TextureAtlasLayout>>,
-    frame: Option<Res<crate::chrome::Frame>>,
-    skin: Res<bevy_gooey::GooeySkin>,
+    atlas: Option<Res<ToolbarAtlas>>,
 ) {
-    let Some(frame) = frame else {
+    if atlas.is_some() {
         return;
-    };
+    }
     let image = match Image::from_buffer(
         icons::ATLAS_PNG,
         bevy::image::ImageType::Extension("png"),
@@ -203,12 +216,52 @@ pub fn spawn_toolbar(
         }
     };
     let layout = layouts.add(icons::layout());
-    commands.insert_resource(ToolbarAtlas { image: image.clone(), layout: layout.clone() });
+    commands.insert_resource(ToolbarAtlas { image, layout });
+}
+
+/// **The bar follows the workspace** (#690): one bar in the frame while the workspace has the map's tools
+/// ([`Workspace::has_the_toolbar`]), and none while it has not, so the docks below take the height it gave up.
+///
+/// A system rather than `OnEnter`, because a switch between the workspaces that share the viewport keeps the
+/// frame (#695): "the frame holds the wrong bar for this workspace" is the one condition that covers a new
+/// screen, a kept frame and a respawned one. A bar that is not this frame's is gone with the frame it was in.
+fn the_bar_follows_the_workspace(
+    mut commands: Commands,
+    frame: Option<Res<crate::chrome::Frame>>,
+    workspace: Option<Res<Workspace>>,
+    atlas: Option<Res<ToolbarAtlas>>,
+    skin: Res<bevy_gooey::GooeySkin>,
+    bars: Query<(Entity, &ChildOf), With<Toolbar>>,
+) {
+    let Some(frame) = frame else {
+        return;
+    };
+    let wanted = workspace.is_some_and(|w| w.has_the_toolbar());
+    let mut drawn = false;
+    for (bar, parent) in &bars {
+        if wanted && !drawn && parent.parent() == frame.root {
+            drawn = true;
+        } else {
+            commands.entity(bar).despawn();
+        }
+    }
+    if wanted
+        && !drawn
+        && let Some(atlas) = atlas
+    {
+        spawn_the_bar(&mut commands, &frame, &atlas, skin.gap);
+    }
+}
+
+/// **Spawn the bar** into `frame`: a gooey [`toolbar`](bevy_gooey::toolbar) inserted straight after the chrome
+/// bar, so it is the window's shape and nothing a panel adds — the docks get what is left.
+fn spawn_the_bar(commands: &mut Commands, frame: &crate::chrome::Frame, atlas: &ToolbarAtlas, gap: f32) {
+    let (image, layout) = (atlas.image.clone(), atlas.layout.clone());
     // **The first button stands off the window's edge by a skin gap** (#290). gooey keeps a tooltip
     // `gap` clear of the window, and a box that cannot sit centred under a button at the bar's left end
     // slides along the button's edge; a button nearer the edge than that margin makes every below-the-
     // button place count as clipped, so the box was put *beside* the button, over its neighbours.
-    let edge = skin.gap;
+    let edge = gap;
 
     let bar = commands
         .spawn((
@@ -290,8 +343,72 @@ pub fn spawn_toolbar(
             }))),
         ))
         .id();
-    // Straight after the chrome bar: `insert_children` at index 1, because index 0 is that bar.
-    commands.entity(frame.root).insert_children(1, &[bar]);
+    // **Straight after the chrome bar**, found where it stands when the command runs: the menu bar goes in at
+    // index 0 from a system of its own, and a bar spawned into a kept frame (#695) arrives after it, so a fixed
+    // index would put this bar above the chrome bar or below it depending on which came first.
+    let (root, chrome_bar) = (frame.root, frame.chrome_bar);
+    commands.queue(move |world: &mut World| {
+        let at = world
+            .get::<Children>(root)
+            .and_then(|kids| kids.iter().position(|kid| kid == chrome_bar))
+            .map_or(1, |chrome| chrome + 1);
+        // A frame torn down in the same frame takes the bar with it, rather than leaving it a root of its own.
+        match world.get_entity_mut(root) {
+            Ok(mut root) => {
+                root.insert_children(at, &[bar]);
+            }
+            Err(_) => {
+                world.despawn(bar);
+            }
+        }
+    });
+}
+
+/// **A control is enabled exactly where its command acts** (#690). A key's binding names the tab it fires on
+/// ([`crate::keys::Context`]), and the bar asks each control the same question of the tab that is open
+/// ([`Mode::context`]), so a button never offers what its key would refuse. On the Map everything acts. World
+/// and Kit draw the bar, but the modes, Fill, undo and redo are bound on the Map tab: there the mode group, its
+/// options and those buttons are `InteractionDisabled`, which gooey draws on the panel's fill and not the
+/// accent and which takes no click — **nothing is lit where it cannot act**. Save and the snip fire on every
+/// tab and stay live.
+///
+/// Gated on the tab changing or a bar arriving, so a settled editor costs two reads.
+fn quiet_what_cannot_act_here(
+    mut commands: Commands,
+    mode: Option<Res<Mode>>,
+    arrived: Query<(), Added<Toolbar>>,
+    buttons: Query<(Entity, &ToolbarCommand, Has<InteractionDisabled>)>,
+    groups: Query<(Entity, &Children, Has<InteractionDisabled>), With<ToolModes>>,
+    options: Query<(&bevy_gooey::Role, Has<InteractionDisabled>)>,
+) {
+    let Some(mode) = mode else {
+        return;
+    };
+    if !mode.is_changed() && arrived.is_empty() {
+        return;
+    }
+    let here = mode.context();
+    let acts = |id: &str| commands::by_id(id).is_some_and(|command| crate::keys::fires_in(command.context, here));
+    let mut follow = |entity: Entity, disabled: bool, live: bool| {
+        if live && disabled {
+            commands.entity(entity).remove::<InteractionDisabled>();
+        } else if !live && !disabled {
+            commands.entity(entity).insert(InteractionDisabled);
+        }
+    };
+    for (button, command, disabled) in &buttons {
+        follow(button, disabled, acts(command.0));
+    }
+    // Place has no command of its own: the group acts where its tools do, and every option with it.
+    let modes_act = tools().iter().any(|(id, _)| acts(id));
+    for (group, kids, disabled) in &groups {
+        follow(group, disabled, modes_act);
+        for option in kids.iter() {
+            if let Ok((bevy_gooey::Role::GroupOption, disabled)) = options.get(option) {
+                follow(option, disabled, modes_act);
+            }
+        }
+    }
 }
 
 /// **One button pressed.** `bevy_gooey`'s `Activate` fires for a click, `Enter`, `Space` and a pad's
@@ -459,9 +576,12 @@ fn label_the_primary_group(
 /// `B` would arm Move and leave Remove lit.
 pub fn the_group_follows_the_armed_tool(
     state: Res<EditorState>,
+    arrived: Query<(), Added<ToolModes>>,
     mut groups: Query<&mut bevy_gooey::ToggleGroupValue, With<ToolModes>>,
 ) {
-    if !state.is_changed() {
+    // **And on the frame a bar arrives** (#690): the bar is spawned on each workspace that has one, its group
+    // starts on option 0, and the tool it should light may have been armed long before.
+    if !state.is_changed() && arrived.is_empty() {
         return;
     }
     let Some(at) = group_index(state.tool) else {

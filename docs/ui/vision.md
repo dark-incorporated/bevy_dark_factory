@@ -89,21 +89,27 @@ Regions, top to bottom and left to right:
 | status bar                                                   |
 ```
 
+**The toolbar** — the map's tool modes, Fill, undo, redo, save and the view helpers — stands under the chrome bar on
+Map, World and Kit, and on no other workspace (#690): a workspace without the map's tools draws no bar, and its panels
+have the room. A control is enabled where its key works, so on World and Kit only Save and the snip can be pressed and
+no tool is drawn lit. Undo, redo and save stayed on the bar rather than moving: the menus and the keys reach them on
+every workspace, as before.
+
 The **default layout of each workspace**, and every one is a different arrangement on purpose — a
 person who moves a divider in one workspace and finds it where they left it in the next has proof the
 layouts are per workspace rather than one shared one:
 
 | Workspace | Default | Panels |
 |---|---|---|
-| Project | the page beside the view | the project page: maps, kits and the agent guide, inside the workbench (NV-08, #385). `Screen::Project` stays the page of a project with no door open (chosen on the launcher, or Close project) |
+| Project | the page takes the centre (#694) | the project page: maps, kits and the agent guide, inside the workbench (NV-08, #385). `Screen::Project` stays the page of a project with no door open (chosen on the launcher, or Close project) |
 | Map | inspector 22%, viewport, library | viewport, outliner, inspector, place, notes, checks |
 | World | viewport over the inspector | terrain, and the environment, lights and light map in a build that has those crates (NV-08, #385). `WATER` and `FOREST` list what the map's plan and forest files hold; they are placed on the terrain line (NV-11, #393, #394) |
 | Kit | inspector 30%, viewport, library | Meshes, Tiles, Compose, and the library browser (UI-52), asked for by View ▸ Show library, which is offered only in Kit and no longer toggles a section of the Map's inspector (NV-08, #385) |
 | Animation | inspector 28%, viewport, library | the rig bench |
-| Sound | inspector and viewport | the audio panel (`bevy_siren`; a build without it says so, NV-08, #385) |
+| Sound | the panel takes the centre (#694) | the audio panel (`bevy_siren`; a build without it says so, NV-08, #385) |
 | Files | inspector and viewport | the file tree (GD-11) |
-| Game | viewport and inspector | Play, Stop, Build, the build's errors, the game's log, a read-only view of its state over BRP, frame time and memory, Show window; a crash stays on screen and badges the icon (NV-09, #386) |
-| Agent | inspector and viewport | the AGENT block at full size with the waiting wishes and lessons, and the agent's recent changes with Look and Undo (NV-10, #387); the compact block stays a toggle of Map |
+| Game | the panel takes the centre (#694): the game has its own window | Play, Stop, Build, the build's errors, the game's log, a read-only view of its state over BRP, frame time and memory, Show window; a crash stays on screen and badges the icon (NV-09, #386) |
+| Agent | the panel takes the centre (#694) | the AGENT block at full size with the waiting wishes and lessons, and the agent's recent changes with Look and Undo (NV-10, #387); the compact block stays a toggle of Map |
 | Design | design tree, rendered page, board | the game's style (SG-05, #404): the tree of places on the left, the selected page rendered with its pictures in the middle (Edit swaps it for the file editor) and the place's dream board as cards on the right |
 
 **Document tabs** (NV-04, #381) are the third thing, beside the workspace and the layout: *what you are

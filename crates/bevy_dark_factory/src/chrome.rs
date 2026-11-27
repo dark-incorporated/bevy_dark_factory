@@ -1197,10 +1197,14 @@ fn fit_docks_to_the_window(
     owned: Query<(), (With<ShellSplit>, Without<SplitUnsized>)>,
     collapsed: Query<(), (With<ShellSplit>, With<bevy_gooey::SplitSaved>)>,
     bars: Query<&ComputedNode, With<crate::activity_bar::ActivityBar>>,
+    workspace: Option<Res<crate::workspace::Workspace>>,
 ) {
     let Ok(window) = windows.single() else {
         return;
     };
+    // **A panel that takes the centre (#694) is not a dock's demand**: its pane is the whole body and the panel follows
+    // it ([`the_left_panel_follows_its_pane`]), so the left side asks for nothing here and is never written.
+    let centred = workspace.is_some_and(|w| w.panel_takes_the_centre());
     let scale = ui_scale.0.max(f32::EPSILON);
     // **The activity bar (NV-03, #380) is paid by the docks, not by the map**: it stands in the body's row
     // beside them, so its width comes out of what the two docks may take while the map's share stays what
@@ -1227,7 +1231,7 @@ fn fit_docks_to_the_window(
     let left_stands = !collapsed.is_empty();
     for (want, node, _, computed) in &panels {
         let counted = node.display != Display::None && (computed.size().x > 0.0 || (left_stands && want.side == Side::Left));
-        if !counted {
+        if !counted || (centred && want.side == Side::Left) {
             continue;
         }
         let side = usize::from(want.side == Side::Right);
@@ -1274,7 +1278,7 @@ fn fit_docks_to_the_window(
         // **The left panel is the pane's once a person has dragged the divider**
         // ([`the_left_panel_follows_its_pane`]); writing its width here too would be two systems
         // disagreeing about one number every frame.
-        if person_owns_the_split && want.side == Side::Left {
+        if (person_owns_the_split || centred) && want.side == Side::Left {
             continue;
         }
         let width = Some(bevy_gooey::Extent::Px(want.preferred * squeeze));
@@ -3912,15 +3916,28 @@ fn adopt_the_shell_split(
 /// panel **as [`fit_docks_to_the_window`] sized it** plus the margin the panel carries
 /// (`2 * MARGIN`, the same overhead that system measures), over the split's room in the same
 /// `Val::Px` units, so a narrow window's squeezed panel gets a pane squeezed to match.
+///
+/// **A workspace whose panel takes the centre** (#694, [`crate::workspace::Workspace::panel_takes_the_centre`]) has
+/// nothing in the viewport, so its pane is the whole split: the fraction is 1, and the viewport's floor
+/// ([`bevy_gooey::DOCK_PANE_MIN_PX`]) is given up with the viewport, or gooey would keep that much black beside the
+/// panel. That answer is stated rather than measured, so it needs no window; any other workspace has its floor back.
 fn size_the_shell_split(
     mut commands: Commands,
-    mut splits: Query<(Entity, &mut bevy_gooey::SplitFraction, &mut SplitUnsized, &ComputedNode)>,
+    workspace: Option<Res<crate::workspace::Workspace>>,
+    mut splits: Query<(Entity, &mut bevy_gooey::SplitFraction, &mut bevy_gooey::SplitMin, &mut SplitUnsized, &ComputedNode)>,
     panels: Query<(&PanelWidth, &Node, &bevy_gooey::Sizing, &ComputedNode)>,
     windows: Query<(), With<bevy::window::PrimaryWindow>>,
 ) {
+    let centred = workspace.is_some_and(|w| w.panel_takes_the_centre());
+    let floor = if centred { 0.0 } else { bevy_gooey::DOCK_PANE_MIN_PX };
+    for (_, _, mut min, ..) in &mut splits {
+        if min.second != floor {
+            min.second = floor;
+        }
+    }
     // **No window, no room to answer for**: [`fit_docks_to_the_window`] returns here too, so a panel's
     // width is still its preferred one and a pane sized to it would be the wrong pane.
-    if windows.is_empty() {
+    if windows.is_empty() && !centred {
         return;
     }
     let mut want = 0.0f32;
@@ -3932,28 +3949,32 @@ fn size_the_shell_split(
             want = want.max(w);
         }
     }
-    if want <= 0.0 {
+    if want <= 0.0 && !centred {
         return;
     }
-    for (split, mut fraction, mut sized, node) in &mut splits {
+    for (split, mut fraction, _, mut sized, node) in &mut splits {
         // **Someone else wrote the fraction since this did**: a drag, an arrow key, a game setting.
         // It is theirs from now on.
         if sized.wrote.is_some_and(|w| w != fraction.0) {
             commands.entity(split).remove::<SplitUnsized>();
             continue;
         }
-        // **The divider is the sheet's `divider_w`, not its measured box** (#689): the split carries
-        // `SplitThickness(divider_w)`, so that is the width the layout shares the panes around, while the
-        // divider's `ComputedNode` is that width rounded to device pixels (12 px at 1.2 is 14.4 laid out
-        // and 14 measured). Sizing the pane against the rounded one left the viewport a fraction of a
-        // pixel wider or narrower depending on how the docks fell, so the activity bar showing or not
-        // moved the map by a whole pixel; the sheet's number is the one `fit_docks_to_the_window` pays.
-        let extent = node.size().x * node.inverse_scale_factor() - crate::style::metrics().layout.divider_w;
-        if extent <= 0.0 {
-            continue;
-        }
-        // The panel's margin each side: a panel's `STEP_PAD` (the sheet's `.chrome-panel`).
-        let to = ((want + 2.0 * space(STEP_PAD)) / extent).clamp(0.0, 1.0);
+        let to = if centred {
+            1.0
+        } else {
+            // **The divider is the sheet's `divider_w`, not its measured box** (#689): the split carries
+            // `SplitThickness(divider_w)`, so that is the width the layout shares the panes around, while the
+            // divider's `ComputedNode` is that width rounded to device pixels (12 px at 1.2 is 14.4 laid out
+            // and 14 measured). Sizing the pane against the rounded one left the viewport a fraction of a
+            // pixel wider or narrower depending on how the docks fell, so the activity bar showing or not
+            // moved the map by a whole pixel; the sheet's number is the one `fit_docks_to_the_window` pays.
+            let extent = node.size().x * node.inverse_scale_factor() - crate::style::metrics().layout.divider_w;
+            if extent <= 0.0 {
+                continue;
+            }
+            // The panel's margin each side: a panel's `STEP_PAD` (the sheet's `.chrome-panel`).
+            ((want + 2.0 * space(STEP_PAD)) / extent).clamp(0.0, 1.0)
+        };
         if fraction.0 != to {
             fraction.0 = to;
         }
@@ -3975,11 +3996,15 @@ type CollapsedOrGliding = (With<ShellSplit>, Or<(With<bevy_gooey::SplitSaved>, W
 /// keeps the two from disagreeing). [`fit_docks_to_the_window`] leaves the left panel to this once
 /// the split is the person's, so one system writes the number.
 ///
-/// **Not while the split is collapsed or sliding** (UI-R06, #336): the pane is shrinking to nothing or growing back, and a panel that
-/// followed it would reflow every frame of the slide and be a different width when the peek floats it over the viewport.
 /// Collapsed, it keeps the width it had; a restore lands and this takes the number back from the pane, which is that width.
+///
+/// **A workspace whose panel takes the centre (#694) has its panel follow the pane from the start**: the pane is the
+/// whole body ([`size_the_shell_split`]), and the panel is as wide as it less its margins. The pane is measured off its
+/// own laid-out node, so this needs no window there.
+#[allow(clippy::too_many_arguments)]
 fn the_left_panel_follows_its_pane(
     frame: Option<Res<Frame>>,
+    workspace: Option<Res<crate::workspace::Workspace>>,
     owned: Query<(), (With<ShellSplit>, Without<SplitUnsized>)>,
     parents: Query<&ChildOf>,
     panes: Query<&ComputedNode>,
@@ -3987,7 +4012,8 @@ fn the_left_panel_follows_its_pane(
     windows: Query<(), With<bevy::window::PrimaryWindow>>,
     moving: Query<(), CollapsedOrGliding>,
 ) {
-    if owned.is_empty() || windows.is_empty() || !moving.is_empty() {
+    let centred = workspace.is_some_and(|w| w.panel_takes_the_centre());
+    if (!centred && (owned.is_empty() || windows.is_empty())) || !moving.is_empty() {
         return;
     }
     let Some(frame) = frame else { return };

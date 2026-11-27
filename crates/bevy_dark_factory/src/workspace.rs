@@ -310,6 +310,22 @@ impl Workspace {
         matches!(self, Workspace::Map | Workspace::World | Workspace::Kit | Workspace::Animation)
     }
 
+    /// **Does this workspace draw the toolbar?** (#690, the owner's "per workspace", 2026-11-27.) Map, World and
+    /// Kit: the three where a person works over the map's view with its tools to hand. Every other workspace
+    /// draws no bar, so its panels have the room the bar took, and nothing there claims a tool is armed where
+    /// none can act. Animation shows the map too, but its bench is not worked with these tools.
+    pub const fn has_the_toolbar(self) -> bool {
+        matches!(self, Workspace::Map | Workspace::World | Workspace::Kit)
+    }
+
+    /// **Does this workspace's panel take the centre?** (#694, the owner's "the panel fills the centre", 2026-11-27.)
+    /// Project, Sound, Game and Agent draw nothing in the middle — no map, and no page of their own as Files and
+    /// Design have — so their panel's pane is the whole body, where it was a dock beside a black viewport (39 to 47%
+    /// of the window, measured). The game runs in a window of its own, so Game has no viewport before Play or after.
+    pub const fn panel_takes_the_centre(self) -> bool {
+        matches!(self, Workspace::Project | Workspace::Sound | Workspace::Game | Workspace::Agent)
+    }
+
     /// **Where this workspace starts**: its dock, before a person has moved a divider.
     ///
     /// Each is a different arrangement on purpose — the Kit workspace gives the library more room
