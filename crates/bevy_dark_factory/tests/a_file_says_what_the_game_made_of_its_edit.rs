@@ -33,6 +33,12 @@ fn editor(tag: &str, live: bool) -> App {
     }
     // The index's shortest sweep: the notes view follows the project index, and these tests write files from outside and wait under a second.
     app.world().resource::<bevy_dark_factory::project_index::ProjectIndex>().set_sweep(bevy_dark_factory::project_index::MIN_SWEEP);
+    // The verdict's folder too: the index skips `.live/`, so the Reload panel learns of `game.yaml` from its own follower
+    // (`project_index::OutsideFiles`). Followed here as the panel follows it (idempotent), so its sweep can be shortened now.
+    let (dir, name) = verdict_place(&app);
+    let mut outside = app.world_mut().resource_mut::<bevy_dark_factory::project_index::OutsideFiles>();
+    outside.follow(&dir, &[&name]);
+    outside.set_sweep(&dir, bevy_dark_factory::project_index::MIN_SWEEP);
     // **A window with room for the bottom dock** (UI-61, #247). The Reload panel is gooey's bottom
     // dock now, and the dock is shown only where the workbench can spare it (`chrome::WORKBENCH_FLOOR_H`):
     // at the 1280 x 720 reference window with the terminal open it is not, or it would leave the
@@ -67,6 +73,14 @@ fn touch(path: &std::path::Path) {
 
 fn paths(app: &App) -> (std::path::PathBuf, std::path::PathBuf) {
     (app.world().resource::<Project>().project_dir.clone(), app.world().resource::<OpenMap>().map_path.clone())
+}
+
+/// The folder of the game's verdict and its file's name: what the Reload panel follows through `OutsideFiles`.
+fn verdict_place(app: &App) -> (std::path::PathBuf, String) {
+    let path = Verdict::path(&app.world().resource::<Project>().project_dir);
+    let dir = path.parent().unwrap_or_else(|| panic!("{path:?} has a folder")).to_path_buf();
+    let name = path.file_name().and_then(|n| n.to_str()).unwrap_or_else(|| panic!("{path:?} has a name")).to_owned();
+    (dir, name)
 }
 
 #[test]
@@ -137,6 +151,19 @@ fn a_game_that_answered_shows_each_file_applied_with_when_refused_with_why_or_pe
 /// (text, top y) of every drawn text.
 fn drawn(app: &mut App) -> Vec<(String, f32)> {
     support::settle_until_the_index_is_quiet(app);
+    // **The verdict is not the project index's to announce**: it skips `.live/`, and the panel reads the verdict folder's own
+    // follower. A verdict on disk is waited for there, then the panel's 0.5 s clock is given its turn and the dock its layout.
+    let (dir, name) = verdict_place(app);
+    if dir.join(&name).exists() {
+        crate::settle_support::until(app, "the verdict folder's follower lists the verdict", |a| {
+            let outside = a.world().resource::<bevy_dark_factory::project_index::OutsideFiles>();
+            outside.snapshot(&dir).is_some_and(|listing| listing.stamp(&name).is_some())
+        });
+        support::pump(app, Duration::from_millis(800));
+        for _ in 0..8 {
+            app.update();
+        }
+    }
     let world = app.world_mut();
     let mut q = world.query::<(&Text, &ComputedNode, &UiGlobalTransform)>();
     q.iter(world)
