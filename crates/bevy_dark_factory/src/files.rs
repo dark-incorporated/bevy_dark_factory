@@ -1275,7 +1275,12 @@ fn decorate_the_editor(
         let lang = Lang::of(&rel);
         if editor.highlighted != revision {
             let schema = files.schema_for(&rel);
-            commands.entity(entity).insert((
+            // **`try_insert`, because the editor can be taken down the frame it is decorated, and that is right.** In the
+            // Design workspace it is a child of the page body (`design_view::DesignBody`), which `design_view::keep_the_body`
+            // clears whenever the page it draws changes — entering or leaving edit mode, another page — and that system is
+            // not in this chain. The decoration of an editor that is gone has no one to show it to, and the editor
+            // `keep_the_design_editor` spawns next starts undecorated (`highlighted` unset), so it is decorated on its own.
+            commands.entity(entity).try_insert((
                 Highlights::new(revision, files_lang::highlights(lang, value.text(), schema.as_deref())),
                 FoldRanges::new(revision, files_lang::folds(lang, value.text())),
                 FileOutline { revision, headings: files_lang::outline(lang, value.text()) },
@@ -1301,7 +1306,7 @@ fn decorate_the_editor(
                     }
                 }
             }
-            commands.entity(entity).insert(Diagnostics::new(revision, items));
+            commands.entity(entity).try_insert(Diagnostics::new(revision, items));
             editor.analysed = revision;
             if let Some(file) = files.open.get_mut(&rel) {
                 file.edited_at = None;

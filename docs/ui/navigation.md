@@ -48,7 +48,7 @@ the test fails for a miss with none.
 | A map's lights | press Cmd/Ctrl+3 (the World workspace) | 1 | 0 | yes | 0, 60, no | met — 1 press(es) |
 | A game data file | wheel down to `DATA` | 0 | 1 | yes | 0, 5, yes | met — driven: Cmd+P, the name, Enter, 8 presses |
 | The problems list | press Cmd/Ctrl+Shift+X (show the problems) | 1 | 0 | yes | 0, 8, yes | met — 1 press(es) |
-| The notes | wheel down to `NOTES` | 0 | 3 | yes | 0, 7, yes | met — driven: Cmd+P, the name, Enter, 6 presses |
+| The notes | wheel down to `NOTES` | 0 | 2 | yes | 0, 7, yes | met — driven: Cmd+P, the name, Enter, 6 presses |
 | The history | it is drawn beside UNDO and REDO, on screen at a cold start (1 line, 1 drawn) | 0 | 0 | yes | 0, 0, yes | met — 0 press(es) |
 | The AGENT block | press Cmd/Ctrl+9 (the Agent workspace) | 1 | 0 | yes | 0, 2, yes | met — 1 press(es) |
 | The settings | Cmd+, | 1 | 0 | yes | 1, 0, yes | met — 1 press(es) |
@@ -57,4 +57,4 @@ the test fails for a miss with none.
 
 ## What the numbers say
 
-1 of 21 destinations cannot be reached at all. Of the 20 that can, 2 are where the editor already starts, 10 are reached by keys alone, and 8 need the pointer. The inspector moves only by the wheel, so scrolling to a heading costs between 1 and 3 notches. Set against that, a workspace model asks for any workspace in one press, any named thing in at most `Cmd+P`, its name and `Enter`, and one press back: 2 of these 20 cost more than one press and 8 of them need the pointer.
+1 of 21 destinations cannot be reached at all. Of the 20 that can, 2 are where the editor already starts, 10 are reached by keys alone, and 8 need the pointer. The inspector moves only by the wheel, so scrolling to a heading costs between 1 and 2 notches. Set against that, a workspace model asks for any workspace in one press, any named thing in at most `Cmd+P`, its name and `Enter`, and one press back: 2 of these 20 cost more than one press and 8 of them need the pointer.

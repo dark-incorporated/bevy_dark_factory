@@ -852,6 +852,23 @@ pub const OWNERSHIP: &[(&str, Ownership)] = &[
     ("bevy_dark_factory::environment::ClockScrub", Ownership::Workspace),
     #[cfg(feature = "bevy_light_grid")]
     ("bevy_dark_factory::light_overlay::LightOverlay", Ownership::Workspace),
+    // **`Project`: the walk to the hour the settings file asks for** (#271), started by a read of that file. A door reset
+    // would stop a walk between two hours and leave the preview's clock at neither; carried, it ends at the hour the file
+    // it was read from said.
+    #[cfg(feature = "bevy_elements")]
+    ("bevy_dark_factory::environment::ClockRamp", Ownership::Project),
+    // **`Project`: which family crates this project draws a block for, read off its `family.yaml` and settings files**
+    // (`family_panel::read_the_files`, which reads again when the project's root moves).
+    #[cfg(feature = "bevy_elements")]
+    ("bevy_dark_factory::family_panel::FamilyPanel", Ownership::Project),
+    // **`Project`, with the panel it belongs to**: the entities `read_the_files` spawned for those crates. The reader keeps it
+    // true itself (a view that is gone, or another root, is read again); a door reset would empty it while the views stood,
+    // and the reader, seeing nothing gone, would never draw them again.
+    #[cfg(feature = "bevy_elements")]
+    ("bevy_dark_factory::family_panel::FamilyViews", Ownership::Project),
+    // **`Project`: whether the Reload panel has news** (#662), the summary of the reload verdicts its walk reads off disk
+    // every half second. Reset by a door, the bottom dock would fold for a walk on every switch and open again.
+    ("bevy_dark_factory::editor::ReloadNews", Ownership::Project),
     // **`Door`, like the selection it mirrors**: the entity the inspector edits belongs to the open
     // project's map, and another door's map is another selection.
     ("bevy_dark_factory::inspector_view::PoseInspector", Ownership::Workspace),
