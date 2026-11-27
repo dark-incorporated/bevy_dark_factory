@@ -167,6 +167,12 @@ pub struct LayoutMetrics {
     pub divider_w: f32,
     /// The bottom dock's height.
     pub bottom_dock_h: f32,
+    /// **The height of a bottom dock with nothing to report** (#662): its own tab bar, which is what a
+    /// person clicks to open the panel again. Gooey's dock tab is a 28-px control (a `Role::Tab` at
+    /// `ControlSize::Regular`) plus the strip's padding; the 148-px `bottom_dock_h` is the *maximum*,
+    /// and this is the floor a folded strip stands at. It is a measured number, not derived:
+    /// `a_folded_dock_is_its_tab_bar` asserts the laid-out height against it.
+    pub bottom_dock_tab_h: f32,
     /// The least height of a workbench's floor.
     pub workbench_floor_h: f32,
     /// A row's preview box: the map palette and the kit door's MESHES shelf draw a portrait in it.
@@ -218,6 +224,7 @@ impl Default for LayoutMetrics {
             viewport_share: 0.52,
             divider_w: 12.0,
             bottom_dock_h: 148.0,
+            bottom_dock_tab_h: 29.0,
             workbench_floor_h: 420.0,
             thumb_slot: 30.0,
             bar_h: 26.0,

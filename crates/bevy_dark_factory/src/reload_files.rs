@@ -247,6 +247,20 @@ pub enum Tone {
     Danger,
 }
 
+/// **Does the panel have anything to report?** — every line it would draw is `Tone::Dim` (#662).
+///
+/// The header is always dim: it says whether a game has answered, and with none it says so. So a
+/// project nobody has connected a game to draws **one dim line** and nothing else, and a 148-px strip
+/// for that line takes 17.8% of a 1600 x 1000 window from the art. `Tone::Text`, `Tone::Accent` and
+/// `Tone::Danger` are the tones a *file's* news is drawn in, so any of them is something to say.
+///
+/// **A tone, not the count of rows.** The rule could be "more than one line" today, but the header is
+/// dim for a reason and a second dim line would be the same nothing; the answer a reader wants is
+/// "would a person learn anything", and the ink is what that means here.
+pub fn reports_nothing(lines: &[(String, Tone)]) -> bool {
+    lines.iter().all(|(_, tone)| *tone == Tone::Dim)
+}
+
 /// **The lines of the Reload panel**: a header that says whether a game has answered, then one line for
 /// each file that has news. A file nobody has an answer about is not listed; the header counts them.
 pub fn panel_lines(files: &[FileReload], game: Option<&Verdict>, watching: bool, now_ms: u64) -> Vec<(String, Tone)> {

@@ -807,11 +807,10 @@ fn type_keys(
         events.clear();
         return;
     }
-    // **The close chord is the pane's**, and it is read from `ButtonInput` by `toggle_on_the_chord`
-    // (which runs in `TerminalChordSet`, after this system). Forwarding it to the shell as well would
-    // send a `\x1c`-ish byte every time somebody lowered the pane.
-    // **The same binding the pane reads** (#640): one source, so the swallow and the action cannot drift.
-    let closes = crate::chords::chord(crate::chords::Fixed::TerminalRaise);
+    // **The pane's own chords are not forwarded**, read from `ButtonInput` by `toggle_on_the_chord`
+    // and its kin. Forwarding one to the shell would send a `\x1c`-ish byte every time somebody
+    // lowered the pane, and on Linux `Ctrl+J` is also a newline. Which chords those are is
+    // `chords::reaches_the_shell`'s answer — one list, so the swallow and the action cannot drift.
     let shift = keys.pressed(KeyCode::ShiftLeft) || keys.pressed(KeyCode::ShiftRight);
     let mut out: Vec<u8> = Vec::new();
     for event in events.read() {
@@ -838,16 +837,18 @@ fn type_keys(
                 _ => {}
             }
         }
-        if closes.just_pressed(&keys)
-            || crate::chords::chord(crate::chords::Fixed::TerminalCollapse).just_pressed(&keys)
-            || crate::chords::chord(crate::chords::Fixed::TerminalMaximise).just_pressed(&keys)
-            || crate::chords::chord(crate::chords::Fixed::TerminalFind).just_pressed(&keys)
-            || crate::chords::chord(crate::chords::Fixed::TerminalClear).just_pressed(&keys)
-            || crate::chords::chord(crate::chords::Fixed::EditorDevAgent).just_pressed(&keys)
-        {
-            // The pane's own chords: `toggle_on_the_chord` and `collapse_on_the_chord` read the same
-            // `ButtonInput` this frame, so this system's job is only to **not** forward them to the
-            // shell — on Linux Ctrl+J is also a newline, and collapsing the pane must not run a line.
+        // **One list, in `chords`**: every chord the window keeps while a shell has the keys (#667).
+        // It used to be restated here, which is how the shell's two came to be swallowed by *nobody*
+        // and to reach nothing at all.
+        let closed_by_the_window = crate::chords::CHORDS
+            .iter()
+            .filter(|named| !crate::chords::reaches_the_shell(named.fixed))
+            .any(|named| crate::chords::chord(named.fixed).just_pressed(&keys));
+        if closed_by_the_window {
+            // The pane's own chords are read by `toggle_on_the_chord` and `collapse_on_the_chord` from
+            // the same `ButtonInput` this frame, so this system's job is only to **not** forward them
+            // to the shell — on Linux Ctrl+J is also a newline, and collapsing the pane must not run a
+            // line. The shell's two are read by `shell_view::toggle_on_the_chords`.
             continue;
         }
         match clipboard_chord(&keys, event.key_code) {

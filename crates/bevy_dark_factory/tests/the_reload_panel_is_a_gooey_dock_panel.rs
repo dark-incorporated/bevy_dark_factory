@@ -99,6 +99,15 @@ fn the_bottom_dock_is_gooeys_and_stands_under_the_body() {
     for _ in 0..8 {
         app.update();
     }
+    // **The panel is asked for, because this test is about a full row's furniture and position.**
+    // Since #662 a strip with nothing to report — and a headless project has no game to report on —
+    // is its own 29-px tab bar, so `dock.height() > 40.0` below describes the state a person is in
+    // when they open the panel. The three assertions are unchanged; what changed is that the test
+    // now stands in the state they are about, rather than in the folded one.
+    app.world_mut().resource_mut::<bevy_dark_factory::shell_view::ShellView>().reload_shown = true;
+    for _ in 0..4 {
+        app.update();
+    }
     let (bottom, body, status, arrangement) = {
         let world = app.world_mut();
         let bottom = world.query_filtered::<Entity, With<BottomDock>>().single(world).expect("the frame has a bottom dock");

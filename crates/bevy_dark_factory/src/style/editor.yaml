@@ -103,7 +103,8 @@ metrics:
     viewport_min_w: 420.0      # what the map is owed before either dock gets more than its floor
     viewport_share: 0.52       # and its share of a wide window (#282)
     divider_w: 12.0            # the owner's half-thickness divider (#476)
-    bottom_dock_h: 148.0
+    bottom_dock_h: 148.0       # the maximum, and the height once the panel has news
+    bottom_dock_tab_h: 29.0    # a dock with nothing to report is its own tab bar (#662)
     workbench_floor_h: 420.0
     thumb_slot: 30.0
     bar_h: 26.0

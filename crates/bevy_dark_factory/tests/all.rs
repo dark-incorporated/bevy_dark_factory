@@ -818,3 +818,5 @@ mod the_collection_readout_follows_the_ledger;
 mod the_design_follows_the_project_index;
 mod the_project_page_follows_the_project_index;
 mod an_interface_size_is_limited_to_what_the_window_can_hold;
+mod zen_and_the_left_panel_work_with_the_terminal_raised;
+mod a_dock_with_nothing_to_report_folds_to_its_tab;
