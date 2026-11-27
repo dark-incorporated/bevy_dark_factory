@@ -60,7 +60,7 @@
 
 use bevy::prelude::*;
 use bevy::ui::widget::ImageNode;
-use bevy::ui::{ComputedNode, UiGlobalTransform};
+use bevy::ui::{CalculatedClip, ComputedNode, UiGlobalTransform};
 
 use crate::chrome;
 use crate::keys::{self, Home};
@@ -244,8 +244,28 @@ type Painters<'w, 's> = Query<
         Option<&'static Text>,
         Option<&'static ImageNode>,
         Option<&'static chrome::Ground>,
+        Option<&'static CalculatedClip>,
     ),
 >;
+
+/// **The part of `rect` its ancestors' clips leave on screen**, or `None` when they leave nothing.
+///
+/// A node laid out past a scrolling pane's edge is cut there and paints nothing beyond it, so the ground
+/// past the edge is free. Each clip rect is held in its clipping node's local space; its corners are
+/// taken back to the surface by that node's inverse transform (the interface does not rotate, so the
+/// box of the four corners is the rect itself).
+fn clipped(rect: Rect, clip: Option<&CalculatedClip>) -> Option<Rect> {
+    let Some(clip) = clip else { return Some(rect) };
+    let mut out = rect;
+    for c in clip.rects()? {
+        let to_world = c.world_to_clip_local.inverse();
+        let corners = [c.rect.min, Vec2::new(c.rect.max.x, c.rect.min.y), c.rect.max, Vec2::new(c.rect.min.x, c.rect.max.y)]
+            .map(|p| to_world.transform_point2(p));
+        let world = corners.iter().fold(Rect::from_corners(corners[0], corners[0]), |r, p| r.union_point(*p));
+        out = out.intersect(world);
+    }
+    (out.width() > 0.0 && out.height() > 0.0).then_some(out)
+}
 
 /// **Everything on screen a reader needs to see** — the set a badge must not stand on.
 ///
@@ -256,7 +276,12 @@ type Painters<'w, 's> = Query<
 /// panel, a whole 560 × 460 px of it on a 2560 × 1406 window, sat unused.
 ///
 /// A node is ink when it is laid out, visible, outside this overlay's own layer, and **paints**: a
-/// background with alpha, a border with width and colour, a `Text`, or an `ImageNode`.
+/// background with alpha, a border with width and colour, a `Text`, or an `ImageNode` — **and only
+/// where its clip lets it paint** ([`clipped`]). The census used to count a whole laid-out rect: under
+/// `family_all` the WORLD panel's last row (`no trees planted`) lays out 4 px past the left dock's
+/// scroll edge into the status band, cut there on screen, and the census called a badge beside the
+/// band's hint "on ink" that no reader could see — while the packer, reading the same census, could not
+/// tell the cut ink from the drawn.
 ///
 /// **The interface only.** What the world draws is not in here and is not dodged either: it is
 /// faded instead while the key is held (`chrome::stepped_back`, at the sheet's `layout.world_held`), which is why this census has one
@@ -276,11 +301,11 @@ fn ink(
     parents: &Query<&ChildOf>,
 ) -> Vec<Rect> {
     let mut out: Vec<Rect> = Vec::new();
-    for (entity, node, tf, seen, bg, border, text, image, ground) in painters.iter() {
+    for (entity, node, tf, seen, bg, border, text, image, ground, clip) in painters.iter() {
         if ground.is_some() || !seen.get() {
             continue;
         }
-        let Some(rect) = laid_out_rect(node, tf) else {
+        let Some(rect) = laid_out_rect(node, tf).and_then(|rect| clipped(rect, clip)) else {
             continue;
         };
         let edged = {
