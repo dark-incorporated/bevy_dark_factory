@@ -300,7 +300,10 @@ fn give_the_bottom_dock_its_room(
     mut docks: Query<&mut Node, With<BottomDock>>,
     mut sizing: Query<&mut bevy_gooey::Sizing>,
     roles: Query<(&Role, &ChildOf)>,
-    mut pages: Query<&mut Node, (With<Role>, Without<BottomDock>)>,
+    // **The reload panel's page, by its own marker** (`ui::register_the_shell_panels` puts it there): the
+    // one node this fold may take out of the layout.
+    panels: Query<(Entity, &ChildOf), With<crate::editor::ReloadPanel>>,
+    mut pages: Query<&mut Node, Without<BottomDock>>,
     mut zen_last_frame: Local<bool>,
 ) {
     let Some(frame) = frame else { return };
@@ -317,41 +320,62 @@ fn give_the_bottom_dock_its_room(
         Display::Flex
     } else if just_left_zen {
         Display::None
-    } else if !reports {
-        // **A strip with nothing to say is its tab bar and no more.** It needs no floor test: 29 px
-        // is affordable where 148 was not, and hiding it would hide the only control that brings the
-        // panel back.
-        Display::Flex
     } else {
+        // **One floor, whatever the strip's height**: the room rule is a fact about the window and the
+        // workbench, not about what the dock is showing. `the_bottom_dock_gives_way_in_the_reference_
+        // window` pins that at 1280x720 there is no dock row at all — folded or not — and three
+        // assertions in `the_reload_panel_is_a_gooey_dock_panel` pin the same floor from three sides.
+        // A 29-px tab bar that slipped in under it would be a row those tests say is not there.
         let Ok(body) = laid.get(frame.body) else { return };
         let interface_px = |node: &ComputedNode| node.size().y * node.inverse_scale_factor();
         let own_row = if dock.display == Display::None { 0.0 } else { laid.get(frame.bottom).map_or(0.0, interface_px) };
-        if interface_px(body) + own_row >= layout.workbench_floor_h + full { Display::Flex } else { Display::None }
+        if interface_px(body) + own_row >= layout.workbench_floor_h + layout.bottom_dock_h { Display::Flex } else { Display::None }
     };
     if dock.display != display {
         dock.display = display;
     }
-    // **The height, and the pages that give it back** (#662). The dock's `Sizing` is the one writer
-    // of its height, and gooey follows it; the pages are hidden rather than the body, because the tab
-    // bar lives beside them and is what a person clicks to open the strip again.
+    // **The height, and the page it leaves no room for** (#662). The dock's `Sizing` is the one writer
+    // of its height, and gooey follows it.
+    //
+    // **The page is hidden through its own panel marker, not the dock's `TabPages`**: a bottom dock
+    // holding a second panel (`a_dock_tab_reordered_glides_to_its_place` lays a `STATUS` one beside
+    // `RELOAD`) has one `TabPages` node for both, and hiding that would lay both tabs' pages out to
+    // nothing and put the two tabs at one point. The reload panel is what has nothing to report, so it
+    // is what goes; another panel in the same strip is drawn as it always was.
     let want_h = if display == Display::Flex && !reports { folded } else { full };
     if let Ok(mut size) = sizing.get_mut(frame.bottom)
         && size.height != Some(bevy_gooey::Extent::Px(want_h))
     {
         size.height = Some(bevy_gooey::Extent::Px(want_h));
     }
-    let hide_pages = display == Display::Flex && !reports;
-    for (role, child_of) in &roles {
-        if *role != Role::TabPages || !under(child_of.parent(), frame.bottom, &roles) {
+    let hide_the_page = display == Display::Flex && !reports && only_the_reload_panel(&roles, frame.bottom);
+    for (page, child_of) in &panels {
+        if !under(child_of.parent(), frame.bottom, &roles) {
             continue;
         }
-        let want = if hide_pages { Display::None } else { Display::Flex };
-        if let Ok(mut node) = pages.get_mut(child_of.parent())
+        let want = if hide_the_page { Display::None } else { Display::Flex };
+        if let Ok(mut node) = pages.get_mut(page)
             && node.display != want
         {
             node.display = want;
         }
     }
+}
+
+/// **Does the bottom dock hold the reload panel and nothing else?** — the condition the fold needs
+/// before it may take the panel's page out of the layout. A dock with a second panel in its group is
+/// somebody else's strip, and its height is not this fold's to spend.
+fn only_the_reload_panel(roles: &Query<(&Role, &ChildOf)>, dock: Entity) -> bool {
+    let mut pages = 0usize;
+    for (role, child_of) in roles.iter() {
+        if *role == Role::TabPages && under(child_of.parent(), dock, roles) {
+            pages += 1;
+        }
+    }
+    // **One `TabPages` and one `TabList`, and the tabs are the reload panel's alone.** Counted from the
+    // tabs rather than from the registry, because what a person sees is the tabs.
+    let tabs = roles.iter().filter(|(role, child_of)| **role == Role::Tab && under(child_of.parent(), dock, roles)).count();
+    pages == 1 && tabs <= 1
 }
 
 /// Is `entity` the bottom dock, or inside it? Walked upward so a change to what gooey puts between
