@@ -570,10 +570,8 @@ fn spawn_a_row(
             }
             crate::chrome::rigid_row(body, Some(crate::chrome::Gap::Tight), AlignItems::Stretch)
             .with_children(|answers| {
-                crate::chrome::button(answers, (WishOpen, WishOf(id.clone())), "Open on GitHub", crate::chrome::Severity::Plain)
-                    .observe(open_this_wish);
-                crate::chrome::button(answers, (WishDiscard, WishOf(id.clone())), "Discard", crate::chrome::Severity::Plain)
-                    .observe(discard_this_wish);
+                answers.spawn((bevy_gooey::button("Open on GitHub"), WishOpen, WishOf(id.clone()))).observe(open_this_wish);
+                answers.spawn((bevy_gooey::button("Discard"), WishDiscard, WishOf(id.clone()))).observe(discard_this_wish);
             });
         });
     });
@@ -661,10 +659,8 @@ fn spawn_a_lesson_row(list: &mut ChildSpawnerCommands, queued: &crate::present::
             }
             crate::chrome::rigid_row(body, Some(crate::chrome::Gap::Tight), AlignItems::Stretch)
             .with_children(|answers| {
-                crate::chrome::button(answers, (LessonKeep, WishOf(id.clone())), "Keep", crate::chrome::Severity::Plain)
-                    .observe(keep_this_lesson);
-                crate::chrome::button(answers, (LessonDiscard, WishOf(id.clone())), "Discard", crate::chrome::Severity::Plain)
-                    .observe(discard_this_lesson);
+                answers.spawn((bevy_gooey::button("Keep"), LessonKeep, WishOf(id.clone()))).observe(keep_this_lesson);
+                answers.spawn((bevy_gooey::button("Discard"), LessonDiscard, WishOf(id.clone()))).observe(discard_this_lesson);
             });
         });
     });
@@ -764,12 +760,12 @@ fn spawn_a_style_row(list: &mut ChildSpawnerCommands, queued: &crate::style_prop
                 }
                 crate::chrome::rigid_row(body, Some(crate::chrome::Gap::Tight), AlignItems::Stretch)
                     .with_children(|answers| {
-                        crate::chrome::button(answers, (StyleShow, WishOf(id.clone())), "Show the page", crate::chrome::Severity::Plain).observe(show_this_style_page);
+                        answers.spawn((bevy_gooey::button("Show the page"), StyleShow, WishOf(id.clone()))).observe(show_this_style_page);
                         if queued.state != StyleState::Waiting {
                             return;
                         }
-                        crate::chrome::button(answers, (StyleKeep, WishOf(id.clone())), "Keep", crate::chrome::Severity::Plain).observe(keep_this_style_proposal);
-                        crate::chrome::button(answers, (StyleDiscard, WishOf(id.clone())), "Discard", crate::chrome::Severity::Plain).observe(discard_this_style_proposal);
+                        answers.spawn((bevy_gooey::button("Keep"), StyleKeep, WishOf(id.clone()))).observe(keep_this_style_proposal);
+                        answers.spawn((bevy_gooey::button("Discard"), StyleDiscard, WishOf(id.clone()))).observe(discard_this_style_proposal);
                     });
             });
     });

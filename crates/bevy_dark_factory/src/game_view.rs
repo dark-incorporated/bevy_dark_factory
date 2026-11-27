@@ -585,7 +585,7 @@ pub struct FieldFileButton {
 
 /// **The Game workspace's panel**: Play, Stop, Build, the status, the log, the state and the frame line.
 fn spawn_game_panel(mut commands: Commands, frame: Res<crate::chrome::Frame>) {
-    use crate::chrome::{self, Severity, button, section};
+    use crate::chrome::{self, section};
     let root = chrome::panel_root(&mut commands, &frame, chrome::Side::Left, crate::style::metrics().layout.controls_w, true, false, "GAME").insert(GameRoot).id();
     let dim = chrome::ink().dim;
     let body = chrome::ink().text;
@@ -596,7 +596,7 @@ fn spawn_game_panel(mut commands: Commands, frame: Res<crate::chrome::Frame>) {
             p.spawn((bevy_gooey::column(0.0), crate::chrome::Gap::Tight.class())).with_children(|s| {
                 crate::ops_play::spawn_section(s);
                 s.spawn((bevy_gooey::row(0.0), crate::chrome::Gap::Tight.class())).with_children(|r| {
-                    button(r, ShowWindowButton, "Show window", Severity::Plain);
+                    r.spawn((bevy_gooey::button("Show window"), ShowWindowButton));
                 });
                 chrome::row_value(s, "", body, GameStatus);
             });
@@ -744,7 +744,7 @@ fn draw_the_game(
     }
     commands.entity(container).with_children(|c| {
         for entity in &view.snapshot.entities {
-            crate::chrome::button(c, EntityButton(entity.id), &entity.name, crate::chrome::Severity::Plain);
+            c.spawn((bevy_gooey::button(&entity.name), EntityButton(entity.id)));
         }
     });
 }
@@ -848,7 +848,7 @@ fn draw_the_field_files(
             crate::chrome::gapped_row(c, Some(crate::chrome::Gap::Tight), crate::chrome::NO_MARGIN, AlignItems::Center)
                 .with_children(|r| {
                     r.spawn((Text::new(component.clone()), TextColor(crate::chrome::ink().dim), crate::chrome::typed(crate::chrome::text::BODY)));
-                    crate::chrome::button(r, FieldFileButton { rel: rel.clone(), line: *line }, "Open file", crate::chrome::Severity::Plain);
+                    r.spawn((bevy_gooey::button("Open file"), FieldFileButton { rel: rel.clone(), line: *line }));
                 });
         }
     });

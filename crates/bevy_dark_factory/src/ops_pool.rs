@@ -133,8 +133,7 @@ pub struct PoolHere;
 /// left a test counting one reading two (`a_maps_lights_are_listed_without_bevy_lights`, #395). The heading is the panel's,
 /// because the fixtures list under it is drawn in every build; a section that drew a second one would drift from it.
 pub fn spawn_buttons(s: &mut ChildSpawnerCommands) {
-    use crate::chrome::{Severity, button};
-    button(s, PoolHere, "Pool here", Severity::Plain);
+    s.spawn((bevy_gooey::button("Pool here"), PoolHere));
 }
 
 /// **The button** dispatches `light_pool` with the camera's ground point, in map space, as the focus, and

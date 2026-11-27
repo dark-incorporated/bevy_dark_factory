@@ -38,7 +38,7 @@ use std::path::Path;
 use bevy::prelude::*;
 use bevy_gooey::Activate;
 
-use crate::chrome::{self, Severity};
+use crate::chrome;
 use crate::editor::{DoorRequest, EditorState, TargetLock};
 use crate::files_lang::{self, Lang};
 use crate::inspector_view::PoseBlock;
@@ -388,8 +388,8 @@ fn draw_the_links(mut commands: Commands, mut selected: Selected, mut shown: Loc
                     chrome::list_heading(l, "USED BY");
                     l.spawn((UsedByLine, Text::new(""), TextColor(dim), chrome::typed(chrome::text::BODY)));
                     chrome::wrapping_row(l, Some(chrome::Gap::Tight), crate::chrome::NO_MARGIN, AlignItems::Stretch).with_children(|r| {
-                        chrome::button(r, OpenFileButton, "Open file", Severity::Plain);
-                        chrome::button(r, OpenPieceFileButton, "Open piece file", Severity::Plain);
+                        r.spawn((bevy_gooey::button("Open file"), OpenFileButton));
+                        r.spawn((bevy_gooey::button("Open piece file"), OpenPieceFileButton));
                     });
                 });
         });

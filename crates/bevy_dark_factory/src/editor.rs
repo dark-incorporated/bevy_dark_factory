@@ -7315,19 +7315,14 @@ fn refresh_notes_list(
     for list in &lists {
         commands.entity(list).despawn_related::<Children>();
         commands.entity(list).with_children(|p| {
-            // **The row wraps rather than pushing its second button out of the pane** (#482). A
-            // button's label is `LineBreak::NoWrap` on purpose — a command that split across two lines
-            // would be hard to read — so a row of two of them cannot squeeze to a narrow pane, and at
-            // the divider's leftmost position it drew `Send all drafts` 32 px past the pane's edge.
+            // **The row wraps rather than pushing its second button out of the pane** (#482): a
+            // command that split across two lines would be hard to read, so the second button moves
+            // down whole. When the row could not wrap, the divider's leftmost position drew
+            // `Send all drafts` 32 px past the pane's edge.
             p.spawn((bevy_gooey::row_with(0.0, bevy_gooey::RowLayout { wrap: Some(FlexWrap::Wrap), ..default() }), crate::chrome::Gap::Tight.class()))
             .with_children(|h| {
-                crate::chrome::button(
-                    h,
-                    NotesFilterButton,
-                    &format!("Show: {}", filter.0.unwrap_or("all")),
-                    crate::chrome::Severity::Plain,
-                );
-                crate::chrome::button(h, NotesSendAll, "Send all drafts", crate::chrome::Severity::Primary);
+                h.spawn((bevy_gooey::button(format!("Show: {}", filter.0.unwrap_or("all"))), NotesFilterButton));
+                h.spawn((crate::ui::submit_button("Send all drafts"), NotesSendAll));
             });
             if rows.is_empty() {
                 p.spawn((
@@ -7401,7 +7396,7 @@ fn refresh_notes_list(
                 if !review.ops.is_empty() {
                     crate::chrome::wrapping_row(p, Some(crate::chrome::Gap::Tight), crate::chrome::NO_MARGIN, AlignItems::Stretch).with_children(|h| {
                         for op in &review.ops {
-                            crate::chrome::button(h, NoteOpButton { op: op.clone() }, op, crate::chrome::Severity::Plain);
+                            h.spawn((bevy_gooey::button(op), NoteOpButton { op: op.clone() }));
                         }
                     });
                 }
@@ -7419,9 +7414,9 @@ fn refresh_notes_list(
                 };
                 // **Edit is on every note**, whatever its status: the text is the person's to correct.
                 p.spawn((bevy_gooey::row(0.0), crate::chrome::Gap::Tight.class())).with_children(|h| {
-                    crate::chrome::button(h, NoteEditButton { id: id.clone() }, "Edit", crate::chrome::Severity::Plain);
+                    h.spawn((bevy_gooey::button("Edit"), NoteEditButton { id: id.clone() }));
                     for (op, label, text) in ops {
-                        crate::chrome::button(h, NoteLeaseButton { id: id.clone(), op, text }, label, crate::chrome::Severity::Plain);
+                        h.spawn((bevy_gooey::button(*label), NoteLeaseButton { id: id.clone(), op, text }));
                     }
                 });
             }

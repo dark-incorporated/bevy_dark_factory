@@ -146,8 +146,7 @@ rules:
   # neighbour read as one rhythm. Most of a chip's click target is this padding (Fitts): do not shrink it.
   ".chrome-chip": {padding: {x: !Px 6, y: !Step 0}, radius: !Step 0}
   ".chrome-row": {padding: {x: !Px 6, y: !Step 0}, radius: !Step 0}
-  # A command button is heavier than a chip on purpose: shape carries kind (2026-09-03).
-  ".chrome-button": {padding: {x: !Px 10, y: !Step 1}, radius: !Step 0}
+  # A group's room before a command button that starts a block of its own (the Meshes tab's turns and rescan).
   ".chrome-button-apart": {margin: {left: !Step 3}}
   # A text field: tighter than a chip (its box is drawn by its fill, and the caret needs the width), never
   # under 18 px tall (an empty field lays out at 7 px otherwise).

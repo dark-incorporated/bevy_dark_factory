@@ -47,7 +47,7 @@ use std::sync::{Arc, Mutex, MutexGuard};
 
 use bevy::prelude::*;
 
-use crate::chrome::{self, Severity};
+use crate::chrome;
 use bevy::picking::hover::Hovered;
 
 /// **How many lines the ring keeps.** Older ones are trimmed from the front, and [`Ring::dropped`] says how many fell off
@@ -677,15 +677,6 @@ fn draw_the_console(
 /// **A line's one sentence, for a test and for the tally**: `LEVEL target: message`.
 pub fn say(line: &Line) -> String {
     format!("{} {}: {}", line.level.label(), line.target, line.message)
-}
-
-/// The severity an entry of the journal's kind would draw with, so the two panels name a level alike.
-pub fn severity_of(level: Level) -> Severity {
-    match level {
-        Level::Debug | Level::Info => Severity::Plain,
-        Level::Warn => Severity::Primary,
-        Level::Error => Severity::Destructive,
-    }
 }
 
 #[cfg(test)]
