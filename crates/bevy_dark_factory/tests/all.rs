@@ -564,6 +564,7 @@ mod the_left_dock_slides_and_peeks_under_the_pointer;
 mod the_library_seed_is_a_selection;
 mod the_lists_words_come_from_the_skin;
 mod the_look_command_frames_the_change;
+mod the_minimap_is_laid_out_when_a_file_opens;
 mod the_map_opens_framed;
 mod the_meshes_pane_names_modules_that_do_not_nest;
 mod the_meshes_pane_names_the_standards_a_piece_breaks;
