@@ -8,8 +8,8 @@
 //! to hold it, the wider body reported more columns, and omp drew a wider rule. Reproduced on the installed
 //! 0.3.8: the body grew from 2560 to 3774 px inside a 2560 px window in 17 s.
 //!
-//! The shell here prints the macOS prompt and nothing else, so the first row the pane measures starts with the
-//! same two letters as the capture's; then the test plays omp, one redraw at a time.
+//! The shell here prints the macOS prompt and nothing else, and the editor is handed over once that prompt is drawn
+//! and the cell is measured; then the test plays omp, one redraw at a time.
 
 use std::os::unix::fs::PermissionsExt;
 
@@ -71,7 +71,19 @@ fn row_right(app: &mut App, index: usize) -> f32 {
         .unwrap_or_else(|| panic!("no drawn row {index}"))
 }
 
-/// The editor at the capture's window, its terminal open on a shell that prints the macOS prompt.
+/// **The shell's prompt is drawn**: the cursor the pane last drew its caret from stands after the prompt, on the first
+/// row. A measured cell does not say so: since #674 the cell is measured from the pane's probe row the first frame the
+/// pane is laid out, which can be before the shell has printed anything. On bmb that was the case, and the caret was read
+/// at column 0, 20 cells left of where the prompt ends.
+fn the_prompt_is_drawn(app: &App) -> bool {
+    app.world().resource::<Terminal>().tab().is_some_and(|tab| {
+        let cursor = tab.screen().cursor();
+        (cursor.row, cursor.column) == (0, PROMPT.chars().count())
+    })
+}
+
+/// The editor at the capture's window, its terminal open on a shell that prints the macOS prompt, with that prompt drawn
+/// and the cell measured.
 fn the_capture_editor() -> App {
     let root = fixtures::Fixture::new(&format!("capture_1794011769640_{}", std::process::id()))
         .sized_descriptor("fence", "alpha", 2.064, 0.12)
@@ -105,12 +117,16 @@ fn the_capture_editor() -> App {
     }
     for _ in 0..PROMPT_TRIES {
         for _ in 0..2 { app.update(); }
-        if app.world().resource::<CellMetrics>().is_measured() {
+        if the_prompt_is_drawn(&app) && app.world().resource::<CellMetrics>().is_measured() {
             return app;
         }
         std::thread::sleep(CHECK_GAP);
     }
-    panic!("the shell's prompt was never drawn, so the cell was never measured");
+    panic!(
+        "the shell's prompt was never drawn with a measured cell (prompt drawn: {}, cell measured: {})",
+        the_prompt_is_drawn(&app),
+        app.world().resource::<CellMetrics>().is_measured()
+    );
 }
 
 #[test]
