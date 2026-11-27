@@ -792,6 +792,7 @@ struct Art<'a> {
 fn fill_the_home(
     mut commands: Commands,
     launcher: Res<Launcher>,
+    prose: Res<crate::prose::ProseFont>,
     splash: Res<SplashArt>,
     updater: Option<Res<crate::update::Updater>>,
     mut images: ResMut<Assets<Image>>,
@@ -817,7 +818,7 @@ fn fill_the_home(
                 });
             pages
                 .spawn(((bevy_gooey::column(0.0), crate::chrome::Gap::Group.class()), bevy_gooey::Shown(false), HomePage(HomeTab::Learn)))
-                .with_children(|page| learn_page(page, &launcher));
+                .with_children(|page| learn_page(page, &launcher, &prose));
             pages
                 .spawn(((bevy_gooey::fill_region_with(0.0), crate::chrome::Gap::Row.class()), bevy_gooey::Shown(false), HomePage(HomeTab::WhatsNew)))
                 .with_children(|page| {
@@ -835,7 +836,7 @@ fn fill_the_home(
                     // only when there is somewhere to go.
                     crate::chrome::scroll_list(page, NewsScroll).with_children(|scroll| {
                         scroll.spawn((bevy_gooey::column(0.0), crate::chrome::Gap::Row.class()))
-                            .with_children(|body| news_page(body, &launcher, &mut art));
+                            .with_children(|body| news_page(body, &launcher, &mut art, &prose));
                     });
                 });
         });
@@ -1199,10 +1200,14 @@ fn copy_to_clipboard(text: &str) -> Result<(), String> {
 }
 
 /// The Learn page: the tour, the example, the written guide and the keys.
-fn learn_page(page: &mut ChildSpawnerCommands, launcher: &Launcher) {
+fn learn_page(page: &mut ChildSpawnerCommands, launcher: &Launcher, prose: &crate::prose::ProseFont) {
     page.spawn(heading("Learn"));
     let example = launcher.example.is_some();
-    page.spawn((label("Start with a two-minute tour of the example, or read the guide."), crate::prose::Prose));
+    page.spawn((
+        label("Start with a two-minute tour of the example, or read the guide."),
+        crate::prose::Prose,
+        crate::prose::face(prose),
+    ));
     if example {
         page.spawn((
             button("Take the tour"),
@@ -1249,10 +1254,10 @@ fn still_image(rel: &str) -> Option<Image> {
 
 /// The What's new page: every change worth telling a person about, in a sentence and with the picture of its clip. A press opens the
 /// changelog on GitHub. The ones added since a project was last opened here are marked, and counted on the sidebar.
-fn news_page(page: &mut ChildSpawnerCommands, launcher: &Launcher, art: &mut Art) {
+fn news_page(page: &mut ChildSpawnerCommands, launcher: &Launcher, art: &mut Art, prose: &crate::prose::ProseFont) {
     page.spawn(heading("What's new"));
     if launcher.news.is_empty() {
-        page.spawn((label("Nothing to tell you about yet."), crate::prose::Prose));
+        page.spawn((label("Nothing to tell you about yet."), crate::prose::Prose, crate::prose::face(prose)));
     }
     for item in launcher.news.iter().take(NEWS_SHOWN) {
         let Some(sentence) = item.user.clone() else { continue };
@@ -1286,8 +1291,9 @@ fn news_page(page: &mut ChildSpawnerCommands, launcher: &Launcher, art: &mut Art
                 if fresh {
                     words.spawn((Text::new("New"), Role::Label, Pickable::IGNORE));
                 }
-                // **Prose** (#469): a sentence is read, so it is drawn in the proportional face; its ink still follows the entry's button state.
-                words.spawn((Text::new(sentence), Role::ButtonText, Pickable::IGNORE, crate::prose::Prose));
+                // **Prose** (#469): a sentence is read, so it is drawn in the proportional face through its own `TextFace`, which gooey
+                // honours where it writes the role's face; its ink still follows the entry's button state (#559).
+                words.spawn((Text::new(sentence), Role::ButtonText, Pickable::IGNORE, crate::prose::Prose, crate::prose::face(prose)));
             });
         });
     }
