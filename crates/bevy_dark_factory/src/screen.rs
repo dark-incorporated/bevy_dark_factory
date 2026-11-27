@@ -885,6 +885,9 @@ pub const OWNERSHIP: &[(&str, Ownership)] = &[
     // **`Project`: whether the Reload panel has news** (#662), the summary of the reload verdicts its walk reads off disk
     // every half second. Reset by a door, the bottom dock would fold for a walk on every switch and open again.
     ("bevy_dark_factory::editor::ReloadNews", Ownership::Project),
+    // **`Project`: the project's rust-analyzer** (#611), one server per open Cargo project, killed when the project closes or
+    // another opens. A door reset would kill and restart it on every switch, and its first diagnostics take seconds.
+    ("bevy_dark_factory::files_lsp::RustAnalyzer", Ownership::Project),
     // **`Door`, like the selection it mirrors**: the entity the inspector edits belongs to the open
     // project's map, and another door's map is another selection.
     ("bevy_dark_factory::inspector_view::PoseInspector", Ownership::Workspace),

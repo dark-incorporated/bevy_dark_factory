@@ -55,6 +55,8 @@ const ALLOWED: &[(&str, &str)] = &[
     ("image", "encodes the booth's RGBA readback to PNG"),
     ("semver", "the updater compares a release tag's version with this build's (`update.rs`); already in the lockfile through other crates"),
     ("sha2", "the updater checks a downloaded app against its release's SHA256SUMS before replacing the running one (`update.rs`)"),
+    ("lsp-types", "the Language Server Protocol's message types for rust-analyzer's diagnostics in the Files editor (`files_lsp.rs`, #611); hand-written JSON shapes would be a second copy of the protocol"),
+    ("url", "the `file://` document URIs the Language Server Protocol names files by (`files_lsp.rs`, #611); `lsp-types` takes them as `Url`"),
     (
         "dark_factory_snip",
         "the one crop, shared by the editor's snip and the MCP's blueprint_snip, so a picture from either door is cut the same way",
