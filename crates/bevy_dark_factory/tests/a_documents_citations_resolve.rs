@@ -142,7 +142,7 @@ fn citations(doc: &str, page: &str) -> Vec<Citation> {
 ///
 /// A `::` path is matched by its last segment: a page cites `chrome::section` for a line whose own words are
 /// `pub fn section`. Both a declaration and a **call site** count, because
-/// `docs/design/text-roles.md` cites `chrome::body` at the line in `world_lists.rs` that draws the hint, a call —
+/// `docs/design/text-roles.md` cites `chrome::body` at `world_lists.rs:133`, which is the call that draws the hint —
 /// the citation is of the call, and the call is the fact.
 fn names(line: &str, symbol: &str) -> bool {
     let leaf = symbol.rsplit("::").next().unwrap_or(symbol);
