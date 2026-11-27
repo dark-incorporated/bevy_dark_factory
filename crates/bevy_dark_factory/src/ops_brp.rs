@@ -770,18 +770,64 @@ pub struct NodeRect {
     pub h: f32,
 }
 
-/// **The viewport's rect and the window's**, the two numbers behind the art's share of the window (#665).
+/// **The viewport's rect and the window's**, the two numbers behind the art's share of the window (#665),
+/// **and that share** (#669).
 ///
 /// `viewport` is the node carrying [`crate::chrome::ViewportSlot`] — the hole
-/// `surface::fit_viewport_to_frame` hands the map camera — and `window` is the largest laid-out node that
-/// is not a viewport, which in this shell is the root the window sized. Both are `[x, y, w, h]`: the
+/// `surface::fit_viewport_to_frame` hands the map camera — and `window` is the largest UI root, which in this
+/// shell is the root the window sized ([`measure_rects`]). Both are `[x, y, w, h]`: the
 /// top-left corner and the size, in logical px, origin at the window's top left; `null` before the first
-/// layout, so a caller can tell "not laid out yet" from "zero".
+/// layout, so a caller can tell "not laid out yet" from "zero". `art_share` is [`art_share`] of the two —
+/// the number the status band's `Art` control reads (`shell_view::ArtShare`), so the label and the state
+/// cannot disagree.
 pub fn the_rects(viewport: Option<NodeRect>, window: Option<NodeRect>) -> serde_json::Value {
     let at = |r: Option<NodeRect>| {
         r.map_or(serde_json::Value::Null, |r| json!([r.x, r.y, r.w, r.h]))
     };
-    json!({"viewport": at(viewport), "window": at(window)})
+    json!({"viewport": at(viewport), "window": at(window), "art_share": art_share(viewport, window)})
+}
+
+/// **The art's share of the window** (#669): the viewport's area over the window's, a fraction from 0
+/// to 1. `None` until both are laid out, and for a window of no area, so "not measured" is never `0`.
+pub fn art_share(viewport: Option<NodeRect>, window: Option<NodeRect>) -> Option<f32> {
+    let (viewport, window) = (viewport?, window?);
+    let whole = window.w * window.h;
+    (whole > 0.0).then(|| viewport.w * viewport.h / whole)
+}
+
+/// **What [`measure_rects`] reads of a node**: its layout, where it is drawn, whether it is the viewport, and
+/// whether it has a parent — `blueprint/state` and the status band's `Art` control query exactly this.
+pub type RectNode = (
+    &'static ComputedNode,
+    &'static bevy::ui::UiGlobalTransform,
+    Has<crate::chrome::ViewportSlot>,
+    Has<ChildOf>,
+);
+
+/// **Find the two rects among the laid-out nodes** (#665): the node marked [`crate::chrome::ViewportSlot`],
+/// and the largest UI root — a node with no parent — by area. One function for `blueprint/state` and the
+/// status band's `Art` control, so the two read one number (#669).
+///
+/// **A root, by area, and not the widest node** (#669). The widest node tied with every full-width bar —
+/// the chrome bar, the status band and the body are as wide as the window — and the tie went to whichever
+/// the query met first. A 31-px band read as the window gives a share of about ten times the window (very
+/// likely the 1082% #665's review saw in one session in seven), and a full-width row of no height gives no
+/// share at all, which is how the `Art` control's test caught it. The frame's root is as large as the window
+/// and a root has nothing around it, so the largest root is the window; a tooltip or a toast, roots too, is smaller.
+pub fn measure_rects<'a>(
+    nodes: impl IntoIterator<Item = (&'a ComputedNode, &'a bevy::ui::UiGlobalTransform, bool, bool)>,
+) -> (Option<NodeRect>, Option<NodeRect>) {
+    let mut viewport: Option<NodeRect> = None;
+    let mut window: Option<NodeRect> = None;
+    for (node, at, is_viewport, has_parent) in nodes {
+        let r = node_rect(node, at);
+        if is_viewport {
+            viewport = Some(r);
+        } else if !has_parent && window.is_none_or(|largest| r.w * r.h > largest.w * largest.h) {
+            window = Some(r);
+        }
+    }
+    (viewport, window)
 }
 
 /// **One node's rect in logical px** — its laid-out size and where its top-left is drawn.
@@ -1314,7 +1360,7 @@ fn editor_state(
     // the primary window's `ComputedNode` is what `surface::fit_viewport_to_frame` sized it from. An
     // agent reading *"the art is 32% of the window"* needs the two numbers, and without them it has
     // only a picture to guess from.
-    rects: Query<(&ComputedNode, &bevy::ui::UiGlobalTransform, Has<crate::chrome::ViewportSlot>)>,
+    rects: Query<RectNode>,
     // **The preview's clock** (#282): what the crate is actually told the hour is, and what the
     // scrubber asked for. The two are separate on purpose — the changelog line says the scrubber
     // "holds the preview at an hour of day", and the only way to tell whether the preview follows is
@@ -1326,23 +1372,10 @@ fn editor_state(
     let Loaded { project, open, game, reloads, live, diagnostics, profiler, files, session, style_proposals } = loaded;
     // **Is the workbench the screen?** Read once, because two fields ask it: `screen` names the screen and
     // `mode` only means anything while this holds (#601).
-    // **The viewport is the marked node; the window is the widest unmarked one** — the root the shell
-    // is sized from, and no dock is ever wider than it, so a max by width finds it without a marker.
-    // Computed here rather than inside `json!`: that macro's parser reads a `>` in a type annotation as
-    // a comparison and refuses the whole object (#665).
-    let (viewport_rect, window_rect) = {
-        let mut viewport: Option<NodeRect> = None;
-        let mut window: Option<NodeRect> = None;
-        for (node, at, is_viewport) in rects.iter() {
-            let r = node_rect(node, at);
-            if is_viewport {
-                viewport = Some(r);
-            } else if window.is_none() || r.w > window.expect("just checked").w {
-                window = Some(r);
-            }
-        }
-        (viewport, window)
-    };
+    // **The viewport is the marked node; the window is the widest unmarked one** ([`measure_rects`], the
+    // function the status band's `Art` control reads too, #669). Computed here rather than inside `json!`:
+    // that macro's parser reads a `>` in a type annotation as a comparison and refuses the whole object (#665).
+    let (viewport_rect, window_rect) = measure_rects(rects.iter());
     let workbench = screen.as_ref().is_some_and(|s| *s.get() == crate::screen::Screen::Editor);
     // **The agent's presentation, and the person's answer to it** (S1.7). `None` until an agent
     // presents something; then an object whose `answer` is `null` while the question is up. This is

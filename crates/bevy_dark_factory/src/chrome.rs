@@ -4676,6 +4676,9 @@ pub fn spawn_status_band(mut commands: Commands, frame: Res<Frame>, project: Opt
         ));
         band.spawn(bevy_gooey::spacer());
         shortcut_hint(band, &back);
+        // **The art's share of the window, and the press that gives the art the window** (#669): after the hint, so the
+        // hint's key badge, which settles to the hint's left, covers nothing of it.
+        crate::shell_view::spawn_the_art_share(band);
     });
 }
 
