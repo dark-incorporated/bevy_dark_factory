@@ -240,6 +240,11 @@ impl Session {
         self.workspaces.get(workspace.id()).cloned().unwrap_or_default()
     }
 
+    /// A workspace's active document, borrowed: what a per-frame reader asks for, without cloning the tabs.
+    pub fn active_doc(&self, workspace: Workspace) -> Option<&Doc> {
+        self.workspaces.get(workspace.id()).and_then(Tabs::active_doc)
+    }
+
     fn tabs_mut(&mut self, workspace: Workspace) -> &mut Tabs {
         self.workspaces.entry(workspace.id().to_owned()).or_default()
     }
@@ -802,14 +807,18 @@ fn tag_the_words<B: Bundle>(widget: &mut EntityCommands, markers: B) {
 /// continues the surface under a selected tab and lights its bottom edge, and shades it under the pointer
 /// otherwise, so a change of document changes a colour and moves no neighbour. Writing the marker only when
 /// it differs is what keeps a settled strip free of commands.
+///
+/// The selected tab is the session's active document for the workspace, for a map and a file alike (#688).
 fn select_the_tab(
-    open: Option<Res<OpenMap>>,
+    workspace: Option<Res<Workspace>>,
+    session: Res<Session>,
     tabs: Query<(Entity, &DocumentTab, Has<bevy::ui::Selected>)>,
     mut commands: Commands,
 ) {
-    let active = open.as_ref().map(|o| o.map.name.clone());
+    let Some(workspace) = workspace else { return };
+    let active = session.active_doc(*workspace);
     for (entity, tab, selected) in &tabs {
-        let is_active = active.as_deref() == Some(tab.0.name.as_str());
+        let is_active = active == Some(&tab.0);
         if is_active && !selected {
             commands.entity(entity).insert(bevy::ui::Selected);
         } else if !is_active && selected {

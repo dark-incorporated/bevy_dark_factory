@@ -82,3 +82,54 @@ fn a_document_tab_is_gooeys_edge_tab() {
         tabs.len()
     );
 }
+
+/// **The selected tab is the open document, for files as for maps** (#688). `select_the_tab` used to
+/// select the tab named for the open *map*, so in the Files workspace no tab was ever selected and two
+/// open files drew identical tabs.
+#[test]
+fn the_open_files_tab_is_the_selected_one() {
+    let mut app = editor("selected");
+    frames(&mut app, 3);
+    let files = ["design/notes.md", "design/style.md"];
+    {
+        let world = app.world_mut();
+        world.insert_resource(Workspace::Files);
+        let mut session = world.resource_mut::<bevy_dark_factory::session::Session>();
+        for name in files {
+            session
+                .open(Workspace::Files, Doc { kind: Kind::File, name: name.to_owned() })
+                .unwrap_or_else(|e| panic!("opening `{name}`: {e}"));
+        }
+    }
+    frames(&mut app, 6);
+
+    let selected = |app: &mut App| -> Vec<String> {
+        let world = app.world_mut();
+        world
+            .query_filtered::<&DocumentTab, With<bevy::ui::Selected>>()
+            .iter(world)
+            .map(|tab| tab.0.name.clone())
+            .collect()
+    };
+    let active = |app: &App| {
+        app.world()
+            .resource::<bevy_dark_factory::session::Session>()
+            .active_doc(Workspace::Files)
+            .map(|doc| doc.name.clone())
+    };
+
+    let want = active(&app).unwrap_or_else(|| panic!("two files were opened and the Files workspace has no active one"));
+    assert_eq!(
+        selected(&mut app),
+        vec![want.clone()],
+        "**with two files open, exactly one tab is `Selected` and it is the active document `{want}`** (#688)"
+    );
+
+    app.world_mut()
+        .resource_mut::<bevy_dark_factory::session::Session>()
+        .step(Workspace::Files, false);
+    frames(&mut app, 4);
+    let stepped = active(&app).unwrap_or_else(|| panic!("stepping the tabs left no active document"));
+    assert_ne!(stepped, want, "stepping two tabs changes the active document");
+    assert_eq!(selected(&mut app), vec![stepped.clone()], "**`Selected` follows the active document to `{stepped}`** (#688)");
+}
