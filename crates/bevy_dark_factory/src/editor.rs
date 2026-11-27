@@ -8320,7 +8320,17 @@ fn stack_row(next: Option<String>, depth: usize) -> (String, Color) {
 /// **A screenful, where seven hand-spawned rows were.** The seven-row window had no scroll and no way to reach a
 /// line more than three steps either side of where the editor stood, so a session of 5,000 entries was a list a
 /// person could not read (UI-53's "5,000 log lines scroll within the UI frame budget").
+///
+/// **It only costs the height while it is open** (#691): the block is a gooey section, closed to start, so a
+/// person who is not reading the history sees its header and MAP SIZE's Z, FAMILY SETTINGS and everything
+/// below them take the room the list used to hold empty. Opened, the rows are still fixed in number, so the
+/// no-move rule E-018 states is kept exactly as it was.
 const HISTORY_LIST_ROWS: f32 = 6.5;
+
+/// **The history is closed when the inspector is built** (#691, owner's *"collapsible"*): the empty band the
+/// capture measured was this list holding a screenful for rows it did not have, above every row a person was
+/// looking for. A person reading the history opens it; the default is the panel that fits.
+const HISTORY_OPEN_AT_START: bool = false;
 
 /// **One line of the history, as gooey's virtualized `tree` draws it** (E-018, UI-53).
 ///
@@ -8345,16 +8355,37 @@ struct HistoryBuilt {
 /// anything undone. `refresh_history` sets the nodes and the selection; `keep_now_in_view` scrolls the list so
 /// the line the person stands on is the one they see.
 fn history_block(s: &mut ChildSpawnerCommands) {
+    // **gooey's own collapsible section** (#691), not a hand-built fold: its header is the same
+    // `Button` + chevron every section in the framework draws, Enter/Space/South and a click toggle
+    // it, and a closed section is laid out and focused not at all — the rows below it move up by
+    // exactly the height the open ones held.
+    //
+    // **The tree is the section's body, so it is spawned into the section's own `SectionBody`** —
+    // `section` lays a `Node` and a `Role` on its body already, and nesting another `Node`+`Role`
+    // pair through `with_children` is a duplicate-component panic. `children![..]` is gooey's own way
+    // to hand a bundle in, and the body's `Node`/`Role` are the section's.
     s.spawn((
-        bevy_gooey::tree(Vec::<bevy_gooey::TreeNode>::new()),
-        HistoryTree,
-        HistoryBuilt::default(),
-        bevy_gooey::TableRows(HISTORY_LIST_ROWS),
-        // **The selection stays on the line the editor stands on**, whoever moved it: a click jumps
-        // (`history_row_clicked`), and everything else gooey sends from the table is a look.
-        bevy_gooey::observe(history_selection_moved),
+        bevy_gooey::section(
+            HISTORY_SECTION,
+            HISTORY_OPEN_AT_START,
+            children![(
+                bevy_gooey::tree(Vec::<bevy_gooey::TreeNode>::new()),
+                HistoryTree,
+                HistoryBuilt::default(),
+                bevy_gooey::TableRows(HISTORY_LIST_ROWS),
+                // **The selection stays on the line the editor stands on**, whoever moved it: a click
+                // jumps (`history_row_clicked`), and everything else gooey sends from the table is a look.
+                bevy_gooey::observe(history_selection_moved),
+            )],
+        ),
+        // **The section is named, so a respawn keeps its state** (`SectionStates`): the inspector is
+        // rebuilt on a door change and a person's open history is theirs to keep.
+        bevy_gooey::SectionId::new(HISTORY_SECTION),
     ));
 }
+
+/// **The history section's id and its header's words.**
+const HISTORY_SECTION: &str = "history";
 
 /// The history's first line: the map before any change. Fits beside `now: ` in a list row at 200% text.
 const HISTORY_START_LINE: &str = "the original map";
