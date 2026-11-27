@@ -7159,7 +7159,19 @@ fn refresh_reload_list(
     let verdict = game.as_deref().and_then(|g| g.verdict.as_ref());
     let editor = reloads.as_deref().map_or(&[][..], |r| r.kinds());
     let files = reload_files::files(&project.project_dir, &project.root, verdict, editor);
-    let now = reload_files::panel_lines(&files, verdict, live.is_some(), reload_files::now_ms());
+    let mut now = reload_files::panel_lines(&files, verdict, live.is_some(), reload_files::now_ms());
+    // **A game's verdict on disk that this editor will not read is news** (#662 beside #203): the header
+    // `no game connected: the editor reads a game's verdicts only with --live` is the one line that tells
+    // a person a game *is* answering and how to hear it. Dim, it is the same nothing as an unconnected
+    // project's header, and #662 folds the strip to its tab bar — so the sentence that says how to connect
+    // was never on screen (`an_editor_that_does_not_read_verdicts_says_how_to_connect_one`, every run).
+    // With no verdict on disk the header stays dim and the strip folds as #662 asks.
+    if live.is_none()
+        && blueprint_model::live::Verdict::path(&project.project_dir).exists()
+        && let Some((_, tone)) = now.first_mut()
+    {
+        *tone = Tone::Accent;
+    }
     // **The dock's answer, before the early return**: the lines can be unchanged for a minute while
     // the strip is folded or unfolded by something else (a resize, Zen), and the dock must read the
     // answer every frame it looks, not only the frame the text moved.
