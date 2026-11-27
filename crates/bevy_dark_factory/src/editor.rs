@@ -8322,31 +8322,16 @@ fn draw_bounds(
 /// respawn a hundred and eighty rows, which is the same reason `SizeEdit` and `RemovalDrag` were
 /// split out of `EditorState` in the first place.
 ///
-/// **All three carriers together.** `chrome::row_shape` sets the fill, the `RowSelected` flag and
-/// the rail's colour as one decision, and a fill that disagreed with the rail is exactly what
-/// `RowSelected` exists to make impossible. Compares before writing: all three are change-detected,
-/// and this runs every frame over every row in the list.
-fn arm_palette_rows(
-    state: Res<EditorState>,
-    mut rows: Query<(
-        &PaletteRow,
-        &mut crate::chrome::RowRest,
-        &mut crate::chrome::RowSelected,
-        &mut BorderColor,
-    )>,
-) {
-    for (row, mut rest, mut selected, mut border) in &mut rows {
+/// **Bevy's `Selected`, which gooey's `Role::ListRow` draws** as the raised fill and the lit rail, so
+/// fill and rail cannot disagree (#552). Writes only when a row's selection moves: this runs every
+/// frame over every row in the list.
+fn arm_palette_rows(state: Res<EditorState>, rows: Query<(Entity, &PaletteRow, Has<bevy::ui::Selected>)>, mut commands: Commands) {
+    for (entity, row, selected) in &rows {
         let armed = state.brush == Some(row.0);
-        if selected.0 != armed {
-            selected.0 = armed;
-        }
-        let fill = if armed { crate::chrome::ink().row_selected } else { crate::chrome::ink().row_bg };
-        if rest.0 != fill {
-            rest.0 = fill;
-        }
-        let edge = if armed { crate::chrome::ink().accent } else { Color::NONE };
-        if border.left != edge {
-            *border = BorderColor::all(edge);
+        if armed && !selected {
+            commands.entity(entity).try_insert(bevy::ui::Selected);
+        } else if !armed && selected {
+            commands.entity(entity).try_remove::<bevy::ui::Selected>();
         }
     }
 }
@@ -9903,10 +9888,10 @@ fn cost_ink(triangles: usize, armed: bool) -> Color {
 pub struct PaletteCost(usize);
 
 /// **A palette row's cost follows whether the row is armed** ([`cost_ink`]). Compares before writing: this runs every frame over every row's cost.
-fn ink_the_cost_on_the_armed_row(mut costs: Query<(&PaletteCost, &ChildOf, &mut TextColor)>, rows: Query<&crate::chrome::RowSelected, With<PaletteRow>>) {
+fn ink_the_cost_on_the_armed_row(mut costs: Query<(&PaletteCost, &ChildOf, &mut TextColor)>, rows: Query<Has<bevy::ui::Selected>, With<PaletteRow>>) {
     for (cost, parent, mut ink) in &mut costs {
         let Ok(armed) = rows.get(parent.parent()) else { continue };
-        let want = cost_ink(cost.0, armed.0);
+        let want = cost_ink(cost.0, armed);
         if ink.0 != want {
             ink.0 = want;
         }

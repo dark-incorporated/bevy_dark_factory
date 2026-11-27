@@ -3220,16 +3220,18 @@ pub fn chip<'a>(
     chip
 }
 
-/// The fill a list row returns to when the pointer leaves it. Carried on every [`list_row`] so ONE
-/// system can give the whole editor's lists their hover state — the rebuilt lists are painted
-/// inside change-gated `rebuild_*` systems that never see mouse motion, which is why hover was
-/// deferred until the shared builder existed (the 2026-08-17 hover-scope decision).
+/// The fill a chip returns to when the pointer leaves it. Carried on every [`chip`] (and the bands
+/// built to act as one) so ONE system, [`style_list_rows`], gives them hover, press and held — the
+/// rebuilt panels are painted inside change-gated `rebuild_*` systems that never see mouse motion.
+/// A list row does not carry it: it is gooey's `Role::ListRow`, which the skin paints (#552).
 #[derive(Component, Clone, Copy)]
 pub struct RowRest(pub Color);
 
-/// **A selectable list row** — full width, `chrome-chip`'s inset, `Ink::row_selected` when it is the one
-/// being acted on, `Ink::row_hover` under the pointer. Returns the row for the caller to fill; what a
-/// row holds is the tab's business, that it looks like every other row is not.
+/// **A selectable list row** — gooey's `Role::ListRow` on the `Activate` bus: full width, the skin's
+/// surface at rest, its hover under the pointer, and Bevy's [`Selected`](bevy::ui::Selected) when it is
+/// the one being acted on, which the skin draws as the raised surface with the rail lit in its accent.
+/// Returns the row for the caller to fill; what a row holds is the tab's business, that it looks like
+/// every other row is not.
 pub fn list_row<'a>(
     parent: &'a mut ChildSpawnerCommands,
     selected: bool,
@@ -3237,7 +3239,11 @@ pub fn list_row<'a>(
 ) -> EntityCommands<'a> {
     // `Button` is what puts a row on the editor's `Activate` bus — see [`quiet_row`] for who is
     // deliberately not on it.
-    parent.spawn((bevy::ui_widgets::Button, row_shape(selected, "chrome-row"), marker))
+    let mut row = parent.spawn((bevy::ui_widgets::Button, row_shape("chrome-row"), marker));
+    if selected {
+        row.insert(bevy::ui::Selected);
+    }
+    row
 }
 
 /// **How tall a cut row is, as a multiple of its own text size** — the console's own 1.4.
@@ -3272,77 +3278,47 @@ pub fn clipped_one_line() -> impl Bundle {
 /// for the next caller, so the count is not the point and is not kept here: `grep -rn 'On<Activate>'`
 /// is the measurement, and it moves with every panel added.
 ///
-/// So a row that brings its own click handling says so, and stays off the bus. It keeps everything
-/// that makes a row *look* like a row — [`RowRest`], `Hovered`, the fill, the padding — and
-/// `style_list_rows` repaints it exactly the same, because that system keys on `RowRest` and has
-/// never needed `Button`.
+/// So a row that brings its own click handling says so, and stays off the bus: gooey's
+/// `quiet_list_row`, the same look with no `Button`, so no `Activate` and no pressed state.
 pub fn quiet_row<'a>(
     parent: &'a mut ChildSpawnerCommands,
     selected: bool,
     marker: impl Bundle,
 ) -> EntityCommands<'a> {
-    parent.spawn((quiet_row_shape(selected), marker))
+    let mut row = parent.spawn((quiet_row_shape(), marker));
+    if selected {
+        row.insert(bevy::ui::Selected);
+    }
+    row
 }
 
 /// **What [`quiet_row`] spawns**, for a row built where there are no `Commands` (an overlay spawned on the `World`).
-pub fn quiet_row_shape(selected: bool) -> impl Bundle {
-    row_shape(selected, "chrome-row chrome-row-quiet")
+pub fn quiet_row_shape() -> impl Bundle {
+    row_shape("chrome-row chrome-row-quiet")
 }
-
-/// **Whether a row is the chosen one.** Carried rather than baked into the fill alone, because since
-/// 2026-09-03 selection is a fill *and* a rail and the two must not be able to disagree.
-#[derive(Component, Clone, Copy)]
-pub struct RowSelected(pub bool);
 
 /// What a list row looks like, shared by [`list_row`] and [`quiet_row`] so the two cannot drift into
 /// two row shapes — which is the drift this whole module exists to stop.
 ///
-/// **The rail is a left border, not a child node**, and the width is reserved whether or not the row
-/// is selected — so selecting a row cannot move its text sideways by two pixels, which is what an
-/// added child or a conditional border would do to a list the author is reading down.
+/// **It is gooey's `quiet_list_row`** (#552): `Role::ListRow`, whose arms paint the fill (the skin's
+/// surface, its hover, the raised surface when Bevy's `Selected` is on the row, the accent while a
+/// `Button` row is pressed) and light the left rail in `skin.accent` while it is selected. Selecting a
+/// row is inserting `Selected`; nothing in the editor paints a row.
 ///
-/// # It is not gooey's `ListRow`, and exactly where the two differ (#552)
-///
-/// gooey ships this row: `bevy_gooey::list_row` and `quiet_list_row` carry `Role::ListRow`, whose arms
-/// reserve a left rail, light it in `skin.accent` and lift the fill when Bevy's `Selected` is on the row.
-/// Read against `skin.rs`'s `Role::ListRow` arms at v0.62.0, that row differs from this one in five places:
-///
-/// 1. **The frame.** gooey's has a line all round (`border: line`) and a rail of 1.5 lines; this one has
-///    the rail alone, `layout.select_rail_w` (2 px), and no top, right or bottom edge.
-/// 2. **The box.** gooey's is floored at a control's height (`min_height: control`), never shrinks and is
-///    inset `skin.pad()` across; this one has no floor, is the sheet's `.chrome-row` 6 × 3 px inset and is
-///    not made rigid.
-/// 3. **The fills.** gooey's rests on `skin.surface`, is `skin.surface_raised` when selected and
-///    `skin.accent` while pressed; this one rests on its caller's [`RowRest`], is `Ink::row_selected` when
-///    selected and the skin's `pressed` while pressed ([`style_list_rows`]).
-/// 4. **What selection is.** gooey's is Bevy's `Selected`; this one is [`RowSelected`] and a `RowRest` of
-///    `Ink::row_selected`, which `editor::ink_the_cost_on_the_armed_row` reads to tint a row's cost and
-///    two contrast ratchets measure (`every_selected_row_reads_at_aa_contrast_in_every_skin`,
-///    `the_files_trees_selected_row_reads_at_aa_in_every_skin`).
-/// 5. **The bus and the press.** `list_row` is a tab stop (`TabIndex(0)`), which this editor keeps off
-///    (see [`chip`]); `quiet_list_row` has no `Button`, so it is off the `Activate` bus [`list_row`]'s
-///    callers listen on, and it has no pressed state, where [`style_list_rows`] presses a quiet row from
-///    `Hovered` and the held button.
-///
-/// 1, 2 and 5 can be bridged the way [`chip`] bridges them, by overriding the arm. 3 and 4 cannot: they
-/// are the change #552 asks for — the skin's fills and Bevy's `Selected` in place of the editor's — and
-/// making it repaints every list in the editor and re-points the tests that read `RowRest` and
-/// `RowSelected` (`grep -rln 'RowSelected\|RowRest' tests/`), the two contrast ratchets among them. That
-/// is a decision for the owner, with a capture of the Pieces panel and the Files tree before and after.
-fn row_shape(selected: bool, classes: &str) -> impl Bundle {
-    let rest = if selected { ink().row_selected } else { ink().row_bg };
+/// What stays the editor's is the box, set over the arm the way [`chip`] sets its own: the rail alone,
+/// `layout.select_rail_w` wide and reserved whether or not the row is selected (so selecting moves no
+/// word), with no line round the rest; no height floor; and the sheet's `.chrome-row` inset.
+fn row_shape(classes: &str) -> impl Bundle {
     (
-        Hovered::default(),
-        RowRest(rest),
-        RowSelected(selected),
-        held_box(
-            classes,
-            bevy_gooey::Sides { left: Some(crate::style::metrics().layout.select_rail_w), ..default() },
-            None,
-            bevy_gooey::Sizing { width: Some(bevy_gooey::Extent::Percent(100.0)), ..default() },
-        ),
-        BorderColor::all(if selected { ink().accent } else { Color::NONE }),
-        BackgroundColor(rest),
+        bevy_gooey::quiet_list_row(),
+        bevy_gooey::StyleClass::of(classes),
+        bevy_gooey::BorderPx(bevy_gooey::Sides {
+            left: Some(crate::style::metrics().layout.select_rail_w),
+            top: Some(0.0),
+            right: Some(0.0),
+            bottom: Some(0.0),
+        }),
+        bevy_gooey::Sizing { min_height: Some(bevy_gooey::Extent::Auto), ..default() },
     )
 }
 
@@ -3354,19 +3330,18 @@ type RowState = (
     Has<bevy::ui::InteractionDisabled>,
 );
 
-/// **The five states, once, for every row / chip / button in the editor.**
+/// **The five states, once, for every chip and chip-shaped band in the editor.** A list row is not
+/// one of them: gooey's `Role::ListRow` arms paint it (see `row_shape`, #552).
 ///
-/// Disabled beats pressed beats selected beats hover beats rest. Before 2026-09-03 the middle two
+/// Disabled beats pressed beats lit beats hover beats rest. Before 2026-09-03 the middle two
 /// did not exist: rest, hover and selected were the whole machine, so a control that ran a slow verb
 /// looked identical while it ran and a control that could not be used looked exactly like one that
 /// could.
 ///
 /// **Why the mouse button is read here rather than trusting `Pressed`.** `bevy_ui::Pressed` is
 /// maintained by `bevy_ui_widgets::ButtonPlugin`'s observers, which match `With<Button>`
-/// (`bevy_ui_widgets-0.20.0/src/button.rs:41`) — and [`quiet_row`] deliberately has no `Button`,
-/// because a global `Activate` observer taking a door's resource panics on the menu. So a quiet row
-/// would have been the one shape in the editor that never acknowledged a click. Hover plus a held
-/// primary button is the same fact one layer down, and it is what the author actually did.
+/// (`bevy_ui_widgets-0.20.0/src/button.rs:41`), and a band that carries `RowRest` may have no
+/// `Button`. Hover plus a held primary button is the same fact one layer down.
 /// **The colours a list row takes from the skin**, in one place, so a test can ask what the editor
 /// would paint without a pointer it cannot place (UI-02, #210).
 ///
@@ -3403,20 +3378,15 @@ pub fn row_fills(world: &World) -> RowFills {
 
 fn style_list_rows(
     mouse: Res<ButtonInput<MouseButton>>,
-    // **The rows' states come from the skin** (UI-02, #210). This is the one chokepoint every list
-    // row's fill passes through — `style_list_rows` keys on `RowRest`, so a row spawned by any tab is
-    // painted here — which makes it the first place the editor's own chrome can read `GooeySkin`
-    // rather than the constants beside it. The constants stay for the callers that have not moved
-    // yet (131 sites outside this module); what changes is that a *theme edit* now reaches every row
-    // in the editor, which is the thing #210 exists for.
+    // **The chips' states come from the skin** (UI-02, #210). This is the one chokepoint every chip's
+    // fill passes through — `style_list_rows` keys on `RowRest`, so a chip spawned by any tab is
+    // painted here — so a *theme edit* reaches every chip in the editor, which is the thing #210 exists for.
     skin: Option<Res<bevy_gooey::GooeySkin>>,
     mut rows: Query<(RowState, &mut BackgroundColor)>,
 ) {
     let fills = RowFills::of(skin.as_deref());
     let (panel, pressed_col, hover_col) = (fills.rest_panel, fills.pressed, fills.hover);
-    // **A selected row is the editor's `Ink::row_selected`, not the skin's.** gooey does light a selected
-    // `Role::ListRow` (Bevy's `Selected`: `skin.surface_raised`, the rail in `skin.accent`); `row_shape`
-    // says where these rows differ from that one, and why moving them is #552's decision.
+    // **A lit chip is the editor's `Ink::row_selected`**: its caller rests it on that ink to say it is on.
     let selected_col = ink().row_selected;
     let held = mouse.pressed(MouseButton::Left);
     for ((rest, hovered, pressed, disabled), mut bg) in &mut rows {

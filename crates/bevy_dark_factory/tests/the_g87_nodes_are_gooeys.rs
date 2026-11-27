@@ -207,7 +207,13 @@ fn the_launchers_cards_and_grounds_keep_their_boxes() {
 fn the_chips_buttons_and_rows_keep_their_drawn_heights() {
     let mut app = editor("sizes");
     let world = app.world_mut();
-    let mut drawn: Vec<f32> = world.query_filtered::<&ComputedNode, With<RowRest>>().iter(world).map(|c| c.size().y * c.inverse_scale_factor()).collect();
+    // A list row is gooey's `Role::ListRow` and carries no `RowRest` since #552; it is still one of the boxes measured here.
+    let mut drawn: Vec<f32> = world
+        .query::<(&ComputedNode, Has<RowRest>, Option<&bevy_gooey::Role>)>()
+        .iter(world)
+        .filter(|(_, chip, role)| *chip || matches!(role, Some(bevy_gooey::Role::ListRow)))
+        .map(|(c, ..)| c.size().y * c.inverse_scale_factor())
+        .collect();
     drawn.sort_by(f32::total_cmp);
     // The terminal's own chips (two of the 20 px ones at 4a12b153) are laid out to nothing now: the pane is collapsed by default (#421), merged from fleet/seams. The rest are as they were.
     // **Four more chips than `4a12b153` measured** (#494's own chip work, #526): the Map door carries

@@ -3,9 +3,9 @@
 //! frames have run**, as drawn (its `TextColor`, composited over the translucent fills and the first opaque `BackgroundColor` at or above it), never from the
 //! skin's constants, and the pair must clear [`bevy_gooey::TEXT_CONTRAST`] (4.5:1) in each theme the editor offers (Tool dark, Parchment, High contrast).
 //!
-//! **What counts as selected**, found in the world and not listed by hand: a gooey table or tree row carrying `bevy::ui::Selected` (`Role::TableRow`), a button
-//! carrying it (a dock tab, a navigation tab, a card), and an editor list row whose `chrome::RowSelected` is set (the palette's, the lists of the Kit, Animation
-//! and Sound doors). Every word under such a node is measured.
+//! **What counts as selected**, found in the world and not listed by hand: every node carrying `bevy::ui::Selected` — a gooey table or tree row
+//! (`Role::TableRow`), a button carrying it (a dock tab, a navigation tab, a card), and an editor list row (`Role::ListRow`: the palette's, the lists of the
+//! Kit, Animation and Sound doors). Every word under such a node is measured.
 //!
 //! **The surfaces below are the trees and lists this covers** (each opens one with a row selected, and must find the words it names, so a surface that stops
 //! drawing a selection fails here instead of passing for want of anything to measure):
@@ -31,7 +31,6 @@ use bevy::input::keyboard::{Key, KeyboardInput, NativeKey};
 use bevy::prelude::*;
 use bevy::time::TimeUpdateStrategy;
 use bevy::ui::Selected;
-use bevy_dark_factory::chrome::RowSelected;
 use bevy_dark_factory::harness;
 use bevy_dark_factory::keys::{Action, binding};
 use bevy_dark_factory::settings::{Theme, UserSettingsFile};
@@ -146,17 +145,13 @@ impl Read {
     }
 }
 
-/// **Every word under every selected node of the world**: a row carrying `Selected` (a gooey table or tree row, a tab, a card) and a list row whose
-/// `RowSelected` is set.
+/// **Every word under every selected node of the world**: a node carrying `Selected` (a gooey table or tree row, a tab, a card, an editor list row).
 fn words_of_selected(app: &mut App) -> Vec<Read> {
     let world = app.world_mut();
-    let mut selected: Vec<Entity> = world.query_filtered::<Entity, With<Selected>>().iter(world).collect();
-    selected.extend(world.query::<(Entity, &RowSelected)>().iter(world).filter(|(_, mark)| mark.0).map(|(entity, _)| entity));
-    selected.sort();
-    selected.dedup();
+    let selected: Vec<Entity> = world.query_filtered::<Entity, With<Selected>>().iter(world).collect();
     let mut words = Vec::new();
     for node in selected {
-        let described = format!("{:?} (Selected: {}, RowSelected: {:?})", world.get::<bevy_gooey::Role>(node), world.get::<Selected>(node).is_some(), world.get::<RowSelected>(node).map(|r| r.0));
+        let described = format!("{:?} (Selected: {})", world.get::<bevy_gooey::Role>(node), world.get::<Selected>(node).is_some());
         let mut walk = vec![node];
         while let Some(entity) = walk.pop() {
             if let Some(children) = world.get::<Children>(entity) {

@@ -9247,19 +9247,18 @@ fn rebuild_candidates(
 ///
 /// **Exactly one row is ever highlighted**, which is the audit's M4 held at the layer that
 /// draws: `Selected::now` ranks the headings above the mesh cursor, so switching onto a heading
-/// cannot leave the row you came from wearing a rail. Compares before writing: all three carriers
-/// are change-detected and this runs every frame over every row in the list.
+/// cannot leave the row you came from wearing a rail. Writes only when a row's `Selected` moves:
+/// this runs every frame over every row in the list.
 #[allow(clippy::type_complexity)]
 fn arm_list_rows(
     state: Res<ImportState>,
     build: Res<crate::build::Build>,
-    // **This panel's rows only.** `RowRest` + `RowSelected` is every list row in the editor; a
+    // **This panel's rows only.** Bevy's `Selected` marks every selected list row in the editor; a
     // query without the marker filter would un-arm the map palette and the chooser every frame.
-    mut rows: Query<
+    rows: Query<
         (
-            &mut crate::chrome::RowRest,
-            &mut crate::chrome::RowSelected,
-            &mut BorderColor,
+            Entity,
+            Has<bevy::ui::Selected>,
             Option<&CandidateRow>,
             Option<&LibraryRow>,
             Option<&KitRow>,
@@ -9274,15 +9273,12 @@ fn arm_list_rows(
     >,
     bands: Query<
         (Entity, Option<&PackHeader>, Has<ExcludedHeader>, Has<bevy_gooey::PrimaryButton>),
-        (
-            Without<crate::chrome::RowSelected>,
-            Or<(With<PackHeader>, With<ExcludedHeader>)>,
-        ),
+        Or<(With<PackHeader>, With<ExcludedHeader>)>,
     >,
     mut commands: Commands,
 ) {
     let now = Selected::now(&state, &build);
-    for (mut rest, mut selected, mut border, candidate, library, kit, new_tile) in &mut rows {
+    for (row, selected, candidate, library, kit, new_tile) in &rows {
         let armed = match &now {
             Selected::Candidate(ix) => candidate.is_some_and(|r| r.0 == *ix),
             Selected::Library(id) => library.is_some_and(|r| r.0 == *id),
@@ -9292,16 +9288,10 @@ fn arm_list_rows(
             }
             Selected::Header(_) | Selected::Excluded => false,
         };
-        if selected.0 != armed {
-            selected.0 = armed;
-        }
-        let fill = if armed { crate::chrome::ink().row_selected } else { crate::chrome::ink().row_bg };
-        if rest.0 != fill {
-            rest.0 = fill;
-        }
-        let edge = if armed { crate::chrome::ink().accent } else { Color::NONE };
-        if border.left != edge {
-            *border = BorderColor::all(edge);
+        if armed && !selected {
+            commands.entity(row).try_insert(bevy::ui::Selected);
+        } else if !armed && selected {
+            commands.entity(row).try_remove::<bevy::ui::Selected>();
         }
     }
     // Bands are gooey's: the skin paints their states, and the one the cursor stands on is lit as gooey lights a primary button,

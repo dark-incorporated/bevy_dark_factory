@@ -26,8 +26,8 @@
 //!    both read off the world after the frames have run — never from this file's idea of what the skin should be — and the pair must clear
 //!    [`bevy_gooey::TEXT_CONTRAST`] in all three skins. This is the assertion the issue asked for; it is a *new* test rather than the
 //!    old one extended, so a future edit that moves either colour fails here by name.
-//! 2. **Every `chrome::RowSelected` row in the editor**, which is the family the old scan does not cover: `words_of_selected` reads
-//!    `RowSelected` only for the nodes it is handed and only in the surfaces it names. A row that is *selected and quiet* must not keep a
+//! 2. **Every selected `chrome` list row in the editor** (`Role::ListRow` with `bevy::ui::Selected`), which is the family the old scan does not
+//!    cover: `words_of_selected` reads selection only for the nodes it is handed and only in the surfaces it names. A row that is *selected and quiet* must not keep a
 //!    quiet ink: `Ink::label` on `Ink::row_selected` is 3.93:1 in Tool dark and 2.34:1 in High contrast, and that is the defect this file
 //!    would have caught had a row drawn it.
 //!
@@ -35,7 +35,7 @@
 
 use bevy::prelude::*;
 use bevy::time::TimeUpdateStrategy;
-use bevy_dark_factory::chrome::{RowSelected, RowRest};
+use bevy::ui::Selected;
 use bevy_dark_factory::harness;
 use bevy_dark_factory::keys::{binding, Action};
 use bevy_dark_factory::settings::{Theme, UserSettingsFile};
@@ -218,12 +218,12 @@ fn the_files_trees_selected_row_reads_at_aa_in_every_skin() {
     assert!(failures.is_empty(), "{} selected word(s) in the Files tree are not readable:\n{}", failures.len(), failures.join("\n"));
 }
 
-/// **A selected row never keeps a quiet ink**, which is what `chrome::row_shape`'s own selected fill would do to one: every word under a
-/// `RowSelected` row of the running editor clears AA against what it is drawn on, in every skin.
+/// **A selected row never keeps a quiet ink**, which is what a selected list row's raised fill would do to one: every word under a
+/// selected `Role::ListRow` of the running editor clears AA against what it is drawn on, in every skin.
 #[test]
 fn every_quiet_row_that_is_selected_reads_at_aa_in_every_skin() {
     let mut failures = Vec::new();
-    // The surfaces that draw an editor list row with `RowSelected`: the Files workspace's console, the Map's palette and library.
+    // The surfaces that draw an editor list row selected: the Files workspace's console, the Map's palette and library.
     for theme in THEMES {
         for action in [Action::WorkspaceFiles, Action::WorkspaceMap] {
             let mut app = editor(theme);
@@ -248,11 +248,13 @@ fn every_quiet_row_that_is_selected_reads_at_aa_in_every_skin() {
             }
             settle_support::settle(&mut app);
             let world = app.world_mut();
-            let rows: Vec<Entity> = world.query_filtered::<Entity, (With<RowSelected>, With<RowRest>)>().iter(world).collect();
+            let rows: Vec<Entity> = world
+                .query_filtered::<(Entity, &bevy_gooey::Role), With<Selected>>()
+                .iter(world)
+                .filter(|(_, role)| matches!(role, bevy_gooey::Role::ListRow))
+                .map(|(entity, _)| entity)
+                .collect();
             for row in rows {
-                if !world.get::<RowSelected>(row).is_some_and(|r| r.0) {
-                    continue;
-                }
                 let mut stack = vec![row];
                 while let Some(entity) = stack.pop() {
                     if let Some(children) = world.get::<Children>(entity) {
