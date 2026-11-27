@@ -55,9 +55,10 @@ fn write(root: &std::path::Path, rel: &str, text: &str) {
     std::fs::write(&full, text).unwrap_or_else(|e| panic!("{e}"));
 }
 
-/// The editor in `theme`, on a project with a library, a map, design pages and files, laid out at the window's size.
-fn editor(theme: Theme) -> App {
-    let tag = format!("every_selected_{theme:?}_{}", std::process::id());
+/// The editor in `theme`, on a project with a library, a map, design pages and files, laid out at the window's size. The
+/// folder is named for the surface too, so pairs that share a theme and a process (`cargo test`'s threads) never share one.
+fn editor(theme: Theme, surface: &str) -> App {
+    let tag = format!("every_selected_{theme:?}_{}_{}", surface.replace(' ', "_"), std::process::id());
     let root = fixtures::Fixture::new(&tag).descriptor("site/wall", "alpha").place("site/wall", (1.5, 1.5)).build("m");
     write(&root, "design/style.md", "# The game\n\nGrey concrete, sodium light.\n");
     write(&root, "design/dialogue.md", "# Dialogue\n\nShort lines.\n");
@@ -267,29 +268,83 @@ fn select_in_the_outliner(app: &mut App) {
     settle_support::settle(app);
 }
 
-/// **In every skin, every word under a selected row, tab or chip of every surface clears 4.5:1 against what it is drawn on.**
-#[test]
-fn every_selected_row_reads_at_aa_contrast_in_every_skin() {
+/// **In `theme`, every word under a selected row, tab or chip of the surface named `surface` clears 4.5:1 against what
+/// it is drawn on.** One fresh editor per pair, so each pair is its own test and nextest runs them side by side (#672):
+/// a theme's contrast says nothing about another's, and one surface's says nothing about the next.
+fn one_surface_is_readable_in(theme: Theme, surface: &str) {
+    let (surface, opener, must_find) = SURFACES
+        .iter()
+        .find(|(name, _, _)| *name == surface)
+        .unwrap_or_else(|| panic!("`{surface}` is not a row of SURFACES"));
+    let mut app = editor(theme, surface);
+    VISITED.with(|v| v.borrow_mut().clear());
+    opener(&mut app);
+    let mut words = words_of_selected(&mut app);
+    words.extend(VISITED.with(|v| std::mem::take(&mut *v.borrow_mut())));
+    for needle in *must_find {
+        assert!(words.iter().any(|w| w.text == *needle), "{theme:?} / {surface}: no selected word `{needle}` was drawn, so nothing was measured there; found {:?}", words.iter().map(|w| w.text.as_str()).collect::<Vec<_>>());
+    }
     let mut refused = Vec::new();
-    for theme in THEMES {
-        for (surface, opener, must_find) in SURFACES {
-            let mut app = editor(theme);
-            VISITED.with(|v| v.borrow_mut().clear());
-            opener(&mut app);
-            let mut words = words_of_selected(&mut app);
-            words.extend(VISITED.with(|v| std::mem::take(&mut *v.borrow_mut())));
-            for needle in *must_find {
-                assert!(words.iter().any(|w| w.text == *needle), "{theme:?} / {surface}: no selected word `{needle}` was drawn, so nothing was measured there; found {:?}", words.iter().map(|w| w.text.as_str()).collect::<Vec<_>>());
-            }
-            for word in &words {
-                let ratio = word.ratio();
-                if ratio < AA {
-                    refused.push(format!("{theme:?} / {surface}: `{}` is {ratio:.2}:1 (ink {:?} on {:?}), under {AA}:1, on {}", word.text, Srgba::from(word.ink), Srgba::from(word.ground), word.node));
-                }
-            }
+    for word in &words {
+        let ratio = word.ratio();
+        if ratio < AA {
+            refused.push(format!("{theme:?} / {surface}: `{}` is {ratio:.2}:1 (ink {:?} on {:?}), under {AA}:1, on {}", word.text, Srgba::from(word.ink), Srgba::from(word.ground), word.node));
         }
     }
     refused.sort();
     refused.dedup();
     assert!(refused.is_empty(), "{} selected word(s) are not readable:\n{}", refused.len(), refused.join("\n"));
+}
+
+/// **One `#[test]` per (theme, surface) pair**, and [`PAIRS`] listing them in the order written, so
+/// [`every_theme_and_surface_is_its_own_test`] can say that none of the 27 was dropped.
+macro_rules! one_test_per_pair {
+    ($($test:ident: $theme:ident, $surface:literal;)*) => {
+        const PAIRS: &[(Theme, &str)] = &[$((Theme::$theme, $surface)),*];
+        $(
+            #[test]
+            fn $test() {
+                one_surface_is_readable_in(Theme::$theme, $surface);
+            }
+        )*
+    };
+}
+
+one_test_per_pair! {
+    tool_dark_dock_tabs: ToolDark, "dock tabs";
+    tool_dark_files_tree: ToolDark, "Files tree";
+    tool_dark_design_tree: ToolDark, "Design tree";
+    tool_dark_history_list: ToolDark, "history list";
+    tool_dark_library_palette: ToolDark, "library palette";
+    tool_dark_outliner: ToolDark, "outliner";
+    tool_dark_home: ToolDark, "home";
+    tool_dark_settings_tabs: ToolDark, "settings tabs";
+    tool_dark_command_palette: ToolDark, "command palette";
+    parchment_dock_tabs: Parchment, "dock tabs";
+    parchment_files_tree: Parchment, "Files tree";
+    parchment_design_tree: Parchment, "Design tree";
+    parchment_history_list: Parchment, "history list";
+    parchment_library_palette: Parchment, "library palette";
+    parchment_outliner: Parchment, "outliner";
+    parchment_home: Parchment, "home";
+    parchment_settings_tabs: Parchment, "settings tabs";
+    parchment_command_palette: Parchment, "command palette";
+    high_contrast_dock_tabs: HighContrast, "dock tabs";
+    high_contrast_files_tree: HighContrast, "Files tree";
+    high_contrast_design_tree: HighContrast, "Design tree";
+    high_contrast_history_list: HighContrast, "history list";
+    high_contrast_library_palette: HighContrast, "library palette";
+    high_contrast_outliner: HighContrast, "outliner";
+    high_contrast_home: HighContrast, "home";
+    high_contrast_settings_tabs: HighContrast, "settings tabs";
+    high_contrast_command_palette: HighContrast, "command palette";
+}
+
+/// **Every theme the editor offers × every row of [`SURFACES`] has its own test**, in that order, none twice: a surface
+/// added to the table without a test, or a pair dropped from the list above, fails here rather than going unmeasured.
+#[test]
+fn every_theme_and_surface_is_its_own_test() {
+    let want: Vec<String> = THEMES.iter().flat_map(|theme| SURFACES.iter().map(move |(surface, _, _)| format!("{theme:?} / {surface}"))).collect();
+    let have: Vec<String> = PAIRS.iter().map(|(theme, surface)| format!("{theme:?} / {surface}")).collect();
+    assert_eq!(have, want, "one test per (theme, surface) pair");
 }

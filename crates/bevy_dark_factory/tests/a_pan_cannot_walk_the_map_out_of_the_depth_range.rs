@@ -206,33 +206,51 @@ fn the_reported_pose_draws_the_whole_ground() {
     );
 }
 
-/// **Every direction, on both maps, at both zooms**: the four keys and a held diagonal.
-fn assert_every_extreme_holds(tag: &str, side: f32) {
-    for (height_name, want) in [("min_zoom", MIN_ZOOM_M), ("max_zoom", max_zoom_m(side))] {
-        for (name, keys) in [
-            ("forward", vec![KeyCode::KeyW]),
-            ("back", vec![KeyCode::KeyS]),
-            ("left", vec![KeyCode::KeyA]),
-            ("right", vec![KeyCode::KeyD]),
-            ("forward_right", vec![KeyCode::KeyW, KeyCode::KeyD]),
-        ] {
-            let mut app = editor(&format!("{tag}_{height_name}_{name}"), side);
-            zoom_to(&mut app, want);
-            for key in keys {
-                hold(&mut app, key);
-            }
-            let (out, near, far) = outside(&mut app);
-            let focus = app.world().resource::<Rig>().focus;
-            assert!(
-                out.is_empty(),
-                "on a {side} m map at {height_name} ({want:.1} m), panning {name} to focus ({:.1}, {:.1}) left \
-                 the camera drawing depths {near:.1}..{far:.1} m, and these points the map draws fall outside \
-                 it — that is the straight edge the report shows: {out:?}",
-                focus.x,
-                focus.z,
-            );
-        }
+/// The two zooms every direction is panned at, by name.
+const ZOOMS: [&str; 2] = ["min_zoom", "max_zoom"];
+
+/// The four keys and a held diagonal, by name.
+const DIRECTIONS: [(&str, &[KeyCode]); 5] = [
+    ("forward", &[KeyCode::KeyW]),
+    ("back", &[KeyCode::KeyS]),
+    ("left", &[KeyCode::KeyA]),
+    ("right", &[KeyCode::KeyD]),
+    ("forward_right", &[KeyCode::KeyW, KeyCode::KeyD]),
+];
+
+/// **`liches_lair`: 80 x 40 x 80 m**, the map the capture was taken on.
+const SMALL: (&str, f32) = ("liches_lair", 80.0);
+/// **`deadite_caverns`: 500 x 40 x 500 m**, the larger of the two maps the acceptance names.
+const LARGE: (&str, f32) = ("deadite_caverns", 500.0);
+
+/// **One direction, on one map, at one zoom**, in a fresh editor: each (zoom, direction) is its own test so nextest runs
+/// the ten of a map side by side (#672) — panning forward says nothing about panning back.
+fn one_extreme_holds((tag, side): (&str, f32), height_name: &str, name: &str) {
+    let want = match height_name {
+        "min_zoom" => MIN_ZOOM_M,
+        "max_zoom" => max_zoom_m(side),
+        other => panic!("`{other}` is not one of {ZOOMS:?}"),
+    };
+    let keys = DIRECTIONS
+        .iter()
+        .find(|(direction, _)| *direction == name)
+        .map(|(_, keys)| *keys)
+        .unwrap_or_else(|| panic!("`{name}` is not a row of DIRECTIONS"));
+    let mut app = editor(&format!("{tag}_{height_name}_{name}"), side);
+    zoom_to(&mut app, want);
+    for key in keys {
+        hold(&mut app, *key);
     }
+    let (out, near, far) = outside(&mut app);
+    let focus = app.world().resource::<Rig>().focus;
+    assert!(
+        out.is_empty(),
+        "on a {side} m map at {height_name} ({want:.1} m), panning {name} to focus ({:.1}, {:.1}) left \
+         the camera drawing depths {near:.1}..{far:.1} m, and these points the map draws fall outside \
+         it — that is the straight edge the report shows: {out:?}",
+        focus.x,
+        focus.z,
+    );
 }
 
 /// `view::MIN_ZOOM`: the wheel's floor, in metres of map the viewport's height shows.
@@ -244,14 +262,50 @@ fn max_zoom_m(side: f32) -> f32 {
     MAX_STAGE_HEIGHT_M.max(1.25 * side.hypot(side))
 }
 
-/// **`liches_lair`: 80 x 40 x 80 m**, the map the capture was taken on.
-#[test]
-fn a_small_maps_drawn_ground_stays_inside_the_depth_range_however_far_it_is_panned() {
-    assert_every_extreme_holds("liches_lair", 80.0);
+/// **One `#[test]` per (map, zoom, direction)**, and [`EXTREMES`] listing them in the order written, so
+/// [`every_map_zoom_and_direction_is_its_own_test`] can say that none of the twenty was dropped.
+macro_rules! one_test_per_extreme {
+    ($($test:ident: $map:ident, $zoom:literal, $direction:literal;)*) => {
+        const EXTREMES: &[(&str, &str, &str)] = &[$(($map.0, $zoom, $direction)),*];
+        $(
+            #[test]
+            fn $test() {
+                one_extreme_holds($map, $zoom, $direction);
+            }
+        )*
+    };
 }
 
-/// **`deadite_caverns`: 500 x 40 x 500 m**, the larger of the two maps the acceptance names.
+one_test_per_extreme! {
+    a_small_map_at_min_zoom_panned_forward: SMALL, "min_zoom", "forward";
+    a_small_map_at_min_zoom_panned_back: SMALL, "min_zoom", "back";
+    a_small_map_at_min_zoom_panned_left: SMALL, "min_zoom", "left";
+    a_small_map_at_min_zoom_panned_right: SMALL, "min_zoom", "right";
+    a_small_map_at_min_zoom_panned_forward_right: SMALL, "min_zoom", "forward_right";
+    a_small_map_at_max_zoom_panned_forward: SMALL, "max_zoom", "forward";
+    a_small_map_at_max_zoom_panned_back: SMALL, "max_zoom", "back";
+    a_small_map_at_max_zoom_panned_left: SMALL, "max_zoom", "left";
+    a_small_map_at_max_zoom_panned_right: SMALL, "max_zoom", "right";
+    a_small_map_at_max_zoom_panned_forward_right: SMALL, "max_zoom", "forward_right";
+    a_large_map_at_min_zoom_panned_forward: LARGE, "min_zoom", "forward";
+    a_large_map_at_min_zoom_panned_back: LARGE, "min_zoom", "back";
+    a_large_map_at_min_zoom_panned_left: LARGE, "min_zoom", "left";
+    a_large_map_at_min_zoom_panned_right: LARGE, "min_zoom", "right";
+    a_large_map_at_min_zoom_panned_forward_right: LARGE, "min_zoom", "forward_right";
+    a_large_map_at_max_zoom_panned_forward: LARGE, "max_zoom", "forward";
+    a_large_map_at_max_zoom_panned_back: LARGE, "max_zoom", "back";
+    a_large_map_at_max_zoom_panned_left: LARGE, "max_zoom", "left";
+    a_large_map_at_max_zoom_panned_right: LARGE, "max_zoom", "right";
+    a_large_map_at_max_zoom_panned_forward_right: LARGE, "max_zoom", "forward_right";
+}
+
+/// **Both maps × both zooms × every direction has its own test**, in that order, none twice: a direction added to
+/// [`DIRECTIONS`] without a test, or a test dropped from the list above, fails here rather than going unpanned.
 #[test]
-fn a_large_maps_drawn_ground_stays_inside_the_depth_range_however_far_it_is_panned() {
-    assert_every_extreme_holds("deadite_caverns", 500.0);
+fn every_map_zoom_and_direction_is_its_own_test() {
+    let want: Vec<(&str, &str, &str)> = [SMALL.0, LARGE.0]
+        .into_iter()
+        .flat_map(|map| ZOOMS.into_iter().flat_map(move |zoom| DIRECTIONS.iter().map(move |(direction, _)| (map, zoom, *direction))))
+        .collect();
+    assert_eq!(EXTREMES, want.as_slice(), "one test per (map, zoom, direction)");
 }
