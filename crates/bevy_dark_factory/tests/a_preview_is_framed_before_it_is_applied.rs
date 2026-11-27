@@ -7,7 +7,7 @@
 //! So a preview goes through the same queue and the same idle wait as a change (AF-04, #360), with
 //! three differences the person can see:
 //!
-//! 1. **The receipt says it is a preview** — `the NightShift is about to place bed@02` — so a proposal
+//! 1. **The receipt says it is a preview** — `the Night Shift is about to place bed@02` — so a proposal
 //!    is not read as a fact.
 //! 2. **The outline is drawn in the preview colour**, not the applied one.
 //! 3. **A piece that does not exist yet is outlined by its footprint `rect`**, because there is no id
@@ -189,7 +189,7 @@ fn a_preview_is_framed_and_the_map_on_disk_does_not_move() {
     // **And the receipt says it is a preview**, so a proposal is not read as a fact.
     let note = app.world().resource::<EditorState>().status.note_text().to_lowercase();
     assert!(
-        note.contains("the nightshift") && (note.contains("preview") || note.contains("about to")),
+        note.contains(&bevy_dark_factory::follow::THE_AGENT.to_lowercase()) && (note.contains("preview") || note.contains("about to")),
         "the receipt does not name the change a preview: {note:?}"
     );
     assert!(!note.contains("about to would"), "the receipt says `would` twice: {note:?}");

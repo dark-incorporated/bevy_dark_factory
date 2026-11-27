@@ -1,7 +1,7 @@
-//! **The NightShift's switch: View ▸ Pause agent writes** (UI-60, #246).
+//! **The Night Shift's switch: View ▸ Pause agent writes** (UI-60, #246).
 //!
 //! An agent drives the editor through `blueprint/operation_apply`, and every change it makes is already
-//! attributed (the history row says "the NightShift", the INSPECTOR's LAST line says `agent:`) and takes back
+//! attributed (the history row says "the Night Shift", the INSPECTOR's LAST line says `agent:`) and takes back
 //! with one Cmd+Z. What a person lacked was a way to say *not now*: to stop the agent changing the map while
 //! they look at it, think, or take over, without disconnecting it or losing its place.
 //!
@@ -165,7 +165,7 @@ pub struct NightShiftSwitch;
 #[derive(Component)]
 pub struct NightShiftUndo;
 
-/// **The block's Look button** (AF-04, #360): show the change the NightShift is waiting on, now. The
+/// **The block's Look button** (AF-04, #360): show the change the Night Shift is waiting on, now. The
 /// issue names two places for Look — the chip over the viewport and this block's newest-change line —
 /// and both call [`crate::follow::Following::look_now`], so a click and a button cannot wait on
 /// different things.
@@ -279,7 +279,7 @@ pub fn spawn_the_block(commands: &mut Commands, pause: bool, here: bool) -> Enti
                     let Some(following) = following.as_deref_mut() else { return };
                     following.look_now();
                     if let Some(state) = state.as_deref_mut() {
-                        state.status.note("looking at what the NightShift changed");
+                        state.status.note(format!("looking at what {} changed", crate::follow::THE_AGENT));
                     }
                 }),
             ));

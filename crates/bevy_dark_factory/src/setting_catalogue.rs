@@ -217,7 +217,7 @@ pub const CATALOGUE: &[Setting] = &[
         key: "follow_agent",
         label: "Follow the agent",
         category: "Map",
-        description: "The view goes to each change the NightShift makes, one at a time, waiting while you are working in the viewport. Off, nothing moves and the look chip still offers Look.",
+        description: concat!("The view goes to each change the ", crate::follow::agent_name!(), " makes, one at a time, waiting while you are working in the viewport. Off, nothing moves and the look chip still offers Look."),
         kind: Kind::Switch,
     },
     Setting {

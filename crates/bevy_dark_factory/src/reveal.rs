@@ -27,7 +27,7 @@
 //!
 //! `Shown::File { path: "assets/blueprint/vocab.yaml" }` is a real change with no page: the Files
 //! workspace is GD-11 (#373) and does not exist. Doing nothing would leave the person reading
-//! `the NightShift added a token` with nowhere to look, so a `Shown` the editor cannot show becomes a
+//! `the Night Shift added a token` with nowhere to look, so a `Shown` the editor cannot show becomes a
 //! **problem naming the operation and its shown**, which is the work item the missing view is built
 //! from.
 //!

@@ -1,4 +1,4 @@
-//! **The editor follows the NightShift** (AF-02, #358; series agent follow, #356).
+//! **The editor follows the Night Shift** (AF-02, #358; series agent follow, #356).
 //!
 //! An agent works at a speed no person can watch: it places three pieces while they are reading a
 //! panel, and by the time they look up the view is somewhere else entirely. So after every change an
@@ -78,19 +78,22 @@ pub const DEFERRED_FRAMES_MAX: u32 = 600;
 pub const FOLLOW_OUTLINE_S: f32 = 1.5;
 
 /// The in-editor agent's name, spelled once: the Agent panel's title and every history and receipt
-/// sentence ("the NightShift placed bed@1") are built from it, so they cannot name the actor two ways.
+/// sentence ("the Night Shift placed bed@1") are built from it, so they cannot name the actor two ways.
+/// Two words, as Dark Inc. and the README spell it (owner, 2026-11-27): the panel title `NIGHT SHIFT`
+/// wraps between its words. A `&'static str` that names the agent is `concat!` of this macro.
 macro_rules! agent_name {
     () => {
-        "NightShift"
+        "Night Shift"
     };
 }
+pub(crate) use agent_name;
 
 pub const AGENT_NAME: &str = agent_name!();
 
 /// [`AGENT_NAME`] as a sentence's subject.
 pub const THE_AGENT: &str = concat!("the ", agent_name!());
 
-/// **A change in the history's words**: `the NightShift placed bed@1`. The receipt the person reads
+/// **A change in the history's words**: `the Night Shift placed bed@1`. The receipt the person reads
 /// after the camera moves is that sentence, so the row and the receipt cannot describe one change two
 /// ways.
 pub fn as_the_night_shift(summary: &str) -> String {
@@ -246,14 +249,14 @@ pub struct Following {
 impl Following {
     /// **Ask the camera to go somewhere.** Queued, so three changes in one frame are three follows.
     ///
-    /// A request with no sentence is still a request: the chip says what it can, that the NightShift
+    /// A request with no sentence is still a request: the chip says what it can, that the Night Shift
     /// changed something. [`Self::request_named`] is the form an operation's own receipt fills in.
     pub fn request(&mut self, request: FollowRequest) {
         self.queue.push_back((request, None, Manner::Applied));
         self.note_what_waits();
     }
 
-    /// **Ask the camera to go somewhere, and say what changed** — `the NightShift placed bed@1`, the
+    /// **Ask the camera to go somewhere, and say what changed** — `the Night Shift placed bed@1`, the
     /// receipt's own words (AF-04, #360).
     ///
     /// **A method rather than a field on [`FollowRequest`]**, because the field would be one a caller
@@ -265,7 +268,7 @@ impl Following {
     }
 
     /// **Ask the camera to go to a proposal** (AF-05, #361), with the words the receipt says it in —
-    /// `the NightShift is about to place bed@02`.
+    /// `the Night Shift is about to place bed@02`.
     ///
     /// **The same queue, the same dwell, the same idle wait.** A preview is not a second mechanism: a
     /// person watching an agent plan sees the proposal arrive exactly as a change does, and the one
@@ -549,7 +552,7 @@ fn clear_the_follow_when_the_map_changes(
     following.outline.clear();
 }
 
-/// **The look chip's words** (AF-04, #360): what the NightShift changed and has not shown yet.
+/// **The look chip's words** (AF-04, #360): what the Night Shift changed and has not shown yet.
 ///
 /// **A resource rather than a spawned node's text**, for `chrome::Follow`'s reason: a test can ask what
 /// the chip says without a window, and the system that draws it compares before writing. The two
@@ -572,7 +575,7 @@ impl LookChip {
     /// this, so the picture and the assertion cannot drift.
     ///
     /// **No middle dot between the change and the button** (#519). This read
-    /// `the NightShift placed \`bed@0\` (+2 more) · Look`: a change and the affordance beside it on
+    /// `the Night Shift placed \`bed@0\` (+2 more) · Look`: a change and the affordance beside it on
     /// one line with a caret between them, which is the shape the owner called jank. `Look` is the
     /// chip's own [`LookButton`], drawn beside these words, so the dash joins a clause to the
     /// sentence rather than gluing two values together.

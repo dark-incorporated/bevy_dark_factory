@@ -52,7 +52,7 @@ crate::keys::enumerated! {
         Sound,
         /// **The running game** (NV-09, #386): play, stop, build, its log and its state.
         Game,
-        /// **The NightShift** (NV-10, #387): what it is doing, and what it waits on.
+        /// **The Night Shift** (NV-10, #387): what it is doing, and what it waits on.
         Agent,
         /// **The project's files and the editor for them** (GD-11, #373): the file tree and a code editor.
         Files,

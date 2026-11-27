@@ -2,7 +2,7 @@
 //!
 //! AF-02 (#358) followed a change **on the map**: the camera eased to it, and a change to a library
 //! piece, a composition, a rig, a note or a project file raised nothing at all. The person reading the
-//! receipt saw `the NightShift described \`lamp_tall\`` and had no way to see the piece it described.
+//! receipt saw `the Night Shift described \`lamp_tall\`` and had no way to see the piece it described.
 //!
 //! So `Shown` — the one answer per operation to *where its change is seen* (AF-01, #357) — is now the
 //! one answer to *where the editor goes*. [`bevy_dark_factory::reveal`] opens the door and the panel the

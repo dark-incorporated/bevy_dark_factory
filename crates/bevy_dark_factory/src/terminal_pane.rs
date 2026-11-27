@@ -1976,7 +1976,7 @@ const TERMINAL_KEYS: [KeyCode; 19] = [
 
 /// **A modal dialog takes the keyboard from the shell while it is up** (#446). Settings, the keymap, project configuration and New project are gooey dialogs
 /// that close on `Escape` (gooey's `Cancel`), and `Escape` is one of the [`TERMINAL_KEYS`] [`hold_the_keyboard`] takes out of the frame for the shell: with the
-/// NightShift's terminal holding the keys, a dialog opened over it (by a chord, say) heard nothing and only its Close button worked. The keys go back to the
+/// Night Shift's terminal holding the keys, a dialog opened over it (by a chord, say) heard nothing and only its Close button worked. The keys go back to the
 /// editor the frame a dialog exists, so its fields and `Escape` are the dialog's; the shell gets them again with the next click in its pane.
 fn a_dialog_takes_the_keyboard(mut focus: ResMut<TerminalFocus>, dialogs: Query<(), With<bevy_gooey::Dialog>>) {
     if focus.holds() && !dialogs.is_empty() {

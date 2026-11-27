@@ -16,7 +16,7 @@
 //! 3. **An agent's undo frames the place the undone change was.**
 //! 4. **`reduced_motion` jumps**: the camera is there on the next frame, with no ease to wait out.
 //! 5. **A change from another door opens the Map first**, and the camera frames it after the crossing.
-//! 6. **The receipt names the change in the history's words** — `the NightShift placed …` — and the
+//! 6. **The receipt names the change in the history's words** — `the Night Shift placed …` — and the
 //!    change's placements are outlined for `FOLLOW_OUTLINE_S` and then not.
 
 use std::time::Duration;
@@ -589,9 +589,10 @@ fn the_receipt_names_the_night_shift_and_the_places_are_outlined() {
         .note_text()
         .to_owned();
     assert!(
-        note.contains("the NightShift ") && note.contains(&summary),
-        "the receipt does not name the change in the history's words (`the NightShift` and what it \
-         did): {note:?}"
+        note.contains(&format!("{} ", bevy_dark_factory::follow::THE_AGENT)) && note.contains(&summary),
+        "the receipt does not name the change in the history's words (`{}` and what it \
+         did): {note:?}",
+        bevy_dark_factory::follow::THE_AGENT
     );
 
     // The outline: the changed rows are named while it lasts, and gone after FOLLOW_OUTLINE_S.

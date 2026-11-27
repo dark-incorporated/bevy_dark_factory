@@ -1092,11 +1092,11 @@ fn poll_the_disk(mut files: ResMut<Files>, index: Res<crate::project_index::Proj
             file.external = None;
         } else if file.text == file.disk {
             // **Nobody has typed here, so the change simply lands** (GD-14, #376): as the one edit that makes it, from
-            // the NightShift's hand when an agent's `file_edit` just wrote the file, so the widget keeps the person's
+            // the Night Shift's hand when an agent's `file_edit` just wrote the file, so the widget keeps the person's
             // caret and selection and glides the changed lines in tinted in the author's colour.
             let agent = take_agent_edit(&root, rel);
             let ink = chrome::ink();
-            let author = if agent { CodeAuthor::new("the NightShift", ink.suggest) } else { CodeAuthor::new("outside", ink.accent) };
+            let author = if agent { CodeAuthor::new(crate::follow::THE_AGENT, ink.suggest) } else { CodeAuthor::new("outside", ink.accent) };
             file.incoming = diff_edit(&file.text, &text).map(|edit| (edit, author));
             file.agent_lines = if agent { changed_lines(&file.text, &text).into_iter().collect() } else { Vec::new() };
             file.disk = text.clone();
@@ -1802,7 +1802,7 @@ fn publish_unsaved(root: &Path, dirty: Vec<String>) {
         registry.unsaved = (!dirty.is_empty()).then(|| (root.to_path_buf(), dirty));
     }
 }
-/// **Note that an agent just wrote `rel`**, so the editor tints the lines it changes in the NightShift's colour.
+/// **Note that an agent just wrote `rel`**, so the editor tints the lines it changes in the Night Shift's colour.
 pub fn note_agent_edit(root: &Path, rel: &str) {
     let mut registry = registry();
     let entry = (root.to_path_buf(), rel.to_owned());
@@ -1877,7 +1877,7 @@ fn agent_marks(text: &str, lines: &[[u32; 2]]) -> Vec<Diagnostic> {
 }
 
 /// What the mark on an agent's line says.
-pub const AGENT_CHANGED: &str = "Changed by the NightShift";
+pub const AGENT_CHANGED: &str = concat!("Changed by the ", crate::follow::agent_name!());
 
 /// The marks `agent_marks` makes, for a test.
 pub fn agent_marks_for_test(text: &str, lines: &[[u32; 2]]) -> Vec<Diagnostic> {

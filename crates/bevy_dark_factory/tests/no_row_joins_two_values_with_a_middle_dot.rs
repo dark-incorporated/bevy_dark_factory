@@ -30,7 +30,7 @@
 //! - **The palette's kit heading** — `furniture · prop`, pinned by `headless::palette_headings`.
 //! - **The status band's counts** — `1 refused · 1 needs a restart`, pinned by
 //!   `the_status_band_says_when_a_file_needs_attention.rs`.
-//! - **The history's author** — `now: placed bed@1 · the NightShift`, pinned by
+//! - **The history's author** — `now: placed bed@1 · the Night Shift`, pinned by
 //!   `a_change_to_the_map_reaches_the_lists_row_by_row.rs`.
 //! - **The scripts panel's trigger rows** — `dawn · !Activity work · area`, pinned by
 //!   `the_scripts_panel_lists_the_maps_triggers.rs`.
@@ -40,7 +40,7 @@ use std::path::PathBuf;
 use bevy_dark_factory::agent_guide::GuideState;
 use bevy_dark_factory::chrome;
 use bevy_dark_factory::editor::{FrameTarget, palette_tooltip};
-use bevy_dark_factory::follow::{FollowRequest, Following, LookChip};
+use bevy_dark_factory::follow::{FollowRequest, Following, LookChip, as_the_night_shift};
 use bevy_dark_factory::game_view::{Snapshot, frame_and_memory};
 use bevy_dark_factory::outliner::{Contents, Eyes, Locks, nodes_for};
 use bevy_dark_factory::project::OpenMap;
@@ -140,10 +140,10 @@ fn the_chrome_bar_does_not_join_the_door_and_the_subject_with_a_middle_dot() {
 #[test]
 fn the_look_chip_does_not_join_the_change_and_its_button_with_a_middle_dot() {
     let mut following = Following::default();
-    following.request_named(FollowRequest { target: FrameTarget::Rect([0.0, 0.0, 1.0, 1.0]), ids: Vec::new() }, "the NightShift placed `bed@0`");
+    following.request_named(FollowRequest { target: FrameTarget::Rect([0.0, 0.0, 1.0, 1.0]), ids: Vec::new() }, as_the_night_shift("placed `bed@0`"));
     let chip = LookChip::of(&following);
     let said = chip.sentence().expect("a change waits, so the chip says so").to_owned();
-    assert!(said.starts_with("the NightShift placed `bed@0`"), "{said:?}");
+    assert!(said.starts_with(&as_the_night_shift("placed `bed@0`")), "{said:?}");
     assert!(!said.contains(DOT), "the chip's sentence carries no middle dot: {said:?}");
 }
 

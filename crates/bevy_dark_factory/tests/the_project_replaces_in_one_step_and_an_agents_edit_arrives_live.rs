@@ -260,7 +260,7 @@ fn an_agents_file_edit_lands_in_the_open_tab_without_moving_the_caret_and_undoes
     let shown_text = app.world().get::<CodeEditorValue>(editor).map(|v| v.text().to_owned()).unwrap_or_default();
     assert!(shown_text.contains("yaw: 90.0 # turn"), "the open tab shows the change: {shown_text}");
     assert_eq!(app.world().get::<CodeEditor>(editor).map(|e| e.buffer().caret()), Some(caret), "the person's caret did not move");
-    assert_eq!(app.world().resource::<Files>().get(YAML).map(|f| f.agent_lines.clone()), Some(vec![[18, 18]]), "the changed line is marked as the NightShift's");
+    assert_eq!(app.world().resource::<Files>().get(YAML).map(|f| f.agent_lines.clone()), Some(vec![[18, 18]]), "the changed line is marked as the Night Shift's");
 
     let (_, undone) = ops::undo(&mut ctx, Some(&operation_id)).unwrap_or_else(|e| panic!("{e}"));
     assert!(matches!(undone, Applied::Done { .. }));

@@ -4,12 +4,12 @@ Status: owner-directed series, 2026-11-01. The work is tracked by the issue labe
 
 ## 1. What the UI is for
 
-The Dark Factory is a **mixed-initiative authoring tool**: a person and the NightShift (the agent) edit one project through the same commands. Horvitz (1999, "Principles of mixed-initiative user interfaces", [10.1145/302979.303030](https://doi.org/10.1145/302979.303030)) asks that an agent add genuine value over direct manipulation, reason about the uncertainty of the user's goal, and time its interruptions to the user's attention. *Procedural Content Generation in Games*, chapter 11, makes the same case for content creation: the human steers, the generator proposes, and both see the same artefact.
+The Dark Factory is a **mixed-initiative authoring tool**: a person and the Night Shift (the agent) edit one project through the same commands. Horvitz (1999, "Principles of mixed-initiative user interfaces", [10.1145/302979.303030](https://doi.org/10.1145/302979.303030)) asks that an agent add genuine value over direct manipulation, reason about the uncertainty of the user's goal, and time its interruptions to the user's attention. *Procedural Content Generation in Games*, chapter 11, makes the same case for content creation: the human steers, the generator proposes, and both see the same artefact.
 
 So the UI has three jobs:
 
 1. Let a person author a map, a kit or a rig quickly, with the keyboard or the pointer.
-2. Show what the NightShift is doing, let the person stop, correct or undo it, and say why it did it.
+2. Show what the Night Shift is doing, let the person stop, correct or undo it, and say why it did it.
 3. Make the project's files the truth: nothing is only in memory, and every setting is a file that can be read, diffed and committed.
 
 At the start of the series (2026-11-01) the UI was hand-built on `bevy_ui` in `crates/bevy_dark_factory/src/` (`chrome.rs` was 3,531 lines, and the crate had 168 raw `Node {` constructions), with `bevy_gooey` an optional feature used only to preview a game's skin. Today the editor has no raw `Node` left outside the viewport surface (`surface.rs`, `view.rs`): `the_editor_keeps_its_raw_nodes_counted` counts them per file, the count may only fall, and it is 0 (UI-99, #260). The series continues with one skin, one command registry and one settings system.
@@ -26,13 +26,13 @@ Each principle is one rule and its source.
 - **P6 Response time.** Under 0.1 s needs no indicator and feels instant. From 1 s, show feedback that something is happening: a looped indicator for 2 to 10 s, a percent-done bar for 10 s or more. A bar moves at constant speed and is never static. Sources: Nielsen Norman Group, "Response Times: The 3 Important Limits"; arXiv [2211.13909](https://arxiv.org/abs/2211.13909) (a constant-speed progress bar is perceived as faster than non-constant ones).
 - **P7 A message says what, where, why and how to fix.** It uses the user's own words, names the file and the field, and links the docs. Sources: Czaplicki, "Compiler Errors for Humans" (Elm); Blender Human Interface Guidelines, writing style.
 - **P8 Notifications respect attention.** Few, combined when identical, and low-priority progress goes to the status bar. An error that needs action stays until dismissed. Source: VS Code UX guidelines (notifications, status bar).
-- **P9 Agent work is visible, dismissible, correctable and explained.** The UI says whether an agent is connected and what it is doing, attributes every change to a person or to the NightShift, offers Undo on it, and has a global switch that pauses agent writes. Sources: Amershi et al., "Guidelines for Human-AI Interaction", CHI 2019 ([10.1145/3290605.3300233](https://doi.org/10.1145/3290605.3300233)): G1 make clear what the system can do, G2 how well, G7 efficient dismissal, G8 efficient correction, G9 scope services when in doubt, G10 explain, G11 make clear why, G17 global controls, G18 notify about changes.
+- **P9 Agent work is visible, dismissible, correctable and explained.** The UI says whether an agent is connected and what it is doing, attributes every change to a person or to the Night Shift, offers Undo on it, and has a global switch that pauses agent writes. Sources: Amershi et al., "Guidelines for Human-AI Interaction", CHI 2019 ([10.1145/3290605.3300233](https://doi.org/10.1145/3290605.3300233)): G1 make clear what the system can do, G2 how well, G7 efficient dismissal, G8 efficient correction, G9 scope services when in doubt, G10 explain, G11 make clear why, G17 global controls, G18 notify about changes.
 - **P10 One design system.** Every colour, size, spacing and elevation comes from the gooey skin's semantic roles; no widget picks its own. The elevation ladder is measured (adjacent surfaces differ by at least ΔL* 2) and text meets WCAG 2.2. Sources: gooey's `GooeySkin::problems()`; W3C Design Tokens Format Module 2025.10 (primitive, then semantic, then component tokens).
 - **P11 Accessible by default.** Everything is reachable by keyboard, focus is always visible, and a target is at least 24 px in compact density (WCAG 2.2 SC 2.5.8). Text size, interface size, contrast and reduced motion are settings.
 - **P12 Developer experience is flow and control.** Fast feedback, no lost work, and an undo for everything. Source: Fagerholm, Ikonen, Kettunen, Munch, Roto and Abrahamsson, "Flow, Intrinsic Motivation, and Developer Experience in Software Engineering" ([10.1007/978-3-319-33515-5_9](https://doi.org/10.1007/978-3-319-33515-5_9)): sense of control and flow predict developers' experience of an IDE.
 - **P13 Prose is proportional; keys, ids and columns are monospace.** A sentence meant to be read draws in Fira Sans, and everything else keeps FiraMono, so keycaps, ids, paths, tables, the Inspector's columns and the terminal stay on their grid while a page of sentences stops reading like terminal output. Fira Sans is the same family and the same SIL OFL 1.1 licence as the shipped FiraMono (`crates/bevy_dark_factory/assets/fonts/`, licence text beside the face). Decided on 2026-11-15 as option 2 of `feedback-1794024825941` (*recommend, record, proceed*; the owner may still choose option 1, FiraMono everywhere, or option 3, a setting). The contrast rules (P10, P11) are unchanged. Which texts are prose: "Prose and code" in section 9.
 
-Fukaya et al. (2026, [10.1080/10447318.2026.2632170](https://doi.org/10.1080/10447318.2026.2632170)) propose heuristics for AI asset-generation tools; P9 and the NightShift panel (UI-60) are checked against them.
+Fukaya et al. (2026, [10.1080/10447318.2026.2632170](https://doi.org/10.1080/10447318.2026.2632170)) propose heuristics for AI asset-generation tools; P9 and the Night Shift panel (UI-60) are checked against them.
 
 ## 3. The three screens
 
@@ -229,7 +229,7 @@ New third-party dependencies, each logged because no family crate does the job: 
 | `notes_view.rs` | the notes panel (UI-55) |
 | `data_view.rs` | the data table (UI-56) |
 | `anim_tab.rs`, `anim_plots.rs` | the rig bench on gooey (UI-58) |
-| `present.rs` | the NightShift panel (UI-60) |
+| `present.rs` | the Night Shift panel (UI-60) |
 | `ui_skin.rs`, `family_host.rs` | the game UI preview under a scoped skin (UI-03); the family settings panels (UI-57) |
 | `args.rs` | the launcher and the command line agree (UI-13) |
 

@@ -109,7 +109,7 @@ These keys work in the Map workspace.
 | `Cmd+B` | Any time | Show or hide the left panel (`Ctrl+B` elsewhere; View, Show left panel). |
 | `Shift+Cmd+M` | Any time | Zen mode: hide everything but the viewport, and bring it back (`Shift+Ctrl+M` elsewhere; View, Zen mode). |
 | `Shift+Cmd+X` | Any time | Show the problems list: the Map inspector's PROBLEMS, scrolled on screen from any workspace (`Shift+Ctrl+X` elsewhere; View, Show problems). |
-| `Shift+Cmd+L` | Any time | Look at the agent's last change: frame what the NightShift touched (`Shift+Ctrl+L` elsewhere). Rebind it in the keymap screen if you want it elsewhere. |
+| `Shift+Cmd+L` | Any time | Look at the agent's last change: frame what the Night Shift touched (`Shift+Ctrl+L` elsewhere). Rebind it in the keymap screen if you want it elsewhere. |
 | `M` | Any time | Keep the selected set as a composition. |
 | `N` | Any time | Rename the map. |
 | `O` | Any time | Pin or unpin. |

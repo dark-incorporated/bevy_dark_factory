@@ -7,7 +7,7 @@
 //! headless test can hold down: the rows come from `history_window`, which labels only what it
 //! returns.
 //!
-//! The second acceptance line is that an agent's row reads "the NightShift", which this file also pins.
+//! The second acceptance line is that an agent's row reads "the Night Shift", which this file also pins.
 
 use bevy::prelude::*;
 use bevy_dark_factory::editor::EditorState;

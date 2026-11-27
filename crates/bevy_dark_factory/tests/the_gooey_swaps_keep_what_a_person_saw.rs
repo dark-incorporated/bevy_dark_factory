@@ -199,7 +199,7 @@ fn click(app: &mut App, target: Entity) {
     app.update();
 }
 
-/// **The NightShift block is as wide as the pane it stands in**, now that it no longer asks for `width: 100%`.
+/// **The Night Shift block is as wide as the pane it stands in**, now that it no longer asks for `width: 100%`.
 #[test]
 fn the_night_shift_block_fills_its_pane() {
     use bevy_dark_factory::night_shift::NightShift;

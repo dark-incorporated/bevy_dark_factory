@@ -167,7 +167,7 @@ fn every_panel_headings_row_is_a_gooey_row_level_with_its_words() {
     }
 }
 
-/// **The NightShift's readout lines** (HEARD, NEWEST, HAND-BACK, PLAN) are gooey rows that keep their height and start their cells at the top.
+/// **The Night Shift's readout lines** (HEARD, NEWEST, HAND-BACK, PLAN) are gooey rows that keep their height and start their cells at the top.
 #[test]
 fn the_night_shifts_readout_lines_are_gooey_rows_that_are_never_squeezed() {
     use bevy_dark_factory::night_shift::NightShiftLine;
@@ -198,14 +198,14 @@ fn the_map_inspectors_lists_are_gooey_columns_in_gooey_blocks() {
     assert_column(&app, parent(&app, picker), "the compositions section's block");
 }
 
-/// **The NightShift block** is a gooey column that is never squeezed, and each readout value stands in gooey's fill column (it takes the
+/// **The Night Shift block** is a gooey column that is never squeezed, and each readout value stands in gooey's fill column (it takes the
 /// room its row leaves and may narrow to nothing, so a long value wraps in its own column).
 #[test]
 fn the_night_shift_block_is_a_rigid_gooey_column_and_its_values_stand_in_fill_columns() {
     use bevy_dark_factory::night_shift::{NightShift, NightShiftLine};
     let mut app = editor("night_shift_block", Mode::Agent);
     let block = the::<NightShift>(&mut app);
-    assert_eq!(app.world().get::<Role>(block), Some(&Role::Column), "the NightShift block is a gooey `column`, not a raw `Node`");
+    assert_eq!(app.world().get::<Role>(block), Some(&Role::Column), "the Night Shift block is a gooey `column`, not a raw `Node`");
     let node = app.world().get::<Node>(block).expect("the block has a Node");
     assert_eq!(node.flex_shrink, 0.0, "the block keeps its height when the INSPECTOR's rows are taller than the panel");
     let value = the::<NightShiftLine>(&mut app);

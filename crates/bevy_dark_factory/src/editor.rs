@@ -2697,7 +2697,7 @@ impl Plugin for EditorPlugin {
                 ),
             );
         app.add_plugins(crate::ui::EditorUiPlugin);
-        // **The editor follows the NightShift** (AF-02, #358): a request the agent's two BRP
+        // **The editor follows the Night Shift** (AF-02, #358): a request the agent's two BRP
         // handlers raise, the ease, and the ring round the changed pieces.
         app.add_plugins((crate::follow::FollowPlugin, crate::reveal::RevealPlugin));
         app.add_plugins(crate::piece_menu::PieceMenuPlugin);
@@ -2729,7 +2729,7 @@ impl Plugin for EditorPlugin {
         app.add_plugins(crate::world_lists::WorldListsPlugin);
         // **The Game workspace** (NV-09, #386): the running game's panel, its log and its state, and the watching of it.
         app.add_plugins(crate::game_view::GameViewPlugin);
-        // **The Agent workspace** (NV-10, #387): the NightShift's block and history, in a workspace of their own.
+        // **The Agent workspace** (NV-10, #387): the Night Shift's block and history, in a workspace of their own.
         app.add_plugins(crate::agent_view::AgentViewPlugin);
         // **The Files workspace** (GD-11, #373): the file tree and the code editor.
         app.add_plugins(crate::files::FilesPlugin);
@@ -8470,7 +8470,7 @@ fn history_line(state: &EditorState, position: usize, depth: usize) -> Option<St
         (HISTORY_START_LINE.to_owned(), "")
     } else {
         let row = state.history_row(position)?;
-        (row.label, if row.agent { "the NightShift" } else { "you" })
+        (row.label, if row.agent { crate::follow::THE_AGENT } else { "you" })
     };
     let now = if position == depth { "now: " } else { "" };
     // **The author is joined by the row's one separator**, and that separator is the middle dot
@@ -12971,7 +12971,7 @@ pub fn plant_history_entry_for_test(state: &mut EditorState) {
 pub fn record_agent_history_entry_for_test(state: &mut EditorState) {
     state.record(Undo::Logged {
         line: String::new(),
-        phrase: "a change the NightShift made".to_owned(),
+        phrase: format!("a change {} made", crate::follow::THE_AGENT),
         agent: true,
     });
 }

@@ -148,7 +148,7 @@ fn the_history_reads_as_the_sessions_lines(app: &mut App, said: &str) {
     let first = held.label(0).unwrap_or_default().trim_start_matches("now: ").to_owned();
     assert_eq!(held.label(0), Some(format!("{}{first}", now(0)).as_str()), "line 0 after {said}");
     for row in rows {
-        let who = if row.agent { "the NightShift" } else { "you" };
+        let who = if row.agent { bevy_dark_factory::follow::THE_AGENT } else { "you" };
         let want = format!("{}{}  \u{b7} {who}", now(row.position), row.label);
         assert_eq!(held.label(row.position as u64), Some(want.as_str()), "history line {} after {said}", row.position);
     }
