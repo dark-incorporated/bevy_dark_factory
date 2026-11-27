@@ -60,7 +60,11 @@ fn the_frame_is_gooey_rows_and_columns_with_the_numbers_it_had() {
     assert_eq!((body.width, body.flex_grow, body.min_height, body.flex_direction, body.align_items), (Val::Percent(100.0), 1.0, Val::ZERO, FlexDirection::Row, AlignItems::Stretch), "the body is a row of what the bars leave");
 }
 
-/// **A chip is a gooey row the editor still paints**: rest, hover and its own edge colour (a held tag chip's accent), and its words are not a button's.
+/// **A chip is gooey's chip, and the editor still paints it**: rest, hover and its own edge colour (a held tag chip's accent), and its words are not a button's.
+///
+/// **#551 moved the role assertion, and nothing else.** It read `Role::Sized` while `chrome::chip` was a `bevy_gooey::sized` box; #551's
+/// acceptance is that the node carries `Role::Chip`, asserted on the component, and a node has one `Role`. The check is the same `assert_eq!`
+/// on the same component; every colour and every measure below is unchanged.
 #[test]
 fn a_chip_is_a_row_the_editor_paints_by_state() {
     let mut app = editor("chip");
@@ -73,7 +77,7 @@ fn a_chip_is_a_row_the_editor_paints_by_state() {
     for _ in 0..4 {
         app.update();
     }
-    assert_eq!(app.world().get::<Role>(chip), Some(&Role::Sized), "a chip is a gooey sized box laid out as a row");
+    assert_eq!(app.world().get::<Role>(chip), Some(&Role::Chip), "a chip is gooey's chip (#551)");
     assert!(app.world().get::<bevy_gooey::InkFollow>(chip).is_some());
     assert_eq!(app.world().get::<BackgroundColor>(chip).map(|b| b.0), Some(rest), "at rest it is its fill");
     assert_eq!(app.world().get::<BorderColor>(chip).map(|b| b.top), Some(edge), "and its edge is the colour it was given, not the skin's outline");

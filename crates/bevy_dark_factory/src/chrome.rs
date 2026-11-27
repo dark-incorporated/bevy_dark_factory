@@ -3092,16 +3092,49 @@ pub fn gap_cell(row: &mut ChildSpawnerCommands, width_px: f32) {
     row.spawn(bevy_gooey::cell(width_px / text::BODY.px()));
 }
 
-/// **A chip** — one small clickable word. `chrome-chip`'s padding and a permanent 1 px border whose COLOUR
-/// asks the questions (a ghost proposal lights it `Ink::suggest`; everything else runs [`Color::NONE`]),
-/// so a chip never changes size when its state does.
+/// **A chip** — one small clickable word, and **gooey's chip** (#551): [`bevy_gooey::quiet_chip`], on
+/// the `Activate` bus.
 ///
-/// **`marker` must not contain a `Node`, and the failure is a panic rather than a warning.** This
-/// builder spawns one, and a bundle carrying two of the same component panics at spawn in Bevy 0.20
-/// naming the component and not the call site — the trap the repo's `CLAUDE.md` already records for
-/// `button_visual()`. To adjust the node, `.insert(Node { .. })` on the returned `EntityCommands`,
-/// which overrides rather than duplicates. The same holds for [`list_row`], [`quiet_row`] and
-/// [`text_field`], which each carry a `Node` of their own.
+/// # Which of gooey's two chips, and what is put back on it
+///
+/// `bevy_gooey::chip` is a tab stop (`TabIndex(0)`), and this editor keeps focus traversal off on
+/// purpose: it routes by `Context` (`keys.rs`'s header), and an injected click would focus whatever the
+/// physical pointer rests on (`tests/the_sweep_is_finished.rs::focus_traversal_stays_off_until_somebody_reopens_it`).
+/// `quiet_chip` takes no focus, so it is that one. **Bevy's `Button` is put back on it**, for two
+/// reasons, each enough on its own:
+///
+/// 1. **The editor's chips are on the `Activate` bus.** Eight kinds are answered by `On<Activate>`
+///    observers (`tiles::on_tag_chip`, `on_mount_chip`, `on_new_token_chip`, `anim_stage::on_chip_click`,
+///    `on_ghost_chip_click`, `anim_tab::on_skip_click`, `console::switch_a_level`, `select_the_piece`). A
+///    chip with no `Button` is drawn and never answers a click — and the tests that trigger `Activate`
+///    on a chip directly would not notice.
+/// 2. **It is what a screen reader hears as a button.** gooey's `Role::Chip` arm writes the chip's name
+///    and leaves the AccessKit role alone; `Button` requires its node as `accesskit::Role::Button`, and
+///    without one gooey makes the node a generic container.
+///
+/// `Button` is no tab stop by itself: the chip this replaced was a `Button` with no `TabIndex` too.
+///
+/// # What stays the editor's
+///
+/// - **Its height**: the skin's chip arm floors a chip at a target's height, and `min_height: Auto` makes
+///   it the 20 px of the rows it stands in (`the_g87_nodes_are_gooeys::the_chips_buttons_and_rows_keep_their_drawn_heights`).
+/// - **Its inset and corner**, the sheet's `.chrome-chip`, and its edge, `layout.edge_w`.
+/// - **Its paint**: `InkFollow`, so the skin writes neither fill nor edge and `style_list_rows` stays the
+///   one painter of every row and chip (rest, hover, press, held) from `RowRest` and `Hovered`. Whether
+///   that painter becomes the skin's is #552's question, for the rows and the chips together.
+/// - **Its words**: the caller's ink and [`typed`] size. A `Role::ChipText` is drawn at `skin.text_size`
+///   in the skin's ink (`apply_skin` writes both), where every chip here is a [`text::Role`] that follows
+///   the person's text size through [`resize_the_labels`] (`the_leds_word_is_the_size_of_the_text_beside_it`).
+///   So the words lose gooey's role and the chip carries its name itself, as an `AccessibleLabel` of the
+///   same words — which stay true because no caller rewrites a chip's words in place: a chip is rebuilt
+///   with its panel.
+///
+/// **`marker` must not contain a `Node`**, and the failure is a panic rather than a warning: `quiet_chip`
+/// spawns one, and a bundle carrying two of the same component panics at spawn in Bevy 0.20 naming the
+/// component and not the call site — the trap the repo's `CLAUDE.md` already records for
+/// `button_visual()`. To adjust the node, `.insert(Node { .. })` on the returned `EntityCommands`, which
+/// overrides rather than duplicates. The same holds for [`list_row`], [`quiet_row`] and [`text_field`],
+/// which each carry a `Node` of their own.
 pub fn chip<'a>(
     parent: &'a mut ChildSpawnerCommands,
     marker: impl Bundle,
@@ -3111,47 +3144,35 @@ pub fn chip<'a>(
     fill: Color,
     border: Color,
 ) -> EntityCommands<'a> {
-    let mut c = parent.spawn((
+    let mut chip = parent.spawn((
+        bevy_gooey::quiet_chip(label),
+        // **Before `AccessibleLabel`, which matters**: both require an `AccessibilityNode`, and Bevy builds
+        // the one the bundle names first — the button's.
         bevy::ui_widgets::Button,
-        Hovered::default(),
-        // **A chip answers the pointer, like every row does.** It carried `Hovered` from the day it
-        // was written — but only as a hit-test, for the "is the pointer over UI" question, and
-        // nothing ever painted it. The 2026-08-17 audit found that as its seventh defect: *"hover
-        // exists as a hit-test everywhere and as feedback almost nowhere"*, and the tag block is 55
-        // clickable things that gave no sign of being clickable. `RowRest` is the whole fix —
-        // `style_list_rows` already keys on it and has never needed to know what it is painting.
-        RowRest(fill),
         marker,
-        // **A chip narrows before the row wraps it to a second line** (#526, owner's rule: *"shrink the
-        // buttons, then, when they can't shrink more due to the text, then make it a new row"*). Its
-        // label breaks at a word (`LineBreak::WordOrCharacter` below), so a narrowed chip reflows inside
-        // itself rather than cutting its word — which is what the `the_terminal_bar_keeps_every_chip_whole`
-        // sweeps actually protect, and they pass 3/3 with this. The old `0.0` here was #494's fixed-target
-        // rule; #526 supersedes it and `the_g87_nodes_are_gooeys` moves with the contract.
-        held_box(
-            "chrome-chip",
-            bevy_gooey::Sides::all(crate::style::metrics().layout.edge_w),
-            Some(1.0),
-            bevy_gooey::Sizing { max_width: Some(bevy_gooey::Extent::Percent(100.0)), ..default() },
-        ),
+        bevy_gooey::StyleClass::of("chrome-chip"),
+        bevy_gooey::BorderPx(bevy_gooey::Sides::all(crate::style::metrics().layout.edge_w)),
+        bevy_gooey::Sizing { min_height: Some(bevy_gooey::Extent::Auto), ..default() },
+        bevy_gooey::InkFollow,
+        RowRest(fill),
         BorderColor::all(border),
         BackgroundColor(fill),
+        AccessibleLabel::new(label),
     ));
-    c.with_children(|chip| {
-        chip.spawn((
-            Text::new(label.to_owned()),
-            TextColor(ink),
-            typed(role),
-            // **The label's least width is its longest word** (#494) — the mechanism #481 used for a
-            // switch's label. A `NoWrap` label's min-content width is its whole counted phrase, so
-            // `NOT IMPORTED (4)` held its chip 379 px wide in a 319 px row: the `FlexWrap` above had
-            // nothing to wrap, because its one child was already wider than a line. Breaking at a
-            // word drops that floor to `IMPORTED`, so the box narrows to the line it is given and the
-            // count drops to a second line rather than painting over the panel's border.
-            TextLayout::new(Justify::Left, LineBreak::WordOrCharacter),
-        ));
+    // **The word `quiet_chip` spawned becomes the editor's text**: no gooey role, so `apply_skin` leaves its
+    // ink and size alone, and the caller's ink at [`typed`]'s size. It keeps `quiet_chip`'s layout, which
+    // breaks at a word or a letter: a chip's least width is its longest word (#494), so it narrows rather
+    // than painting over its panel.
+    let id = chip.id();
+    chip.commands().queue(move |world: &mut World| {
+        let kids: Vec<Entity> = world.get::<Children>(id).map(|kids| kids.iter().collect()).unwrap_or_default();
+        if let Some(words) = kids.into_iter().find(|kid| world.get::<Text>(*kid).is_some())
+            && let Ok(mut words) = world.get_entity_mut(words)
+        {
+            words.remove::<bevy_gooey::Role>().insert((TextColor(ink), typed(role)));
+        }
     });
-    c
+    chip
 }
 
 /// The fill a list row returns to when the pointer leaves it. Carried on every [`list_row`] so ONE
