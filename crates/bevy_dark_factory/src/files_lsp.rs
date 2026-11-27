@@ -27,7 +27,7 @@
 //!
 //! # Off the main thread
 //!
-//! The process's pipes are read and written by threads of its own ([`Server::spawn`]): one reads frames from its
+//! The process's pipes are read and written by threads of its own (`Server::spawn`): one reads frames from its
 //! output, one writes the editor's frames to its input, one keeps the last line of its error stream. They talk to the
 //! frame through channels, which [`talk_to_rust_analyzer`] drains once a frame without waiting.
 

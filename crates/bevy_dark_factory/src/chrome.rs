@@ -3223,7 +3223,7 @@ pub fn chip<'a>(
 }
 
 /// The fill a chip returns to when the pointer leaves it. Carried on every [`chip`] (and the bands
-/// built to act as one) so ONE system, [`style_list_rows`], gives them hover, press and held — the
+/// built to act as one) so ONE system, `style_list_rows`, gives them hover, press and held — the
 /// rebuilt panels are painted inside change-gated `rebuild_*` systems that never see mouse motion.
 /// A list row does not carry it: it is gooey's `Role::ListRow`, which the skin paints (#552).
 #[derive(Component, Clone, Copy)]

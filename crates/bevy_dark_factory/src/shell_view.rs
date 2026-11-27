@@ -549,7 +549,7 @@ pub fn toggle_zen(change: On<bevy_gooey::ValueChange<bool>>, mut view: ResMut<Sh
 // ── the status band's `Art` control (#669) ─────────────────────────────────────────────────────
 
 /// **The status band's `Art 32%` control** (#669): its label is the art's share of the window, and a click
-/// is [`look_or_work`] — the same press as `shell.zen`'s chord, so `blueprint/run_command { id: "shell.zen" }`
+/// is `look_or_work` — the same press as `shell.zen`'s chord, so `blueprint/run_command { id: "shell.zen" }`
 /// reaches it.
 ///
 /// The owner's decision (2026-11-27): *"two states, Work and Look. A status-band control labelled with the game
@@ -559,7 +559,7 @@ pub fn toggle_zen(change: On<bevy_gooey::ValueChange<bool>>, mut view: ResMut<Sh
 /// [`crate::ops_brp::measure_rects`] and [`crate::ops_brp::art_share`], the functions `blueprint/state`'s
 /// `rects.art_share` is made by, so the band and the state report one number.
 ///
-/// **In Look the band is folded with the rest, and the control is not**: [`float_the_art_share`] lifts it out of
+/// **In Look the band is folded with the rest, and the control is not**: `float_the_art_share` lifts it out of
 /// the band onto the window's own root, floating at the bottom-right corner over the art, and puts it back where
 /// it stood when Work returns. It takes no room in either place but the band's, so Look's art is the whole window
 /// and the way back is still on screen.
