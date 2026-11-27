@@ -30,6 +30,14 @@ const PATIENCE: Duration = Duration::from_secs(10);
 /// A debounce short enough to wait out in a test.
 const DEBOUNCE: Duration = Duration::from_millis(400);
 
+/// **The tests' own pacing, named**: these tests play a person's finger against a real debounce and a watchdog that polls
+/// every 10 ms, so their pauses are wall-clock spans a press takes, not waits for something to be drawn (#576).
+///
+/// How long a key is held before it is let go.
+const HELD: Duration = Duration::from_millis(100);
+/// How long after a press "the watchdog did not end it" is asked: twenty of its 10 ms polls, time enough to end it wrongly.
+const A_WRONG_ENDING_WOULD_SHOW_WITHIN: Duration = Duration::from_millis(200);
+
 fn wait_for(count: &AtomicUsize) -> Duration {
     let started = Instant::now();
     while count.load(Ordering::SeqCst) < 1 {
@@ -116,7 +124,7 @@ fn a_second_press_after_the_debounce_ends_a_quit_that_is_stuck_and_names_what_it
     let began = Instant::now();
 
     // Held: not a second press.
-    std::thread::sleep(Duration::from_millis(100));
+    std::thread::sleep(HELD);
     // Let go, and press again inside the debounce: the first press bouncing, not a second one.
     CHORD.store(false, Ordering::SeqCst);
     std::thread::sleep(Duration::from_millis(60));
@@ -141,10 +149,12 @@ fn a_second_press_after_the_debounce_ends_a_quit_that_is_stuck_and_names_what_it
 
 #[test]
 fn a_wait_is_listed_while_it_is_held_and_is_past_its_bound_only_after_it() {
-    let wait = waiting("a short wait for the list", Duration::from_millis(80));
+    const BOUND: Duration = Duration::from_millis(80);
+    let wait = waiting("a short wait for the list", BOUND);
     assert!(waits_now().iter().any(|w| w.starts_with("a short wait for the list")), "listed while held");
     assert!(!overdue_waits().contains(&"a short wait for the list"), "not past its bound at once");
-    std::thread::sleep(Duration::from_millis(120));
+    // Past the wait's own bound by half as much again, so "past its bound" is a fact and not a race with the clock.
+    std::thread::sleep(BOUND * 3 / 2);
     assert!(overdue_waits().contains(&"a short wait for the list"), "past its bound after it");
     drop(wait);
     assert!(!waits_now().iter().any(|w| w.starts_with("a short wait for the list")), "gone when released");
@@ -323,7 +333,7 @@ fn two_presses_on_a_frozen_app_do_not_end_it_while_the_unsaved_edits_question_is
     press_once(&QUESTION_CHORD);
     std::thread::sleep(DEBOUNCE);
     press_once(&QUESTION_CHORD);
-    std::thread::sleep(Duration::from_millis(200));
+    std::thread::sleep(A_WRONG_ENDING_WOULD_SHOW_WITHIN);
     assert_eq!(QUESTION_PRESS_ENDED.load(Ordering::SeqCst), 0, "a frozen app with the question open was ended by two presses");
     // Answered, and still frozen: the next press is the second one.
     state.set_question_open(false);
@@ -367,11 +377,13 @@ fn a_press_while_another_app_is_in_front_is_not_a_press_of_this_one() {
     state.beat();
     state.exiting();
     state.set_app_active(false);
-    spawn_watch(state.clone(), Some(SecondPress { debounce: Duration::from_millis(200), poll: Duration::from_millis(10), down: active_chord_is_down }), Duration::from_secs(60), active_ended)
+    const THIS_DEBOUNCE: Duration = Duration::from_millis(200);
+    spawn_watch(state.clone(), Some(SecondPress { debounce: THIS_DEBOUNCE, poll: Duration::from_millis(10), down: active_chord_is_down }), Duration::from_secs(60), active_ended)
         .unwrap_or_else(|e| panic!("{e}"));
-    std::thread::sleep(Duration::from_millis(300));
+    // Past this watch's debounce by half as much again, so the press below would count as a second one if this app were in front.
+    std::thread::sleep(THIS_DEBOUNCE * 3 / 2);
     press_once(&ACTIVE_CHORD);
-    std::thread::sleep(Duration::from_millis(200));
+    std::thread::sleep(A_WRONG_ENDING_WOULD_SHOW_WITHIN);
     assert_eq!(ACTIVE_ENDED.load(Ordering::SeqCst), 0, "Cmd+Q pressed in another app ended this one");
     state.set_app_active(true);
     std::thread::sleep(Duration::from_millis(50));

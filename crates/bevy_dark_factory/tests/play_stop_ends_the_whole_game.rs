@@ -55,9 +55,12 @@ fn stop_ends_a_game_started_through_a_launcher() {
     assert_eq!(after["ready"], true, "the game behind the launcher answered: {}", outcome.summary);
 
     let Applied::Done { .. } = ops::dispatch(&mut c, "play_stop", &json!({})).unwrap() else { panic!("stop refused") };
+    // **A wait on the thing asserted**: the port is asked until it stops answering, for at most five seconds, one step at a
+    // time; the step is how often it is asked, not how long the test waits.
+    const ASK_EVERY: Duration = Duration::from_millis(20);
     let deadline = Instant::now() + Duration::from_secs(5);
     while fairy_ready(port) && Instant::now() < deadline {
-        std::thread::sleep(Duration::from_millis(100));
+        std::thread::sleep(ASK_EVERY);
     }
     assert!(
         !fairy_ready(port),

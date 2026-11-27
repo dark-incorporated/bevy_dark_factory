@@ -122,8 +122,19 @@ fn cancel_mid_load_returns_to_the_launcher_and_leaves_the_project_byte_identical
     press(&mut app, "Cancel");
     assert_eq!(screen_of(&app), Screen::Launcher, "Cancel is the launcher");
 
-    // The open was reading on its thread; let it finish and see that nothing it did reaches the screen.
-    std::thread::sleep(Duration::from_millis(1500));
+    // **The fixture's own pacing, named.** The open runs on a thread the cancel does not join and that says nothing once its
+    // screen is gone, so "it never arrives" is watched for a window, frame by frame: the slowed stage's 300 ms pause, the
+    // rest of the open (unpaused once cancelled) and a margin for a loaded host — the 1.5 s this test has always given it,
+    // now asked at every frame of it rather than once at its end.
+    const A_CANCELLED_OPEN_FINISHES_WITHIN: Duration = Duration::from_millis(1500);
+    let watched = Instant::now();
+    while watched.elapsed() < A_CANCELLED_OPEN_FINISHES_WITHIN {
+        app.update();
+        assert_eq!(screen_of(&app), Screen::Launcher, "a cancelled open does not arrive later");
+        assert!(app.world().get_resource::<Chosen>().is_none(), "and leaves no door waiting");
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    // And the frames an answer taken on the window's last frame would need to reach the screen.
     for _ in 0..5 {
         app.update();
     }

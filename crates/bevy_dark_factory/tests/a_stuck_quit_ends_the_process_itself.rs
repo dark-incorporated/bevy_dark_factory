@@ -366,13 +366,16 @@ fn a_second_press_after_the_debounce_ends_the_process_itself_at_once() {
 
     // **A press inside the debounce is the first one bouncing, not a second press**: it must not end the quit. Without this the test could pass on a
     // watchdog that ended every press, which would kill people who fat-finger the chord.
+    // **The test's own pacing, named**: "it did not end the quit" can only be asked after the watchdog has had time to end it
+    // wrongly, which is a person's press against a real debounce — a wall-clock span, not a wait for a view.
+    const A_WRONG_ENDING_WOULD_SHOW_WITHIN: Duration = Duration::from_millis(100);
     press(&dir);
-    std::thread::sleep(Duration::from_millis(100));
+    std::thread::sleep(A_WRONG_ENDING_WOULD_SHOW_WITHIN);
     assert!(alive(child.0.id()), "a press inside the debounce of {SECOND_PRESS_DEBOUNCE_MS} ms ended the quit, which is the first press bouncing");
 
     // The debounce runs out, and a press now is meant: the person has waited.
     let wait_out = Duration::from_millis(SECOND_PRESS_DEBOUNCE_MS).saturating_sub(armed.elapsed());
-    std::thread::sleep(wait_out + Duration::from_millis(100));
+    std::thread::sleep(wait_out + A_WRONG_ENDING_WOULD_SHOW_WITHIN);
     assert!(alive(child.0.id()), "the child ended without a second press: {}", record(&dir));
 
     let pressed = Instant::now();
