@@ -24,8 +24,15 @@ use bevy_dark_factory::toolbar::Toolbar;
 use crate::fixtures;
 
 fn editor(name: &str) -> App {
+    editor_on(name, bevy_dark_factory::tiles::Mode::Map)
+}
+
+/// **An editor on `mode`'s workspace.** Zen's own test stands on the Kit (#670): a workspace with one panel folds its tab
+/// into the chrome bar and lays out no row for it, so the Kit — the one workspace whose tabs still have a row — is where
+/// every part Zen folds is on screen to begin with. The assertions are the ones they were.
+fn editor_on(name: &str, mode: bevy_dark_factory::tiles::Mode) -> App {
     let root = fixtures::Fixture::new(name).descriptor("floor", "alpha").build("m");
-    let mut app = bevy_dark_factory::harness::build_headless(&root, "m", None).unwrap_or_else(|e| panic!("the fixture project must open: {e}"));
+    let mut app = bevy_dark_factory::harness::build_headless_at(&root, "m", None, mode).unwrap_or_else(|e| panic!("the fixture project must open: {e}"));
     app.world_mut().resource_mut::<bevy_dark_factory::terminal::Terminal>().set_collapsed(false); // #424: the pane starts collapsed; this test needs it raised
     bevy_dark_factory::harness::resize_surface(&mut app, 1280, 720).unwrap_or_else(|e| panic!("{e}"));
     for _ in 0..12 {
@@ -124,7 +131,7 @@ fn cmd_b_hides_the_left_panel_and_the_viewport_takes_the_room() {
 
 #[test]
 fn shift_cmd_m_is_zen_mode_the_viewport_is_the_whole_window_and_the_chord_brings_it_back() {
-    let mut app = editor("shell_view_zen");
+    let mut app = editor_on("shell_view_zen", bevy_dark_factory::tiles::Mode::Meshes);
     let before = parts(&mut app);
     let world_before = viewport(&mut app);
     for (name, size) in &before {
@@ -166,20 +173,24 @@ fn shift_cmd_b_arms_the_run_tool() {
     assert!(!app.world().resource::<ShellView>().left_hidden, "and does not touch the left panel");
 }
 
-/// **A shell that has the keyboard keeps a Ctrl chord as its own, and Zen mode gives the keyboard back**: off a Mac the primary
-/// chords are Ctrl chords, which a shell reads as control codes, so the chord must not toggle anything; on a Mac it is the
-/// window's, Zen begins and the keys that move the camera stop reaching a shell nobody can see.
+/// **A shell that has the keyboard keeps its Ctrl chords, except the two it hands back, and Zen mode gives the keyboard back.**
+///
+/// The premise changed with #667 ("the shell's two chords fold the docks with the terminal raised"): Zen's chord is on
+/// `chords::SKIPPED_BY_THE_SHELL`, which *"the window reads … on every platform, `Ctrl` or `Cmd` alike, exactly as VS Code's
+/// terminal lets `Ctrl+B` through to fold its side bar. Every other chord stays the shell's."* So the chord begins Zen whether or
+/// not the shell would own a Ctrl chord (`TerminalFocus::owns`, true off a Mac), where this test used to expect the shell to keep
+/// it there; and once Zen has begun the keys that move the camera stop reaching a shell nobody can see.
 #[test]
 fn zen_mode_gives_the_terminals_keyboard_back_and_a_shell_keeps_its_own_ctrl_chords() {
+    use bevy_dark_factory::chords::{Fixed, reaches_the_shell};
     use bevy_dark_factory::terminal_pane::TerminalFocus;
     let mut app = editor("shell_view_focus");
     app.world_mut().resource_mut::<TerminalFocus>().take();
-    let shells = app.world().resource::<TerminalFocus>().owns(&bevy_dark_factory::chords::chord(bevy_dark_factory::chords::Fixed::ShellZen));
+    let shells = app.world().resource::<TerminalFocus>().owns(&bevy_dark_factory::chords::chord(Fixed::ShellZen));
+    assert!(!reaches_the_shell(Fixed::ShellZen), "Zen's chord is on the shell's skip list (#667), so a shell never reads it as bytes");
 
     chord(&mut app, &[primary(), KeyCode::ShiftLeft, KeyCode::KeyM]);
     let zen = app.world().resource::<ShellView>().zen;
-    assert_eq!(zen, !shells, "the shell owns the chord ({shells}) and Zen mode is {zen}");
-    if zen {
-        assert!(!app.world().resource::<TerminalFocus>().holds(), "Zen mode began and the hidden terminal still holds the keyboard");
-    }
+    assert!(zen, "the shell holds the keyboard (a Ctrl chord would be its own: {shells}) and Zen mode is {zen}: the window reads this chord (#667)");
+    assert!(!app.world().resource::<TerminalFocus>().holds(), "Zen mode began and the hidden terminal still holds the keyboard");
 }

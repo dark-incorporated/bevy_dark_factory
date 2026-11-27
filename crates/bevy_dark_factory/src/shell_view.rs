@@ -283,6 +283,11 @@ fn collapse_the_left_pane(
 /// clip. **The room is the body plus the dock's own row, whether it is shown or not**, so showing it
 /// does not change the answer the next frame (no flicker at the threshold).
 ///
+/// **And less the workspace strip's row where the strip is not a row** (#670). A workspace with one
+/// panel folds its tab into the chrome bar and the body has the 35 px ([`crate::tiles::TAB_STRIP_H`])
+/// its row took; the room is read as if the row were there, so the window at which the dock comes is
+/// the one it was on every workspace (1280 x 720 still has none) and the body keeps the row's height.
+///
 /// **A dock with nothing to report folds to its own tab bar** (#662). A project nobody has connected a
 /// game to draws one dim line, and a 148-px strip for that line took 17.8% of a 1600 x 1000 window from
 /// the art. When [`crate::editor::ReloadNews`] says the panel has no news, the strip's height is
@@ -333,7 +338,8 @@ fn give_the_bottom_dock_its_room(
         let Ok(body) = laid.get(frame.body) else { return };
         let interface_px = |node: &ComputedNode| node.size().y * node.inverse_scale_factor();
         let own_row = if dock.display == Display::None { 0.0 } else { laid.get(frame.bottom).map_or(0.0, interface_px) };
-        if interface_px(body) + own_row >= layout.workbench_floor_h + layout.bottom_dock_h { Display::Flex } else { Display::None }
+        let folded_row = (crate::tiles::TAB_STRIP_H - laid.get(frame.door_strip).map_or(0.0, interface_px)).max(0.0);
+        if interface_px(body) + own_row - folded_row >= layout.workbench_floor_h + layout.bottom_dock_h { Display::Flex } else { Display::None }
     };
     if dock.display != display {
         dock.display = display;

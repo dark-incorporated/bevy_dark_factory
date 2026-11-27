@@ -326,6 +326,14 @@ impl Workspace {
         matches!(self, Workspace::Project | Workspace::Sound | Workspace::Game | Workspace::Agent)
     }
 
+    /// **Does this workspace fold its tab into the chrome bar?** (#670, the owner's "fold", 2026-11-27.) A workspace
+    /// with one panel has one tab, and a row of its own for it held one word the chrome bar already drew: its tab
+    /// stands in the chrome bar instead, and the row is gone. Kit, with three panels, keeps a row, so the rule is the
+    /// count of panels and not a list of workspaces.
+    pub const fn folds_its_tabs_into_the_chrome_bar(self) -> bool {
+        self.panels().len() < 2
+    }
+
     /// **Where this workspace starts**: its dock, before a person has moved a divider.
     ///
     /// Each is a different arrangement on purpose — the Kit workspace gives the library more room

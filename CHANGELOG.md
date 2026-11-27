@@ -4,6 +4,7 @@ What each change added, newest first. A visible change has a clip: click the sti
 
 ## 2026-11-27
 
+- **670** A workspace with one panel folds its tab into the chrome bar, and the tab row under it is gone *For you: On every workspace except Kit, the workspace's name and the link to switch to another one now sit in the top bar, so the row they had of their own goes to the work area.* *No clip: a layout measured headless; proved by tests/a_one_panel_workspace_folds_its_tab_into_the_chrome_bar.rs (the Map names itself once above the body; every one-panel workspace has no row and its tab and switch link in the bar; Kit keeps its row)*
 - **694** Project, Sound, Game and Agent give their panel the centre instead of a dock beside a black viewport *For you: On the Project, Sound, Game and Agent workspaces the panel now fills the window's middle instead of sitting in a narrow column beside an empty black area.* *No clip: a layout measured headless; proved by tests/a_workspace_without_a_viewport_gives_its_panel_the_centre.rs (panel width and viewport per workspace)*
 - **690** The toolbar is drawn only on Map, World and Kit, and no tool is lit where it cannot act *For you: Workspaces without the map's tools no longer show the toolbar, so their panels get its room; on World and Kit the tools that cannot act there are shown disabled.* *No clip: a layout measured headless; proved by tests/the_toolbar_follows_the_workspace.rs (census of all ten workspaces, the room given back, the armed tool lit on arrival)*
 

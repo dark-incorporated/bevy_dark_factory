@@ -4528,8 +4528,8 @@ pub fn subject(
 /// (`chrome::row_label`), and the bar is one line tall, so the two facts stay on the one line the
 /// band has for them.
 ///
-/// Public because [`spawn_chrome_bar`] and [`repaint_where_you_are`] both ask it, and because a test
-/// reads the words from here rather than from a node that is only on screen in a window.
+/// Public because [`the_bars_words`] asks it, and because a test reads the words from here rather than from a node
+/// that is only on screen in a window.
 pub fn where_you_are(
     door: &crate::workspace::Workspace,
     open_map: Option<&crate::project::OpenMap>,
@@ -4538,6 +4538,24 @@ pub fn where_you_are(
     match subject(open_map, project) {
         Some(name) => format!("{}: {name}", door.label()),
         None => door.label().to_owned(),
+    }
+}
+
+/// **The words at the chrome bar's far end** (#670): [`where_you_are`] where the workspace's tabs have a row of their
+/// own (Kit's three), and the subject alone where its one tab stands in this bar
+/// ([`crate::workspace::Workspace::folds_its_tabs_into_the_chrome_bar`]) — the tab already names the workspace, and the
+/// bar saying `MAP: bedroom` beside a tab that says `MAP` was one name drawn twice. With no subject the words are the
+/// workspace's name, as before.
+///
+/// [`spawn_chrome_bar`] and [`repaint_where_you_are`] both ask it, so the spawn and the repaint cannot disagree.
+pub fn the_bars_words(
+    door: &crate::workspace::Workspace,
+    open_map: Option<&crate::project::OpenMap>,
+    project: Option<&crate::project::Project>,
+) -> String {
+    match subject(open_map, project) {
+        Some(name) if door.folds_its_tabs_into_the_chrome_bar() => name,
+        _ => where_you_are(door, open_map, project),
     }
 }
 
@@ -4572,15 +4590,15 @@ pub fn spawn_chrome_bar(
     open_map: Option<Res<crate::project::OpenMap>>,
     project: Option<Res<crate::project::Project>>,
 ) {
-    // **The bar's words come from [`where_you_are`]**, so the spawn and the repaint cannot disagree
+    // **The bar's words come from [`the_bars_words`]**, so the spawn and the repaint cannot disagree
     // about them any more than they can about the name (`subject`).
-    let here = door.as_deref().map(|d| where_you_are(d, open_map.as_deref(), project.as_deref()));
+    let here = door.as_deref().map(|d| the_bars_words(d, open_map.as_deref(), project.as_deref()));
 
     // **The way out names where it goes**: the project's own name, which is the page it returns to (`project_page.rs`).
     let back = back_name(project.as_deref());
 
-    commands.entity(frame.chrome_bar).with_children(|bar| {
-        bar.spawn((
+    let way_out = commands
+        .spawn((
             BackButton,
             Control(keys::ControlId::Back),
             // A chip-sized row: its words' gap and its inset the sheet's `.chrome-back`, never shrinking, in the editor's own fill (`InkFollow`).
@@ -4607,8 +4625,13 @@ pub fn spawn_chrome_bar(
                 typed(BAR_READOUT),
                 bevy::picking::Pickable::IGNORE,
             ));
-        });
+        })
+        .id();
+    // **The way out is the bar's first child whichever came first** (#670): a workspace with one panel folds its tab into
+    // this bar at index 1 (`tiles`), and the two spawners run in one `OnEnter` with no order between them.
+    commands.entity(frame.chrome_bar).insert_children(0, &[way_out]);
 
+    commands.entity(frame.chrome_bar).with_children(|bar| {
         // Pushes the subject to the far end. A spacer rather than `SpaceBetween` on the bar, so a
         // third thing added later lands where it is put rather than being redistributed.
         bar.spawn(bevy_gooey::spacer());
@@ -4632,8 +4655,8 @@ pub fn spawn_chrome_bar(
     });
 }
 
-/// The bar's right-hand end: which door, on what. Marked so a test can find it — and so
-/// [`repaint_where_you_are`] can keep it true.
+/// The bar's right-hand end: what the workspace is on, and which workspace where its tabs are not in this bar
+/// ([`the_bars_words`]). Marked so a test can find it — and so [`repaint_where_you_are`] can keep it true.
 #[derive(Component)]
 pub struct WhereYouAre;
 
@@ -4655,7 +4678,7 @@ pub fn repaint_where_you_are(
 ) {
     let Some(door) = door else { return };
     // **The same words the bar was spawned with**, from the one function that composes them.
-    let want = where_you_are(&door, open_map.as_deref(), project.as_deref());
+    let want = the_bars_words(&door, open_map.as_deref(), project.as_deref());
     for mut text in &mut bar {
         if text.0 != want {
             text.0 = want.clone();
