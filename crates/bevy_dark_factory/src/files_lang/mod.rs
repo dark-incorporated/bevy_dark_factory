@@ -6,8 +6,8 @@
 //!
 //! # One module per language, behind one trait
 //!
-//! A language is a type that implements [`Language`]: `highlights`, `diagnose`, `folds`, `complete`, `hover` and
-//! `outline`. `yaml`, `ron`, `rhai` and `markdown` are one each, and [`REGISTRY`] is the one place that
+//! A language is a type that implements [`Language`]: `highlights`, `diagnose`, `folds`, `complete`, `hover`, `outline` and
+//! `comment`. `yaml`, `ron`, `rhai`, `markdown` and `rust` (which knows only its comment, for `Cmd+/`) are one each, and [`REGISTRY`] is the one place that
 //! maps a file's extension to its language. **The trait is the extension point**: an external LSP client would be
 //! one more implementation and one more row. None is built, and nothing here starts a process. The free functions
 //! in this module ([`highlights`], [`diagnose`], [`folds`] and the rest) are the editor's way in: each looks the
