@@ -46,7 +46,7 @@ use bevy_gooey::{CollapseSplit, Role, SplitDivider, SplitFraction, SplitGlide, S
 use crate::chrome::{BottomDock, Frame, FrameSystems, ShellSplit};
 use crate::confirm::Confirm;
 use crate::empty_state::EmptyMapPrompt;
-use crate::keys::{Context, Live};
+use crate::keys::{Context, Holder, Live};
 use crate::menu_bar::EditorMenuBar;
 use crate::screen::Screen;
 use crate::terminal_pane::TerminalPaneRoot;
@@ -99,25 +99,35 @@ pub struct ShellViewPlugin;
 
 impl Plugin for ShellViewPlugin {
     fn build(&self, app: &mut App) {
-        app.init_resource::<ShellView>().add_systems(
-            Update,
-            (
-                toggle_on_the_chords,
-                collapse_the_left_pane.after(FrameSystems),
-                give_the_bottom_dock_its_room.after(FrameSystems),
-                fold_the_shell.after(FrameSystems),
-                tick_the_menu_rows,
-            )
-                .chain()
-                .run_if(in_state(Screen::Editor)),
-        );
+        app.init_resource::<ShellView>()
+            .add_observer(reopen_the_folded_dock)
+            .add_systems(
+                Update,
+                (
+                    toggle_on_the_chords,
+                    collapse_the_left_pane.after(FrameSystems),
+                    give_the_bottom_dock_its_room.after(FrameSystems),
+                    fold_the_shell.after(FrameSystems),
+                    tick_the_menu_rows,
+                )
+                    .chain()
+                    .run_if(in_state(Screen::Editor)),
+            );
     }
 }
 
-/// **The two chords.** Not while a text field has the keys (a chord typed into a field is the field's), nor over a question, nor
-/// when the shell has the keyboard and the chord is on Ctrl (a control code it reads, `TerminalFocus::owns`: off a Mac every
-/// primary chord). **Zen mode gives the terminal's keyboard back**, or the keys that move the camera would go on reaching a shell
-/// nobody can see.
+/// **The two chords.** Not while a text field has the keys (a chord typed into a field is the field's), nor over a question.
+///
+/// **A terminal's hold is not a field's** (#667). With the pane raised at a quarter, `Ctrl+B` and
+/// `Shift+Ctrl+M` reached nothing: `TerminalFocus` folded the shell into the same `Context::Typing` a
+/// name being typed gives, so both chords were refused and the editor's own answer to "give the art
+/// the window" did nothing in the one state a person would reach for it. The two are on
+/// [`crate::chords::SKIPPED_BY_THE_SHELL`], the skip list every terminal has: the window reads them
+/// on every platform, `Ctrl` or `Cmd` alike, exactly as VS Code's terminal lets `Ctrl+B` through to
+/// fold its side bar. Every other chord stays the shell's.
+///
+/// **Zen mode gives the terminal's keyboard back**, or the keys that move the camera would go on
+/// reaching a shell nobody can see.
 fn toggle_on_the_chords(
     keys: Res<ButtonInput<KeyCode>>,
     live: Res<Live>,
@@ -127,9 +137,15 @@ fn toggle_on_the_chords(
     mut view: ResMut<ShellView>,
     mut commands: Commands,
 ) {
-    let left = crate::chords::chord(crate::chords::Fixed::ShellLeftPanel).just_pressed(&keys) && !focus.owns(&crate::chords::chord(crate::chords::Fixed::ShellLeftPanel));
-    let zen = crate::chords::chord(crate::chords::Fixed::ShellZen).just_pressed(&keys) && !focus.owns(&crate::chords::chord(crate::chords::Fixed::ShellZen));
-    if !(left || zen) || live.0 == Context::Typing || confirm.is_open() {
+    // **The terminal's own hold is not a refusal** (#667); a field's is, and `Context::Typing` is
+    // both. `Holder::Terminal` is the difference, so the gate asks the holder rather than the folded
+    // context.
+    let field_has_the_keys = live.0 == Context::Typing && live.2 != Holder::Terminal;
+    let left_chord = crate::chords::chord(crate::chords::Fixed::ShellLeftPanel);
+    let zen_chord = crate::chords::chord(crate::chords::Fixed::ShellZen);
+    let left = left_chord.just_pressed(&keys);
+    let zen = zen_chord.just_pressed(&keys);
+    if !(left || zen) || field_has_the_keys || confirm.is_open() {
         return;
     }
     if left {
@@ -139,7 +155,7 @@ fn toggle_on_the_chords(
         view.zen = !view.zen;
         if view.zen {
             focus.release();
-            commands.spawn(bevy_gooey::toast(format!("Zen mode: {} brings the editor back", bindings.chord(crate::chords::chord(crate::chords::Fixed::ShellZen)))));
+            commands.spawn(bevy_gooey::toast(format!("Zen mode: {} brings the editor back", bindings.chord(zen_chord))));
         }
     }
 }
@@ -263,35 +279,119 @@ fn collapse_the_left_pane(
 /// clip. **The room is the body plus the dock's own row, whether it is shown or not**, so showing it
 /// does not change the answer the next frame (no flicker at the threshold).
 ///
+/// **A dock with nothing to report folds to its own tab bar** (#662). A project nobody has connected a
+/// game to draws one dim line, and a 148-px strip for that line took 17.8% of a 1600 x 1000 window from
+/// the art. When [`crate::editor::ReloadNews`] says the panel has no news, the strip's height is
+/// [`LayoutMetrics::bottom_dock_tab_h`] and its pages are out of the layout — the tab bar stays drawn,
+/// so the strip is still there to be opened, and the room it gives back is the body's. The
+/// news is `refresh_reload_list`'s answer, which is the same pass that builds the lines, so the strip
+/// and its content cannot disagree about whether there is anything to say.
+///
 /// **Zen mode hides it, and the frame Zen ends on does not read the room.** [`fold_the_shell`] does not
 /// touch the dock, so there is no stored display to put back (that put back a stale `Flex` for one frame
 /// when the window had shrunk in Zen); and on that frame the layout is still Zen's, whose body is the
 /// whole window, so a dock nobody asked for stays hidden until the next frame has measured the real one.
+#[allow(clippy::too_many_arguments)]
 fn give_the_bottom_dock_its_room(
     view: Res<ShellView>,
+    news: Option<Res<crate::editor::ReloadNews>>,
     frame: Option<Res<Frame>>,
     laid: Query<&ComputedNode>,
     mut docks: Query<&mut Node, With<BottomDock>>,
+    mut sizing: Query<&mut bevy_gooey::Sizing>,
+    roles: Query<(&Role, &ChildOf)>,
+    mut pages: Query<&mut Node, (With<Role>, Without<BottomDock>)>,
     mut zen_last_frame: Local<bool>,
 ) {
     let Some(frame) = frame else { return };
     let Ok(mut dock) = docks.get_mut(frame.bottom) else { return };
     let just_left_zen = std::mem::replace(&mut *zen_last_frame, view.the_rest_is_hidden()) && !view.the_rest_is_hidden();
+    let layout = crate::style::metrics().layout;
+    // **The panel has news, or the person asked for it.**
+    let reports = news.as_deref().is_none_or(crate::editor::ReloadNews::has_news) || view.reload_shown;
+    let full = layout.bottom_dock_h;
+    let folded = layout.bottom_dock_tab_h;
     let display = if view.the_rest_is_hidden() {
         Display::None
     } else if view.reload_shown {
         Display::Flex
     } else if just_left_zen {
         Display::None
+    } else if !reports {
+        // **A strip with nothing to say is its tab bar and no more.** It needs no floor test: 29 px
+        // is affordable where 148 was not, and hiding it would hide the only control that brings the
+        // panel back.
+        Display::Flex
     } else {
         let Ok(body) = laid.get(frame.body) else { return };
         let interface_px = |node: &ComputedNode| node.size().y * node.inverse_scale_factor();
         let own_row = if dock.display == Display::None { 0.0 } else { laid.get(frame.bottom).map_or(0.0, interface_px) };
-        let layout = crate::style::metrics().layout;
-        if interface_px(body) + own_row >= layout.workbench_floor_h + layout.bottom_dock_h { Display::Flex } else { Display::None }
+        if interface_px(body) + own_row >= layout.workbench_floor_h + full { Display::Flex } else { Display::None }
     };
     if dock.display != display {
         dock.display = display;
+    }
+    // **The height, and the pages that give it back** (#662). The dock's `Sizing` is the one writer
+    // of its height, and gooey follows it; the pages are hidden rather than the body, because the tab
+    // bar lives beside them and is what a person clicks to open the strip again.
+    let want_h = if display == Display::Flex && !reports { folded } else { full };
+    if let Ok(mut size) = sizing.get_mut(frame.bottom)
+        && size.height != Some(bevy_gooey::Extent::Px(want_h))
+    {
+        size.height = Some(bevy_gooey::Extent::Px(want_h));
+    }
+    let hide_pages = display == Display::Flex && !reports;
+    for (role, child_of) in &roles {
+        if *role != Role::TabPages || !under(child_of.parent(), frame.bottom, &roles) {
+            continue;
+        }
+        let want = if hide_pages { Display::None } else { Display::Flex };
+        if let Ok(mut node) = pages.get_mut(child_of.parent())
+            && node.display != want
+        {
+            node.display = want;
+        }
+    }
+}
+
+/// Is `entity` the bottom dock, or inside it? Walked upward so a change to what gooey puts between
+/// them cannot break the fold.
+fn under(entity: Entity, root: Entity, parents: &Query<(&Role, &ChildOf)>) -> bool {
+    let mut at = Some(entity);
+    while let Some(entity) = at {
+        if entity == root {
+            return true;
+        }
+        at = parents.get(entity).ok().map(|(_, child_of)| child_of.parent());
+    }
+    false
+}
+
+/// **A click on the dock's tab opens the strip** (#662): the tab bar is what a folded dock keeps, so it
+/// is the door back to the full panel. Clicking a tab is a person asking for that panel, which is what
+/// `reload_shown` means — so the View menu's tick and the click say the same thing.
+///
+/// The bottom dock holds one panel, so any click in its tab strip is the RELOAD tab's. A click in the
+/// panel's own body is not this observer's: the strip is folded then, and there is no body to click.
+fn reopen_the_folded_dock(
+    mut click: On<bevy::picking::events::PointerClick>,
+    frame: Option<Res<Frame>>,
+    roles: Query<(&Role, &ChildOf)>,
+    mut view: ResMut<ShellView>,
+) {
+    let Some(frame) = frame else { return };
+    if view.reload_shown || !under(click.entity, frame.bottom, &roles) {
+        return;
+    }
+    // **The tab strip, not the page**: a click that landed inside a panel's body is the panel's own
+    // control, and folding never leaves one laid out.
+    let in_the_strip = roles.get(click.entity).is_ok_and(|(role, _)| *role == Role::TabList)
+        || roles
+            .get(click.entity)
+            .is_ok_and(|(_, child_of)| roles.get(child_of.parent()).is_ok_and(|(role, _)| *role == Role::TabList));
+    if in_the_strip {
+        click.propagate(false);
+        view.reload_shown = true;
     }
 }
 

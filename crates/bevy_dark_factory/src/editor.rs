@@ -2822,6 +2822,9 @@ impl Plugin for EditorPlugin {
             .init_resource::<CrowdEdit>()
             .init_resource::<crate::balloon::BalloonPreview>()
             .init_resource::<Folded>()
+            // **Whether the Reload panel has news** (#662): the dock folds to its tab bar when it has
+            // none, and this is the one walk that builds the lines deciding it.
+            .init_resource::<ReloadNews>()
             .init_resource::<EdgeFaults>()
             // Shared by both tabs' lists, so it is registered once here rather than by whichever
             // plugin happens to build first.
@@ -7103,6 +7106,25 @@ struct ReloadShown {
     drawn: bool,
 }
 
+/// **Whether the Reload panel has anything to report** (#662), for
+/// [`crate::shell_view::give_the_bottom_dock_its_room`] to fold the strip when it does not.
+///
+/// A resource rather than a second query of the lines: the panel's content is `refresh_reload_list`'s
+/// answer — the one system that builds it from the project and the game's verdict — and a dock that
+/// re-derived "is there news" from its own walk would be a second answer that could disagree with the
+/// lines on screen. `None` until the first walk lands, which the dock reads as *nothing to report*: a
+/// strip that opens full for one frame and then folds would move under the person's eyes.
+#[derive(Resource, Default, Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ReloadNews(pub Option<bool>);
+
+impl ReloadNews {
+    /// **Has the panel something to say?** `false` before the first walk, and `false` when every line
+    /// its last walk drew was dim.
+    pub fn has_news(&self) -> bool {
+        self.0.unwrap_or(false)
+    }
+}
+
 /// Keep [`ReloadList`] equal to what became of each file's latest edit (#203, H6): a header that says
 /// whether a game has answered, then a line per file with news, drawn from the same
 /// [`crate::reload_files`] rows `blueprint_state.reload_files` reports. The project is looked at twice a
@@ -7117,6 +7139,7 @@ fn refresh_reload_list(
     reloads: Option<Res<crate::live::EditorReloads>>,
     live: Option<Res<crate::live::LiveWrite>>,
     lists: Query<Entity, With<ReloadList>>,
+    mut news: Option<ResMut<ReloadNews>>,
     mut local: Local<ReloadShown>,
 ) {
     use crate::reload_files::{self, Tone};
@@ -7134,6 +7157,15 @@ fn refresh_reload_list(
     let editor = reloads.as_deref().map_or(&[][..], |r| r.kinds());
     let files = reload_files::files(&project.project_dir, &project.root, verdict, editor);
     let now = reload_files::panel_lines(&files, verdict, live.is_some(), reload_files::now_ms());
+    // **The dock's answer, before the early return**: the lines can be unchanged for a minute while
+    // the strip is folded or unfolded by something else (a resize, Zen), and the dock must read the
+    // answer every frame it looks, not only the frame the text moved.
+    if let Some(news) = news.as_deref_mut() {
+        let has_news = !reload_files::reports_nothing(&now);
+        if news.0 != Some(has_news) {
+            news.0 = Some(has_news);
+        }
+    }
     if *drawn && *shown == now {
         return;
     }
@@ -9424,13 +9456,20 @@ pub fn sense_context(
         keys::Context::Map if picker.active => keys::Stance::Picking,
         _ => keys::Stance::Idle,
     };
-    // **Journal over filter over tab**, because that is the drawing order. The tab is carried in
-    // every case now; only the holder changes — that is the whole of the fix, and it is why
-    // `keys::Context::Filter` no longer exists.
+    // **Journal over filter over terminal over tab**, because that is the drawing order. The tab is
+    // carried in every case now; only the holder changes — that is the whole of the fix, and it is
+    // why `keys::Context::Filter` no longer exists.
+    //
+    // **The terminal is its own holder, not a field's** (#667). `typing` already covers it for the
+    // census, so no row fires either way; what `Holder::Terminal` adds is the *why*, which the
+    // chords read outside the census need: a shell's hold of the keyboard is not a field's, and
+    // `shell_view` refuses a primary chord on a field's hold but not on a shell's.
     let holder = if journal.iter().any(|n| n.display != Display::None) {
         keys::Holder::Journal
     } else if filter_typing {
         keys::Holder::Filter
+    } else if terminal.as_deref().is_some_and(crate::terminal_pane::TerminalFocus::holds) {
+        keys::Holder::Terminal
     } else {
         keys::Holder::Tab
     };

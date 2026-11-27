@@ -3950,6 +3950,17 @@ pub enum Holder {
     /// three keys ([`Action::Cancel`], [`Action::CopyInfo`], [`Action::ShowErrors`]) are the panel's
     /// own, named in its footer by `chrome::notifications_overlay`.
     Journal,
+    /// **A terminal has the keyboard** ([`crate::terminal_pane::TerminalFocus`]). No census row
+    /// fires, which `Context::Typing` at `.0` already said; this says *why*, because a shell's hold
+    /// and a text field's are not the same thing to the chords read outside the census.
+    ///
+    /// A field's keys are only ever the field's. A shell's are not: the shell's own chords are read
+    /// before it hears anything (`terminal_view::type_keys` drops them), and the window keeps a
+    /// named few that a shell never receives (`chords::the_window_keeps`). Without this variant
+    /// `shell_view` could not tell a shell from a name being typed, so Zen and the left panel were
+    /// refused with the terminal raised at a quarter — measured, both were no-ops in exactly that
+    /// state and worked with it collapsed (#667).
+    Terminal,
 }
 
 /// Who owns the keyboard: the live tab, unless a field is taking raw keys — plus what is in hand and
@@ -4009,6 +4020,9 @@ fn gate(b: &Binding, live: Live) -> bool {
         // The tab is deliberately NOT consulted here: the journal is a panel over the whole viewport
         // and its three keys are the panel's own, named in its own footer.
         Holder::Journal => b.while_journal,
+        // **No row fires while a shell types**: a command typed into a terminal is not also a
+        // command in the editor, which is the whole point of the terminal being a text field.
+        Holder::Terminal => false,
     };
     context_ok && stance_ok(b, live.1)
 }

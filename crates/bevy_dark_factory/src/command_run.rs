@@ -53,6 +53,15 @@ impl Chords {
         ));
     }
 
+    /// **Ask for a fixed chord to be pressed**, for `blueprint/run_command` to reach the controls that
+    /// are not census rows (#668). `fixed` names one of [`crate::chords::CHORDS`]; the keys are that
+    /// chord's own, read now, and the press goes through the same queue every command's does — so a
+    /// chord an agent asks for and a chord a person presses are the same key sequence in the same
+    /// frame, and there is no second dispatch to drift from the first.
+    pub fn queue_fixed(&mut self, fixed: crate::chords::Fixed, source: Source) {
+        self.waiting.push((keys_of_chord(crate::chords::chord(fixed)), source));
+    }
+
     /// The same, for the person's own hands: every caller but an agent's door is a person's click.
     pub fn queue(&mut self, command: &Command, live: keys::Live) {
         self.queue_from(command, live, Source::Human);

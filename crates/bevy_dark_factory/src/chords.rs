@@ -248,6 +248,41 @@ pub fn chord(fixed: Fixed) -> Shortcut {
     rebound.unwrap_or_else(|| default_of(fixed))
 }
 
+/// **Does a shell read `fixed` as bytes, or does the window keep it?** (#667)
+///
+/// A shell reads every key it is given, so a chord that reached it would be a control code or a
+/// literal — which is why `terminal_view::type_keys` drops the pane's own chords before forwarding
+/// anything. That list is this answer, and it is **one list in one place**: the pane's swallow and
+/// the shell's own readers both ask it, so they cannot drift apart.
+///
+/// Three kinds, of which two are the window's:
+///
+/// - **the pane's own** — read by `terminal_pane` or `terminal_view` before the shell sees anything,
+///   so forwarding one would also run a line (on Linux `Ctrl+J` is a newline);
+/// - **the shell's own two, [`SKIPPED_BY_THE_SHELL`]** — the ones a person presses *because* the
+///   terminal is in the way. Every terminal keeps a skip list like it, for this reason: VS Code's
+///   terminal sends `Ctrl+B` on to fold its side bar.
+/// - **everything else** — the shell's to read as bytes.
+pub fn reaches_the_shell(fixed: Fixed) -> bool {
+    !matches!(
+        fixed,
+        Fixed::TerminalFind
+            | Fixed::TerminalClear
+            | Fixed::TerminalCloseTab
+            | Fixed::TerminalCollapse
+            | Fixed::TerminalMaximise
+            | Fixed::TerminalRaise
+            | Fixed::EditorDevAgent
+    ) && !SKIPPED_BY_THE_SHELL.contains(&fixed)
+}
+
+/// **The shell's own two chords, which a terminal hands back to the window** (#667).
+///
+/// They are here rather than in `shell_view` because two systems need the same answer: the shell
+/// reads them, and `terminal_view` must not also send them to the child. A second copy is the
+/// failure this table exists to prevent.
+pub const SKIPPED_BY_THE_SHELL: [Fixed; 2] = [Fixed::ShellLeftPanel, Fixed::ShellZen];
+
 static LIVE_CHORDS: LazyLock<RwLock<BTreeMap<String, Shortcut>>> = LazyLock::new(|| RwLock::new(BTreeMap::new()));
 
 /// **Keep the fixed chords the resolved keymap's**: only its entries that name one. Only `settings::sync_settings` calls it.

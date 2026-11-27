@@ -164,35 +164,115 @@ fn the_state_says_the_screen_the_workspace_the_panels_and_who_has_the_keys() {
     assert_eq!(ui["focus"], json!("viewport"), "nothing holds the keys but the viewport: {ui}");
 }
 
-/// **A chord id is refused with the key it stands for**, not with "not a command id" (#668).
+/// **Every chord is reachable by id, and the one door presses the same keys the key does** (#668).
 ///
-/// Twenty-six controls live in `chords::CHORDS` and not in `commands::all()` — the terminal, Zen mode, the
-/// left panel, the palette, settings, the console — so an agent staging a capture cannot run them. A refusal
-/// that says only "not a command id" leaves the caller with no way to find out that `terminal.clear` is
-/// Shift+Cmd+K, so this asserts the refusal names the chord.
+/// Twenty-seven controls live in `chords::CHORDS` and are not census rows — the terminal's own, Zen
+/// mode, the left panel, the palette, settings, the console. A person reached them; an agent reached
+/// none, because `commands::all()` and `chords::CHORDS` shared no id at all. Now one resolver
+/// (`commands::registered`) answers for both, `blueprint/run_command` presses the chord's own keys,
+/// and there is no second dispatch: the answer comes from the same systems a key press reaches.
 #[test]
-fn a_chord_id_is_refused_and_names_its_key() {
-    let mut app = editor("chord_refused");
-    let answer = run(&mut app, "terminal.clear");
+fn terminal_collapse_by_id_moves_the_placement_one_step_round_the_cycle() {
+    use bevy_dark_factory::terminal::Terminal;
+    let mut app = editor("chord_terminal_collapse");
+    let before = app.world().resource::<Terminal>().placement();
+    let expected = before.next();
 
+    let answer = run(&mut app, "terminal.collapse");
+
+    assert_eq!(answer["outcome"], json!("ran"), "`terminal.collapse` is reachable by id (#668): {answer}");
+    assert_eq!(answer["id"], json!("terminal.collapse"));
     assert_eq!(
-        answer["outcome"], "refused",
-        "a chord id is not a command id yet: {answer}"
+        app.world().resource::<Terminal>().placement(),
+        expected,
+        "the door moved the pane one step round the cycle, from {before:?}"
     );
-    let why = answer["why"].as_str().expect("a reason");
+    // **The chord's own keys, spelled the way the host does**: the receipt names the same key the keymap
+    // screen shows, because it is the chord that was pressed.
+    assert!(answer["shortcut"].as_str().is_some_and(|key| key.contains('J')), "the receipt names the chord: {answer}");
+}
+
+/// **`shell.zen` by id begins Zen mode**, so an agent can stage the state a capture needs, and the
+/// second call ends it — the same two presses a person makes.
+#[test]
+fn shell_zen_by_id_begins_and_ends_zen_mode() {
+    use bevy_dark_factory::shell_view::ShellView;
+    let mut app = editor("chord_shell_zen");
+    assert!(!app.world().resource::<ShellView>().zen, "the editor opens out of Zen mode");
+
+    let on = run(&mut app, "shell.zen");
+    assert_eq!(on["outcome"], json!("ran"), "`shell.zen` is reachable by id (#668): {on}");
+    assert!(app.world().resource::<ShellView>().zen, "and the door began Zen mode");
+
+    let off = run(&mut app, "shell.zen");
+    assert_eq!(off["outcome"], json!("ran"), "{off}");
+    assert!(!app.world().resource::<ShellView>().zen, "and the second press ended it");
+}
+
+/// **The palette opens by id**, which is the other control a staged capture needs: `palette.open` is a
+/// `Fixed` chord and was unreachable, so a capture of the palette could only be made by pressing keys.
+#[test]
+fn palette_open_by_id_opens_the_palette() {
+    let mut app = editor("chord_palette_open");
+    let before = {
+        let world = app.world_mut();
+        world.query_filtered::<Entity, With<bevy_gooey::CommandPalette>>().iter(world).count()
+    };
+    assert_eq!(before, 0, "the palette is shut to begin with");
+
+    let answer = run(&mut app, "palette.open");
+
+    assert_eq!(answer["outcome"], json!("ran"), "`palette.open` is reachable by id (#668): {answer}");
+    let shown = {
+        let world = app.world_mut();
+        world
+            .query_filtered::<&Node, With<bevy_gooey::CommandPalette>>()
+            .iter(world)
+            .any(|node| node.display != Display::None)
+    };
+    assert!(shown, "and the door opened it");
+}
+
+/// **The two registries are one list, and no chord is unreachable** — the assertion that stops the
+/// two drifting 27 apart again.
+///
+/// It is over the registries themselves, not over a sample: every `chords::Fixed` id must resolve
+/// through `commands::registered`, and every command id must too. A chord added without a door, or a
+/// command renamed out of the resolver, fails here rather than in a capture that cannot be staged.
+#[test]
+fn every_chord_and_every_command_is_reachable_by_id() {
+    use bevy_dark_factory::chords;
+    use bevy_dark_factory::commands::registered;
+
+    for named in chords::CHORDS {
+        let found = registered(named.id).unwrap_or_else(|| panic!("`{}` ({:?}) is a chord nothing can reach (#668)", named.id, named.fixed));
+        assert_eq!(found.id(), named.id, "the resolver answers with the id it was asked for");
+        assert_eq!(found.title(), named.title, "and the chord's own words");
+    }
+    for command in commands::all() {
+        let found = registered(command.id).unwrap_or_else(|| panic!("`{}` is a command nothing can reach", command.id));
+        assert_eq!(found.id(), command.id, "the resolver answers with the id it was asked for");
+    }
+    // **No id names two controls**: a shared id would make which one runs a matter of lookup order.
+    let mut seen = std::collections::HashSet::new();
+    for id in commands::registered_ids() {
+        assert!(seen.insert(id), "`{id}` is two controls' id");
+    }
+}
+
+/// **An unknown id is still refused, and the nearest ids now include a chord's own** (#668).
+///
+/// The old refusal suggested `tiles.close` for `terminal.collapse`, because the chord's id was not in
+/// the list it measured against. One list means a typo of a chord finds the chord.
+#[test]
+fn a_typo_of_a_chord_id_finds_the_chord() {
+    let mut app = editor("chord_typo");
+    let answer = run(&mut app, "terminal.collaps");
+
+    assert_eq!(answer["outcome"], json!("refused"), "{answer}");
+    let near: Vec<&str> = answer["did_you_mean"].as_array().expect("a list to choose from").iter().filter_map(|v| v.as_str()).collect();
     assert!(
-        why.contains("is a chord, not a command"),
-        "**the refusal does not say the id is a chord** (#668): {why}"
-    );
-    let chord = answer["chord"].as_str().expect("the chord it stands for");
-    assert!(
-        chord.contains('K'),
-        "and it names the key, so a caller can press it: {chord:?} in {answer}"
-    );
-    assert!(
-        !answer["did_you_mean"]
-            .as_array()
-            .is_some_and(|near| near.is_empty()),
-        "and it still offers near command ids: {answer}"
+        near.contains(&"terminal.collapse"),
+        "the nearest id to `terminal.collaps` is the chord (#668): {near:?} in {answer}"
     );
 }

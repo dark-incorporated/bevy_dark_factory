@@ -1713,6 +1713,10 @@ fn ui_json(door: Option<&crate::workspace::Workspace>, live: Option<&crate::keys
         Some((Context::Typing, _)) => "text_field",
         Some((_, Holder::Filter)) => "filter",
         Some((_, Holder::Journal)) => "journal",
+        // **A shell's hold has a name of its own** (#667): an agent staging a state reads *which*
+        // region has the keys, and "a terminal" is a different answer from "a text field" — the
+        // terminal is why a chord did nothing in the state that was captured.
+        Some((_, Holder::Terminal)) => "terminal",
         _ => "viewport",
     };
     json!({
@@ -3536,17 +3540,26 @@ fn surface_hide(In(p): In<SurfaceHideParams>, mut eyes: Option<ResMut<crate::out
     }))
 }
 
-/// **`blueprint/run_command` — run a registered command by id** (UI-90, #256).
+/// **`blueprint/run_command` — run a registered control by id** (UI-90, #256; both vocabularies, #668).
 ///
-/// **The agent's door onto [`crate::commands`].** The command's chord is pressed for one frame and the
-/// editor's own dispatcher answers, so `edit.undo` undoes exactly as Cmd+Z does, through the same
-/// system, with the same receipt and the same undo stack ([`crate::command_run`] says why a key and
-/// not a call). **It runs nothing the key would refuse**: a command that is not enabled now is refused
-/// with the registry's own reason ([`crate::commands::Command::enabled`]) and nothing is pressed.
+/// **The agent's one door onto the editor's controls.** [`crate::commands::registered`] resolves an id
+/// against both registries — a census verb (`edit.undo`) or a fixed chord (`shell.zen`,
+/// `terminal.collapse`) — so one id names one control whichever registry owns it, and the door cannot
+/// disagree with the key.
 ///
-/// **`ran` means the chord is queued, not that the verb finished**; the change lands in the next frame
+/// **The keys are pressed and the editor's own dispatcher answers**, which is [`crate::command_run`]'s
+/// reason for a key and not a call: a command's chord goes down through [`crate::command_run::Chords`]
+/// as a person's would, and a chord id's keys are that chord's own. There is **no second dispatch**:
+/// a `Fixed` is a key sequence and nothing here knows what `shell.zen` does.
+///
+/// **It runs nothing the key would refuse.** A command that is not enabled now is refused with the
+/// registry's own reason ([`crate::commands::Command::enabled`]) and nothing is pressed. A chord has no
+/// such rule — it is read by its own system, before the census — so a chord id is pressed and the
+/// registry's own reading of the held chord decides, exactly as a person's press would.
+///
+/// **`ran` means the keys are queued, not that the verb finished**; the change lands in the next frame
 /// or two and the caller reads it from `blueprint/state`. An unknown id is refused and names the ids
-/// nearest to it.
+/// nearest to it, across both registries.
 fn run_command(
     In(p): In<RunCommandParams>,
     screen: Option<Res<State<crate::screen::Screen>>>,
@@ -3558,8 +3571,8 @@ fn run_command(
     fn refused(id: &str, why: impl Into<String>) -> Value {
         json!({"outcome": "refused", "id": id, "why": why.into()})
     }
-    let Some(command) = crate::commands::by_id(&p.id) else {
-        let ids: Vec<&str> = crate::commands::all().into_iter().map(|c| c.id).collect();
+    let Some(registered) = crate::commands::registered(&p.id) else {
+        let ids = crate::commands::registered_ids();
         let mut near: Vec<(usize, &str)> = ids
             .iter()
             .map(|id| (blueprint_model::vocab::edit_distance(id, &p.id), *id))
@@ -3574,65 +3587,47 @@ fn run_command(
             .take(5)
             .collect();
         did_you_mean.extend(parts);
-        // **An id that is a chord says so, and names the key** (#668). Twenty-six controls live in
-        // `chords::CHORDS` and not in `commands::all()` — the terminal, Zen mode, the left panel, the
-        // palette, settings, the console — so an agent staging a capture cannot reach them, and "not a
-        // command id" told it nothing about why. The chord is spelled the way the keymap screen spells
-        // it, so a caller can press that key or find the command that does the same thing.
-        let as_a_chord = crate::chords::CHORDS
-            .iter()
-            .find(|named| named.id == p.id)
-            .map(|named| named.fixed);
-        let why = match as_a_chord {
-            Some(fixed) => {
-                let key = crate::chords::chord(fixed)
-                    .label_with(bevy_gooey::Platform::current(), bevy_gooey::ChordGlyphs::Words);
-                let title = crate::chords::CHORDS
-                    .iter()
-                    .find(|named| named.fixed == fixed)
-                    .map_or("", |named| named.title);
-                format!(
-                    "`{}` is a chord, not a command: \"{title}\" is {key}. Press that key, or run the \
-                     command that does the same thing",
-                    p.id
-                )
-            }
-            None => format!(
-                "`{}` is not a command id; ids are `<category>.<verb>`, such as `edit.undo`",
-                p.id
-            ),
-        };
-        let chord = as_a_chord.map(|fixed| {
-            crate::chords::chord(fixed)
-                .label_with(bevy_gooey::Platform::current(), bevy_gooey::ChordGlyphs::Words)
-        });
         return Ok(json!({
             "outcome": "refused",
             "id": p.id,
-            "why": why,
-            "chord": chord,
+            "why": format!(
+                "`{}` is not a control id; ids are `<category>.<verb>` (`edit.undo`) or a chord's own \
+                 (`shell.zen`, `terminal.collapse`)",
+                p.id
+            ),
             "did_you_mean": did_you_mean,
         }));
     };
     if screen.as_deref().is_some_and(|s| *s.get() != crate::screen::Screen::Editor) {
-        return Ok(refused(command.id, "The launcher is open; commands run in the workbench"));
+        return Ok(refused(registered.id(), "The launcher is open; commands run in the workbench"));
     }
     let (Some(live), Some(mut chords)) = (live, chords) else {
-        return Ok(refused(command.id, "The editor is not ready for keys yet"));
+        return Ok(refused(registered.id(), "The editor is not ready for keys yet"));
     };
-    if let Err(why) = command.enabled(*live) {
-        return Ok(refused(command.id, why));
-    }
-    // **An agent's chord is an agent's** (DL-02, #470): the frame it goes down in is labelled so, and an answer it produces is no verdict of the person's.
-    chords.queue_from(&command, *live, Source::Agent);
-    if let Some(mut state) = state {
-        state.status.note(format!("an agent ran {}", command.title));
-    }
-    // **The receipt spells the chord the way the host does** (#553): the same `BindingSettings::chord` the
-    // badge and the keymap row read, so an agent's receipt and a person's screen name one key one way.
+    // **The receipt spells the chord the way the host does** (#553): the same `BindingSettings::chord`
+    // the badge and the keymap row read, so an agent's receipt and a person's screen name one key one way.
     let spelling = settings.as_deref().cloned().unwrap_or_else(crate::ui::editor_binding_settings);
-    let shortcut = spelling.chord(command.shortcut_in(*live));
-    Ok(json!({"outcome": "ran", "id": command.id, "title": command.title, "shortcut": shortcut}))
+    let shortcut = match registered {
+        crate::commands::Registered::Command(command) => {
+            if let Err(why) = command.enabled(*live) {
+                return Ok(refused(command.id, why));
+            }
+            // **An agent's chord is an agent's** (DL-02, #470): the frame it goes down in is labelled so,
+            // and an answer it produces is no verdict of the person's.
+            chords.queue_from(&command, *live, Source::Agent);
+            spelling.chord(command.shortcut_in(*live))
+        }
+        // **A chord has no stance to be refused by**: its own system reads the key before the census, so
+        // the press is the answer, as a person's would be.
+        crate::commands::Registered::Chord(named) => {
+            chords.queue_fixed(named.fixed, Source::Agent);
+            spelling.chord(crate::chords::chord(named.fixed))
+        }
+    };
+    if let Some(mut state) = state {
+        state.status.note(format!("an agent ran {}", registered.title()));
+    }
+    Ok(json!({"outcome": "ran", "id": registered.id(), "title": registered.title(), "shortcut": shortcut}))
 }
 
 /// **`blueprint/frame_view` — frame the Map camera on a box.**

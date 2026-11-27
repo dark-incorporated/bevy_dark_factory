@@ -83,6 +83,9 @@ impl Command {
             keys::Holder::Tab => {}
             keys::Holder::Filter => return Err("A filter box is taking the keys"),
             keys::Holder::Journal => return Err("The journal is taking the keys"),
+            // **A shell's keys are the shell's** (#667): no census verb fires while it types, which
+            // is what a command offered from the palette must say before it is greyed.
+            keys::Holder::Terminal => return Err("The terminal is taking the keys"),
         }
         if !keys::fires_in(self.context, live.0) {
             return Err("Not on this tab");
@@ -126,6 +129,57 @@ pub fn by_id(id: &str) -> Option<Command> {
         .into_iter()
         .find(|a| identity(*a).0 == id)
         .map(command)
+}
+
+/// **One id, resolved against both vocabularies** — the registry `blueprint/run_command` reads (#668).
+///
+/// The editor names 141 verbs as [`Command`]s and 27 more controls as [`crate::chords::Fixed`] chords
+/// the census does not carry (the terminal's, Zen, the left panel, the palette, settings, the
+/// console). A person reaches all 168; an agent reached 141, because the two registries shared no
+/// ids at all. This is the one place an id is resolved, so the door and the key cannot disagree about
+/// what an id names.
+///
+/// **A command wins a shared id.** None shares one today (`chords::tests::every_fixed_chord_has_one_row`
+/// refuses a duplicate), and resolving commands first keeps `edit.undo` answering as it always has if
+/// one ever is.
+#[derive(Clone, Copy)]
+pub enum Registered {
+    /// A census verb: it has a `Binding`, a stance, a live context and a refusal.
+    Command(Command),
+    /// A fixed chord: its keys are the whole of how it is reached.
+    Chord(&'static crate::chords::NamedChord),
+}
+
+impl Registered {
+    /// The id a caller named, spelled as the registry spells it.
+    pub fn id(&self) -> &'static str {
+        match self {
+            Registered::Command(command) => command.id,
+            Registered::Chord(named) => named.id,
+        }
+    }
+
+    /// The words a menu, the palette or a receipt shows.
+    pub fn title(&self) -> &'static str {
+        match self {
+            Registered::Command(command) => command.title,
+            Registered::Chord(named) => named.title,
+        }
+    }
+}
+
+/// **What `id` names, a command or a fixed chord**, or `None` when it names nothing (#668).
+pub fn registered(id: &str) -> Option<Registered> {
+    by_id(id)
+        .map(Registered::Command)
+        .or_else(|| crate::chords::by_id(id).map(Registered::Chord))
+}
+
+/// **Every id the agent's door answers to**, in one list: the commands', then the chords'. What an
+/// unknown id is measured against, so a typo of a chord's id finds the chord.
+pub fn registered_ids() -> Vec<&'static str> {
+    let commands = Action::ALL.into_iter().map(|a| identity(a).0);
+    commands.chain(crate::chords::CHORDS.iter().map(|named| named.id)).collect()
 }
 
 /// **The command ids that went away with the doors** (#379), as a saved keymap spells them.
