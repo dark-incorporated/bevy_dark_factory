@@ -71,7 +71,7 @@
 //! It gets a block that shows its file's YAML text and no fields: the editor will not invent a schema for
 //! another crate's settings, and it will not draw an empty panel as if the crate had none. That is the
 //! two-way street's own answer — a settings type that wants fields here needs `Reflect` in its own crate,
-//! filed there (`consumer:bevy_blueprint`) rather than worked around here.
+//! filed there (`consumer:bevy_dark_factory`) rather than worked around here.
 
 use std::collections::BTreeMap;
 use std::path::PathBuf;

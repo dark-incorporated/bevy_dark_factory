@@ -213,8 +213,8 @@ If none of these fits, use `other:<slug>` and describe the oracle in the test. P
 
 If the cause is in a family crate (`bevy_gooey`, `bevy_elements`, …), **do not patch, wrap or vendor it here.** Instead:
 
-1. Search that repository's open issues first, for example `gh issue list -R <owner>/<crate> --label consumer:bevy_blueprint`.
-2. If an issue already describes the cause, comment on it with the stem. Otherwise, file one labelled `bug` or `enhancement`, `consumer` and `consumer:bevy_blueprint`.
+1. Search that repository's open issues first, for example `gh issue list -R <owner>/<crate> --label <label>`, where `<label>` is `consumer:bevy_grimoire` on `bevy_gooey` and `consumer:bevy_dark_factory` on every other family crate (#622).
+2. If an issue already describes the cause, comment on it with the stem. Otherwise, file one labelled `bug` or `enhancement`, `consumer` and that `<label>`.
 3. Close the capture as `blocked`, with cause `upstream` and `"upstream": "<crate>#<n>"`. Write the report and log line, push, and stop.
 
 ## 8. Prove it locally
