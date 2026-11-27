@@ -97,12 +97,24 @@ pub const LOG_TAIL_ROWS: usize = 3;
 /// What the cue list marks the chosen cue with, the Sound workspace's cue list's own mark.
 const CUE_MARK: &str = crate::world_lists::CUE_MARK;
 
-/// **Read the project's sound** when the project changes and when its file changes on disk — once per change, never
-/// per frame. A file that does not read is a problem naming the field, and the previous settings stay in force.
+/// **The sound file, followed through the project index** (#501): what [`read_audio`] keeps so it reads the file when the
+/// index says it moved and at no other time, the same subscription the world lists keep for their files.
+#[derive(bevy::ecs::system::SystemParam)]
+pub(crate) struct SoundFile<'w, 's> {
+    index: Option<Res<'w, crate::project_index::ProjectIndex>>,
+    follow: Local<'s, crate::world_lists::Follow>,
+}
+
+/// **Read the project's sound** when the project opens and when the project index says its file moved — once per
+/// change, never per frame and never on a clock. A file that does not read is a problem naming the field, and the
+/// previous settings stay in force.
 ///
 /// A missing file is not a problem: a project may ship no sound yet, and the crate's defaults are a real mix. The
 /// panel still names the buses and the cues from the crate's own tables, so it has rows to draw.
-pub fn read_audio(
+// A Bevy system's parameters are what it reads and writes; the crate's three stores, the index and the status line are each
+// one of them.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn read_audio(
     mut panel: ResMut<AudioPanel>,
     project: Option<Res<Project>>,
     mut settings: ResMut<bevy_siren::SirenSettings>,
@@ -114,19 +126,33 @@ pub fn read_audio(
     mut sounds: ResMut<bevy_siren::SirenSounds>,
     server: Option<Res<AssetServer>>,
     mut state: ResMut<EditorState>,
+    mut sound_file: SoundFile,
 ) {
     let Some(project) = project else {
         return;
     };
-    if panel.root.as_deref() == Some(project.root.as_path())
-        && !project.is_changed()
-        && !panel.is_changed()
-    {
-        return;
-    }
     let reopened = panel.root.as_deref() != Some(project.root.as_path());
+    let SoundFile { index, follow } = &mut sound_file;
+    let moved = index
+        .as_deref()
+        .and_then(|index| follow.moved(index, Some(&project), project.is_changed(), |p| Some(settings_dir(&p.root).join(FILE))));
+    // **A project's mix is in force from the frame it opens**, before the index has listed anything; after that the file
+    // is read only when the index says it moved (#501). A file the index cannot follow (one the project's `.gitignore`
+    // hides) is said in the cue list's row and not read, as the build without the crate says it.
+    match moved {
+        Some(Err(why)) if !reopened => {
+            panel.unread = Some(why);
+            return;
+        }
+        None if !reopened => return,
+        _ => {}
+    }
     panel.root = Some(project.root.clone());
     let file = settings_dir(&project.root).join(FILE);
+    // **Every read of the project's sound is counted** (`world_lists::reads_on_this_thread`), because this is the one
+    // reader of `family/bevy_siren.yaml` in a `bevy_siren` build: the cue list takes its names from what this read, so
+    // "one changed file is one read" is a fact about this line and a test has to be able to see it.
+    crate::world_lists::counted_read();
     let Ok(text) = std::fs::read_to_string(&file) else {
         if reopened {
             panel.buses = settings
@@ -179,12 +205,9 @@ pub fn read_audio(
         }
         Err(problem) => {
             // **Said once.** The cue list draws `panel.unread` as its one row, where a person is looking at
-            // the cues; raising the status line as well said the same sentence twice in a build whose panel
-            // is drawn (measured: three "did not read" nodes where the test counts one). A build without the
-            // crate has no panel to read it, so the status line is that build's only place for it.
+            // the cues; raising the status line as well said the same sentence twice (measured: three "did not
+            // read" nodes where the test counts one).
             panel.unread = Some(problem);
-            #[cfg(not(feature = "bevy_siren"))]
-            state.status.problem(panel.unread.clone().unwrap_or_default());
         }
     }
 }
