@@ -80,12 +80,12 @@ fn every_dock_panel_carries_gooeys_panel_role() {
     let panels: Vec<Entity> = world.query_filtered::<Entity, With<PanelWidth>>().iter(world).collect();
     assert!(!panels.is_empty(), "the editor draws dock panels");
     let mut without = Vec::new();
-    for panel in panels {
+    for panel in &panels {
         let name = world
-            .get::<AccessibleLabel>(panel)
+            .get::<AccessibleLabel>(*panel)
             .map_or_else(|| format!("{panel:?}"), |label| label.0.clone());
-        if world.get::<Role>(panel) != Some(&Role::Panel) {
-            without.push(format!("{name} ({:?})", world.get::<Role>(panel)));
+        if world.get::<Role>(*panel) != Some(&Role::Panel) {
+            without.push(format!("{name} ({:?})", world.get::<Role>(*panel)));
         }
     }
     assert!(
@@ -118,8 +118,8 @@ fn the_shipped_densitys_panel_inset_is_the_twelve_pixels_it_always_was() {
             (*left, *top),
             (step, step),
             "`{name}` is drawn {left} px in on each side; the editor has always drawn a panel {step} px in, \
-             so adopting the role must not move it",
-            left
+             so adopting the role must not move it"
+
         );
     }
 }

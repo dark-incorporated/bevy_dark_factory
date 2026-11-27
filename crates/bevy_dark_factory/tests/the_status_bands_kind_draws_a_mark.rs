@@ -165,6 +165,7 @@ fn a_warning_draws_the_skins_accent_and_a_clean_band_draws_no_mark() {
         Display::None,
         "plain state draws no mark: gooey's `StatusKind::Info` is the absence of one"
     );
+    let ink_when_clean = mark_ink(&app, &clean);
     assert_eq!(mark_ink(&app, &clean), Color::NONE, "and the bar it would draw is clear");
 
     record(
@@ -186,7 +187,7 @@ fn a_warning_draws_the_skins_accent_and_a_clean_band_draws_no_mark() {
         "the mark's ink is the running skin's `accent`, so a theme edit moves it"
     );
     assert_ne!(
-        mark_ink(&app, &clean),
+        ink_when_clean,
         mark_ink(&app, &warned),
         "two kinds must not draw the same mark"
     );
