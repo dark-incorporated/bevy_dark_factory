@@ -73,13 +73,13 @@ pulldown-cmark = { version = "0.13", default-features = false }
 # Same dev profile as Sanctuary: Bevy runs fast in debug without slowing rebuilds of these crates.
 [profile.dev]
 opt-level = 1
-# **Incremental is off, and the reason is measured, not aesthetic.** This workspace's debug profile
-# writes its incremental cache to the shared `CARGO_TARGET_DIR`, and on this machine that cache
-# reached 6–18 GB on three separate occasions in one session and filled a 461 GB disk to 100%, at
-# which point the linker fails with `write() failed, errno=28` and the failure looks like a broken
-# test rather than a full disk. `opt-level = 1` already rebuilds this code quickly; the cache was
-# buying a little more speed for a lot of disk, and the trade is wrong here.
-incremental = false
+# **Incremental is on for editors and loops, off in the push gate** (rust-speed-audit 2026-11-26, M1 Max, rustc 1.98.1):
+# a one-line edit to the `bevy_dark_factory` crate rebuilt its test binaries in 254-259 s with `incremental = false` and
+# in 26-28 s with it on (an edit to `blueprint_model`: ~305 s -> 43-45 s); the first build after the switch costs ~322 s
+# once. It was off because the incremental cache (6-18 GB) filled a 461 GB disk. The gate, which builds a different tree
+# on every push into its own target dir, exports CARGO_INCREMENTAL=0 (tools/loop/hooks/pre-push), and the workbench's
+# editor.sh deletes `debug/incremental` when the disk drops under 15 GB free.
+incremental = true
 
 [profile.dev.package."*"]
 opt-level = 3

@@ -41,6 +41,10 @@ features=(--features bevy_dark_factory/family_all)
 case "${CARGO_TARGET_DIR:-}" in
   */.cargo-target-shared/global) export CARGO_TARGET_DIR="${CARGO_TARGET_DIR%/global}-gate" ;;
 esac
+# **The gate builds without incremental** (rust-speed-audit 2026-11-26): the dev profile turns incremental on for editors
+# and loops, and the gate's own target dir must not grow an incremental cache it cannot reuse between pushes of different
+# trees -- the cache that once filled a 461 GB disk. CARGO_INCREMENTAL overrides the profile's setting.
+export CARGO_INCREMENTAL=0
 zero=0000000000000000000000000000000000000000
 target="" remote="" code=0
 # The pushed refs arrive on stdin once; `git lfs pre-push` below needs them too.
