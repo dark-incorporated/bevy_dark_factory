@@ -106,3 +106,39 @@ the panel was `Role::Sized`, whose arm writes no padding, so the same edit left 
 
 **The recipe that finally worked:** `RUSTC_WRAPPER=` cleared entirely, `CARGO_BUILD_JOBS=3`, and a host at load 8
 with 8 GB free. A 445-second suite had taken four attempts and three hours.
+
+## End of the day: a fully green gate, and the release flow's deadlock
+
+**`ab3fc1d8` passed the whole workspace: `5,233 tests run: 5,233 passed, 13 skipped, 371 s`,
+`pre-push gate: passed in 941s`.** The note is on the commit and pushed: `gated on big
+2026-11-26T18:53:48: clippy over every target, nextest and doctests passed`. That carries #645, #647 and #650 to
+`main`, and all three are closed.
+
+**Fourteen gate runs produced that one.** The others were: two OOM kills, one `sccache` failure mid-compile, one
+gate that gated a tree without the fixes, one that gated a tree whose merge had dropped a test file, and seven
+that found a real defect. The seven are the value; the other seven are the host.
+
+## The release flow cannot cut a tag
+
+`f76bebee` is the `release: 0.8.5` commit — two lines, the manifest version and `Cargo.lock`. The hook's bump fast
+path exits at `pre-push:134`, **before** `record_gated` is reached, so the bump carries no note. Then
+`require-gate-record.sh` refuses the tag:
+
+```
+require-gate-record: REFUSED: f76bebeef47d has no record in refs/notes/gated
+```
+
+**The deadlock is structural:** every release commit is a bump, every bump skips the tests, and only a test run
+writes the note. So no release tag can ever pass, and the check that exists to stop an ungated release stops all
+of them.
+
+**The fix, which is the honest one rather than the fast one:** a bump now writes a note that *names the parent it
+inherits from* rather than claiming a run of its own —
+
+```
+version bump f76bebee inherits the gate of ab3fc1d8: gated on big 2026-11-26T18:53:48: ...
+```
+
+— so the record is true about which commit's tests the tag's commit rides on. `notes_ref` is named inside that
+branch because the file declares it further down, past the fast paths, and an unset variable there would have
+silently skipped the note.
