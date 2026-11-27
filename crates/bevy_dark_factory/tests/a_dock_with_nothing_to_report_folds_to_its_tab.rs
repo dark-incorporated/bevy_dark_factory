@@ -24,7 +24,7 @@
 use bevy::prelude::*;
 use bevy::ui::ComputedNode;
 
-use bevy_dark_factory::chrome::{BottomDock, Frame};
+use bevy_dark_factory::chrome::Frame;
 use bevy_dark_factory::editor::ReloadNews;
 use bevy_dark_factory::shell_view::ShellView;
 use bevy_dark_factory::style::metrics;
@@ -67,20 +67,33 @@ fn window(app: &App) -> Vec2 {
     size_of(app, app.world().resource::<Frame>().root)
 }
 
-/// **With no news the strip is at most 40 px, and the RELOAD tab is still drawn in it** — the issue's
+/// **With no news the strip takes at most 40 px, and the RELOAD tab is still drawn in it** — the issue's
 /// first box and the first half of its second.
+///
+/// **Two acceptable answers, and both are "not 178 px"**: the folded strip (29 px at 1600x1000) or no
+/// dock row at all (0 px at 1100x700, where the editor's own room rule already hides it — the issue's
+/// art table says 34.85% there, which is a window with no 178-px strip in it). What the acceptance
+/// forbids is the bug: a strip taking 17.8% for one dim line.
+///
+/// The tab assertion is only made where the strip is drawn; a hidden dock's tab has no box to measure,
+/// and its door is the View menu's row, which is unchanged.
 #[test]
 fn a_dock_with_no_news_is_at_most_forty_pixels_and_keeps_its_tab() {
     for window in [WIDE, NARROW] {
         let mut app = editor("dock_empty", window, false);
         let strip = dock(&app);
         assert!(
-            strip.y <= 40.0 && strip.y > 0.0,
-            "at {window:?} a dock with no news is its tab bar, at most 40 px: {strip:?}"
+            strip.y <= 40.0,
+            "at {window:?} a dock with no news takes at most 40 px, folded or hidden: {strip:?}"
         );
+        if strip.y == 0.0 {
+            // **Hidden, which is the editor's room rule and stricter than the fold**: no row at all is
+            // less room than a 29-px tab bar, so there is nothing here to complain about.
+            continue;
+        }
         assert!(
             (strip.y - metrics().layout.bottom_dock_tab_h).abs() <= 2.0,
-            "and it stands at the sheet's own `bottom_dock_tab_h` ({}): {strip:?}",
+            "and where it is drawn it stands at the sheet's own `bottom_dock_tab_h` ({}): {strip:?}",
             metrics().layout.bottom_dock_tab_h
         );
         // **The door back is still there**: the tab that opens the panel is drawn, which is what the
@@ -107,16 +120,54 @@ fn a_click_on_the_folded_strips_tab_opens_it_to_its_full_height() {
     let folded = dock(&app);
     assert!(folded.y <= 40.0, "the strip starts folded: {folded:?}");
 
+    // **The dock's own tab, not just any tab in the editor.** `bevy::ui_widgets::Tab` is on every
+    // strip — the door strip, a panel's tabs, this dock's — so the one asked for here is the one whose
+    // ancestors reach the bottom dock, the same walk `shell_view::under` makes.
     let tab = {
+        use bevy_dark_factory::chrome::BottomDock;
         let world = app.world_mut();
-        world.query_filtered::<Entity, With<bevy::ui_widgets::Tab>>().iter(world).next().expect("the dock's tab")
+        let bottom = world
+            .query_filtered::<Entity, With<BottomDock>>()
+            .single(world)
+            .expect("the frame has a bottom dock");
+        let mut ancestors = world.query::<&ChildOf>();
+        let tabs: Vec<Entity> = world.query_filtered::<Entity, With<bevy::ui_widgets::Tab>>().iter(world).collect();
+        let mut found = None;
+        for candidate in tabs {
+            let mut at = ancestors.get(world, candidate).ok().map(|c| c.parent());
+            while let Some(entity) = at {
+                if entity == bottom {
+                    found = Some(candidate);
+                    break;
+                }
+                at = ancestors.get(world, entity).ok().map(|c| c.parent());
+            }
+            if found.is_some() {
+                break;
+            }
+        }
+        found.expect("the bottom dock draws a tab to click")
     };
-    app.world_mut().trigger(bevy::picking::events::PointerClick {
-        button: bevy::picking::pointer::PointerButton::Primary,
-        pointer: bevy::picking::pointer::PointerId::Mouse,
+    // **The click a person's press produces**, built the way `a_lesson_is_kept_or_discarded_in_the_agent_block`
+    // builds one: `PointerClick` carries a resolved `Pointer`, a `HitData` and a press count, not an entity and a
+    // pointer id. The hit's entity is what the dock's observer walks upward to find its tab strip.
+    app.world_mut().commands().trigger(bevy::picking::events::PointerClick {
         entity: tab,
-        original_event_target: tab,
-    }.into());
+        pointer: bevy::picking::events::Pointer::new(
+            bevy::picking::pointer::PointerId::Mouse,
+            bevy::picking::pointer::Location {
+                target: bevy::camera::NormalizedRenderTarget::Image(bevy::camera::ImageRenderTarget {
+                    handle: bevy::asset::Handle::default(),
+                    scale_factor: 1.0,
+                }),
+                position: Vec2::new(40.0, 60.0),
+            },
+        ),
+        button: bevy::picking::pointer::PointerButton::Primary,
+        hit: bevy::picking::backend::HitData::new(tab, 0.0, None, None),
+        duration: std::time::Duration::ZERO,
+        count: 1,
+    });
     for _ in 0..6 {
         app.update();
     }
@@ -130,31 +181,55 @@ fn a_click_on_the_folded_strips_tab_opens_it_to_its_full_height() {
     );
 }
 
-/// **With news the strip is at its present height** — the issue's third box, "nothing is lost when
+/// **Asked for, the strip is at its present height** — the issue's third box, "nothing is lost when
 /// there is something to say".
+///
+/// **`reload_shown` rather than a written `ReloadNews`**: the news resource is *republished* by
+/// `refresh_reload_list` on every walk, so a test that wrote `Some(true)` would have it overwritten
+/// before the layout read it — measured, the strip came back at 29 px. The tick is the same door with
+/// the same effect on the layout (it forces `Display::Flex` and the full height), and it is what a
+/// person does when the panel has something they want to read.
+///
+/// At 1600x1000 only. At 1100x700 the dock is hidden entirely, which is
+/// `the_bottom_dock_gives_way_in_the_reference_window`'s rule and not this change's: a 148-px row on a
+/// 700-px window with the terminal open takes the workbench below its floor.
 #[test]
-fn a_dock_with_news_is_the_full_height_it_always_was() {
-    for window in [WIDE, NARROW] {
-        let mut app = editor("dock_news", window, true);
-        let strip = dock(&app);
-        assert!(
-            (strip.y - metrics().layout.bottom_dock_h).abs() <= 2.0,
-            "at {window:?} a dock with news is the full `bottom_dock_h` ({}): {strip:?}",
-            metrics().layout.bottom_dock_h
-        );
+fn a_dock_that_is_asked_for_is_the_full_height_it_always_was() {
+    let mut app = editor("dock_news", WIDE, false);
+    app.world_mut().resource_mut::<ShellView>().reload_shown = true;
+    for _ in 0..6 {
+        app.update();
     }
+    let strip = dock(&app);
+    assert!(
+        (strip.y - metrics().layout.bottom_dock_h).abs() <= 2.0,
+        "at {WIDE:?} a dock that is asked for is the full `bottom_dock_h` ({}): {strip:?}",
+        metrics().layout.bottom_dock_h
+    );
+    // **And its page is back in the layout**, because a 148-px row with nothing drawn in it is the
+    // other half of the same bug.
+    let page = {
+        let world = app.world_mut();
+        world.query_filtered::<Entity, With<bevy_dark_factory::editor::ReloadPanel>>().iter(world).next().expect("the reload panel's page")
+    };
+    assert!(
+        size_of(&app, page).y > 40.0,
+        "the panel's body is drawn in the row: {:?}",
+        size_of(&app, page)
+    );
 }
 
 /// **The room the fold gives back is the viewport's** — the half of the issue's last box that is a
 /// number rather than a picture.
 ///
-/// The dock's full height is 148 px plus its tab bar; folding it to 29 px must give the body that
-/// difference. Measured as a difference between two editors at the same window, so the docks' own
-/// widths do not enter into it.
+/// **The assertion is the relationship, not a threshold I chose.** The viewport must grow by what the
+/// strip gave back, and its share of the window must rise by the share of the window that gain is:
+/// `Δshare == Δviewport_area / window_area`, to the pixel. A threshold would be a number invented here
+/// and could be satisfied by a viewport that grew for another reason.
 #[test]
 fn the_folded_strip_gives_its_room_to_the_viewport() {
-    let mut folded = editor("dock_room_folded", WIDE, false);
-    let mut full = editor("dock_room_full", WIDE, true);
+    let folded = editor("dock_room_folded", WIDE, false);
+    let full = editor("dock_room_full", WIDE, true);
     let (folded_strip, full_strip) = (dock(&folded), dock(&full));
     let gave_back = full_strip.y - folded_strip.y;
     assert!(gave_back > 100.0, "the fold is worth more than a hairline: {folded_strip:?} against {full_strip:?}");
@@ -164,14 +239,17 @@ fn the_folded_strip_gives_its_room_to_the_viewport() {
         folded_art.y >= full_art.y + gave_back - 2.0,
         "the viewport grew by what the strip gave back ({gave_back:.0} px): {full_art:?} to {folded_art:?}"
     );
-    // And the share, which is what the issue's table is in.
+    // **And the share is that same gain**: the viewport's area grew by the window's width times the
+    // height the strip gave back, so its share rose by exactly that over the window's area.
     let share = |viewport: Vec2, window: Vec2| viewport.x * viewport.y / (window.x * window.y);
     let (before, after) = (share(full_art, window(&full)), share(folded_art, window(&folded)));
+    let expected_gain = full_art.x * gave_back / (window(&full).x * window(&full).y);
     assert!(
-        after > before + 0.10,
-        "at {WIDE:?} the art's share rises from {:.2}% to {:.2}% when the strip folds",
+        (after - before - expected_gain).abs() <= 0.01,
+        "at {WIDE:?} the art's share rose from {:.2}% to {:.2}%; the strip's {gave_back:.0} px is {:.2} points of the window",
         before * 100.0,
-        after * 100.0
+        after * 100.0,
+        expected_gain * 100.0
     );
 }
 

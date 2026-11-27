@@ -19,7 +19,7 @@ use bevy::input::keyboard::{Key, KeyboardInput, NativeKey};
 use bevy::prelude::*;
 use bevy::ui::ComputedNode;
 
-use bevy_dark_factory::chrome::{Frame, ViewportSlot};
+use bevy_dark_factory::chrome::Frame;
 use bevy_dark_factory::chords::{self, Fixed};
 use bevy_dark_factory::keys::Holder;
 use bevy_dark_factory::shell_view::ShellView;
@@ -100,15 +100,15 @@ fn assert_the_terminal_holds_the_keys(app: &mut App, when: &str) {
 fn the_left_panel_folds_with_the_terminal_raised_and_holding_the_keys() {
     let mut app = editor_with_the_terminal_holding_the_keys("zen_terminal_raised_left");
     assert_the_terminal_holds_the_keys(&mut app, "to begin with");
-    let frame = *app.world().resource::<Frame>();
-    let left_before = size_of(&app, frame.left);
+    let left = app.world().resource::<Frame>().left;
+    let left_before = size_of(&app, left);
     let viewport_before = viewport(&app);
     assert!(left_before.x > 40.0, "the left dock is on screen to begin with: {left_before:?}");
     assert!(!app.world().resource::<ShellView>().left_hidden, "and the view says nothing is hidden");
 
     chord(&mut app, &[primary(), KeyCode::KeyB]);
 
-    let left_after = size_of(&app, frame.left);
+    let left_after = size_of(&app, left);
     let viewport_after = viewport(&app);
     assert!(app.world().resource::<ShellView>().left_hidden, "Cmd+B hid the left panel, with the terminal holding the keys");
     assert_eq!(left_after, Vec2::ZERO, "the left dock lays out to nothing, and it is {left_after:?}");
