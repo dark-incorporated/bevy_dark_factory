@@ -650,8 +650,8 @@ fn the_text_roles_table_states_the_sheets_sizes() {
 
 /// **The symbol citations in `docs/design/text-roles.md` land on the symbol they name.**
 ///
-/// `chrome::section` was cited at `chrome.rs:991` and sits at `:827`; the role module was cited at `:690` and
-/// sits at `:531`. A citation that points into the middle of something else is worse than none (#566).
+/// `chrome::section` was cited 164 lines below where it sits, and the role module was cited 159 above;
+/// the two citations this test reads are the true ones. A citation that points into the middle of something else is worse than none (#566).
 #[test]
 fn the_text_roles_citations_land_on_their_symbols() {
     let doc = read("docs/design/text-roles.md");

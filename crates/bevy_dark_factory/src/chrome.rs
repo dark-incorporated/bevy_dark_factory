@@ -3005,6 +3005,17 @@ pub fn text_narrows() -> impl Bundle {
     )
 }
 
+/// **A text that stands at its row's far end** (#542): `TextFlow { align: AlignSelf::End }` on a bare text, with the layout role that makes gooey
+/// write it (`Role::Sized`, which draws nothing and leaves the text's own ink and font as the host set them).
+///
+/// **The role is the point, not the field.** `apply_skin` writes a `TextFlow` only on a node it styles, so a bare `Text` given one and no `Role`
+/// keeps a flow nothing ever applied — which is why `Ln 1, Col 1` drew 500 px from its row's right edge beside a path whose `grow` had never been
+/// written either. `align_self` moves a flex item along the row's main axis; `grow` would share the free width with the path and leave the readout
+/// in the middle.
+pub fn text_at_the_rows_end() -> impl Bundle {
+    (bevy_gooey::Role::Sized, bevy_gooey::TextFlow { align: Some(AlignSelf::End), ..default() })
+}
+
 /// **A text that keeps its words' width** (#260): `TextFlow { shrink: 0 }` on a bare text, so a tally or a mark keeps a column of its own when its row is squeezed.
 pub fn text_keeps_its_width() -> impl Bundle {
     (bevy_gooey::Role::Sized, bevy_gooey::TextFlow { grow: None, shrink: Some(0.0), min_width: None, align: None })

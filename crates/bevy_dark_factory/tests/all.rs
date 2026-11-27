@@ -802,6 +802,7 @@ mod the_style_inspector_names_the_rule_and_its_line;
 mod the_camera_and_the_fixed_chords_are_settings;
 mod the_clip_that_cannot_resolve_is_drawn;
 mod the_type_scale_is_declared_once;
+mod a_files_header_stands_at_its_two_ends;
 mod index_waits;
 mod the_world_lists_follow_the_project_index;
 mod the_problems_list_follows_the_project_index;

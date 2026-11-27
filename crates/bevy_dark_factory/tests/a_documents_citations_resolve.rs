@@ -337,21 +337,22 @@ fn the_design_pages_citations_land_on_their_symbols() {
 
 // ── #685: the same citations, in test comments ────────────────────────────────────────────────
 
-/// **The symbol a parenthetical group of citations belongs to**: the last backticked identifier before the
-/// group's `(`, so `(`anim_tab.rs:1497`, `chrome.rs:3030`)` is the `FlexWrap::Wrap` its sentence names.
+/// **The symbol a line's citations belong to**: the last backticked identifier before the line's first citation.
 ///
-/// A group is read the way a reader reads it: one sentence, one symbol, the files it stands in. A citation
-/// with no identifier before its `(` — a bare `(`chrome.rs:1178`` opening a sentence — is skipped, which is the
-/// same rule the design pages get: a citation without a symbol is not a claim this test can check.
-fn the_groups_symbol(line: &str) -> Option<(String, usize)> {
-    let paren = line.find('(')?;
-    let head = &line[..paren];
+/// A comment writes a claim in one sentence and then the files it stands in — "`FlexWrap::Wrap` (`anim_tab.rs`,
+/// `chrome.rs`, `editor.rs`)" — so the symbol comes first and every citation after it answers to it. Reading the
+/// last one before the first citation, rather than the first one after a `(`, is what lets one line with several
+/// files be checked against the one symbol its sentence names.
+fn the_lines_symbol(line: &str, first_citation: usize) -> Option<String> {
     let mut symbol = None;
     let mut from = 0usize;
-    while let Some(open) = head[from..].find('`') {
+    while let Some(open) = line[from..].find('`') {
         let at = from + open + 1;
-        let close = head[at..].find('`').map(|n| at + n)?;
-        let content = &head[at..close];
+        if at >= first_citation {
+            break;
+        }
+        let Some(close) = line[at..].find('`').map(|n| at + n) else { break };
+        let content = &line[at..close];
         let identifier = !content.is_empty()
             && content.chars().next().is_some_and(|c| c.is_ascii_alphabetic() || c == '_')
             && content.chars().all(|c| c.is_ascii_alphanumeric() || c == '_' || c == ':');
@@ -360,7 +361,7 @@ fn the_groups_symbol(line: &str) -> Option<(String, usize)> {
         }
         from = close + 1;
     }
-    symbol.map(|symbol| (symbol, paren))
+    symbol
 }
 
 /// **Every `file.rs:N` citation in a `//` or `///` comment under any crate's `tests/` lands on the symbol its
@@ -375,17 +376,16 @@ fn the_groups_symbol(line: &str) -> Option<(String, usize)> {
 /// **A symbol with no line is the better fix and passes**: a comment that says `chrome::wrapping_row` cannot go
 /// stale. This reads a citation; it does not demand one.
 ///
-/// Skipped and counted, never silently: a file this repository does not hold (a dependency's `list.rs`), a
-/// citation with no identifier before its `(` (a bare path), and a backticked path rather than a symbol.
+/// Skipped and counted, never silently: a file this repository does not hold (a dependency's `list.rs`), and a
+/// line whose citations have no identifier before them.
 #[test]
 fn the_test_comments_citations_land_on_their_symbols() {
     let sources = sources_by_name();
     let mut resolved = 0usize;
     let mut skipped = 0usize;
     let mut wrong = Vec::new();
-    let tests = root().join("crates");
     let mut files: Vec<PathBuf> = Vec::new();
-    let mut stack = vec![tests];
+    let mut stack = vec![root().join("crates")];
     while let Some(dir) = stack.pop() {
         let Ok(entries) = std::fs::read_dir(&dir) else { continue };
         for entry in entries.flatten() {
@@ -409,9 +409,15 @@ fn the_test_comments_citations_land_on_their_symbols() {
             if !(stripped.starts_with("//") || stripped.starts_with('*')) {
                 continue;
             }
-            let Some((symbol, from)) = the_groups_symbol(line) else { continue };
-            // **Every citation after the group's `(`**, on this line: a group names one symbol in one place.
-            let mut at = from;
+            let Some(first) = line.find(".rs:") else { continue };
+            let begin = line[..first + 3]
+                .rfind(|c: char| !(c.is_alphanumeric() || c == '_' || c == '/' || c == '.'))
+                .map_or(0, |n| n + 1);
+            let Some(symbol) = the_lines_symbol(line, begin) else {
+                skipped += 1;
+                continue;
+            };
+            let mut at = 0usize;
             while let Some(found) = line[at..].find(".rs:") {
                 let start = at + found;
                 let digits: String = line[start + 4..].chars().take_while(char::is_ascii_digit).collect();
@@ -431,12 +437,19 @@ fn the_test_comments_citations_land_on_their_symbols() {
                     continue;
                 };
                 if paths.len() != 1 {
-                    wrong.push(format!("{page}:{}: `{cited}` names {} files of this repository; a citation has to say which", index + 1, paths.len()));
+                    wrong.push(format!(
+                        "{page}:{}: `{cited}` names {} files of this repository; a citation has to say which",
+                        index + 1,
+                        paths.len()
+                    ));
                     continue;
                 }
                 let source = std::fs::read_to_string(&paths[0]).expect("a source file");
                 let Some(named) = source.lines().nth(number - 1) else {
-                    wrong.push(format!("{page}:{}: `{symbol}` at `{cited}:{number}` is past the end of the file", index + 1));
+                    wrong.push(format!(
+                        "{page}:{}: `{symbol}` at `{cited}:{number}` is past the end of the file",
+                        index + 1
+                    ));
                     continue;
                 };
                 if names(named, &symbol) {
@@ -466,10 +479,10 @@ fn the_test_comments_citations_land_on_their_symbols() {
         wrong.join("\n")
     );
     // **The number resolved is stated by a failure**, so a resolver that stopped reading cannot pass on an empty
-    // list: eight citations resolve as this is written, and a later edit that drops one fails here.
+    // list: three citations resolve as this is written, and a later edit that drops one fails here.
     assert!(
-        resolved >= 8,
-        "only {resolved} test-comment citation(s) resolved and {skipped} were skipped; eight resolved when this \
+        resolved >= 3,
+        "only {resolved} test-comment citation(s) resolved and {skipped} were skipped; three resolved when this \
          test was written, so the reader has stopped seeing some"
     );
 }
