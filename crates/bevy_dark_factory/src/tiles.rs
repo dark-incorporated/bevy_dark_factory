@@ -3875,7 +3875,9 @@ impl Plugin for TilesPlugin {
                     .in_set(crate::keys::Phase::Sense)
                     .after(crate::chrome::FrameSystems)
                     .run_if(in_state(crate::screen::Screen::Editor))
-                    .run_if(resource_changed::<crate::workspace::Workspace>),
+                    // **`resource_exists_and_changed`**: the launcher has no workspace, and every run
+                    // condition is evaluated — a bare `resource_changed` panicked there (regression 2 of #695).
+                    .run_if(resource_exists_and_changed::<crate::workspace::Workspace>),
             )
             .add_systems(
                 Update,

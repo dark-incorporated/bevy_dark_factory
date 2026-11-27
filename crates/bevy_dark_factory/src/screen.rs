@@ -156,6 +156,19 @@ fn open_the_door(world: &mut World) {
 /// reach. `tests/the_arm_crosses_the_door.rs` calls it directly, which is the only way to ask *"what
 /// does a door change do to this resource?"* without standing up a second application.
 pub fn close_the_door(world: &mut World) {
+    // **A switch takes the panels and keeps everything else** (#695, #678). `despawn_scene` is a leave's
+    // tool: it sweeps by reachability, and every panel is a child of a dock, so a switch that ran it would
+    // either spare the panels with the frame or take the frame with them. A switch therefore sweeps the one
+    // kind of entity it means to replace — a [`WorkspacePanel`] — and leaves the frame, the map camera and
+    // the map's pieces standing. `OnEnter(Editor)` builds the new workspace's panels as it always has.
+    if world.contains_resource::<Crossing>() {
+        for e in world.query_filtered::<Entity, With<WorkspacePanel>>().iter(world).collect::<Vec<_>>() {
+            if let Ok(entity) = world.get_entity_mut(e) {
+                entity.despawn();
+            }
+        }
+        return close_a_switch(world);
+    }
     despawn_scene(world);
     // **A switch is in flight: the project, the map and the workspace stay.**
     //
@@ -166,7 +179,21 @@ pub fn close_the_door(world: &mut World) {
     // **What the teardown still does, unchanged:** the entity sweep and the workspace's own working
     // state. The teardown is a teardown; only the resources that now belong to the *next* workspace
     // are spared.
-    if world.remove_resource::<Crossing>().is_some() {
+    close_a_switch(world)
+}
+
+/// **The reset half of a switch**: the workspace's own working state, with the frame and the selection kept.
+fn close_a_switch(world: &mut World) {
+    {
+        let switching = world.remove_resource::<Crossing>().is_some();
+        // **A leave drops the project and the map with the door**; a switch keeps both, because the new
+        // workspace draws the same project (#695, #378). One helper, two answers, and the answer is the
+        // marker the switch put down.
+        if !switching {
+            crate::args::Opened::remove_from(world);
+            reset_door_state(world);
+            return;
+        }
         // **The receipt is carried over the reset (cycle 8, gap 7).** The reset puts `EditorState`
         // back empty, which erased the receipt of whoever asked for this door: the window changed
         // doors with no word of who did it. The receipt is what the person reads on arrival, so it is
@@ -179,7 +206,14 @@ pub fn close_the_door(world: &mut World) {
         // #379), and the selection follows the lock (`selection::follow_the_lock`), so emptying it
         // here would drop the selection the decision says a switch never drops.
         let lock = world.remove_resource::<crate::editor::TargetLock>();
+        // **And the frame's own slots**, for the same reason: the frame root is spared, so the resource that
+        // names its docks has to survive the reset or `panel_root` would find nothing to put a panel in
+        // (#695). `spawn_frame` skips when it is already there, so the frame is built once per editor.
+        let frame = world.remove_resource::<crate::chrome::Frame>();
         reset_door_state(world);
+        if let Some(frame) = frame {
+            world.insert_resource(frame);
+        }
         if let Some(lock) = lock {
             world.insert_resource(lock);
         }
@@ -188,11 +222,15 @@ pub fn close_the_door(world: &mut World) {
         {
             state.status.note(receipt);
         }
-        return;
     }
-    crate::args::Opened::remove_from(world);
-    reset_door_state(world);
 }
+
+/// **A panel a workspace put on screen**, so a switch can take it down and build the next workspace's.
+///
+/// Every panel is spawned by `chrome::panel_root`, and every one of them is a *child of a dock* — so the
+/// roots-only sweep cannot reach them, and the frame they stand in is spared (#695, #678).
+#[derive(Component)]
+pub struct WorkspacePanel;
 
 /// **What a switch between the four workspaces that share the viewport keeps** (#695, #678): a root carrying
 /// this is not swept by [`despawn_scene`] while a switch is in flight.
@@ -299,18 +337,15 @@ pub fn cross(world: &mut World, to: crate::workspace::Workspace) -> Result<(), S
 /// transition is what rebuilds the frame and the strip, so a switch is one frame rather than a reload.
 pub fn rebuild_the_door(world: &mut World) {
     world.insert_resource(Crossing);
-    // **The four workspaces that share one viewport keep the frame and the scene** (#695, #678). A switch
-    // between them changes only which *panels* are drawn (`docs/ui/vision.md` §4), so nothing it does needs
-    // the state transition's teardown: `KeptAcrossASwitch` marks what both workspaces show, `despawn_scene`
-    // spares it, and the panels the new workspace does not show are swept as usual.
+    // **The transition still runs, because it is what builds the new workspace's panels** (#695, #678):
+    // `OnEnter(Editor)` is the one place the strip, the inspector and the lists are spawned, and a switch
+    // that skipped it left World's WATER heading undrawn. What changes on a switch is that
+    // `despawn_scene` spares the roots all four workspaces share (`KeptAcrossASwitch`) and takes only the
+    // panels, which is the picture moving rather than the whole door being rebuilt.
     //
     // **Measured before this**, on `37219dc7` at 1600x1000: a map -> kit -> map round trip kept 2 of 2,600
     // `ComputedNode` entities and cost 205-275 ms a switch, and the map's 45 `Mesh3d` entities were gone
-    // after a switch to World, Kit or Animation. With the scene and the frame spared, the switch is the
-    // panels that differ.
-    if world.get_resource::<crate::workspace::Workspace>().is_some_and(|w| w.shows_the_map()) {
-        return;
-    }
+    // after a switch to World, Kit or Animation.
     if let Some(mut next) = world.get_resource_mut::<NextState<Screen>>() {
         next.set(Screen::Editor);
     }
