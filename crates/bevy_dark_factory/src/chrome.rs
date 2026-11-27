@@ -2212,15 +2212,6 @@ pub fn notifications_overlay(mut commands: Commands, frame: Res<Frame>) {
 pub struct NotificationsOverlay;
 
 
-/// **A scrolling list that fills what is left of its panel.**
-///
-/// `flex_grow` with `min_height: 0`, not `max_height`: a flex item's automatic minimum size is its
-/// content, which would grow the node to fit every row and leave `overflow` with nothing to clip. The
-/// panel must be `full_height` for this to bound anything.
-/// **Where a scroll must move so a row is on screen** — the one arithmetic every list-follow
-/// system shares (`tiles::keep_selection_on_screen`, `editor::keep_palette_selection_on_screen`).
-///
-/// Extracted when the palette gained the same correction the candidates list had (F-9,
 /// **Arms when the SELECTION changes — not when the resource holding it does.**
 ///
 /// Every list that follows its highlight needs the same two-step: notice the selection moved, then
@@ -2285,36 +2276,35 @@ impl<K: PartialEq> Follow<K> {
     }
 }
 
-/// 2026-08-14): two hand-copied versions of fold geometry is how the two lists drift a half-pixel
-/// apart, and the arithmetic is the testable part — fold detection, the physical→logical
-/// conversion, the clamp, and the dead-band all hold in a unit test, where the pixel scroll itself
-/// needs a window.
+/// **Where a scroll must move so a row is on screen** — the editor's frame around
+/// [`bevy_gooey::scroll_to_reveal`], which every list-follow system calls through this
+/// (`tiles::keep_selection_on_screen`, `editor::keep_palette_selection_on_screen`, … — #649).
 ///
-/// Inputs are **physical** pixels — `ComputedNode` and `UiGlobalTransform`, centre and half-size —
-/// and the answer is the new **logical** `ScrollPosition::y`, or `None` when the row is already
-/// comfortably visible or the correction is under half a pixel (the dead-band that keeps a
-/// change-detected write from re-firing layout every frame). A row taller than the list scrolls to
-/// its **top**, the half you read first.
+/// **The arithmetic is gooey's**: the margin cut to what the viewport can hold beside the row, the
+/// scroll that puts that margin on the side the row would leave through, a row taller than the list
+/// read from its top, a move of more than one viewport centring the row instead of creeping to the
+/// edge, and the answer kept within `0..=max`. What stays here is the frame it is asked in and the
+/// editor's two decisions:
 ///
-/// # It reveals with context, and that is the seed bug
+/// - **The frame.** The callers read `UiGlobalTransform` and `ComputedNode`, so `row` and `list` are
+///   **physical** centres and half-sizes on screen; gooey measures the row from the start of the
+///   scrolled content, in the scroll's own **logical** pixels. The row's offset below the list's top
+///   edge, times `inverse_scale`, plus `scroll_y`, is that.
+/// - **The margin**: `layout.context_rows` (the sheet's 2.0) of the row's own height either side, where
+///   gooey's own follower keeps 1.5 rows. It is the 2026-09-03 seed fix: until then a row was revealed
+///   to the edge exactly, and forty presses down the Meshes list left the selection on the bottom pixel
+///   with nothing of what was coming in sight — *"I don't see a list of meshes as I press up and down
+///   arrows, but I see the mesh change."*
+/// - **The dead band**: `None` when the scroll would move by half a pixel or less, so a change-detected
+///   `ScrollPosition` is not written, and layout not re-run, every frame — the same half pixel gooey's
+///   own follower (`scroll_to_focus`) waits for before it writes.
 ///
-/// Until 2026-09-03 the correction was exactly `row_bottom - bottom`: enough to put the row's edge
-/// on the viewport's edge and not one pixel more. A test pinned that as correct — *"Touching the
-/// edges exactly is still inside — flush is not off-screen"* — and it is the wrong rule for a list
-/// you walk with the keyboard. Measured live on the Meshes list: after forty presses the selection
-/// is glued to the bottom pixel with twenty-six rows of already-passed context above it and **zero
-/// rows of what is coming below**. Reported as *"I don't see a list of meshes as I press up and down
-/// arrows, but I see the mesh change"* — the list is there, and the part of it that would tell you
-/// where you are going is not.
-///
-/// So the row is revealed with `layout.context_rows` of list either side of it, in units of the row's own
-/// height — no new parameter, and it scales with whatever the caller's rows measure. The margin is
-/// clamped so a viewport too short to hold row-plus-margins asks for the largest margin that still
-/// fits rather than thrashing, which also preserves the over-tall row's scroll-to-top.
-///
-/// **A jump of more than one viewport re-centres instead of creeping.** A `Shift`×5 step, a click,
-/// or a filter that rebuilds the list under the cursor are not walks, and edging such a move to the
-/// margin puts the author at the boundary of a region they have not seen; centring says *here* .
+/// **The ceiling is clamped, not only the floor**: Bevy clamps `ComputedNode::scroll_position`
+/// (`bevy_ui-0.20.0/src/layout/mod.rs:493-496`) and leaves the `ScrollPosition` component every caller
+/// reads back holding any surplus, so a reveal at the end of a list that asked for `max + margin` left
+/// the list standing still while the highlight walked off it. **An infinite ceiling is no ceiling**:
+/// gooey reads a non-finite input as nothing usable and answers the scroll unchanged, so an unbounded
+/// `max_scroll_y` (the unit tests' `NO_LIMIT`) is passed as the largest finite one.
 pub fn scroll_to_reveal(
     row: (f32, f32),
     list: (f32, f32),
@@ -2322,30 +2312,11 @@ pub fn scroll_to_reveal(
     max_scroll_y: f32,
     inverse_scale: f32,
 ) -> Option<f32> {
-    let (row_top, row_bottom) = (row.0 - row.1, row.0 + row.1);
-    let (top, bottom) = (list.0 - list.1, list.0 + list.1);
-    let (row_h, list_h) = (row.1 * 2.0, list.1 * 2.0);
-    // The largest margin that still leaves the row itself room, so a short viewport degrades to
-    // flush rather than to a fight between two margins it cannot satisfy.
-    let margin = (crate::style::metrics().layout.context_rows * row_h).min(((list_h - row_h) * 0.5).max(0.0));
-    // Above the fold, or below it. Never both — the above check winning is what sends an
-    // over-tall row to its top.
-    let delta = if row_top - margin < top {
-        row_top - margin - top
-    } else if row_bottom + margin > bottom {
-        row_bottom + margin - bottom
-    } else {
-        return None;
-    };
-    // Further than a viewport is a jump, not a step: put the row in the middle.
-    let delta = if delta.abs() > list_h { row.0 - list.0 } else { delta };
-    // **Clamped at BOTH ends.** The floor was always here; the ceiling is what the two-row margin
-    // made necessary — a reveal at the end of a list asks for `max + margin`, Bevy clamps only
-    // `ComputedNode::scroll_position` (`bevy_ui-0.20.0/src/layout/mod.rs:493-496`, through
-    // `bypass_change_detection`), and the component every caller reads back keeps the surplus. The
-    // list then stands still while the highlight walks off it — the 2026-09-03 seed, reintroduced
-    // by its own fix.
-    let want = (scroll_y + delta * inverse_scale).clamp(0.0, max_scroll_y.max(0.0));
+    // The row as gooey measures it: logical px from the start of the scrolled content.
+    let row_h = row.1 * 2.0 * inverse_scale;
+    let top = scroll_y + (row.0 - row.1 - (list.0 - list.1)) * inverse_scale;
+    let margin = crate::style::metrics().layout.context_rows * row_h;
+    let want = bevy_gooey::scroll_to_reveal(top, top + row_h, list.1 * 2.0 * inverse_scale, scroll_y, max_scroll_y.min(f32::MAX), margin);
     ((scroll_y - want).abs() > 0.5).then_some(want)
 }
 
@@ -2407,6 +2378,10 @@ pub fn scroll_gutter() -> f32 {
 /// so the two disagree by exactly the gutter width. Overlaying sidesteps it.
 ///
 /// # It bounds itself with `flex_grow`, so it needs a bounded parent
+///
+/// `flex_grow` with `min_height: 0`, not `max_height`: a flex item's automatic minimum size is its
+/// content, which would grow the node to fit every row and leave `overflow` with nothing to clip. The
+/// panel must be `full_height` for this to bound anything.
 ///
 /// Right for a pane that owns the rest of its dock, and useless **nested inside another scroll**:
 /// there the parent is content-sized, `flex_grow` resolves to nothing, and the whole thing collapses
@@ -3163,16 +3138,49 @@ pub fn gap_cell(row: &mut ChildSpawnerCommands, width_px: f32) {
     row.spawn(bevy_gooey::cell(width_px / text::BODY.px()));
 }
 
-/// **A chip** — one small clickable word. `chrome-chip`'s padding and a permanent 1 px border whose COLOUR
-/// asks the questions (a ghost proposal lights it `Ink::suggest`; everything else runs [`Color::NONE`]),
-/// so a chip never changes size when its state does.
+/// **A chip** — one small clickable word, and **gooey's chip** (#551): [`bevy_gooey::quiet_chip`], on
+/// the `Activate` bus.
 ///
-/// **`marker` must not contain a `Node`, and the failure is a panic rather than a warning.** This
-/// builder spawns one, and a bundle carrying two of the same component panics at spawn in Bevy 0.20
-/// naming the component and not the call site — the trap the repo's `CLAUDE.md` already records for
-/// `button_visual()`. To adjust the node, `.insert(Node { .. })` on the returned `EntityCommands`,
-/// which overrides rather than duplicates. The same holds for [`list_row`], [`quiet_row`] and
-/// [`text_field`], which each carry a `Node` of their own.
+/// # Which of gooey's two chips, and what is put back on it
+///
+/// `bevy_gooey::chip` is a tab stop (`TabIndex(0)`), and this editor keeps focus traversal off on
+/// purpose: it routes by `Context` (`keys.rs`'s header), and an injected click would focus whatever the
+/// physical pointer rests on (`tests/the_sweep_is_finished.rs::focus_traversal_stays_off_until_somebody_reopens_it`).
+/// `quiet_chip` takes no focus, so it is that one. **Bevy's `Button` is put back on it**, for two
+/// reasons, each enough on its own:
+///
+/// 1. **The editor's chips are on the `Activate` bus.** Eight kinds are answered by `On<Activate>`
+///    observers (`tiles::on_tag_chip`, `on_mount_chip`, `on_new_token_chip`, `anim_stage::on_chip_click`,
+///    `on_ghost_chip_click`, `anim_tab::on_skip_click`, `console::switch_a_level`, `select_the_piece`). A
+///    chip with no `Button` is drawn and never answers a click — and the tests that trigger `Activate`
+///    on a chip directly would not notice.
+/// 2. **It is what a screen reader hears as a button.** gooey's `Role::Chip` arm writes the chip's name
+///    and leaves the AccessKit role alone; `Button` requires its node as `accesskit::Role::Button`, and
+///    without one gooey makes the node a generic container.
+///
+/// `Button` is no tab stop by itself: the chip this replaced was a `Button` with no `TabIndex` too.
+///
+/// # What stays the editor's
+///
+/// - **Its height**: the skin's chip arm floors a chip at a target's height, and `min_height: Auto` makes
+///   it the 20 px of the rows it stands in (`the_g87_nodes_are_gooeys::the_chips_buttons_and_rows_keep_their_drawn_heights`).
+/// - **Its inset and corner**, the sheet's `.chrome-chip`, and its edge, `layout.edge_w`.
+/// - **Its paint**: `InkFollow`, so the skin writes neither fill nor edge and `style_list_rows` stays the
+///   one painter of every row and chip (rest, hover, press, held) from `RowRest` and `Hovered`. Whether
+///   that painter becomes the skin's is #552's question, for the rows and the chips together.
+/// - **Its words**: the caller's ink and [`typed`] size. A `Role::ChipText` is drawn at `skin.text_size`
+///   in the skin's ink (`apply_skin` writes both), where every chip here is a [`text::Role`] that follows
+///   the person's text size through [`resize_the_labels`] (`the_leds_word_is_the_size_of_the_text_beside_it`).
+///   So the words lose gooey's role and the chip carries its name itself, as an `AccessibleLabel` of the
+///   same words — which stay true because no caller rewrites a chip's words in place: a chip is rebuilt
+///   with its panel.
+///
+/// **`marker` must not contain a `Node`**, and the failure is a panic rather than a warning: `quiet_chip`
+/// spawns one, and a bundle carrying two of the same component panics at spawn in Bevy 0.20 naming the
+/// component and not the call site — the trap the repo's `CLAUDE.md` already records for
+/// `button_visual()`. To adjust the node, `.insert(Node { .. })` on the returned `EntityCommands`, which
+/// overrides rather than duplicates. The same holds for [`list_row`], [`quiet_row`] and [`text_field`],
+/// which each carry a `Node` of their own.
 pub fn chip<'a>(
     parent: &'a mut ChildSpawnerCommands,
     marker: impl Bundle,
@@ -3182,47 +3190,35 @@ pub fn chip<'a>(
     fill: Color,
     border: Color,
 ) -> EntityCommands<'a> {
-    let mut c = parent.spawn((
+    let mut chip = parent.spawn((
+        bevy_gooey::quiet_chip(label),
+        // **Before `AccessibleLabel`, which matters**: both require an `AccessibilityNode`, and Bevy builds
+        // the one the bundle names first — the button's.
         bevy::ui_widgets::Button,
-        Hovered::default(),
-        // **A chip answers the pointer, like every row does.** It carried `Hovered` from the day it
-        // was written — but only as a hit-test, for the "is the pointer over UI" question, and
-        // nothing ever painted it. The 2026-08-17 audit found that as its seventh defect: *"hover
-        // exists as a hit-test everywhere and as feedback almost nowhere"*, and the tag block is 55
-        // clickable things that gave no sign of being clickable. `RowRest` is the whole fix —
-        // `style_list_rows` already keys on it and has never needed to know what it is painting.
-        RowRest(fill),
         marker,
-        // **A chip narrows before the row wraps it to a second line** (#526, owner's rule: *"shrink the
-        // buttons, then, when they can't shrink more due to the text, then make it a new row"*). Its
-        // label breaks at a word (`LineBreak::WordOrCharacter` below), so a narrowed chip reflows inside
-        // itself rather than cutting its word — which is what the `the_terminal_bar_keeps_every_chip_whole`
-        // sweeps actually protect, and they pass 3/3 with this. The old `0.0` here was #494's fixed-target
-        // rule; #526 supersedes it and `the_g87_nodes_are_gooeys` moves with the contract.
-        held_box(
-            "chrome-chip",
-            bevy_gooey::Sides::all(crate::style::metrics().layout.edge_w),
-            Some(1.0),
-            bevy_gooey::Sizing { max_width: Some(bevy_gooey::Extent::Percent(100.0)), ..default() },
-        ),
+        bevy_gooey::StyleClass::of("chrome-chip"),
+        bevy_gooey::BorderPx(bevy_gooey::Sides::all(crate::style::metrics().layout.edge_w)),
+        bevy_gooey::Sizing { min_height: Some(bevy_gooey::Extent::Auto), ..default() },
+        bevy_gooey::InkFollow,
+        RowRest(fill),
         BorderColor::all(border),
         BackgroundColor(fill),
+        AccessibleLabel::new(label),
     ));
-    c.with_children(|chip| {
-        chip.spawn((
-            Text::new(label.to_owned()),
-            TextColor(ink),
-            typed(role),
-            // **The label's least width is its longest word** (#494) — the mechanism #481 used for a
-            // switch's label. A `NoWrap` label's min-content width is its whole counted phrase, so
-            // `NOT IMPORTED (4)` held its chip 379 px wide in a 319 px row: the `FlexWrap` above had
-            // nothing to wrap, because its one child was already wider than a line. Breaking at a
-            // word drops that floor to `IMPORTED`, so the box narrows to the line it is given and the
-            // count drops to a second line rather than painting over the panel's border.
-            TextLayout::new(Justify::Left, LineBreak::WordOrCharacter),
-        ));
+    // **The word `quiet_chip` spawned becomes the editor's text**: no gooey role, so `apply_skin` leaves its
+    // ink and size alone, and the caller's ink at [`typed`]'s size. It keeps `quiet_chip`'s layout, which
+    // breaks at a word or a letter: a chip's least width is its longest word (#494), so it narrows rather
+    // than painting over its panel.
+    let id = chip.id();
+    chip.commands().queue(move |world: &mut World| {
+        let kids: Vec<Entity> = world.get::<Children>(id).map(|kids| kids.iter().collect()).unwrap_or_default();
+        if let Some(words) = kids.into_iter().find(|kid| world.get::<Text>(*kid).is_some())
+            && let Ok(mut words) = world.get_entity_mut(words)
+        {
+            words.remove::<bevy_gooey::Role>().insert((TextColor(ink), typed(role)));
+        }
     });
-    c
+    chip
 }
 
 /// The fill a list row returns to when the pointer leaves it. Carried on every [`list_row`] so ONE
@@ -3245,6 +3241,22 @@ pub fn list_row<'a>(
     parent.spawn((bevy::ui_widgets::Button, row_shape(selected, "chrome-row"), marker))
 }
 
+/// **How tall a cut row is, as a multiple of its own text size** — the console's own 1.4.
+const CUT_LINE_FACTOR: f32 = 1.4;
+
+/// **One line of text, cut at the edge**: a fixed line height with whatever overflows it clipped.
+///
+/// gooey's `Sizing` carries both (`height` and `clip`), so this is not a raw `Node` — which is what
+/// the raw-node ratchet requires, and what the first version of this helper got wrong.
+#[must_use]
+pub fn clipped_one_line() -> impl Bundle {
+    bevy_gooey::Sizing {
+        height: Some(bevy_gooey::Extent::Px(text::LABEL.px() * CUT_LINE_FACTOR)),
+        clip: Some(true),
+        ..default()
+    }
+}
+
 /// **The same row, not on the `Activate` bus.**
 ///
 /// # Why this exists, which is worth reading before merging the two back together
@@ -3265,22 +3277,6 @@ pub fn list_row<'a>(
 /// that makes a row *look* like a row — [`RowRest`], `Hovered`, the fill, the padding — and
 /// `style_list_rows` repaints it exactly the same, because that system keys on `RowRest` and has
 /// never needed `Button`.
-/// **How tall a cut row is, as a multiple of its own text size** — the console's own 1.4.
-const CUT_LINE_FACTOR: f32 = 1.4;
-
-/// **One line of text, cut at the edge**: a fixed line height with whatever overflows it clipped.
-///
-/// gooey's `Sizing` carries both (`height` and `clip`), so this is not a raw `Node` — which is what
-/// the raw-node ratchet requires, and what the first version of this helper got wrong.
-#[must_use]
-pub fn clipped_one_line() -> impl Bundle {
-    bevy_gooey::Sizing {
-        height: Some(bevy_gooey::Extent::Px(text::LABEL.px() * CUT_LINE_FACTOR)),
-        clip: Some(true),
-        ..default()
-    }
-}
-
 pub fn quiet_row<'a>(
     parent: &'a mut ChildSpawnerCommands,
     selected: bool,
@@ -3305,6 +3301,35 @@ pub struct RowSelected(pub bool);
 /// **The rail is a left border, not a child node**, and the width is reserved whether or not the row
 /// is selected — so selecting a row cannot move its text sideways by two pixels, which is what an
 /// added child or a conditional border would do to a list the author is reading down.
+///
+/// # It is not gooey's `ListRow`, and exactly where the two differ (#552)
+///
+/// gooey ships this row: `bevy_gooey::list_row` and `quiet_list_row` carry `Role::ListRow`, whose arms
+/// reserve a left rail, light it in `skin.accent` and lift the fill when Bevy's `Selected` is on the row.
+/// Read against `skin.rs`'s `Role::ListRow` arms at v0.62.0, that row differs from this one in five places:
+///
+/// 1. **The frame.** gooey's has a line all round (`border: line`) and a rail of 1.5 lines; this one has
+///    the rail alone, `layout.select_rail_w` (2 px), and no top, right or bottom edge.
+/// 2. **The box.** gooey's is floored at a control's height (`min_height: control`), never shrinks and is
+///    inset `skin.pad()` across; this one has no floor, is the sheet's `.chrome-row` 6 × 3 px inset and is
+///    not made rigid.
+/// 3. **The fills.** gooey's rests on `skin.surface`, is `skin.surface_raised` when selected and
+///    `skin.accent` while pressed; this one rests on its caller's [`RowRest`], is `Ink::row_selected` when
+///    selected and the skin's `pressed` while pressed ([`style_list_rows`]).
+/// 4. **What selection is.** gooey's is Bevy's `Selected`; this one is [`RowSelected`] and a `RowRest` of
+///    `Ink::row_selected`, which `editor::ink_the_cost_on_the_armed_row` reads to tint a row's cost and
+///    two contrast ratchets measure (`every_selected_row_reads_at_aa_contrast_in_every_skin`,
+///    `the_files_trees_selected_row_reads_at_aa_in_every_skin`).
+/// 5. **The bus and the press.** `list_row` is a tab stop (`TabIndex(0)`), which this editor keeps off
+///    (see [`chip`]); `quiet_list_row` has no `Button`, so it is off the `Activate` bus [`list_row`]'s
+///    callers listen on, and it has no pressed state, where [`style_list_rows`] presses a quiet row from
+///    `Hovered` and the held button.
+///
+/// 1, 2 and 5 can be bridged the way [`chip`] bridges them, by overriding the arm. 3 and 4 cannot: they
+/// are the change #552 asks for — the skin's fills and Bevy's `Selected` in place of the editor's — and
+/// making it repaints every list in the editor and re-points the tests that read `RowRest` and
+/// `RowSelected` (`grep -rln 'RowSelected\|RowRest' tests/`), the two contrast ratchets among them. That
+/// is a decision for the owner, with a capture of the Pieces panel and the Files tree before and after.
 fn row_shape(selected: bool, classes: &str) -> impl Bundle {
     let rest = if selected { ink().row_selected } else { ink().row_bg };
     (
@@ -3390,8 +3415,9 @@ fn style_list_rows(
 ) {
     let fills = RowFills::of(skin.as_deref());
     let (panel, pressed_col, hover_col) = (fills.rest_panel, fills.pressed, fills.hover);
-    // gooey has no `selected` role, so a selected row keeps the editor's own colour — the honest
-    // half-measure until that constant group moves.
+    // **A selected row is the editor's `Ink::row_selected`, not the skin's.** gooey does light a selected
+    // `Role::ListRow` (Bevy's `Selected`: `skin.surface_raised`, the rail in `skin.accent`); `row_shape`
+    // says where these rows differ from that one, and why moving them is #552's decision.
     let selected_col = ink().row_selected;
     let held = mouse.pressed(MouseButton::Left);
     for ((rest, hovered, pressed, disabled), mut bg) in &mut rows {
@@ -4286,6 +4312,20 @@ mod scroll_tests {
         assert_eq!(
             scroll_to_reveal((300.0, 260.0), (200.0, 100.0), 100.0, NO_LIMIT, 1.0),
             Some(40.0)
+        );
+    }
+
+    /// **And so does one whose top is already in view** (#649). The editor's own arithmetic answered
+    /// this one with its bottom edge — `row_bottom - bottom`, 150 here — so a row taller than the list,
+    /// walked onto from the row above it, was shown from its end with its first lines scrolled away;
+    /// gooey's reads a span taller than the viewport from its top however it is reached, which is the
+    /// rule above.
+    #[test]
+    fn an_over_tall_row_whose_top_is_in_view_is_read_from_its_top() {
+        // Row spans [150, 450] against fold [100, 300], at scroll 0: its top comes to the fold's top.
+        assert_eq!(
+            scroll_to_reveal((300.0, 150.0), (200.0, 100.0), 0.0, NO_LIMIT, 1.0),
+            Some(50.0)
         );
     }
 

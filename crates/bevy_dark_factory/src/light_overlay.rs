@@ -143,7 +143,7 @@ fn set_the_light_map(
     }
 }
 
-/// **The button** shows or hides the overlay, through [`set_the_light_map`]. `Option`, because this is a
+/// **The button** shows or hides the overlay, through `set_the_light_map`. `Option`, because this is a
 /// GLOBAL observer: see `editor::on_size_field_click`.
 pub fn on_light_map_click(
     activate: On<Activate>,
@@ -163,7 +163,7 @@ pub fn on_light_map_click(
     set_the_light_map(want, &mut overlay, &mut state, project.as_deref(), open.as_deref());
 }
 
-/// **The View ▸ Light map row** (UI-80, #254), through the same [`set_the_light_map`] the button uses.
+/// **The View ▸ Light map row** (UI-80, #254), through the same `set_the_light_map` the button uses.
 ///
 /// A check item reports what it should be, so the row's tick is the state and choosing it again is a
 /// no-op rather than a reversal. Both doors therefore end in one call, and

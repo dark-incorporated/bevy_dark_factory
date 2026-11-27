@@ -120,6 +120,7 @@ mod a_change_says_what_it_broke;
 mod a_change_to_the_map_reaches_the_lists_row_by_row;
 mod a_change_whose_log_line_cannot_be_written_is_taken_back;
 mod a_chip_click_writes_the_library_once;
+mod a_chip_is_named_by_its_words;
 mod a_click_outside_the_viewport_places_nothing;
 mod a_tool_arms_the_same_from_a_button_and_a_key;
 mod a_toolbar_tooltip_sits_on_its_button;
