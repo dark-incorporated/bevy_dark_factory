@@ -8,7 +8,7 @@
 //! `applied`, or `refused` with the file and the field, and the checks the editor asks stay the last
 //! good ones until the file reads again.
 
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use bevy::prelude::*;
 use bevy_oracle::Checks;
@@ -18,8 +18,16 @@ use bevy_dark_factory::project::Project;
 use serde_json::{Value, json};
 
 use crate::fixtures;
+use crate::settle_support::Frames;
 
 const FILE: &str = "checks.yaml";
+
+/// The pause between frames while the view re-reads the file.
+const PAUSE: Duration = Duration::from_millis(40);
+/// How long an edit has to be decided: frames covering 6 s at [`PAUSE`], counted so a starved host cannot run it out (#644).
+const GIVE_UP: Frames = Frames::covering(Duration::from_secs(6), PAUSE);
+/// Past the view's once-a-second re-read: frames covering 1.6 s at [`PAUSE`] (#644).
+const PAST_A_REREAD: Frames = Frames::covering(Duration::from_millis(1600), PAUSE);
 
 fn good(threshold: f64) -> String {
     format!("{{checks: [{{name: \"mine\", question: \"Is it floating?\", threshold: {threshold}}}]}}")
@@ -88,22 +96,20 @@ fn mine(app: &App) -> f64 {
 }
 
 fn until(app: &mut App, what: &str, done: impl Fn(&mut App) -> bool) {
-    let start = Instant::now();
-    while start.elapsed().as_secs_f64() < 6.0 {
+    for _ in 0..GIVE_UP.0 {
         if done(app) {
             return;
         }
         app.update();
-        std::thread::sleep(Duration::from_millis(40));
+        std::thread::sleep(PAUSE);
     }
-    panic!("never saw: {what}; reloads {}", reloads(app));
+    panic!("never saw: {what} (waited {GIVE_UP:?}); reloads {}", reloads(app));
 }
 
-fn pump(app: &mut App, secs: f64) {
-    let start = Instant::now();
-    while start.elapsed().as_secs_f64() < secs {
+fn pump(app: &mut App, frames: Frames) {
+    for _ in 0..frames.0 {
         app.update();
-        std::thread::sleep(Duration::from_millis(40));
+        std::thread::sleep(PAUSE);
     }
 }
 
@@ -119,7 +125,7 @@ fn a_refused_checks_file_keeps_the_checks_and_says_which_file_and_field_once_per
         let raised_before = app.world().resource::<EditorState>().status.raised();
         write(&app, text);
         // Past the view's once-a-second re-read.
-        pump(&mut app, 1.6);
+        pump(&mut app, PAST_A_REREAD);
         let v = verdict(&mut app);
         assert_eq!(v["outcome"], json!("refused"), "{what}: {v}");
         assert_eq!(v["file"], json!(FILE), "{what}: {v}");
@@ -140,7 +146,7 @@ fn a_refused_checks_file_keeps_the_checks_and_says_which_file_and_field_once_per
 
         assert_eq!(seq(&mut app), before + 1, "{what}: one edit, one decision");
         let refused_at = seq(&mut app);
-        pump(&mut app, 1.6);
+        pump(&mut app, PAST_A_REREAD);
         assert_eq!(seq(&mut app), refused_at, "{what}: nothing was edited, so no new decision");
 
         // Back to a good file, so the next bad one is judged against the same checks.
@@ -155,7 +161,7 @@ fn a_fixed_file_replaces_the_checks_and_a_removed_one_leaves_the_editors_own() {
     write(&app, &good(0.5));
     until(&mut app, "the good file applied", |a| verdict(a)["outcome"] == json!("applied"));
     write(&app, "{checks: 7}");
-    pump(&mut app, 1.6);
+    pump(&mut app, PAST_A_REREAD);
     assert_eq!(mine(&app), 0.5, "a refused edit leaves the check as it was");
     assert_eq!(verdict(&mut app)["outcome"], json!("refused"));
 

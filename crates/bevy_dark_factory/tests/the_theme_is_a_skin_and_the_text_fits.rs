@@ -48,9 +48,11 @@ use bevy_dark_factory::settings::{Theme, UserSettingsFile};
 use bevy_gooey::GooeySkin;
 
 use crate::fixtures;
+use crate::settle_support::{Frames, STEP};
 
-/// Seconds the test waits for the file watcher's wall-clock poll to see a removed project skin.
-const WATCH_PATIENCE_S: u64 = 10;
+/// Frames the test waits for the file watcher's wall-clock poll to see a removed project skin: at least 10 s at [`STEP`],
+/// counted in frames so a starved host does not run it out early (#644).
+const WATCH_PATIENCE: Frames = Frames::covering(std::time::Duration::from_secs(10), STEP);
 /// Frames checked, once the preview has lost its skin, that the chosen theme is still the running one.
 const FRAMES_AFTER_THE_SKIN_GOES: usize = 40;
 
@@ -253,16 +255,20 @@ fn removing_a_projects_skin_leaves_the_chosen_theme_running() {
     // **The file goes.** The preview loses its skin; the chrome does not move.
     std::fs::remove_file(&file).expect("the project skin is removed");
     // **The watcher polls on the wall clock** (`watch::POLL`, a quarter of a second), so a fixed count of frames
-    // can all run inside one poll interval on a fast or idle machine and see nothing gone. The frames are
-    // counted until the preview has lost its skin, within a deadline, and the theme is checked on every one.
-    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(WATCH_PATIENCE_S);
-    while app.world().resource::<bevy_dark_factory::ui_skin::GameSkin>().0.is_some() && std::time::Instant::now() < deadline {
+    // with no pause can all run inside one poll interval on a fast or idle machine and see nothing gone. The frames
+    // are counted until the preview has lost its skin, at most [`WATCH_PATIENCE`] of them [`STEP`] apart, and the
+    // theme is checked on every one.
+    for _ in 0..WATCH_PATIENCE.0 {
+        if app.world().resource::<bevy_dark_factory::ui_skin::GameSkin>().0.is_none() {
+            break;
+        }
         app.update();
         assert_eq!(
             app.world().resource::<GooeySkin>().surface,
             GooeySkin::high_contrast().surface,
             "the chosen theme stays running on every frame after the file goes"
         );
+        std::thread::sleep(STEP);
     }
     for _ in 0..FRAMES_AFTER_THE_SKIN_GOES {
         app.update();

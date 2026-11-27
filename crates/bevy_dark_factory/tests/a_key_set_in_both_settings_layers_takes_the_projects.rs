@@ -6,7 +6,7 @@
 //! value and is refused, naming the file and the field.
 
 use std::path::{Path, PathBuf};
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use bevy::prelude::*;
 use bevy_dark_factory::editor::EditorState;
@@ -15,6 +15,7 @@ use bevy_dark_factory::project::Project;
 use bevy_dark_factory::settings::{EditorSettings, Theme, UserSettingsFile};
 
 use crate::fixtures;
+use crate::settle_support::Frames;
 
 struct Rig {
     app: App,
@@ -45,16 +46,20 @@ fn settings(app: &App) -> EditorSettings {
     app.world().resource::<EditorSettings>().clone()
 }
 
+/// The pause between looks at the settings files.
+const PAUSE: Duration = Duration::from_millis(20);
+/// How long a settings file has to reach the editor: frames covering 6 s at [`PAUSE`] (#644).
+const GIVE_UP: Frames = Frames::covering(Duration::from_secs(6), PAUSE);
+
 fn until(app: &mut App, what: &str, done: impl Fn(&App) -> bool) {
-    let start = Instant::now();
-    while start.elapsed().as_secs_f64() < 6.0 {
+    for _ in 0..GIVE_UP.0 {
         app.update();
         if done(app) {
             return;
         }
-        std::thread::sleep(Duration::from_millis(20));
+        std::thread::sleep(PAUSE);
     }
-    panic!("never saw: {what}; settings {:?}", settings(app));
+    panic!("never saw: {what} (waited {GIVE_UP:?}); settings {:?}", settings(app));
 }
 
 fn verdicts(app: &App) -> Vec<(String, String, Option<String>, String)> {

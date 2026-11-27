@@ -83,7 +83,11 @@ pub const GIVE_UP: Frames = Frames::covering(Duration::from_secs(10), STEP);
 /// **`settle` is for a frame or two of work, not for a panel's own timer.** A panel that looks every half second
 /// (`refresh_reload_list`) can be idle when `settle` returns; a test that needs what such a panel draws says
 /// `until(app, "...", condition)` with the thing it wants, which the settle window cannot answer for.
-const QUIET: Frames = Frames::covering(Duration::from_millis(400), STEP);
+const QUIET: Frames = Frames::covering(SETTLE_TAKES_AT_LEAST, STEP);
+
+/// **The least wall clock one [`settle`] takes**: its quiet frames, each pausing [`STEP`]. A wait that settles on every look
+/// counts its looks against this, not against its own pause, or its bound would be hundreds of times the window it names.
+pub const SETTLE_TAKES_AT_LEAST: Duration = Duration::from_millis(400);
 
 /// **The most frames [`settle`] steps before it gives up**: the editor never stops creating entities while a background
 /// thread retries (a refused file, a missing kit), and a test must not hang for a reason that is not its own.

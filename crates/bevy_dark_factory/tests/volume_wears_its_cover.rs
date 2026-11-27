@@ -14,16 +14,22 @@ use bevy_dark_factory::terrain_view::TerrainView;
 use serde_json::json;
 
 use crate::fixtures;
+use crate::settle_support::Frames;
 
-/// Steps the app until `done` holds, for at most 5 s: the terrain view and the settings poll their files.
+/// How long one frame of [`until`] sleeps.
+const PAUSE: std::time::Duration = std::time::Duration::from_millis(50);
+/// How many frames [`until`] steps at most: at least five seconds at [`PAUSE`], counted in frames so a starved host is not read as a
+/// cover never worn (#644).
+const WORN_WITHIN: Frames = Frames::covering(std::time::Duration::from_secs(5), PAUSE);
+
+/// Steps the app until `done` holds, for at most [`WORN_WITHIN`] frames: the terrain view and the settings poll their files.
 fn until(app: &mut App, done: impl Fn(&mut App) -> bool) -> bool {
-    let start = std::time::Instant::now();
-    while start.elapsed().as_secs_f64() < 5.0 {
+    for _ in 0..WORN_WITHIN.0 {
         app.update();
         if done(app) {
             return true;
         }
-        std::thread::sleep(std::time::Duration::from_millis(50));
+        std::thread::sleep(PAUSE);
     }
     false
 }

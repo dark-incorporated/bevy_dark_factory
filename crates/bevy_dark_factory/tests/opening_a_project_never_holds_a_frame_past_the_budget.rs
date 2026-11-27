@@ -30,6 +30,27 @@ use bevy_dark_factory::screen::{Chosen, Screen};
 use bevy_gooey::{ProgressText, Role};
 
 use crate::fixtures::Fixture;
+use crate::settle_support::Frames;
+
+/// How long one frame of a wait for the loading screen sleeps.
+const PAUSE: Duration = Duration::from_millis(10);
+
+/// The frames a wait for the loading screen takes before it gives up: at least ten seconds at [`PAUSE`], counted in frames so a starved
+/// host is not read as an editor that was never entered (#644).
+const ENTERED_WITHIN: Frames = Frames::covering(Duration::from_secs(10), PAUSE);
+
+/// How long one frame of [`into_the_editor`] sleeps.
+const INTO_THE_EDITOR_PAUSE: Duration = Duration::from_millis(5);
+
+/// The frames [`into_the_editor`] steps before it gives up: at least ten seconds at [`INTO_THE_EDITOR_PAUSE`] (#644).
+const INTO_THE_EDITOR_WITHIN: Frames = Frames::covering(Duration::from_secs(10), INTO_THE_EDITOR_PAUSE);
+
+/// How long each of the never-settling stand-in's frames sleeps, in the test that the band cannot stick.
+const NEVER_SETTLING_PAUSE: Duration = Duration::from_millis(250);
+
+/// The frames that test steps waiting for the band to go: at least ten seconds at [`NEVER_SETTLING_PAUSE`] (#644). What the test holds,
+/// the cap, is wall-clock time, and it is measured on the wall clock.
+const BAND_DOWN_WITHIN: Frames = Frames::covering(Duration::from_secs(10), NEVER_SETTLING_PAUSE);
 
 /// The fewest frames the words may be on screen before the hand-over: one to be laid out, one to be drawn.
 const MIN_DRAWN_FRAMES: usize = 2;
@@ -176,11 +197,10 @@ fn said(app: &mut App) -> Said {
     Said { screen: screen_of(app), phase: *app.world().resource::<LoadPhase>(), line, step }
 }
 
-/// Steps in real time until the editor is entered, recording what the screen said on every frame.
+/// Steps for at most [`ENTERED_WITHIN`] frames until the editor is entered, recording what the screen said on every frame.
 fn frames_until_the_editor(app: &mut App) -> Vec<Said> {
-    let start = Instant::now();
     let mut seen = Vec::new();
-    while start.elapsed() < Duration::from_secs(10) {
+    for _ in 0..ENTERED_WITHIN.0 {
         app.update();
         let now = said(app);
         let done = now.screen == Screen::Editor;
@@ -188,9 +208,9 @@ fn frames_until_the_editor(app: &mut App) -> Vec<Said> {
         if done {
             return seen;
         }
-        std::thread::sleep(Duration::from_millis(10));
+        std::thread::sleep(PAUSE);
     }
-    panic!("the editor was never entered; the last frames said {:?}", &seen[seen.len().saturating_sub(3)..]);
+    panic!("the editor was never entered within {ENTERED_WITHIN:?}; the last frames said {:?}", &seen[seen.len().saturating_sub(3)..]);
 }
 
 #[test]
@@ -248,10 +268,12 @@ fn open_anyway_hands_over_with_the_same_words_and_cancel_in_the_hand_over_return
     std::fs::create_dir_all(kit.join("terrain")).unwrap();
     std::fs::write(kit.join("terrain/m.yaml"), "{version: \"one\"}").unwrap();
     let mut app = loading_app("anyway", vec![root.to_string_lossy().into_owned(), "m".to_owned()]);
-    let start = Instant::now();
-    while app.world().get_resource::<LoadReport>().is_none() && start.elapsed() < Duration::from_secs(10) {
+    for _ in 0..ENTERED_WITHIN.0 {
+        if app.world().get_resource::<LoadReport>().is_some() {
+            break;
+        }
         app.update();
-        std::thread::sleep(Duration::from_millis(10));
+        std::thread::sleep(PAUSE);
     }
     app.update();
     app.update();
@@ -280,19 +302,19 @@ fn bands(app: &mut App) -> usize {
     app.world_mut().query_filtered::<Entity, With<PreparingBand>>().iter(app.world()).count()
 }
 
-/// Steps to the first frame the editor is the screen, and returns whether the band was already up on the last loading frame.
+/// Steps to the first frame the editor is the screen, for at most [`INTO_THE_EDITOR_WITHIN`] frames, and returns whether the band was
+/// already up on the last loading frame.
 fn into_the_editor(app: &mut App) -> bool {
-    let start = Instant::now();
     let mut band_before = false;
-    while start.elapsed() < Duration::from_secs(10) {
+    for _ in 0..INTO_THE_EDITOR_WITHIN.0 {
         app.update();
         if screen_of(app) == Screen::Editor {
             return band_before;
         }
         band_before = bands(app) == 1;
-        std::thread::sleep(Duration::from_millis(5));
+        std::thread::sleep(INTO_THE_EDITOR_PAUSE);
     }
-    panic!("the editor was never entered");
+    panic!("the editor was never entered within {INTO_THE_EDITOR_WITHIN:?}");
 }
 
 #[test]
@@ -332,11 +354,14 @@ fn the_band_cannot_stick_when_the_frames_never_settle() {
     // The cap counts from the hand-over, so it includes the stall of the editor's own first frames (here about half a second).
     let cap = Duration::from_millis(3_000);
     app.insert_resource(SettleBudget { frame: Duration::from_millis(150), quiet_frames: 5, cap })
-        .insert_resource(SlowFrames { left: None, pause: Duration::from_millis(250) });
+        .insert_resource(SlowFrames { left: None, pause: NEVER_SETTLING_PAUSE });
     into_the_editor(&mut app);
     let entered = Instant::now();
     let mut frames = 0;
-    while bands(&mut app) > 0 && entered.elapsed() < Duration::from_secs(10) {
+    for _ in 0..BAND_DOWN_WITHIN.0 {
+        if bands(&mut app) == 0 {
+            break;
+        }
         app.update();
         frames += 1;
     }

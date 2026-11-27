@@ -8,7 +8,7 @@
 //! (`refused` with the file and the leaf, or `applied`) and `data_registry` (`applied`, or `refused`
 //! with the field).
 
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use bevy::prelude::*;
 use bevy_dark_factory::editor::EditorState;
@@ -17,9 +17,18 @@ use bevy_dark_factory::project::Project;
 use serde_json::{Value, json};
 
 use crate::fixtures;
+use crate::settle_support::Frames;
 
 const REGISTRY: &str = "version: 1\nfiles:\n- id: tuning/mob\n  path: mob.yaml\n  bounds:\n    mob.speed:\n      min: 0.0\n      max: 9.0\n    mob.hp:\n      min: 1.0\n";
 const GOOD: &str = "# tuning\nmob:\n  speed: 1.50\n  name: orc\n  hp: 7\nfast: false\n";
+
+/// **How long one frame of a wait here sleeps.**
+const PAUSE: Duration = Duration::from_millis(40);
+/// **The frames [`until`] waits for a verdict**: at least six seconds at [`PAUSE`], counted in frames so a starved host is
+/// not read as a missed verdict (#644).
+const SEEN_WITHIN: Frames = Frames::covering(Duration::from_secs(6), PAUSE);
+/// **The frames a [`pump`] steps** so the watcher hears an edit: at least 0.4 s at [`PAUSE`].
+const PUMPED: Frames = Frames::covering(Duration::from_millis(400), PAUSE);
 
 fn editor(tag: &str) -> (App, Ctx) {
     let root = fixtures::Fixture::new(tag).descriptor("site/wall", "alpha").place("site/wall", (1.5, 1.5)).build("m");
@@ -74,22 +83,20 @@ fn seq(app: &mut App) -> u64 {
 }
 
 fn until(app: &mut App, what: &str, done: impl Fn(&mut App) -> bool) {
-    let start = Instant::now();
-    while start.elapsed().as_secs_f64() < 6.0 {
+    for _ in 0..SEEN_WITHIN.0 {
         if done(app) {
             return;
         }
         app.update();
-        std::thread::sleep(Duration::from_millis(40));
+        std::thread::sleep(PAUSE);
     }
-    panic!("never saw: {what}; reloads {}", reloads(app));
+    panic!("never saw: {what} within {SEEN_WITHIN:?}; reloads {}", reloads(app));
 }
 
-fn pump(app: &mut App, secs: f64) {
-    let start = Instant::now();
-    while start.elapsed().as_secs_f64() < secs {
+fn pump(app: &mut App, frames: Frames) {
+    for _ in 0..frames.0 {
         app.update();
-        std::thread::sleep(Duration::from_millis(40));
+        std::thread::sleep(PAUSE);
     }
 }
 
@@ -98,7 +105,7 @@ fn project(tag: &str) -> (App, Ctx) {
     let (mut app, ctx) = editor(tag);
     write(&ctx, "mob.yaml", GOOD);
     write(&ctx, "data.yaml", REGISTRY);
-    pump(&mut app, 0.4);
+    pump(&mut app, PUMPED);
     (app, ctx)
 }
 
@@ -123,7 +130,7 @@ fn a_file_that_does_not_read_is_named_once_per_edit_and_the_bytes_stay() {
         let before = seq(&mut app);
         let raised_before = app.world().resource::<EditorState>().status.raised();
         write(&ctx, "mob.yaml", bad);
-        pump(&mut app, 0.4);
+        pump(&mut app, PUMPED);
 
         let v = verdict(&mut app, "game_data");
         assert_eq!(v["outcome"], json!("refused"), "{what}: {v}");
@@ -139,7 +146,7 @@ fn a_file_that_does_not_read_is_named_once_per_edit_and_the_bytes_stay() {
 
         // Nothing was edited since, so nothing is decided again however many frames pass.
         let refused_at = seq(&mut app);
-        pump(&mut app, 0.4);
+        pump(&mut app, PUMPED);
         assert_eq!(seq(&mut app), refused_at, "{what}: no new decision without an edit");
 
         // Mended to the text it was first seen with: nothing is waiting for a restart.
@@ -190,7 +197,7 @@ fn an_edit_of_a_file_that_reads_is_one_applied_decision_and_the_registry_one_app
         other => panic!("the map did not apply: {other:?}"),
     }
     until(&mut app, "the log applied", |a| verdict(a, "oplog")["outcome"] == json!("applied"));
-    pump(&mut app, 0.4);
+    pump(&mut app, PUMPED);
     let before = seq(&mut app);
 
     write(&ctx, "mob.yaml", "# tuning\nmob:\n  speed: 2.50\n  name: orc\n  hp: 7\nfast: false\n");
@@ -200,7 +207,7 @@ fn an_edit_of_a_file_that_reads_is_one_applied_decision_and_the_registry_one_app
     assert_eq!(v["field"], Value::Null, "a file that reads has no leaf it is wrong at: {v}");
     assert_eq!(reloads(&mut app)["ok"], json!(true), "an edit the game takes is ok");
     assert_eq!(seq(&mut app), before + 1);
-    pump(&mut app, 0.4);
+    pump(&mut app, PUMPED);
     assert_eq!(seq(&mut app), before + 1, "frames without an edit decide nothing");
 
     match ops::dispatch(&mut ctx, "data_set", &json!({"file": "tuning/mob", "path": "mob.hp", "value": 9})) {
@@ -208,7 +215,7 @@ fn an_edit_of_a_file_that_reads_is_one_applied_decision_and_the_registry_one_app
         other => panic!("the data edit did not apply: {other:?}"),
     }
     until(&mut app, "the operation's edit decided", |a| seq(a) > before + 1);
-    pump(&mut app, 0.4);
+    pump(&mut app, PUMPED);
     assert_eq!(seq(&mut app), before + 2, "one operation, one decision");
 
     // The registry has its own kind: a change that reads is `applied`, with the files kept.
@@ -267,7 +274,7 @@ fn an_edit_made_while_the_registry_was_broken_is_said_when_it_reads_again() {
     write(&ctx, "data.yaml", "version: 1\nfiles: [");
     until(&mut app, "the registry refused", |a| verdict(a, "data_registry")["outcome"] == json!("refused"));
     write(&ctx, "mob.yaml", "# tuning\nmob:\n  speed: 2.50\n  name: orc\n  hp: 7\nfast: false\n");
-    pump(&mut app, 0.4);
+    pump(&mut app, PUMPED);
     write(&ctx, "data.yaml", REGISTRY);
     until(&mut app, "the edit made meanwhile said", |a| verdict(a, "game_data")["outcome"] == json!("applied"));
 }

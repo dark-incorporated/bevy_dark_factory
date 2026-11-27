@@ -35,6 +35,7 @@ use bevy_dark_factory::settings::EditorSettings;
 use bevy_dark_factory::view::{MainCamera, Rig};
 
 use crate::fixtures;
+use crate::settle_support::Frames;
 
 /// The command's id, as the palette, a keymap file and an agent all name it.
 const LOOK: &str = "view.look_at_agent_change";
@@ -53,14 +54,23 @@ fn frames_of(seconds: f32) -> usize {
     (seconds / FRAME).ceil() as usize + 2
 }
 
-/// **Wait on the wall clock until the editor has taken a settings edit made by hand** (#501 item 18: the settings files are followed by an
-/// index, not polled, so an edit is seen after the index's sweep and debounce, which a fixed number of frames on a manual clock does not
-/// wait for). The assertions after it are unchanged.
+/// How long one frame of [`until_the_editor_has`] sleeps.
+const HEARD_PAUSE: Duration = Duration::from_millis(15);
+
+/// How many frames [`until_the_editor_has`] steps at most: at least ten seconds at [`HEARD_PAUSE`], counted in frames so a starved host
+/// is not read as an edit never taken (#644).
+const HEARD_WITHIN: Frames = Frames::covering(Duration::from_secs(10), HEARD_PAUSE);
+
+/// **Wait, for at most [`HEARD_WITHIN`] frames that sleep between them, until the editor has taken a settings edit made by hand** (#501
+/// item 18: the settings files are followed by an index, not polled, so an edit is seen after the index's sweep and debounce, which a fixed
+/// number of frames on a manual clock does not wait for). The assertions after it are unchanged.
 fn until_the_editor_has(app: &mut App, done: impl Fn(&EditorSettings) -> bool) {
-    let began = std::time::Instant::now();
-    while !done(app.world().resource::<EditorSettings>()) && began.elapsed() < Duration::from_secs(10) {
+    for _ in 0..HEARD_WITHIN.0 {
+        if done(app.world().resource::<EditorSettings>()) {
+            break;
+        }
         app.update();
-        std::thread::sleep(Duration::from_millis(15));
+        std::thread::sleep(HEARD_PAUSE);
     }
 }
 

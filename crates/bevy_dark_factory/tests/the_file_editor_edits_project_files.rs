@@ -65,23 +65,28 @@ fn project(tag: &str) -> PathBuf {
 
 
 
-/// **How long a change made from outside may take to reach an open file**, in seconds: the project index's sweep and debounce are about a
-/// second and a tenth, so this is many times that and a failure is a change never heard, not a slow one.
-const HEARD_WITHIN_S: f64 = 20.0;
+/// **How long one look of [`settle_until`] sleeps** after its settle.
+const HEARD_PAUSE: Duration = Duration::from_millis(20);
 
-/// **Step frames until `done`, for at most [`HEARD_WITHIN_S`] of wall time.** The open file now reads when the project index says it moved
+/// **How many looks a change made from outside may take to reach an open file**: at least twenty seconds, counted in looks so a starved
+/// host is not read as a change never heard (#644). One look is a settle and [`HEARD_PAUSE`], so it lasts at least
+/// `settle_support::SETTLE_TAKES_AT_LEAST` plus the pause. The project index's sweep and debounce are about a second and a tenth, so this
+/// is many times that and a failure is a change never heard, not a slow one.
+const HEARD_WITHIN: settle_support::Frames =
+    settle_support::Frames::covering(Duration::from_secs(20), settle_support::SETTLE_TAKES_AT_LEAST.saturating_add(HEARD_PAUSE));
+
+/// **Step frames until `done`, for at most [`HEARD_WITHIN`] looks.** The open file now reads when the project index says it moved
 /// (#501), on the index's own thread and clock, so a fixed sleep or a fixed number of frames is not a wait for it.
 /// Re-pointed from the sleeps of the retired `files::POLL_S` (the commit body lists each test).
 fn settle_until(app: &mut App, what: &str, mut done: impl FnMut(&mut App) -> bool) {
-    let started = std::time::Instant::now();
-    while started.elapsed().as_secs_f64() < HEARD_WITHIN_S {
+    for _ in 0..HEARD_WITHIN.0 {
         settle_support::settle(app);
         if done(app) {
             return;
         }
-        std::thread::sleep(Duration::from_millis(20));
+        std::thread::sleep(HEARD_PAUSE);
     }
-    panic!("{what}: not seen within {HEARD_WITHIN_S} s");
+    panic!("{what}: not seen within {HEARD_WITHIN:?}");
 }
 
 /// **Step until the project index lists `rel`.** A file made and taken away again inside one sweep of the index is never heard of, so a

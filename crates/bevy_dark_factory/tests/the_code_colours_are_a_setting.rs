@@ -26,25 +26,28 @@ use bevy_dark_factory::settings::{EditorSettings, SettingsLayer, SyntaxTheme, Us
 use bevy_gooey::GooeySkin;
 
 use crate::fixtures;
-use crate::settle_support;
+use crate::settle_support::{self, Frames};
 
 
 
 
-/// **How long a change to the settings file may take to reach the running skin**, in seconds: the settings
-/// index's sweep is about a second, so this is many times that and a failure is a change never heard.
-const HEARD_WITHIN_S: f64 = 20.0;
+/// The pause between the settles [`until`] runs.
+const PAUSE: Duration = Duration::from_millis(20);
+
+/// **How long a change to the settings file may take to reach the running skin**, in settles [`PAUSE`] apart: at
+/// least 20 s, while the settings index's sweep is about a second, so this is many times that and a failure is a
+/// change never heard. Counted, not timed, so a starved host does not run it out early (#644).
+const HEARD_WITHIN: Frames = Frames::covering(Duration::from_secs(20), PAUSE);
 
 fn until(app: &mut App, what: &str, mut done: impl FnMut(&mut App) -> bool) {
-    let started = std::time::Instant::now();
-    while started.elapsed().as_secs_f64() < HEARD_WITHIN_S {
+    for _ in 0..HEARD_WITHIN.0 {
         settle_support::settle(app);
         if done(app) {
             return;
         }
-        std::thread::sleep(Duration::from_millis(20));
+        std::thread::sleep(PAUSE);
     }
-    panic!("{what}: not seen within {HEARD_WITHIN_S} s");
+    panic!("{what}: not seen within {HEARD_WITHIN:?}");
 }
 
 /// **The settings file a layer would write for `theme`** — the screen's own write path, so the word the test

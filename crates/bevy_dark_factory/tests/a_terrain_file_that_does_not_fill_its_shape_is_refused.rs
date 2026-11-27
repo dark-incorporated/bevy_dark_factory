@@ -12,8 +12,15 @@ use bevy_dark_factory::terrain_view::TerrainView;
 use serde_json::json;
 
 use crate::fixtures;
+use crate::settle_support::Frames;
 
 const SHORT: &str = "{origin: [0.0, 0.0], cell_m: 1.0, width: 4, depth: 4, heights: [0.0, 0.0, 0.0]}";
+
+/// The pause between frames while the terrain view looks at the file.
+const PAUSE: std::time::Duration = std::time::Duration::from_millis(50);
+/// The terrain view's time to read the file: frames covering 3 s at [`PAUSE`], counted so a starved host cannot run it
+/// out (#644).
+const READ_WITHIN: Frames = Frames::covering(std::time::Duration::from_secs(3), PAUSE);
 
 fn problems(app: &App) -> Vec<String> {
     app.world().resource::<EditorState>().status.problems().iter().map(|p| p.text.clone()).collect()
@@ -29,10 +36,12 @@ fn open(tag: &str) -> (App, std::path::PathBuf) {
     std::fs::create_dir_all(&terrain).unwrap_or_else(|e| panic!("{terrain:?}: {e}"));
     let file = terrain.join("m.yaml");
     std::fs::write(&file, SHORT).unwrap_or_else(|e| panic!("{file:?}: {e}"));
-    let start = std::time::Instant::now();
-    while start.elapsed().as_secs_f64() < 3.0 && !problems(&app).iter().any(|p| p.contains("terrain/m.yaml")) {
+    for _ in 0..READ_WITHIN.0 {
+        if problems(&app).iter().any(|p| p.contains("terrain/m.yaml")) {
+            break;
+        }
         app.update();
-        std::thread::sleep(std::time::Duration::from_millis(50));
+        std::thread::sleep(PAUSE);
     }
     (app, file)
 }

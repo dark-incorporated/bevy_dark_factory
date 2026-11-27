@@ -8,15 +8,18 @@ to be six *module* patterns, so it took every test in those files: 28 tests owne
 list drifts away from the rule the first time somebody adds a budget test.
 
 **What counts, and why the scope is what it is.** A frame-budget assert reads `UiFrame`/`MAX_MS_PER_FRAME`, and those
-live in exactly five test files. `Instant::now`/`.elapsed()` are *not* counted on their own: 97 test files call them,
-and nearly all are an `until(...)` timeout around a condition, which is waiting for something to happen rather than
-asserting how long the machine took. Counting them would make 224 tests exclusive, which is the defect this issue is
-about in the other direction. So the check watches:
+live in exactly five test files. `Instant::now`/`.elapsed()` are *not* counted on their own outside the watched modules:
+since #644 every wait in the tests is bounded in frames (`settle_support::Frames`), so a clock read left in a test is a
+measurement of its own, and the watched modules and the budget marker are where a measurement meets the host. So the
+check watches:
 
 1. the six modules the override named (its whole history, so a test added there is still classified), and
 2. any test anywhere that reads `UiFrame`/`MAX_MS_PER_FRAME` — a new frame-budget assert is exactly the case the rule
    exists for, and it must not silently measure the host.
 
+**A test that waits in frames on a product that keeps real time still measures the host** (#644). The slow-load tests
+set the loader's own wall-clock thresholds (`LoadTiming`) and sample its phases frame by frame; a starved frame stream
+skips a phase, so they stay exclusive although they read no `Instant` of their own. `REAL_TIME` names those thresholds.
 It refuses when a watched test that reaches a clock or budget read is not named by the filter, or when a test the filter
 names reads none of them (it holds every thread for nothing).
 
@@ -39,6 +42,8 @@ TESTS = REPO / "crates/bevy_dark_factory/tests"
 
 #: A clock or a budget read, reached directly or through a helper in the same module.
 CLOCK = re.compile(r"\b(UiFrame|MAX_MS_PER_FRAME)\b|\.elapsed\(\)|\bInstant::now\b")
+#: **The product's own wall-clock thresholds, set by a test that samples them in frames** (#644): see the docstring.
+REAL_TIME = re.compile(r"\bLoadTiming\b")
 #: The six modules the override named before #577 narrowed it, kept so a test added to one is still classified.
 WATCHED = (
     "the_uis_budget_is_two_milliseconds_a_frame",
@@ -85,7 +90,7 @@ def clock_tests(path: Path) -> dict[str, bool]:
     src = path.read_text()
     fns = functions(src)
     names = set(fns)
-    reads = {n for n, (body, _) in fns.items() if CLOCK.search(body)}
+    reads = {n for n, (body, _) in fns.items() if CLOCK.search(body) or REAL_TIME.search(body)}
     # A helper that calls a reader is a reader, transitively: `worst_settled_ms` is where the budget test reads it.
     grew = True
     while grew:

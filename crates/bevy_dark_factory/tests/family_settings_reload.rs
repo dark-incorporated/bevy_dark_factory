@@ -5,7 +5,9 @@
 //! (2026-11-14)**, for the test here (`family_settings_reload.rs::an_edited_settings_file_reaches_the_editor_and_a_bad_one_is_a_problem`): it
 //! stepped `Time<Real>` with `TimeUpdateStrategy::ManualDuration` because `FamilyWatch` measured a 0.1 s poll and a 0.1 s settle on that clock
 //! (#279), and measured the one-second promise on it. The watch has no clock now, so a step of the clock moves nothing; the 3 s wall-clock
-//! bound is unchanged, and the promise is measured on the wall clock, where the index's sweep and debounce actually run.
+//! bound is unchanged, and the promise is measured on the wall clock, where the index's sweep and debounce actually run. Since
+//! #644 the wait itself is bounded by frames covering those 3 s, so a starved host cannot end it early; the promise is still
+//! the wall clock's.
 
 use std::time::{Duration, Instant};
 
@@ -15,13 +17,15 @@ use bevy_dark_factory::family_host::{reload_settings, FamilySettings};
 use bevy_dark_factory::project_index::{MIN_SWEEP, ProjectIndex};
 
 use crate::fixtures;
+use crate::settle_support::Frames;
 
 /// The editor's promise (#96): an edit is in force within this much wall-clock time.
 const PROMISE: Duration = Duration::from_secs(1);
-/// The bound the owner set (2026-10-29, #121) on the whole wait, so a loaded machine cannot stretch it past three seconds unnoticed.
-const BOUND: Duration = Duration::from_secs(3);
 /// The wall-clock pause between frames while waiting.
 const PAUSE: Duration = Duration::from_millis(10);
+/// The bound the owner set (2026-10-29, #121) on the whole wait: frames covering three seconds at [`PAUSE`], counted rather
+/// than timed so a starved host cannot end the wait early (#644).
+const BOUND: Frames = Frames::covering(Duration::from_secs(3), PAUSE);
 
 /// **A real `ElementsSettings`, as `bevy_elements` writes one**, and the same file an hour later.
 ///
@@ -46,12 +50,17 @@ fn an_edited_settings_file_reaches_the_editor_and_a_bad_one_is_a_problem() {
     std::thread::sleep(Duration::from_millis(50));
     std::fs::write(&file, SETTINGS_LATER).unwrap();
     let start = Instant::now();
-    while start.elapsed() < BOUND && app.world().resource::<FamilySettings>().text["bevy_elements"] != SETTINGS_LATER {
+    let mut stepped = BOUND;
+    for frame in 0..BOUND.0 {
+        if app.world().resource::<FamilySettings>().text["bevy_elements"] == SETTINGS_LATER {
+            stepped = Frames(frame);
+            break;
+        }
         app.update();
         std::thread::sleep(PAUSE);
     }
     let took = start.elapsed();
-    assert!(took < BOUND, "took {took:?}");
+    assert!(stepped < BOUND, "took {stepped:?}");
     assert!(took <= PROMISE, "the edit took {took:?} on the wall clock, past the {PROMISE:?} it promises");
     assert_eq!(
         app.world().resource::<FamilySettings>().text["bevy_elements"],
@@ -61,8 +70,10 @@ fn an_edited_settings_file_reaches_the_editor_and_a_bad_one_is_a_problem() {
 
     std::thread::sleep(Duration::from_millis(50));
     std::fs::write(&file, "{sun: {hour: ").unwrap();
-    let start = Instant::now();
-    while start.elapsed() < BOUND && app.world().resource::<EditorState>().status.problems().is_empty() {
+    for _ in 0..BOUND.0 {
+        if !app.world().resource::<EditorState>().status.problems().is_empty() {
+            break;
+        }
         app.update();
         std::thread::sleep(PAUSE);
     }

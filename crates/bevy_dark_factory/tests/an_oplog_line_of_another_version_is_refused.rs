@@ -11,7 +11,7 @@
 //! line as the JSON it is and refuses nothing. An append never rewrites a line: the new entry is on its own
 //! line at this build's version, after the line it did not read.
 
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use bevy::prelude::*;
 use bevy_dark_factory::ops::{self, Applied, Ctx};
@@ -19,8 +19,15 @@ use bevy_dark_factory::project::Project;
 use serde_json::{Value, json};
 
 use crate::fixtures;
+use crate::settle_support::Frames;
 
 const FILE: &str = "oplog.jsonl";
+
+/// The pause between the frames [`until`] steps.
+const PAUSE: Duration = Duration::from_millis(40);
+/// How many frames [`until`] steps before it gives up: at least 6 s at [`PAUSE`], counted in frames
+/// so a starved host does not run it out early (#644).
+const SEEN_WITHIN: Frames = Frames::covering(Duration::from_secs(6), PAUSE);
 
 fn editor(tag: &str) -> (App, Ctx) {
     let root = fixtures::Fixture::new(tag).descriptor("site/wall", "alpha").place("site/wall", (1.5, 1.5)).build("m");
@@ -85,15 +92,14 @@ fn verdict(app: &mut App) -> Value {
 }
 
 fn until(app: &mut App, what: &str, done: impl Fn(&mut App) -> bool) {
-    let start = Instant::now();
-    while start.elapsed().as_secs_f64() < 6.0 {
+    for _ in 0..SEEN_WITHIN.0 {
         if done(app) {
             return;
         }
         app.update();
-        std::thread::sleep(Duration::from_millis(40));
+        std::thread::sleep(PAUSE);
     }
-    panic!("never saw: {what}; reloads {}", reloads(app));
+    panic!("never saw in {SEEN_WITHIN:?}: {what}; reloads {}", reloads(app));
 }
 
 /// **A line is written at the version this build reads**, so a later build can tell this build's lines from

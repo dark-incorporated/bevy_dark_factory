@@ -7,7 +7,7 @@
 //! Now one view holds the last good notes and decides each edit once: `blueprint_state.reloads` says
 //! `applied`, or `refused` with the file and the field, and a refusal leaves the notes as they were.
 
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use bevy::prelude::*;
 use blueprint_model::notes::{self, Notes, Target};
@@ -16,8 +16,18 @@ use bevy_dark_factory::project::OpenMap;
 use serde_json::{Value, json};
 
 use crate::fixtures;
+use crate::settle_support::Frames;
 
 const FILE: &str = "maps/m.notes.yaml";
+
+/// **How long one frame of a wait here sleeps.**
+const PAUSE: Duration = Duration::from_millis(40);
+/// **The frames [`until`] waits for a verdict**: at least six seconds at [`PAUSE`], counted in frames so a starved host is
+/// not read as a missed verdict (#644).
+const SEEN_WITHIN: Frames = Frames::covering(Duration::from_secs(6), PAUSE);
+/// **The frames a [`pump`] steps**: at least 1.6 s at [`PAUSE`], past the panel's half-second look and the view's
+/// once-a-second re-read.
+const PUMPED: Frames = Frames::covering(Duration::from_millis(1600), PAUSE);
 
 /// The three ways to break it, and the field the verdict must name (`None`: the file is cut off, so
 /// where reading stopped is all the position says).
@@ -85,22 +95,20 @@ fn rows(app: &mut App) -> Vec<String> {
 }
 
 fn until(app: &mut App, what: &str, done: impl Fn(&mut App) -> bool) {
-    let start = Instant::now();
-    while start.elapsed().as_secs_f64() < 6.0 {
+    for _ in 0..SEEN_WITHIN.0 {
         if done(app) {
             return;
         }
         app.update();
-        std::thread::sleep(Duration::from_millis(40));
+        std::thread::sleep(PAUSE);
     }
-    panic!("never saw: {what}; reloads {}", reloads(app));
+    panic!("never saw: {what} within {SEEN_WITHIN:?}; reloads {}", reloads(app));
 }
 
-fn pump(app: &mut App, secs: f64) {
-    let start = Instant::now();
-    while start.elapsed().as_secs_f64() < secs {
+fn pump(app: &mut App, frames: Frames) {
+    for _ in 0..frames.0 {
         app.update();
-        std::thread::sleep(Duration::from_millis(40));
+        std::thread::sleep(PAUSE);
     }
 }
 
@@ -121,7 +129,7 @@ fn a_refused_notes_file_keeps_the_notes_and_says_which_file_and_field_once_per_e
         let raised_before = app.world().resource::<EditorState>().status.raised();
         write(&app, text);
         // Past the panel's half-second look and the view's once-a-second re-read.
-        pump(&mut app, 1.6);
+        pump(&mut app, PUMPED);
         assert_eq!(rows(&mut app), good, "{what}: the notes shown before the edit stay");
         let v = verdict(&mut app);
         assert_eq!(v["outcome"], json!("refused"), "{what}: {v}");
@@ -139,7 +147,7 @@ fn a_refused_notes_file_keeps_the_notes_and_says_which_file_and_field_once_per_e
 
         let refused_at = seq(&mut app);
         assert_eq!(refused_at, before + 1, "{what}: one edit, one decision");
-        pump(&mut app, 1.6);
+        pump(&mut app, PUMPED);
         assert_eq!(seq(&mut app), refused_at, "{what}: nothing was edited, so no new decision");
         assert_eq!(rows(&mut app), good, "{what}: still the notes shown before");
 
@@ -156,7 +164,7 @@ fn a_fixed_file_replaces_the_notes_and_a_removed_one_empties_them() {
     write(&app, &some_notes(&["only"]));
     until_rows(&mut app, &["n1 [sent] only"]);
     write(&app, "{version: 1, notes: 7}");
-    pump(&mut app, 1.6);
+    pump(&mut app, PUMPED);
     assert_eq!(rows(&mut app), ["n1 [sent] only"], "a refused edit leaves the one note shown");
     assert_eq!(verdict(&mut app)["outcome"], json!("refused"));
 

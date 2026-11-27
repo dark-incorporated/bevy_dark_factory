@@ -29,6 +29,13 @@ use bevy_dark_factory::harness;
 use bevy_dark_factory::project::Project;
 
 use crate::fixtures;
+use crate::settle_support::Frames;
+
+/// **How long one frame of the watcher's wait sleeps.**
+const PAUSE: std::time::Duration = std::time::Duration::from_millis(20);
+/// **The frames the watcher is given to adopt a kit edit**: at least six seconds at [`PAUSE`], counted in frames so a
+/// starved host is not read as a missed edit (#644).
+const ADOPTED_WITHIN: Frames = Frames::covering(std::time::Duration::from_secs(6), PAUSE);
 
 /// **Where a piece named `id` is drawn, as a scale.** The world, not the map.
 fn scale_of(app: &mut App, id: &str) -> Option<Vec3> {
@@ -94,12 +101,11 @@ fn a_piece_stretched_on_disk_is_drawn_stretched() {
     stretch_the_piece_on_disk(&root, 2.0);
 
     // **And the watcher is allowed its poll** — 250 ms, plus the frames in between.
-    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(6);
     let mut after = before;
     let mut adopted = false;
-    while std::time::Instant::now() < deadline {
+    for _ in 0..ADOPTED_WITHIN.0 {
         app.update();
-        std::thread::sleep(std::time::Duration::from_millis(20));
+        std::thread::sleep(PAUSE);
         // **The library is the easy half, and it is what says the editor took the edit.** Without
         // it, the test could pass for the wrong reason.
         let library = app.world().resource::<Project>().library.clone();
@@ -153,11 +159,10 @@ fn a_kit_edit_does_not_forget_the_open_map() {
 
     // **The watcher is allowed its poll**, and the assertion is that the re-read *happened* —
     // otherwise this passes for the wrong reason on an editor that ignored the file.
-    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(6);
     let mut adopted = false;
-    while std::time::Instant::now() < deadline {
+    for _ in 0..ADOPTED_WITHIN.0 {
         app.update();
-        std::thread::sleep(std::time::Duration::from_millis(20));
+        std::thread::sleep(PAUSE);
         adopted = app
             .world()
             .resource::<Project>()

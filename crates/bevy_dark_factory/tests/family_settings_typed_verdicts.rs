@@ -10,7 +10,7 @@
 //! for each crate: a file cut off (not RON), a field of the wrong type, and (for a crate with a required
 //! field) a field missing.
 
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use bevy::prelude::*;
 use bevy_dark_factory::editor::EditorState;
@@ -19,6 +19,15 @@ use bevy_dark_factory::live::EditorReloads;
 use serde_json::Value;
 
 use crate::fixtures;
+use crate::settle_support::Frames;
+
+/// **How long one frame of a wait here sleeps.**
+const PAUSE: Duration = Duration::from_millis(50);
+/// **The frames [`until`] waits for a verdict**: at least eight seconds at [`PAUSE`], counted in frames so a starved host is
+/// not read as a missed verdict (#644).
+const SEEN_WITHIN: Frames = Frames::covering(Duration::from_secs(8), PAUSE);
+/// **The frames a [`pump`] steps** after a decision, in which it must not be decided again: at least 1.2 s at [`PAUSE`].
+const PUMPED: Frames = Frames::covering(Duration::from_millis(1200), PAUSE);
 
 /// One crate's settings: a text its type reads, its three bad texts with a word the field must contain,
 /// and what the status line says stays.
@@ -92,22 +101,20 @@ fn seq(app: &App) -> u64 {
 }
 
 fn until(app: &mut App, what: &str, done: impl Fn(&App) -> bool) {
-    let start = Instant::now();
-    while start.elapsed().as_secs_f64() < 8.0 {
+    for _ in 0..SEEN_WITHIN.0 {
         if done(app) {
             return;
         }
         app.update();
-        std::thread::sleep(Duration::from_millis(50));
+        std::thread::sleep(PAUSE);
     }
-    panic!("never saw: {what}; reloads {}", reloads(app));
+    panic!("never saw: {what} within {SEEN_WITHIN:?}; reloads {}", reloads(app));
 }
 
-fn pump(app: &mut App, secs: f64) {
-    let start = Instant::now();
-    while start.elapsed().as_secs_f64() < secs {
+fn pump(app: &mut App, frames: Frames) {
+    for _ in 0..frames.0 {
         app.update();
-        std::thread::sleep(Duration::from_millis(50));
+        std::thread::sleep(PAUSE);
     }
 }
 
@@ -162,7 +169,7 @@ fn a_file_that_is_not_the_crates_type_is_refused_naming_the_field_once_and_the_l
 
             // Nothing was edited since, so nothing is decided again however many frames pass.
             let refused_at = seq(&app);
-            pump(&mut app, 1.2);
+            pump(&mut app, PUMPED);
             assert_eq!(seq(&app), refused_at, "{}: {what}: no new decision without an edit", case.krate);
 
             // Mended back to the settings in force: applied, once.
@@ -170,7 +177,7 @@ fn a_file_that_is_not_the_crates_type_is_refused_naming_the_field_once_and_the_l
             until(&mut app, &format!("{}: {what}: the mended file", case.krate), |a| verdict(a, &name)["outcome"] == "applied");
             assert_eq!(seq(&app), refused_at + 1, "{}: {what}: a repair is one decision", case.krate);
             assert_eq!(reloads(&app)["ok"], true, "{}: {what}", case.krate);
-            pump(&mut app, 1.2);
+            pump(&mut app, PUMPED);
             assert_eq!(seq(&app), refused_at + 1, "{}: {what}: the repair is not said again", case.krate);
         }
 
@@ -204,7 +211,7 @@ fn a_file_of_the_wrong_type_when_the_project_opens_is_named_and_not_taken() {
             assert!(!named.is_empty() && named.contains(field), "{}: {what}: the verdict names the field `{field}`: {v}", case.krate);
             assert_eq!(settings(&app, case.krate), None, "{}: {what}: the text is not the crate's settings", case.krate);
             let decided = seq(&app);
-            pump(&mut app, 1.2);
+            pump(&mut app, PUMPED);
             assert_eq!(seq(&app), decided, "{}: {what}: said once however many frames pass", case.krate);
 
             std::thread::sleep(Duration::from_millis(50));
@@ -231,7 +238,7 @@ fn a_refusal_then_an_unreadable_edit_then_the_same_text_back_is_one_decision_per
             std::fs::write(&file, text).unwrap();
             until(app, what, |a| verdict(a, &name)["outcome"] == outcome && seq(a) > before);
             let decided = seq(app);
-            pump(app, 1.2);
+            pump(app, PUMPED);
             assert_eq!(seq(app), decided, "{}: {what}: said once however many frames pass", case.krate);
             assert_eq!(decided, before + 1, "{}: {what}: one edit, one decision", case.krate);
         };

@@ -12,7 +12,7 @@
 
 #![cfg(feature = "isomesh")]
 
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use bevy::prelude::*;
 use bevy::render::render_resource::Face;
@@ -21,6 +21,13 @@ use bevy_dark_factory::terrain_view::{Surface, TerrainView};
 use serde_json::{Value, json};
 
 use crate::fixtures;
+use crate::settle_support::Frames;
+
+/// **How long one frame of [`until`] sleeps.**
+const PAUSE: Duration = Duration::from_millis(40);
+/// **The frames [`until`] waits** before it says what it never saw: at least eight seconds at [`PAUSE`], counted in frames
+/// so a starved host is not read as ground that was never drawn (#644).
+const SEEN_WITHIN: Frames = Frames::covering(Duration::from_secs(8), PAUSE);
 
 const GROUND: &str = "{origin: [0.0, 0.0], cell_m: 1.0, width: 8, depth: 8, heights: [10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0]}";
 
@@ -56,15 +63,14 @@ fn write(app: &App, dir: &str, file: &str, text: &str) {
 }
 
 fn until(app: &mut App, what: &str, done: impl Fn(&mut App) -> bool) {
-    let start = Instant::now();
-    while start.elapsed().as_secs_f64() < 8.0 {
+    for _ in 0..SEEN_WITHIN.0 {
         if done(app) {
             return;
         }
         app.update();
-        std::thread::sleep(Duration::from_millis(40));
+        std::thread::sleep(PAUSE);
     }
-    panic!("never saw: {what}");
+    panic!("never saw: {what} within {SEEN_WITHIN:?}");
 }
 
 fn drawn(app: &mut App, surface: Surface) -> Vec<Entity> {

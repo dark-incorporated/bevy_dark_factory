@@ -12,6 +12,11 @@ use bevy_dark_factory::harness;
 use bevy_dark_factory::sequencer::{Operation, SequenceParams, Sequencer};
 
 use crate::fixtures;
+use crate::settle_support::{Frames, STEP};
+
+/// How many frames the sequence is given to end: at least 20 s at [`STEP`], counted in frames so a
+/// starved host does not run it out early (#644).
+const ENDS_WITHIN: Frames = Frames::covering(std::time::Duration::from_secs(20), STEP);
 
 fn project(name: &str) -> std::path::PathBuf {
     fixtures::Fixture::new(name)
@@ -47,9 +52,8 @@ fn an_operation_inside_a_sequence_writes_the_receipt() {
         sequencer.start(&params, 0.0).expect("the sequence starts")
     };
 
-    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(20);
     let mut status = serde_json::Value::Null;
-    while std::time::Instant::now() < deadline {
+    for _ in 0..ENDS_WITHIN.0 {
         app.update();
         status = app.world().resource::<Sequencer>().status(id);
         if matches!(
@@ -58,6 +62,7 @@ fn an_operation_inside_a_sequence_writes_the_receipt() {
         ) {
             break;
         }
+        std::thread::sleep(STEP);
     }
     let _ = std::fs::remove_dir_all(&out);
 

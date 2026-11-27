@@ -7,12 +7,24 @@
 //! recommendation are in `docs/guide/reload-contract.md` ("The asset system against the watcher").
 
 use std::path::PathBuf;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use bevy::prelude::*;
 use blueprint_model::atomic_file;
 use blueprint_model::standards::{Dim, Rule, Standards};
 use bevy_dark_factory::asset_spike::{Heard, Heard1, StandardsAsset, app_over};
+
+use crate::settle_support::Frames;
+
+/// **How long one frame of a [`pump`] sleeps.**
+const PAUSE: Duration = Duration::from_millis(4);
+/// **The frames a first load or a refusal is given**: at least ten seconds at [`PAUSE`], counted in frames so a starved host
+/// is not read as a file that never loaded (#644).
+const LOADED_WITHIN: Frames = Frames::covering(Duration::from_secs(10), PAUSE);
+/// **The frames Bevy's watcher is given to bring an edit to the asset**: at least five seconds at [`PAUSE`].
+const HEARD_WITHIN: Frames = Frames::covering(Duration::from_secs(5), PAUSE);
+/// **The frames stepped between edits**, so the watcher has settled before the next: at least 0.8 s at [`PAUSE`].
+const BETWEEN_EDITS: Frames = Frames::covering(Duration::from_millis(800), PAUSE);
 
 struct Scratch(PathBuf);
 
@@ -44,15 +56,14 @@ fn text(min: f32) -> String {
     standards(min).to_yaml().unwrap_or_else(|e| panic!("{e}"))
 }
 
-/// Steps the app every 4 ms until `done` or `within` has passed.
-fn pump(app: &mut App, within: Duration, done: impl Fn(&App) -> bool) -> bool {
-    let end = Instant::now() + within;
-    while Instant::now() < end {
+/// Steps the app every [`PAUSE`] until `done`, for at most `within` frames.
+fn pump(app: &mut App, within: Frames, done: impl Fn(&App) -> bool) -> bool {
+    for _ in 0..within.0 {
         app.update();
         if done(app) {
             return true;
         }
-        std::thread::sleep(Duration::from_millis(4));
+        std::thread::sleep(PAUSE);
     }
     false
 }
@@ -73,13 +84,13 @@ fn the_asset_loader_reads_with_the_types_own_reader() {
     let good = Scratch::new("good");
     std::fs::write(good.file(), text(0.9)).unwrap_or_else(|e| panic!("{e}"));
     let (mut app, _handles) = app_over(&good.0, &["standards.yaml"]);
-    assert!(pump(&mut app, Duration::from_secs(10), |a| saw(a, &standards(0.9))), "the good file never loaded: {:?}", heard(&app));
+    assert!(pump(&mut app, LOADED_WITHIN, |a| saw(a, &standards(0.9))), "the good file never loaded: {:?}", heard(&app));
 
     let bad = Scratch::new("bad");
     std::fs::write(bad.file(), text(0.9).replace("version: 1", "version: 2")).unwrap_or_else(|e| panic!("{e}"));
     let (mut app, _handles) = app_over(&bad.0, &["standards.yaml"]);
     let refused = |a: &App| heard(a).iter().any(|h| matches!(h, Heard1::Failed(why) if why.contains("standards: version 2 is not the 1 this build reads")));
-    assert!(pump(&mut app, Duration::from_secs(10), refused), "the refusal never arrived: {:?}", heard(&app));
+    assert!(pump(&mut app, LOADED_WITHIN, refused), "the refusal never arrived: {:?}", heard(&app));
 }
 
 /// **A refused edit leaves the last good asset in place**, the rule every editor reader keeps. Reloaded
@@ -90,12 +101,12 @@ fn a_refused_reload_keeps_the_last_good_asset() {
     let dir = Scratch::new("keeps");
     std::fs::write(dir.file(), text(0.9)).unwrap_or_else(|e| panic!("{e}"));
     let (mut app, handles) = app_over(&dir.0, &["standards.yaml"]);
-    assert!(pump(&mut app, Duration::from_secs(10), |a| saw(a, &standards(0.9))), "the first text never loaded");
+    assert!(pump(&mut app, LOADED_WITHIN, |a| saw(a, &standards(0.9))), "the first text never loaded");
 
     std::fs::write(dir.file(), "{version: 1, rules: [{name: \"door\"").unwrap_or_else(|e| panic!("{e}"));
     app.world().resource::<AssetServer>().reload("standards.yaml");
     let failed = |a: &App| heard(a).iter().any(|h| matches!(h, Heard1::Failed(_)));
-    assert!(pump(&mut app, Duration::from_secs(10), failed), "the cut-off file was not refused");
+    assert!(pump(&mut app, LOADED_WITHIN, failed), "the cut-off file was not refused");
     let held = app.world().resource::<Assets<StandardsAsset>>().get(&handles[0]).map(|a| a.0.clone());
     assert_eq!(held, Some(standards(0.9)), "the refused edit replaced the last good asset");
 }
@@ -111,15 +122,15 @@ fn bevys_watcher_reloads_the_asset_after_a_write_in_place_and_after_a_rename_ove
     let dir = Scratch::new("rename");
     std::fs::write(dir.file(), text(0.9)).unwrap_or_else(|e| panic!("{e}"));
     let (mut app, _handles) = app_over(&dir.0, &["standards.yaml"]);
-    assert!(pump(&mut app, Duration::from_secs(10), |a| saw(a, &standards(0.9))), "the first text never loaded");
-    pump(&mut app, Duration::from_millis(800), |_| false);
+    assert!(pump(&mut app, LOADED_WITHIN, |a| saw(a, &standards(0.9))), "the first text never loaded");
+    pump(&mut app, BETWEEN_EDITS, |_| false);
 
     std::thread::sleep(Duration::from_millis(30));
     std::fs::write(dir.file(), text(1.1)).unwrap_or_else(|e| panic!("{e}"));
-    assert!(pump(&mut app, Duration::from_secs(5), |a| saw(a, &standards(1.1))), "a write in place never reached the asset");
-    pump(&mut app, Duration::from_millis(800), |_| false);
+    assert!(pump(&mut app, HEARD_WITHIN, |a| saw(a, &standards(1.1))), "a write in place never reached the asset");
+    pump(&mut app, BETWEEN_EDITS, |_| false);
 
     std::thread::sleep(Duration::from_millis(30));
     atomic_file::write(&dir.file(), text(1.3)).unwrap_or_else(|e| panic!("{e}"));
-    assert!(pump(&mut app, Duration::from_secs(5), |a| saw(a, &standards(1.3))), "a rename over the file never reached the asset");
+    assert!(pump(&mut app, HEARD_WITHIN, |a| saw(a, &standards(1.3))), "a rename over the file never reached the asset");
 }

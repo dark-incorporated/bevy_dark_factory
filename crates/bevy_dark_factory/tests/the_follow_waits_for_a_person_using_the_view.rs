@@ -36,6 +36,7 @@ use bevy_dark_factory::settings::EditorSettings;
 use bevy_dark_factory::view::{MainCamera, Rig};
 
 use crate::fixtures;
+use crate::settle_support::Frames;
 
 /// **One frame of the test clock**, seconds: 60 Hz. The pacing is measured in seconds and a headless
 /// frame is about a millisecond, so every wait here steps this clock rather than real time.
@@ -49,14 +50,22 @@ fn frames_of(seconds: f32) -> usize {
     (seconds / FRAME).ceil() as usize + 2
 }
 
-/// **Wait on the wall clock until the editor has taken a settings edit made by hand** (#501 item 18: the settings files are followed by an
-/// index, not polled, so an edit is seen after the index's sweep and debounce, which a fixed number of frames on a manual clock does not
-/// wait for). The assertions after it are unchanged.
+/// The real pause between frames while a settings edit is waited for.
+const SETTINGS_PAUSE: Duration = Duration::from_millis(15);
+/// How long a settings edit has to reach the editor: frames covering 10 s at [`SETTINGS_PAUSE`], counted so a starved host cannot
+/// run it out (#644).
+const SETTINGS_WITHIN: Frames = Frames::covering(Duration::from_secs(10), SETTINGS_PAUSE);
+
+/// **Wait, in real-time frames, until the editor has taken a settings edit made by hand** (#501 item 18: the settings files are
+/// followed by an index, not polled, so an edit is seen after the index's sweep and debounce, which a fixed number of frames on a
+/// manual clock does not wait for); at most [`SETTINGS_WITHIN`] frames. The assertions after it are unchanged.
 fn until_the_editor_has(app: &mut App, done: impl Fn(&EditorSettings) -> bool) {
-    let began = std::time::Instant::now();
-    while !done(app.world().resource::<EditorSettings>()) && began.elapsed() < Duration::from_secs(10) {
+    for _ in 0..SETTINGS_WITHIN.0 {
+        if done(app.world().resource::<EditorSettings>()) {
+            return;
+        }
         app.update();
-        std::thread::sleep(Duration::from_millis(15));
+        std::thread::sleep(SETTINGS_PAUSE);
     }
 }
 

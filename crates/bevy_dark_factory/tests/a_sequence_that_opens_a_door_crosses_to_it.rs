@@ -17,6 +17,13 @@ use bevy_dark_factory::sequencer::{SequenceParams, Sequencer};
 use bevy_dark_factory::workspace::Workspace;
 
 use crate::fixtures;
+use crate::settle_support::Frames;
+
+/// **How long one frame of the wait for the sequence sleeps.**
+const PAUSE: std::time::Duration = std::time::Duration::from_millis(20);
+/// **The frames the sequence is given to finish**: at least twenty seconds at [`PAUSE`], counted in frames so a starved
+/// host is not read as a sequence that never ended (#644).
+const FINISHED_WITHIN: Frames = Frames::covering(std::time::Duration::from_secs(20), PAUSE);
 
 #[test]
 fn a_sequence_that_opens_the_kit_door_leaves_the_editor_on_the_kit_door() {
@@ -52,15 +59,14 @@ fn a_sequence_that_opens_the_kit_door_leaves_the_editor_on_the_kit_door() {
 
     // **Run until the sequence has finished, as the other sequence tests do.** A headless run ends
     // `failed` with the render-world reason; that is expected here and is not the thing under test.
-    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(20);
     let mut status = serde_json::Value::Null;
-    while std::time::Instant::now() < deadline {
+    for _ in 0..FINISHED_WITHIN.0 {
         app.update();
         status = app.world().resource::<Sequencer>().status(id);
         if matches!(status.get("status").and_then(|s| s.as_str()), Some("done") | Some("failed")) {
             break;
         }
-        std::thread::sleep(std::time::Duration::from_millis(20));
+        std::thread::sleep(PAUSE);
     }
 
     // **Let the editor cross the stored request.** A request is crossed in the frame after it is

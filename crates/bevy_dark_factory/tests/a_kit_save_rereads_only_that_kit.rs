@@ -30,6 +30,13 @@ use bevy_dark_factory::harness;
 use bevy_dark_factory::project::Project;
 
 use crate::fixtures;
+use crate::settle_support::Frames;
+
+/// The pause between the frames [`pump_until`] steps.
+const PAUSE: std::time::Duration = std::time::Duration::from_millis(20);
+/// How many frames [`pump_until`] steps before it gives up: at least 6 s at [`PAUSE`], counted in
+/// frames so a starved host does not run it out early (#644).
+const GIVE_UP: Frames = Frames::covering(std::time::Duration::from_secs(6), PAUSE);
 
 /// **One test in this file at a time, because the counters are the process's.**
 ///
@@ -58,17 +65,16 @@ fn scale_of(app: &mut App, id: &str) -> Option<Vec3> {
     found
 }
 
-/// **Run the watcher until `done` holds, or the deadline passes.**
+/// **Run the watcher until `done` holds, or [`GIVE_UP`] frames pass.**
 ///
 /// The poll is 250 ms, so this is the watcher's own cadence and not a sleep tuned to the machine.
 fn pump_until(app: &mut App, mut done: impl FnMut(&mut App) -> bool) -> bool {
-    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(6);
-    while std::time::Instant::now() < deadline {
+    for _ in 0..GIVE_UP.0 {
         app.update();
         if done(app) {
             return true;
         }
-        std::thread::sleep(std::time::Duration::from_millis(20));
+        std::thread::sleep(PAUSE);
     }
     false
 }

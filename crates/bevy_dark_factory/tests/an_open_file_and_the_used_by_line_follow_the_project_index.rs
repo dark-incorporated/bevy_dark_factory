@@ -5,12 +5,12 @@
 //! # Why these can fail
 //!
 //! Each test makes the index sweep as often as it may ([`MIN_SWEEP`]), so the sweep is not what is slow, changes a file with plain
-//! `std::fs` calls, and waits (on the wall clock) for the panel to show what an **independent `std::fs` read** says the disk holds. The
+//! `std::fs` calls, and waits (a bounded number of steps) for the panel to show what an **independent `std::fs` read** says the disk holds. The
 //! only road from the disk to the panel is the [`ProjectFileChanged`] message: take the subscription out and nothing else looks at the file,
 //! so the wait runs out and the test fails.
 
 use std::path::{Path, PathBuf};
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use bevy::prelude::*;
 use bevy_dark_factory::command_run::Chords;
@@ -24,16 +24,18 @@ use bevy_dark_factory::workspace::Workspace;
 use bevy_dark_factory::{commands, harness};
 
 use crate::fixtures;
-
-/// How long the panel may take to show a change, in seconds of wall time. The index's sweep is [`MIN_SWEEP`] here and its debounce 100 ms;
-/// this is far more than both together, so running out means the change was never heard, not that it was slow. The time taken is printed.
-const SEEN_WITHIN_S: f64 = 10.0;
+use crate::settle_support::Frames;
 
 /// How many frames one step runs, so a message published this frame has been read by every subscriber.
 const FRAMES_PER_STEP: usize = 3;
 
 /// How long the test sleeps between steps, in milliseconds.
 const STEP_SLEEP_MS: u64 = 5;
+
+/// How many steps the panel may take to show a change: at least ten seconds at [`STEP_SLEEP_MS`], counted in steps so a starved host is
+/// not read as a change never heard (#644). The index's sweep is [`MIN_SWEEP`] here and its debounce 100 ms; this is far more than both
+/// together, so running out means the change was never heard, not that it was slow. The steps taken are printed.
+const SEEN_WITHIN: Frames = Frames::covering(Duration::from_secs(10), Duration::from_millis(STEP_SLEEP_MS));
 
 fn project(tag: &str) -> PathBuf {
     fixtures::Fixture::new(&format!("index_subscribers_{tag}_{}", std::process::id()))
@@ -55,19 +57,18 @@ fn step(app: &mut App) {
     }
 }
 
-/// Step until `done`, for at most [`SEEN_WITHIN_S`]; says how long it took, or panics saying what was not seen.
-fn wait_for(app: &mut App, what: &str, mut done: impl FnMut(&mut App) -> bool) -> Duration {
-    let started = Instant::now();
-    while started.elapsed().as_secs_f64() < SEEN_WITHIN_S {
+/// Step until `done`, for at most [`SEEN_WITHIN`] steps; says how many it took, or panics saying what was not seen.
+fn wait_for(app: &mut App, what: &str, mut done: impl FnMut(&mut App) -> bool) -> Frames {
+    for stepped in 1..=SEEN_WITHIN.0 {
         step(app);
         if done(app) {
-            let took = started.elapsed();
+            let took = Frames(stepped);
             println!("{what}: seen after {took:?}");
             return took;
         }
         std::thread::sleep(Duration::from_millis(STEP_SLEEP_MS));
     }
-    panic!("{what}: not seen within {SEEN_WITHIN_S} s");
+    panic!("{what}: not seen within {SEEN_WITHIN:?}");
 }
 
 fn in_the_files_workspace(app: &mut App) {

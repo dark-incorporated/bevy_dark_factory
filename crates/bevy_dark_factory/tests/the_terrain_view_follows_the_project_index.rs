@@ -2,10 +2,10 @@
 //! the half-second poll of `terrain_view::sync_terrain_view`, which no constant named, retired).
 //!
 //! The view stat'd the three files twice a second. It reads the index's stamp of each now. The test writes the ground and then the water the way
-//! an agent or a hand does (plain `std::fs`) and waits, on the wall clock, for the meshes of each to stand. The clock is frozen (a manual time step
+//! an agent or a hand does (plain `std::fs`) and waits, for a bounded number of frames, for the meshes of each to stand. The clock is frozen (a manual time step
 //! of nothing) and the index's sweep is at its floor, so a view that still waited for half a second of `Time` could not pass.
 
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use bevy::prelude::*;
 use bevy::time::TimeUpdateStrategy;
@@ -14,9 +14,13 @@ use bevy_dark_factory::project_index::{MIN_SWEEP, ProjectIndex};
 use bevy_dark_factory::terrain_view::TerrainView;
 
 use crate::fixtures;
+use crate::settle_support::Frames;
 
-/// How long a test waits for the view to follow a file.
-const WAIT_SECONDS: f64 = 30.0;
+/// How long one frame of [`until`] sleeps.
+const PAUSE: Duration = Duration::from_millis(10);
+/// How many frames a test waits for the view to follow a file: at least thirty seconds at [`PAUSE`], counted in frames so a starved host
+/// is not read as a view that never followed (#644).
+const WAIT: Frames = Frames::covering(Duration::from_secs(30), PAUSE);
 
 const GROUND: &str = "{origin: [0.0, 0.0], cell_m: 1.0, width: 2, depth: 2, heights: [0.0, 0.0, 0.0, 0.0]}";
 const WATER: &str = "{origin: [0.0, 0.0], cell_m: 1.0, width: 2, depth: 2, depth_m: [0.5, 0.0, 0.0, 0.0], settled: true, steps: 3}";
@@ -33,15 +37,14 @@ fn write(app: &App, dir: &str, file: &str, text: &str) {
 }
 
 fn until(app: &mut App, what: &str, mut done: impl FnMut(&mut App) -> bool) {
-    let started = Instant::now();
-    while started.elapsed().as_secs_f64() < WAIT_SECONDS {
+    for _ in 0..WAIT.0 {
         app.update();
         if done(app) {
             return;
         }
-        std::thread::sleep(Duration::from_millis(10));
+        std::thread::sleep(PAUSE);
     }
-    panic!("never happened within {WAIT_SECONDS} s: {what}");
+    panic!("never happened within {WAIT:?}: {what}");
 }
 
 #[test]

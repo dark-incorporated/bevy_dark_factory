@@ -24,6 +24,23 @@ use bevy_dark_factory::project_index::{ChangeKind, ProjectFileChanged, ProjectIn
 use bevy_dark_factory::{crosslinks, files, harness};
 
 use crate::fixtures;
+use crate::settle_support::Frames;
+
+/// The pause between the frames [`pump`] steps.
+const PAUSE: Duration = Duration::from_millis(5);
+/// How many frames a [`pump`] waits for the index's thread: at least 10 s at [`PAUSE`], counted so a starved host does not
+/// run it out early (#644).
+const PATIENCE: Frames = Frames::covering(Duration::from_secs(10), PAUSE);
+/// Frames past a sweep and the debounce: at least 1.6 s at [`PAUSE`].
+const PAST_A_SWEEP: Frames = Frames::covering(Duration::from_millis(1600), PAUSE);
+/// Frames after a finished save, for any later event to show: at least 1 s at [`PAUSE`].
+const AFTER_THE_SAVE: Frames = Frames::covering(Duration::from_secs(1), PAUSE);
+/// Frames after an event, for a second one to show: at least 1.2 s at [`PAUSE`].
+const NOTHING_MORE: Frames = Frames::covering(Duration::from_millis(1200), PAUSE);
+/// Frames while a file keeps moving: at least 0.4 s at [`PAUSE`].
+const WHILE_IT_MOVES: Frames = Frames::covering(Duration::from_millis(400), PAUSE);
+/// Frames over a folder that cannot be read: at least 0.5 s at [`PAUSE`].
+const OVER_THE_LOCKED_FOLDER: Frames = Frames::covering(Duration::from_millis(500), PAUSE);
 
 /// What one subscriber heard: each has its own cursor over the one message.
 #[derive(Resource, Default)]
@@ -70,21 +87,21 @@ fn stepped(root: &Path) -> App {
     app
 }
 
-/// Step frames until `done`, for at most `seconds`: the thread runs on its own clock, so the wait is on the wall.
-fn pump(app: &mut App, seconds: f64, mut done: impl FnMut(&mut App) -> bool) -> bool {
-    let started = Instant::now();
-    while started.elapsed().as_secs_f64() < seconds {
+/// Step frames until `done`, for at most `within` frames [`PAUSE`] apart: the thread runs on its own clock, so the frames sleep,
+/// and they are counted so a starved host does not cut the wait short (#644).
+fn pump(app: &mut App, within: Frames, mut done: impl FnMut(&mut App) -> bool) -> bool {
+    for _ in 0..within.0 {
         app.update();
         if done(app) {
             return true;
         }
-        std::thread::sleep(Duration::from_millis(5));
+        std::thread::sleep(PAUSE);
     }
     false
 }
 
-fn pump_for(app: &mut App, seconds: f64) {
-    pump(app, seconds, |_| false);
+fn pump_for(app: &mut App, frames: Frames) {
+    pump(app, frames, |_| false);
 }
 
 fn heard_of(app: &App, rel: &str) -> Vec<ProjectFileChanged> {
@@ -122,7 +139,7 @@ fn one_saved_file_is_one_event_for_every_subscriber_and_the_ui_thread_looks_at_n
             written += line.len() as u64;
         }
     }
-    assert!(pump(&mut app, 10.0, |app| !heard_of(app, "data/door.yaml").is_empty()), "the write was published within the sweep");
+    assert!(pump(&mut app, PATIENCE, |app| !heard_of(app, "data/door.yaml").is_empty()), "the write was published within the sweep");
 
     // **The frame after it makes no lookup**: nothing that reads the index touches the disk.
     let before = lookups_on_this_thread();
@@ -130,7 +147,7 @@ fn one_saved_file_is_one_event_for_every_subscriber_and_the_ui_thread_looks_at_n
     assert_eq!(lookups_on_this_thread(), before, "the frame after the event made a stat or a read_dir on the UI thread");
 
     // **Step past a sweep and the debounce**: the same save publishes nothing more.
-    pump_for(&mut app, 1.6);
+    pump_for(&mut app, PAST_A_SWEEP);
     let tree = heard_of(&app, "data/door.yaml");
     let finder: Vec<_> = app.world().resource::<HeardByTheFinder>().0.iter().filter(|e| e.rel == "data/door.yaml").cloned().collect();
     assert_eq!(tree.len(), 1, "one save is one event: {tree:?}");
@@ -184,8 +201,8 @@ fn a_save_that_takes_longer_than_the_debounce_is_still_one_event() {
         }
     }
     drop(file);
-    assert!(pump(&mut app, 10.0, |app| !heard_of(app, "data/long.yaml").is_empty()), "the finished save was published");
-    pump_for(&mut app, 1.0);
+    assert!(pump(&mut app, PATIENCE, |app| !heard_of(app, "data/long.yaml").is_empty()), "the finished save was published");
+    pump_for(&mut app, AFTER_THE_SAVE);
     let heard = heard_of(&app, "data/long.yaml");
     // **One stall-induced split is tolerated** (a loaded machine can stall the writer for longer than the debounce between two of its
     // writes), but not the five a missing debounce makes: a Created at the first size and four Modified.
@@ -218,17 +235,17 @@ fn a_root_that_goes_after_it_was_listed_is_refused_until_it_is_back() {
     std::fs::rename(&root, &aside).unwrap_or_else(|e| panic!("{e}"));
     let refused = files::listed_files(&root).expect_err("a root that has gone is refused, not answered with the old list");
     assert!(refused.contains("project root"), "{refused}");
-    assert!(pump(&mut app, 10.0, |app| notice(app).iter().any(|n| n.contains("project root"))), "the tree says the project cannot be listed: {:?}", notice(&mut app));
+    assert!(pump(&mut app, PATIENCE, |app| notice(app).iter().any(|n| n.contains("project root"))), "the tree says the project cannot be listed: {:?}", notice(&mut app));
 
     std::fs::rename(&aside, &root).unwrap_or_else(|e| panic!("{e}"));
     let mut back = None;
-    pump(&mut app, 10.0, |_| {
+    pump(&mut app, PATIENCE, |_| {
         back = files::listed_files(&root).ok();
         back.is_some()
     });
     let back = back.unwrap_or_else(|| panic!("the root is back and the listing is still refused"));
     assert!(before.iter().all(|f| back.contains(f)), "the root is back with its files, so the listing is answered again: missing {:?}", before.iter().filter(|f| !back.contains(f)).collect::<Vec<_>>());
-    assert!(pump(&mut app, 10.0, |app| notice(app).iter().all(String::is_empty)), "and the tree stops saying so");
+    assert!(pump(&mut app, PATIENCE, |app| notice(app).iter().all(String::is_empty)), "and the tree stops saying so");
 }
 
 /// **A change that is still held when the root goes does not end the refusal.** A file is written every 10 ms, so the index holds a
@@ -257,7 +274,7 @@ fn a_change_held_when_the_root_goes_does_not_end_the_refusal() {
             }
         })
     };
-    pump_for(&mut app, 0.4);
+    pump_for(&mut app, WHILE_IT_MOVES);
     assert!(heard_of(&app, "data/a.yaml").is_empty(), "the file kept moving, so its change is held and not yet published");
 
     let aside = PathBuf::from(format!("{}.aside", root.display()));
@@ -268,7 +285,7 @@ fn a_change_held_when_the_root_goes_does_not_end_the_refusal() {
 
     std::fs::rename(&aside, &root).unwrap_or_else(|e| panic!("{e}"));
     let mut back = false;
-    pump(&mut app, 10.0, |_| {
+    pump(&mut app, PATIENCE, |_| {
         back = files::listed_files(&root).is_ok();
         back
     });
@@ -303,8 +320,8 @@ fn an_atomic_save_is_one_modified_and_a_delete_is_one_removed() {
 
     write(&root, "data/door.yaml.tmp", "open: 1\nand: more\n");
     std::fs::rename(root.join("data/door.yaml.tmp"), root.join("data/door.yaml")).unwrap_or_else(|e| panic!("{e}"));
-    assert!(pump(&mut app, 10.0, |app| !heard_of(app, "data/door.yaml").is_empty()));
-    pump_for(&mut app, 1.6);
+    assert!(pump(&mut app, PATIENCE, |app| !heard_of(app, "data/door.yaml").is_empty()));
+    pump_for(&mut app, PAST_A_SWEEP);
     let saved = heard_of(&app, "data/door.yaml");
     assert_eq!(saved.len(), 1, "{saved:?}");
     assert_eq!(saved[0].kind, ChangeKind::Modified);
@@ -312,8 +329,8 @@ fn an_atomic_save_is_one_modified_and_a_delete_is_one_removed() {
     assert!(heard_of(&app, "data/door.yaml.tmp").is_empty(), "the temporary name was never a listed file: {:?}", heard_of(&app, "data/door.yaml.tmp"));
 
     std::fs::remove_file(root.join("data/door.yaml")).unwrap_or_else(|e| panic!("{e}"));
-    assert!(pump(&mut app, 10.0, |app| heard_of(app, "data/door.yaml").len() == 2));
-    pump_for(&mut app, 1.2);
+    assert!(pump(&mut app, PATIENCE, |app| heard_of(app, "data/door.yaml").len() == 2));
+    pump_for(&mut app, NOTHING_MORE);
     let all = heard_of(&app, "data/door.yaml");
     assert_eq!(all.len(), 2, "{all:?}");
     assert_eq!((all[1].kind, all[1].stamp), (ChangeKind::Removed, None));
@@ -326,8 +343,8 @@ fn a_new_folder_is_heard_before_the_file_in_it() {
     let root = project("folder");
     let mut app = stepped(&root);
     write(&root, "fresh/inner/z.txt", "z\n");
-    assert!(pump(&mut app, 10.0, |app| !heard_of(app, "fresh/inner/z.txt").is_empty()));
-    pump_for(&mut app, 1.2);
+    assert!(pump(&mut app, PATIENCE, |app| !heard_of(app, "fresh/inner/z.txt").is_empty()));
+    pump_for(&mut app, NOTHING_MORE);
     let heard: Vec<(String, bool)> = app
         .world()
         .resource::<HeardByTheTree>()
@@ -384,13 +401,12 @@ fn reference_walk(root: &Path, hidden_suffixes: &[&str], hidden_root_folders: &[
 /// **The three answers and the independent walk, until they are the same** (the editor writes a file or two of its own, which the
 /// index publishes after the debounce): the finder's scan, `listed_files` and the Files tree against `reference_walk`.
 fn agree_with_the_walk(app: &mut App, root: &Path, suffixes: &[&str], folders: &[&str], why: &str) -> BTreeSet<String> {
-    // **A wait on the agreement itself**, bounded by the six seconds the sixty 100 ms steps it replaced gave it; the step is
-    // how often the four answers are compared, not how long the test waits.
-    const AGREE_WITHIN: Duration = Duration::from_secs(6);
+    // **A wait on the agreement itself**, bounded by comparisons covering at least the six seconds the sixty 100 ms steps it replaced
+    // gave it; the step is how often the four answers are compared, and the count, not the clock, ends the wait (#644).
     const COMPARE_EVERY: Duration = Duration::from_millis(10);
-    let deadline = Instant::now() + AGREE_WITHIN;
+    const AGREE_WITHIN: Frames = Frames::covering(Duration::from_secs(6), COMPARE_EVERY);
     let mut last = String::new();
-    while Instant::now() < deadline {
+    for _ in 0..AGREE_WITHIN.0 {
         let index = app.world().resource::<ProjectIndex>();
         let from_the_index: BTreeSet<String> = listed(root).into_iter().collect();
         let snapshot = index.snapshot().unwrap_or_else(|| panic!("the index has listed the project"));
@@ -413,7 +429,7 @@ fn agree_with_the_walk(app: &mut App, root: &Path, suffixes: &[&str], folders: &
         std::thread::sleep(COMPARE_EVERY);
         app.update();
     }
-    panic!("{why}: the index and an independent walk of the project never agreed: {last}");
+    panic!("{why}: the index and an independent walk of the project never agreed in {AGREE_WITHIN:?}: {last}");
 }
 
 /// **The modules that disagreed agree**: the finder's scan, `listed_files` and the Files tree return what an independent walk of the
@@ -457,14 +473,14 @@ fn the_finders_scan_the_listing_and_the_tree_return_what_an_independent_walk_lis
     write(&root, "fresh/pic.png", "png");
     write(&root, "fresh/.DS_Store", "x");
     std::fs::remove_file(root.join("notes.md")).unwrap_or_else(|e| panic!("{e}"));
-    assert!(pump(&mut app, 10.0, |app| !heard_of(app, "fresh/pic.png").is_empty() && !heard_of(app, "notes.md").is_empty() && !heard_of(app, "scripts/new.rhai").is_empty()));
+    assert!(pump(&mut app, PATIENCE, |app| !heard_of(app, "fresh/pic.png").is_empty() && !heard_of(app, "notes.md").is_empty() && !heard_of(app, "scripts/new.rhai").is_empty()));
     let walked = agree_with_the_walk(&mut app, &root, &[".log"], &["cache"], "after files came and went");
     assert!(walked.contains("scripts/new.rhai") && walked.contains("fresh/inner/z.txt") && !walked.contains("notes.md"));
     assert_eq!(app.world().resource::<ProjectIndex>().walks(), 1, "none of that walked the project again");
 
     // **`.gitignore` changes what is listed**, which is the one change that walks again.
     write(&root, ".gitignore", "*.log\n/cache/\n*.txt\n");
-    assert!(pump(&mut app, 10.0, |app| heard_of(app, "fresh/inner/z.txt").iter().any(|e| e.kind == ChangeKind::Removed)));
+    assert!(pump(&mut app, PATIENCE, |app| heard_of(app, "fresh/inner/z.txt").iter().any(|e| e.kind == ChangeKind::Removed)));
     let walked = agree_with_the_walk(&mut app, &root, &[".log", ".txt"], &["cache"], "after `.gitignore` changed");
     assert!(!walked.contains("fresh/inner/z.txt"), "a new `*.txt` rule hides it: {walked:?}");
     assert_eq!(app.world().resource::<ProjectIndex>().walks(), 2, "the `.gitignore` change is the one reason to walk again");
@@ -533,11 +549,11 @@ fn an_unreadable_folder_is_read_again_and_what_is_in_it_is_not_lost() {
     app.world().resource::<ProjectIndex>().set_sweep(Duration::from_millis(50));
     assert!(!listed(&root).contains(&"locked/inside.txt".to_owned()), "what is behind a folder that cannot be read is not listed");
     assert!(listed(&root).iter().all(|f| !f.starts_with("locked/")));
-    pump_for(&mut app, 0.5);
+    pump_for(&mut app, OVER_THE_LOCKED_FOLDER);
     assert!(heard_of(&app, "locked/inside.txt").is_empty());
 
     std::fs::set_permissions(&locked, std::fs::Permissions::from_mode(0o755)).unwrap_or_else(|e| panic!("{e}"));
-    assert!(pump(&mut app, 10.0, |app| !heard_of(app, "locked/inside.txt").is_empty()), "once the folder can be read, what it holds is published");
+    assert!(pump(&mut app, PATIENCE, |app| !heard_of(app, "locked/inside.txt").is_empty()), "once the folder can be read, what it holds is published");
     assert_eq!(heard_of(&app, "locked/inside.txt")[0].kind, ChangeKind::Created);
     assert!(listed(&root).contains(&"locked/inside.txt".to_owned()));
 }

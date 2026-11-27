@@ -24,7 +24,17 @@ use bevy_dark_factory::ops::{self, Applied, Ctx, Source};
 use bevy_dark_factory::project::Project;
 
 use crate::fixtures;
-use crate::settle_support;
+use crate::settle_support::{self, Frames};
+
+/// The pause between the frames the create's row is waited over.
+const CREATED_PAUSE: std::time::Duration = std::time::Duration::from_millis(10);
+/// Frames the create's row is given: at least the 1.0 s the test always allowed, at [`CREATED_PAUSE`] (#644).
+const CREATED_SHOWN_WITHIN: Frames = Frames::covering(std::time::Duration::from_secs(1), CREATED_PAUSE);
+/// The pause between the frames the tree's first walk is waited over.
+const WALK_PAUSE: std::time::Duration = std::time::Duration::from_millis(20);
+/// Frames the tree's first walk is given: at least 10 s at [`WALK_PAUSE`], counted so a starved host does not run it
+/// out early (#644).
+const WALKED_WITHIN: Frames = Frames::covering(std::time::Duration::from_secs(10), WALK_PAUSE);
 
 
 fn project(tag: &str) -> PathBuf {
@@ -109,16 +119,16 @@ fn a_created_file_is_logged_undone_byte_for_byte_and_shows_in_the_tree_without_w
     assert!(!line.operation_id.is_empty(), "the line has an id an agent cites");
 
     // **The tree shows it without a sweep**: the index's sweeps are set a minute apart above, so the only thing that can reveal the
-    // row inside this window (the 1.0 s the test always allowed) is the operation's own note of the path it wrote.
-    let started = std::time::Instant::now();
+    // row inside this window ([`CREATED_SHOWN_WITHIN`] frames, at least the 1.0 s the test always allowed) is the operation's own
+    // note of the path it wrote.
     let mut seen = false;
-    while started.elapsed().as_secs_f64() < 1.0 {
+    for _ in 0..CREATED_SHOWN_WITHIN.0 {
         app.update();
         if tree_has(&mut app, "notes/new.yaml") {
             seen = true;
             break;
         }
-        std::thread::sleep(std::time::Duration::from_millis(10));
+        std::thread::sleep(CREATED_PAUSE);
     }
     assert!(seen, "the created file's row is in the tree within a second, with the sweeps a minute apart: only the operation's own note can have put it there");
 
@@ -135,15 +145,14 @@ fn open_the_files_workspace(app: &mut App) {
     let live = *app.world().resource::<bevy_dark_factory::keys::Live>();
     app.world_mut().resource_mut::<bevy_dark_factory::command_run::Chords>().queue(&command, live);
     // **The tree's first walk runs on a thread**, so the wait is for a row and not for the entity.
-    let started = std::time::Instant::now();
-    while started.elapsed().as_secs_f64() < 10.0 {
+    for _ in 0..WALKED_WITHIN.0 {
         app.update();
         if tree_has(app, "notes/old.md") {
             return;
         }
-        std::thread::sleep(std::time::Duration::from_millis(20));
+        std::thread::sleep(WALK_PAUSE);
     }
-    panic!("the Files workspace's tree never listed the project");
+    panic!("the Files workspace's tree never listed the project in {WALKED_WITHIN:?}");
 }
 
 /// **A duplicate is a create whose text is another file's**, and it does not touch the original.

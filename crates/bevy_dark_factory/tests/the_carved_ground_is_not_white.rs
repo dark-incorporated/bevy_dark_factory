@@ -34,6 +34,13 @@ mod drawn {
     use serde_json::json;
 
     use crate::fixtures;
+    use crate::settle_support::Frames;
+
+    /// The pause between frames while the carve is drawn.
+    const PAUSE: std::time::Duration = std::time::Duration::from_millis(50);
+    /// How long the carved chunks have to be drawn: frames covering 5 s at [`PAUSE`], counted so a starved host cannot run
+    /// it out (#644).
+    const DRAWN_WITHIN: Frames = Frames::covering(std::time::Duration::from_secs(5), PAUSE);
 
     /// The base colours the carved chunks wear, plain or weathered, after a carve.
     fn bases(root: &std::path::Path, with_environment_file: bool) -> Vec<f32> {
@@ -56,14 +63,14 @@ mod drawn {
             Applied::Done { .. } => {}
             Applied::Refused(e) => panic!("refused: {}", e.0),
         }
-        let start = std::time::Instant::now();
+        let mut stepped = Frames(0);
         loop {
             app.update();
             let world = app.world_mut();
             let mut q = world.query::<(&TerrainView, Option<&MeshMaterial3d<WeatheredMaterial>>, Option<&MeshMaterial3d<StandardMaterial>>)>();
             let drawn: Vec<Wearing> =
                 q.iter(world).filter(|(v, ..)| **v == TerrainView::Volume).map(|(_, w, s)| (w.map(|w| w.0.clone()), s.map(|s| s.0.clone()))).collect();
-            if !drawn.is_empty() || start.elapsed().as_secs_f64() > 5.0 {
+            if !drawn.is_empty() || stepped >= DRAWN_WITHIN {
                 let plain = world.resource::<Assets<StandardMaterial>>();
                 let weathered = world.resource::<Assets<WeatheredMaterial>>();
                 return drawn
@@ -75,7 +82,8 @@ mod drawn {
                     })
                     .collect();
             }
-            std::thread::sleep(std::time::Duration::from_millis(50));
+            std::thread::sleep(PAUSE);
+            stepped.0 += 1;
         }
     }
 

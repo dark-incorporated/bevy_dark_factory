@@ -32,6 +32,13 @@ use bevy_dark_factory::harness;
 use bevy_dark_factory::project::OpenMap;
 
 use crate::fixtures;
+use crate::settle_support::Frames;
+
+/// The pause between frames while the watcher is given its poll.
+const PAUSE: std::time::Duration = std::time::Duration::from_millis(20);
+/// **The watcher's poll and the frames in between**: frames covering 6 s at [`PAUSE`], counted rather than timed so a
+/// starved host cannot run the wait out before the watcher looks (#644).
+const POLL_WINDOW: Frames = Frames::covering(std::time::Duration::from_secs(6), PAUSE);
 
 /// **Where a piece named `id` stands in the world.**
 ///
@@ -101,11 +108,10 @@ fn a_piece_moved_on_disk_stands_in_its_new_place() {
     move_the_piece_on_disk(&root, (12.0, -7.0));
 
     // **And the watcher is allowed its poll** — 250 ms, plus the frames in between.
-    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(6);
     let mut after = before;
-    while std::time::Instant::now() < deadline {
+    for _ in 0..POLL_WINDOW.0 {
         app.update();
-        std::thread::sleep(std::time::Duration::from_millis(20));
+        std::thread::sleep(PAUSE);
         // **The map's state is the easy half, and it is what says the editor took the edit.**
         let map = app.world().resource::<OpenMap>().map.clone();
         if let Some(p) = map.placements.iter().find(|p| p.descriptor == "site/wall")
@@ -168,11 +174,10 @@ fn a_malformed_map_on_disk_is_refused_on_the_map_door() {
     std::fs::write(&path, broken).expect("the map file is written");
 
     // **The watcher is allowed its poll**, as above.
-    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(6);
     let mut said = String::new();
-    while std::time::Instant::now() < deadline {
+    for _ in 0..POLL_WINDOW.0 {
         app.update();
-        std::thread::sleep(std::time::Duration::from_millis(20));
+        std::thread::sleep(PAUSE);
         said = app
             .world()
             .resource::<bevy_dark_factory::editor::EditorState>()

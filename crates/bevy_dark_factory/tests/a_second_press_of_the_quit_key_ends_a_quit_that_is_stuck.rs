@@ -18,14 +18,23 @@ use bevy_dark_factory::exit_watchdog::{
     Cut, ExitState, ExitWatchdog, ExitWatchdogPlugin, FROZEN_AFTER_MS, SecondPress, arm_exit, end_process_with, last_cut, overdue_waits, quit_chord_is_down, spawn_watch, waiting, waits_now,
 };
 
+use crate::settle_support::Frames;
+
 /// The deadline the tests give a quit: short enough to wait for, long enough to tell "not yet" from "done".
 const DEADLINE: Duration = Duration::from_millis(900);
 
 /// How far past its deadline a quit may be ended in a test, for a loaded machine.
 const SLACK: Duration = Duration::from_secs(3);
 
-/// The most a test waits for the watchdog to act.
-const PATIENCE: Duration = Duration::from_secs(10);
+/// The pause between a test's looks at the watchdog's count, and between the frames it steps.
+const POLL: Duration = Duration::from_millis(10);
+
+/// The most a test waits for the watchdog to act: looks, not seconds, covering at least 10 s at [`POLL`], so a starved
+/// host does not run it out early (#644).
+const PATIENCE: Frames = Frames::covering(Duration::from_secs(10), POLL);
+
+/// How many frames an app that keeps drawing steps while a question waits: at least twice the deadline at [`POLL`].
+const DREW_FOR: Frames = Frames::covering(DEADLINE.saturating_mul(2), POLL);
 
 /// A debounce short enough to wait out in a test.
 const DEBOUNCE: Duration = Duration::from_millis(400);
@@ -38,13 +47,15 @@ const HELD: Duration = Duration::from_millis(100);
 /// How long after a press "the watchdog did not end it" is asked: twenty of its 10 ms polls, time enough to end it wrongly.
 const A_WRONG_ENDING_WOULD_SHOW_WITHIN: Duration = Duration::from_millis(200);
 
-fn wait_for(count: &AtomicUsize) -> Duration {
-    let started = Instant::now();
+/// Looks every [`POLL`] until the watchdog has acted, and says how many looks it took (#644).
+fn wait_for(count: &AtomicUsize) -> Frames {
+    let mut looked = 0;
     while count.load(Ordering::SeqCst) < 1 {
-        assert!(started.elapsed() < PATIENCE, "the watchdog never acted");
-        std::thread::sleep(Duration::from_millis(10));
+        assert!(looked < PATIENCE.0, "the watchdog never acted in {PATIENCE:?}");
+        std::thread::sleep(POLL);
+        looked += 1;
     }
-    started.elapsed()
+    Frames(looked)
 }
 
 static SHELL_QUIT_ENDED: AtomicUsize = AtomicUsize::new(0);
@@ -225,10 +236,9 @@ fn an_app_that_keeps_drawing_is_left_alone_while_a_question_waits_for_its_answer
     let mut app = watched_app(DEADLINE, alive_ended, never_down);
     app.world_mut().write_message(QuitRequested);
     // The unsaved-edits question is up: frames go on, nobody has answered, no AppExit is written.
-    let started = Instant::now();
-    while started.elapsed() < DEADLINE * 2 {
+    for _ in 0..DREW_FOR.0 {
         app.update();
-        std::thread::sleep(Duration::from_millis(10));
+        std::thread::sleep(POLL);
     }
     assert_eq!(ALIVE_ENDED.load(Ordering::SeqCst), 0, "a request that is being answered is not a hang");
 }

@@ -11,7 +11,7 @@
 //! landed, and the guide's refusal (a file that is not UTF-8, one over `GUIDE_MAX_BYTES`, one that is not
 //! a regular file) is exactly what that list is for.
 
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use bevy::prelude::*;
 use bevy_dark_factory::harness;
@@ -22,6 +22,12 @@ use blueprint_model::reload::{self, Base, Lifetime, ReloadClass};
 use serde_json::{Value, json};
 
 use crate::fixtures;
+use crate::settle_support::Frames;
+
+/// The pause between frames while an edit of the guide is waited for.
+const PAUSE: Duration = Duration::from_millis(40);
+/// How long an edit has to be decided: frames covering 8 s at [`PAUSE`], counted so a starved host cannot run it out (#644).
+const GIVE_UP: Frames = Frames::covering(Duration::from_secs(8), PAUSE);
 
 /// **The guide is one row of the reload registry**: the game root's own file, live, one per project.
 #[test]
@@ -62,15 +68,14 @@ fn guide_verdict(app: &mut App) -> Value {
 }
 
 fn until(app: &mut App, what: &str, done: impl Fn(&mut App) -> bool) {
-    let start = Instant::now();
-    while start.elapsed().as_secs_f64() < 8.0 {
+    for _ in 0..GIVE_UP.0 {
         if done(app) {
             return;
         }
         app.update();
-        std::thread::sleep(Duration::from_millis(40));
+        std::thread::sleep(PAUSE);
     }
-    panic!("never saw: {what}; reloads {}", reloads(app));
+    panic!("never saw: {what} (waited {GIVE_UP:?}); reloads {}", reloads(app));
 }
 
 /// **A guide that does not read is refused by name, and the fix is applied** — the two verdicts a person

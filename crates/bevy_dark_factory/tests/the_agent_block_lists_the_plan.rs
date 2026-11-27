@@ -6,7 +6,8 @@
 //!
 //! Owner exception (2026-11-14): `night_shift::PLAN_READ_SECS` is retired (#501): the row reads the plan when the project index says it moved,
 //! which is within its debounce and one sweep, so six frames 150 ms apart are no longer a valid wait. The row is waited for with a
-//! wall-clock timeout (`wait_for_row`) and every assertion on its words is unchanged.
+//! wall-clock timeout (`wait_for_row`) and every assertion on its words is unchanged. Since #644 that timeout is a count of frames
+//! covering the same 6 s, so a starved host cannot run it out.
 
 use bevy::prelude::*;
 use bevy_dark_factory::night_shift::{NightShiftItem, NightShiftPlanLine};
@@ -16,6 +17,7 @@ use bevy_gooey::ValueChange;
 use blueprint_model::plan::{self, Plan, PlanItem, Status};
 
 use crate::fixtures;
+use crate::settle_support::Frames;
 
 /// **The project index at its shortest sweep, with its first listing in hand** — what a wait on a condition needs, so it is the
 /// condition that is paid for and not the index's one-second default sweep.
@@ -49,22 +51,25 @@ fn show_the_block(app: &mut App) {
 
 
 
-/// **Frames until the PLAN row says what the test expects**, for at most `ROW_TIMEOUT_SECS` of wall time; the row's words are then returned for the
-/// assertions that follow.
+/// **Frames until the PLAN row says what the test expects**, for at most [`ROW_TIMEOUT`] frames [`ROW_PAUSE`] apart; the row's
+/// words are then returned for the assertions that follow.
 fn wait_for_row(app: &mut App, expected: &str) -> String {
-    let started = std::time::Instant::now();
-    loop {
+    for _ in 0..ROW_TIMEOUT.0 {
         app.update();
         let text = plan_row(app);
-        if text.contains(expected) || started.elapsed().as_secs_f64() > ROW_TIMEOUT_SECS {
+        if text.contains(expected) {
             return text;
         }
-        std::thread::sleep(std::time::Duration::from_millis(20));
+        std::thread::sleep(ROW_PAUSE);
     }
+    plan_row(app)
 }
 
-/// How long the row may take to follow a plan the index has to see (a sweep and a debounce, with a margin for a loaded machine).
-const ROW_TIMEOUT_SECS: f64 = 6.0;
+/// The pause between frames while the row is waited for.
+const ROW_PAUSE: std::time::Duration = std::time::Duration::from_millis(20);
+/// How long the row may take to follow a plan the index has to see (a sweep and a debounce, with a margin for a loaded machine):
+/// frames covering 6 s at [`ROW_PAUSE`], counted rather than timed (#644).
+const ROW_TIMEOUT: Frames = Frames::covering(std::time::Duration::from_secs(6), ROW_PAUSE);
 
 fn item(text: &str, status: Status) -> PlanItem {
     PlanItem { text: text.to_owned(), status }

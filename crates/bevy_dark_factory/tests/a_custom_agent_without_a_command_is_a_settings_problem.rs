@@ -22,6 +22,7 @@ use bevy_gooey::{Role, TextHint};
 use blueprint_model::live::Outcome;
 
 use crate::fixtures;
+use crate::settle_support::Frames;
 
 /// The editor on a project of its own, its settings screen closed.
 struct Rig {
@@ -56,17 +57,21 @@ fn updates(app: &mut App, n: usize) {
     }
 }
 
+/// The pause between looks at the watched files.
+const PAUSE: Duration = Duration::from_millis(20);
+/// How long a watcher has to answer: frames covering 8 s at [`PAUSE`], counted so a starved host cannot run it out (#644).
+const GIVE_UP: Frames = Frames::covering(Duration::from_secs(8), PAUSE);
+
 /// Runs frames until `done`, because the watchers look at a file a few times a second.
 fn until(app: &mut App, what: &str, done: impl Fn(&mut App) -> bool) {
-    let start = std::time::Instant::now();
-    while start.elapsed() < Duration::from_secs(8) {
+    for _ in 0..GIVE_UP.0 {
         updates(app, 2);
         if done(app) {
             return;
         }
-        std::thread::sleep(Duration::from_millis(20));
+        std::thread::sleep(PAUSE);
     }
-    panic!("never saw: {what}");
+    panic!("never saw: {what} (waited {GIVE_UP:?})");
 }
 
 /// Opens the screen and narrows it to the Terminal agent row, so the row stands at the top of the list where a click can reach it

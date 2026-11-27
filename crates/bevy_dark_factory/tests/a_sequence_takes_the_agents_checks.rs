@@ -15,6 +15,12 @@ use bevy_dark_factory::workspace::Workspace;
 use serde_json::{Value, json};
 
 use crate::fixtures;
+use crate::settle_support::Frames;
+
+/// The pause between frames while the sequence runs.
+const PAUSE: std::time::Duration = std::time::Duration::from_millis(20);
+/// How long a sequence has to end: frames covering 20 s at [`PAUSE`], counted so a starved host cannot run it out (#644).
+const A_SEQUENCE_ENDS_WITHIN: Frames = Frames::covering(std::time::Duration::from_secs(20), PAUSE);
 
 fn editor_at(name: &str) -> App {
     let root = fixtures::Fixture::new(name)
@@ -63,10 +69,9 @@ fn run_sequence(app: &mut App, name: &str, operation: Operation, watch: &str) ->
         .expect("the sequence starts");
 
     // A headless run ends `failed` with the render-world reason; that is expected and is not under test.
-    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(20);
     let mut result = Value::Null;
     let mut look_at_result = Vec::new();
-    while std::time::Instant::now() < deadline {
+    for _ in 0..A_SEQUENCE_ENDS_WITHIN.0 {
         app.update();
         let status = app.world().resource::<Sequencer>().status(id);
         if result.is_null() && !status["operation_result"].is_null() {
@@ -79,7 +84,7 @@ fn run_sequence(app: &mut App, name: &str, operation: Operation, watch: &str) ->
         ) {
             break;
         }
-        std::thread::sleep(std::time::Duration::from_millis(20));
+        std::thread::sleep(PAUSE);
     }
     (result, look_at_result)
 }

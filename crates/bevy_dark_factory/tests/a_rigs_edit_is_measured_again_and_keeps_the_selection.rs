@@ -7,7 +7,7 @@
 //! before the edit, so a new rig had none until something asked. The assertions are on what the tab
 //! holds and what is measured.
 
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use bevy::prelude::*;
 use bevy_dark_factory::anim_tab::BenchState;
@@ -17,22 +17,30 @@ use bevy_dark_factory::tiles::Mode;
 use blueprint_model::rigs::Rigs;
 
 use crate::fixtures;
+use crate::settle_support::Frames;
+
+/// The pause between frames while the tab reads and measures.
+const PAUSE: Duration = Duration::from_millis(10);
+/// Frames covering 30 s at [`PAUSE`]: one measurement or one re-read.
+const A_MEASUREMENT: Frames = Frames::covering(Duration::from_secs(30), PAUSE);
+/// Frames covering 60 s at [`PAUSE`]: every rig measured again.
+const MEASURED_AGAIN: Frames = Frames::covering(Duration::from_secs(60), PAUSE);
 
 fn workspace_asset(rel: &str) -> std::path::PathBuf {
     std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../assets").join(rel)
 }
 
-/// Frames until `done` holds, or panic with `what` after `secs`.
-fn until(app: &mut App, secs: f64, what: &str, done: impl Fn(&App) -> bool) {
-    let start = Instant::now();
-    while start.elapsed().as_secs_f64() < secs {
+/// Frames until `done` holds, or panic with `what` after `within` frames; counted, not timed, so a starved host cannot run
+/// it out (#644).
+fn until(app: &mut App, within: Frames, what: &str, done: impl Fn(&App) -> bool) {
+    for _ in 0..within.0 {
         if done(app) {
             return;
         }
         app.update();
-        std::thread::sleep(Duration::from_millis(10));
+        std::thread::sleep(PAUSE);
     }
-    panic!("never saw: {what}");
+    panic!("never saw: {what} (waited {within:?})");
 }
 
 #[test]
@@ -56,7 +64,7 @@ fn a_rig_added_ahead_of_the_selected_one_is_measured_and_the_selection_stays_on_
     // The author is on the valkyrie, and it is measured.
     let at = app.world().resource::<BenchState>().names().iter().position(|n| *n == "valkyrie").expect("valkyrie is a rig");
     app.world_mut().resource_mut::<BenchState>().selected = at;
-    until(&mut app, 30.0, "the valkyrie measured", |a| a.world().resource::<BenchReports>().by_rig.contains_key("valkyrie"));
+    until(&mut app, A_MEASUREMENT, "the valkyrie measured", |a| a.world().resource::<BenchReports>().by_rig.contains_key("valkyrie"));
     let generation = app.world().resource::<BenchGeneration>().0;
 
     // A rig that sorts before it is added on disk, by a hand or an agent.
@@ -68,7 +76,7 @@ fn a_rig_added_ahead_of_the_selected_one_is_measured_and_the_selection_stays_on_
     let edited = rigs.to_yaml().expect("serialises");
     std::fs::write(&path, &edited).expect("write");
 
-    until(&mut app, 30.0, "the tab holding the edit", |a| a.world().resource::<BenchState>().text.as_deref() == Some(edited.as_str()));
+    until(&mut app, A_MEASUREMENT, "the tab holding the edit", |a| a.world().resource::<BenchState>().text.as_deref() == Some(edited.as_str()));
     let bench = app.world().resource::<BenchState>();
     assert_eq!(bench.names()[0], "aardvark");
     assert_eq!(bench.names()[bench.selected], "valkyrie", "the selection followed the valkyrie, not its old index {at}");
@@ -76,7 +84,7 @@ fn a_rig_added_ahead_of_the_selected_one_is_measured_and_the_selection_stays_on_
     assert_eq!(bench.names().len(), had + 1, "the tab holds the new rig beside the {had} it had");
 
     // The reports were measured again: the new rig has one, which only a measurement after the edit can give.
-    until(&mut app, 60.0, "the new rig and the valkyrie measured again", |a| {
+    until(&mut app, MEASURED_AGAIN, "the new rig and the valkyrie measured again", |a| {
         let reports = a.world().resource::<BenchReports>();
         reports.by_rig.contains_key("aardvark") && reports.by_rig.contains_key("valkyrie")
     });

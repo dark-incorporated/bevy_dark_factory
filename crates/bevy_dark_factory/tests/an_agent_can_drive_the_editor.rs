@@ -32,12 +32,17 @@ use bevy_dark_factory::harness;
 use bevy_dark_factory::keys;
 
 use crate::fixtures;
+use crate::settle_support::Frames;
 
-/// **How long to wait for the editor to notice a change, in frames.**
+/// **A frame's worth of sleep** between the frames the file's path is waited over.
+const FRAME_PAUSE: std::time::Duration = std::time::Duration::from_millis(4);
+
+/// **How long to wait for the editor to notice a change, in frames** (#644).
 ///
-/// **The watch polls at 250 ms and the editor's frames are longer than that in a headless run**,
-/// so the test waits in frames and the latency it reports is in milliseconds of wall clock.
-const SETTLE_FRAMES: usize = 40;
+/// **The watch polls at 250 ms**, so the frames are [`FRAME_PAUSE`] apart and cover at least 1.5 s:
+/// past several polls, and not run out early by a starved host. The latency the test reports is
+/// in milliseconds of wall clock.
+const SETTLE_FRAMES: Frames = Frames::covering(std::time::Duration::from_millis(1500), FRAME_PAUSE);
 
 /// **A project with one map, one piece, and a map that has been saved.**
 fn project(name: &str) -> std::path::PathBuf {
@@ -440,12 +445,12 @@ fn the_two_paths_are_measured() {
     let text = std::fs::read_to_string(&map_path).unwrap_or_default();
     let edited = text.replace("a note the agent wrote", "a note a person wrote");
     std::fs::write(&map_path, edited).unwrap_or_else(|e| panic!("the file is writable: {e}"));
-    // **The wait is in wall-clock, not in frames.** A headless frame takes microseconds, so
-    // forty of them pass in well under the watcher's 250 ms poll — and a frame-counted wait would
-    // measure nothing and say "not seen". **So the test sleeps past one poll and then steps.**
+    // **The wait is in frames that sleep, not bare frames.** A headless frame takes microseconds,
+    // so forty of them pass in well under the watcher's 250 ms poll — and a bare frame-counted wait
+    // would measure nothing and say "not seen". **So each frame sleeps, and the count covers at
+    // least 1.5 s; the latency itself is read on the wall clock.**
     let mut file_ms = None;
-    let deadline = started + std::time::Duration::from_millis(1500);
-    while std::time::Instant::now() < deadline {
+    for _ in 0..SETTLE_FRAMES.0 {
         app.update();
         if let Some(state) = app
             .world()
@@ -457,13 +462,13 @@ fn the_two_paths_are_measured() {
         }
         // **A frame's worth of sleep**, so the loop is not a busy wait and the editor's delta
         // time is real.
-        std::thread::sleep(std::time::Duration::from_millis(4));
+        std::thread::sleep(FRAME_PAUSE);
     }
 
     println!("agent path: {agent_ms:.1} ms");
     let file_ms = file_ms.unwrap_or_else(|| {
         panic!(
-            "the editor did not notice the file's change within {SETTLE_FRAMES} frames, so the \
+            "the editor did not notice the file's change within {SETTLE_FRAMES:?}, so the \
              file path does not work at all — and a change on disk that the editor never sees is \
              the whole thing this module exists to fix."
         )

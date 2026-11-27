@@ -5,11 +5,12 @@
 //! seconds. It is recomputed when the ledger file's stamp moves: the labels folder is outside the project, so `OutsideFiles` follows
 //! `turns.jsonl` there. **The assumed decision** (recorded on #538): the ledger's stamp is what the readout follows, so a picture written
 //! without a ledger line does not move it, and the byte count can lag such a picture until the ledger moves. This test writes to the ledger
-//! itself, from outside the editor, and waits on the wall clock for the readout to say what an independent walk of the folder says.
+//! itself, from outside the editor, and waits real time, a counted number of frames apart, for the readout to say what an independent
+//! walk of the folder says.
 //! The clock is frozen and the index's sweep at its floor, so a readout that still waited for two seconds of `Time` could not pass.
 
 use std::path::Path;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use bevy::prelude::*;
 use bevy::time::TimeUpdateStrategy;
@@ -18,9 +19,13 @@ use bevy_dark_factory::settings_screen::OpenSettings;
 use bevy_dark_factory::turn_store::LEDGER_FILE;
 
 use crate::a_turn_is_recorded_for_learning::editor;
+use crate::settle_support::Frames;
 
-/// How long a test waits for the readout to follow the ledger.
-const WAIT_SECONDS: f64 = 30.0;
+/// The pause between frames while the readout is waited for.
+const PAUSE: Duration = Duration::from_millis(10);
+/// How long a test waits for the readout to follow the ledger: frames covering 30 s at [`PAUSE`], counted rather than timed so a
+/// starved host cannot run it out (#644).
+const WAIT: Frames = Frames::covering(Duration::from_secs(30), PAUSE);
 
 /// How many bytes of lines the ledger's reader skips the test appends: enough that the readout's one decimal of a megabyte changes.
 const APPENDED_BYTES: usize = 400_000;
@@ -64,14 +69,15 @@ fn the_collection_readout_follows_the_ledger_file_with_the_clock_stopped() {
     let used = format!("{:.1} MB of", bytes_under(&labels) as f64 / 1_000_000.0);
     assert!(!before.contains(&used), "the readout did not already say {used}: {before}");
 
-    let started = Instant::now();
+    let mut stepped = Frames(0);
     loop {
         app.update();
         let now = readout(&mut app).unwrap_or_default();
         if now.contains(&used) {
             break;
         }
-        assert!(started.elapsed().as_secs_f64() < WAIT_SECONDS, "never happened within {WAIT_SECONDS} s: the readout says {now:?}, not {used}");
-        std::thread::sleep(Duration::from_millis(10));
+        assert!(stepped < WAIT, "never happened within {WAIT:?}: the readout says {now:?}, not {used}");
+        std::thread::sleep(PAUSE);
+        stepped.0 += 1;
     }
 }

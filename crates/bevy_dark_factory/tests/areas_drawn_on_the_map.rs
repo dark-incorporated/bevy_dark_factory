@@ -19,6 +19,7 @@ use blueprint_model::design::{self, Tree};
 use serde_json::{Value, json};
 
 use crate::fixtures;
+use crate::settle_support::Frames;
 
 /// The window's cursor, as the test sets it: written in `PreUpdate` after the input systems, the way `a_click_outside_the_viewport_places_nothing` does.
 #[derive(Resource, Default)]
@@ -182,25 +183,38 @@ fn the_style_chain_at_a_point_inside_an_area_ends_with_the_areas_files() {
     assert_eq!(files(Some((4.0, 4.0))), ["design/style.md", "design/levels/m/style.md"], "a point outside every area has none");
 }
 
-fn pump(app: &mut App, secs: f64) {
-    let start = std::time::Instant::now();
-    while start.elapsed().as_secs_f64() < secs {
+/// The pause between [`pump`]'s frames.
+const PUMP_PAUSE: std::time::Duration = std::time::Duration::from_millis(40);
+/// Frames covering 1 s at [`PUMP_PAUSE`].
+const A_SECOND: Frames = Frames::covering(std::time::Duration::from_secs(1), PUMP_PAUSE);
+/// Frames covering 0.5 s at [`PUMP_PAUSE`].
+const HALF_A_SECOND: Frames = Frames::covering(std::time::Duration::from_millis(500), PUMP_PAUSE);
+/// Frames covering 0.3 s at [`PUMP_PAUSE`].
+const A_THIRD_OF_A_SECOND: Frames = Frames::covering(std::time::Duration::from_millis(300), PUMP_PAUSE);
+/// The pause between [`until`]'s frames.
+const UNTIL_PAUSE: std::time::Duration = std::time::Duration::from_millis(10);
+/// How long [`until`] waits: frames covering 30 s at [`UNTIL_PAUSE`].
+const GIVE_UP: Frames = Frames::covering(std::time::Duration::from_secs(30), UNTIL_PAUSE);
+
+/// **Step `frames` frames, [`PUMP_PAUSE`] apart**, counted rather than timed so a starved host still steps them all (#644).
+fn pump(app: &mut App, frames: Frames) {
+    for _ in 0..frames.0 {
         app.update();
-        std::thread::sleep(std::time::Duration::from_millis(40));
+        std::thread::sleep(PUMP_PAUSE);
     }
 }
 
-/// **Step the app until `done`, on the wall clock**, for the overlay and the Style link follow the design files through the project index.
+/// **Step the app until `done`, for at most [`GIVE_UP`] frames [`UNTIL_PAUSE`] apart** (at least 30 s of real time), for the
+/// overlay and the Style link follow the design files through the project index (#644).
 fn until(app: &mut App, what: &str, mut done: impl FnMut(&mut App) -> bool) {
-    let start = std::time::Instant::now();
-    while start.elapsed().as_secs_f64() < 30.0 {
+    for _ in 0..GIVE_UP.0 {
         app.update();
         if done(app) {
             return;
         }
-        std::thread::sleep(std::time::Duration::from_millis(10));
+        std::thread::sleep(UNTIL_PAUSE);
     }
-    panic!("never happened within 30 s: {what}");
+    panic!("never happened within {GIVE_UP:?}: {what}");
 }
 
 #[test]
@@ -231,7 +245,7 @@ fn the_overlays_areas_follow_the_files_and_the_line_under_the_cursor_names_the_a
 fn the_inspectors_style_link_opens_the_areas_page_and_the_levels_when_the_cursor_was_in_none() {
     let (mut app, mut ctx, root) = editor("area_link");
     let label_of = |app: &mut App| bevy_gooey::testing::find_by_label(app, "Open style of this level").ok().or_else(|| bevy_gooey::testing::find_by_label(app, "Open style of area docks").ok());
-    pump(&mut app, 1.0);
+    pump(&mut app, A_SECOND);
     assert!(label_of(&mut app).is_none(), "a project with no style page has no Style link");
 
     std::fs::create_dir_all(root.join("design/levels/m")).unwrap();
@@ -243,12 +257,12 @@ fn the_inspectors_style_link_opens_the_areas_page_and_the_levels_when_the_cursor
 
     // The cursor was last in the area: the link is the area's.
     app.world_mut().resource_mut::<StyleAreas>().cursor_area = Some("docks".to_owned());
-    pump(&mut app, 0.3);
+    pump(&mut app, A_THIRD_OF_A_SECOND);
     assert!(bevy_gooey::testing::find_by_label(&mut app, "Open style of area docks").is_ok(), "the area's page has the link now (it was {link:?})");
     // **The button the person sees is the one that carries the link**: Activate is what a press on it sends.
     let button = app.world_mut().query_filtered::<Entity, With<design_areas::StyleLink>>().single(app.world()).expect("one Style link");
     app.world_mut().commands().trigger(bevy::ui_widgets::Activate { entity: button });
-    pump(&mut app, 0.5);
+    pump(&mut app, HALF_A_SECOND);
     // Owner exception (2026-11-13): areas_drawn_on_the_map.rs::the_inspectors_style_link_opens_the_areas_page_and_the_levels_when_the_cursor_was_in_none: the link opens the page in the Design workspace now (SG-05, #404), so the two literals that named the Files workspace and its tab name Design and its selection; the click and the page are unchanged.
     assert_eq!(*app.world().resource::<Workspace>(), Workspace::Design, "a click reveals the page");
     assert_eq!(app.world().resource::<bevy_dark_factory::design_view::DesignView>().selected(), Some("design/levels/m/areas/docks/style.md"));
