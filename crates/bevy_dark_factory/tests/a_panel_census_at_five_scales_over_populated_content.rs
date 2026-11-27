@@ -178,9 +178,10 @@ const CLIPS: usize = 10;
 /// How many long tokens each tag axis (`kind`, `effects`, `look`) holds, and every piece carries.
 const TOKENS: usize = 8;
 
-/// **The most gooey table-cell texts one panel may draw** before the exemption for `bevy_gooey#109` is
-/// treated as having grown past what it was written for.
-const MOST_GOOEY_CELLS: usize = 40;
+/// **The most one-line gooey table-cell texts one panel may draw** (`bevy_gooey#109`). **Measured 0** in every panel at
+/// every scale on `integrate/1127` once the exemption counts only `NoWrap` cells and the data table's columns wrap
+/// (#536, was 40), so a one-line cell in a census panel now fails rather than being exempt.
+const MOST_GOOEY_CELLS: usize = 0;
 
 /// **What identifies a text of each of the four spawners #494 changed**, per panel, so a cell can say it *saw* one
 /// that was visible (not merely laid out): `(panel, signature)`.
@@ -564,6 +565,14 @@ fn up_to_the_window(world: &World, entity: Entity) -> String {
     chain.join(" < ")
 }
 
+/// Whether `entity` is a gooey table cell's text drawn on **one line** (`LineBreak::NoWrap`), the exemption and only
+/// it: a cell of a column the editor made wrap (`bevy_gooey::Column::wrap`, #536) breaks at its cell's edge, so it is
+/// measured like every other text.
+fn is_a_one_line_cell(world: &World, entity: Entity) -> bool {
+    world.get::<bevy_gooey::Role>(entity) == Some(&bevy_gooey::Role::TableCellText)
+        && world.get::<TextLayout>(entity).is_some_and(|layout| layout.linebreak == bevy::text::LineBreak::NoWrap)
+}
+
 fn measure(world: &World, region: Entity) -> Option<Measured> {
     let region_box = border_box(world, region)?;
     let inset = world.get::<ComputedNode>(region).map(ComputedNode::content_inset).unwrap_or_default();
@@ -571,7 +580,7 @@ fn measure(world: &World, region: Entity) -> Option<Measured> {
     let left = region_box.min.x + inset.min_inset.x;
     let mut out = Measured { body_px: Some(region_box.height() - inset.min_inset.y - inset.max_inset.y), ..default() };
     for entity in under(world, region) {
-        if matches!(world.get::<bevy_gooey::Role>(entity), Some(bevy_gooey::Role::TableCellText)) {
+        if is_a_one_line_cell(world, entity) {
             out.cells += 1;
             continue;
         }

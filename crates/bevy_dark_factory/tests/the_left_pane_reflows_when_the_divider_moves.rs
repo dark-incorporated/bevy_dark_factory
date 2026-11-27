@@ -48,9 +48,10 @@ const NARROW_PANE_PX: f32 = 460.0;
 const SLACK_PX: f32 = 1.0;
 
 
-/// **The most gooey table-cell texts one pane may hold**: the history list is single-column, and its
-/// visible rows are the only cells here. See the exemption in [`outside_the_pane`].
-const MOST_GOOEY_CELLS: usize = 12;
+/// **The most one-line gooey table-cell texts one pane may hold** (see the exemption in [`outside_the_pane`]).
+/// **Measured 0** at both scales and both divider positions on `integrate/1127` with the exemption narrowed to
+/// `NoWrap` cells (#536, was 12), so a one-line cell in this pane now fails rather than being exempt.
+const MOST_GOOEY_CELLS: usize = 0;
 
 /// How many texts must be drawn under the pane before the measurement means anything.
 const LEAST_TEXTS: usize = 4;
@@ -127,14 +128,15 @@ fn outside_the_pane(app: &mut App, tag: &str) -> Vec<String> {
         if rect.width() <= 0.0 || rect.height() <= 0.0 {
             continue;
         }
-        // **gooey's table cell text is drawn on one line and this crate cannot change that.**
-        // `bevy_gooey`'s `table.rs:1343` spawns every cell's text with `ONE_LINE`
-        // (`widgets.rs:106`: `TextLayout::new(Justify::Left, LineBreak::NoWrap)`), so a cell narrower
-        // than its words is drawn out of it and no `TextLayout` written here can override it. The
-        // history list is a `TableRows`, so its rows are the one place in this pane the editor does
-        // not own the text of. Filed as **bevy_gooey#109**; named and counted rather than silently
-        // skipped, so this exemption cannot quietly grow to cover a second widget.
-        if world.get::<bevy_gooey::Role>(entity) == Some(&bevy_gooey::Role::TableCellText) {
+        // **A gooey table cell's text drawn on one line is the one text here the editor cannot hold in.**
+        // `bevy_gooey` spawns a cell's text `ONE_LINE` (`LineBreak::NoWrap`) unless its column wraps
+        // (`Column::wrap`, #109), and a `tree` has one column the host cannot reach, so a history row
+        // narrower than its words is drawn out of it. Only such one-line cells are exempt: a cell of a
+        // wrapping column (#536) breaks at its edge and is measured like every other text. Named and
+        // counted rather than silently skipped, so this exemption cannot quietly grow to cover a second widget.
+        if world.get::<bevy_gooey::Role>(entity) == Some(&bevy_gooey::Role::TableCellText)
+            && world.get::<TextLayout>(entity).is_some_and(|layout| layout.linebreak == bevy::text::LineBreak::NoWrap)
+        {
             gooey_cells += 1;
             continue;
         }

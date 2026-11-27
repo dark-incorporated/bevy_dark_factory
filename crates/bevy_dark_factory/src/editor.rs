@@ -6887,9 +6887,11 @@ fn refresh_data_list(
                 p.spawn((
                     bevy_gooey::table(
                         [
-                            bevy_gooey::Column::new("File").width(DATA_COLUMN_FILE_W),
-                            bevy_gooey::Column::new("Path").width(DATA_COLUMN_PATH_W),
-                            bevy_gooey::Column::new("Value").width(DATA_COLUMN_VALUE_W),
+                            // **Every column wraps at its edge** (`bevy_gooey::Column::wrap`, #536): a long path or value
+                            // breaks onto a second line inside its column instead of being drawn past the pane.
+                            bevy_gooey::Column::new("File").width(DATA_COLUMN_FILE_W).wrap(),
+                            bevy_gooey::Column::new("Path").width(DATA_COLUMN_PATH_W).wrap(),
+                            bevy_gooey::Column::new("Value").width(DATA_COLUMN_VALUE_W).wrap(),
                         ],
                         DataRows(drawing.0.clone()),
                     ),
