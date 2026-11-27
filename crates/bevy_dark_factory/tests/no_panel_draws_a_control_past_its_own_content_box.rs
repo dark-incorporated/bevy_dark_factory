@@ -400,3 +400,64 @@ fn no_panel_draws_a_control_past_its_own_content_box() {
         refused.join("\n")
     );
 }
+
+/// **The Agent panel is titled `NIGHT SHIFT` and breaks between its two words, never inside one** (#692; owner,
+/// 2026-11-27: the agent is the Night Shift, two words, as the README spells it).
+///
+/// The one-word `NIGHTSHIFT` was wider than the AGENT panel at the capture's window, and the title's letter break
+/// (`LineBreak::WordOrCharacter`) wrapped it as `NIGHTSHIF` / `T`. Staged at both interface scales, the title's
+/// painted glyphs are counted per laid-out line, and every line must end where a word of the name ends. The
+/// title must wrap at one scale at least, so the break is measured rather than assumed.
+#[test]
+fn the_agent_panels_title_breaks_between_its_words() {
+    use bevy_dark_factory::follow::AGENT_NAME;
+    assert_eq!(AGENT_NAME, "Night Shift", "the agent is spelled the owner's way, two words");
+    let title = AGENT_NAME.to_uppercase();
+    // Where each word's letters end, counted in letters: `NIGHT SHIFT` is [5, 10].
+    let word_ends: Vec<usize> = title
+        .split_whitespace()
+        .scan(0, |letters, word| {
+            *letters += word.chars().count();
+            Some(*letters)
+        })
+        .collect();
+    let mut wrapped = false;
+    for interface_scale in INTERFACE_SCALES {
+        let tag = format!("[interface scale {interface_scale}]");
+        let mut agent = editor("agent_title", Mode::Agent, interface_scale);
+        check_scale(&agent, interface_scale, &tag);
+        let pane = one::<bevy_dark_factory::agent_view::AgentPane>(&mut agent, "the AGENT pane is drawn");
+        let panel = panel_over(&mut agent, pane, Side::Left, "the AGENT pane");
+        let world = agent.world();
+        let heading = under(world, panel)
+            .into_iter()
+            .find(|at| world.get::<Text>(*at).is_some_and(|text| text.0 == title))
+            .unwrap_or_else(|| panic!("{tag}: the AGENT panel has no `{title}` title"));
+        let info = world.get::<TextLayoutInfo>(heading).unwrap_or_else(|| panic!("{tag}: the title is not laid out"));
+        // A space paints nothing, so the painted glyphs are the letters, in order.
+        let mut letters_per_line: Vec<usize> = Vec::new();
+        for glyph in info.glyphs.iter().filter(|glyph| glyph.atlas_info.rect.size().min_element() > 0.0) {
+            let line = glyph.line_index as usize;
+            if letters_per_line.len() <= line {
+                letters_per_line.resize(line + 1, 0);
+            }
+            letters_per_line[line] += 1;
+        }
+        let painted: usize = letters_per_line.iter().sum();
+        assert_eq!(painted, *word_ends.last().unwrap_or(&0), "{tag}: the title paints {painted} letters of `{title}`: {letters_per_line:?}");
+        let line_ends: Vec<usize> = letters_per_line
+            .iter()
+            .filter(|letters| **letters > 0)
+            .scan(0, |letters, on_line| {
+                *letters += on_line;
+                Some(*letters)
+            })
+            .collect();
+        assert!(
+            line_ends.iter().all(|end| word_ends.contains(end)),
+            "{tag}: `{title}` breaks inside a word: letters per line {letters_per_line:?}, words end at {word_ends:?}"
+        );
+        wrapped |= line_ends.len() > 1;
+    }
+    assert!(wrapped, "`{title}` fits on one line at every staged scale, so this test never saw where it breaks");
+}

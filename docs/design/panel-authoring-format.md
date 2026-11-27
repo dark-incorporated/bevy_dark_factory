@@ -256,7 +256,7 @@ That is the answer to "a mix of markdown and YAML, with a parser and LSP to guid
 ### Its costs, stated
 
 1. **Wording migrates by hand.** 17 `setting_catalogue` rows carry hand-written `label`/`category`/`description`; moving them to doc comments means writing the words again, with care, because hover text is what an agent reads. This is the one place the option costs more than it deletes.
-2. **A `Reflect` field table is only as good as its types.** A row that is a sentence assembled at runtime (the INSPECTOR's receipt line, "the NightShift placed bed@2") is not a field and stays hand-spawned. Expect field tables to be the *minority*: 2 blocks today (FAMILY, POSE), plus the INSPECTOR (Map)'s `Field` rows and MAP SIZE's 3 fields as the next candidates.
+2. **A `Reflect` field table is only as good as its types.** A row that is a sentence assembled at runtime (the INSPECTOR's receipt line, "the Night Shift placed bed@2") is not a field and stays hand-spawned. Expect field tables to be the *minority*: 2 blocks today (FAMILY, POSE), plus the INSPECTOR (Map)'s `Field` rows and MAP SIZE's 3 fields as the next candidates.
 3. **No widget inside a page's prose.** If the owner ever wants `::callout` mid-paragraph, that is option 1's problem and stays unbuilt. This document recommends against building it, not that it is impossible.
 
 ---

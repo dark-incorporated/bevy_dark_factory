@@ -75,7 +75,7 @@ fn chord(app: &mut App, key: KeyCode) {
     updates(app, 4);
 }
 
-/// **A dialog opened while the terminal has the keyboard still answers Escape** (the real window's case: the NightShift's terminal owns the keys until a click lands
+/// **A dialog opened while the terminal has the keyboard still answers Escape** (the real window's case: the Night Shift's terminal owns the keys until a click lands
 /// elsewhere, and `terminal_pane::hold_the_keyboard` took `Escape` out of the frame for the shell, so gooey's `Cancel` never fired and only the Close button
 /// worked). A modal dialog takes the keyboard from the shell while it is up.
 #[test]

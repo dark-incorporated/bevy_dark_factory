@@ -1624,11 +1624,13 @@ pub struct BottomDock;
 /// largest thing on the panel ([`text::TITLE`]) and has a group gap below it — size and space, which
 /// is what a heading is supposed to be made of.
 ///
-/// **A title wider than its panel breaks at a letter rather than drawing past the panel** (#692, the crate's rule for one
-/// word wider than its column: [`fill_text`], #468). A title is one word more often than not, and Bevy's default breaks only
-/// between words, so a one-word title keeps its whole width as its least: `NIGHTSHIFT` at text scale 1.5 on a 2x display is
-/// wider than the 381 px AGENT panel's content box and ran 18 px past it (28.6 px at interface scale 1.6), where `FAMILIAR`
-/// fitted. `WordOrCharacter` makes the least a letter, so the title's box is the column's and the line breaks inside it.
+/// **A title wider than its panel breaks between its words, and at a letter only when one word is wider than the panel**
+/// (#692, the crate's rule for one word wider than its column: [`fill_text`], #468). Bevy's default breaks only between
+/// words, so a one-word title keeps its whole width as its least: the Agent panel's old one-word `NIGHTSHIFT` at text
+/// scale 1.5 on a 2x display was wider than the 381 px AGENT panel's content box and ran 18 px past it (28.6 px at
+/// interface scale 1.6). The agent is now spelled `NIGHT SHIFT` (owner, 2026-11-27), which wraps between its words, never
+/// as `NIGHTSHIF`/`T`; `WordOrCharacter` keeps that word break first and makes a letter the least only for a single word
+/// wider than the column, so any title the panel is given stays inside its content box.
 pub fn title(parent: &mut ChildSpawnerCommands, text: &str) {
     parent.spawn((
         Text::new(text.to_owned()),

@@ -152,7 +152,7 @@ impl Operation for RelationsSolve {
         // map, so a preview and its apply answer the same question with the same code.
         //
         // **A move must show where the piece left as well as where it landed**, or a person watching the
-        // NightShift sees a table hop with nothing to connect the two frames. The delta's rows are the new
+        // Night Shift sees a table hop with nothing to connect the two frames. The delta's rows are the new
         // positions; the rows they replace are the old ones; their union is one box round both.
         let Ok(p) = Params::parse(params) else {
             return Shown::MapWhole;

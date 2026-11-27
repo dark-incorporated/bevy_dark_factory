@@ -2812,7 +2812,7 @@ fn operation_apply(
     // `+crop -tile` appeared nowhere on screen.
     //
     // **A change on the map is named in the history's words** (AF-02, #358): the row the person can
-    // walk back to reads `placed bed@1 · the NightShift`, so the receipt says `the NightShift placed
+    // walk back to reads `placed bed@1 · the Night Shift`, so the receipt says `the Night Shift placed
     // bed@1` rather than making them work out which actor the word `agent` means. The door's own
     // `agent: <operation>:` prefix stays, because that is the row a person reads after any agent call
     // and the kit door's receipt carries the same shape.
@@ -4287,7 +4287,7 @@ fn editor_present(
         && !first.placements.is_empty()
     {
         // **A hand-back is not a change of its own**, so it is the unnamed form: the chip says the
-        // NightShift changed something and names the first place to check (AF-04, #360).
+        // Night Shift changed something and names the first place to check (AF-04, #360).
         following.request(crate::follow::FollowRequest {
             target: crate::editor::FrameTarget::Placements(first.placements.clone()),
             ids: first.placements.clone(),

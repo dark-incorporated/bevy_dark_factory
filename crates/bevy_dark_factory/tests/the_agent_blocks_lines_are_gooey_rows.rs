@@ -159,7 +159,7 @@ fn a_readouts_label_keeps_its_column_through_textflow() {
     let label = {
         let world = app.world_mut();
         let mut q = world.query::<(Entity, &Text)>();
-        q.iter(world).find(|(_, text)| text.0 == "HEARD").map(|(e, _)| e).expect("the NightShift block has its HEARD label")
+        q.iter(world).find(|(_, text)| text.0 == "HEARD").map(|(e, _)| e).expect("the Night Shift block has its HEARD label")
     };
     let node = app.world().get::<Node>(label).expect("a label has a Node");
     assert_eq!(node.min_width, Val::Px(58.0), "at least the readout label column (58 px) wide");

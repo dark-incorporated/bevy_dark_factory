@@ -215,7 +215,7 @@ pub enum Undo {
 
 /// **Where the change an operation makes can be seen** (AF-01, #357).
 ///
-/// **The editor follows the NightShift**: after every change an agent makes, the person's view goes to
+/// **The editor follows the Night Shift**: after every change an agent makes, the person's view goes to
 /// it. That needs one answer per operation to *where the change is*, and it comes from the operation
 /// itself — [`Outcome`] says what changed and not where to look, and most changes are not on the map
 /// at all (a library piece, a composition, a rig, a data file, a note).
@@ -942,7 +942,7 @@ pub trait Operation: 'static {
     ///
     /// **Pure, and computed from the parameters before the commit** — like [`Self::plan`], for the
     /// same reason. A preview and its apply therefore name the same place, a person watching the
-    /// NightShift sees what is about to change before it changes, and a removal names where the piece
+    /// Night Shift sees what is about to change before it changes, and a removal names where the piece
     /// stood rather than nowhere. An undo needs nothing of its own: it shows what its inverse's
     /// parameters show, because an inverse *is* its operation's parameters.
     fn shows(&self, ctx: &Ctx, params: &serde_json::Value) -> Shown;
@@ -8778,7 +8778,7 @@ pub fn preview_shows(ctx: &Ctx, op: &dyn Operation, params: &serde_json::Value) 
 /// would be a second answer to what the change would be (and, for an operation with a side effect in
 /// `plan`, a second side effect).
 ///
-/// **The plan's own summary, and nothing in front of it**: the receipt supplies the tense (`the NightShift
+/// **The plan's own summary, and nothing in front of it**: the receipt supplies the tense (`the Night Shift
 /// is about to place bed@02`), so a preview and its apply describe one change in one set of words.
 pub fn preview_summary(op: &dyn Operation, plan: &serde_json::Value) -> String {
     match plan.get("summary").and_then(serde_json::Value::as_str) {
@@ -11289,7 +11289,7 @@ pub mod placement_move {
             "placement_move"
         }
 
-        /// **A move names the box it left and the box it landed in.** A person watching the NightShift
+        /// **A move names the box it left and the box it landed in.** A person watching the Night Shift
         /// must be able to connect the two frames, and a put-back names the same pair the other way
         /// round, so an undo shows the place the piece stands again.
         fn shows(&self, ctx: &Ctx, params: &serde_json::Value) -> Shown {

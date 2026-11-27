@@ -1,6 +1,6 @@
 //! **A person can pause the agent's writes, and the agent is told why** (UI-60, #246).
 //!
-//! An agent operation is attributed (the history row says the NightShift) and takes back with one undo; View > Pause agent writes
+//! An agent operation is attributed (the history row says the Night Shift) and takes back with one undo; View > Pause agent writes
 //! makes the next write refuse with a problem, changes nothing and logs nothing, lets a preview through, and refuses the
 //! agent's undo too; turning it off lets the agent write again.
 
@@ -78,7 +78,7 @@ fn an_agent_operation_is_attributed_and_takes_back_and_a_pause_refuses_the_next_
     let answer = turn_to(&mut app, 90.0, false);
     assert_eq!(answer["outcome"], "applied", "{answer}");
     assert_eq!(yaw_of(&app), 90.0);
-    assert!(newest_row_is_the_agents(&app), "the history row is the agent's, which the panel shows as the NightShift");
+    assert!(newest_row_is_the_agents(&app), "the history row is the agent's, which the panel shows as the Night Shift");
 
     let depth = app.world().resource::<EditorState>().undo_depth();
     pause(&mut app, true);

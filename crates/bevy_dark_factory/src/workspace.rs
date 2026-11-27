@@ -51,7 +51,7 @@ pub enum Workspace {
     Files,
     /// The running game, beside its own window.
     Game,
-    /// The NightShift: what it is doing, and what it is waiting on.
+    /// The Night Shift: what it is doing, and what it is waiting on.
     Agent,
     /// **The game's style** (SG-05, #404): the design tree on the left, the selected page rendered in the middle, and that place's dream board on the right.
     Design,

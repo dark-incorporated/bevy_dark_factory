@@ -1,4 +1,4 @@
-//! **The Agent workspace: everything about the NightShift in one place** (NV-10, #387; series getting around, #377).
+//! **The Agent workspace: everything about the Night Shift in one place** (NV-10, #387; series getting around, #377).
 //!
 //! Opening Agent shows the AGENT block at full size with the waiting wish in it, the agent's last three changes
 //! (read from the operation log, so a switch of workspace does not lose them, and only when the log changes), and a Look on

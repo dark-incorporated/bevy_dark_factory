@@ -7,7 +7,7 @@
 //! So a preview goes through the same queue and the same idle wait as a change (AF-04, #360), with
 //! three differences the person can see:
 //!
-//! 1. **The receipt says it is a preview** — `the NightShift is about to place bed@02` — so a proposal
+//! 1. **The receipt says it is a preview** — `the Night Shift is about to place bed@02` — so a proposal
 //!    is not read as a fact.
 //! 2. **The outline is drawn in the preview colour**, not the applied one.
 //! 3. **A piece that does not exist yet is outlined by its footprint `rect`**, because there is no id

@@ -1,6 +1,6 @@
 //! **Every operation says where its change is seen** (AF-01, #357).
 //!
-//! The editor follows the NightShift: after every change an agent makes, the person's view goes to it.
+//! The editor follows the Night Shift: after every change an agent makes, the person's view goes to it.
 //! That needs one answer per operation to *where the change is*, and the answer has to come from the
 //! operation itself — `Outcome` says what changed and not where to look, and most changes are not on
 //! the map at all (a library piece, a composition, a rig, a data file, a note).
@@ -18,7 +18,7 @@
 //!    placement's footprint** — where it stood before the change and where it stands after. The
 //!    footprint is read from the map, so `shows` cannot pass by agreeing with itself.
 //! 3. **A preview and its apply name the same place**, from the same parameters: a person watching
-//!    the NightShift sees what is about to change before it changes, and the two cannot disagree.
+//!    the Night Shift sees what is about to change before it changes, and the two cannot disagree.
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -531,7 +531,7 @@ slot:
 
     // **One of each kind of answer**: a place on the map, a piece in the library, a file, and a
     // setting. A preview that named a different place from its apply would send a person watching
-    // the NightShift to the wrong door.
+    // the Night Shift to the wrong door.
     let cases = [
         ("placement_add", serde_json::json!({"piece": "site/wall", "at": [5.0, 5.0]})),
         ("placement_set_yaw", serde_json::json!({"id": "wall", "yaw": 90.0})),

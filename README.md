@@ -14,7 +14,7 @@ The Dark Factory is a world editor for Bevy games, for developers who build leve
 
 **Why:** an agent's change to a level is the same kind of change as yours, through the same named operations and into the same undo history, so you can let it build while you watch, cut out what is wrong and take back what you do not want. It is measured, too: `dark_factory-bench` runs a real agent against a real editor and says whether a change made the agent better or worse.
 
-**Names.** The editor is the Dark Factory (this repository, `bevy_dark_factory`). Its binary and its crates are named for it in snake_case (`bevy_dark_factory`, `dark_factory_mcp`); its earlier name was the Cauldron. What it writes and a game loads is still a blueprint (`bevy_blueprint`, `assets/blueprint/`). The agent is the Night Shift in Dark Inc.'s words and the NightShift in the editor's own.
+**Names.** The editor is the Dark Factory (this repository, `bevy_dark_factory`). Its binary and its crates are named for it in snake_case (`bevy_dark_factory`, `dark_factory_mcp`); its earlier name was the Cauldron. What it writes and a game loads is still a blueprint (`bevy_blueprint`, `assets/blueprint/`). The agent is the Night Shift, two words, in Dark Inc.'s words and in the editor's own: the Agent panel is titled `NIGHT SHIFT`, and every history row and receipt names it `the Night Shift`.
 
 ## Quick start
 

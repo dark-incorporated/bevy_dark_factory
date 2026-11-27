@@ -10,7 +10,7 @@
 //!   whose rows are the pool: **the rows in the world are the ones on screen**, not one per entry;
 //! - a wheel over the list moves it, and the pool follows the scroll to the end of the session — the
 //!   row for position 5,000 is drawn once the person gets there;
-//! - an agent's entry reads "the NightShift", and a person's reads "you", which is the second acceptance
+//! - an agent's entry reads "the Night Shift", and a person's reads "you", which is the second acceptance
 //!   line the window already met and the list has to keep.
 //!
 //! Nothing here calls the panel's own state: the wheel is a pointer message at the list's box and the
@@ -215,7 +215,7 @@ fn a_wheel_scrolls_to_the_end_of_the_session() {
     );
 }
 
-/// **An agent's line reads "the NightShift" and a person's reads "you"**, which is UI-53's second acceptance
+/// **An agent's line reads "the Night Shift" and a person's reads "you"**, which is UI-53's second acceptance
 /// line and the words the window already used.
 #[test]
 fn an_agent_line_says_the_night_shift_and_a_persons_says_you() {
@@ -233,7 +233,7 @@ fn an_agent_line_says_the_night_shift_and_a_persons_says_you() {
         (1..=depth).filter_map(|position| rows.label(position as u64).map(|l| (position, l.to_owned()))).collect()
     };
     let newest = &labels.last().expect("the session has lines").1;
-    assert!(newest.contains("the NightShift"), "the agent's newest change is the NightShift's: {newest:?}");
+    assert!(newest.contains(bevy_dark_factory::follow::THE_AGENT), "the agent's newest change is the Night Shift's: {newest:?}");
     let oldest = &labels.first().expect("the session has lines").1;
     assert!(oldest.contains("you"), "a person's change is the person's: {oldest:?}");
 
@@ -249,7 +249,7 @@ fn an_agent_line_says_the_night_shift_and_a_persons_says_you() {
             rows_in_the_world(&mut app).into_iter().find(|(key, _)| *key as usize == depth).map(|(_, label)| label)
         });
     let some = some.unwrap_or_else(|| panic!("the newest line is not a row of the list: {on_screen:?}"));
-    assert!(some.contains("the NightShift"), "the row for the agent's change says whose it is: {some:?}");
+    assert!(some.contains(bevy_dark_factory::follow::THE_AGENT), "the row for the agent's change says whose it is: {some:?}");
 }
 
 /// **A click on a line steps the history back to it, and a click on the line the editor stands on does

@@ -1,10 +1,10 @@
-//! **The Agent workspace: everything about the NightShift in one place** (NV-10, #387; series getting around, #377).
+//! **The Agent workspace: everything about the Night Shift in one place** (NV-10, #387; series getting around, #377).
 //!
 //! It holds
 //!
 //! - **the AGENT block at full size** ([`crate::night_shift::spawn_the_block`], the one builder the Map's compact block also uses): when the
 //!   agent was last heard, the newest change, the plan, Pause, Undo and Look, and **the waiting wishes and lessons** as its rows (AW-02, AG-06);
-//! - **the agent's history**: the operation log filtered to the changes the NightShift made, newest first, each with **Look**, which shows
+//! - **the agent's history**: the operation log filtered to the changes the Night Shift made, newest first, each with **Look**, which shows
 //!   *that change's own page* — its pieces framed on the Map — through the reveal ([`crate::reveal::Revealing::request_by_person`]), the
 //!   same answer to "where is this seen" a finder row and an agent's own change use.
 //!

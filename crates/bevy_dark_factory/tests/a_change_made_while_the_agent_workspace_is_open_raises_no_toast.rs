@@ -1,5 +1,5 @@
 //! **A placement made while the Agent workspace is open raises no toast** (#439). Found while recording: `placement_add` (an agent operation) with the Agent
-//! workspace open raised "the Map camera has no viewport yet, so the NightShift's change was not framed", an error-sounding toast for a normal, successful
+//! workspace open raised "the Map camera has no viewport yet, so the Night Shift's change was not framed", an error-sounding toast for a normal, successful
 //! change. The follow brings the Map back to look at the change; the Map camera has no viewport for the first frames of that, and the follow must wait for
 //! one, silently, and then frame the change.
 //!

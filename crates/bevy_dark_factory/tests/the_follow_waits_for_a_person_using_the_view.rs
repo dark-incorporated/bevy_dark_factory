@@ -9,7 +9,7 @@
 //!
 //! 1. **Idle wait.** A person who orbited, panned, dragged, clicked in the viewport or typed in the
 //!    last [`FOLLOW_IDLE_S`] seconds holds the follow. The camera does not move; a **look chip** over
-//!    the viewport names what the NightShift changed; once the person stops, the change is framed.
+//!    the viewport names what the Night Shift changed; once the person stops, the change is framed.
 //! 2. **Paced bursts.** Requests queue in arrival order and each is shown for at least
 //!    [`FOLLOW_DWELL_S`], so five changes in one frame are five views.
 //! 3. **The toggle.** View ▸ Follow the agent (`EditorSettings::follow_agent`, on by default) stops
@@ -228,8 +228,8 @@ fn a_person_working_holds_the_follow_and_the_chip_names_what_it_waits_to_show() 
         .sentence()
         .unwrap_or_else(|| panic!("the look chip says nothing while a change waits to be shown"));
     assert!(
-        chip.contains("bed") && chip.contains("the NightShift"),
-        "the chip does not name what the NightShift changed: {chip:?}"
+        chip.contains("bed") && chip.contains(bevy_dark_factory::follow::THE_AGENT),
+        "the chip does not name what the Night Shift changed: {chip:?}"
     );
     assert!(
         app.world().resource::<Following>().pending() > 0,
@@ -459,7 +459,7 @@ fn the_chip_is_not_the_receipt() {
     }
     let note = app.world().resource::<EditorState>().status.note_text().to_owned();
     assert!(
-        note.contains("the NightShift ") && note.contains("placed"),
+        note.contains(&format!("{} ", bevy_dark_factory::follow::THE_AGENT)) && note.contains("placed"),
         "the receipt was replaced by the chip's words: {note:?}"
     );
 }

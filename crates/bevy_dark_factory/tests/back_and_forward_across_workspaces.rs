@@ -150,7 +150,7 @@ fn one_back_after_a_follow_restores_the_persons_camera() {
                 target: bevy_dark_factory::editor::FrameTarget::Placements(vec!["lamp@7".to_owned()]),
                 ids: vec!["lamp@7".to_owned()],
             },
-            "the NightShift placed lamp@7",
+            bevy_dark_factory::follow::as_the_night_shift("placed lamp@7"),
         );
     }
     settle_support::settle(&mut app);

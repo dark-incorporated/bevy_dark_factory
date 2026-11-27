@@ -94,7 +94,7 @@ pub enum Context {
     /// **The Game tab** (NV-09, #386): the running game's panel. No keys of its own, like [`Context::World`]: Play and Stop
     /// are buttons and the commands they already are.
     Game,
-    /// **The Agent tab** (NV-10, #387): the NightShift's panel. No keys of its own, like [`Context::World`].
+    /// **The Agent tab** (NV-10, #387): the Night Shift's panel. No keys of its own, like [`Context::World`].
     Agent,
     /// **The Files tab** (GD-11, #373): the file tree and the code editor. It has no key of its own, so only the
     /// `Global` ones are live there, which is the point of its being a context at all: a Map verb must not
@@ -2058,7 +2058,7 @@ pub const BINDINGS: &[Binding] = &[
         "look at the agent's change",
     )
     // **Its home is the pane that reports the change**, not the legend: `Detail` is the Map's status
-    // block, which is where the receipt naming what the NightShift did is drawn — the same pane every
+    // block, which is where the receipt naming what the Night Shift did is drawn — the same pane every
     // tab's readout verb lives on (`Cmd+C`, each tab's undo pair). The legend already carries the
     // Map's eight, and `no_home_carries_more_than_it_can_show` is right that a ninth chord piled on
     // that anchor is one nobody reads.
