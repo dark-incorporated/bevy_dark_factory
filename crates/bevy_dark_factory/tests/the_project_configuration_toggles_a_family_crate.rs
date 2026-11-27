@@ -59,6 +59,13 @@ fn toggling_a_crate_writes_family_ron_atomically_and_the_verdict_row_reads_appli
     assert!(Family::load(&root).unwrap().crates.is_empty(), "the same switch takes it out again");
 }
 
+/// **A build that lacks no crate cannot answer this question**, and `family_all` is exactly that build (#687).
+///
+/// The premise is the test's own: it looks for a crate `family_host::built()` does not name — *"a default build lacks some
+/// family crate"* — and in the gate's build that `expect` has nothing to find. The behaviour it proves (a crate this build
+/// cannot run is offered, says how to host it, and joins the end of the list) is a fact about a build with a gap in it, so the
+/// test is gated to the builds that have one rather than weakened to a crate that is already built.
+#[cfg(not(feature = "family_all"))]
 #[test]
 fn a_crate_this_build_lacks_can_be_listed_and_the_line_says_how_to_host_it_and_the_others_keep_their_order() {
     let (mut app, root) = rig("project_config_unbuilt");
