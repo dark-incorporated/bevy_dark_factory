@@ -200,8 +200,10 @@ type ShellSplitRead = (
 /// **A split that is not the one it last looked at starts over** (the frame is spawned on each door, with its own pane open
 /// and its own floor): the view is session state and stays, so the new split is collapsed to match it, not mistaken for one
 /// a person has opened.
+#[allow(clippy::too_many_arguments)]
 fn collapse_the_left_pane(
     mut view: ResMut<ShellView>,
+    workspace: Option<Res<crate::workspace::Workspace>>,
     mut splits: Query<ShellSplitRead, With<ShellSplit>>,
     roles: Query<&Role>,
     dividers: Query<&ComputedNode, With<SplitDivider>>,
@@ -215,7 +217,9 @@ fn collapse_the_left_pane(
         *state = Collapse::Open;
     }
     let Some(divider) = kids.iter().find(|kid| matches!(roles.get(*kid), Ok(Role::SplitDivider))) else { return };
-    let want = view.left_is_hidden();
+    // **Not where the panel takes the centre** (#694): there the first pane is the body itself, and hiding it would leave
+    // nothing, so `Cmd+B` waits for a workspace with a viewport to give the room to.
+    let want = view.left_is_hidden() && !workspace.is_some_and(|w| w.panel_takes_the_centre());
     match *state {
         Collapse::Open if want => {
             // Laid out, or there is no room to answer for: gooey's collapse reads the same room and does nothing without it.
@@ -424,6 +428,7 @@ fn reopen_the_folded_dock(
 #[allow(clippy::too_many_arguments, clippy::type_complexity)]
 fn fold_the_shell(
     view: Res<ShellView>,
+    workspace: Option<Res<crate::workspace::Workspace>>,
     frame: Option<Res<Frame>>,
     parts: Query<Entity, ZenParts>,
     splits: Query<(&Children, Has<SplitSaved>, Has<SplitGlide>, &SplitPeek), With<ShellSplit>>,
@@ -433,15 +438,21 @@ fn fold_the_shell(
     mut commands: Commands,
 ) {
     let Some(frame) = frame else { return };
+    let centred = workspace.is_some_and(|w| w.panel_takes_the_centre());
     let mut fold: Vec<Entity> = Vec::new();
     if view.the_rest_is_hidden() {
         fold.extend(parts.iter());
         fold.extend([frame.chrome_bar, frame.door_strip, frame.status, frame.right]);
     }
     for (kids, collapsed, gliding, peek) in &splits {
-        if view.zen {
-            // **The first pane and the divider only**: the children come `[pane, divider, pane]`, and the second pane holds the viewport.
-            let own = |kid: &Entity| roles.get(*kid).is_ok_and(|role| matches!(role, Role::SplitPane | Role::SplitDivider));
+        // The children come `[pane, divider, pane]`, and the second pane holds the viewport.
+        let own = |kid: &Entity| roles.get(*kid).is_ok_and(|role| matches!(role, Role::SplitPane | Role::SplitDivider));
+        if centred {
+            // **A panel that takes the centre (#694)**: the divider and the viewport's pane go, and the first pane is the
+            // body. Zen leaves that pane, because on this workspace the panel is what there is to see.
+            fold.extend(kids.iter().filter(own).skip(1));
+        } else if view.zen {
+            // **The first pane and the divider only**.
             fold.extend(kids.iter().filter(own).take(2));
         }
         // **A shut pane shows no dock**: collapsed, landed, and nothing floating over the viewport.
