@@ -4408,28 +4408,27 @@ fn rebuild_palette(
                                 TextLayout::new(Justify::Left, LineBreak::NoWrap),
                             ));
                             row.spawn((
-                                // The name wraps inside its own column rather than pushing the cost out of the row (`tiles::count_cell`) and is clipped to it.
-                                crate::chrome::text_narrows(),
-                                bevy_gooey::Sizing { clip: Some(true), ..default() },
+                                // **The name takes the row's width and never breaks inside a word** (#693, the
+                                // owner's *"count gives way"*): `toilet_roll_holder` is one word the row cannot
+                                // wrap, and `Fridge` broke as `Fridg` / `e` at 1100 px. A name is read whole or not
+                                // at all; what does not fit is cut with an ellipsis.
+                                crate::chrome::a_name_that_never_breaks_inside_a_word(),
                                 Text::new(blueprint_model::naming::display_name(&d.id)),
                                 TextColor(crate::chrome::ink().text),
                                 PaletteName,
                                 crate::chrome::typed(crate::chrome::text::BODY),
-                                // **A word longer than the column breaks inside itself** (#289): with
-                                // the default word-boundary break, `toilet_roll_holder` was one word
-                                // the row could not wrap, and it drew over the count beside it.
-                                TextLayout::new(Justify::Left, LineBreak::WordOrCharacter),
                             ));
                             // **The triangle cost keeps its own ink** (`cost_tint`: the accent past a busy piece, the danger past the
                             // importer's limit), which gooey's `count_text` would not: the skin writes that text's colour.
+                            // **And it is the cell that gives way** (#693): the count yields before the name it stands beside,
+                            // because the cost is in the row's tooltip and the name is not.
                             row.spawn((
-                                crate::chrome::text_keeps_its_width(),
+                                crate::chrome::a_count_that_gives_way(),
                                 crate::chrome::spacing(crate::chrome::margin_left(crate::chrome::STEP_ROW)),
                                 Text::new(brief_count(tris)),
                                 TextColor(cost_ink(tris, state.brush == Some(ix))),
                                 PaletteCost(tris),
                                 crate::chrome::typed(crate::chrome::text::LABEL),
-                                TextLayout::new(Justify::Left, LineBreak::NoWrap),
                             ));
                     });
                 }
