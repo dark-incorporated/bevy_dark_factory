@@ -47,7 +47,13 @@ pub struct ProsePlugin;
 
 impl Plugin for ProsePlugin {
     fn build(&self, app: &mut App) {
-        let handle = app.world_mut().resource_mut::<Assets<Font>>().add(Font::from_bytes(PROSE_FONT_BYTES.to_vec()));
+        // **`Assets<Font>` is `TextPlugin`'s, and `DefaultPlugins` is always built before this** (the binary,
+        // `harness::add_editor_plugins`, and every test's app all add it first). A host that added this plugin
+        // without it has no text at all, so the failure is named rather than left to a panic inside the store.
+        let Some(mut fonts) = app.world_mut().get_resource_mut::<Assets<Font>>() else {
+            panic!("`ProsePlugin` needs `bevy::text::TextPlugin` (and so `DefaultPlugins`) ahead of it: it loads the prose face into `Assets<Font>`");
+        };
+        let handle = fonts.add(Font::from_bytes(PROSE_FONT_BYTES.to_vec()));
         app.insert_resource(ProseFont(handle));
     }
 }
