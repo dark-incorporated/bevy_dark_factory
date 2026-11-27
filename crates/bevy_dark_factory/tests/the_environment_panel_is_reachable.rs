@@ -4,8 +4,8 @@
 //! scroll exists *for height*: "the readout, the map-size fields and anything ever added below them
 //! simply ran off the bottom of the window". Measured on big, 2026-11-02, the panel **does not scroll
 //! at all** — its region changed 0.0 % of its pixels after a burst of wheel notches — so
-//! `environment::spawn_section` (spawned at `editor.rs:3481`, before the Compositions section) is in the
-//! flow but below an unscrollable fold. Every clock, weather, season and climate button is unreachable
+//! `environment::spawn_section` (spawned by `workspace_panels::spawn_world_panel`, before the Compositions
+//! section) is in the flow but below an unscrollable fold. Every clock, weather, season and climate button is unreachable
 //! by a person at 1280x720.
 //!
 //! **What this file asserts is the thing a person needs**: the ENVIRONMENT heading is inside the

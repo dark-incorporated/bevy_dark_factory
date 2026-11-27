@@ -443,6 +443,13 @@ pub struct EditorStyle {
 }
 
 /// **The layers, merged in order** (later wins), or why the sum does not read as a skin or metrics.
+///
+/// **The type scale is declared once, in `metrics.type`, and derived into the skin here** (#648). The sheet
+/// used to state `skin.text_size`, `skin.heading_size` and `skin.type_scale` as well, three copies of numbers
+/// that matched `metrics.type` by hand: the editor's own labels read `metrics.type`, every gooey label reads
+/// `skin.text_size`, and so editing `metrics.type.body` left one window with two body sizes — 14 px beside
+/// 11 px, the split #518 measured at 550 of 602 texts. Deriving here means a layer may still write a skin scale
+/// (a theme does not, and a person should not) but it cannot disagree with the metrics.
 pub fn merge(layers: &[&StyleLayer]) -> Result<EditorStyle, String> {
     let (mut skin, mut metrics) = (Map::new(), Map::new());
     let mut rules = StyleRules::default();
@@ -453,9 +460,29 @@ pub fn merge(layers: &[&StyleLayer]) -> Result<EditorStyle, String> {
         rules.0.extend(layer.rules.0.iter().cloned());
         lines.extend(layer.lines.iter().map(|(selector, line)| ((layer.name.clone(), selector.clone()), *line)));
     }
-    let skin: GooeySkin = serde_json::from_value(Value::Object(skin)).map_err(|e| format!("the merged skin does not read: {e}"))?;
+    let mut skin: GooeySkin = serde_json::from_value(Value::Object(skin)).map_err(|e| format!("the merged skin does not read: {e}"))?;
     let metrics: EditorMetrics = serde_json::from_value(Value::Object(metrics)).map_err(|e| format!("the merged metrics do not read: {e}"))?;
+    skin.text_size = metrics.r#type.body;
+    skin.heading_size = metrics.r#type.title;
+    skin.type_scale = type_scale_of(&metrics.r#type);
     Ok(EditorStyle { skin, metrics, rules, lines })
+}
+
+/// **The skin's `type_scale`, as the five steps `metrics.type` names**, smallest first.
+///
+/// `skin.type_scale` is a ladder gooey indexes by step (`GooeySkin::type_size`: step 0 is the smallest), not a
+/// copy of any one role, and it has five rungs (`GooeySkin`'s array is `[f32; 5]`). The editor's seven roles
+/// name five *rungs*: `hint`, `label`, `body`, `tab`, `title`. `control` and `heading` are not rungs of their
+/// own — at the shipped sheet `control` is the label's 10 px (`chrome::text::CONTROL`'s doc: "the same number as
+/// [`LABEL`], and a seventh role anyway") and `heading` is the body's 11 (`HEADING`'s doc: "a heading has to
+/// outrank the label it heads") — so a layer that gives either a size of its own moves that role through
+/// `chrome::text` and leaves this monotone ladder the five rungs it can hold.
+///
+/// Sorted, so `type_size` never reads a smaller rung after a larger one however a layer edits a step.
+fn type_scale_of(sizes: &TypeMetrics) -> [f32; 5] {
+    let mut ladder = [sizes.hint, sizes.label, sizes.body, sizes.tab, sizes.title];
+    ladder.sort_by(f32::total_cmp);
+    ladder
 }
 
 /// The compiled base and theme layers, read once: their text is in the binary, so a failure is a build that

@@ -215,7 +215,7 @@ mod tests {
             .get("valkyrie")
             .cloned()
             .unwrap_or_else(|| panic!("no valkyrie"));
-        let report = crate::anim_watch::measure_rig(root, &rig);
+        let report = crate::anim_watch::measure_rig(root, "valkyrie", &rig);
         (report, rig)
     }
 

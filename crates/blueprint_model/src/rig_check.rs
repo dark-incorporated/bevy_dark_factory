@@ -268,7 +268,15 @@ pub struct RigCheck {
 ///
 /// The caller opens the GLB — how an unreadable file is reported (a finding, a panic) is the
 /// consumer's decision, but what agreement *means* is decided here, once.
-pub fn check_rig(glb: &Glb, rig: &Rig, provenance_current: bool) -> RigCheck {
+///
+/// **`rig_name` is carried into every refusal**, because a finding is read in a list of a dozen
+/// rigs (#679): `slot 3 names clip 3 but the asset has 3` does not say whose slot it is.
+pub fn check_rig(
+    glb: &Glb,
+    rig_name: &str,
+    rig: &Rig,
+    provenance_current: bool,
+) -> RigCheck {
     let mut findings = Vec::new();
     let mut slots = Vec::new();
     let mut skates = Vec::new();
@@ -352,8 +360,8 @@ pub fn check_rig(glb: &Glb, rig: &Rig, provenance_current: bool) -> RigCheck {
         let Some(c) = found.get(slot.clip) else {
             findings.push(
                 Finding::bad(format!(
-                    "slot {i} names clip {} but the asset has {}: {} — it was re-exported; \
-                     re-measure and update rigs.yaml",
+                    "rig `{rig_name}`: slot {i} names clip {} but the asset has {}: {} — it was \
+                     re-exported; re-measure and update rigs.yaml",
                     slot.clip,
                     found.len(),
                     roster(&found),
@@ -949,7 +957,7 @@ mod tests {
     #[test]
     fn a_gait_rig_without_the_anchor_nodes_is_told_loudly() {
         let glb = tiny_glb(&["pelvis"], "walk", 1.417);
-        let report = check_rig(&glb, &rig(vec![gait_slot(0)]), false);
+        let report = check_rig(&glb, "test", &rig(vec![gait_slot(0)]), false);
         let bad: Vec<_> = report
             .findings
             .iter()
@@ -968,7 +976,7 @@ mod tests {
         let mut r = rig(vec![gait_slot(0)]);
         r.root_node = Some("pelvis".to_owned());
         r.contact_joints = vec!["pelvis".to_owned()];
-        let report = check_rig(&glb, &r, false);
+        let report = check_rig(&glb, "test", &r, false);
         let anchors_missing = report
             .findings
             .iter()
@@ -982,7 +990,7 @@ mod tests {
         // all-rig loop-closure check still speaks; what must NOT appear is anything Bad or
         // anything about the missing anchor nodes.)
         let glb = tiny_glb(&["shell"], "scuttle", 0.8);
-        let report = check_rig(&glb, &rig(vec![free_slot(0)]), false);
+        let report = check_rig(&glb, "test", &rig(vec![free_slot(0)]), false);
         assert!(
             report.findings.iter().all(|f| f.level != Level::Bad),
             "{:?}",
@@ -998,7 +1006,7 @@ mod tests {
     #[test]
     fn a_missing_clip_names_what_the_asset_does_have() {
         let glb = tiny_glb(&["pelvis"], "walk", 1.417);
-        let report = check_rig(&glb, &rig(vec![free_slot(7)]), false);
+        let report = check_rig(&glb, "test", &rig(vec![free_slot(7)]), false);
         assert_eq!(report.findings.len(), 1);
         let f = &report.findings[0];
         assert_eq!(f.level, Level::Bad);
@@ -1020,7 +1028,7 @@ mod tests {
             .unwrap_or_else(|| panic!("no valkyrie in the manifest"));
         let glb = Glb::open(&root.join("assets").join(&valk.mesh))
             .unwrap_or_else(|e| panic!("{e}"));
-        let report = check_rig(&glb, valk, false);
+        let report = check_rig(&glb, "valkyrie", valk, false);
         let bad: Vec<_> = report
             .findings
             .iter()
@@ -1136,7 +1144,7 @@ mod tests {
     #[test]
     fn unmeasurable_loop_closure_is_a_note_not_a_silent_pass() {
         let glb = tiny_glb(&["pelvis"], "idle", 1.0);
-        let report = check_rig(&glb, &rig(vec![free_slot(0)]), false);
+        let report = check_rig(&glb, "test", &rig(vec![free_slot(0)]), false);
         assert!(
             report
                 .findings
@@ -1153,7 +1161,7 @@ mod tests {
         let glb = tiny_glb(&["pelvis"], "fire", 1.0);
         let mut shot = free_slot(0);
         shot.playback = Playback::OneShot { speed: 1.0 };
-        let report = check_rig(&glb, &rig(vec![shot]), false);
+        let report = check_rig(&glb, "test", &rig(vec![shot]), false);
         assert!(
             report
                 .findings
@@ -1211,7 +1219,7 @@ mod tests {
         let glb = tiny_glb(&["Root", "foot_l"], "walk", 1.417);
         let mut r = rig(vec![gait_slot(0)]);
         r.drive_speed = Some((0.9, 6.0));
-        let report = check_rig(&glb, &r, false);
+        let report = check_rig(&glb, "test", &r, false);
         let skate_notes: Vec<_> = report
             .findings
             .iter()
@@ -1228,7 +1236,7 @@ mod tests {
         );
 
         // No drive_speed declared: no skate opinion at all.
-        let quiet = check_rig(&glb, &rig(vec![gait_slot(0)]), false);
+        let quiet = check_rig(&glb, "test", &rig(vec![gait_slot(0)]), false);
         assert!(quiet.skates.is_empty());
         assert!(!quiet.findings.iter().any(|f| f.text.contains("clamp")));
     }

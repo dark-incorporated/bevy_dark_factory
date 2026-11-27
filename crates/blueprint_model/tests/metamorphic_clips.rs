@@ -298,7 +298,7 @@ fn root_drift_fires_the_in_place_check() {
         (motion[0] - 0.5 * span).abs() < 1.0e-3,
         "the ramp must read back as its own span: {motion:?} vs 0.5 x {span}"
     );
-    let report = rig_check::check_rig(&drifting, &valkyrie_rig(), false);
+    let report = rig_check::check_rig(&drifting, "valkyrie", &valkyrie_rig(), false);
     assert!(
         report
             .findings
@@ -319,7 +319,7 @@ fn renamed_anchors_are_loud_never_silent() {
     let mut renamed = valkyrie();
     rename_node(&mut renamed, "Root", "Pelvis");
     rename_node(&mut renamed, "foot_l", "lf_foot");
-    let report = rig_check::check_rig(&renamed, &valkyrie_rig(), false);
+    let report = rig_check::check_rig(&renamed, "valkyrie", &valkyrie_rig(), false);
     let bad: Vec<_> = report
         .findings
         .iter()

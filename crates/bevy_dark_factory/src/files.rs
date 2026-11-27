@@ -778,6 +778,7 @@ impl Plugin for FilesPlugin {
                     follow_on_primary_click,
                     keep_the_header,
                     keep_the_position,
+                    keep_the_field_line,
                     keep_the_conflict_bar,
                     keep_the_tree,
                     reveal_the_active_row,
@@ -850,7 +851,10 @@ fn spawn_the_files_workspace(mut commands: Commands, frame: Res<Frame>) {
                     TextColor(ink.text),
                     chrome::typed(chrome::text::LABEL),
                     TextLayout::new(Justify::Left, LineBreak::NoWrap),
-                    bevy_gooey::TextFlow { grow: Some(1.0), ..default() },
+                    // **The path takes the row's free width, and the role is what makes that true** (#542):
+                    // `TextFlow` is written by `apply_skin`, which styles only a node with a `Role` — so the
+                    // `grow` here had never been applied and the readout sat at the path's end.
+                    chrome::text_narrows(),
                 ));
                 line.spawn((
                     FilePosition,
@@ -858,11 +862,9 @@ fn spawn_the_files_workspace(mut commands: Commands, frame: Res<Frame>) {
                     TextColor(ink.dim),
                     chrome::typed(chrome::text::LABEL),
                     TextLayout::new(Justify::Right, LineBreak::NoWrap),
-                    // **Pushed to the row's far edge** (#542): `align_self` moves a flex item along the
-                    // row's main axis, so the readout stands on the far edge. Its `Justify::Right` needs a
-                    // box wider than its words to have any effect, and `grow` would share the free width
-                    // with the path, leaving the readout in the middle.
-                    bevy_gooey::TextFlow { align: Some(AlignSelf::End), ..default() },
+                    // **The readout stands on the row's far edge** (#542), through the helper that carries
+                    // the `Role` its `TextFlow` needs to be applied at all.
+                    chrome::text_at_the_rows_end(),
                 ));
             });
             // **The field line names itself** (#599). It was spawned with its placeholder as its only
@@ -871,9 +873,14 @@ fn spawn_the_files_workspace(mut commands: Commands, frame: Res<Frame>) {
             // the field's own name — gooey puts it beside the field, outside it, and reads it as the
             // control's accessible name — and the placeholder keeps the shape `<path> <value>`, which is
             // what the person types rather than what the field is.
+            // **The field line carries a class of its own** (#542): `blueprint/ui_style_inspect` over the box
+            // answered `classes: ["chrome-panel"]` — the page's card — so the control could not be named,
+            // styled or inspected as what it is. The class is the sheet's handle on the row (its inset, its
+            // place in the column); the control itself is the `TextInput` inside it.
             host.spawn((
                 bevy_gooey::text_input(FIELD_LINE_LABEL, ""),
                 bevy_gooey::TextHint(FIELD_LINE_HINT.into()),
+                bevy_gooey::StyleClass::of(FIELD_LINE_CLASS),
                 FieldLine,
                 observe(on_field_line),
             ));
@@ -884,6 +891,9 @@ fn spawn_the_files_workspace(mut commands: Commands, frame: Res<Frame>) {
 
 /// **The field line's own name**, drawn beside its field and read as the control's accessible name (#599).
 pub const FIELD_LINE_LABEL: &str = "Set a field";
+/// **The class the field line's row carries** (#542), so the sheet can style it and `ui_style_inspect` can name
+/// the control rather than the page card it stands on.
+pub const FIELD_LINE_CLASS: &str = "chrome-field-line";
 /// What the field line's placeholder says a person types: `<path> <value>`.
 pub const FIELD_LINE_HINT: &str = "path value";
 
@@ -1475,6 +1485,22 @@ fn keep_the_header(files: Res<Files>, session: Res<Session>, mut headers: Query<
 /// **Its own system, beside [`keep_the_header`]** rather than a second query inside it: the two change on different
 /// causes (the path on a tab switch or a save, the position on every key) and joining them made one system whose query
 /// carried two filters, a shape `-D warnings` reads as too complex.
+/// **The field line is drawn only with a file open** (#542): with no file there is no field to set, and the row
+/// was a focusable box a person could tab into that would do nothing — the pane now draws either a field that
+/// sets the open file or no field at all.
+fn keep_the_field_line(
+    session: Res<Session>,
+    files: Res<Files>,
+    mut lines: Query<&mut Node, With<FieldLine>>,
+) {
+    let Ok(mut node) = lines.single_mut() else { return };
+    let open = active_file(&session).is_some_and(|rel| files.open.contains_key(&rel));
+    let want = if open { Display::Flex } else { Display::None };
+    if node.display != want {
+        node.display = want;
+    }
+}
+
 fn keep_the_position(editors: Query<&CodeEditor>, mut positions: Query<(&mut Text, &mut Visibility), With<FilePosition>>) {
     let Ok((mut text, mut shown)) = positions.single_mut() else { return };
     let standing = editors.single().ok().map(|editor| {
