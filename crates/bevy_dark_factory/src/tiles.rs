@@ -3658,6 +3658,10 @@ pub struct Tab(pub Mode);
 #[derive(Component)]
 pub struct TabLabel;
 
+/// **The door strip itself**, so the one system that replaces it on a workspace switch can find it (#695).
+#[derive(Component)]
+pub struct TabStrip;
+
 /// The tab's badge — the anim bench's stale count, in its own text so it can hold its own colour.
 ///
 /// Its own node rather than a suffix on [`TabLabel`], because gooey's skin owns every tab label's
@@ -3858,8 +3862,20 @@ impl Plugin for TilesPlugin {
             .init_resource::<crate::build::TileHistory>()
             .add_systems(
                 OnEnter(crate::screen::Screen::Editor),
-                (spawn_tab_strip, spawn_tiles_panel, scan_on_entering_the_kits_door)
+                (spawn_the_strip, spawn_tiles_panel, scan_on_entering_the_kits_door)
                     .after(crate::chrome::FrameSystems),
+            )
+            // **And the strip follows the workspace once a switch no longer rebuilds the frame** (#695): the
+            // panels a workspace shows are the strip's contents, so a switch between two workspaces that
+            // share the viewport replaces the strip and leaves the frame alone. Gated on the change, so a
+            // settled editor costs one flag read.
+            .add_systems(
+                Update,
+                rebuild_the_strip_for_the_workspace
+                    .in_set(crate::keys::Phase::Sense)
+                    .after(crate::chrome::FrameSystems)
+                    .run_if(in_state(crate::screen::Screen::Editor))
+                    .run_if(resource_changed::<crate::workspace::Workspace>),
             )
             .add_systems(
                 Update,
@@ -4071,6 +4087,28 @@ impl Plugin for TilesPlugin {
 /// (the inspector's scroll, the badges' free ground, the history list) are laid out from where the strip ends.
 const TAB_STRIP_H: f32 = 35.0;
 
+/// **The door strip is the workspace's panels, so a switch replaces it** (#695, #678).
+///
+/// It used to be rebuilt for free: every switch tore the frame down and `OnEnter(Editor)` spawned the strip
+/// again. A switch between the four workspaces that share the viewport now keeps the frame, so the one node
+/// inside it that *is* the workspace's has to be replaced here. Only the strip's own subtree goes; the frame,
+/// the docks and the map stay.
+fn rebuild_the_strip_for_the_workspace(
+    mut commands: Commands,
+    frame: Option<Res<crate::chrome::Frame>>,
+    strips: Query<Entity, With<TabStrip>>,
+    workspace: Option<Res<crate::workspace::Workspace>>,
+) {
+    let (Some(frame), Some(workspace)) = (frame, workspace) else { return };
+    if strips.is_empty() {
+        return;
+    }
+    for strip in &strips {
+        commands.entity(strip).despawn();
+    }
+    spawn_tab_strip(&mut commands, Some(*workspace), &frame);
+}
+
 /// **The strip of panels this workspace holds** — three on the Kit workspace, one on Map and
 /// Animation, and none on a workspace whose part is not built.
 ///
@@ -4087,11 +4125,11 @@ const TAB_STRIP_H: f32 = 35.0;
 /// (`anim_cache::load_bench_cache`, `thumbs::setup`): the workspace is a workspace's resource, so a
 /// screen entered without one draws no strip rather than aborting the process.
 /// `screen::open_the_door` already says so on the log in the one case that reaches it.
-fn spawn_tab_strip(
-    mut commands: Commands,
-    workspace: Option<Res<crate::workspace::Workspace>>,
-    frame: Res<crate::chrome::Frame>,
-) {
+fn spawn_the_strip(mut commands: Commands, workspace: Option<Res<crate::workspace::Workspace>>, frame: Res<crate::chrome::Frame>) {
+    spawn_tab_strip(&mut commands, workspace.as_deref().copied(), &frame);
+}
+
+fn spawn_tab_strip(commands: &mut Commands, workspace: Option<crate::workspace::Workspace>, frame: &crate::chrome::Frame) {
     let Some(workspace) = workspace else { return };
     // **Into the frame's own band, not floating over the window.** It was absolute at
     // `left: MARGIN, top: MARGIN` with `GlobalZIndex(101)` to sit above the panels it overlapped —
@@ -4101,7 +4139,9 @@ fn spawn_tab_strip(
         // **A gooey row** (UI-59, #245). `AlignItems::Stretch` was the default it names; the strip's
         // half-step gap is the tight gap's class (3 px, not 2.5).
         .spawn((
-            (bevy_gooey::row(0.0), crate::chrome::Gap::Tight.class()),
+            TabStrip,
+            bevy_gooey::row(0.0),
+            crate::chrome::Gap::Tight.class(),
             // **The editor's first accessibility, and the strip is the right place to start.**
             //
             // There was none at all — `AccessibilityNode` appeared zero times in `src/`. A screen
