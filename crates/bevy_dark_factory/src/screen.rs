@@ -194,6 +194,16 @@ pub fn close_the_door(world: &mut World) {
     reset_door_state(world);
 }
 
+/// **What a switch between the four workspaces that share the viewport keeps** (#695, #678): a root carrying
+/// this is not swept by [`despawn_scene`] while a switch is in flight.
+///
+/// The scene is the map's and the frame is the window's, and `docs/ui/vision.md` §4 says Map, World, Kit and
+/// Animation share one viewport — so a switch between them changes which *panels* are drawn and nothing else.
+/// A root marked here is one every one of the four shows: the frame, the map camera and lights, and the map's
+/// pieces. Everything else the old workspace made is swept, which is how the panels that differ go away.
+#[derive(Component)]
+pub struct KeptAcrossASwitch;
+
 /// **A door change is in flight** — the teardown is part of a switching, not of a leave.
 ///
 /// The mark is what tells [`close_the_door`] that the `Project` and the `OpenMap` in the world are
@@ -289,6 +299,18 @@ pub fn cross(world: &mut World, to: crate::workspace::Workspace) -> Result<(), S
 /// transition is what rebuilds the frame and the strip, so a switch is one frame rather than a reload.
 pub fn rebuild_the_door(world: &mut World) {
     world.insert_resource(Crossing);
+    // **The four workspaces that share one viewport keep the frame and the scene** (#695, #678). A switch
+    // between them changes only which *panels* are drawn (`docs/ui/vision.md` §4), so nothing it does needs
+    // the state transition's teardown: `KeptAcrossASwitch` marks what both workspaces show, `despawn_scene`
+    // spares it, and the panels the new workspace does not show are swept as usual.
+    //
+    // **Measured before this**, on `37219dc7` at 1600x1000: a map -> kit -> map round trip kept 2 of 2,600
+    // `ComputedNode` entities and cost 205-275 ms a switch, and the map's 45 `Mesh3d` entities were gone
+    // after a switch to World, Kit or Animation. With the scene and the frame spared, the switch is the
+    // panels that differ.
+    if world.get_resource::<crate::workspace::Workspace>().is_some_and(|w| w.shows_the_map()) {
+        return;
+    }
     if let Some(mut next) = world.get_resource_mut::<NextState<Screen>>() {
         next.set(Screen::Editor);
     }
@@ -485,6 +507,14 @@ pub(crate) fn despawn_scene(world: &mut World) {
 /// Windows and monitors are excluded because they outlive both screens; that is the one thing here
 /// that is genuinely shared.
 pub(crate) fn scene_roots(world: &mut World) -> Vec<Entity> {
+    let switching = world.contains_resource::<Crossing>();
+    // **Gathered in one pass, then filtered**, because the filter reads the world the query borrows:
+    // a closure holding `world` beside `iter(world)` is two borrows of one thing.
+    let kept: std::collections::HashSet<Entity> = if switching {
+        world.query_filtered::<Entity, With<KeptAcrossASwitch>>().iter(world).collect()
+    } else {
+        std::collections::HashSet::new()
+    };
     world
         .query_filtered::<Entity, (
             Or<(With<Transform>, With<Node>)>,
@@ -505,6 +535,10 @@ pub(crate) fn scene_roots(world: &mut World) -> Vec<Entity> {
             NotTheGuideCard,
         )>()
         .iter(world)
+        // **And what every workspace that shows the map shares** (#695, #678) — but only while a switch is in
+        // flight. A leave must still sweep it: the next door is another project, and the map it draws is not
+        // this one's.
+        .filter(|e| !kept.contains(e))
         .collect()
 }
 

@@ -1579,6 +1579,10 @@ pub fn spawn_frame(
         .entity(root)
         .add_children(&[chrome_bar, door_strip, body, bottom, status]);
 
+    // **The frame is the window's, and every workspace that shows the map draws into it** (#695, #678): a
+    // switch between Map, World, Kit and Animation changes which panels are in it, not the frame itself.
+    commands.entity(root).insert(crate::screen::KeptAcrossASwitch);
+
     commands.insert_resource(Frame {
         root,
         chrome_bar,

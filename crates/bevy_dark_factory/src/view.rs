@@ -338,8 +338,11 @@ fn setup(
     drawn: Option<Res<DrawnExtent>>,
 ) {
     let tf = Transform::from_translation(rig.focus + ISO_OFFSET).looking_at(rig.focus, Vec3::Y);
+    // **The map's camera is the map's, not the workspace's** (#695, #678): Map, World, Kit and Animation share
+    // one viewport, so a switch between them keeps the camera pointed where the person left it.
     commands.spawn((
         Name::new("editor camera"),
+        crate::screen::KeptAcrossASwitch,
         MainCamera,
         Camera3d::default(),
         // **The world goes into the surface, not into the window** — `crate::surface` owns why, and
@@ -368,6 +371,7 @@ fn setup(
     // A key light and enough ambient to read a mesh's form. Directional rather than point, because
     // this scene is not a room — it is a plane an author is looking down at.
     commands.spawn((
+        crate::screen::KeptAcrossASwitch,
         EditorKeyLight,
         DirectionalLight {
             illuminance: 6_000.0,

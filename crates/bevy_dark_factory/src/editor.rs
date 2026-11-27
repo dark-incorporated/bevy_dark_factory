@@ -11742,7 +11742,9 @@ fn spawn_existing(
             open.map.origin,
             y,
         ) {
-            commands.entity(e).insert(Placement(p.id.clone()));
+            // **A piece on the map is the map's** (#695, #678): a switch between the four workspaces that
+            // show it keeps it, so the room is still there on World, Kit and Animation.
+            commands.entity(e).insert((Placement(p.id.clone()), crate::screen::KeptAcrossASwitch));
             let paint = paints[i];
             if paint != 0 {
                 commands.entity(e).insert(bevy_blueprint::Paint(paint));
