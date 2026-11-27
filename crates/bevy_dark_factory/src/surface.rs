@@ -462,8 +462,8 @@ pub struct InterfaceFit {
 /// between two rows the need of the row above and the chrome of the row below are used, the safe side of each.
 ///
 /// **Both columns are the Map's, which has no tab row** (#670): a one-panel workspace folds its tab into the chrome bar, so its frame is
-/// [`crate::tiles::TAB_STRIP_H`] shorter above the body than the Kit's, whose three tabs keep their row. [`fit_interface_scale`] adds that
-/// row back to both, so the limit holds on the Kit too and the dock comes where the shell's own rule brings it.
+/// the Kit's tab row ([`TAB_ROW_BY_TEXT_SIZE`]) shorter above the body than the Kit's, whose three tabs keep their row. [`fit_interface_scale`]
+/// adds that row back to both, so the limit holds on the Kit too and the dock comes where the shell's own rule brings it.
 pub const LAYOUT_BY_TEXT_SIZE: [(f32, f32, f32); 11] = [
     (0.5, 108.0, 240.0),
     (0.75, 112.0, 267.0),
@@ -478,17 +478,49 @@ pub const LAYOUT_BY_TEXT_SIZE: [(f32, f32, f32); 11] = [
     (3.0, 192.0, 839.0),
 ];
 
+/// **The Kit's tab row, measured** (#670): `(text size, row)`, the laid-out height of the door strip that holds the Kit's three tabs, in layout
+/// units, at the same text sizes as [`LAYOUT_BY_TEXT_SIZE`], rounded up. Up to text 200% the row is the strip's own least height
+/// ([`crate::tiles::TAB_STRIP_H`], 35); above it the tabs' type and inset are taller than that, and the row grows with them (measured 38.75 at
+/// 225%, 42.08 at 250%, 45.00 at 275% and 48.68 at 300%, interface 100% in a 1280 x 1200 window).
+///
+/// **One source for both readers of the row**: [`fit_interface_scale`] adds it to the Map's chrome and need, and the shell's dock rule
+/// (`shell_view::give_the_bottom_dock_its_room`) reads its room as if it were there on a workspace that folded its tab. A fixed 35 left the
+/// limit up to 14 units loose on the Kit at text 300%. Checked against the Kit's layout at every text size by
+/// `kits_tab_row_is_the_row_the_limit_adds` (tests), which fails when the row drifts.
+pub const TAB_ROW_BY_TEXT_SIZE: [(f32, f32); 11] = [
+    (0.5, 35.0),
+    (0.75, 35.0),
+    (1.0, 35.0),
+    (1.25, 35.0),
+    (1.5, 35.0),
+    (1.75, 35.0),
+    (2.0, 35.0),
+    (2.25, 39.0),
+    (2.5, 43.0),
+    (2.75, 45.0),
+    (3.0, 49.0),
+];
+
 /// One layout unit of slack on every edge read off the table: layout rounds to whole device pixels, and the measured readings of one cell
 /// differ by up to this much from one interface size to the next.
 const LAYOUT_SLACK: f32 = 1.0;
 
-/// `(chrome, need)` at a text size: the need of the first measured row at or above it, the chrome of the last at or below it. A text size beyond
-/// the table's ends is held at the end.
+/// The Kit's tab row at a text size ([`TAB_ROW_BY_TEXT_SIZE`]): the row of the last measured size at or below it, the side the chrome is read on,
+/// so the shell's dock rule and [`fit_interface_scale`]'s dock edge read one height. A text size below the table's first row is held there.
+pub fn tab_row_at(text_scale: f32) -> f32 {
+    let rows = TAB_ROW_BY_TEXT_SIZE;
+    rows.iter().rev().find(|row| row.0 <= text_scale).map_or(rows[0].1, |row| row.1)
+}
+
+/// `(chrome, need)` at a text size, each with the Kit's tab row added: the need and the row of the first measured size at or above it, the
+/// chrome and the row ([`tab_row_at`]) of the last at or below it. A text size beyond the table's ends is held at the end.
 fn layout_at(text_scale: f32) -> (f32, f32) {
     let rows = LAYOUT_BY_TEXT_SIZE;
+    let tab_rows = TAB_ROW_BY_TEXT_SIZE;
     let chrome = rows.iter().rev().find(|row| row.0 <= text_scale).map_or(rows[0].1, |row| row.1);
     let need = rows.iter().find(|row| row.0 >= text_scale).map_or(rows[rows.len() - 1].2, |row| row.2);
-    (chrome, need)
+    let need_row = tab_rows.iter().find(|row| row.0 >= text_scale).map_or(tab_rows[tab_rows.len() - 1].1, |row| row.1);
+    (chrome + tab_row_at(text_scale), need + need_row)
 }
 
 /// **The interface size a window can hold** (#537): the person's choice, cut down where the window's height leaves a panel no room to be read.
@@ -507,11 +539,10 @@ pub fn fit_interface_scale(logical_width: f32, logical_height: f32, text_scale: 
     let growth = (logical_width / REFERENCE_W).clamp(1.0, MAX_GROWTH);
     let layout = &crate::style::metrics().layout;
     let per_size = layout.ui_scale * growth;
-    // **The table's frame plus the workspace strip's row** ([`LAYOUT_BY_TEXT_SIZE`], #670): the Map's frame has none, the Kit's has one, and the
-    // shell reads its room as if the row were there on every workspace (`shell_view::give_the_bottom_dock_its_room`), so with it the panel is
-    // readable on the Kit and the dock comes where the shell brings it.
+    // **The table's frame plus the Kit's tab row at this text size** ([`layout_at`], #670): the Map's frame has none, the Kit's has one, and
+    // the shell reads its room as if the row were there on every workspace (`shell_view::give_the_bottom_dock_its_room`), so with it the panel
+    // is readable on the Kit and the dock comes where the shell brings it.
     let (chrome, need) = layout_at(text_scale);
-    let (chrome, need) = (chrome + crate::tiles::TAB_STRIP_H, need + crate::tiles::TAB_STRIP_H);
     let frame_at = |size: f32| logical_height / (per_size * size);
     let size_at = |frame: f32| logical_height / (per_size * frame);
     let frame = frame_at(wanted);
