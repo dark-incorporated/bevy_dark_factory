@@ -228,7 +228,14 @@ else
     while read -r id; do
       [ -n "$id" ] || continue
       ids+=("$id")
-      expr="${expr:+$expr | }test(${id})"
+      # **A recorded id is nextest's own line: the binary id, a space, the test's path** (#580).
+      # `test(<binary id> <path>)` matches nothing -- "Starting 0 tests across 240 binaries ... error: no
+      # tests to run" -- so the names are split and each half goes to the predicate that reads it. An id
+      # with no space is a bare path (the `cargo test` runner's shape) and keeps the plain filter.
+      case "$id" in
+        *" "*) expr="${expr:+$expr | }(binary_id(${id%% *}) & test(=${id#* }))" ;;
+        *) expr="${expr:+$expr | }test(${id})" ;;
+      esac
     done
     [ -n "$expr" ] || return 0
     if [ "$test_runner" = nextest ]; then
