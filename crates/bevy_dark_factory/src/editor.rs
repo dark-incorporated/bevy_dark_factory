@@ -4335,8 +4335,8 @@ fn rebuild_palette(
                     // is [`arm_palette_rows`], which says only *which* row is armed.
                     //
                     // `align_items` is the one thing this row wants that a list row does not
-                    // assume: a fixed-height thumbnail beside auto-height text has to be centred,
-                    // and it is a `RowLayout` laid over the row's own.
+                    // assume: it is patched on the row's `Node`, which gooey leaves alone on a
+                    // `ListRow` (a `RowLayout` is not written on one; `chrome::row_shape`).
                     //
                     // **`FlexStart`, not `Center`** (#486): `Center` centres a *box*, so a one-line
                     // triangle count beside a name that wrapped to three lines landed on the
@@ -4344,7 +4344,7 @@ fn rebuild_palette(
                     // the three cells' first lines on one line, which is what a reader scans.
                     let mut palette_row =
                         crate::chrome::list_row(p, state.brush == Some(ix), PaletteRow(ix));
-                    palette_row.insert(bevy_gooey::RowLayout { direction: Some(FlexDirection::Row), align: Some(AlignItems::FlexStart), ..default() });
+                    palette_row.entry::<Node>().and_modify(|mut node| node.align_items = AlignItems::FlexStart);
                     // **The id and the count's unit, where a person can find them** (#289): the row
                     // reads as words, and two kits may each have a `wall` that both read "Wall".
                     let tris = project.triangles.get(ix).copied().unwrap_or(0);

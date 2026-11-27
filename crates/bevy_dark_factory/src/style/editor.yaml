@@ -145,7 +145,9 @@ rules:
   # A chip's (and a compact list row's) inset: 6 across and a tight step down, so its padding and the gap to its
   # neighbour read as one rhythm. Most of a chip's click target is this padding (Fitts): do not shrink it.
   ".chrome-chip": {padding: {x: !Px 6, y: !Step 0}, radius: !Step 0}
-  ".chrome-row": {padding: {x: !Px 6, y: !Step 0}, radius: !Step 0}
+  # A list row (`chrome::row_shape`, gooey's `Role::ListRow`): the chip's inset, and its border is the selection
+  # rail alone, two lines on the left that the role lights in the accent while the row is selected, none elsewhere.
+  ".chrome-row": {padding: {x: !Px 6, y: !Step 0}, radius: !Step 0, border: {all: 0.0, left: 2.0}}
   # A group's room before a command button that starts a block of its own (the Meshes tab's turns and rescan).
   ".chrome-button-apart": {margin: {left: !Step 3}}
   # A text field: tighter than a chip (its box is drawn by its fill, and the caret needs the width), never
