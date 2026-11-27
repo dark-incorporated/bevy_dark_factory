@@ -232,7 +232,7 @@ else
     done
     [ -n "$expr" ] || return 0
     if [ "$test_runner" = nextest ]; then
-      $cargo nextest run --workspace --no-fail-fast --threads-required num-cpus -E "$expr"
+      $cargo nextest run --workspace --no-fail-fast --test-threads num-cpus -E "$expr"
     else
       # `cargo test` takes one filter and no filterset; its filter is a substring of the test's path, which is the id.
       local one
