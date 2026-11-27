@@ -116,20 +116,26 @@ fn stopping_the_bake_stops_it_and_it_stays_stopped() {
 /// The item is deliberately off the `Activate` bus (this editor has twenty-four global `Activate`
 /// observers and a `Button` fires them all — `chrome::quiet_row` documents the day that took the
 /// application down). Its words therefore must not carry `Role::ButtonText`, which is how a test counts
-/// the interface's *buttons*: `a_question_is_asked_in_a_gooey_dialog` reads every `ButtonText` in the
-/// world and asserts a dialog's two answers are the whole list. With a job running, a `ButtonText` here
-/// made that list three long and both of its tests failed — the full workspace gate caught it, not this
-/// file, which is why the shape is pinned here now.
+/// a dialog's answers: `a_question_is_asked_in_a_gooey_dialog` reads every `ButtonText` in the dialog and
+/// asserts the question's two answers are the whole list. With a job running, a `ButtonText` here made
+/// that list three long (it read the whole world then) and both of its tests failed — the full workspace
+/// gate caught it, not this file, which is why the shape is pinned here now. The words read are the
+/// item's own: since #684 the panels' command buttons are gooey's `button`, whose words are `ButtonText`.
 #[test]
 fn the_bands_item_does_not_call_itself_a_button() {
     let mut app = editor("jobs-not-a-button", 3);
     let words: Vec<bevy_gooey::Role> = {
-        let mut q = app.world_mut().query_filtered::<&bevy_gooey::Role, With<Text>>();
-        q.iter(app.world())
-            .filter(|role| matches!(**role, bevy_gooey::Role::ButtonText | bevy_gooey::Role::ControlText))
-            .copied()
+        let mut items = app.world_mut().query_filtered::<Entity, With<JobsItem>>();
+        let world = app.world();
+        items
+            .iter(world)
+            .flat_map(|item| world.get::<Children>(item).into_iter().flat_map(|c| c.iter()))
+            .filter(|word| world.get::<Text>(*word).is_some())
+            .filter_map(|word| world.get::<bevy_gooey::Role>(word).copied())
+            .filter(|role| matches!(*role, bevy_gooey::Role::ButtonText | bevy_gooey::Role::ControlText))
             .collect()
     };
+    assert!(!words.is_empty(), "a running job puts its item in the band, with its words");
     assert!(
         words.iter().all(|role| *role == bevy_gooey::Role::ControlText),
         "a job's words must not read as a button's: {words:?}"

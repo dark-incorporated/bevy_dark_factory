@@ -27,12 +27,28 @@ fn dialogs(app: &mut App) -> usize {
     app.world_mut().query::<&Dialog>().iter(app.world()).count()
 }
 
-/// Every `Text` in the world whose entity has `role`.
+/// Every `Text` in the open dialog whose entity has `role`. **The dialog's, not the world's** (#684): the panels'
+/// command buttons are gooey's `button` now, whose words are `ButtonText` too, so the Map door's world holds the
+/// Notes panel's and the journal's answers beside the question's.
 fn texts(app: &mut App, role: Role) -> Vec<String> {
-    let mut q = app.world_mut().query::<(&Role, &Text)>();
-    let mut out: Vec<String> = q.iter(app.world()).filter(|(r, _)| **r == role).map(|(_, t)| t.0.clone()).collect();
+    let mut q = app.world_mut().query::<(Entity, &Role, &Text)>();
+    let world = app.world();
+    let mut out: Vec<String> = q.iter(world).filter(|(e, r, _)| **r == role && in_a_dialog(world, *e)).map(|(_, _, t)| t.0.clone()).collect();
     out.sort();
     out
+}
+
+/// Whether `at` or one of its ancestors is a gooey [`Dialog`].
+fn in_a_dialog(world: &World, mut at: Entity) -> bool {
+    loop {
+        if world.get::<Dialog>(at).is_some() {
+            return true;
+        }
+        match world.get::<ChildOf>(at) {
+            Some(parent) => at = parent.parent(),
+            None => return false,
+        }
+    }
 }
 
 /// A keystroke the way a keyboard sends it: a press and a release, then a frame.

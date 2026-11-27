@@ -75,7 +75,7 @@ window root                                   Sized, 100% x 100vh
 └─ status                                     row, 100% x bar_h, 1 px top edge
 ```
 
-The whole tree is built by `spawn_frame` (`chrome.rs:1292`), which is why every measure in it is a local read of the
+The whole tree is built by `spawn_frame` (`chrome.rs:1296`), which is why every measure in it is a local read of the
 sheet rather than a constant.
 
 ### 2.2 The sizing rules, which are the model
