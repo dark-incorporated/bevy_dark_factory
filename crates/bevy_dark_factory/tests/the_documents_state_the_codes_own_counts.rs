@@ -656,18 +656,22 @@ fn the_text_roles_table_states_the_sheets_sizes() {
 
 /// **The symbol citations in `docs/design/text-roles.md` land on the symbol they name.**
 ///
-/// `chrome::section` was cited at `chrome.rs:991` and sits at `:827`; the role module was cited at `:690` and
-/// sits at `:531`. A citation that points into the middle of something else is worse than none (#566).
+/// `chrome::section` was cited at `chrome.rs:991` and sat at `:827`; the role module was cited at `:690` and sat at
+/// `:531` (#566). The line number is read from the page, not pinned here: pinning it made this test and the citation
+/// resolver demand different numbers whenever `chrome.rs` moved (#680). The page must still cite each symbol, and
+/// the line it gives must be that symbol's declaration.
 #[test]
 fn the_text_roles_citations_land_on_their_symbols() {
     let doc = read("docs/design/text-roles.md");
     let chrome = read("crates/bevy_dark_factory/src/chrome.rs");
     let lines: Vec<&str> = chrome.lines().collect();
-    for (citation, needle) in [("chrome.rs:827", "pub fn section"), ("chrome.rs:531", "pub mod text")] {
-        assert!(doc.contains(citation), "docs/design/text-roles.md no longer cites `{citation}`");
-        let at: usize = citation.rsplit(':').next().expect("a line number").parse().expect("a number");
-        let line = lines.get(at - 1).unwrap_or_else(|| panic!("{citation} is past the end of chrome.rs"));
-        assert!(line.contains(needle), "docs/design/text-roles.md cites `{citation}` for `{needle}` and that line is `{}`", line.trim());
+    for (symbol, needle) in [("`chrome::section` (`chrome.rs:", "pub fn section"), ("`chrome::text` is seven roles over five sizes (`chrome.rs:", "pub mod text")] {
+        let at = doc.find(symbol).unwrap_or_else(|| panic!("docs/design/text-roles.md no longer cites {symbol}…`"));
+        let rest = &doc[at + symbol.len()..];
+        let number: String = rest.chars().take_while(char::is_ascii_digit).collect();
+        let line_no: usize = number.parse().unwrap_or_else(|_| panic!("{symbol}…` carries no line number"));
+        let line = lines.get(line_no - 1).unwrap_or_else(|| panic!("chrome.rs:{line_no} is past the end of chrome.rs"));
+        assert!(line.contains(needle), "docs/design/text-roles.md cites `chrome.rs:{line_no}` for `{needle}` and that line is `{}`", line.trim());
     }
 }
 
