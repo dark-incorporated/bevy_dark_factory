@@ -295,3 +295,39 @@ fn a_switch_builds_the_panels_the_new_workspace_shows() {
     chord_to(&mut app, Workspace::Map);
     assert!(count::<MapRoot>(&mut app) > 0, "and Map's is built again on the way back");
 }
+
+/// **The frame profile names where a switch spends its frame** (#678, #541). The three instrumented systems are not
+/// where a switch goes, so the profile's answer used to be "no system named". Every frame now keeps one share per main
+/// schedule, and a switch's frame names `StateTransition` — where `OnExit(Editor)` sweeps the frame and `OnEnter(Editor)`
+/// builds it again — with the switch's time in it. `--no-capture` prints the split.
+#[test]
+fn a_switch_frame_names_the_schedule_it_spent_its_time_in() {
+    use bevy_dark_factory::profile::{Frame, Profiler};
+
+    fn transition_ms(frame: &Frame) -> f64 {
+        frame.schedules.iter().filter(|s| s.name() == "StateTransition").map(|s| s.ms).sum()
+    }
+
+    let mut app = editor("profile");
+    let settled = app.world().resource::<Profiler>().last().cloned().expect("a settled frame is in the ring");
+    chord_to(&mut app, Workspace::Kit);
+    let profiler = app.world().resource::<Profiler>();
+    let switch = profiler
+        .frames()
+        .filter(|frame| frame.number > settled.number)
+        .max_by(|a, b| transition_ms(a).total_cmp(&transition_ms(b)))
+        .cloned()
+        .expect("the switch's frames are in the ring");
+    let split: Vec<String> = switch.schedules.iter().map(|s| format!("{} {:.3} ms", s.name(), s.ms)).collect();
+    println!("switch frame {}: busy {:.3} ms: {}", switch.number, switch.busy_ms, split.join(", "));
+    let settled_split: Vec<String> = settled.schedules.iter().map(|s| format!("{} {:.3} ms", s.name(), s.ms)).collect();
+    println!("settled frame {}: busy {:.3} ms: {}", settled.number, settled.busy_ms, settled_split.join(", "));
+    let shares: f64 = switch.schedules.iter().map(|s| s.ms).sum();
+    assert!((shares - switch.busy_ms).abs() < 1e-6, "the shares are the busy time, split: {shares} against {switch:?}");
+    assert!(
+        transition_ms(&switch) >= 1.0 && transition_ms(&switch) > 10.0 * transition_ms(&settled),
+        "the switch's frame names StateTransition with the switch's time in it ({:.3} ms; a settled frame's is {:.3} ms): {split:?}",
+        transition_ms(&switch),
+        transition_ms(&settled)
+    );
+}

@@ -761,26 +761,6 @@ fn project_open(In(params): In<Value>, mut commands: Commands) -> Result<Value, 
     Ok(answer)
 }
 
-/// **The editor's own frame clock (E-011).** `frame_time` is wall time between frames, so a loaded
-/// machine inflates it; `busy_ms` is the time the main schedules spent working inside one frame
-/// (`First` to `Last`), which waiting on the present does not lengthen. Read both: a high frame
-/// time with a low busy time is the machine or the present, the reverse is the editor.
-#[derive(Resource, Default)]
-struct FrameBusy {
-    started: Option<std::time::Instant>,
-    ms: f64,
-}
-
-fn frame_busy_start(mut busy: ResMut<FrameBusy>) {
-    busy.started = Some(std::time::Instant::now());
-}
-
-fn frame_busy_end(mut busy: ResMut<FrameBusy>) {
-    if let Some(s) = busy.started.take() {
-        busy.ms = s.elapsed().as_secs_f64() * 1000.0;
-    }
-}
-
 /// **One node's rect in logical px**: where its top-left is drawn, and how big it is.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct NodeRect {
@@ -816,30 +796,35 @@ pub fn node_rect(node: &ComputedNode, at: &bevy::ui::UiGlobalTransform) -> NodeR
 }
 
 /// The `frame` section of `blueprint/state`: nulls until a frame has been measured.
-fn frame_json(
-    store: Option<&bevy::diagnostic::DiagnosticsStore>,
-    busy: Option<&FrameBusy>,
-    profiler: Option<&crate::profile::Profiler>,
-) -> Value {
+///
+/// **The editor's own frame clock (E-011, #677)**, read off the frame profile's ring so there is one clock and not two:
+/// `frame_ms` is the newest whole frame's wall time, head to next head, so a loaded machine, the extract and the
+/// present all lengthen it; `busy_ms` is the same frame's main schedules (`First` to `Last`), which waiting on the
+/// present does not lengthen. Read both: a high frame time with a low busy time is the machine or the present, the
+/// reverse is the editor. `schedules` says which main schedule the busy time went to (#678).
+fn frame_json(store: Option<&bevy::diagnostic::DiagnosticsStore>, profiler: Option<&crate::profile::Profiler>) -> Value {
     use bevy::diagnostic::FrameTimeDiagnosticsPlugin as F;
     let get = |p: &bevy::diagnostic::DiagnosticPath| {
         store.and_then(|s| s.get(p)).map(|d| (d.value(), d.average()))
     };
     let time = get(&F::FRAME_TIME);
     let fps = get(&F::FPS);
-    // **`frame_ms` is the profile's number when the profile has one** (#504), because the panel draws that one: two
-    // numbers for one frame is exactly the disagreement this issue is about. `frame_ms_smoothed` stays Bevy's, because
-    // the smoothed figure is for a human reading a graph and not for holding anyone to a budget.
+    // **`frame_ms` and `busy_ms` are one frame's two numbers** (#504, #677), the frame the panel draws: two clocks for one
+    // frame is exactly the disagreement those issues are about. `frame_ms_smoothed` stays Bevy's, because the smoothed
+    // figure is for a human reading a graph and not for holding anyone to a budget.
+    let whole = profiler.and_then(|p| p.last_whole());
     json!({
-        "frame_ms": profiler.and_then(|p| p.last_ms()).or_else(|| time.and_then(|t| t.0)),
+        "frame_ms": whole.and_then(|frame| frame.wall_ms),
         "frame_ms_smoothed": time.and_then(|t| t.1),
         "fps": fps.and_then(|t| t.0),
-        "busy_ms": busy.filter(|b| b.ms > 0.0).map(|b| b.ms),
+        "busy_ms": whole.map(|frame| frame.busy_ms),
         "frame_count": store.and_then(|s| s.get(&F::FRAME_COUNT)).and_then(|d| d.value()),
-        // **The heaviest span of the last recorded frame**, named only while the panel is recording: an agent asking
-        // "which system" gets the same sentence a person sees.
-        "heaviest_span": profiler
-            .and_then(|p| p.last())
+        "schedules": whole.map(|frame| {
+            frame.schedules.iter().map(|s| json!({"schedule": s.name(), "ms": s.ms})).collect::<Vec<_>>()
+        }),
+        // **The heaviest span of the same frame**, named only while the panel is recording: an agent asking "which
+        // system" gets the same sentence a person sees.
+        "heaviest_span": whole
             .and_then(|frame| frame.heaviest().map(|span| json!({"system": span.system, "ms": span.ms, "frame": frame.number}))),
         "profile_recording": profiler.map(|p| p.recording()),
     })
@@ -1253,9 +1238,8 @@ struct Loaded<'w> {
     reloads: Option<Res<'w, crate::live::EditorReloads>>,
     live: Option<Res<'w, crate::live::LiveWrite>>,
     diagnostics: Option<Res<'w, bevy::diagnostic::DiagnosticsStore>>,
-    busy: Option<Res<'w, FrameBusy>>,
-    /// **The frame profile's ring** (#504): the one `frame_ms` a person and an agent both read, so the panel and this
-    /// answer cannot disagree about how long the frame took.
+    /// **The frame profile's ring** (#504, #677): the one clock a person and an agent both read, so the panel and this
+    /// answer cannot disagree about how long the frame took or how much of it was the editor's.
     profiler: Option<Res<'w, crate::profile::Profiler>>,
     /// The file editor's open files and the tabs that say which is shown: `file_outline` is read from them.
     files: Option<Res<'w, crate::files::Files>>,
@@ -1339,7 +1323,7 @@ fn editor_state(
     #[cfg(feature = "bevy_elements")] clock: Option<Res<bevy_elements::WorldClock>>,
     #[cfg(feature = "bevy_elements")] scrub: Option<Res<crate::environment::ClockScrub>>,
 ) -> Result<Value, String> {
-    let Loaded { project, open, game, reloads, live, diagnostics, busy, profiler, files, session, style_proposals } = loaded;
+    let Loaded { project, open, game, reloads, live, diagnostics, profiler, files, session, style_proposals } = loaded;
     // **Is the workbench the screen?** Read once, because two fields ask it: `screen` names the screen and
     // `mode` only means anything while this holds (#601).
     // **The viewport is the marked node; the window is the widest unmarked one** — the root the shell
@@ -1635,7 +1619,7 @@ fn editor_state(
         // **The style changes the agent proposed this session** (SG-07, #406): `[{id, path, state, lines}]`, oldest first. `kept` means the change is in the page, which
         // the editor wrote on the person's Keep, and `discarded` that the person dropped it. **No text of a page**: only names, paths and numbers.
         "style_proposals": style_proposals.as_deref().map(|s| s.state_json()).unwrap_or(Value::Null),
-        "frame": frame_json(diagnostics.as_deref(), busy.as_deref(), profiler.as_deref()),
+        "frame": frame_json(diagnostics.as_deref(), profiler.as_deref()),
         // **The two rectangles behind the art's share of the window** (#665). An agent asking
         // *"is the art most of the screen"* had to `world.query` for `Camera` and `ComputedNode`
         // to find out, which is the gap this closes. Logical px, from the laid-out nodes; `None`
@@ -3707,9 +3691,6 @@ impl Plugin for OpsBridgePlugin {
         if !app.is_plugin_added::<bevy::diagnostic::FrameTimeDiagnosticsPlugin>() {
             app.add_plugins(bevy::diagnostic::FrameTimeDiagnosticsPlugin::default());
         }
-        app.init_resource::<FrameBusy>()
-            .add_systems(First, frame_busy_start)
-            .add_systems(Last, frame_busy_end);
         if !app.is_plugin_added::<crate::command_run::CommandRunPlugin>() {
             app.add_plugins(crate::command_run::CommandRunPlugin);
         }
