@@ -18,12 +18,13 @@ use bevy::ui::{ComputedNode, UiGlobalTransform};
 use serde_json::{Value, json};
 
 use bevy_dark_factory::chrome::Frame;
+use bevy_dark_factory::ops_brp::{NodeRect, art_share, measure_rects};
 use bevy_dark_factory::shell_view::{ArtShare, ShellView, art_share_words};
 
 use crate::fixtures;
 
 /// **Look's floor at 1600 × 1000**: the art is the whole window, less what a frame's rounding can take
-/// (2 px of 1600 and of 1000 is 0.32%). Work's share on this map is about a third, so a press that gave
+/// (2 px of 1600 and of 1000 is 0.32%). Work's share on this fixture is about half, so a press that gave
 /// back anything less than nearly all of the window fails here.
 const LOOK_FLOOR: f32 = 0.99;
 
@@ -206,4 +207,31 @@ fn run_command_reaches_the_control() {
     settle(&mut app);
     assert_eq!(off["outcome"], json!("ran"), "{off}");
     assert_eq!(control(&mut app).1, work_words, "the second call is Work, and the control says so");
+}
+
+/// **The window is the largest root, not the first node as wide as it** (#669). The chrome bar, the status band
+/// and the body are all as wide as the window, and a rule by width alone gave the tie to whichever the query met
+/// first: a 31-px band read as the window (ten times the art), or a full-width row of no height read as no window,
+/// which left the label at `Art` in `the_label_is_the_measured_share_and_the_state_reports_it`'s first run.
+#[test]
+fn the_window_is_the_largest_root_and_not_a_bar_as_wide_as_it() {
+    /// A laid-out node at `[x, y]` of `w × h`, logical px at a scale of 1, as the layout writes it: the transform holds the centre.
+    fn laid(x: f32, y: f32, w: f32, h: f32, is_viewport: bool, has_parent: bool) -> (ComputedNode, UiGlobalTransform, bool, bool) {
+        let node = ComputedNode { size: Vec2::new(w, h), ..default() };
+        (node, UiGlobalTransform::from_translation(Vec2::new(x + w / 2.0, y + h / 2.0)), is_viewport, has_parent)
+    }
+    // The bars come first, as the query may meet them; only the root and a tooltip have no parent.
+    let nodes = [
+        laid(0.0, 969.0, 1600.0, 31.0, false, true),
+        laid(0.0, 30.0, 1600.0, 0.0, false, true),
+        laid(485.0, 153.0, 810.0, 638.0, true, true),
+        laid(10.0, 10.0, 300.0, 40.0, false, false),
+        laid(0.0, 0.0, 1600.0, 1000.0, false, false),
+    ];
+    let (viewport, window) = measure_rects(nodes.iter().map(|(node, at, is_viewport, has_parent)| (node, at, *is_viewport, *has_parent)));
+
+    assert_eq!(window, Some(NodeRect { x: 0.0, y: 0.0, w: 1600.0, h: 1000.0 }), "the window is the root, not a bar as wide as it");
+    assert_eq!(viewport, Some(NodeRect { x: 485.0, y: 153.0, w: 810.0, h: 638.0 }), "and the viewport is the marked node");
+    let share = art_share(viewport, window).expect("both are laid out");
+    assert!((share - 810.0 * 638.0 / 1_600_000.0).abs() < 1e-6, "the share is the viewport's area over the window's: {share}");
 }

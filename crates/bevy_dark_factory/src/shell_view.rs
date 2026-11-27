@@ -594,7 +594,7 @@ fn paint_the_art_share(
     view: Res<ShellView>,
     frame: Option<Res<Frame>>,
     laid: Query<Ref<ComputedNode>>,
-    rects: Query<(&ComputedNode, &bevy::ui::UiGlobalTransform, Has<crate::chrome::ViewportSlot>)>,
+    rects: Query<crate::ops_brp::RectNode>,
     mut controls: Query<(Entity, Ref<ArtShare>, &Children, &mut bevy_gooey::Tooltip)>,
     mut texts: Query<&mut Text>,
     mut commands: Commands,
