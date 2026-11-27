@@ -783,7 +783,7 @@ fn prose_of(rel: &str) -> (bool, bool) {
 fn indentation_of(lang: Lang) -> CodeIndentation {
     let spaces = match lang {
         Lang::Yaml | Lang::Markdown => YAML_INDENT_SPACES,
-        Lang::Ron | Lang::Rhai | Lang::Plain => CODE_INDENT_SPACES,
+        Lang::Ron | Lang::Rhai | Lang::Rust | Lang::Plain => CODE_INDENT_SPACES,
     };
     CodeIndentation { indent: CodeIndent::Spaces(spaces), tab_width: TAB_COLUMNS }
 }
@@ -813,6 +813,7 @@ impl Plugin for FilesPlugin {
                     poll_the_disk.after(hear_the_project),
                     keep_the_editor,
                     mark_the_prose,
+                    toggle_comment_on_chord,
                     decorate_the_editor,
                     track_the_pointer,
                     follow_on_f12,
@@ -833,7 +834,14 @@ impl Plugin for FilesPlugin {
             // coloured, in the Design workspace's page instead of the Files workspace's.
             .add_systems(
                 Update,
-                (keep_the_open_files, poll_the_disk.after(hear_the_project), keep_the_design_editor, mark_the_prose, decorate_the_editor)
+                (
+                    keep_the_open_files,
+                    poll_the_disk.after(hear_the_project),
+                    keep_the_design_editor,
+                    mark_the_prose,
+                    toggle_comment_on_chord,
+                    decorate_the_editor,
+                )
                     .chain()
                     .run_if(in_state(Screen::Editor))
                     .run_if(Workspace::design_is_open),
@@ -1311,6 +1319,61 @@ fn on_edit(
                 state.status.problem(format!("NOT SAVED: {why}"));
             }
         }
+    }
+}
+
+/// **`Cmd+/` comments the lines the caret or the selection is on, or takes the comment off them** (#612), in the file's own syntax
+/// ([`files_lang::toggle_comment`]): `//` in `.ron`, Rhai and Rust, `#` in YAML, `<!-- -->` round a Markdown line. It is the code
+/// editor's own key ([`crate::chords::Fixed::FilesToggleComment`]), read only while an editor has the keyboard, as gooey's own keys are.
+/// A read-only file, and a file whose language has no comment, are said on the status line and left as they are.
+///
+/// **The edit is gooey's host edit** ([`CodeEditor::apply_external_edit`]): the caret and the selection stay on the text they were on
+/// and the view does not move. Gooey has no way for a host to make an edit as the person's own, so the step is not one `Cmd+Z` takes
+/// back — it drops the undo history, as a reload does — and `Cmd+/` again is its undo (bevy_gooey#125 asks for the person's edit). The
+/// lines carry no tint, because the person is not someone else. Nothing reaches [`on_edit`] from a host edit, so the buffer is kept here.
+fn toggle_comment_on_chord(
+    keys: Res<ButtonInput<KeyCode>>,
+    mut files: ResMut<Files>,
+    mut editors: Query<(&FileEditor, &mut CodeEditor, Has<bevy_gooey::TextEditing>, Has<InteractionDisabled>)>,
+    time: Res<Time<Real>>,
+    mut state: Option<ResMut<EditorState>>,
+) {
+    if !crate::chords::chord(crate::chords::Fixed::FilesToggleComment).just_pressed(&keys) {
+        return;
+    }
+    let Some((editor, mut widget, _, read_only)) = editors.iter_mut().find(|(_, _, typing, _)| *typing) else { return };
+    let Some(rel) = editor.shown.clone() else { return };
+    if read_only {
+        if let Some(state) = state.as_deref_mut() {
+            state.status.note(files_lang::READ_ONLY_NOTE);
+        }
+        return;
+    }
+    let selection = widget.buffer().selection();
+    let (from, to) = (selection.start(), selection.end());
+    // A selection that ends at the start of a line does not take that line: the drag stopped there, it did not cover it.
+    let last = if to.line > from.line && to.col == 0 { to.line - 1 } else { to.line };
+    let text = widget.buffer().text();
+    let Some(edits) = files_lang::toggle_comment(Lang::of(&rel), &text, from.line..=last) else {
+        if let Some(state) = state.as_deref_mut() {
+            state.status.note(format!("{rel} is in no language the editor knows a comment for, so Cmd+/ leaves it as it is"));
+        }
+        return;
+    };
+    if edits.is_empty() {
+        return;
+    }
+    let edits: Vec<CodeEdit> = edits.into_iter().map(|(range, text)| CodeEdit::new(range, text)).collect();
+    if let Err(why) = widget.apply_external_edit(&edits, CodeAuthor::new("the person", Color::NONE)) {
+        if let Some(state) = state.as_deref_mut() {
+            state.status.problem(format!("NOT COMMENTED: {why}"));
+        }
+        return;
+    }
+    if let Some(file) = files.open.get_mut(&rel) {
+        file.text = widget.buffer().text();
+        file.agent_lines.clear();
+        file.edited_at = Some(time.elapsed_secs_f64());
     }
 }
 

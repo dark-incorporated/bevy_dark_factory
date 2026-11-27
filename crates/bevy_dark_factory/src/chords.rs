@@ -51,6 +51,9 @@ pub enum Fixed {
     /// `terminal_view.rs` had to restate the chord to know what to swallow.
     TerminalRaise,
     EditorDevAgent,
+    /// **Comment or uncomment the lines under the caret** in the file editor, in the file's own comment syntax (#612). The code
+    /// editor's own key, read by `files` while the editor has the keyboard, the way `TerminalFind` is the terminal's.
+    FilesToggleComment,
 }
 
 /// **One fixed chord**: its id in a settings file's `keymap:`, what it does in words, and its chord when no file
@@ -207,6 +210,14 @@ pub const CHORDS: &[NamedChord] = &[
         title: "Open the editor development agent",
         default: || Shortcut::new(Modifiers::PRIMARY | Modifiers::ALT, KeyCode::KeyD),
     },
+    // **VS Code's Toggle Line Comment** (#612): `Cmd+/`, read only while a file editor has the keyboard. Free everywhere: the one
+    // census row on `/` is the Meshes tab's tag filter, which has no modifier.
+    NamedChord {
+        fixed: Fixed::FilesToggleComment,
+        id: "files.toggle_comment",
+        title: "Comment or uncomment the lines",
+        default: || primary(KeyCode::Slash),
+    },
 ];
 
 /// The fixed chord with settings id `id`.
@@ -215,7 +226,7 @@ pub fn by_id(id: &str) -> Option<&'static NamedChord> {
 }
 
 /// How many fixed chords there are: one per [`Fixed`] variant.
-const FIXED_COUNT: usize = Fixed::EditorDevAgent as usize + 1;
+const FIXED_COUNT: usize = Fixed::FilesToggleComment as usize + 1;
 
 /// **[`CHORDS`] holds one row per [`Fixed`], in the enum's order**, checked when the crate compiles, so a row is found
 /// by indexing and a lookup cannot miss.

@@ -8,7 +8,7 @@ use blueprint_model::reload_check::{self, Check};
 use blueprint_model::yaml::SpanKind;
 use serde_json::Value;
 
-use super::{Completion, Env, Finding, Lang, Language, Lines, finding_on, word_before};
+use super::{CommentSyntax, Completion, Env, Finding, Lang, Language, Lines, finding_on, word_before};
 
 /// The language of `.yaml` and `.yml` files.
 pub struct Yaml;
@@ -20,6 +20,10 @@ impl Language for Yaml {
 
     fn extensions(&self) -> &'static [&'static str] {
         &["yaml", "yml"]
+    }
+
+    fn comment(&self) -> Option<CommentSyntax> {
+        Some(CommentSyntax::Line("#"))
     }
 
     fn highlights(&self, text: &str, schema: Option<&Value>) -> Vec<(Range<usize>, SyntaxRole)> {

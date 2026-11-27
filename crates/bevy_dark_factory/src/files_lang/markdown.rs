@@ -9,7 +9,7 @@ use blueprint_model::board::{self, Board, Entry};
 use blueprint_model::design;
 use serde_json::Value;
 
-use super::{Completion, Env, Finding, Heading, Lang, Language, Lines};
+use super::{CommentSyntax, Completion, Env, Finding, Heading, Lang, Language, Lines};
 
 /// **The most project files a Markdown completion offers after the board's pictures**, so the list stays one a person
 /// reads and a big project does not make a menu of thousands.
@@ -25,6 +25,10 @@ impl Language for Markdown {
 
     fn extensions(&self) -> &'static [&'static str] {
         &["md", "markdown"]
+    }
+
+    fn comment(&self) -> Option<CommentSyntax> {
+        Some(CommentSyntax::Wrap("<!--", "-->"))
     }
 
     fn folds(&self, text: &str) -> Vec<Range<usize>> {

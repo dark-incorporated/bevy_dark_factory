@@ -213,6 +213,14 @@ These keys work on the Compose panel of the Kit workspace.
 | `Left` / `Right` | Any time | Choose which list the arrow keys walk. |
 | `O` / `P` | Any time | Previous / next composition. |
 
+## The file editor
+
+The Files workspace's editor, and the Design workspace's (the same editor), reads this key while it has the keyboard. The line the caret is on is lit across the editor, and a bracket at the caret is framed together with the one that matches it.
+
+| Key | Works when | Does |
+| --- | --- | --- |
+| `Cmd+/` | Any time, when the file editor has the keys | Comment the lines the caret or the selection is on, in the file's own syntax: `//` in `.ron`, Rhai and Rust files, `#` in YAML, `<!-- -->` round a Markdown line. When every line with words on it is already commented, the comment comes off instead. A blank line is left alone, and the mark goes at the shallowest indent so a block keeps its shape. `Cmd+Z` does not take it back yet; press `Cmd+/` again. `Ctrl+/` elsewhere. |
+
 ## The terminal
 
 A real shell is docked across the bottom of every screen, already in your project's folder: `cargo`, `git` and your agent run there. It starts collapsed. `Cmd+J` (`Ctrl+J` elsewhere) cycles it round maximised, collapsed and a quarter at the bottom, and `Shift+Cmd+J` makes it fill the window below the menu bar from any of the three; the status band's **Terminal Cmd+J** label raises it too, and a raise is kept across a relaunch. Click it to put the keyboard in the shell, and click anywhere else to give the keys back to the screen. A shell that ends (`exit`, `Ctrl+D`) closes its tab, `+` in the bar opens another, and `Shift+Cmd+Backquote` closes the tab this one is in.
