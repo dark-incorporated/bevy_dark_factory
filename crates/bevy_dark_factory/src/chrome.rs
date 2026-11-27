@@ -3880,8 +3880,7 @@ fn adopt_the_shell_split(
 /// `Val::Px` units, so a narrow window's squeezed panel gets a pane squeezed to match.
 fn size_the_shell_split(
     mut commands: Commands,
-    mut splits: Query<(Entity, &mut bevy_gooey::SplitFraction, &mut SplitUnsized, &ComputedNode, &Children)>,
-    dividers: Query<&ComputedNode, With<bevy_gooey::SplitDivider>>,
+    mut splits: Query<(Entity, &mut bevy_gooey::SplitFraction, &mut SplitUnsized, &ComputedNode)>,
     panels: Query<(&PanelWidth, &Node, &bevy_gooey::Sizing, &ComputedNode)>,
     windows: Query<(), With<bevy::window::PrimaryWindow>>,
 ) {
@@ -3902,18 +3901,20 @@ fn size_the_shell_split(
     if want <= 0.0 {
         return;
     }
-    for (split, mut fraction, mut sized, node, kids) in &mut splits {
+    for (split, mut fraction, mut sized, node) in &mut splits {
         // **Someone else wrote the fraction since this did**: a drag, an arrow key, a game setting.
         // It is theirs from now on.
         if sized.wrote.is_some_and(|w| w != fraction.0) {
             commands.entity(split).remove::<SplitUnsized>();
             continue;
         }
-        let bar = kids
-            .iter()
-            .find_map(|c| dividers.get(c).ok())
-            .map_or(0.0, |d| d.size().x * d.inverse_scale_factor());
-        let extent = node.size().x * node.inverse_scale_factor() - bar;
+        // **The divider is the sheet's `divider_w`, not its measured box** (#689): the split carries
+        // `SplitThickness(divider_w)`, so that is the width the layout shares the panes around, while the
+        // divider's `ComputedNode` is that width rounded to device pixels (12 px at 1.2 is 14.4 laid out
+        // and 14 measured). Sizing the pane against the rounded one left the viewport a fraction of a
+        // pixel wider or narrower depending on how the docks fell, so the activity bar showing or not
+        // moved the map by a whole pixel; the sheet's number is the one `fit_docks_to_the_window` pays.
+        let extent = node.size().x * node.inverse_scale_factor() - crate::style::metrics().layout.divider_w;
         if extent <= 0.0 {
             continue;
         }
