@@ -112,9 +112,11 @@ class FailedTestsAreKeptAndRunAlone(unittest.TestCase):
         r = self.push(alone_passes=True)
         self.assertEqual(r.returncode, 0, f"the named tests pass alone: {r.stderr}")
         calls = self.calls()
-        self.assertTrue(any("--threads-required num-cpus" in c for c in calls), f"alone, at full parallelism: {calls}")
-        self.assertTrue(any("test(bevy_dark_factory::editor a_short_row" in c for c in calls),
-                        f"the failing test is named in the filterset: {calls}")
+        # `--test-threads`, the flag nextest has (#580, `933bb44b`); `--threads-required` is a config key, not a flag.
+        self.assertTrue(any("--test-threads num-cpus" in c for c in calls), f"alone, at full parallelism: {calls}")
+        # The recorded id's two halves, each in the predicate that reads it (#580, `a0782796`).
+        self.assertTrue(any("binary_id(bevy_dark_factory::editor) & test(=a_short_row_stands_where_it_stood::a_short_row_stands_where_it_stood)" in c
+                            for c in calls), f"the failing test is named in the filterset: {calls}")
         self.assertFalse(any("--no-fail-fast" in c and "test(" not in c for c in calls),
                          f"and the whole suite was not run again: {calls}")
 
