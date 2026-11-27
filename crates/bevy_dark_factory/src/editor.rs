@@ -3059,7 +3059,7 @@ impl Plugin for EditorPlugin {
                             .after(apply_proposal),
                         draw_proposal,
                     ),
-                    (refresh_status, refresh_history, keep_now_in_view),
+                    (refresh_status, refresh_history, keep_now_in_view, the_history_header_reads_as_a_control),
                     // Nested — the tuple is at its twenty-system cap, and these are one rule: what
                     // the keys move must be on screen (the palette's row, the note box's text).
                     (
@@ -8388,6 +8388,26 @@ fn history_block(s: &mut ChildSpawnerCommands) {
 const HISTORY_SECTION: &str = "history";
 
 /// The history's first line: the map before any change. Fits beside `now: ` in a list row at 200% text.
+/// **The history header's words are a control's, not a button's** — the retag `menu_bar::read_the_titles_as_controls`
+/// and `empty_state::read_as_a_control` make, for the same reason: gooey's `section` writes `Role::ButtonText` on its
+/// title, and this editor's tests count `ButtonText` over the whole world to say what a **dialog's answers** are
+/// (`a_question_is_asked_in_a_gooey_dialog`, `the_bands_item_does_not_call_itself_a_button`). The header is still
+/// gooey's button (its `Activate`, its focus, its chevron, its skin); only the role of its words is the control's.
+fn the_history_header_reads_as_a_control(
+    mut commands: Commands,
+    headers: Query<(&Children, &ChildOf), Added<bevy_gooey::SectionHeader>>,
+    sections: Query<&bevy_gooey::SectionId>,
+    words: Query<(), With<Text>>,
+) {
+    for (kids, parent) in &headers {
+        if sections.get(parent.parent()).is_ok_and(|id| id.0 == HISTORY_SECTION) {
+            for kid in kids.iter().filter(|k| words.contains(*k)) {
+                commands.entity(kid).insert(bevy_gooey::Role::ControlText);
+            }
+        }
+    }
+}
+
 const HISTORY_START_LINE: &str = "the original map";
 
 /// **The words of the history's line for `position`**, or `None` past the end. `0` is the map as it was before the first
