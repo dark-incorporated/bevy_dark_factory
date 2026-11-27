@@ -1192,8 +1192,9 @@ impl Blueprint {
                        measured (metres, or degrees off for Faces), by (the piece that breaks it) \
                        and missing_id; unmet and missing count them; error names a file that does not parse. \
                        rects holds viewport and window, each [x, y, w, h]: the top-left corner and the \
-                       size in logical px, null before the first layout; the art's share of the window \
-                       is the viewport's w*h over the window's. \
+                       size in logical px, null before the first layout; and art_share, the art's share \
+                       of the window: the viewport's w*h over the window's, from 0 to 1, null until both \
+                       are laid out, and the number the status band's Art control shows. \
                        standards checks the project's standards.yaml (beside kits.yaml), re-read on \
                        every call: breaches (piece, rule, dim, found metres, why below_min, above_max, \
                        not_multiple_of or unmeasured, bound), idle, the rules no piece is covered by, \

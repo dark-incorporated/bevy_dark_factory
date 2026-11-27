@@ -101,6 +101,7 @@ impl Plugin for ShellViewPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<ShellView>()
             .add_observer(reopen_the_folded_dock)
+            .add_observer(the_art_share_flips_the_view)
             .add_systems(
                 Update,
                 (
@@ -108,6 +109,8 @@ impl Plugin for ShellViewPlugin {
                     collapse_the_left_pane.after(FrameSystems),
                     give_the_bottom_dock_its_room.after(FrameSystems),
                     fold_the_shell.after(FrameSystems),
+                    float_the_art_share,
+                    paint_the_art_share,
                     tick_the_menu_rows,
                 )
                     .chain()
@@ -152,11 +155,24 @@ fn toggle_on_the_chords(
         view.left_hidden = !view.left_hidden;
     }
     if zen {
-        view.zen = !view.zen;
-        if view.zen {
-            focus.release();
-            commands.spawn(bevy_gooey::toast(format!("Zen mode: {} brings the editor back", bindings.chord(zen_chord))));
-        }
+        look_or_work(&mut view, &mut focus, &bindings, &mut commands);
+    }
+}
+
+/// **Look, or back to Work** (#669): Zen mode begun or ended, as `shell.zen`'s chord and the status band's
+/// `Art` control both ask — one function, so the two doors cannot disagree about what a press does.
+///
+/// **Look is Zen** (the owner, 2026-11-27: *"two states, Work and Look … Both map onto `ShellView { left_hidden,
+/// zen }`"*): both side docks, the chrome bar, the toolbar, the panel tab row and the status band go, and the art
+/// gets the window. **Work is the layout the person had**, so `left_hidden` is not touched and a second press
+/// gives back exactly what the first took. Look gives the terminal's keyboard back, or the keys that move the
+/// camera would go on reaching a shell nobody can see.
+fn look_or_work(view: &mut ShellView, focus: &mut crate::terminal_pane::TerminalFocus, bindings: &bevy_gooey::BindingSettings, commands: &mut Commands) {
+    view.zen = !view.zen;
+    if view.zen {
+        focus.release();
+        let zen_chord = crate::chords::chord(crate::chords::Fixed::ShellZen);
+        commands.spawn(bevy_gooey::toast(format!("Zen mode: {} brings the editor back", bindings.chord(zen_chord))));
     }
 }
 
@@ -528,6 +544,139 @@ pub fn toggle_the_reload_panel(change: On<bevy_gooey::ValueChange<bool>>, mut vi
 /// **View ▸ Zen mode.**
 pub fn toggle_zen(change: On<bevy_gooey::ValueChange<bool>>, mut view: ResMut<ShellView>) {
     view.zen = change.value;
+}
+
+// ── the status band's `Art` control (#669) ─────────────────────────────────────────────────────
+
+/// **The status band's `Art 32%` control** (#669): its label is the art's share of the window, and a click
+/// is [`look_or_work`] — the same press as `shell.zen`'s chord, so `blueprint/run_command { id: "shell.zen" }`
+/// reaches it.
+///
+/// The owner's decision (2026-11-27): *"two states, Work and Look. A status-band control labelled with the game
+/// art's share of the window (e.g. `Art 32%`); click cycles Work (today's layout) ↔ Look (both side docks folded
+/// and the chrome bar, toolbar, panel tab row and status band hidden except this control, so the art gets the
+/// window)."* The label is the measurement, so a person can see what a press bought; it is
+/// [`crate::ops_brp::measure_rects`] and [`crate::ops_brp::art_share`], the functions `blueprint/state`'s
+/// `rects.art_share` is made by, so the band and the state report one number.
+///
+/// **In Look the band is folded with the rest, and the control is not**: [`float_the_art_share`] lifts it out of
+/// the band onto the window's own root, floating at the bottom-right corner over the art, and puts it back where
+/// it stood when Work returns. It takes no room in either place but the band's, so Look's art is the whole window
+/// and the way back is still on screen.
+#[derive(Component)]
+pub struct ArtShare;
+
+/// **What the control says**: `Art` and the share as a whole percent, `Art 32%`; `Art` alone before the first
+/// layout has measured anything, never a made-up `0%`.
+pub fn art_share_words(share: Option<f32>) -> String {
+    share.map_or_else(|| "Art".to_owned(), |share| format!("Art {:.0}%", share * 100.0))
+}
+
+/// **What the next press does**, for the control's tooltip and its accessible name.
+fn next_press_words(view: ShellView) -> &'static str {
+    if view.the_rest_is_hidden() { "Work: give the editor back" } else { "Look: give the art the window" }
+}
+
+/// **The control, spawned at the status band's end** by `chrome::spawn_status_band`, after the hint: the band is
+/// where the editor says what the whole shell is doing, and the hint's key badge settles to the hint's left, so
+/// nothing is drawn over it. A chip, as the band's `Terminal` label is: one click is its gesture.
+pub fn spawn_the_art_share(band: &mut ChildSpawnerCommands) {
+    let ink = crate::chrome::ink();
+    crate::chrome::chip(band, ArtShare, &art_share_words(None), crate::chrome::text::CONTROL, ink.text, ink.bar_bg, ink.panel_edge)
+        .insert((Name::new("art share"), bevy_gooey::Tooltip::new(next_press_words(ShellView::default()))));
+}
+
+/// **The label follows the measurement, and the hover and the accessible name follow the view.** Measured only
+/// when the viewport or the window was laid out anew, the view changed or the control is new, so a settled shell
+/// costs two change checks; written only on a change.
+#[allow(clippy::type_complexity)]
+fn paint_the_art_share(
+    view: Res<ShellView>,
+    frame: Option<Res<Frame>>,
+    laid: Query<Ref<ComputedNode>>,
+    rects: Query<(&ComputedNode, &bevy::ui::UiGlobalTransform, Has<crate::chrome::ViewportSlot>)>,
+    mut controls: Query<(Entity, Ref<ArtShare>, &Children, &mut bevy_gooey::Tooltip)>,
+    mut texts: Query<&mut Text>,
+    mut commands: Commands,
+) {
+    let Some(frame) = frame else { return };
+    let moved = [frame.viewport, frame.root].into_iter().any(|node| laid.get(node).is_ok_and(|node| node.is_changed()));
+    let fresh = controls.iter().any(|(_, control, _, _)| control.is_added());
+    if !(moved || fresh || view.is_changed()) {
+        return;
+    }
+    let (viewport, window) = crate::ops_brp::measure_rects(rects.iter());
+    let words = art_share_words(crate::ops_brp::art_share(viewport, window));
+    let next = next_press_words(*view);
+    let tip = format!("{next} — {}", crate::terminal_pane::chord_words(&crate::chords::chord(crate::chords::Fixed::ShellZen)));
+    for (control, _, kids, mut tooltip) in &mut controls {
+        let Some(words_at) = kids.iter().find(|kid| texts.contains(*kid)) else { continue };
+        let Ok(mut text) = texts.get_mut(words_at) else { continue };
+        let (reworded, renamed) = (text.0 != words, tooltip.text != tip);
+        if reworded {
+            text.0.clone_from(&words);
+        }
+        if renamed {
+            tooltip.text.clone_from(&tip);
+        }
+        if reworded || renamed {
+            commands.entity(control).insert(AccessibleLabel::new(format!("{words} of the window — {next}")));
+        }
+    }
+}
+
+/// **A click on the control is Look, or Work** ([`look_or_work`]), as the chord is.
+fn the_art_share_flips_the_view(
+    mut click: On<bevy::picking::events::PointerClick>,
+    controls: Query<(), With<ArtShare>>,
+    mut view: ResMut<ShellView>,
+    mut focus: ResMut<crate::terminal_pane::TerminalFocus>,
+    bindings: Res<bevy_gooey::BindingSettings>,
+    mut commands: Commands,
+) {
+    if !controls.contains(click.entity) {
+        return;
+    }
+    click.propagate(false);
+    look_or_work(&mut view, &mut focus, &bindings, &mut commands);
+}
+
+/// **In Look the control floats on the window's root, in Work it stands in the band where it was** (#669).
+///
+/// Look folds the status band with the rest ([`fold_the_shell`]), and a folded node's children are not drawn, so
+/// the control is moved, not left behind: onto [`Frame::root`], `Absolute` at the bottom-right corner a step in,
+/// which takes no room from the art. Work puts it back at the place in the band it was taken from, so the band
+/// and the rects are what they were before the first press.
+fn float_the_art_share(
+    view: Res<ShellView>,
+    frame: Option<Res<Frame>>,
+    mut controls: Query<(Entity, &ChildOf, &mut Node), With<ArtShare>>,
+    children: Query<&Children>,
+    mut home: Local<usize>,
+    mut commands: Commands,
+) {
+    let Some(frame) = frame else { return };
+    let look = view.the_rest_is_hidden();
+    let inset = Val::Px(crate::chrome::space(crate::chrome::STEP_PAD));
+    let in_band = |control: Entity| children.get(frame.status).ok().and_then(|kids| kids.iter().position(|kid| kid == control));
+    for (control, parent, mut node) in &mut controls {
+        let floating = parent.parent() == frame.root;
+        if look && !floating {
+            if let Some(at) = in_band(control) {
+                *home = at;
+            }
+            commands.entity(frame.root).add_child(control);
+            node.position_type = PositionType::Absolute;
+            node.right = inset;
+            node.bottom = inset;
+        } else if !look && floating {
+            let at = (*home).min(children.get(frame.status).map_or(0, |kids| kids.len()));
+            commands.entity(frame.status).insert_children(at, &[control]);
+            node.position_type = PositionType::Relative;
+            node.right = Val::Auto;
+            node.bottom = Val::Auto;
+        }
+    }
 }
 
 #[cfg(test)]
