@@ -50,12 +50,12 @@ pub struct GuidePlugin;
 
 impl Plugin for GuidePlugin {
     fn build(&self, app: &mut App) {
-        // `DebuggerPlugin` inits both of these, and it is **not** in `build_headless` — it binds a
-        // port. Same argument as `DebugCursor` in `harness.rs`: in Bevy 0.20 a missing `Res<T>`
-        // panics its system rather than skipping it, so a resource the editor's own code reads has to
-        // exist whether or not the transport does.
-        app.init_resource::<Checkpoints>()
-            .init_resource::<bevy_debugger_bevy::Guide>()
+        // **The guide is `bevy_debugger_bevy::GuidePlugin`**: `Guide`, `Checkpoints` and the one system that
+        // evaluates a step's checkpoint (`evaluate_checkpoint`, in `Last`). It is here, in the shared list, because
+        // the harness has no `DebuggerPlugin` (it binds a port) and a guide nothing evaluates never moves: on bevy_fairy
+        // 0.12+ the headless first-map tour sat on step one (#663). `DebuggerPlugin` adds it only when it is not there
+        // yet, and the shared list comes first in the binary and in every test, so the system is scheduled once.
+        app.add_plugins(bevy_debugger_bevy::GuidePlugin)
             // **Below the tab bar, because a capture showed it sitting on top of one.** The plugin's
             // default is 12 px, which here is exactly where MAP / MESHES / TILES live: the first
             // devshot came back with ANIM reading through the card. `insert_resource` rather than
