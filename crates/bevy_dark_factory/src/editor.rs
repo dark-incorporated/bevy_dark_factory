@@ -7143,7 +7143,9 @@ fn refresh_reload_list(
     live: Option<Res<crate::live::LiveWrite>>,
     lists: Query<Entity, With<ReloadList>>,
     mut news: Option<ResMut<ReloadNews>>,
+    mut outside: Option<ResMut<crate::project_index::OutsideFiles>>,
     mut local: Local<ReloadShown>,
+    mut followed: Local<Option<std::path::PathBuf>>,
 ) {
     use crate::reload_files::{self, Tone};
     let ReloadShown { lines: shown, since, drawn } = &mut *local;
@@ -7166,8 +7168,26 @@ fn refresh_reload_list(
     // project's header, and #662 folds the strip to its tab bar — so the sentence that says how to connect
     // was never on screen (`an_editor_that_does_not_read_verdicts_says_how_to_connect_one`, every run).
     // With no verdict on disk the header stays dim and the strip folds as #662 asks.
+    //
+    // **Whether the verdict is there is the index's answer, not a `stat` on this clock** (#501, the one
+    // watcher). The project index skips `.live/` (`files::SKIPPED_DIRS`), so the verdict's folder is
+    // followed through [`crate::project_index::OutsideFiles`] for its one name: its own thread stats it, and
+    // this reads the snapshot, which holds no filesystem. Followed once per folder; a project switch follows
+    // the new one.
+    let verdict_path = blueprint_model::live::Verdict::path(&project.project_dir);
+    let place = verdict_path.parent().zip(verdict_path.file_name().and_then(|n| n.to_str()));
+    let verdict_waits = match (outside.as_deref_mut(), place) {
+        (Some(outside), Some((dir, name))) => {
+            if followed.as_deref() != Some(dir) {
+                outside.follow(dir, &[name]);
+                *followed = Some(dir.to_path_buf());
+            }
+            outside.snapshot(dir).is_some_and(|listing| listing.stamp(name).is_some())
+        }
+        _ => false,
+    };
     if live.is_none()
-        && blueprint_model::live::Verdict::path(&project.project_dir).exists()
+        && verdict_waits
         && let Some((_, tone)) = now.first_mut()
     {
         *tone = Tone::Accent;
