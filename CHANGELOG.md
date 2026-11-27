@@ -2,6 +2,10 @@
 
 What each change added, newest first. A visible change has a clip: click the still to play it. `python3 tools/changelog/changelog.py page --open` plays them all in one page.
 
+## 2026-11-27
+
+- **dev-incremental** Incremental dev builds: an edit to the editor's crate rebuilds its tests in about 27 s instead of about 255 s *No clip: a build-profile change nobody sees; proved by the rust-speed-audit 2026-11-26 measurement (254-259 s -> 26-28 s) and a passing gate*
+
 ## 2026-11-25
 
 - **618** `d73cb2da` A closed comment issue's own grep is now a test, and four regressions it caught are fixed *No clip: a test and comment fixes; nobody can see this; proved by a_closed_comment_issues_grep_stays_clean*
