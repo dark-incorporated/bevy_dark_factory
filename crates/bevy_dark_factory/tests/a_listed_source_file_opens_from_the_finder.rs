@@ -11,8 +11,6 @@
 //! review saw the null. A path that is a row but that the editor cannot open is the same null, so both halves are one assertion here:
 //! the row exists, and choosing it puts the path in `file_outline.file` and takes the tab.
 
-use std::time::Duration;
-
 use bevy::input::ButtonState;
 use bevy::input::keyboard::{Key, KeyboardInput, NativeKey};
 use bevy::prelude::*;

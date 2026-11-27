@@ -42,6 +42,10 @@ pub const SEEN_BY_A_FAST_SWEEP_WITHIN: Frames = Frames::covering(Duration::from_
 /// announcement has had frames to do it: 300 ms at [`FRAME_PAUSE`].
 pub const AFTER_AN_UNRELATED_CHANGE: Frames = Frames::covering(Duration::from_millis(300), FRAME_PAUSE);
 
+/// How many frames the editor is stepped after a workspace's command is queued, so the workspace has opened: 300 ms at
+/// [`FRAME_PAUSE`].
+const AFTER_A_WORKSPACE_COMMAND: Frames = Frames::covering(Duration::from_millis(300), FRAME_PAUSE);
+
 /// The pause after each frame of a wait, so the index's own thread has the wall clock it needs between frames.
 pub const FRAME_PAUSE: Duration = Duration::from_millis(5);
 
@@ -120,7 +124,7 @@ pub fn open_workspace(app: &mut App, id: &str, expected: Workspace) {
     let command = commands::by_id(id).unwrap_or_else(|| panic!("`{id}` is not a command"));
     let live = *app.world().resource::<Live>();
     app.world_mut().resource_mut::<Chords>().queue(&command, live);
-    pump_for(app, Duration::from_millis(300));
+    pump_for(app, AFTER_A_WORKSPACE_COMMAND);
     assert_eq!(app.world().resource::<Workspace>(), &expected, "`{id}` did not open the workspace");
 }
 
