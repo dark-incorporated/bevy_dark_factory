@@ -10,9 +10,12 @@
 //!
 //! # The owner's call
 //!
-//! **The count gives way first, then the name ends with an ellipsis.** A piece's cost is recoverable from its
-//! tooltip; its name is not. So the name takes the width the row leaves, breaks only between words, and what
-//! does not fit is cut with `\u{2026}` — which is Bevy 0.20's `LineBreak::NoWrap` on a clipped box.
+//! **The count gives way, and a word that does not fit is cut with an ellipsis.** A piece's cost is recoverable from its
+//! tooltip; its name is not. So the name takes the width the row leaves and wraps only between words
+//! (`LineBreak::WordBoundary`), and a name of many words still wraps in its own column (#486). A *single* word wider than
+//! the column, which `bevy_text` 0.20 would break where the line runs out, is cut by the editor to fit and ends in `…`
+//! (`editor::fit_the_place_names`, reading the layout). A `NoWrap` name is laid out one line wide whatever the column,
+//! which the panel census measures as text hidden past the panel's content box (#494).
 //!
 //! # What this measures
 //!
@@ -62,11 +65,13 @@ fn editor(name: &str) -> App {
     app
 }
 
-/// **A drawn name: its words, its box, and the lines `bevy_text` laid it into.**
+/// **A drawn name: its words, its box, the lines `bevy_text` laid it into, and how far its layout runs past its box.**
 struct Drawn {
     words: String,
     box_width: f32,
     lines: Vec<String>,
+    /// Logical px the inked words run past their box: what the clip would cut through a letter.
+    past_the_box: f32,
 }
 
 /// **Every palette name the list drew**, in the order the list holds them.
@@ -77,64 +82,54 @@ struct Drawn {
 fn drawn_names(app: &mut App) -> Vec<Drawn> {
     let world = app.world_mut();
     let mut query = world.query_filtered::<(Entity, &Text, &ComputedNode), With<PaletteName>>();
-    let names: Vec<(Entity, String, f32)> = query
+    let names: Vec<(Entity, String, f32, f32)> = query
         .iter(world)
-        .map(|(entity, text, node)| (entity, text.0.clone(), node.size().x * node.inverse_scale_factor()))
+        .map(|(entity, text, node)| (entity, text.0.clone(), node.size().x * node.inverse_scale_factor(), node.inverse_scale_factor()))
         .collect();
     let mut out = Vec::new();
-    for (entity, words, box_width) in names {
+    for (entity, words, box_width, to_logical) in names {
         let Some(info) = world.get::<TextLayoutInfo>(entity) else {
             // Not laid out (a name off screen, or the first frame): its break cannot be measured, and saying
             // so is better than reading zero lines as "whole".
             continue;
         };
         let lines = lines_of(info, &words);
-        out.push(Drawn { words, box_width, lines });
+        // **Ink, not the layout's box**: a line's trailing space is laid out past the box on a name that fits.
+        let ink_right = words
+            .chars()
+            .zip(&info.glyphs)
+            .filter(|(ch, _)| !ch.is_whitespace())
+            .map(|(_, g)| g.position.x + g.atlas_info.rect.width() / 2.0)
+            .fold(0.0f32, f32::max);
+        let past_the_box = ink_right * to_logical - box_width;
+        out.push(Drawn { words, box_width, lines, past_the_box });
     }
     out.sort_by(|a, b| a.words.cmp(&b.words));
     out
 }
 
-/// **The words on each drawn line**, regrouped from the glyphs' own line indices.
+/// **The words on each drawn line**, read off the glyphs' own line indices.
 ///
-/// A glyph does not carry its character — `FontAtlas` holds the raster, not the text — so the count of glyphs
-/// per line is what the layout gives, and the characters are walked back out of `words` in that order. A space
-/// takes no glyph on a line of its own; it is the break itself, so it is credited to neither line.
+/// A glyph does not carry its character — `FontAtlas` holds the raster, not the text — but `bevy_text` 0.20 lays out
+/// **one glyph per character, a space included** (measured: `Water dispenser` is fifteen glyphs, the space the sixth, on
+/// the first line). So the `n`th character stands on the `n`th glyph's line. A layout whose glyph count is not the
+/// text's is not one this can read, and saying so beats guessing which character a glyph is.
 fn lines_of(info: &TextLayoutInfo, words: &str) -> Vec<String> {
     if info.glyphs.is_empty() {
         return Vec::new();
     }
+    let chars: Vec<char> = words.chars().collect();
+    assert_eq!(
+        info.glyphs.len(),
+        chars.len(),
+        "`{words}` laid out {} glyphs for {} characters, so its lines cannot be read character by character",
+        info.glyphs.len(),
+        chars.len()
+    );
     let count = info.glyphs.iter().map(|g| g.line_index).max().unwrap_or(0) as usize + 1;
-    let mut per_line = vec![0usize; count];
-    for glyph in &info.glyphs {
-        if let Some(at) = per_line.get_mut(glyph.line_index as usize) {
-            *at += 1;
-        }
-    }
     let mut lines = vec![String::new(); count];
-    let mut at = 0usize;
-    let mut line = 0usize;
-    for ch in words.chars() {
-        while line < count && per_line[line] == 0 {
-            line += 1;
-        }
-        if line >= count {
-            break;
-        }
-        if ch == ' ' {
-            // A space at a break belongs to no line; a space between two words on one line does.
-            if lines[line].is_empty() {
-                continue;
-            }
-            lines[line].push(ch);
-            continue;
-        }
-        lines[line].push(ch);
-        at += 1;
-        if at >= per_line[line] {
-            at = 0;
-            line += 1;
-        }
+    for (ch, glyph) in chars.into_iter().zip(&info.glyphs) {
+        lines[glyph.line_index as usize].push(ch);
     }
     lines.into_iter().map(|line| line.trim().to_owned()).filter(|line| !line.is_empty()).collect()
 }
@@ -169,6 +164,16 @@ fn no_place_rows_name_breaks_inside_a_word() {
                     name.words
                 ));
             }
+        }
+    }
+    // **A word that does not fit is cut with `…`, not by the clip** (#693): a whole word laid out past the box is the
+    // `Water dispe` the review saw, broken by the panel's edge instead of by the layout.
+    for name in &drawn {
+        if name.past_the_box > 0.5 {
+            broken.push(format!(
+                "`{}` is laid out {:.1} px past its {:.1} px box, so the clip cuts a word mid-letter",
+                name.words, name.past_the_box, name.box_width
+            ));
         }
     }
     assert!(

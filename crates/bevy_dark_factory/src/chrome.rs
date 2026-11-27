@@ -3012,18 +3012,19 @@ pub fn text_narrows() -> impl Bundle {
     )
 }
 
-/// **A name that never breaks inside a word** (#693): the width its row leaves, clipped, with `Word` breaking and a real `\u{2026}`
-/// for what does not fit.
+/// **A name that never breaks inside a word** (#693): the width its row leaves, clipped, wrapping only between words.
 ///
 /// The crate breaks at a letter on purpose wherever it does (`chrome::fill_text`, `LineBreak::WordOrCharacter` — #535, #481): a
 /// file name such as `surveillance_console.glb` is one word wider than its column, and cutting it at a letter is better than
 /// drawing it past the panel. **A piece's name in the PLACE list is the other case**: `Fridge` broke as `Fridg` / `e` at 1100 px wide
 /// because the column was narrower than the word, and a name in a list of things a person recognises is read whole or not at all.
-/// So the name takes the width the row leaves, breaks only between words, and ends what does not fit in an ellipsis.
+/// So the name takes the width the row leaves and wraps only between words.
 ///
-/// **`NoWrap` rather than `Word`**: this text is one line of a list row, and `Word` on a box narrower than its longest word still
-/// breaks that word. `NoWrap` never does; `TextLayout::linebreak` is Bevy 0.20's ellipsis, so a name too wide for its column is
-/// cut with `\u{2026}` instead of being drawn over the count beside it.
+/// **`WordBoundary`, not `NoWrap`**: a long name of many words wraps in its own column and grows its own row (#486). A `NoWrap`
+/// name is laid out one line wide however narrow the column, so the panel census measured its long names hundreds of px past the
+/// PLACE panel's content box, hidden by the clip and unreadable (#494). `bevy_text` 0.20 still breaks a *single* word wider than
+/// the line where the line runs out, and has no ellipsis, so the editor's `fit_the_place_names` reads the layout and cuts such a
+/// word to fit with a trailing `\u{2026}`.
 pub fn a_name_that_never_breaks_inside_a_word() -> impl Bundle {
     (
         bevy_gooey::Role::Sized,
@@ -3034,7 +3035,7 @@ pub fn a_name_that_never_breaks_inside_a_word() -> impl Bundle {
             align: None,
         },
         bevy_gooey::Sizing { clip: Some(true), ..default() },
-        TextLayout::new(Justify::Left, LineBreak::NoWrap),
+        TextLayout::new(Justify::Left, LineBreak::WordBoundary),
     )
 }
 

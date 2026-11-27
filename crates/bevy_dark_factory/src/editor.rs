@@ -3059,7 +3059,7 @@ impl Plugin for EditorPlugin {
                             .after(apply_proposal),
                         draw_proposal,
                     ),
-                    (refresh_status, refresh_history, keep_now_in_view, the_history_header_reads_as_a_control),
+                    (refresh_status, refresh_history, keep_now_in_view, the_history_header_reads_as_a_control, fit_the_place_names),
                     // Nested — the tuple is at its twenty-system cap, and these are one rule: what
                     // the keys move must be on screen (the palette's row, the note box's text).
                     (
@@ -4409,11 +4409,12 @@ fn rebuild_palette(
                             ));
                             row.spawn((
                                 // **The name takes the row's width and never breaks inside a word** (#693, the
-                                // owner's *"count gives way"*): `toilet_roll_holder` is one word the row cannot
-                                // wrap, and `Fridge` broke as `Fridg` / `e` at 1100 px. A name is read whole or not
-                                // at all; what does not fit is cut with an ellipsis.
+                                // owner's *"count gives way"*): `Fridge` broke as `Fridg` / `e` at 1100 px. A name
+                                // wraps only between its words, so a long one still grows its own row (#486), and
+                                // a single word wider than the column is cut with `…` ([`fit_the_place_names`]).
                                 crate::chrome::a_name_that_never_breaks_inside_a_word(),
                                 Text::new(blueprint_model::naming::display_name(&d.id)),
+                                PlaceNameFit::new(blueprint_model::naming::display_name(&d.id)),
                                 TextColor(crate::chrome::ink().text),
                                 PaletteName,
                                 crate::chrome::typed(crate::chrome::text::BODY),
@@ -8387,7 +8388,6 @@ fn history_block(s: &mut ChildSpawnerCommands) {
 /// **The history section's id and its header's words.**
 const HISTORY_SECTION: &str = "history";
 
-/// The history's first line: the map before any change. Fits beside `now: ` in a list row at 200% text.
 /// **The history header's words are a control's, not a button's** — the retag `menu_bar::read_the_titles_as_controls`
 /// and `empty_state::read_as_a_control` make, for the same reason: gooey's `section` writes `Role::ButtonText` on its
 /// title, and this editor's tests count `ButtonText` over the whole world to say what a **dialog's answers** are
@@ -8408,6 +8408,7 @@ fn the_history_header_reads_as_a_control(
     }
 }
 
+/// The history's first line: the map before any change. Fits beside `now: ` in a list row at 200% text.
 const HISTORY_START_LINE: &str = "the original map";
 
 /// **The words of the history's line for `position`**, or `None` past the end. `0` is the map as it was before the first
@@ -9877,6 +9878,103 @@ fn paint_the_armed_mark(
             text.0 = want;
         }
     }
+}
+
+/// **A Place name's full words, and the row width it was last fitted to** (#693): what [`fit_the_place_names`] cuts from and
+/// gives back. The row's tooltip ([`palette_tooltip`]) names the piece whole whatever the row draws.
+#[derive(Component, Clone, Debug)]
+struct PlaceNameFit {
+    full: String,
+    row_w: f32,
+}
+
+impl PlaceNameFit {
+    /// A name not yet fitted: it draws whole until the layout says a word of it does not fit.
+    fn new(full: String) -> Self {
+        Self { full, row_w: 0.0 }
+    }
+}
+
+/// **A word wider than its Place row's name column is cut to fit, and ends in an ellipsis** (#693, owner's call).
+///
+/// The name wraps between its words (`chrome::a_name_that_never_breaks_inside_a_word`), so a long name of short words grows its
+/// own row (#486). A *single* word wider than the column is the case wrapping cannot answer: `bevy_text` 0.20 keeps the word
+/// whole on its line and lays it out past the box, where the clip cuts it mid-letter (`Water dispe`), and it has no ellipsis of
+/// its own. So the layout is read, not guessed: a word whose glyphs end past the box is cut to the share of its glyphs the box
+/// holds, less one for the `…`, and the next frame's layout checks it again — a cut that still ends past the box is cut once
+/// more, so the name settles in a frame or two and then writes nothing.
+/// **The row's width is the key**: when it changes (a resize, a text size) the name goes back to whole and is fitted afresh; the
+/// name's own box is not the key, because cutting a word changes the width the row gives it.
+fn fit_the_place_names(
+    mut names: Query<(&mut Text, &mut PlaceNameFit, &bevy::text::TextLayoutInfo, &ComputedNode, &ChildOf), With<PaletteName>>,
+    rows: Query<&ComputedNode, With<PaletteRow>>,
+) {
+    for (mut text, mut fit, layout, node, parent) in &mut names {
+        let Ok(row) = rows.get(parent.parent()) else { continue };
+        let row_w = row.size().x;
+        if (row_w - fit.row_w).abs() > 0.5 {
+            fit.row_w = row_w;
+            if text.0 != fit.full {
+                text.0 = fit.full.clone();
+            }
+            continue;
+        }
+        // Each glyph's inked edges in the layout: its position is the centre of its raster.
+        let edges: Vec<(f32, f32)> = layout
+            .glyphs
+            .iter()
+            .map(|g| (g.position.x - g.atlas_info.rect.width() / 2.0, g.position.x + g.atlas_info.rect.width() / 2.0))
+            .collect();
+        if let Some(cut) = cut_the_word_past_the_box(&text.0, &edges, node.size().x)
+            && cut != text.0
+        {
+            text.0 = cut;
+        }
+    }
+}
+
+/// **`words` with its first word that ends past `width` cut to what `width` holds and ended in `…`**, or `None` when every
+/// word is inside the box or the layout cannot be read.
+///
+/// `edges` is each glyph's left and right edge in the layout, one glyph per character (`bevy_text` 0.20 lays a space out as a
+/// glyph too, and a space is never what overflows: a line's trailing space is laid out past the box on a name that fits). A
+/// layout whose glyph count is not the text's (shaping that joined letters, a layout from before the last write) says nothing
+/// that can be read character by character, so it answers `None` and the next frame's layout is read instead. The word keeps
+/// the share of its glyphs `width` holds, one fewer for the ellipsis, and always at least one letter fewer than before, so a
+/// cut that still overflows shortens every frame until it fits.
+fn cut_the_word_past_the_box(words: &str, edges: &[(f32, f32)], width: f32) -> Option<String> {
+    let chars: Vec<char> = words.chars().collect();
+    if edges.len() != chars.len() {
+        return None;
+    }
+    let mut past: Option<(std::ops::Range<usize>, f32)> = None;
+    let mut at = 0;
+    while at < chars.len() && past.is_none() {
+        if chars[at].is_whitespace() {
+            at += 1;
+            continue;
+        }
+        let start = at;
+        while at < chars.len() && !chars[at].is_whitespace() {
+            at += 1;
+        }
+        let glyphs = &edges[start..at];
+        let right = glyphs.iter().fold(f32::NEG_INFINITY, |m, (_, r)| m.max(*r));
+        if right > width + 0.5 {
+            let left = glyphs.iter().fold(f32::INFINITY, |m, (l, _)| m.min(*l));
+            past = Some((start..at, right - left));
+        }
+    }
+    let (range, span) = past?;
+    let core: Vec<char> = chars[range.clone()].iter().copied().filter(|c| *c != '\u{2026}').collect();
+    // The glyphs the box holds, an ellipsis already there counted among them; one of them is the new `…`.
+    let held = (range.len() as f32 * width / span.max(f32::EPSILON)).floor() as usize;
+    let keep = held.saturating_sub(1).min(core.len().saturating_sub(1)).max(1);
+    let mut out: String = chars[..range.start].iter().collect();
+    out.extend(core.iter().take(keep));
+    out.push('\u{2026}');
+    out.extend(chars[range.end..].iter());
+    Some(out)
 }
 
 // ── placing ──────────────────────────────────────────────────────────────────────────────────────
@@ -19680,6 +19778,23 @@ mod tests {
     use blueprint_model::descriptor::{Descriptor, Extent};
     use blueprint_model::library::{LIBRARY_VERSION, Library};
     use blueprint_model::map::{Map, Placed};
+
+    /// **A word that ends past the box is cut to the share of its glyphs the box holds, less one for `…`** (#693):
+    /// `dispenser`, nine glyphs inked across 88 px, keeps five in a 60 px box; a cut that still overflows is cut again, and
+    /// a name inside its box (its trailing space included) is left alone.
+    #[test]
+    fn a_word_past_the_box_is_cut_with_an_ellipsis() {
+        // A glyph every 10 px, 8 px of ink centred in each.
+        let edges = |n: usize| (0..n).map(|i| (i as f32 * 10.0 + 1.0, i as f32 * 10.0 + 9.0));
+        let water: Vec<(f32, f32)> = edges(6).chain(edges(9)).collect();
+        assert_eq!(cut_the_word_past_the_box("Water dispenser", &water, 60.0).as_deref(), Some("Water dispe\u{2026}"));
+        let again: Vec<(f32, f32)> = edges(6).chain(edges(6)).collect();
+        assert_eq!(cut_the_word_past_the_box("Water dispe\u{2026}", &again, 55.0).as_deref(), Some("Water disp\u{2026}"));
+        let fits: Vec<(f32, f32)> = edges(6).chain(edges(5)).collect();
+        assert_eq!(cut_the_word_past_the_box("Water disp\u{2026}", &fits, 55.0), None);
+        // **A layout that is not this text's** says nothing.
+        assert_eq!(cut_the_word_past_the_box("Fridge", &[(0.0, 9.0), (10.0, 19.0)], 5.0), None);
+    }
 
     /// **The deletion box lands on the grid `J` is showing.**
     ///
