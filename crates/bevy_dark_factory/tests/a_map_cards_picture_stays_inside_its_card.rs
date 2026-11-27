@@ -8,16 +8,26 @@
 //! fill runs x = 142..422 and its baked portrait runs x = 166..530 — the picture is **108 px past the
 //! card's right edge**, over the panel's border and into the gutter.
 //!
-//! # Why the panel is staged by its width, and why that is asserted first
+//! # Why the card's row is staged by its width, and why that is asserted first
 //!
-//! The card is the width its wrapping row leaves it, and that row's room is the panel's content
-//! width, so the same card at another panel width is another layout. The capture's panel is
-//! **380 physical px** (its border ran x = 89..469), which is what `fit_docks_to_the_window` settles
-//! at this window — but a staging that said so only in a comment would be a test that measures
-//! whatever the day's dock arithmetic produces. So the panel's width is **written** (`Sizing`, the
-//! component `fit_docks_to_the_window` writes on a real window; no `PrimaryWindow` is spawned, so
-//! nothing here argues with it) and the test's first assertion holds the drawn panel to the
-//! capture's 380 px. Every number below is then about the frame the note was taken on.
+//! The card is the width its wrapping row leaves it, so the same card in another row is another
+//! layout. On the capture that row's room was the content of a **380 physical px** panel (its border
+//! ran x = 89..469), a dock beside a viewport, and the card came out 280 px — narrower than the
+//! 384 px (160 logical) picture box, which is the whole defect.
+//!
+//! **That panel is no longer one a person can reach** (#694, the owner's "the panel fills the
+//! centre"). The Project workspace's panel takes the centre and follows its pane every frame
+//! (`the_left_panel_follows_its_pane`), so a width written on it is overwritten, and its divider is
+//! out of the layout. Measured at `ui_scale` 2.4: at the harness's 1536 px surface the panel is
+//! 1419 px, and narrowing the surface to 497 px leaves it 1381 px, because the frame will not lay
+//! out narrower than its own content (1498 px). A card there is its full 184 logical px (441.6
+//! physical), wider than the picture, so a panel-width staging would measure a card the defect
+//! cannot touch and pass with the #515 fix reverted.
+//!
+//! So the staging is the **card's own row**: its width is written (`Sizing`) to the room the
+//! capture's panel left the card, and the test's first assertion holds the drawn card to the
+//! capture's 280 px. Every number below is then about the card the note was taken on, which is the
+//! narrow card any wrapping row narrower than a card makes.
 //!
 //! # What is measured
 //!
@@ -29,21 +39,14 @@ use bevy::ui::{ComputedNode, UiGlobalTransform, UiScale};
 use bevy_gooey::Role;
 
 use bevy_dark_factory::harness;
-use bevy_dark_factory::project_page::{MapCard, WorkspacePage};
+use bevy_dark_factory::project_page::MapCard;
 use bevy_dark_factory::workspace::Workspace;
 
 use crate::fixtures;
 use crate::settle_support;
 
-/// **The capture's panel**, physical px: its border ran x = 89..469.
-const CAPTURE_PANEL_PX: f32 = 380.0;
-
 /// The capture's `ui_scale`, which is the harness's own 1.2 at a 2.0 display factor.
 const CAPTURE_UI_SCALE: f32 = 2.4;
-
-/// How far the staged panel may stand from the capture's width, physical px — a whole-pixel layout
-/// round on either border.
-const WIDTH_SLACK_PX: f32 = 2.0;
 
 /// **The capture's card**, physical px: its fill ran x = 142..422.
 const CAPTURE_CARD_PX: f32 = 280.0;
@@ -55,9 +58,6 @@ const CARD_SLACK_PX: f32 = 6.0;
 
 /// How far a drawn edge may stand past the edge it is held to, physical px: layout rounds.
 const SLACK_PX: f32 = 1.0;
-
-
-
 
 /// A node's border-box rect, physical px.
 fn border_box(world: &World, entity: Entity) -> Option<Rect> {
@@ -94,8 +94,8 @@ fn name_of(world: &World, entity: Entity) -> String {
     }
 }
 
-/// **The Project workspace as the owner met it**: a project with a baked portrait, the page's panel
-/// laid out at the capture's 380 physical px.
+/// **The Project workspace as the owner met it**: a project with a baked portrait, its map card's
+/// row given the room the capture's 380 physical px panel left the card (#694: see the module doc).
 fn editor(tag: &str) -> App {
     let root = fixtures::Fixture::new(&format!("map_card_picture_{tag}_{}", std::process::id()))
         .descriptor("site/wall", "alpha")
@@ -113,51 +113,44 @@ fn editor(tag: &str) -> App {
     // **The door the capture was taken in**: the Project workspace inside the editor, not the home.
     *app.world_mut().resource_mut::<Workspace>() = Workspace::Project;
     settle_support::settle(&mut app);
-    // **The capture's window and interface size**, stated rather than inferred: `UiScale` is what
+    // **The capture's interface size**, stated rather than inferred: `UiScale` is what
     // `surface::fit_surface_to_window` writes from the window's density, and no window is spawned, so
     // the number this test sets is the number every `Val::Px` is multiplied by.
     app.world_mut().resource_mut::<UiScale>().0 = CAPTURE_UI_SCALE;
-    let panel = app
+    // **The card's row, at the room the capture's panel left the card** (#694): the panel takes the
+    // centre now and cannot be narrowed to the capture's 380 px, so the row the card wraps in is
+    // written instead. Nothing writes this row's width but this test.
+    let card = app
         .world_mut()
-        .query_filtered::<Entity, With<WorkspacePage>>()
+        .query_filtered::<Entity, With<MapCard>>()
         .single(app.world())
-        .expect("the Project workspace draws its page");
-    app.world_mut()
-        .get_mut::<bevy_gooey::Sizing>(panel)
-        .expect("the page's panel is a sized box")
-        .width = Some(bevy_gooey::Extent::Px(CAPTURE_PANEL_PX / CAPTURE_UI_SCALE));
+        .expect("the project's map has a card");
+    let row = app.world().get::<ChildOf>(card).expect("the card stands in its row").parent();
+    let width = Some(bevy_gooey::Extent::Px(CAPTURE_CARD_PX / CAPTURE_UI_SCALE));
+    match app.world_mut().get_mut::<bevy_gooey::Sizing>(row) {
+        Some(mut sizing) => sizing.width = width,
+        None => {
+            app.world_mut().entity_mut(row).insert(bevy_gooey::Sizing { width, ..default() });
+        }
+    }
     settle_support::settle(&mut app);
     app
 }
 
-/// **The map card's picture is drawn inside the card, at the width the capture's panel took.**
+/// **The map card's picture is drawn inside the card, at the width the capture's card took.**
 #[test]
 fn a_map_cards_picture_stays_inside_its_card() {
     let mut app = editor("project");
-    let panel = app
-        .world_mut()
-        .query_filtered::<Entity, With<WorkspacePage>>()
-        .single(app.world())
-        .expect("the Project workspace draws its page");
-
-    // **The staging, proved before the defect is measured.** A panel of some other width gives the
-    // card row some other room, and this issue is about the room the capture's panel left.
-    let panel_box = border_box(app.world(), panel).expect("the page's panel is laid out");
-    assert!(
-        (panel_box.width() - CAPTURE_PANEL_PX).abs() <= WIDTH_SLACK_PX,
-        "the Project panel is drawn {:.1} px wide, not the {CAPTURE_PANEL_PX:.0} px the capture ran \
-         (its border went x = 89..469) — this is not the layout #515 was filed about",
-        panel_box.width()
-    );
-
     let card = app
         .world_mut()
         .query_filtered::<Entity, With<MapCard>>()
         .single(app.world())
         .expect("the project's map has a card");
     let card_box = border_box(app.world(), card).expect("the card is laid out");
-    // **And the card, which is the div the note names.** The capture's card is 280 px; a card wider
-    // than that has more room than the owner's did and would pass on a layout nobody complained of.
+    // **The staging, proved before the defect is measured: the card, which is the div the note
+    // names.** The capture's card is 280 px; a card wider than that has more room than the owner's
+    // did (the full 441.6 px card a centred panel draws is wider than the 384 px picture) and would
+    // pass on a layout nobody complained of.
     assert!(
         (card_box.width() - CAPTURE_CARD_PX).abs() <= CARD_SLACK_PX,
         "the map card is drawn {:.1} px wide, not the {CAPTURE_CARD_PX:.0} px the capture's fill ran \
