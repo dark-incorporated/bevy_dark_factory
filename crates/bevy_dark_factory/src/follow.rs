@@ -77,15 +77,24 @@ pub const DEFERRED_FRAMES_MAX: u32 = 600;
 /// has arrived, short enough not to become decoration.
 pub const FOLLOW_OUTLINE_S: f32 = 1.5;
 
-/// **What the history calls an agent**, so the receipt and the history row name the same actor. A
-/// person reading either reads "the NightShift".
-pub const FAMILIAR: &str = "the NightShift";
+/// The in-editor agent's name, spelled once: the Agent panel's title and every history and receipt
+/// sentence ("the NightShift placed bed@1") are built from it, so they cannot name the actor two ways.
+macro_rules! agent_name {
+    () => {
+        "NightShift"
+    };
+}
+
+pub const AGENT_NAME: &str = agent_name!();
+
+/// [`AGENT_NAME`] as a sentence's subject.
+pub const THE_AGENT: &str = concat!("the ", agent_name!());
 
 /// **A change in the history's words**: `the NightShift placed bed@1`. The receipt the person reads
 /// after the camera moves is that sentence, so the row and the receipt cannot describe one change two
 /// ways.
 pub fn as_the_night_shift(summary: &str) -> String {
-    format!("{FAMILIAR} {summary}")
+    format!("{THE_AGENT} {summary}")
 }
 
 /// **A place the camera is asked to go**, and the pieces to ring once it is there.
@@ -307,7 +316,7 @@ impl Following {
         self.waiting = self.queue.front().map(|(request, said, _)| {
             said.clone()
                 .filter(|s| !s.is_empty())
-                .unwrap_or_else(|| format!("{FAMILIAR} changed {}", request.words()))
+                .unwrap_or_else(|| format!("{THE_AGENT} changed {}", request.words()))
         });
     }
 
@@ -610,7 +619,7 @@ pub fn look_at_the_change(
     }
     following.look_now();
     if let Some(state) = state.as_mut() {
-        state.status.note(format!("looking at what {FAMILIAR} changed"));
+        state.status.note(format!("looking at what {THE_AGENT} changed"));
     }
 }
 
@@ -660,7 +669,7 @@ fn look_on_the_key(
     }
     following.look_now();
     if let Some(state) = state.as_mut() {
-        state.status.note(format!("looking at what {FAMILIAR} changed"));
+        state.status.note(format!("looking at what {THE_AGENT} changed"));
     }
 }
 
@@ -813,7 +822,7 @@ fn take_the_follow_request(
                 following.deferred.clear();
                 following.deferred_for = 0;
                 if let Some(state) = state.as_mut() {
-                    state.status.problem(format!("{FAMILIAR}'s change could not be framed: the Map camera has no viewport"));
+                    state.status.problem(format!("{THE_AGENT}'s change could not be framed: the Map camera has no viewport"));
                 }
             }
         }
@@ -982,7 +991,7 @@ fn take_the_follow_request(
         Err(why) => {
             if let Some(state) = state.as_mut() {
                 state.status.problem(format!(
-                    "{FAMILIAR}'s change could not be framed: {why}"
+                    "{THE_AGENT}'s change could not be framed: {why}"
                 ));
             }
             return;

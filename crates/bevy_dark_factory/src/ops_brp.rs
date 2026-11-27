@@ -1235,7 +1235,7 @@ impl Gates<'_, '_> {
         let Some(request) = crate::follow::request_of(shown) else {
             return;
         };
-        let about_to = format!("{} is about to {summary}", crate::follow::FAMILIAR);
+        let about_to = format!("{} is about to {summary}", crate::follow::THE_AGENT);
         if let Some(following) = self.following.as_mut() {
             following.request_a_preview(request, about_to.clone());
         }

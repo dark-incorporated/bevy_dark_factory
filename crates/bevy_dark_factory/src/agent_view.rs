@@ -188,7 +188,7 @@ fn spawn_agent_panel(mut commands: Commands, frame: Res<Frame>, pause: Res<Agent
     let root = chrome::panel_root(&mut commands, &frame, Side::Left, crate::style::metrics().layout.controls_w, true, false, "AGENT").insert(AgentRoot).id();
     let mut pane = Entity::PLACEHOLDER;
     commands.entity(root).with_children(|p| {
-        chrome::title(p, "FAMILIAR");
+        chrome::title(p, &crate::follow::AGENT_NAME.to_uppercase());
         // FOLLOW-OK: a block of lines, buttons and rows, not a list the arrows walk: the scroll exists for height.
         pane = chrome::scroll_list(p, AgentPane).id();
     });
