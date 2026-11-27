@@ -656,10 +656,10 @@ fn the_text_roles_table_states_the_sheets_sizes() {
 
 /// **The symbol citations in `docs/design/text-roles.md` land on the symbol they name.**
 ///
-/// `chrome::section` was cited at `chrome.rs:991` and sat at `:827`; the role module was cited at `:690` and sat at
-/// `:531` (#566). The line number is read from the page, not pinned here: pinning it made this test and the citation
-/// resolver demand different numbers whenever `chrome.rs` moved (#680). The page must still cite each symbol, and
-/// the line it gives must be that symbol's declaration.
+/// The page once cited both symbols at lines far from where they sat (#566). The line number is read from the page,
+/// not pinned here: pinning it made this test and the citation resolver demand different numbers whenever
+/// `chrome.rs` moved (#680). The page must still cite each symbol, and the line it gives must be that symbol's
+/// declaration.
 #[test]
 fn the_text_roles_citations_land_on_their_symbols() {
     let doc = read("docs/design/text-roles.md");
