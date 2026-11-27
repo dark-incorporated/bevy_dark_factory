@@ -199,9 +199,13 @@ fn shown(app: &mut App) -> Shown {
             out.headings.push((colour, ground));
         }
     }
-    let mut rows = world.query::<(Entity, &RowRest, &BackgroundColor, &BorderColor, Has<bevy::ui_widgets::Button>, Has<Children>)>();
-    let found: Vec<(Entity, Color, Color, bool, bool)> =
-        rows.iter(world).map(|(e, _, fill, border, button, children)| (e, fill.0, border.top, button, children)).collect();
+    // A list row is gooey's `Role::ListRow` and carries no `RowRest` since #552; it is still a row measured here.
+    let mut rows = world.query::<(Entity, Has<RowRest>, Option<&bevy_gooey::Role>, &BackgroundColor, &BorderColor, Has<bevy::ui_widgets::Button>, Has<Children>)>();
+    let found: Vec<(Entity, Color, Color, bool, bool)> = rows
+        .iter(world)
+        .filter(|(_, chip, role, ..)| *chip || matches!(role, Some(bevy_gooey::Role::ListRow)))
+        .map(|(e, _, _, fill, border, button, children)| (e, fill.0, border.top, button, children))
+        .collect();
     for (entity, fill, edge, button, children) in found {
         let names: Vec<String> = world.inspect_entity(entity).map(|c| c.map(|(_, info)| info.name().shortname().to_string()).collect()).unwrap_or_default();
         out.row_names.push(format!("{entity:?} [{}]", names.join(", ")));

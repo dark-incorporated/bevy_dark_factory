@@ -232,7 +232,7 @@ fn spawn_the_overlay(world: &mut World, answer: &Result<Inspection, String>) {
             // the launcher too, where the editor's global `Activate` observers have no project to read.
             let words = format!("{}  {}  specificity {}  {}", rule.selector, place, rule.specificity, rule.sets);
             panel
-                .spawn((crate::chrome::quiet_row_shape(false), InspectorRuleRow(rule.clone()), Pickable::default()))
+                .spawn((crate::chrome::quiet_row_shape(), InspectorRuleRow(rule.clone()), Pickable::default()))
                 .with_children(|row| {
                     row.spawn(line(words, ink.accent));
                 })

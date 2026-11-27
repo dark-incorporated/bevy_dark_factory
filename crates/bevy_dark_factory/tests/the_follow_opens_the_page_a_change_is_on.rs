@@ -334,7 +334,7 @@ fn a_compositions_page_opens_on_the_compose_panel_with_that_group_selected() {
         "the Compose panel's selection is {names:?}[{}], not the group the change defined",
         state.selected
     );
-    // **The group's own row**: several rows carry `RowSelected` — the armed group, the focused
+    // **The group's own row**: several rows are selected — the armed group, the focused
     // member — so the id drawn on the row is what names the one the change was to. Found by walking
     // up from the text itself, which is the row's own child.
     let row = {
@@ -351,10 +351,10 @@ fn a_compositions_page_opens_on_the_compose_panel_with_that_group_selected() {
                 panic!("no text draws the group `corner`; the panel draws {drawn:?}")
             });
         let mut owner = world.query::<&ChildOf>();
-        let mut selected = world.query::<&bevy_dark_factory::chrome::RowSelected>();
+        let mut selected = world.query::<&bevy_gooey::Role>();
         let mut at = at;
         loop {
-            if selected.get(world, at).is_ok() {
+            if selected.get(world, at).is_ok_and(|role| matches!(role, bevy_gooey::Role::ListRow)) {
                 break at;
             }
             let Ok(parent) = owner.get(world, at) else {

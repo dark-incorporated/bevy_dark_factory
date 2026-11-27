@@ -15222,7 +15222,7 @@ fn walking_the_candidate_list_records_no_history() {
 /// **N7, M9, M15 in one assertion.** The row survives the keystroke and the highlight moves.
 #[test]
 fn a_keystroke_does_not_respawn_the_list() {
-    use bevy_dark_factory::chrome::RowSelected;
+    use bevy::ui::Selected;
     use bevy_dark_factory::keys::{Action, binding};
     use bevy_dark_factory::tiles::CandidateRow;
     let root = Fixture::new("no-respawn")
@@ -15237,10 +15237,10 @@ fn a_keystroke_does_not_respawn_the_list() {
     }
     let selected = import_state(&app).selected;
     let row_of = |app: &mut App, ix: usize| -> (Entity, bool) {
-        let mut q = app.world_mut().query::<(Entity, &CandidateRow, &RowSelected)>();
+        let mut q = app.world_mut().query::<(Entity, &CandidateRow, Has<Selected>)>();
         q.iter(app.world())
             .find(|(_, r, _)| r.0 == ix)
-            .map(|(e, _, s)| (e, s.0))
+            .map(|(e, _, s)| (e, s))
             .unwrap_or_else(|| panic!("no row for candidate {ix}"))
     };
     let (first, armed) = row_of(&mut app, selected);

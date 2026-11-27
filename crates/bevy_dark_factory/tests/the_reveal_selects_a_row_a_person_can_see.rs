@@ -196,10 +196,10 @@ fn selected_row_drawing(app: &mut App, prefix: &str) -> Entity {
             panic!("no text starts with `{prefix}`; the editor draws {drawn:?}")
         });
     let mut owner = world.query::<&ChildOf>();
-    let mut selected = world.query::<&bevy_dark_factory::chrome::RowSelected>();
+    let mut selected = world.query_filtered::<(), With<bevy::ui::Selected>>();
     let mut at = at;
     loop {
-        if selected.get(world, at).is_ok_and(|s| s.0) {
+        if selected.get(world, at).is_ok() {
             return at;
         }
         let Ok(parent) = owner.get(world, at) else {
@@ -332,7 +332,7 @@ fn the_packs_section_the_reveal_opened_is_on_screen() {
         "the project configuration did not open on its packs section: {drawn:?}"
     );
     // **The pack's own row**, which is a gooey `toggle` rather than a `chrome::list_row` — the
-    // project configuration draws switches, and `RowSelected` is a list-row marker. Found by the
+    // project configuration draws switches, and a selected list row is a `chrome::list_row`. Found by the
     // words the switch carries, then measured against the list that scrolls it.
     let row = {
         let world = app.world_mut();
@@ -375,17 +375,17 @@ fn the_notes_row_the_reveal_selected_is_drawn_selected_and_inside_the_panel() {
     // between looks it is idle, so `settle` returned before the selection reached a row (the 2026-11-23 gate).
     settle_support::until(&mut app, "the Notes list draws note-1 selected", |app| {
         let world = app.world_mut();
-        let mut q = world.query::<(&bevy_dark_factory::editor::NoteRow, &bevy_dark_factory::chrome::RowSelected)>();
-        q.iter(world).any(|(r, s)| r.id == "note-1" && s.0)
+        let mut q = world.query_filtered::<&bevy_dark_factory::editor::NoteRow, With<bevy::ui::Selected>>();
+        q.iter(world).any(|r| r.id == "note-1")
     });
 
     // **The row the list drew for the selected note**, by the marker the reveal set.
     let row = {
         let world = app.world_mut();
-        let mut q = world.query::<(Entity, &bevy_dark_factory::editor::NoteRow, &bevy_dark_factory::chrome::RowSelected)>();
+        let mut q = world.query_filtered::<(Entity, &bevy_dark_factory::editor::NoteRow), With<bevy::ui::Selected>>();
         q.iter(world)
-            .find(|(_, r, s)| r.id == "note-1" && s.0)
-            .map(|(e, ..)| e)
+            .find(|(_, r)| r.id == "note-1")
+            .map(|(e, _)| e)
             .unwrap_or_else(|| panic!("the Notes list did not draw note-1 as the selected row"))
     };
     let list = scrollable_ancestor(&mut app, row);

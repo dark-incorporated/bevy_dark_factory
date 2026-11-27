@@ -2,6 +2,10 @@
 
 What each change added, newest first. A visible change has a clip: click the still to play it. `python3 tools/changelog/changelog.py page --open` plays them all in one page.
 
+## 2026-11-27
+
+- **552** Every list row is gooey's `ListRow`: a selected row carries Bevy's `Selected` and the skin paints its fill and lights its rail, so the editor's second row painter (`RowSelected`, the rows' `RowRest`) is gone *For you: list rows (the palette, the Pieces lists, Notes, Compose, the console) now take the theme's own surface, hover and selected colours; no clip: not captured on this branch; proved by every_selected_row_reads_at_aa_contrast_in_every_skin and the_files_trees_selected_row_reads_at_aa_in_every_skin*
+
 ## 2026-11-25
 
 - **618** `d73cb2da` A closed comment issue's own grep is now a test, and four regressions it caught are fixed *No clip: a test and comment fixes; nobody can see this; proved by a_closed_comment_issues_grep_stays_clean*
