@@ -31,6 +31,10 @@ print(next(p["version"] for p in m["packages"] if p["name"] == "bevy_dark_factor
 NAME="Dark-Factory-$V-macos-arm64"
 echo "build_app.sh: Dark Factory $V, identity $IDENTITY, notarize $NOTARIZE"
 
+# The turn ledger names the build's commit; an installed app has no git beside it, so it is baked in here
+# (`turn_ledger::BUILD_COMMIT`). A release from a tree git cannot read is refused rather than stamped `unknown`.
+BLUEPRINT_BUILD_COMMIT="$(git rev-parse HEAD)" || { echo "build_app.sh: git cannot name HEAD" >&2; exit 1; }
+export BLUEPRINT_BUILD_COMMIT
 cargo build --release -p bevy_dark_factory --features family_all
 # The editor's own MCP server ships inside the app (#306), so an agent can drive an installed copy:
 # `ssh <mac> "'/Applications/Dark Factory.app/Contents/MacOS/dark_factory_mcp'"`.

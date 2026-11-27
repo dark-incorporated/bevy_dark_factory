@@ -56,8 +56,57 @@ use crate::turn_store::{
 };
 use crate::turn_questions::{Engine, EngineAnswer, FLOATING_LIFT_M, Input, Templates, questions_for};
 
-/// **The commit this build was made from**, stamped by `build.rs`; `unknown` when none could be found.
-pub const BUILD_COMMIT: &str = env!("BUILD_COMMIT");
+/// **The commit this build was made from**: `unknown` when none could be found.
+///
+/// A release bakes it in as `BLUEPRINT_BUILD_COMMIT` (`tools/release/macos/build_app.sh`); a development
+/// build asks git for the source tree's `HEAD` the first time it is read. It is deliberately not a
+/// compile-time input of a development build: a stamp that changes with every commit made every commit
+/// recompile the whole crate (#686).
+pub static BUILD_COMMIT: BuildCommit = BuildCommit(std::sync::LazyLock::new(BuildCommit::read));
+
+/// [`BUILD_COMMIT`]'s type: a string read once, on first use.
+pub struct BuildCommit(std::sync::LazyLock<String>);
+
+impl BuildCommit {
+    fn read() -> String {
+        if let Some(baked) = option_env!("BLUEPRINT_BUILD_COMMIT").map(str::trim).filter(|c| !c.is_empty()) {
+            return baked.to_owned();
+        }
+        std::process::Command::new("git")
+            .args(["-C", env!("CARGO_MANIFEST_DIR"), "rev-parse", "HEAD"])
+            .output()
+            .ok()
+            .filter(|out| out.status.success())
+            .map(|out| String::from_utf8_lossy(&out.stdout).trim().to_owned())
+            .filter(|commit| !commit.is_empty())
+            .unwrap_or_else(|| "unknown".to_owned())
+    }
+}
+
+impl std::ops::Deref for BuildCommit {
+    type Target = str;
+    fn deref(&self) -> &str {
+        &self.0
+    }
+}
+
+impl std::fmt::Display for BuildCommit {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self)
+    }
+}
+
+impl std::fmt::Debug for BuildCommit {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        std::fmt::Debug::fmt(&**self, f)
+    }
+}
+
+impl PartialEq<BuildCommit> for String {
+    fn eq(&self, other: &BuildCommit) -> bool {
+        self.as_str() == &**other
+    }
+}
 
 /// **How many frames in a row nothing on screen may change** before the after picture is taken: the camera's matrix, the rig and every
 /// placement the map draws are the same as the frame before. Twelve is a fifth of a second at 60 frames, the shortest run that is not one
