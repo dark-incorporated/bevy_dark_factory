@@ -3305,19 +3305,22 @@ pub fn quiet_row_shape() -> impl Bundle {
 /// `Button` row is pressed) and light the left rail in `skin.accent` while it is selected. Selecting a
 /// row is inserting `Selected`; nothing in the editor paints a row.
 ///
-/// What stays the editor's is the box, set over the arm the way [`chip`] sets its own: the rail alone,
-/// `layout.select_rail_w` wide and reserved whether or not the row is selected (so selecting moves no
-/// word), with no line round the rest; no height floor; and the sheet's `.chrome-row` inset.
+/// What stays the editor's is the box, set over the arm by the sheet's `.chrome-row` rule: the rail
+/// alone, two of the skin's lines wide and reserved whether or not the row is selected (so selecting
+/// moves no word), with no line round the rest, and the row's inset; plus no height floor.
+///
+/// **The rail is the sheet's `border`, not a `BorderPx`**: a sheet border is a `Shape` weight with no
+/// ink of its own, so the edge stays the `Role::ListRow` arm's (the accent while selected), and a
+/// `BorderPx` with neither `InkOverride` nor `InkFollow` is what
+/// `the_borders_and_paddings_are_gooeys::a_px_border_keeps_the_edge_colour_the_editor_gave_it` forbids.
+///
+/// **A row's `align_items` is set on its `Node`** (`entry::<Node>()`), never through a `RowLayout`:
+/// gooey writes a `RowLayout` only on layout containers, and a `ListRow` is not one, so the layout
+/// would be dropped and the row keep `quiet_list_row`'s `Center`.
 fn row_shape(classes: &str) -> impl Bundle {
     (
         bevy_gooey::quiet_list_row(),
         bevy_gooey::StyleClass::of(classes),
-        bevy_gooey::BorderPx(bevy_gooey::Sides {
-            left: Some(crate::style::metrics().layout.select_rail_w),
-            top: Some(0.0),
-            right: Some(0.0),
-            bottom: Some(0.0),
-        }),
         bevy_gooey::Sizing { min_height: Some(bevy_gooey::Extent::Auto), ..default() },
     )
 }

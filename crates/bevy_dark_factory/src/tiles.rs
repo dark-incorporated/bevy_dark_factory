@@ -8952,11 +8952,9 @@ fn draw_ink(
                 // for every merged-library GLB and, until 2026-09-04, displayed none of them —
                 // the only reader was `editor::rebuild_palette`, gated to the map door (N10).
                 //
-                // `align_items` is set through `entry` rather than a second `Node`, because a
-                // bundle carrying two of the same component panics at spawn.
+                // A `ListRow` already centres its cells (gooey's `quiet_list_row`), which is what this
+                // row wants beside its fixed-height portrait.
                 let mut library_row = crate::chrome::list_row(p, false, LibraryRow(id.clone()));
-                library_row
-                    .insert(bevy_gooey::RowLayout { direction: Some(FlexDirection::Row), align: Some(AlignItems::Center), ..default() });
                 library_row.with_children(|row| {
                     // **A gooey `image_box` of the slot's size**, holding its room while the thumbnail is baked. The ink carries only
                     // `portrait: bool` — a `Handle<Image>` in a compared value would make the comparison about handle identity — so
