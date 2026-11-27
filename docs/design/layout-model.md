@@ -62,7 +62,7 @@ window root                                   Sized, 100% x 100vh
 │  ├─ split (ShellSplit)                      SplitAxis::Horizontal, SplitFraction, SplitMin
 │  │  ├─ SplitPane  #1 (left)                 grid 1fr/1fr, flex_grow .5, overflow clip
 │  │  │  └─ Frame::left  (left dock)          column, as wide as its widest visible panel
-│  │  │     └─ … panels, each panel_root()    Sized, width = PanelWidth.preferred (squeezed)
+│  │  │     └─ … panels, each panel_root()    Panel, width = PanelWidth.preferred (squeezed)
 │  │  │        ├─ title / heading             text
 │  │  │        └─ scroll_list → ScrollViewport  fills what is left, scroll_y, rail as sibling
 │  │  ├─ SplitDivider                         `metrics.layout.divider_w` (12 px): the room the shell's split takes

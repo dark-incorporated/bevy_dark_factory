@@ -172,7 +172,7 @@ fn an_effects_write_with_nothing_derived_keeps_its_one_clause() {
 /// **The clause is right on a row the file had not caught up with** — the gap E-064's review found.
 ///
 /// `Project::open` settles the layered `library` but not `measured`, the copy this operation edits
-/// (`project.rs:251-255`). So a piece whose stored `effects` predate its kind's `implies` rule shows
+/// (the `Kits` stage of `Project::open` runs `labels::settle_library` over it). So a piece whose stored `effects` predate its kind's `implies` rule shows
 /// `[inert, powered]` on screen while the file still holds `[inert]`. On that row, an `effects: []`
 /// write was reported as **`+powered -inert`** — an *addition* — when `powered` was the effect the
 /// author asked to remove and the vocabulary put back.

@@ -186,13 +186,13 @@ fn editor(tag: &str, rigs: &str) -> App {
 
 /// **The legend's row**, found by its content.
 ///
-/// Six rows in the editor carry `FlexWrap::Wrap` (`anim_tab.rs:1497`, `chrome.rs:3030`, `editor.rs:7276`,
-/// `project_page.rs:517`, `:831`, `settings_screen.rs:1127`), so "the first wrapping row" is whichever the query
-/// happened to yield — the first version of this test took that and found a row whose children had no height,
-/// because it was not the legend at all.
+/// Six rows in the editor carry `FlexWrap::Wrap` (`chrome::wrapping_row`, `editor::refresh_notes_list`'s row,
+/// `anim_tab::rebuild_slots`' legend row, and the guide and settings grids), so "the first wrapping row" is
+/// whichever the query happened to yield — the first version of this test took that and found a row whose children
+/// had no height, because it was not the legend at all.
 ///
-/// The legend's cells hold `Text` reading `"<n> - clip <m>"` (`anim_tab.rs:1501`). That is the anchor: the row is
-/// the one with such a cell under it.
+/// The legend's cells hold `Text` reading `"<n> - clip <m>"`, spawned by `anim_tab::rebuild_slots`. That is the
+/// anchor: the row is the one with such a cell under it.
 fn the_legends_row(app: &mut App) -> Option<Entity> {
     let world = app.world_mut();
     // Every entity whose text is a legend cell ("0 - clip 0").
