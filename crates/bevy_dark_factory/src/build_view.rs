@@ -457,8 +457,7 @@ pub fn stop(root: &Path) -> bool {
     let Some(mut running) = with_table(|t| t.remove(root)) else { return false };
     running.shared.stopped.store(true, Ordering::Release);
     let pid = running.child.id();
-    #[cfg(unix)]
-    let _ = Command::new("kill").args(["-KILL", &format!("-{pid}")]).stderr(Stdio::null()).status();
+    crate::ops_play::kill_group(pid);
     let _ = running.child.kill();
     let _ = running.child.wait();
     true

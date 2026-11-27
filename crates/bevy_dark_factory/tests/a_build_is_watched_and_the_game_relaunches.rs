@@ -96,10 +96,8 @@ struct KillGroupOnDrop(u32);
 
 impl Drop for KillGroupOnDrop {
     fn drop(&mut self) {
-        let _ = std::process::Command::new("kill")
-            .args(["-KILL", &format!("-{}", self.0)])
-            .stderr(std::process::Stdio::null())
-            .status();
+        // The editor's own group kill, not the `kill` program (#697).
+        bevy_dark_factory::ops_play::kill_group(self.0);
     }
 }
 

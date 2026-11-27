@@ -593,8 +593,10 @@ impl Drop for Display {
         // **Asked, then made to**: `SIGTERM` is what lets `Xvfb` remove its own socket and lock file, and
         // `SIGKILL` (what `Child::kill` sends) is what left 42 dead sockets behind on big. The kill below
         // is for a server that ignored the request, and `-nolisten tcp` has nothing to flush.
-        let pid = self.child.id().to_string();
-        let _ = Command::new("kill").args(["-TERM", &pid]).status();
+        // The signal is `kill(2)` itself, not the `kill` program, whose parse of its arguments is the host's (#697).
+        if let Some(pid) = i32::try_from(self.child.id()).ok().and_then(rustix::process::Pid::from_raw) {
+            let _ = rustix::process::kill_process(pid, rustix::process::Signal::TERM);
+        }
         let deadline = Instant::now() + Duration::from_secs(DISPLAY_STOP_S);
         while Instant::now() < deadline {
             if matches!(self.child.try_wait(), Ok(Some(_))) {
@@ -1444,18 +1446,16 @@ pub fn wait_within(
 /// **Kill an agent's process group while its leader still runs, then the agent itself, and wait for it.**
 ///
 /// Answers whether the group was signalled. **A leader that was already reaped is not group-killed** (#432, D4):
-/// `kill -KILL -- -<pid>` on a number nothing holds prints `No such process` for every normal trial, and once the
-/// number is reused it can hit an unrelated group. A process still running keeps its group's number, so that is the
-/// only time the number is safe to signal.
+/// signalling a group whose number nothing holds fails with `ESRCH` for every normal trial, and once the number is
+/// reused it can hit an unrelated group. A process still running keeps its group's number, so that is the only time
+/// the number is safe to signal. The signal is `kill(2)` on `-pgid` itself, not the `kill` program, whose parse of a
+/// negative pid is the host's (#697).
 pub fn stop_group(child: &mut Child) -> bool {
     let running = matches!(child.try_wait(), Ok(None));
     if running {
-        let group = format!("-{}", child.id());
-        let _ = Command::new("kill")
-            .args(["-KILL", "--", &group])
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .status();
+        if let Some(group) = i32::try_from(child.id()).ok().and_then(rustix::process::Pid::from_raw) {
+            let _ = rustix::process::kill_process_group(group, rustix::process::Signal::KILL);
+        }
         let _ = child.kill();
     }
     let _ = child.wait();
