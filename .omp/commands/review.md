@@ -7,24 +7,26 @@ disable-model-invocation: true
 # bevy_dark_factory: a thorough review, one lens at a time
 
 This command is a **review that fixes what it can see and files the rest**. The visual lens sweeps every part of
-the UI, pictures what is drawn, and repairs the small, safe defects on the spot in its own worktree. The other six
+the UI, pictures what is drawn, and repairs the small, safe defects on the spot in its own worktree. The other seven
 lenses are finding work: each proves a defect with a measurement or a quote, files it on
 `dark-incorporated/bevy_dark_factory` as an issue that is cheap to answer, and groups the issues so the next build
 loop can take a cluster at a time. The repository is the memory: the open issues are what a review must not
 re-file, and each filed issue is the evidence.
 
-**Owner's rules that bind this command:** two agents at most unless the owner says otherwise (the pass
-says how many it took); every agent runs `ollama-cloud/deepseek-v4.1-flash:1017` through ollama cloud
-unless the owner has changed the model settings; `find the issues and make bug reports` (owner, 2026-11-23),
+**Owner's rules that bind this command:** **one reviewer does all eight lenses itself, with no sub-agents**
+(owner, 2026-11-27: *"Do not fire up sub-agents. Just review everything yourself."*) unless the invocation asks
+for agents by name — the earlier two-agent and six-agent shapes are retired, and so is the fixed model: the
+review runs on whatever model was asked to run it. `find the issues and make bug reports` (owner, 2026-11-23),
 **search the existing issues first**; **find groups of bugs that can be tackled together** and say the group
 in every issue you file; a review that changes no code never runs the gate.
 
 ## Before anything: what exists
 
 1. `gh issue list -R dark-incorporated/bevy_dark_factory --state open --limit 200 --json number,title,labels`
-   and the same for `--state closed --limit 200` (a thing fixed last week is not a finding; a thing filed and
-   declined is not a finding either — read the close reason). Put both lists in `/tmp/review/open.txt` and
-   `/tmp/review/closed.txt`, and **every agent reads them before it reports**.
+   and the same for `--state closed --limit 250` (a thing fixed last week is not a finding; a thing filed and
+   declined is not a finding either — read the close reason, **and who wrote it**: an agent's "not worth the
+   churn" on the owner's own feedback is a question for the owner, #689). Put both lists in `/tmp/review/open.txt`
+   and `/tmp/review/closed.txt`, and read them before filing anything.
 2. `git -C <worktree> log --oneline -40` for what just landed: a defect in code younger than a day may be a
    known gap, and the newer a doc is, the more likely it is right.
 3. `docs/PROJECT.md`, `docs/guide/README.md`, `docs/design/*.md`, `docs/ui/*.md`, `docs/mcp-tools.md`: the
@@ -37,9 +39,10 @@ in every issue you file; a review that changes no code never runs the gate.
 
 ## The eight lenses
 
-Each lens is one agent's whole job. **Two may run at once** (the driving/capture lenses need the GPU and the
-display, and two editors cannot share one BRP port); the other four run two at a time beside them. The pass
-names which agents it started and what it ran in parallel.
+One reviewer takes them in this order, because each one feeds the next: **the reading lenses first (3, 4, 5, 6,
+then 7 from the logs), the running editor last (1, 2 and 8 on one editor, one BRP port)**. The reading tells you
+which claims to test with the editor up, and the editor must wait for any gate anyway. The pass says what it
+read and what it drove.
 
 | # | Lens | How it is proved | Labels |
 |---|---|---|---|
@@ -52,7 +55,7 @@ names which agents it started and what it ran in parallel.
 | 7 | **Build and delivery speed**: where the build, the tests, CI or a release spends time that buys nothing | a measured wall-clock from the machine's own logs (`<git-dir>/gate.log`, `journalctl`, `tools/loop/fleet/timing.py`), the step it belongs to, and what the step catches that the step before it could not | `enhancement`, and `performance` where the repo has it |
 | 8 | **UI that can get out of the way**: where the editor's own chrome — panes, bars, badges, overlays, the terminal — takes space or attention a person making a game did not ask for, and what could collapse, hide or fade. Measured by what fraction of the window the game's own art occupies in each workspace. | a percentage of window area held by the editor's chrome, at two window sizes, and a named control that would give it back | `enhancement`, `ui` |
 
-### Lens 1: visual (agent `ReviewVisual`)
+### Lens 1: visual
 
 - Read `skill://bevy-stage-and-capture` and `skill://bevy-dark-factory-capture-issues` first. The editor's
   own captures (`Cmd+D`) are the ground truth when a person made one; a staged capture is the ground truth
@@ -69,7 +72,7 @@ names which agents it started and what it ran in parallel.
   | Group | What must be captured |
   |---|---|
   | Launcher | the project page, the What's new page, a map card, the filter field, Settings |
-  | Workspaces | every variant the `Workspace` enum names — Project, Map, World, Kit, Files, Animation, Design, Settings, Sound, Game — and name any that does not open |
+  | Workspaces | every variant the `Workspace` enum names — Project, Map, World, Kit, Animation, Sound, Files, Game, Agent, Design (ten, 2026-11-27) — and name any that does not open |
   | Panels | inspector (empty and with a long piece selected), place, library, kit rows, DATA table, design styles, notes, reload, audio buses/cues/log, terminal, console, notifications, problems list, world lists, animation bench, rig list, tile palette, compose, behaviours, crosslinks |
   | Overlays | command palette (empty and with a query), goto, keymap screen, a dialog (new project, a refusal), a menu open, the style inspector on a panel edge, the section cut, the status band, a tab strip with several tabs |
   | Sizes | the reference window **and** a narrow one (1100×700): a layout that only works wide is a defect |
@@ -141,7 +144,7 @@ names which agents it started and what it ran in parallel.
   one display, one BRP port.** Copy the binary to a scratch path first — a gate rebuilding `target/` will rewrite
   it under the run.
 
-### Lens 2: performance (agent `ReviewPerf`)
+### Lens 2: performance
 
 - **Measure on the running editor**, not on a bench: `bevy_fairy`'s frame time, the editor's own
   `UiFrame` budget, or the wall-clock of a scripted interaction (`tools/demo/record.py` with a storyboard,
@@ -159,11 +162,11 @@ names which agents it started and what it ran in parallel.
 - **Do not file**: a slow thing the docs already call slow with a number (confirm it in the issue's
   "current behaviour" and file only if the number has moved).
 
-### Lenses 3 and 4: documents and code, documents and documents (agent `ReviewDocs`)
+### Lenses 3 and 4: documents and code, documents and documents
 
 - **Build the map first**: one line per document (`docs/PROJECT.md`, `docs/guide/*.md`, `docs/design/*.md`,
   `docs/ui/*.md`, `docs/mcp-tools.md`, the READMEs, `AGENTS.md`) saying what fact it owns. Then read the
-  code the fact names. One agent can do both lenses; a pass with two free agents may split them.
+  code the fact names. Do both lenses from the one map.
 - **Every claim you check is a triple**: the document (path + line), the code (path + symbol + line), and
   the verdict (agrees, contradicts, silent). A contradiction is a finding only when **the code is the
   authority** (it usually is) or the owner has said the document is (a decision record).
@@ -173,7 +176,7 @@ names which agents it started and what it ran in parallel.
 - **Do not file** a document that is deliberately historical (`docs/loop/iterations/`, `docs/research/`,
   a design doc with a "Status" line that says it is a snapshot). History is not a contradiction.
 
-### Lens 5: comments (agent `ReviewComments`)
+### Lens 5: comments
 
 - **The owner's question (2026-11-23):** *"I'm tempted to put a rule for no comments in the codebase,
   stripping out those that exist."* The review answers it with a **survey**, not an opinion: how many
@@ -192,7 +195,7 @@ names which agents it started and what it ran in parallel.
   comments are load-bearing, how many are noise). File individual stale comments as issues only when each is
   worth a commit; a cluster of them is one issue with every file listed.
 
-### Lens 6: the family crates (agent `ReviewFamily`)
+### Lens 6: the family crates
 
 - The crates this editor builds on are `bevy_gooey` (UI), `bevy_elements`, `bevy_flora`, `bevy_lights`,
   `bevy_light_grid`, `bevy_society`, `bevy_speech_bubbles`, `bevy_orca`, `bevy_stigmergy`, `bevy_carnage`,
@@ -208,7 +211,7 @@ names which agents it started and what it ran in parallel.
   the crate** (a change in the crate is filed there with `consumer` and `consumer:bevy_grimoire`, per
   `AGENTS.md`).
 
-### Lens 7: build and delivery speed (agent `ReviewBuild`)
+### Lens 7: build and delivery speed
 
 - **Measure before you file.** The evidence exists and is cheap: `<git-dir>/gate.log` has one line per gate step in
   seconds; `journalctl --user -u fleet-gate-rel` has each attempt's wall clock, memory peak and how it died;
@@ -249,6 +252,58 @@ names which agents it started and what it ran in parallel.
 - **The gate deletes its own compile/run split** (#625): `pre-push` runs nextest through a `mktemp` it removes, so
   `gate.log` keeps the step's total and nobody can say how much is compiling. Ask for that line before judging any
   compile-time proposal.
+
+### Lens 8: where the interface can get out of the way
+
+- **The number is the art's share of the window**: `blueprint/state`'s `rects.viewport` width × height over
+  `rects.window`'s. Both are logical pixels; `x, y` are the node's **centre**, not its top-left (#665). Take it on
+  every workspace, at both window sizes, and again after each control that claims to give room back.
+- **Drive each such control in both terminal states.** Zen (`Shift+Ctrl+M`) and the left-panel toggle (`Ctrl+B`)
+  gave 100% and 60% with the terminal collapsed and changed nothing with it at a quarter (#667): a headless test
+  that starts collapsed passes on a control that fails where a person uses it.
+- **Count the fixed chrome in pixels, top to bottom** (menu bar, chrome bar, toolbar, tab row, status band) and say
+  which rows are the same on a workspace where they do nothing (#670, #690).
+- **Ask the inverse too.** A workspace with no art should give the room to its panel, not to an empty viewport
+  (#694). And a viewport that should show the map and is black is a defect, not a design question: count
+  `Mesh3d` entities and lit pixels before deciding which (#695).
+
+## What the 2026-11-27 pass learned (one reviewer, eight lenses)
+
+The drive kit is in `docs/loop/iterations/2026-11-27-review/`: `start.sh`/`stop.sh` (Xvfb, a scratch copy of the
+project, a pidfile), `drive.py` and `lib.py` (the BRP calls), and one `sweep_*.py` per question. Copy them to a
+scratch directory on big with the gate's binary in `bin/` and a copy of a project in `proj/`.
+
+- **Look at the newest merges first, with eyes.** The sharpest finding was in a change merged that morning and
+  already released: a tab strip that stopped marking the open tab (#688). The gate had passed it, because the one
+  test asserted the tab's role and nothing else. Compare the pixels of two things that are meant to differ.
+- **Give a frame an independent clock.** The editor's own `busy_ms` and how long a `blueprint/state` call blocks
+  for its frame should agree; when they do, the stall is real. Then **count what survives**: entities with a
+  `ComputedNode` before and after the act. A workspace switch kept 2 of 2,624 (#678).
+- **One candidate at a time, in a fresh session.** A cost that comes and goes has a trigger. Measure, do one
+  thing, measure again. The switch's 200 ms ended only when the frame profile was opened — a debugging overlay
+  changed what it was there to measure, which is why it "named no system".
+- **A session you have poked is not a fresh one.** Three Tab presses moved the editor's focus into a text field
+  and voided the test that followed; the window's size is remembered between runs, so a "1600×1000" session
+  opened at 1100×700. Read the window's size every run and restart before a measurement that matters.
+- **Find the blank bands with the text rects.** List every text's `y` down a panel: a gap with no text beside rows
+  cut off below it is a layout defect you can state in pixels (#691). `blueprint/ui_style_inspect` names the node.
+- **Check upstream before filing a wait.** `gh release list` on the family crate past the pin: three releases
+  had shipped what three open issues were blocked on (#681).
+- **Diff the feature sets.** What the gate builds against what the release builds: `default` against
+  `--features family_all` left 16 modules and 119 tests outside every gate (#687). The running editor says so
+  itself if you read its panels ("This build has no audio panel").
+- **A commit that changes no Rust is the rebuild measurement.** Two gates whose only change was a shell hook
+  spent 786 s and 794 s on a step whose tests took 362 s and 364 s: the difference is what a commit costs
+  before a test runs (#686). `gate.log` is in the **common** git directory, not the worktree's.
+- **Unpack a release the way macOS does.** `unzip` breaks a signed bundle and `codesign` then reports "a sealed
+  resource is missing or invalid" on a good release. Use `ditto -x -k`, and check the DMG as well.
+- **Three claims in one pass were wrong before they were filed, and each was one command from the truth**: a
+  "stale" constant whose value had been renamed (only its name was old); "clippy and the suite accepted the
+  planted error" when only the compile check had been run; "the state has no window size" when it was one key
+  down. Run the command. When a filed claim turns out wrong, edit it and say that you did.
+- **Driving notes.** `bevy_fairy/input` needs Press and Release, never Tap (bevy_fairy#16). A workspace is
+  entered with `blueprint/run_command {"id": "workspace.<name>"}`; a chord has no command id and needs its keys
+  (#668), with the host's modifier (Ctrl on Linux). One editor, one display, one port; stop both by pidfile.
 
 ## Filing: search first, group second, one defect per issue
 
@@ -326,17 +381,20 @@ So the search is not only "does an open issue name this" but also:
 
 ## The report (the pass's last act)
 
-One file, `docs/loop/iterations/<date>-review.md`, committed and pushed: the eight lenses run and by which agents;
-every issue filed (number, title, group, the measurement that proves it); every **confirmation** and **not a
-finding** with the reason; the counts per lens; the comment survey (lens 5) with the numbers the owner asked
-for; and the **questions for the owner** (the decisions the review could not make). A docs-only push goes
-through the pre-push fast path; the report is the only commit this command makes, and it changes no code.
+One file, `docs/loop/iterations/<date>-review.md`, committed and pushed: the **regressions table first**; which
+lenses were run and what was read and driven for each; every issue filed (number, title, group, the measurement
+that proves it); every **confirmation** and **not a finding** with the reason; the claims the pass got wrong
+and corrected; the comment survey (lens 5) with the numbers the owner asked for; the **questions for the
+owner** (the decisions the review could not make); and the **Gaps** list — every state not reached and every
+measurement not taken, because a report without one reads as complete when it is not. The scripts that
+produced the numbers go in `docs/loop/iterations/<date>-review/` beside it. A docs-only push goes through the
+pre-push fast path; the report is the only commit this command makes, and it changes no code.
 
 ## The shape of a pass, in order
 
 1. Read what exists (the four steps above) and write `/tmp/review/open.txt` and `/tmp/review/closed.txt`.
-2. Start the lenses that do not need the display (`docs-code`, `docs-docs`, `comments`, `family`, `build`) — two at a
-   time unless the owner has lifted the two-agent limit — while the driver prepares the editor for `visual` and `perf`.
+2. Do the reading lenses (`docs-code`, `docs-docs`, `comments`, `family`), then `build` from the logs, filing as
+   you go, while any gate that is running finishes.
 3. Run `visual` and `perf` one after the other on the same editor (one BRP port, one GPU): drive, capture,
    measure, stop the editor.
 4. **The sweep's fixes are reviewed like anyone's**: the pass reads each commit's diff, runs the one module it
@@ -361,9 +419,9 @@ Or headless, one pass, from a clone on a host with a warm target:
 omp -p "$(cat .omp/commands/review.md)"
 ```
 
-**The model is `ollama-cloud/deepseek-v4.1-flash:1017`** unless the owner's settings say otherwise; six agents
-run at once because the owner lifted the two-agent cap for reviews (2026-11-25). The visual and performance
-lenses want a display, so they run on `big_mac`; the reading lenses need nothing but a clone and run anywhere.
+**One reviewer, no sub-agents** (owner, 2026-11-27), on whatever model the command was started with. The editor
+is driven on `big` under Xvfb — `big_mac` has no display session — and the reading lenses need nothing but a
+clone.
 
 **What makes a review worth running again:** the issues it files are the memory, not this file. A fresh pass
 starts by listing the open issues and skipping what is already there.
@@ -372,8 +430,9 @@ starts by listing the open issues and skipping what is already there.
 
 - **Fixing is the visual lens's job and only there** (owner, 2026-11-24: *"Or better yet, just fix them on the
   spot"*). A visual defect that is small and safe — a word, a number, a width, a colour, a clip — is fixed in the
-  sweep agent's own worktree, one concept per commit, with only the touched module's test run. **The other six
-  lenses still change no code**: they are finding work, and their output is issues.
+  sweep's own worktree, one concept per commit, with only the touched module's test run. **The other seven
+  lenses still change no code**: they are finding work, and their output is issues. A fix needs a gate, so a pass
+  with no time for one files the defect instead and says so.
 - Do not run the gate from any lens. Do not touch a test's assertion, a fixture or a golden file to make a fix pass;
   if a fix needs that, it is a finding, not a fix.
 - Do not file from a document alone: a document that disagrees with code needs the code quoted, and code
