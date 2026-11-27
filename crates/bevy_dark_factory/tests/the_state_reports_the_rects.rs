@@ -21,9 +21,11 @@ use bevy_dark_factory::ops_brp::{node_rect, the_rects, NodeRect};
 fn laid_out(root: Vec2, viewport: Vec2) -> App {
     let mut app = App::new();
     app.add_plugins(MinimalPlugins);
+    // **`UiGlobalTransform`'s translation is a node's centre**, as the layout writes it: the root is
+    // centred on the window, so its top-left is `[0, 0]`.
     let root_entity = app
         .world_mut()
-        .spawn((Node::default(), ComputedNode::default(), UiGlobalTransform::default()))
+        .spawn((Node::default(), ComputedNode::default(), UiGlobalTransform::from_translation(root / 2.0)))
         .id();
     let viewport_entity = app
         .world_mut()
@@ -44,10 +46,11 @@ fn laid_out(root: Vec2, viewport: Vec2) -> App {
         .get_mut::<ComputedNode>(viewport_entity)
         .expect("a node")
         .size = viewport;
-    // The viewport sits below the chrome bar, which is where the issue's [485, 153, …] came from.
+    // The viewport's top-left sits at [485, 153], below the chrome bar, where the issue's numbers came from;
+    // the transform holds its centre.
     *app.world_mut()
         .get_mut::<UiGlobalTransform>(viewport_entity)
-        .expect("a transform") = UiGlobalTransform::from_translation(Vec2::new(485.0, 153.0));
+        .expect("a transform") = UiGlobalTransform::from_translation(Vec2::new(485.0, 153.0) + viewport / 2.0);
     app.update();
     app
 }

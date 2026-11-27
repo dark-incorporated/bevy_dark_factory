@@ -781,16 +781,6 @@ fn frame_busy_end(mut busy: ResMut<FrameBusy>) {
     }
 }
 
-/// **The viewport's rect and the window's, in logical px** (#665).
-///
-/// `viewport` is the `ComputedNode` of the node carrying [`crate::chrome::ViewportSlot`] — the hole
-/// `surface::fit_viewport_to_frame` hands the map camera — and `window` is the largest laid-out node
-/// that is not a viewport, which in this shell is the root the window sized. Both are `[x, y, w, h]`
-/// with the origin at the window's top left, and both are `null` before the first layout.
-/// **The two rectangles behind the art's share of the window**, from the nodes' own numbers (#665).
-///
-/// `rect` is the shape every other state field uses: `[x, y, w, h]` in logical px, or `null` before the
-/// first layout so a caller can tell "not laid out yet" from "zero".
 /// **One node's rect in logical px**: where its top-left is drawn, and how big it is.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct NodeRect {
@@ -800,6 +790,13 @@ pub struct NodeRect {
     pub h: f32,
 }
 
+/// **The viewport's rect and the window's**, the two numbers behind the art's share of the window (#665).
+///
+/// `viewport` is the node carrying [`crate::chrome::ViewportSlot`] — the hole
+/// `surface::fit_viewport_to_frame` hands the map camera — and `window` is the largest laid-out node that
+/// is not a viewport, which in this shell is the root the window sized. Both are `[x, y, w, h]`: the
+/// top-left corner and the size, in logical px, origin at the window's top left; `null` before the first
+/// layout, so a caller can tell "not laid out yet" from "zero".
 pub fn the_rects(viewport: Option<NodeRect>, window: Option<NodeRect>) -> serde_json::Value {
     let at = |r: Option<NodeRect>| {
         r.map_or(serde_json::Value::Null, |r| json!([r.x, r.y, r.w, r.h]))
@@ -809,12 +806,12 @@ pub fn the_rects(viewport: Option<NodeRect>, window: Option<NodeRect>) -> serde_
 
 /// **One node's rect in logical px** — its laid-out size and where its top-left is drawn.
 ///
-/// `UiGlobalTransform` carries the translation, not `ComputedNode`: it reflects as the affine
-/// `[a, b, c, d, tx, ty]`, so `translation` is the node's top-left in physical px.
+/// `UiGlobalTransform`'s translation is the node's **centre** in physical px (a full-window node reads
+/// `[w/2, h/2]`), so the top-left is the centre less half the size (#665).
 pub fn node_rect(node: &ComputedNode, at: &bevy::ui::UiGlobalTransform) -> NodeRect {
     let scale = node.inverse_scale_factor();
     let size = node.size() * scale;
-    let top_left = at.translation * scale;
+    let top_left = at.translation * scale - size / 2.0;
     NodeRect { x: top_left.x, y: top_left.y, w: size.x, h: size.y }
 }
 

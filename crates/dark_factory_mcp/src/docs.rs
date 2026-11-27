@@ -280,6 +280,9 @@ pub const TOOLS: &[ToolDoc] = &[
                        every call: each relation (of, kind) with outcome met, unmet or missing, \
                        measured (metres, or degrees off for Faces), by (the piece that breaks it) \
                        and missing_id; unmet and missing count them; error names a file that does not parse. \
+                       rects holds viewport and window, each [x, y, w, h]: the top-left corner and the \
+                       size in logical px, null before the first layout; the art's share of the window \
+                       is the viewport's w*h over the window's. \
                        standards checks the project's standards.yaml (beside kits.yaml), re-read on \
                        every call: breaches (piece, rule, dim, found metres, why below_min, above_max, \
                        not_multiple_of or unmeasured, bound), idle, the rules no piece is covered by, \
