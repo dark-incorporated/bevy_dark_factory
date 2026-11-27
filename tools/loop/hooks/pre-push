@@ -131,7 +131,25 @@ version_bump_only() {
   # Every added or removed line is `version = "..."` flush left (a dependency's inline `version = ` is not flush left).
   ! git diff -U0 --no-ext-diff "$remote" "$target" | grep -E '^[+-]' | grep -vE '^(\+\+\+|---) ' | grep -qvE '^[+-]version = "[^"]*"$'
 }
-if version_bump_only; then note "version bump only, no tests"; echo "pre-push gate: a version bump (manifest and Cargo.lock version lines only); the version policy check passed, no test run" >&2; exit 0; fi
+if version_bump_only; then
+  note "version bump only, no tests"
+  # **A version bump inherits its parent's tests, and says so in the record** (#625). Every release
+  # commit is a bump, and a bump ran no tests -- so without this, `require-gate-record.sh` refused
+  # every release tag, in `release-macos.yml`, for the one kind of commit that always accompanies a
+  # tag. The note names the parent it inherits from rather than claiming a run of its own.
+  # `notes_ref` and `gated()` are declared further down, after the fast paths; name them here so this
+  # branch reads the same records and not an unset variable.
+  notes_ref=refs/notes/gated
+  parent=$(git rev-parse "$target^")
+  if git notes --ref "$notes_ref" show "$parent" >/dev/null 2>&1; then
+    git notes --ref "$notes_ref" add -f -m "version bump ${target:0:9} inherits the gate of ${parent:0:9}: $(git notes --ref "$notes_ref" show "$parent" | head -1)" "$target" >/dev/null 2>&1
+    git push --quiet "$hook_remote" "$notes_ref:$notes_ref" >/dev/null 2>&1 || true
+    echo "pre-push gate: a version bump (manifest and Cargo.lock version lines only); it inherits ${parent:0:9}'s gate record, no test run" >&2
+  else
+    echo "pre-push gate: a version bump whose parent ${parent:0:9} has no gate record; the version policy check passed, no test run" >&2
+  fi
+  exit 0
+fi
 clippy_file="$(git rev-parse --git-common-dir)/gate-clippy"
 notes_ref=refs/notes/gated
 # A clone that has never gated anything still reads the records, because they were pushed with the commits. The merge,
