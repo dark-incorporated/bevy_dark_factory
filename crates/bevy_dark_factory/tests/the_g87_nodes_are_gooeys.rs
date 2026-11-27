@@ -223,8 +223,10 @@ fn the_chips_buttons_and_rows_keep_their_drawn_heights() {
     // **Three fewer since #684**: the Notes panel's `Show: all` and `Send all drafts` (24.17 each) and the hidden
     // journal's `Check view` (0) were `chrome::button`s and are gooey's `button` now, painted by the skin and
     // carrying no `RowRest`. Owner exception, as above: the eleven that remain are compared at their heights.
-    let was = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 20.0, 20.0, 36.67];
-    assert_eq!(drawn.len(), was.len(), "the Map door carries eleven chips and rows: {drawn:?}");
+    // **One more since #669**: the status band's `Art N%` control is a chip, laid out at the band's 20 px like its
+    // neighbours. An added box at an existing height, measured in the 2026-11-27 gate; every height is still compared.
+    let was = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 20.0, 20.0, 20.0, 36.67];
+    assert_eq!(drawn.len(), was.len(), "the Map door carries twelve chips and rows: {drawn:?}");
     for (got, want) in drawn.iter().zip(was) {
         assert!((got - want).abs() < 0.1, "a box is {got} tall, it was {want}: {drawn:?}");
     }
