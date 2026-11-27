@@ -172,6 +172,11 @@ alacritty_terminal.workspace = true
 # not one to route a system through. `rustix` is the same crate the PTY is opened with, one version
 # in the graph, and `tcsetwinsize` returns a `Result` the pane can report.
 rustix = { version = "1", default-features = false, features = ["std", "termios", "process"] }
+# **rust-analyzer behind the Files editor** (`files_lsp.rs`, #611): the protocol's own types for what the editor sends
+# and the diagnostics it reads; the JSON-RPC envelope and its `Content-Length` framing are the editor's, a few lines.
+# `url` turns a project path into the `file:` URI a document is named by, and back (already in the graph).
+lsp-types = "0.97"
+url = "2"
 # The debugger's companion plugin. **Optional**, so it is absent from the resolved dependency graph
 # of an ordinary build — `cargo tree -i bevy_debugger_bevy` finds no package without the feature, and
 # neither does `bevy_remote`. A git dependency on `dark-incorporated/bevy_fairy`, the successor of

@@ -80,6 +80,7 @@ pub mod editor;
 pub mod file_outline;
 pub mod files;
 pub mod files_lang;
+pub mod files_lsp;
 pub mod files_panel;
 pub mod files_menu;
 pub mod draft;

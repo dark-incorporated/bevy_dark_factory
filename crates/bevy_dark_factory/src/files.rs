@@ -680,12 +680,15 @@ pub struct FileEditor {
     highlighted: u64,
     /// The value revision the errors were last computed for.
     analysed: u64,
+    /// [`crate::files_lsp::RustAnalyzer::generation_of`] the shown file when its errors were last drawn: a new publication
+    /// from rust-analyzer is drawn even when the text has not moved (#611).
+    heard: u64,
 }
 
 impl FileEditor {
     /// **A fresh editor widget's bookkeeping for `rel`**: nothing coloured or analysed yet, so the first frame does both.
     pub fn showing(rel: &str, pushed: u64) -> FileEditor {
-        FileEditor { shown: Some(rel.to_owned()), pushed, highlighted: u64::MAX, analysed: u64::MAX }
+        FileEditor { shown: Some(rel.to_owned()), pushed, highlighted: u64::MAX, analysed: u64::MAX, heard: 0 }
     }
 }
 
@@ -763,6 +766,10 @@ impl Plugin for FilesPlugin {
         crate::project_index::ensure(app);
         app.init_resource::<PointerAt>();
         app.init_resource::<Files>()
+            // **rust-analyzer for the project's Rust files** (#611): before `Update`, so what it published this frame is
+            // drawn this frame; on every screen, so the server goes the frame its project does.
+            .init_resource::<crate::files_lsp::RustAnalyzer>()
+            .add_systems(PreUpdate, crate::files_lsp::talk_to_rust_analyzer)
             .add_systems(Update, hear_the_project)
             .add_systems(OnEnter(Screen::Editor), spawn_the_files_workspace.after(FrameSystems).run_if(in_files))
             .add_systems(
@@ -1259,12 +1266,14 @@ fn on_edit(
     }
 }
 
-/// **Colours and folds as the text changes; errors once the person has stopped** ([`DIAGNOSE_IDLE_S`]).
+/// **Colours and folds as the text changes; errors once the person has stopped** ([`DIAGNOSE_IDLE_S`]), and again when
+/// rust-analyzer publishes for the file (#611).
 fn decorate_the_editor(
     mut commands: Commands,
     mut files: ResMut<Files>,
     time: Res<Time<Real>>,
     index: Option<Res<crate::goto::GotoIndex>>,
+    rust: Option<Res<crate::files_lsp::RustAnalyzer>>,
     mut editors: Query<(Entity, &mut FileEditor, &CodeEditorValue)>,
 ) {
     let now = time.elapsed_secs_f64();
@@ -1288,12 +1297,18 @@ fn decorate_the_editor(
             editor.highlighted = revision;
         }
         let waiting = files.open.get(&rel).and_then(|f| f.edited_at).is_some_and(|at| now - at < DIAGNOSE_IDLE_S);
-        if editor.analysed != revision && !waiting {
+        let heard = rust.as_deref().map_or(0, |r| r.generation_of(&rel));
+        if (editor.analysed != revision || editor.heard != heard) && !waiting {
             // **The project around the file**: a Markdown page's links and pictures are looked for under its root.
             let around = files_lang::Env { root: root.as_deref(), refs: &|_: &str| Vec::new(), files: &Vec::new };
             let mut items: Vec<Diagnostic> = files_lang::diagnose_in(&around, &rel, value.text()).into_iter().map(|f| Diagnostic::new(f.range, f.severity, f.message)).collect();
             if let Some(file) = files.open.get(&rel) {
                 items.extend(agent_marks(value.text(), &file.agent_lines));
+            }
+            // **The compiler's own errors on a Rust file** (#611): what the project's rust-analyzer last published, beside the
+            // editor's own findings and never instead of them.
+            if let Some(rust) = rust.as_deref() {
+                items.extend(rust.diagnostics_for(&rel, value.text()));
             }
             // **A cue the project does not hold is marked where it is written** (NV-07, #384): a reference to nothing is a diagnostic, never a link
             // that does nothing. Judged against the finder's index, once the index has been built.
@@ -1308,6 +1323,7 @@ fn decorate_the_editor(
             }
             commands.entity(entity).try_insert(Diagnostics::new(revision, items));
             editor.analysed = revision;
+            editor.heard = heard;
             if let Some(file) = files.open.get_mut(&rel) {
                 file.edited_at = None;
             }
