@@ -1429,6 +1429,13 @@ pub fn spawn_frame(
             // no `Hovered` in this gooey revision. Measured over BRP after the fix: a 105-px drag
             // takes `SplitFraction` from 0.22 to 0.32.
             bevy::picking::Pickable::default(),
+            // **The divider is the sheet's seam, not gooey's target** (#689, #476). `Role::SplitDivider`
+            // gives the channel `MIN_TARGET_PX` (24 logical px) unless the split carries a thickness, which
+            // `update_splits` writes into the divider's own `Sizing` and keeps across every restyle — the
+            // knob `bevy_gooey#108` was filed for. The sheet's `divider_w` is the number the dock arithmetic
+            // already subtracts (`size_the_shell_split`), so the width a pane is measured with is the width
+            // drawn.
+            bevy_gooey::SplitThickness(crate::style::metrics().layout.divider_w),
             ShellSplit,
             SplitUnsized::default(),
         ))
@@ -3006,6 +3013,46 @@ pub fn text_narrows() -> impl Bundle {
     (
         bevy_gooey::Role::Sized,
         bevy_gooey::TextFlow { grow: Some(1.0), shrink: None, min_width: Some(bevy_gooey::Extent::Px(0.0)), align: None },
+    )
+}
+
+/// **A name that never breaks inside a word** (#693): the width its row leaves, clipped, with `Word` breaking and a real `\u{2026}`
+/// for what does not fit.
+///
+/// The crate breaks at a letter on purpose wherever it does (`chrome::fill_text`, `LineBreak::WordOrCharacter` — #535, #481): a
+/// file name such as `surveillance_console.glb` is one word wider than its column, and cutting it at a letter is better than
+/// drawing it past the panel. **A piece's name in the PLACE list is the other case**: `Fridge` broke as `Fridg` / `e` at 1100 px wide
+/// because the column was narrower than the word, and a name in a list of things a person recognises is read whole or not at all.
+/// So the name takes the width the row leaves, breaks only between words, and ends what does not fit in an ellipsis.
+///
+/// **`NoWrap` rather than `Word`**: this text is one line of a list row, and `Word` on a box narrower than its longest word still
+/// breaks that word. `NoWrap` never does; `TextLayout::linebreak` is Bevy 0.20's ellipsis, so a name too wide for its column is
+/// cut with `\u{2026}` instead of being drawn over the count beside it.
+pub fn a_name_that_never_breaks_inside_a_word() -> impl Bundle {
+    (
+        bevy_gooey::Role::Sized,
+        bevy_gooey::TextFlow {
+            grow: Some(1.0),
+            shrink: Some(1.0),
+            min_width: Some(bevy_gooey::Extent::Px(0.0)),
+            align: None,
+        },
+        bevy_gooey::Sizing { clip: Some(true), ..default() },
+        TextLayout::new(Justify::Left, LineBreak::NoWrap),
+    )
+}
+
+/// **A count that gives way before the name beside it does** (#693, the owner's *"count gives way"*): a fixed column that may
+/// shrink to nothing, laid out right to left for the last digit when it is cut.
+///
+/// A `cell` is a floor, not a cap (F5), and the palette's row was built that way: the thumbnail, the mark lane and the count all
+/// kept their width and the name gave way, which is how `Fridge` came to break at a letter. The owner's order is the other one:
+/// the size the piece costs is recoverable from its tooltip and the name is not, so the count yields first.
+pub fn a_count_that_gives_way() -> impl Bundle {
+    (
+        bevy_gooey::Role::Sized,
+        bevy_gooey::TextFlow { grow: None, shrink: Some(1.0), min_width: Some(bevy_gooey::Extent::Px(0.0)), align: None },
+        TextLayout::new(Justify::Right, LineBreak::NoWrap),
     )
 }
 
