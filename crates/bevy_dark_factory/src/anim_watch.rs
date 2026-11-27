@@ -144,12 +144,19 @@ impl BenchReports {
 pub struct BenchGeneration(pub u32);
 
 /// **One rig, measured.** The policy is `rig_check::check_rig` — the same call CI makes.
-pub(crate) fn measure_rig(root: &std::path::Path, rig: &blueprint_model::rigs::Rig) -> RigReport {
+pub(crate) fn measure_rig(
+    root: &std::path::Path,
+    name: &str,
+    rig: &blueprint_model::rigs::Rig,
+) -> RigReport {
     let path = root.join("assets").join(&rig.mesh);
     let (glb, hash) = match blueprint_model::glb::Glb::open_fingerprinted(&path) {
         Ok(pair) => pair,
         Err(e) => {
-            let findings = vec![Finding::bad(format!("cannot read {}: {e}", rig.mesh))];
+            let findings = vec![Finding::bad(format!(
+                "rig `{name}`: cannot read {}: {e}",
+                rig.mesh
+            ))];
             let worst = blueprint_model::rig_check::worst(&findings);
             return RigReport {
                 fingerprint: None,
@@ -173,8 +180,12 @@ pub(crate) fn measure_rig(root: &std::path::Path, rig: &blueprint_model::rigs::R
         }
         _ => Vec::new(),
     };
-    let report =
-        blueprint_model::rig_check::check_rig(&glb, rig, staleness == Staleness::Current);
+    let report = blueprint_model::rig_check::check_rig(
+        &glb,
+        name,
+        rig,
+        staleness == Staleness::Current,
+    );
     let worst = blueprint_model::rig_check::worst(&report.findings);
     // The plots' curves — same FK, same anchors, gathered while the file is open.
     let mut curves = Vec::new();
@@ -328,7 +339,7 @@ pub(crate) fn step_measure_queue(
     let Some(rig) = bench.rigs.as_ref().and_then(|r| r.get(&name)) else {
         return;
     };
-    let report = measure_rig(&project.root, rig);
+    let report = measure_rig(&project.root, &name, rig);
     if reports.by_rig.get(&name) != Some(&report) {
         reports.by_rig.insert(name, report);
         generation.0 = generation.0.wrapping_add(1);

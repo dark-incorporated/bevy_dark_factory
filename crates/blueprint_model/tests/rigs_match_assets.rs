@@ -58,7 +58,7 @@ fn every_rig_agrees_with_the_asset_it_names() {
             .unwrap_or_else(|e| panic!("rig `{name}`: {}: {e}", path.display()));
         // CI tightens exactly when the editor does — same staleness, same policy.
         let current = rig_check::staleness(rig, hash) == rig_check::Staleness::Current;
-        let report = rig_check::check_rig(&glb, rig, current);
+        let report = rig_check::check_rig(&glb, name, rig, current);
         for f in &report.findings {
             if f.level == Level::Bad {
                 bad.push(format!("rig `{name}`: {}", f.text));

@@ -697,7 +697,7 @@ pub(crate) fn adopt_text(
     let clip_infos = blueprint_model::clips::clips(&glb);
     let current = blueprint_model::rig_check::staleness(&rig, hash)
         == blueprint_model::rig_check::Staleness::Current;
-    let report = blueprint_model::rig_check::check_rig(&glb, &rig, current);
+    let report = blueprint_model::rig_check::check_rig(&glb, &name, &rig, current);
 
     let mut doc = blueprint_model::rigs_edit::RigDoc::open(text, &name)?;
     // The in-memory expectation the written text must parse back to.
@@ -1255,6 +1255,36 @@ fn rebuild_list(
 /// units on `SlotMeasure`; the rig's scale converts them to the world units the manifest declares.
 /// A field that could not be measured is simply absent rather than printed as a guess. The one
 /// extension point for per-slot measured data — the skate summary rides here too.
+/// **Why slot `index`'s `clip:` cannot resolve, or `None` when it does** (#679).
+///
+/// A slot names a glTF animation *index*, and the index resolves against the clips the asset brings.
+/// When it does not — four slots written for a mesh that has three — the slot used to be drawn with
+/// an empty detail column and the plots legend drew a colour with no curve under it, with nothing
+/// anywhere saying a clip was missing. This is the one sentence both places print, so the table and
+/// the legend cannot disagree about which slot the asset cannot supply.
+///
+/// `None` while the report is absent (the queue has not reached this rig) and `None` when the asset
+/// brought no clips at all: an unreadable mesh has its own finding, and `0 clips` here would be a
+/// second, wrong answer to the same question.
+fn a_clip_that_cannot_resolve(
+    slot: &blueprint_model::rigs::SlotDef,
+    index: usize,
+    report: Option<&crate::anim_watch::RigReport>,
+) -> Option<String> {
+    let report = report?;
+    if report.clip_names.is_empty() {
+        return None;
+    }
+    (slot.clip >= report.clip_names.len()).then(|| {
+        format!(
+            "slot {index}: clip {} is not in the asset, which has {} clip(s) — it was re-exported; \
+             re-measure and update rigs.yaml",
+            slot.clip,
+            report.clip_names.len(),
+        )
+    })
+}
+
 fn slot_measured_line(
     m: &blueprint_model::rig_check::SlotMeasure,
     skate: Option<&blueprint_model::rig_check::SkateReport>,
@@ -1574,6 +1604,15 @@ fn rebuild_slots(
                         crate::chrome::fill_text(row, sub.join(" | "), quiet, crate::chrome::text::HINT);
                     });
                 }
+                // **A slot the asset cannot supply is drawn and says why** (#679): the row above
+                // used to be the whole of the slot, so a `clip: 3` on a three-clip mesh read as a
+                // slot with no name and no curve, and nothing said a clip was missing.
+                if let Some(why) = a_clip_that_cannot_resolve(slot, i, report) {
+                    p.spawn((bevy_gooey::row(0.0), crate::chrome::Gap::Row.class())).with_children(|row| {
+                        row.spawn(bevy_gooey::cell(slot_cell()));
+                        crate::chrome::fill_text(row, why, danger, crate::chrome::text::HINT);
+                    });
+                }
                 // **Declared above, measured below** — the module's own promise, kept structurally
                 // rather than buried in finding prose. Only gaits carry measured numbers.
                 if matches!(slot.playback, Playback::Gait { .. })
@@ -1642,11 +1681,17 @@ fn rebuild_slots(
                         if !plotted {
                             continue;
                         }
-                        let label = report
-                            .and_then(|r| r.clip_names.get(slot.clip))
-                            .and_then(Option::as_deref)
-                            .map(|n| format!("{i} {n}"))
-                            .unwrap_or_else(|| format!("{i} clip {}", slot.clip));
+                        // **A chip whose curve is missing says why** (#679): the legend is the
+                        // plots' key, so a colour with no curve under it is the one place a reader
+                        // notices the slot went unplotted, and it must not have to guess.
+                        let label = match a_clip_that_cannot_resolve(slot, i, report) {
+                            Some(why) => format!("{i} {why}"),
+                            None => report
+                                .and_then(|r| r.clip_names.get(slot.clip))
+                                .and_then(Option::as_deref)
+                                .map(|n| format!("{i} {n}"))
+                                .unwrap_or_else(|| format!("{i} clip {}", slot.clip)),
+                        };
                         legend.spawn((
                             Text::new(label),
                             TextColor(crate::anim_plots::slot_ui_color(rank)),
