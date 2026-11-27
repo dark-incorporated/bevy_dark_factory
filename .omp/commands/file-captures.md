@@ -123,7 +123,8 @@ the wrong file costs the pass that answers it more than the issue saved. Mark an
 - **Do not file an issue for a capture that is already fixed** — check the ledger's status and the
   changelog for the stem first.
 - **Do not file an issue for an upstream defect in this repo.** A cause in `bevy_gooey` or another
-  family crate is filed there (`consumer`, `consumer:bevy_blueprint`) and the editor's row is closed
+  family crate is filed there (`consumer`, plus `consumer:bevy_grimoire` on `bevy_gooey` or `consumer:bevy_dark_factory`
+  on any other family crate) and the editor's row is closed
   `blocked` with the issue named, which is `debug-response.md` §7's rule and applies here too.
 - **Do not edit a capture's files.** They are the evidence; a crop of one belongs in the issue, not in
   the capture's folder.

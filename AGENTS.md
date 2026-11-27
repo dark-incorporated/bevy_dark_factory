@@ -73,7 +73,9 @@ closed only by that commit's `Fixes #N`.
 
 **This editor's own needs go the other way.** When a panel cannot do what a family crate now needs — a sound bus the
 audio panel cannot show, an editor field a crate's settings type does not have — the request is filed on that
-crate's repository labelled `enhancement`, `consumer` and `consumer:bevy_blueprint`, and the editor item waits with
+crate's repository labelled `enhancement`, `consumer` and that repository's label for this editor —
+`consumer:bevy_grimoire` on `bevy_gooey` (its loop watches that one), `consumer:bevy_dark_factory` on every other
+family crate (`gh label list -R dark-incorporated/<crate>` shows it; #622) — and the editor item waits with
 `Needs: <crate>#N` until a commit there closes it, then moves its `rev` pin. Never patch, wrap or vendor a family
 crate here.
 
@@ -122,7 +124,7 @@ The owner's Bevy crates are meant to be the heart of this editor (issues #96–#
   `default`. A row with none of those words is a `[features]` key of
   `crates/bevy_dark_factory/Cargo.toml`, and `the_agents_family_table_names_the_crates_the_editor_has` fails on a
   name that is none of the four.
-- **The two-way street.** A change the editor needs in a crate is made in that crate's repository, in its own commits with its own tests. It is requested there as an issue labelled `consumer` and `consumer:bevy_blueprint`, and the editor takes it by moving its pin once that issue is closed as fixed. Never patch, wrap or vendor a crate here. The loop's procedure is in `.omp/commands/build-loop.md`, "the two-way street".
+- **The two-way street.** A change the editor needs in a crate is made in that crate's repository, in its own commits with its own tests. It is requested there as an issue labelled `consumer` and that repository's label for this editor (`consumer:bevy_grimoire` on `bevy_gooey`, `consumer:bevy_dark_factory` elsewhere), and the editor takes it by moving its pin once that issue is closed as fixed. Never patch, wrap or vendor a crate here. The loop's procedure is in `.omp/commands/build-loop.md`, "the two-way street".
 
 ## Blender is a tool we own, and it is not rebuilt here
 

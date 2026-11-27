@@ -208,8 +208,8 @@ read and what it drove.
   must not set); a style mismatch the crate's guide names (a naming, a plugin shape, a test idiom); a pin
   older than a fix the editor depends on.
 - **Every finding says which crate, which document, which call site, and whether the fix belongs here or in
-  the crate** (a change in the crate is filed there with `consumer` and `consumer:bevy_grimoire`, per
-  `AGENTS.md`).
+  the crate** (a change in the crate is filed there with `consumer` and `consumer:bevy_grimoire` on `bevy_gooey`,
+  `consumer:bevy_dark_factory` on every other family crate, per `AGENTS.md`).
 
 ### Lens 7: build and delivery speed
 
@@ -331,7 +331,7 @@ scratch directory on big with the gate's binary in `bin/` and a copy of a projec
 6. **Never file** an issue that needs a decision the review cannot make (a design call, a product choice): put
    it in the report as a question for the owner instead, with the options and a recommendation.
 7. **Never file** an upstream defect here: a `bevy_gooey` bug goes to `dark-incorporated/bevy_gooey` with
-   `consumer` and `consumer:bevy_grimoire`.
+   `consumer` and `consumer:bevy_grimoire`; any other family crate's bug gets `consumer:bevy_dark_factory`.
 
 ## A closed issue's check is a test, or it is not closed
 
