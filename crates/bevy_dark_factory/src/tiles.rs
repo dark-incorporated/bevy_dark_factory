@@ -3884,6 +3884,7 @@ impl Plugin for TilesPlugin {
                 (spawn_tab_strip, spawn_tiles_panel, scan_on_entering_the_kits_door)
                     .after(crate::chrome::FrameSystems),
             )
+            .add_systems(Update, unfold_under_the_badges.run_if(in_state(crate::screen::Screen::Editor)))
             .add_systems(
                 Update,
                 ((
@@ -4238,6 +4239,46 @@ fn spawn_tab_strip(
                 ));
             });
         });
+}
+
+/// **While the shortcuts key is held, a folded strip stands in its own row again** (#670 with the badges; owner's call "A",
+/// 2026-11-27).
+///
+/// Folded, the strip shares the chrome bar's one row with the way out and the title, and the three bands' badges do not fit
+/// in it: the strip's one badge lists every workspace chord (627 px measured), the title's is 232 to 411, the way out's sits
+/// against the folded tab, and a band badge is level with its control, so it cannot leave the row. In its row the strip's
+/// badge has the row to itself and the way out's has the bar's free ground beside it, exactly as before the fold. This is
+/// the move `chrome::stand_down_the_back_chord` makes for the same key: for the length of the hold the overlay decides
+/// what stands where, and on release the strip folds back and the body has its exact rect again.
+///
+/// Compares before moving: a reparent is a layout change, and this runs every frame.
+fn unfold_under_the_badges(
+    mut commands: Commands,
+    keyboard: Res<ButtonInput<KeyCode>>,
+    live: Res<crate::keys::Live>,
+    workspace: Option<Res<crate::workspace::Workspace>>,
+    frame: Option<Res<crate::chrome::Frame>>,
+    strips: Query<(Entity, &crate::chrome::Control, &ChildOf)>,
+) {
+    let (Some(workspace), Some(frame)) = (workspace, frame) else { return };
+    if !workspace.folds_its_tabs_into_the_chrome_bar() {
+        return;
+    }
+    let held = crate::keys::pressed(&keyboard, *live, crate::keys::Action::Shortcuts);
+    let want = if held { frame.door_strip } else { frame.chrome_bar };
+    for (strip, control, parent) in &strips {
+        if control.0 != crate::keys::ControlId::WorkspaceStrip || parent.parent() == want {
+            continue;
+        }
+        if held {
+            commands.entity(frame.door_strip).add_child(strip);
+            commands.entity(strip).insert(bevy_gooey::Sizing { min_height: Some(bevy_gooey::Extent::Px(TAB_STRIP_H)), ..default() });
+        } else {
+            // Back where `spawn_tab_strip` put it: after the way out, with no height of its own.
+            commands.entity(frame.chrome_bar).insert_children(1, &[strip]);
+            commands.entity(strip).insert(bevy_gooey::Sizing::default());
+        }
+    }
 }
 
 /// **A click on the other workspace's name switches to it**, by the one path the workspace chords take. Deferred,
