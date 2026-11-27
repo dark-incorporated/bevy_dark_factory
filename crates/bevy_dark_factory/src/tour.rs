@@ -8,12 +8,14 @@
 //! (`GuideOverlayPlugin`). Nothing here knows what a step looks like; the steps' conditions are checkpoints registered in
 //! `guided.rs` like every other.
 //!
-//! # Who watches the checkpoints
+//! # Who evaluates the checkpoints, and who watches them
 //!
-//! `bevy_fairy/guide+watch` is the watching half and it is a BRP *watching* method: nothing runs it unless a client is attached.
-//! An agent is that client; a person following the tour is not, so while a tour runs `drive_the_tour` runs the same
-//! [`bevy_debugger_bevy::watch_guide`] every frame, and the step advances when its condition arrives. It runs only while a
-//! [`TourRunning`] stands, so an agent's own script is never read by a second consumer.
+//! bevy_fairy evaluates the current step's checkpoint once a frame, in `Last`, whether or not anyone is watching:
+//! [`bevy_debugger_bevy::evaluate_checkpoint`], scheduled by its `GuidePlugin`, which `guided.rs` adds. The step advances on
+//! the frame its condition arrives. `bevy_fairy/guide+watch` only reports what that recorded, and an agent is its client; a
+//! person following the tour is not, so while a tour runs `drive_the_tour` runs the same [`bevy_debugger_bevy::watch_guide`]
+//! every frame to hear that the script is done. It runs only while a [`TourRunning`] stands, so an agent's own script is never
+//! read by a second consumer.
 //!
 //! # Pulled, never pushed
 //!
@@ -103,8 +105,8 @@ impl Plugin for TourPlugin {
             .add_observer(on_the_offer_answered)
             .add_systems(OnEnter(Screen::Editor), (offer_the_tour, spawn_the_pointer.after(crate::chrome::FrameSystems)))
             .add_systems(OnExit(Screen::Editor), end_the_tour)
-            // **The pointer runs with the tour**, chained after the watch so it sees the step the watch left the card on:
-            // a step that has just advanced is pointed at in the frame it arrives, not one frame late.
+            // **The pointer runs with the tour**, chained after the watch so it reads the step the card is painted from: a
+            // step advanced in one frame's `Last` is pointed at in the next frame's `Update`, the frame the card repaints it.
             .add_systems(
                 Update,
                 (
@@ -169,8 +171,9 @@ fn start_the_due_tour(world: &mut World) {
     start_or_say_why(world);
 }
 
-/// **Watch the running tour's step**, as a client of `guide+watch` would. The script finishing, or failing to be watched at all,
-/// ends the run; the card hides itself once the last step's confirmation has been shown.
+/// **Watch the running tour's script**, as a client of `guide+watch` would: the step is advanced by fairy's own evaluator, and
+/// this hears the script finish. Finishing, or failing to be watched at all, ends the run; the card hides itself once the last
+/// step's confirmation has been shown.
 fn drive_the_tour(world: &mut World) {
     match world.run_system_cached_with(watch_guide, None) {
         Ok(Ok(Some(answer))) if answer.get("done").and_then(Value::as_bool) == Some(true) => finish(world),
