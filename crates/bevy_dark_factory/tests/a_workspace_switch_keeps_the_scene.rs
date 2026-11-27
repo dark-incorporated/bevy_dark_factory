@@ -103,11 +103,33 @@ fn meshes(app: &mut App) -> Vec<Entity> {
     q.iter(world).collect()
 }
 
-/// **The interface**, as entities: every node that has a laid-out size.
-fn nodes(app: &mut App) -> Vec<Entity> {
+/// **The frame's nodes**, as entities: every laid-out node that is the shell's rather than a panel's.
+///
+/// The chrome bar, the docks, the viewport slot, the status band and the strip — **and nothing a panel drew**.
+/// A `WorkspacePanel` marks the panel, and its children are the panel's contents, so the panel's whole subtree
+/// is excluded. Without that the count would include the rows, fields and labels of the panels, and a switch
+/// that legitimately draws a different panel would look like a rebuilt frame.
+fn frame_nodes(app: &mut App) -> Vec<Entity> {
     let world = app.world_mut();
+    let panels: Vec<Entity> = world
+        .query_filtered::<Entity, With<bevy_dark_factory::screen::WorkspacePanel>>()
+        .iter(world)
+        .collect();
+    // Every entity that is a descendant of a panel, worked out once from the parent links.
+    let mut under: std::collections::HashSet<Entity> = std::collections::HashSet::new();
+    let pairs: Vec<(Entity, Entity)> = world.query::<(Entity, &ChildOf)>().iter(world).map(|(e, p)| (e, p.parent())).collect();
+    for panel in panels {
+        let mut frontier = vec![panel];
+        while let Some(at) = frontier.pop() {
+            for (child, parent) in &pairs {
+                if *parent == at && under.insert(*child) {
+                    frontier.push(*child);
+                }
+            }
+        }
+    }
     let mut q = world.query_filtered::<Entity, With<bevy::ui::ComputedNode>>();
-    q.iter(world).collect()
+    q.iter(world).filter(|e| !under.contains(e)).collect()
 }
 
 /// **The map's meshes survive Map → World → Kit → Animation → Map**, which is what the three places say a switch
@@ -149,13 +171,18 @@ fn the_maps_meshes_survive_a_round_trip_through_the_workspaces_that_share_its_vi
 
 /// **A round trip keeps the frame**, so a switch is a change of panels rather than a rebuild of the interface.
 ///
-/// The review's numbers (`#678`): a fresh editor kept **2 of 2,624** nodes and cost 205–275 ms a switch; with the
-/// frame kept it should be the panels that differ. A switch may spawn the other workspace's panels and despawn
-/// the ones it does not show, which is a small fraction; nine in ten is the floor this holds it to.
+/// The review's numbers (`#678`): a fresh editor kept **2 of 2,624** nodes and cost 205–275 ms a switch. With
+/// the frame kept, what a switch replaces is the panels — which are a large share of the nodes, because a
+/// panel's contents are most of what is drawn in one. So the claim is about the **frame**: the shell's own
+/// nodes, the ones the editor opened with, are still there after a round trip.
+///
+/// **Not all UI nodes.** A Map → Kit → Map round trip legitimately draws a different inspector and list, so
+/// counting every node would measure the panels and call their difference a rebuild — which is the mistake
+/// this comment exists to stop the next reader making.
 #[test]
 fn a_round_trip_keeps_the_frame() {
     let mut app = editor("frame");
-    let before: Vec<Entity> = nodes(&mut app);
+    let before: Vec<Entity> = frame_nodes(&mut app);
     assert!(before.len() > 100, "the shell must draw an interface, or this test measures nothing");
 
     for workspace in [Workspace::Kit, Workspace::Map] {
@@ -164,7 +191,7 @@ fn a_round_trip_keeps_the_frame() {
             app.update();
         }
     }
-    let after: Vec<Entity> = nodes(&mut app);
+    let after: Vec<Entity> = frame_nodes(&mut app);
     let kept = before.iter().filter(|e| after.contains(e)).count();
     let share = kept as f64 / before.len() as f64;
     assert!(
@@ -205,4 +232,58 @@ fn the_panel_moves_with_the_workspace_and_the_frame_does_not() {
     chord_to(&mut app, Workspace::Animation);
     assert_eq!(app.world().resource::<Mode>().label(), "ANIM", "Animation shows `ANIM`, so the panel follows");
     assert_eq!(frame_roots(&mut app), viewport, "and the frame is still the one the editor opened with");
+}
+
+/// **A switch builds the panels the new workspace shows, and takes down the ones it does not.**
+///
+/// Regression (2026-11-27, `integrate/1127`): the first version of this fix returned before the state
+/// transition, so `OnEnter(Editor)` — the one place a panel is spawned — never ran, and World's WATER
+/// heading was never drawn. Keeping the frame must not mean keeping the old panels.
+///
+/// Every destination is named by a marker its own module exports, so this is the panel itself rather than
+/// a count of nodes that could be anything.
+#[test]
+fn a_switch_builds_the_panels_the_new_workspace_shows() {
+    use bevy_dark_factory::tiles::{AnimRoot, MapRoot};
+    use bevy_dark_factory::workspace_panels::WorldRoot;
+
+    let count = |app: &mut App, name: &str| -> usize {
+        let world = app.world_mut();
+        match name {
+            // **`MapRoot` is on the inspector panel and on the PLACE palette** (the palette is tagged so
+            // `tiles::apply_mode` hides it with the tab), so this counts *panels* carrying it: the take-down
+            // claim below is made on the World and Animation panels, which have exactly one each.
+            "map" => {
+                let mut q = world.query_filtered::<Entity, (With<MapRoot>, With<bevy_dark_factory::screen::WorkspacePanel>)>();
+                q.iter(world).count()
+            }
+            "anim" => {
+                let mut q = world.query_filtered::<Entity, With<AnimRoot>>();
+                q.iter(world).count()
+            }
+            "world" => {
+                let mut q = world.query_filtered::<Entity, With<WorldRoot>>();
+                q.iter(world).count()
+            }
+            _ => unreachable!(),
+        }
+    };
+
+    let mut app = editor("panels");
+    assert!(count(&mut app, "map") > 0, "the Map workspace draws its panel");
+    assert_eq!(count(&mut app, "world"), 0, "and Map does not draw World's");
+
+    chord_to(&mut app, Workspace::World);
+    assert!(count(&mut app, "world") > 0, "the World workspace's panel is built on arrival");
+
+    chord_to(&mut app, Workspace::Animation);
+    assert!(count(&mut app, "anim") > 0, "the Animation workspace's bench is built on arrival");
+    assert_eq!(count(&mut app, "world"), 0, "and World's panel is taken down, or two would stand in one dock");
+
+    // **Animation keeps its panel on every workspace**, hidden rather than despawned: its bench holds the rig
+    // and the clip, and a switch that dropped it would stop a playback the person left running. So the claim
+    // here is that it is still *there*, and that it is not the one on screen.
+    chord_to(&mut app, Workspace::Map);
+    assert!(count(&mut app, "map") > 0, "and Map's is built again on the way back");
+    assert!(count(&mut app, "anim") > 0, "the bench outlives the switch, as its clip does");
 }
