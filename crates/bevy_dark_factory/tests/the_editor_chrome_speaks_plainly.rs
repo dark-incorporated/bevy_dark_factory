@@ -133,6 +133,23 @@ fn the_history_draws_only_real_rows_and_keeps_its_height() {
         .query_filtered::<Entity, With<bevy_dark_factory::editor::HistoryTree>>()
         .single(app.world())
         .expect("the INSPECTOR draws one history list");
+    // **The section is opened first** (#691): the history starts closed and a closed section's body is not laid out, so
+    // its rows would measure zero tall whatever the list does. `SectionOpen` is gooey's game-settable state, and it is what
+    // a click on the header writes.
+    let section = {
+        let world = app.world();
+        let mut at = tree;
+        loop {
+            at = world.get::<ChildOf>(at).map(ChildOf::parent).expect("the history list stands in a gooey section (#691)");
+            if world.get::<bevy_gooey::SectionOpen>(at).is_some() {
+                break at;
+            }
+        }
+    };
+    app.world_mut().entity_mut(section).insert(bevy_gooey::SectionOpen(true));
+    for _ in 0..4 {
+        app.update();
+    }
     let (nodes, labels) = {
         let world = app.world_mut();
         let table = world.get::<bevy_gooey::Table>(tree).expect("the history is a gooey table");

@@ -23,7 +23,7 @@ use bevy::picking::pointer::{Location, PointerAction, PointerId, PointerInput};
 use bevy::prelude::*;
 use bevy_dark_factory::editor::{self, EditorState, HistoryTree};
 use bevy_dark_factory::project::OpenMap;
-use bevy_gooey::{Table, TableRow, TableRows, Tree};
+use bevy_gooey::{SectionOpen, Table, TableRow, TableRows, Tree};
 
 use crate::fixtures;
 
@@ -54,6 +54,7 @@ fn rig(tag: &str) -> App {
         .build("m");
     let mut app = bevy_dark_factory::harness::build_headless(&root, "m", None).unwrap_or_else(|e| panic!("{e}"));
     updates(&mut app, 6);
+    open_the_history(&mut app);
     {
         let mut state = app.world_mut().resource_mut::<EditorState>();
         for _ in 0..HISTORY_LINES - 1 {
@@ -65,6 +66,23 @@ fn rig(tag: &str) -> App {
     updates(&mut app, 4);
     assert_eq!(app.world().resource::<EditorState>().undo_depth(), HISTORY_LINES, "the session is the issue's depth");
     app
+}
+
+/// **The history list is opened, as a person reading it has it** (#691). The section starts closed and a closed
+/// section's body is not laid out, so a list measured shut is a list nobody can scroll; this file is about the open
+/// one. `SectionOpen` is the state gooey documents as the game's to set, and it is what a click on the header writes.
+fn open_the_history(app: &mut App) {
+    let tree = history_tree(app);
+    let world = app.world_mut();
+    let mut at = tree;
+    let section = loop {
+        at = world.get::<ChildOf>(at).map(ChildOf::parent).expect("the history list stands in a gooey section (#691)");
+        if world.get::<SectionOpen>(at).is_some() {
+            break at;
+        }
+    };
+    world.entity_mut(section).insert(SectionOpen(true));
+    updates(app, 4);
 }
 
 fn history_tree(app: &mut App) -> Entity {

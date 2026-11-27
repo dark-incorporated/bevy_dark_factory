@@ -1632,9 +1632,16 @@ pub struct BottomDock;
 /// panel's name never changes. What separates a title from the rows under it is that it is the
 /// largest thing on the panel ([`text::TITLE`]) and has a group gap below it — size and space, which
 /// is what a heading is supposed to be made of.
+///
+/// **A title wider than its panel breaks at a letter rather than drawing past the panel** (#692, the crate's rule for one
+/// word wider than its column: [`fill_text`], #468). A title is one word more often than not, and Bevy's default breaks only
+/// between words, so a one-word title keeps its whole width as its least: `NIGHTSHIFT` at text scale 1.5 on a 2x display is
+/// wider than the 381 px AGENT panel's content box and ran 18 px past it (28.6 px at interface scale 1.6), where `FAMILIAR`
+/// fitted. `WordOrCharacter` makes the least a letter, so the title's box is the column's and the line breaks inside it.
 pub fn title(parent: &mut ChildSpawnerCommands, text: &str) {
     parent.spawn((
         Text::new(text.to_owned()),
+        TextLayout::new(Justify::Left, LineBreak::WordOrCharacter),
         TextColor(ink().text),
         typed(text::TITLE),
         spaced(margin_bottom(STEP_ROW)),
@@ -3000,18 +3007,19 @@ pub fn text_narrows() -> impl Bundle {
     )
 }
 
-/// **A name that never breaks inside a word** (#693): the width its row leaves, clipped, with `Word` breaking and a real `\u{2026}`
-/// for what does not fit.
+/// **A name that never breaks inside a word** (#693): the width its row leaves, clipped, wrapping only between words.
 ///
 /// The crate breaks at a letter on purpose wherever it does (`chrome::fill_text`, `LineBreak::WordOrCharacter` — #535, #481): a
 /// file name such as `surveillance_console.glb` is one word wider than its column, and cutting it at a letter is better than
 /// drawing it past the panel. **A piece's name in the PLACE list is the other case**: `Fridge` broke as `Fridg` / `e` at 1100 px wide
 /// because the column was narrower than the word, and a name in a list of things a person recognises is read whole or not at all.
-/// So the name takes the width the row leaves, breaks only between words, and ends what does not fit in an ellipsis.
+/// So the name takes the width the row leaves and wraps only between words.
 ///
-/// **`NoWrap` rather than `Word`**: this text is one line of a list row, and `Word` on a box narrower than its longest word still
-/// breaks that word. `NoWrap` never does; `TextLayout::linebreak` is Bevy 0.20's ellipsis, so a name too wide for its column is
-/// cut with `\u{2026}` instead of being drawn over the count beside it.
+/// **`WordBoundary`, not `NoWrap`**: a long name of many words wraps in its own column and grows its own row (#486). A `NoWrap`
+/// name is laid out one line wide however narrow the column, so the panel census measured its long names hundreds of px past the
+/// PLACE panel's content box, hidden by the clip and unreadable (#494). `bevy_text` 0.20 still breaks a *single* word wider than
+/// the line where the line runs out, and has no ellipsis, so the editor's `fit_the_place_names` reads the layout and cuts such a
+/// word to fit with a trailing `\u{2026}`.
 pub fn a_name_that_never_breaks_inside_a_word() -> impl Bundle {
     (
         bevy_gooey::Role::Sized,
@@ -3022,7 +3030,7 @@ pub fn a_name_that_never_breaks_inside_a_word() -> impl Bundle {
             align: None,
         },
         bevy_gooey::Sizing { clip: Some(true), ..default() },
-        TextLayout::new(Justify::Left, LineBreak::NoWrap),
+        TextLayout::new(Justify::Left, LineBreak::WordBoundary),
     )
 }
 
@@ -3919,8 +3927,7 @@ fn adopt_the_shell_split(
 /// `Val::Px` units, so a narrow window's squeezed panel gets a pane squeezed to match.
 fn size_the_shell_split(
     mut commands: Commands,
-    mut splits: Query<(Entity, &mut bevy_gooey::SplitFraction, &mut SplitUnsized, &ComputedNode, &Children)>,
-    dividers: Query<&ComputedNode, With<bevy_gooey::SplitDivider>>,
+    mut splits: Query<(Entity, &mut bevy_gooey::SplitFraction, &mut SplitUnsized, &ComputedNode)>,
     panels: Query<(&PanelWidth, &Node, &bevy_gooey::Sizing, &ComputedNode)>,
     windows: Query<(), With<bevy::window::PrimaryWindow>>,
 ) {
@@ -3941,18 +3948,20 @@ fn size_the_shell_split(
     if want <= 0.0 {
         return;
     }
-    for (split, mut fraction, mut sized, node, kids) in &mut splits {
+    for (split, mut fraction, mut sized, node) in &mut splits {
         // **Someone else wrote the fraction since this did**: a drag, an arrow key, a game setting.
         // It is theirs from now on.
         if sized.wrote.is_some_and(|w| w != fraction.0) {
             commands.entity(split).remove::<SplitUnsized>();
             continue;
         }
-        let bar = kids
-            .iter()
-            .find_map(|c| dividers.get(c).ok())
-            .map_or(0.0, |d| d.size().x * d.inverse_scale_factor());
-        let extent = node.size().x * node.inverse_scale_factor() - bar;
+        // **The divider is the sheet's `divider_w`, not its measured box** (#689): the split carries
+        // `SplitThickness(divider_w)`, so that is the width the layout shares the panes around, while the
+        // divider's `ComputedNode` is that width rounded to device pixels (12 px at 1.2 is 14.4 laid out
+        // and 14 measured). Sizing the pane against the rounded one left the viewport a fraction of a
+        // pixel wider or narrower depending on how the docks fell, so the activity bar showing or not
+        // moved the map by a whole pixel; the sheet's number is the one `fit_docks_to_the_window` pays.
+        let extent = node.size().x * node.inverse_scale_factor() - crate::style::metrics().layout.divider_w;
         if extent <= 0.0 {
             continue;
         }
