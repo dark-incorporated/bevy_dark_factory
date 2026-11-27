@@ -62,7 +62,7 @@ read and what it drove.
   when nobody did.
 - **Drive it, do not read it.** Start the editor headless offscreen on big with the project fixture
   (`xvfb-run -a` or the fleet's own display unit), `BEVY_BRP_PORT=1571<n>`, and capture through
-  `dark_factory_mcp`'s `blueprint_capture_sequence` at 2 fps or a `bevy_fairy/screenshot` with `rect` and
+  `dark_factory_mcp`'s `blueprint_capture_sequence` at 2 fps or a `bevy_fairy/screenshot` with `region` and
   `zoom`. **One capture per state, not a scripted playthrough.**
 - **Sweep it, do not sample it** (owner, 2026-11-24: *"go through the different parts of the UI, all parts of the
   UI … exhaustively, across the entire UI"*). "Ten states" was this command's first shape and it left most of the
@@ -316,10 +316,9 @@ scratch directory on big with the gate's binary in `bin/` and a copy of a projec
   "stale" constant whose value had been renamed (only its name was old); "clippy and the suite accepted the
   planted error" when only the compile check had been run; "the state has no window size" when it was one key
   down. Run the command. When a filed claim turns out wrong, edit it and say that you did.
-- **Driving notes.** `bevy_fairy/input` has no `modifiers` field and refuses one: a chord is three calls, `Press` the
-  modifier, the key (a `Tap`), `Release` the modifier (bevy_fairy#16 was that field dropped at the old pin, not a broken
-  `Tap`). A workspace is entered with `blueprint/run_command {"id": "workspace.<name>"}`; a chord has no command id and
-  needs its keys (#668), with the host's modifier (Ctrl on Linux). One editor, one display, one port; stop both by pidfile.
+- **Driving notes.** `bevy_fairy/input` needs Press and Release, never Tap (bevy_fairy#16). A workspace is
+  entered with `blueprint/run_command {"id": "workspace.<name>"}`; a chord has no command id and needs its keys
+  (#668), with the host's modifier (Ctrl on Linux). One editor, one display, one port; stop both by pidfile.
 
 ## Filing: search first, group second, one defect per issue
 

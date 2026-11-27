@@ -180,7 +180,7 @@ rustix = { version = "1", default-features = false, features = ["std", "termios"
 # it is. The wire methods are `bevy_fairy/*`. Default features are off but the three plugin ones the
 # editor uses (guide overlay, screenshot, cursor) are on: no server, no tokio. A fix the editor needs
 # is made and pushed there, then the rev here is bumped.
-bevy_debugger_bevy = { package = "bevy_fairy", git = "https://github.com/dark-incorporated/bevy_fairy", rev = "5522058b6fb52334efc7569d0064faf9a508fe39", default-features = false, features = ["plugin", "plugin-guide", "plugin-screenshot", "plugin-ui-text"], optional = true }
+bevy_debugger_bevy = { package = "bevy_fairy", git = "https://github.com/dark-incorporated/bevy_fairy", rev = "06c9c1805651fabb2474a9d09af84c761be406aa", default-features = false, features = ["plugin", "plugin-guide", "plugin-screenshot", "plugin-ui-text"], optional = true }
 
 # `bevy_gooey::testing` finds a widget by its label and clicks it (UI-06, #214). A test dependency only:
 # the editor itself ships none of it.

@@ -1098,8 +1098,8 @@ dependencies = [
 
 [[package]]
 name = "bevy_fairy"
-version = "0.13.0"
-source = "git+https://github.com/dark-incorporated/bevy_fairy?rev=5522058b6fb52334efc7569d0064faf9a508fe39#5522058b6fb52334efc7569d0064faf9a508fe39"
+version = "0.3.1"
+source = "git+https://github.com/dark-incorporated/bevy_fairy?rev=06c9c1805651fabb2474a9d09af84c761be406aa#06c9c1805651fabb2474a9d09af84c761be406aa"
 dependencies = [
  "bevy",
  "image",
