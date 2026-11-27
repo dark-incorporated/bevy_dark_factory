@@ -7109,7 +7109,7 @@ struct ReloadShown {
 }
 
 /// **Whether the Reload panel has anything to report** (#662), for
-/// [`crate::shell_view::give_the_bottom_dock_its_room`] to fold the strip when it does not.
+/// `shell_view::give_the_bottom_dock_its_room` (a private system) to fold the strip when it does not.
 ///
 /// A resource rather than a second query of the lines: the panel's content is `refresh_reload_list`'s
 /// answer — the one system that builds it from the project and the game's verdict — and a dock that

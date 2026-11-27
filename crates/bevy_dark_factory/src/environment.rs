@@ -329,7 +329,7 @@ impl ClockScrub {
 /// smooths the right thing; the step was the editor's. This walks the hour there instead.
 ///
 /// **Only the hour.** A date, a climate or a pause is not a transition — walking one would be a lie about
-/// what the file says — and [`same_except_hour`] is the test that keeps this to the one edit it is for.
+/// what the file says — and `same_except_hour` is the test that keeps this to the one edit it is for.
 #[derive(Resource, Default, Clone, Copy, Debug, PartialEq)]
 pub struct ClockRamp {
     /// The hour the file asks for, in `[0, 24)`.
