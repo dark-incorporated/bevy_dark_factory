@@ -796,6 +796,8 @@ impl Plugin for FilesPlugin {
         app.init_resource::<PointerAt>();
         app.init_resource::<Files>()
             .add_systems(Update, hear_the_project)
+            // **Both workspaces' editors**, so not in either chain: it only meets a find bar the frame gooey spawns one.
+            .add_systems(Update, keep_the_find_bars_keys)
             .add_systems(OnEnter(Screen::Editor), spawn_the_files_workspace.after(FrameSystems).run_if(in_files))
             .add_systems(
                 Update,
@@ -1592,6 +1594,34 @@ fn keep_the_breadcrumb(
         && node.display != display
     {
         node.display = display;
+    }
+}
+
+/// **The file editor's find bar keeps its keys** (#612): `Enter` in its query steps to the next match, and is not also a key
+/// pressed in the page under it.
+///
+/// The bar is gooey's (`CodeFind`), and its fields are children of the code editor. gooey's text field lets `Enter` bubble on
+/// purpose (a submit a dialog may also hear), and the editor's own key handler answers every key that reaches it, so `Enter`
+/// in the query stepped to a match and then put a line break in the page where the caret stood, replacing the match it had
+/// just selected: the walk the bar's count promises could not be taken by keyboard. A bar under a [`FileEditor`] stops a
+/// key at the bar, `Escape` excepted, which goes on to the editor and lets go of the keyboard as before
+/// (dark-incorporated/bevy_gooey#128 asks gooey's bar to do this itself).
+fn keep_the_find_bars_keys(
+    mut commands: Commands,
+    bars: Query<(Entity, &bevy_gooey::Role, &ChildOf), Added<bevy_gooey::Role>>,
+    editors: Query<(), With<FileEditor>>,
+) {
+    for (bar, role, editor) in &bars {
+        if *role == bevy_gooey::Role::CodeFind && editors.contains(editor.parent()) {
+            commands.entity(bar).observe(the_bar_keeps_its_keys);
+        }
+    }
+}
+
+/// A key pressed in the find bar stops there, `Escape` excepted (see [`keep_the_find_bars_keys`]).
+fn the_bar_keeps_its_keys(mut key: On<bevy::input_focus::FocusedInput<bevy::input::keyboard::KeyboardInput>>) {
+    if key.input.key_code != KeyCode::Escape {
+        key.propagate(false);
     }
 }
 

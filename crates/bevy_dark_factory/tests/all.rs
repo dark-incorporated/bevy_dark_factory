@@ -705,6 +705,7 @@ mod the_caret_follows_wide_characters;
 mod the_editor_moves_on_springs;
 mod the_editor_skin_has_depth;
 mod the_file_editor_edits_project_files;
+mod the_file_editor_finds_with_a_count_and_wraps;
 mod the_file_editor_names_the_section_the_caret_is_in;
 mod the_file_editor_says_where_the_caret_stands;
 mod the_project_replaces_in_one_step_and_an_agents_edit_arrives_live;
