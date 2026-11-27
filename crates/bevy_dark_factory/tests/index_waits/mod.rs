@@ -1,5 +1,5 @@
 //! **What the tests of the panels that follow the project index share** (#501): a stepped editor whose frames run on the test's thread,
-//! a sweep set so long that nothing but a writer's note reveals a change, and waits on the wall clock.
+//! a sweep set so long that nothing but a writer's note reveals a change, and waits bounded in frames (#644).
 //!
 //! Every panel test has the same two halves, because a test that only saw the change arrive could not tell a subscription from a poll:
 //!
@@ -10,7 +10,7 @@
 //!    within [`SHOWN_WITHIN`]. This half fails when the subscription is removed.
 
 use std::path::Path;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use bevy::prelude::*;
 use bevy_dark_factory::command_run::Chords;
@@ -20,20 +20,29 @@ use bevy_dark_factory::keys::Live;
 use bevy_dark_factory::project_index::{self, ProjectIndex};
 use bevy_dark_factory::workspace::Workspace;
 
+use crate::settle_support::Frames;
+
 /// A sweep so long that the periodic look at every file never comes during a test: only a writer's own note reveals a change.
 pub const SWEEP_NEVER: Duration = Duration::from_secs(600);
 
 /// **How long a panel is watched not changing**: longer than the longest of the four retired clocks (`reference_view::RECHECK_SECS`,
-/// one second), written here as a literal so it does not move with anything the modules say.
-pub const LONGER_THAN_THE_OLD_CLOCKS: Duration = Duration::from_millis(1600);
+/// one second). 320 frames that each pause [`FRAME_PAUSE`] cover at least 1.6 s of the wall clock, written here from a literal so it
+/// does not move with anything the modules say.
+pub const LONGER_THAN_THE_OLD_CLOCKS: Frames = Frames::covering(Duration::from_millis(1600), FRAME_PAUSE);
 
-/// How long a panel may take to show a change the writer has announced: a debounce, a frame and a margin for a loaded machine.
-pub const SHOWN_WITHIN: Duration = Duration::from_secs(3);
+/// How many frames a panel may take to show a change the writer has announced: a debounce, a frame and a margin for a loaded machine,
+/// three seconds at [`FRAME_PAUSE`].
+pub const SHOWN_WITHIN: Frames = Frames::covering(Duration::from_secs(3), FRAME_PAUSE);
 
-/// How long a change that only the index's own (fast) sweep reveals may take: the sweep, the 100 ms debounce, and a margin.
-pub const SEEN_BY_A_FAST_SWEEP_WITHIN: Duration = Duration::from_secs(1);
+/// How many frames a change that only the index's own (fast) sweep reveals may take: the sweep, the 100 ms debounce, and a margin,
+/// one second at [`FRAME_PAUSE`].
+pub const SEEN_BY_A_FAST_SWEEP_WITHIN: Frames = Frames::covering(Duration::from_secs(1), FRAME_PAUSE);
 
-/// The pause between frames of a test that waits on the wall clock.
+/// **How many frames a panel is stepped after the index published a change it does not follow**, so a panel that read on any
+/// announcement has had frames to do it: 300 ms at [`FRAME_PAUSE`].
+pub const AFTER_AN_UNRELATED_CHANGE: Frames = Frames::covering(Duration::from_millis(300), FRAME_PAUSE);
+
+/// The pause after each frame of a wait, so the index's own thread has the wall clock it needs between frames.
 pub const FRAME_PAUSE: Duration = Duration::from_millis(5);
 
 pub fn stepped(root: &Path) -> App {
@@ -55,20 +64,21 @@ pub fn sweep(app: &App, every: Duration) {
     app.world().resource::<ProjectIndex>().set_sweep(every);
 }
 
-/// Step frames until `done`, for at most `within`: the index runs on its own thread, so the wait is on the wall clock. How long it took.
-pub fn pump_until(app: &mut App, within: Duration, mut done: impl FnMut(&mut App) -> bool) -> Option<Duration> {
-    let started = Instant::now();
-    while started.elapsed() < within {
+/// **Step frames until `done`, for at most `within` frames** (#644): the index runs on its own thread, so each frame pauses
+/// [`FRAME_PAUSE`]; the bound is a count of frames, so a starved host steps the same frames more slowly instead of running out of
+/// seconds. How many frames it took.
+pub fn pump_until(app: &mut App, within: Frames, mut done: impl FnMut(&mut App) -> bool) -> Option<Frames> {
+    for frame in 1..=within.0 {
         app.update();
         if done(app) {
-            return Some(started.elapsed());
+            return Some(Frames(frame));
         }
         std::thread::sleep(FRAME_PAUSE);
     }
     None
 }
 
-pub fn pump_for(app: &mut App, how_long: Duration) {
+pub fn pump_for(app: &mut App, how_long: Frames) {
     pump_until(app, how_long, |_| false);
 }
 

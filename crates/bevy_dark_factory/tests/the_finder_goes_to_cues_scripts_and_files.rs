@@ -28,6 +28,13 @@ use crate::settle_support;
 /// One frame of the test clock, seconds.
 const FRAME: f32 = 1.0 / 60.0;
 
+/// The pause between two frames of the wait for the index.
+const INDEX_PAUSE: std::time::Duration = std::time::Duration::from_millis(5);
+
+/// **Frames the finder gets to hold a cue written from outside** (#644): a count, not a wall-clock window, so a starved host does not
+/// cut it short; at [`INDEX_PAUSE`] apart they cover at least 10 s.
+const CUE_FOUND_WITHIN: settle_support::Frames = settle_support::Frames::covering(std::time::Duration::from_secs(10), INDEX_PAUSE);
+
 
 /// The project's sound file, in the crate's own shape.
 const CUES: &str = "\
@@ -186,13 +193,13 @@ fn a_files_name_opens_the_files_workspace_on_it() {
 fn a_cue_added_to_the_sound_file_is_found_without_reopening_the_project() {
     let (mut app, root) = editor("added");
     std::fs::write(root.join("family/bevy_siren.yaml"), MORE_CUES).unwrap_or_else(|e| panic!("{e}"));
-    // Owner exception (2026-11-14): the_finder_goes_to_cues_scripts_and_files.rs::a_cue_added_to_the_sound_file_is_found_without_reopening_the_project: the finder's files used to be re-read on a timer of this test's frame clock (1.5 s, which 180 frames of the manual clock were), and are now followed by the project index (#501), whose sweep and debounce run on the wall clock (about a second). The wait counted frames that the index does not count (measured: it failed once in a run of 135 tests and passed 6 of 6 alone; [INFERENCE] 180 frames can take about a second of wall time); it now steps frames until the finder holds the cue (at most ten seconds), and the assertions after it are the same.
-    let started = std::time::Instant::now();
-    while started.elapsed().as_secs_f64() < 10.0
-        && !app.world().resource::<bevy_dark_factory::goto::GotoIndex>().of_kind(bevy_dark_factory::goto::Kind::Cue).any(|e| e.key == "bell.toll")
-    {
+    // Owner exception (2026-11-14): the_finder_goes_to_cues_scripts_and_files.rs::a_cue_added_to_the_sound_file_is_found_without_reopening_the_project: the finder's files used to be re-read on a timer of this test's frame clock (1.5 s, which 180 frames of the manual clock were), and are now followed by the project index (#501), whose sweep and debounce run on the wall clock (about a second). The wait counted frames that the index does not count (measured: it failed once in a run of 135 tests and passed 6 of 6 alone; [INFERENCE] 180 frames can take about a second of wall time); it now steps frames, each followed by a pause, until the finder holds the cue (at most `CUE_FOUND_WITHIN`, which covers ten seconds; #644), and the assertions after it are the same.
+    for _ in 0..CUE_FOUND_WITHIN.0 {
+        if app.world().resource::<bevy_dark_factory::goto::GotoIndex>().of_kind(bevy_dark_factory::goto::Kind::Cue).any(|e| e.key == "bell.toll") {
+            break;
+        }
         app.update();
-        std::thread::sleep(std::time::Duration::from_millis(5));
+        std::thread::sleep(INDEX_PAUSE);
     }
     go_to(&mut app, "bell");
     assert_eq!(*app.world().resource::<Workspace>(), Workspace::Sound, "the new cue is a result");

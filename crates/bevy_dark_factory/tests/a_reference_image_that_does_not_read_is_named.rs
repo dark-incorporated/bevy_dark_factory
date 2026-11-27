@@ -11,10 +11,10 @@
 //!
 //! Owner exception (2026-11-14): `reference_view::RECHECK_SECS` is retired (#501): the view reads the project index, which sees a write within
 //! its debounce and one sweep, so a fixed 0.4 s of frames is no longer a valid wait for a change. Each positive wait (`project`'s baseline,
-//! the refusal after a bad write) waits for the condition with a wall-clock timeout, and the same-size negative waits for the view to have
-//! read the picture before it asserts that nothing was decided; no assertion is loosened.
+//! the refusal after a bad write) waits for the condition for a bounded count of frames (#644: frames, not a wall-clock timeout), and the same-size
+//! negative waits for the view to have read the picture before it asserts that nothing was decided; no assertion is loosened.
 
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use bevy::prelude::*;
 use bevy_dark_factory::editor::EditorState;
@@ -24,8 +24,18 @@ use bevy_dark_factory::reference_view::ReferenceView;
 use serde_json::{Value, json};
 
 use crate::fixtures;
+use crate::settle_support::Frames;
 
 const FILE: &str = "references/court.png";
+
+/// The pause between two frames of [`until`] and [`pump`].
+const PAUSE: Duration = Duration::from_millis(40);
+
+/// **Frames [`until`] steps before it gives up**: at [`PAUSE`] apart they cover the 6 s it used to wait on the wall clock.
+const SEEN_WITHIN: Frames = Frames::covering(Duration::from_secs(6), PAUSE);
+
+/// **Frames a negative check steps before it asserts nothing was decided**: at [`PAUSE`] apart they cover the 0.4 s it used to pump.
+const QUIET_FOR: Frames = Frames::covering(Duration::from_millis(400), PAUSE);
 
 fn png(w: u32, h: u32) -> Vec<u8> {
     let mut b = vec![0x89, b'P', b'N', b'G', 0x0D, 0x0A, 0x1A, 0x0A, 0, 0, 0, 13, b'I', b'H', b'D', b'R'];
@@ -96,23 +106,22 @@ fn seq(app: &mut App) -> u64 {
     reloads(app)["seq"].as_u64().unwrap()
 }
 
+/// **Step the editor until `done`**, at most [`SEEN_WITHIN`] frames (#644).
 fn until(app: &mut App, what: &str, done: impl Fn(&mut App) -> bool) {
-    let start = Instant::now();
-    while start.elapsed().as_secs_f64() < 6.0 {
+    for _ in 0..SEEN_WITHIN.0 {
         if done(app) {
             return;
         }
         app.update();
-        std::thread::sleep(Duration::from_millis(40));
+        std::thread::sleep(PAUSE);
     }
-    panic!("never saw: {what}; reloads {}", reloads(app));
+    panic!("never saw: {what} (waited {SEEN_WITHIN:?}); reloads {}", reloads(app));
 }
 
-fn pump(app: &mut App, secs: f64) {
-    let start = Instant::now();
-    while start.elapsed().as_secs_f64() < secs {
+fn pump(app: &mut App, frames: Frames) {
+    for _ in 0..frames.0 {
         app.update();
-        std::thread::sleep(Duration::from_millis(40));
+        std::thread::sleep(PAUSE);
     }
 }
 
@@ -165,7 +174,7 @@ fn a_picture_that_is_not_a_picture_is_named_once_per_edit_and_a_repair_is_applie
 
         // Nothing was edited since, so nothing is decided again however many frames pass.
         let refused_at = seq(&mut app);
-        pump(&mut app, 0.4);
+        pump(&mut app, QUIET_FOR);
         assert_eq!(seq(&mut app), refused_at, "{what}: no new decision without an edit");
 
         write(&ctx, FILE, &png(8, 8));
@@ -213,7 +222,7 @@ fn a_picture_that_is_already_refused_when_it_is_listed_is_named_and_mended() {
 fn a_picture_that_is_gone_or_no_longer_listed_is_forgotten_and_a_missing_one_is_not_decided() {
     let (mut app, mut ctx) = project("reference_view_forgotten");
     ops::dispatch(&mut ctx, "board_set", &json!({"action": "add", "path": "references/later.png", "caption": "later"})).unwrap_or_else(|e| panic!("{e:?}"));
-    pump(&mut app, 0.4);
+    pump(&mut app, QUIET_FOR);
     assert_eq!(verdict(&mut app, "references/later.png"), Value::Null, "a listed picture that is not there yet is not decided");
 
     write(&ctx, FILE, b"court picture");

@@ -15,12 +15,13 @@ use bevy_dark_factory::project::Project;
 use serde_json::json;
 
 use crate::index_view_support as support;
+use crate::settle_support::Frames;
 
 const FILE: &str = "checks.yaml";
 
-/// **How long the editor is stepped after the ignored file is edited**, a literal: longer than the retired one-second timer's period, so a
-/// view that still read on a clock of its own would read inside it.
-const EDIT_WATCHED_FOR: Duration = Duration::from_millis(1300);
+/// **How many frames the editor is stepped after the ignored file is edited**, from a literal: 1.3 s at `support::STEP`, longer than
+/// the retired one-second timer's period, so a view that still read on a clock of its own would read inside it.
+const EDIT_WATCHED_FOR: Frames = Frames::covering(Duration::from_millis(1300), support::STEP);
 
 fn good(threshold: f64) -> String {
     format!("{{checks: [{{name: \"mine\", question: \"Is it floating?\", threshold: {threshold}}}]}}")

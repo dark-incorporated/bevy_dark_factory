@@ -26,9 +26,12 @@ use crate::settle_support;
 
 /// One frame of the test clock, in seconds: the file watchers run on the real clock, which the manual strategy drives.
 const FRAME_S: f32 = 1.0 / 60.0;
-/// How long a test waits, on the wall clock, for the editor to learn of a file written from outside: it follows the project index, whose sweep and
-/// debounce run on their own thread and not on the manual clock the frames above drive.
-const WAIT_FOR_THE_INDEX_S: u64 = 20;
+/// The pause between two frames of a wait for the index.
+const INDEX_PAUSE: std::time::Duration = std::time::Duration::from_millis(10);
+/// How many frames a test steps for the editor to learn of a file written from outside: it follows the project index, whose sweep and
+/// debounce run on their own thread and not on the manual clock the frames above drive. A count, not a wall-clock window, so a starved
+/// host does not cut it short (#644); at [`INDEX_PAUSE`] apart they cover at least 20 s.
+const WAIT_FOR_THE_INDEX: settle_support::Frames = settle_support::Frames::covering(std::time::Duration::from_secs(20), INDEX_PAUSE);
 
 const GAME: &str = "design/style.md";
 const LEVEL: &str = "design/levels/m/style.md";
@@ -284,12 +287,15 @@ fn a_change_on_disk_during_edit_offers_reload_or_keep_mine_and_overwrites_nothin
     // Someone else writes the file: the question is asked, and the disk is not touched by the editor.
     let theirs = "# Theirs\n\nWritten by an agent.\n";
     write(&root, LEVEL, theirs);
-    // The editor learns of the change from the project index (#501), on the wall clock: wait for the question, not for a number of frames
-    // (the frames run on a manual clock, so forty of them took a machine-dependent few milliseconds and the test passed or failed with the load).
-    let started = std::time::Instant::now();
-    while started.elapsed() < std::time::Duration::from_secs(WAIT_FOR_THE_INDEX_S) && !(visible(&mut app, "Reload") && visible(&mut app, "Keep mine")) {
+    // The editor learns of the change from the project index (#501), whose sweep runs on its own thread: wait for the question, not for a
+    // fixed number of frames (the frames run on a manual clock, so forty of them took a machine-dependent few milliseconds and the test
+    // passed or failed with the load). The wait is bounded by frames, each followed by a pause, so a starved host does not cut it short.
+    for _ in 0..WAIT_FOR_THE_INDEX.0 {
+        if visible(&mut app, "Reload") && visible(&mut app, "Keep mine") {
+            break;
+        }
         app.update();
-        std::thread::sleep(std::time::Duration::from_millis(10));
+        std::thread::sleep(INDEX_PAUSE);
     }
     assert!(visible(&mut app, "Reload") && visible(&mut app, "Keep mine"), "a change on disk under unsaved typing asks Reload or Keep mine");
     assert_eq!(std::fs::read_to_string(root.join(LEVEL)).unwrap_or_default(), theirs, "the editor overwrote nothing");

@@ -139,7 +139,7 @@ fn a_source_file_the_finder_lists_opens_and_its_path_is_in_the_outline_state() {
     let entry = settle_support::until(&mut app, "the finder's index holds a row for the source file", |app| {
         app.world().resource::<GotoIndex>().entries().iter().any(|e| e.key == SOURCE)
     });
-    assert!(entry >= Duration::ZERO, "the index is the thing being measured");
+    assert!(entry >= settle_support::Frames(0), "the index is the thing being measured");
     let row = app
         .world()
         .resource::<GotoIndex>()

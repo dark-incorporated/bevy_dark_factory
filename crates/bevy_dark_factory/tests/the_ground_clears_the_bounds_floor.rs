@@ -12,6 +12,14 @@ use bevy_dark_factory::terrain_view::TerrainView;
 use blueprint_model::heightfield::Heightfield;
 
 use crate::fixtures::Fixture;
+use crate::settle_support::Frames;
+
+/// The pause between two frames of the wait for the ground and the floor.
+const PAUSE: std::time::Duration = std::time::Duration::from_millis(50);
+
+/// **Frames the editor gets to draw the ground and the floor** (#644): a count, not a wall-clock window, so a starved host does not
+/// cut it short; at [`PAUSE`] apart they cover at least 5 s.
+const DRAWN_WITHIN: Frames = Frames::covering(std::time::Duration::from_secs(5), PAUSE);
 
 /// The depth buffer is 32-bit float and the Map camera's projection is linear in depth between its
 /// `near` and `far`, so two surfaces closer than `(far - near) / 2^22` (four units in the last place
@@ -29,17 +37,19 @@ fn a_flat_ground_at_height_zero_is_drawn_clear_of_the_bounds_floor() {
     let flat = Heightfield::flat((0.0, 0.0), 1.0, 33, 33, 0.0);
     std::fs::write(project.blueprint_dir.join("terrain/m.yaml"), blueprint_model::yaml::to_string(&flat).unwrap()).unwrap();
 
-    let start = std::time::Instant::now();
-    let (ground_y, floor_y) = loop {
+    let (mut ground, mut floor) = (None, None);
+    for _ in 0..DRAWN_WITHIN.0 {
         app.update();
         let world = app.world_mut();
-        let ground = world.query::<(&TerrainView, &Transform)>().iter(world).find(|(v, _)| **v == TerrainView::Ground).map(|(_, t)| t.translation.y);
-        let floor = world.query_filtered::<&Transform, With<BoundsFloor>>().iter(world).next().map(|t| t.translation.y);
-        if let (Some(g), Some(f)) = (ground, floor) {
-            break (g, f);
+        ground = world.query::<(&TerrainView, &Transform)>().iter(world).find(|(v, _)| **v == TerrainView::Ground).map(|(_, t)| t.translation.y);
+        floor = world.query_filtered::<&Transform, With<BoundsFloor>>().iter(world).next().map(|t| t.translation.y);
+        if ground.is_some() && floor.is_some() {
+            break;
         }
-        assert!(start.elapsed().as_secs_f64() < 5.0, "no ground ({ground:?}) or floor ({floor:?}) was drawn");
-        std::thread::sleep(std::time::Duration::from_millis(50));
+        std::thread::sleep(PAUSE);
+    }
+    let (Some(ground_y), Some(floor_y)) = (ground, floor) else {
+        panic!("no ground ({ground:?}) or floor ({floor:?}) was drawn (waited {DRAWN_WITHIN:?})");
     };
 
     // The widest depth range this map's camera is given: the framing's own, from the map's bounds.

@@ -18,7 +18,10 @@ use serde_json::json;
 
 use crate::fixtures;
 use crate::index_waits::*;
+use crate::settle_support::Frames;
 
+/// How many frames the baseline look at both pictures may take, through the index's own (fast) sweep: ten seconds at [`FRAME_PAUSE`].
+const BASELINE_WITHIN: Frames = Frames::covering(Duration::from_secs(10), FRAME_PAUSE);
 
 const COURT: &str = "references/court.png";
 const YARD: &str = "references/yard.png";
@@ -58,7 +61,7 @@ fn reference_project(tag: &str) -> (App, Ctx) {
     // **A picture the board lists that is not there**: the listing does not hold it, so each look has a verdict to reach for it.
     ops::dispatch(&mut ctx, "board_set", &json!({"action": "add", "path": LATER, "caption": "not made yet"})).unwrap_or_else(|e| panic!("{e:?}"));
     // **The baseline**: both pictures looked at once, by the index's own (fast) sweep.
-    let baseline = pump_until(&mut app, Duration::from_secs(10), |app| {
+    let baseline = pump_until(&mut app, BASELINE_WITHIN, |app| {
         let view = app.world().resource::<ReferenceView>();
         view.header_of(COURT).is_some() && view.header_of(YARD).is_some()
     });
@@ -101,7 +104,7 @@ fn a_picture_replaced_in_place_is_read_again_when_the_index_says_so_and_a_change
     write_in_place(&unrelated, "note: second, and longer\n");
     announce(&root, &unrelated);
     assert!(pump_until(&mut app, SHOWN_WITHIN, |app| published(app) > before).is_some(), "the index did not publish the unrelated change");
-    pump_for(&mut app, Duration::from_millis(300));
+    pump_for(&mut app, AFTER_AN_UNRELATED_CHANGE);
     assert_eq!(pictures_read(&app), read_for_the_baseline, "a change to a file no board lists made the view read a picture");
     assert_eq!(
         world_lists::verdict_lookups_on_this_thread(),

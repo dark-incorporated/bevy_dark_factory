@@ -11,7 +11,7 @@
 //! 6. **The page follows its project's files**: a map an agent made appears.
 
 use std::path::{Path, PathBuf};
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use bevy::input::keyboard::{Key, KeyboardInput};
 use bevy::prelude::*;
@@ -29,6 +29,13 @@ use bevy_dark_factory::screen::Screen;
 use bevy_gooey::{FieldProblem, Role};
 
 use crate::fixtures::Fixture;
+
+/// The pause between two of [`until`]'s frames.
+const PAUSE: Duration = Duration::from_millis(10);
+
+/// **Frames [`until`] steps before it gives up** (#644): a count, not a wall-clock window, so a starved host does not cut it short;
+/// at [`PAUSE`] apart they cover at least 5 s.
+const THERE_WITHIN: settle_support::Frames = settle_support::Frames::covering(Duration::from_secs(5), PAUSE);
 
 /// A stepped editor standing on the page of a fixture project that has the map `m`.
 fn on_the_page(tag: &str) -> (PathBuf, App) {
@@ -90,17 +97,16 @@ fn tap(app: &mut App, logical: Key, code: KeyCode) {
     app.update();
 }
 
-/// Steps in real time until `done`, or five seconds pass.
+/// Steps frames, [`PAUSE`] apart, until `done`, or [`THERE_WITHIN`] frames pass.
 fn until(app: &mut App, mut done: impl FnMut(&mut App) -> bool) {
-    let start = Instant::now();
-    while start.elapsed() < Duration::from_secs(5) {
+    for _ in 0..THERE_WITHIN.0 {
         app.update();
         if done(app) {
             return;
         }
-        std::thread::sleep(Duration::from_millis(10));
+        std::thread::sleep(PAUSE);
     }
-    panic!("the app never got there: it is on {:?}", screen_of(app));
+    panic!("the app never got there in {THERE_WITHIN:?}: it is on {:?}", screen_of(app));
 }
 
 fn map_file(root: &Path, name: &str) -> PathBuf {

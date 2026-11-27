@@ -5,7 +5,6 @@
 //! choosing a cue re-marks the rows without reading the sound file.
 
 use std::path::PathBuf;
-use std::time::Duration;
 
 use bevy::prelude::*;
 use bevy_dark_factory::project::{OpenMap, Project};
@@ -92,7 +91,7 @@ fn the_world_lists_follow_their_files_and_read_nothing_for_a_file_they_do_not_sh
     write_in_place(&l.unrelated, "note: second, and longer\n");
     announce(&l.root, &l.unrelated);
     assert!(pump_until(&mut app, SHOWN_WITHIN, |app| published(app) > before).is_some(), "the index did not publish the unrelated change, so a read count of nothing would prove nothing");
-    pump_for(&mut app, Duration::from_millis(300));
+    pump_for(&mut app, AFTER_AN_UNRELATED_CHANGE);
     assert_eq!(world_lists::reads_on_this_thread(), read_to_fill, "a change to a file no list shows made a list read a file");
 
     // **The forest file: no clock, then the announcement, and exactly one read.**
@@ -189,7 +188,7 @@ fn a_file_that_is_not_there_is_not_judged_again_until_the_rules_move() {
     write_in_place(&unrelated, "note: second, and longer\n");
     announce(&root, &unrelated);
     assert!(pump_until(&mut app, SHOWN_WITHIN, |app| published(app) > before).is_some(), "the index did not publish the unrelated change, so a count of nothing would prove nothing");
-    pump_for(&mut app, Duration::from_millis(300));
+    pump_for(&mut app, AFTER_AN_UNRELATED_CHANGE);
     assert_eq!(world_lists::reads_on_this_thread(), reads, "a change to an unrelated file made a list read a file");
     assert_eq!(world_lists::verdict_lookups_on_this_thread(), judged, "a change to an unrelated file made a list judge a file that is not there again (it reads .gitignore)");
 

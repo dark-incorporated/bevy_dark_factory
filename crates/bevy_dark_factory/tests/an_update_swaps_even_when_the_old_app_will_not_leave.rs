@@ -14,12 +14,28 @@ use std::time::{Duration, Instant};
 use bevy_dark_factory::update::Swap;
 use rustix::process::{Pid, getpgid};
 
+use crate::settle_support::Frames;
+
 /// Seconds the old process has before it is asked to end, and before it is made to: short, so the test is.
 const TERM_AFTER_S: u32 = 1;
 const KILL_AFTER_S: u32 = 2;
 
-/// The most the test waits for anything to happen, seconds. A swap that never ends fails here, not hangs.
-const PATIENCE_S: u64 = 30;
+/// The most wall-clock time the test means to wait for anything to happen. A swap that never ends fails here, not hangs.
+const PATIENCE: Duration = Duration::from_secs(30);
+
+/// The pause between two looks at a child that has not ended.
+const CHILD_PAUSE: Duration = Duration::from_millis(50);
+
+/// **How many looks [`finished`] takes before it fails the test** (#644): a count, not a deadline, so a starved host does not cut it
+/// short; at [`CHILD_PAUSE`] apart they cover at least [`PATIENCE`].
+const CHILD_ENDS_WITHIN: Frames = Frames::covering(PATIENCE, CHILD_PAUSE);
+
+/// The pause between two asks of `ps`.
+const PS_PAUSE: Duration = Duration::from_millis(5);
+
+/// **How many times `ps` is asked before the stand-in counts as never becoming `sleep`**: at [`PS_PAUSE`] apart they cover at
+/// least [`PATIENCE`].
+const BECOMES_SLEEP_WITHIN: Frames = Frames::covering(PATIENCE, PS_PAUSE);
 
 /// A scratch folder laid out as an install: the running app, the staged one, and a stand-in for `open`.
 struct Install {
@@ -79,20 +95,17 @@ impl Drop for Install {
     }
 }
 
-/// Waits for `child` to end, failing the test rather than hanging it.
+/// Waits for `child` to end, failing the test rather than hanging it: at most [`CHILD_ENDS_WITHIN`] looks.
 fn finished(child: &mut Child, what: &str) {
-    let deadline = Instant::now() + Duration::from_secs(PATIENCE_S);
-    loop {
+    for _ in 0..CHILD_ENDS_WITHIN.0 {
         match child.try_wait() {
             Ok(Some(_)) => return,
-            Ok(None) if Instant::now() < deadline => std::thread::sleep(Duration::from_millis(50)),
-            Ok(None) => {
-                let _ = child.kill();
-                panic!("{what} was still running after {PATIENCE_S} s");
-            }
+            Ok(None) => std::thread::sleep(CHILD_PAUSE),
             Err(e) => panic!("{what}: {e}"),
         }
     }
+    let _ = child.kill();
+    panic!("{what} was still running after {CHILD_ENDS_WITHIN:?}");
 }
 
 /// A stand-in for the old app that will not leave when asked: it ignores `SIGTERM` and `SIGHUP`.
@@ -104,21 +117,21 @@ fn the_old_app_that_will_not_leave() -> Child {
         .stderr(Stdio::null())
         .spawn()
         .unwrap_or_else(|e| panic!("{e}"));
-    if runs_sleep_within(old.id(), Duration::from_secs(PATIENCE_S)) {
+    if runs_sleep_within(old.id(), BECOMES_SLEEP_WITHIN) {
         old
     } else {
         // Reaped before the test fails, so a stand-in that never exec'd is not left behind.
         let _ = old.kill();
         let _ = old.wait();
-        panic!("the stand-in never became `sleep` within {PATIENCE_S} s");
+        panic!("the stand-in never became `sleep` within {BECOMES_SLEEP_WITHIN:?}");
     }
 }
 
 /// **Waited for, not guessed**: the swap script reads the program's name when it starts, so the stand-in must already be
-/// `sleep` — and the trap is set before the exec, whose ignored signals the exec keeps. `ps` is asked until it says so.
-fn runs_sleep_within(pid: u32, within: Duration) -> bool {
-    let deadline = Instant::now() + within;
-    while Instant::now() < deadline {
+/// `sleep` — and the trap is set before the exec, whose ignored signals the exec keeps. `ps` is asked until it says so, at most
+/// `within` times, [`PS_PAUSE`] apart (#644).
+fn runs_sleep_within(pid: u32, within: Frames) -> bool {
+    for _ in 0..within.0 {
         let named = Command::new("ps")
             .args(["-o", "comm=", "-p", &pid.to_string()])
             .output()
@@ -127,7 +140,7 @@ fn runs_sleep_within(pid: u32, within: Duration) -> bool {
         if named {
             return true;
         }
-        std::thread::sleep(Duration::from_millis(5));
+        std::thread::sleep(PS_PAUSE);
     }
     false
 }

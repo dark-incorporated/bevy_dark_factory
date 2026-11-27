@@ -129,7 +129,7 @@ fn an_unrelated_change_reads_nothing_and_judges_nothing_while_the_relations_file
     write_in_place(&unrelated, "note: second, and longer\n");
     announce(&root, &unrelated);
     assert!(pump_until(&mut app, SHOWN_WITHIN, |app| published(app) > before).is_some(), "the index did not publish the unrelated change, so a count of nothing would prove nothing");
-    pump_for(&mut app, std::time::Duration::from_millis(300));
+    pump_for(&mut app, AFTER_AN_UNRELATED_CHANGE);
     assert_eq!(world_lists::reads_on_this_thread(), reads, "a change to an unrelated file made the PROBLEMS list read a file");
     assert_eq!(world_lists::verdict_lookups_on_this_thread(), judged, "a change to an unrelated file made the PROBLEMS list judge a file that is not there again (it reads .gitignore)");
 

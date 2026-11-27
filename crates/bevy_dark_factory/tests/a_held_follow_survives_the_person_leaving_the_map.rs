@@ -28,6 +28,7 @@ use bevy_dark_factory::view::{MainCamera, Rig};
 use bevy_dark_factory::workspace::Workspace;
 
 use crate::fixtures;
+use crate::settle_support::Frames;
 
 /// One frame of the test clock, seconds: 60 Hz, as the follow's own tests step it.
 const FRAME: f32 = 1.0 / 60.0;
@@ -40,6 +41,12 @@ const AT: [f32; 2] = [-10.5, -10.5];
 
 /// How near the camera's focus must end to the placement, in metres: the view is framed on it.
 const FRAMED_WITHIN_M: f32 = 4.0;
+
+/// The pause between two frames of [`until_the_editor_has`].
+const SETTINGS_PAUSE: Duration = Duration::from_millis(15);
+
+/// **Frames [`until_the_editor_has`] steps before it stops looking**: at [`SETTINGS_PAUSE`] apart they cover the 10 s it used to wait.
+const SETTINGS_SEEN_WITHIN: Frames = Frames::covering(Duration::from_secs(10), SETTINGS_PAUSE);
 
 /// While `true`, the Map camera is given a viewport with no area at the end of every frame: the state of a camera that is not ready.
 #[derive(Resource, Default)]
@@ -59,14 +66,17 @@ fn updates(app: &mut App, frames: usize) {
     }
 }
 
-/// **Wait on the wall clock until the editor has taken a settings edit made by hand** (#501 item 18: the settings files are followed by an
-/// index, not polled, so an edit is seen after the index's sweep and debounce, which a fixed number of frames does not wait for). The
+/// **Step the editor until it has taken a settings edit made by hand** (#501 item 18: the settings files are followed by an
+/// index, not polled, so an edit is seen after the index's sweep and debounce, which a fixed few frames do not wait for). The
+/// wait is [`SETTINGS_SEEN_WITHIN`] frames, not a wall-clock window, so a starved host does not cut it short (#644). The
 /// assertions after it are unchanged.
 fn until_the_editor_has(app: &mut App, done: impl Fn(&EditorSettings) -> bool) {
-    let began = std::time::Instant::now();
-    while !done(app.world().resource::<EditorSettings>()) && began.elapsed() < Duration::from_secs(10) {
+    for _ in 0..SETTINGS_SEEN_WITHIN.0 {
+        if done(app.world().resource::<EditorSettings>()) {
+            break;
+        }
         app.update();
-        std::thread::sleep(Duration::from_millis(15));
+        std::thread::sleep(SETTINGS_PAUSE);
     }
 }
 

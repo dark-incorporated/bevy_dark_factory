@@ -13,7 +13,7 @@
 //!
 //! Each fails if the reload is measured on a clock again: the first would then wait for time that never passes, the second would land at once.
 
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use bevy::prelude::*;
 use bevy::time::TimeUpdateStrategy;
@@ -22,6 +22,7 @@ use bevy_dark_factory::family_host::{reload_settings, FamilySettings};
 use bevy_dark_factory::project_index::{MIN_SWEEP, ProjectIndex};
 
 use crate::fixtures;
+use crate::settle_support::Frames;
 
 const SETTINGS: &str = include_str!("fixtures/bevy_elements.yaml");
 const SETTINGS_LATER: &str = include_str!("fixtures/bevy_elements_18.5.yaml");
@@ -29,8 +30,12 @@ const SETTINGS_LATER: &str = include_str!("fixtures/bevy_elements_18.5.yaml");
 /// One step of the test's clock, in seconds. It crosses the old poll and settle intervals (0.1 s each) in a single update.
 const STEP: f32 = 0.2;
 
-/// How long a test waits on the wall clock for the index to show the host a change.
-const WAIT: Duration = Duration::from_secs(30);
+/// The pause between two frames of [`until_landed`].
+const PAUSE: Duration = Duration::from_millis(10);
+
+/// **How many frames a test steps for the index to show the host a change** (#644): a count, not a wall-clock window, so a starved
+/// host does not cut it short; at [`PAUSE`] apart they cover at least 30 s.
+const WAIT: Frames = Frames::covering(Duration::from_secs(30), PAUSE);
 
 /// **The editor the host runs in, on a clock this test owns**, and the index's sweep at its floor.
 fn editor(root: &std::path::Path, step: f32) -> App {
@@ -56,10 +61,12 @@ fn project(tag: &str) -> (std::path::PathBuf, std::path::PathBuf) {
 }
 
 fn until_landed(app: &mut App) {
-    let started = Instant::now();
-    while started.elapsed() < WAIT && held(app) != SETTINGS_LATER {
+    for _ in 0..WAIT.0 {
+        if held(app) == SETTINGS_LATER {
+            break;
+        }
         app.update();
-        std::thread::sleep(Duration::from_millis(10));
+        std::thread::sleep(PAUSE);
     }
     assert_eq!(held(app), SETTINGS_LATER, "the edit must be the settings the host holds, verbatim, within {WAIT:?}");
 }

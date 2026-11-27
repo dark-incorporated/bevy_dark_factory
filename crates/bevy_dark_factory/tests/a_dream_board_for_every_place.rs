@@ -14,6 +14,17 @@ use blueprint_model::board::{self, Board};
 use serde_json::{Value, json};
 
 use crate::fixtures;
+use crate::settle_support::Frames;
+
+/// The pause between two of [`pump`]'s frames.
+const PAUSE: std::time::Duration = std::time::Duration::from_millis(40);
+
+/// **Frames the editor gets to take the boards' first reading** (#644): counted, not timed, so a starved host does not cut it short;
+/// at [`PAUSE`] apart they cover the 1.5 s the pump used to read off the wall clock.
+const FIRST_READING: Frames = Frames::covering(std::time::Duration::from_millis(1500), PAUSE);
+
+/// **Frames the editor gets to refuse a picture that no longer reads**: they cover the sixty 0.1 s pumps the test used to wait.
+const REFUSED_WITHIN: Frames = Frames::covering(std::time::Duration::from_secs(6), PAUSE);
 
 fn editor(tag: &str) -> (App, Ctx, std::path::PathBuf) {
     let root = fixtures::Fixture::new(&format!("{tag}_{}", std::process::id())).descriptor("site/wall", "alpha").place("site/wall", (1.5, 1.5)).build("m");
@@ -166,11 +177,11 @@ fn png(w: u32, h: u32) -> Vec<u8> {
     b
 }
 
-fn pump(app: &mut App, secs: f64) {
-    let start = std::time::Instant::now();
-    while start.elapsed().as_secs_f64() < secs {
+/// **Step the editor `frames` frames, [`PAUSE`] apart** (#644: a frame count, not a wall-clock window).
+fn pump(app: &mut App, frames: Frames) {
+    for _ in 0..frames.0 {
         app.update();
-        std::thread::sleep(std::time::Duration::from_millis(40));
+        std::thread::sleep(PAUSE);
     }
 }
 
@@ -192,15 +203,15 @@ fn a_picture_on_any_boards_that_is_no_picture_is_named_by_the_header_check() {
         std::fs::write(root.join(file), png(8, 8)).unwrap();
         ops::dispatch(&mut ctx, "board_set", &json!({"action": "add", "place": place, "path": file, "caption": "the fog's colour"})).unwrap_or_else(|e| panic!("{}", e.0));
     }
-    pump(&mut app, 1.5);
+    pump(&mut app, FIRST_READING);
     for (_, file) in on {
         assert_eq!(verdict(&mut app, file), Value::Null, "a picture seen reading for the first time is not news: {file}");
     }
     for (place, file) in on {
         std::fs::write(root.join(file), b"a text where the picture was").unwrap();
         let mut seen = Value::Null;
-        for _ in 0..60 {
-            pump(&mut app, 0.1);
+        for _ in 0..REFUSED_WITHIN.0 {
+            pump(&mut app, Frames(1));
             seen = verdict(&mut app, file);
             if seen != Value::Null {
                 break;

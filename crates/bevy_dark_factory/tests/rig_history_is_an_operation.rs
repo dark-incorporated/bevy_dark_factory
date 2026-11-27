@@ -5,7 +5,7 @@
 //! before its newest write is written back to `rigs.yaml` (or the one a step back took away is put again), the bench holds it, and
 //! a step with nothing to step is a note on the key and a refusal for an agent.
 
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use bevy::input::ButtonState;
 use bevy::input::keyboard::{Key, KeyboardInput};
@@ -20,6 +20,14 @@ use serde_json::{Value, json};
 
 use crate::fixtures;
 use crate::index_view_support as support;
+use crate::settle_support::Frames;
+
+/// The pause between two of [`until`]'s frames.
+const PAUSE: Duration = Duration::from_millis(10);
+
+/// **Frames the tab gets to hold an edit made on disk** (#644): a count, not a wall-clock window, so a starved host does not cut it
+/// short; at [`PAUSE`] apart they cover at least 30 s.
+const EDIT_HELD_WITHIN: Frames = Frames::covering(Duration::from_secs(30), PAUSE);
 
 fn workspace_asset(rel: &str) -> std::path::PathBuf {
     std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../assets").join(rel)
@@ -42,17 +50,16 @@ fn editor(tag: &str) -> (App, std::path::PathBuf) {
     (app, path)
 }
 
-/// Frames until `done` holds, or panic with `what` after `secs`.
-fn until(app: &mut App, secs: f64, what: &str, done: impl Fn(&App) -> bool) {
-    let start = Instant::now();
-    while start.elapsed().as_secs_f64() < secs {
+/// Frames until `done` holds, or panic with `what` after `within` frames, [`PAUSE`] apart.
+fn until(app: &mut App, within: Frames, what: &str, done: impl Fn(&App) -> bool) {
+    for _ in 0..within.0 {
         if done(app) {
             return;
         }
         app.update();
-        std::thread::sleep(Duration::from_millis(10));
+        std::thread::sleep(PAUSE);
     }
-    panic!("never saw: {what}");
+    panic!("never saw: {what} (waited {within:?})");
 }
 
 /// **Through the registered method**, as an agent's request goes.
@@ -126,7 +133,7 @@ fn cmd_z_and_an_agent_step_the_benchs_history_through_one_operation() {
     rigs.rigs.insert("aardvark".to_owned(), copy);
     let edited = rigs.to_yaml().expect("serialises");
     std::fs::write(&path, &edited).expect("write");
-    until(&mut app, 30.0, "the tab holding the edit", |a| held(a) == edited);
+    until(&mut app, EDIT_HELD_WITHIN, "the tab holding the edit", |a| held(a) == edited);
     support::settle_until_the_index_is_quiet(&mut app);
 
     let mods = [bevy_dark_factory::keys::MOD_KEYS[0]];
@@ -198,7 +205,7 @@ fn a_step_whose_log_line_cannot_be_written_is_taken_back_with_its_history() {
     rigs.rigs.insert("aardvark".to_owned(), copy);
     let edited = rigs.to_yaml().expect("serialises");
     std::fs::write(&path, &edited).expect("write");
-    until(&mut app, 30.0, "the tab holding the edit", |a| held(a) == edited);
+    until(&mut app, EDIT_HELD_WITHIN, "the tab holding the edit", |a| held(a) == edited);
     support::settle_until_the_index_is_quiet(&mut app);
     let history = app.world().resource::<BenchState>().history();
     assert_eq!(history.undo.len(), 1, "the edit left one manifest to step back to: {history:?}");
@@ -249,7 +256,7 @@ fn a_step_keeps_the_selected_rig_by_name_and_clamps_when_it_is_gone() {
     rigs.rigs.insert("aaa_first".to_owned(), copy);
     let edited = rigs.to_yaml().expect("serialises");
     std::fs::write(&path, &edited).expect("write");
-    until(&mut app, 30.0, "the tab holding the edit", |a| held(a) == edited);
+    until(&mut app, EDIT_HELD_WITHIN, "the tab holding the edit", |a| held(a) == edited);
     support::settle_until_the_index_is_quiet(&mut app);
     assert_eq!(on(&app), Some(chosen.clone()), "the edit under the tab keeps the rig selected by name");
 

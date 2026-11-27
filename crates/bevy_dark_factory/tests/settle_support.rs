@@ -20,7 +20,7 @@
 //! about a fixed frame count is — so a test that waits for a *file* still says so with [`until`].
 
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use bevy::prelude::*;
 
@@ -47,26 +47,47 @@ fn step(app: &mut App) {
     STEPPED.fetch_add(1, Ordering::Relaxed);
 }
 
-/// **How long a wait may take** before it says what never happened: the same ten seconds `index_view_support` gives, and the
-/// number a reader of a failing test is told.
-pub const GIVE_UP: Duration = Duration::from_secs(10);
+/// **A wait's bound, and what a wait took, in frames** (#644). The owner's rule (2026-11-27): a test waits N frames, not N
+/// seconds. A bound on the wall clock runs out early when a loaded host starves the editor's frames (or the thread a frame
+/// reads), and the miss reads exactly like a product bug; a bound in frames is reached only once the frames were stepped.
+/// Every wait still pauses between its frames, so a bound written [`Frames::covering`] a window also gives a thread, a child
+/// or a file watcher at least that window of the wall clock.
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub struct Frames(pub u32);
+
+impl Frames {
+    /// **The frames a wait that pauses `pause` after each one steps to cover `window`** of the wall clock at the least (rounded up).
+    pub const fn covering(window: Duration, pause: Duration) -> Self {
+        Self(window.as_millis().div_ceil(pause.as_millis()) as u32)
+    }
+}
+
+impl std::fmt::Debug for Frames {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{} frames", self.0)
+    }
+}
 
 /// **How long one step of a wait sleeps**, so a wait does not spin a core and still sees a change within a frame or two.
-const STEP: Duration = Duration::from_millis(2);
+pub const STEP: Duration = Duration::from_millis(2);
 
-/// **How long the editor must leave its entity count alone before [`settle`] calls it laid out**, a wall-clock window rather
-/// than a frame count: a panel that rewrites a row's text (a selection, a status) changes no count at all, and a frame count
-/// alone returned before the row was drawn — the failing row of the 2026-11-23 gate, where a Notes row was not yet selected.
-/// The window is the one `index_view_support::settle` has always used (`QUIET`, 400 ms), so a reader meets one idea twice.
+/// **How many frames a wait steps** before it says what never happened: ten seconds at [`STEP`], the same window
+/// `index_view_support` gives, and the number a reader of a failing test is told.
+pub const GIVE_UP: Frames = Frames::covering(Duration::from_secs(10), STEP);
+
+/// **How many frames the editor must leave what it holds alone before [`settle`] calls it laid out**: 400 ms at [`STEP`],
+/// the window `index_view_support::settle_until_the_index_is_quiet` has always used (`QUIET`), so a reader meets one idea
+/// twice. A panel that rewrites a row's text (a selection, a status) changes no entity count, which is why [`shape`] hashes
+/// the text too — the failing row of the 2026-11-23 gate, where a Notes row was not yet selected.
 ///
 /// **`settle` is for a frame or two of work, not for a panel's own timer.** A panel that looks every half second
 /// (`refresh_reload_list`) can be idle when `settle` returns; a test that needs what such a panel draws says
 /// `until(app, "...", condition)` with the thing it wants, which the settle window cannot answer for.
-const QUIET: Duration = Duration::from_millis(400);
+const QUIET: Frames = Frames::covering(Duration::from_millis(400), STEP);
 
 /// **The most frames [`settle`] steps before it gives up**: the editor never stops creating entities while a background
 /// thread retries (a refused file, a missing kit), and a test must not hang for a reason that is not its own.
-const SETTLE_FRAMES_MAX: u32 = 4000; // a cap on the work, not the clock: the quiet window is wall-clock time
+const SETTLE_FRAMES_MAX: u32 = 4000;
 
 /// **What the editor holds, as one number a wait can compare**: the entity count and the text every `Text` holds.
 ///
@@ -86,18 +107,17 @@ fn shape(app: &mut App) -> (u32, u64) {
     (entities, hash)
 }
 
-/// **Step until `done`, and say how long it took**; panics after [`GIVE_UP`] with `what` named. A wait on a file, a thread or a
-/// panel is this, and it is the same shape `index_view_support::until_seen` has so a reader meets one idea twice.
-pub fn until(app: &mut App, what: &str, mut done: impl FnMut(&mut App) -> bool) -> Duration {
-    let start = Instant::now();
-    while start.elapsed() < GIVE_UP {
+/// **Step until `done`, and say how many frames it took**; panics after [`GIVE_UP`] with `what` named. A wait on a file, a
+/// thread or a panel is this, and it is the same shape `index_view_support::until_seen` has so a reader meets one idea twice.
+pub fn until(app: &mut App, what: &str, mut done: impl FnMut(&mut App) -> bool) -> Frames {
+    for frame in 1..=GIVE_UP.0 {
         step(app);
         if done(app) {
-            return start.elapsed();
+            return Frames(frame);
         }
         std::thread::sleep(STEP);
     }
-    panic!("never saw: {what} (waited {GIVE_UP:?})");
+    panic!("never saw: {what} (stepped {GIVE_UP:?})");
 }
 
 /// **Step until the editor's frames have stopped changing what it holds**, so a test reads what it just changed.
@@ -106,23 +126,22 @@ pub fn until(app: &mut App, what: &str, mut done: impl FnMut(&mut App) -> bool) 
 /// test is about frames rather than about a result.
 pub fn settle(app: &mut App) {
     let mut last = shape(app);
-    let mut quiet_since = Instant::now();
-    let began = Instant::now();
+    let mut quiet = 0;
     for _ in 0..SETTLE_FRAMES_MAX {
-        if began.elapsed() >= GIVE_UP {
-            break;
-        }
         step(app);
         let now = shape(app);
         if now != last {
             last = now;
-            quiet_since = Instant::now();
-        } else if quiet_since.elapsed() >= QUIET {
-            return;
+            quiet = 0;
+        } else {
+            quiet += 1;
+            if quiet >= QUIET.0 {
+                return;
+            }
         }
         std::thread::sleep(STEP);
     }
-    // **Not a failure**: an editor that is still working after six hundred frames has a reason, and it is the test's own
+    // **Not a failure**: an editor that is still working after four thousand frames has a reason, and it is the test's own
     // to name. A test that must be sure says `until(app, "...", condition)` instead.
 }
 

@@ -16,7 +16,7 @@
 //! the tests that count chunks and check they stay drawn while the skin is cut are
 //! `an_agent_can_cut_into_a_carved_map.rs`, gated on that feature.
 
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use bevy::prelude::*;
 use bevy_dark_factory::outliner::{Eyes, HIDABLE};
@@ -25,6 +25,17 @@ use bevy_dark_factory::terrain_view::Surface;
 use serde_json::{Value, json};
 
 use crate::fixtures;
+use crate::settle_support::Frames;
+
+/// The pause between two frames of a wait here.
+const PAUSE: Duration = Duration::from_millis(40);
+
+/// **Frames a wait steps before it gives up** (#644): a count, not a wall-clock window, so a starved host does not cut it short;
+/// at [`PAUSE`] apart they cover at least 6 s.
+const SEEN_WITHIN: Frames = Frames::covering(Duration::from_secs(6), PAUSE);
+
+/// **Frames the eye must have held through a rebuild before it counts**: at [`PAUSE`] apart they cover 0.6 s.
+const HELD_FOR: Frames = Frames::covering(Duration::from_millis(600), PAUSE);
 
 const GROUND: &str = "{origin: [0.0, 0.0], cell_m: 1.0, width: 8, depth: 8, heights: [10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0]}";
 
@@ -55,15 +66,14 @@ fn write(app: &App, dir: &str, file: &str, text: &str) {
 }
 
 fn until(app: &mut App, what: &str, done: impl Fn(&mut App) -> bool) {
-    let start = Instant::now();
-    while start.elapsed().as_secs_f64() < 6.0 {
+    for _ in 0..SEEN_WITHIN.0 {
         if done(app) {
             return;
         }
         app.update();
-        std::thread::sleep(Duration::from_millis(40));
+        std::thread::sleep(PAUSE);
     }
-    panic!("never saw: {what}");
+    panic!("never saw: {what} (waited {SEEN_WITHIN:?})");
 }
 
 fn drawn(app: &mut App, surface: Surface) -> Vec<Entity> {
@@ -181,13 +191,12 @@ fn the_eye_survives_a_drawing_rebuild() {
     // **A second terrain edit** respawns the ground; the eye must still hold, or a still taken after a
     // correction would show the skin again with no call having changed it.
     write(&app, "terrain", "m.yaml", &GROUND.replace("10.0", "11.0"));
-    let start = Instant::now();
-    while start.elapsed().as_secs_f64() < 6.0 {
+    for frame in 0..SEEN_WITHIN.0 {
         app.update();
-        if drawn(&mut app, Surface::Terrain).iter().all(|e| !visible(&app, *e)) && start.elapsed().as_millis() > 600 {
+        if drawn(&mut app, Surface::Terrain).iter().all(|e| !visible(&app, *e)) && frame > HELD_FOR.0 {
             return;
         }
-        std::thread::sleep(Duration::from_millis(40));
+        std::thread::sleep(PAUSE);
     }
     panic!("the terrain was drawn again after a rebuild: the eye did not hold");
 }

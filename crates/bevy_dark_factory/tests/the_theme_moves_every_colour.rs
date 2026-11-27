@@ -40,6 +40,7 @@ use bevy_dark_factory::settings::{Theme, UserSettingsFile};
 use bevy_gooey::GooeySkin;
 
 use crate::fixtures;
+use crate::settle_support::{Frames, STEP};
 
 /// Every theme the editor offers, in the order a person meets them.
 const THEMES: [Theme; 3] = [Theme::ToolDark, Theme::Parchment, Theme::HighContrast];
@@ -50,8 +51,9 @@ const TEXT_FLOOR: f32 = 4.5;
 /// the issue names no number; 7:1 is what gooey's own `high_contrast_problems` and Xbox Accessibility
 /// Guideline 102 ask of a high-contrast mode.
 const HIGH_CONTRAST_TEXT_FLOOR: f32 = 7.0;
-/// Seconds the file watcher's wall-clock poll is given to see a settings file change.
-const WATCH_PATIENCE_S: u64 = 10;
+/// Frames the file watcher is given to see a settings file change, [`STEP`] apart: a count, not a wall-clock window, so a starved
+/// host does not cut it short (#644); they cover at least the 10 s the wait used to read off the wall clock.
+const WATCH_PATIENCE: Frames = Frames::covering(std::time::Duration::from_secs(10), STEP);
 /// Frames run after a switch so painters that repaint on a later frame (hover, selection, the focused
 /// panel's edge) have all run on the new colours.
 const SETTLE_FRAMES: usize = 6;
@@ -93,9 +95,12 @@ fn editor(tag: &str, theme: Theme) -> (App, std::path::PathBuf) {
 fn choose(app: &mut App, file: &std::path::Path, theme: Theme) {
     std::fs::write(file, format!("{{version: 1, theme: {}}}", named(theme))).expect("a settings file");
     let want = bevy_dark_factory::style::compiled_for(theme).skin.surface;
-    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(WATCH_PATIENCE_S);
-    while app.world().resource::<GooeySkin>().surface != want && std::time::Instant::now() < deadline {
+    for _ in 0..WATCH_PATIENCE.0 {
+        if app.world().resource::<GooeySkin>().surface == want {
+            break;
+        }
         app.update();
+        std::thread::sleep(STEP);
     }
     for _ in 0..SETTLE_FRAMES {
         app.update();
@@ -421,10 +426,13 @@ fn a_theme_applies_in_the_frame_the_setting_lands() {
     let (mut app, file) = editor("theme_same_frame", Theme::ToolDark);
     std::fs::write(&file, "{version: 1, theme: Parchment}").expect("a settings file");
     let want = bevy_dark_factory::style::compiled_for(Theme::Parchment).skin;
-    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(WATCH_PATIENCE_S);
     // The frame the running skin first becomes Parchment's is the frame its ink must be too.
-    while app.world().resource::<GooeySkin>().surface != want.surface && std::time::Instant::now() < deadline {
+    for _ in 0..WATCH_PATIENCE.0 {
+        if app.world().resource::<GooeySkin>().surface == want.surface {
+            break;
+        }
         app.update();
+        std::thread::sleep(STEP);
     }
     assert_eq!(app.world().resource::<GooeySkin>().surface, want.surface, "the settings file was taken");
     assert_eq!(chrome::ink().fields(), expected(Theme::Parchment).fields(), "the ink is the theme's in the same frame");
@@ -454,9 +462,12 @@ fn a_theme_chosen_in_the_project_layer_reaches_the_ink() {
     let project = app.world().resource::<bevy_dark_factory::project::Project>().project_dir.join(bevy_dark_factory::settings::PROJECT_FILE);
     std::fs::write(&project, "{version: 1, theme: HighContrast}").expect("a project settings file");
     let want = bevy_dark_factory::style::compiled_for(Theme::HighContrast).skin.surface;
-    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(WATCH_PATIENCE_S);
-    while app.world().resource::<GooeySkin>().surface != want && std::time::Instant::now() < deadline {
+    for _ in 0..WATCH_PATIENCE.0 {
+        if app.world().resource::<GooeySkin>().surface == want {
+            break;
+        }
         app.update();
+        std::thread::sleep(STEP);
     }
     for _ in 0..SETTLE_FRAMES {
         app.update();
@@ -474,9 +485,12 @@ fn text_size_changes_no_colour() {
     let (mut app, file) = editor("theme_text_size", Theme::Parchment);
     let before = (chrome::ink().fields(), shown(&mut app).headings.iter().map(|(c, _)| *c).collect::<Vec<_>>());
     std::fs::write(&file, "{version: 1, theme: Parchment, text_scale: 1.5}").expect("a settings file");
-    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(WATCH_PATIENCE_S);
-    while (app.world().resource::<GooeySkin>().text_scale - 1.5).abs() > f32::EPSILON && std::time::Instant::now() < deadline {
+    for _ in 0..WATCH_PATIENCE.0 {
+        if (app.world().resource::<GooeySkin>().text_scale - 1.5).abs() <= f32::EPSILON {
+            break;
+        }
         app.update();
+        std::thread::sleep(STEP);
     }
     for _ in 0..SETTLE_FRAMES {
         app.update();

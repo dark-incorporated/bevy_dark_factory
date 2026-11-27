@@ -12,7 +12,10 @@ use bevy_gooey::ValueChange;
 
 use crate::fixtures;
 use crate::index_waits::*;
+use crate::settle_support::Frames;
 
+/// How many frames the editor is stepped after the View menu's Show agent row is turned on: 300 ms at [`FRAME_PAUSE`].
+const AFTER_THE_ROW_IS_TURNED_ON: Frames = Frames::covering(Duration::from_millis(300), FRAME_PAUSE);
 
 fn plan_project(tag: &str) -> (App, PathBuf, PathBuf) {
     plan_project_with(tag, Some(PLAN_OF_ONE))
@@ -32,7 +35,7 @@ fn plan_project_with(tag: &str, text: Option<&str>) -> (App, PathBuf, PathBuf) {
         world.query_filtered::<Entity, With<NightShiftItem>>().single(world).expect("the View menu carries one Show agent row")
     };
     app.world_mut().commands().trigger(ValueChange { source: row, value: true, is_final: true });
-    pump_for(&mut app, Duration::from_millis(300));
+    pump_for(&mut app, AFTER_THE_ROW_IS_TURNED_ON);
     (app, root, plan)
 }
 
@@ -89,7 +92,7 @@ fn an_unrelated_change_reads_nothing_and_judges_nothing_while_the_plan_file_is_n
     write_in_place(&unrelated, "note: second, and longer\n");
     announce(&root, &unrelated);
     assert!(pump_until(&mut app, SHOWN_WITHIN, |app| published(app) > before).is_some(), "the index did not publish the unrelated change, so a count of nothing would prove nothing");
-    pump_for(&mut app, Duration::from_millis(300));
+    pump_for(&mut app, AFTER_AN_UNRELATED_CHANGE);
     assert_eq!(world_lists::reads_on_this_thread(), reads, "a change to an unrelated file made the PLAN row read a file");
     assert_eq!(world_lists::verdict_lookups_on_this_thread(), judged, "a change to an unrelated file made the PLAN row judge a file that is not there again (it reads .gitignore)");
 

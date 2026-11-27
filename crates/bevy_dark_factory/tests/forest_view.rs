@@ -14,6 +14,7 @@ use bevy_flora::{PooledTree, ProceduralTree, TreeAge};
 use serde_json::json;
 
 use crate::fixtures;
+use crate::settle_support::Frames;
 
 fn open(tag: &str) -> (App, Ctx, Project) {
     let root = fixtures::Fixture::new(tag).descriptor("site/wall", "alpha").build("m");
@@ -21,27 +22,30 @@ fn open(tag: &str) -> (App, Ctx, Project) {
     for _ in 0..4 {
         app.update();
     }
-    // The index's shortest sweep, so a change reaches the view within its debounce and a wait on the wall clock is a short one.
+    // The index's shortest sweep, so a change reaches the view within its debounce and a wait for it is a short one.
     app.world().resource::<ProjectIndex>().set_sweep(MIN_SWEEP);
     let project = app.world().resource::<Project>().clone();
     let open = app.world().resource::<OpenMap>().clone();
     (app, Ctx { project: Some(project.clone()), open: Some(open), session: "test".to_owned(), ..Ctx::default() }, project)
 }
 
-/// How long a step waits for the view to follow a file: it follows the project index, whose sweep is at its floor here.
-const WAIT_SECONDS: f64 = 20.0;
+/// The pause between two of [`until`]'s frames.
+const PAUSE: std::time::Duration = std::time::Duration::from_millis(10);
 
-/// Step the app until `done` holds, on the wall clock.
+/// How many frames a step waits for the view to follow a file: it follows the project index, whose sweep is at its floor here. A
+/// count, not a wall-clock window, so a starved host does not cut it short (#644); at [`PAUSE`] apart they cover at least 20 s.
+const WAIT: Frames = Frames::covering(std::time::Duration::from_secs(20), PAUSE);
+
+/// Step the app until `done` holds, for at most [`WAIT`].
 fn until(app: &mut App, what: &str, done: impl Fn(&mut World) -> bool) {
-    let started = std::time::Instant::now();
-    while started.elapsed().as_secs_f64() < WAIT_SECONDS {
+    for _ in 0..WAIT.0 {
         app.update();
         if done(app.world_mut()) {
             return;
         }
-        std::thread::sleep(std::time::Duration::from_millis(10));
+        std::thread::sleep(PAUSE);
     }
-    panic!("never happened within {WAIT_SECONDS} s: {what}");
+    panic!("never happened within {WAIT:?}: {what}");
 }
 
 /// Whether the editor's verdicts say the forest file was refused: the observable that proves the view looked at the broken file.
