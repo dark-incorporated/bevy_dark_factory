@@ -404,3 +404,46 @@ fn a_second_arrival_at_kit_opens_no_mesh_the_first_one_measured() {
     assert_eq!(now.len(), first.len() + 1, "beside every candidate there was: {now:?}");
     assert_eq!(opened(&app), now.len(), "and the directory it changed is measured again");
 }
+
+/// **A second arrival decodes no cached portrait the first one read** (#678, #541).
+///
+/// `thumbs::setup` builds `Thumbnails` empty on every arrival, and the bake's first frame read and decoded every
+/// cached portrait under `target/blueprint_thumbs/` again: 90 PNGs on the review's `bedroom` project, in the
+/// arrival's own frame, on Map and Kit alike. A cache path is the picture's identity, so the session reads each
+/// once, and the palette still holds the picture after any number of switches. Counted, not timed.
+#[test]
+fn a_second_arrival_decodes_no_cached_portrait_again() {
+    use bevy_dark_factory::thumbs::{cache_path, Portraits, Thumbnails};
+
+    let root = fixtures::Fixture::new(&format!("portraits_{}", std::process::id()))
+        .descriptor("tile_a", "alpha")
+        .descriptor("tile_b", "alpha")
+        .build("m");
+    let project = bevy_dark_factory::project::Project::open(&root, None).unwrap_or_else(|e| panic!("{e}"));
+    let d = project.library.get("tile_a").unwrap_or_else(|| panic!("no tile_a"));
+    let path = cache_path(&root, d).unwrap_or_else(|| panic!("a piece with a mesh has a cache path"));
+    std::fs::create_dir_all(path.parent().unwrap_or_else(|| panic!("no parent"))).unwrap_or_else(|e| panic!("{e}"));
+    image::RgbImage::from_pixel(128, 128, image::Rgb([200, 30, 30]))
+        .save_with_format(&path, image::ImageFormat::Png)
+        .unwrap_or_else(|e| panic!("{e}"));
+
+    let mut app = harness::build_headless(&root, "m", None).unwrap_or_else(|e| panic!("{e}"));
+    for _ in 0..SETTLE_FRAMES {
+        app.update();
+    }
+    let reads = |app: &App| app.world().resource::<Portraits>().reads();
+    let pixel = |app: &App| -> Option<Vec<u8>> {
+        let handle = app.world().resource::<Thumbnails>().image("tile_a")?;
+        let data = app.world().resource::<Assets<Image>>().get(&handle)?.data.clone()?;
+        data.get(0..4).map(<[u8]>::to_vec)
+    };
+    assert_eq!(reads(&app), 1, "the first arrival reads the one cached portrait");
+    assert!(app.world().resource::<Thumbnails>().is_baked("tile_a"), "and serves it");
+
+    for workspace in [Workspace::Kit, Workspace::Map, Workspace::Kit] {
+        chord_to(&mut app, workspace);
+        assert_eq!(reads(&app), 1, "the arrival at {} reads no cached portrait the session already read", workspace.title());
+        assert!(app.world().resource::<Thumbnails>().is_baked("tile_a"), "the {} workspace's palette has the portrait", workspace.title());
+        assert_eq!(pixel(&app), Some(vec![200u8, 30, 30, 255]), "and it is the cached picture, not a blank target");
+    }
+}

@@ -1,0 +1,28 @@
+build: before1-26fb6451 (/tmp/kit678/bdf-26fb6451)
+ 14:53:37 up 1 day, 22:11, 16 users,  load average: 14.92, 22.01, 19.09
+ 14:54:19 up 1 day, 22:11, 16 users,  load average: 12.54, 20.59, 18.74
+jobs: {"count": 0, "items": [], "line": "", "progress": null} | workspace: MAP
+SETTLED n=50 frame_ms p50 38.33 p90 41.17 | busy_ms p50 13.06 p90 14.8 | frame-busy p50 25.36 min 22.93 | equal within 0.1 ms: 0/50
+SETTLED split p50: Update 5.86, PostUpdate 4.72, RemoteLast 1.07, PreUpdate 0.74, First 0.23, RunFixedMainLoop 0.19
+switch  1 -> kit ran          now KIT: worst frame frame_ms 307.9 busy_ms 291.5 | StateTransition 182.6, Update 55.3, PostUpdate 40.0, PreUpdate 11.6
+switch  2 -> map ran          now MAP: worst frame frame_ms 141.2 busy_ms 128.5 | Update 50.2, PostUpdate 46.3, StateTransition 24.0, PreUpdate 6.5
+switch  3 -> kit ran          now KIT: worst frame frame_ms 229.3 busy_ms 216.7 | StateTransition 130.3, PostUpdate 43.2, Update 34.6, PreUpdate 6.6
+switch  4 -> map ran          now MAP: worst frame frame_ms 127.3 busy_ms 114.8 | Update 46.2, PostUpdate 36.9, StateTransition 22.7, PreUpdate 7.2
+switch  5 -> kit ran          now KIT: worst frame frame_ms 248.5 busy_ms 236.8 | StateTransition 163.0, Update 38.6, PostUpdate 27.3, PreUpdate 6.0
+switch  6 -> map ran          now MAP: worst frame frame_ms 141.1 busy_ms 132.9 | PostUpdate 55.2, Update 42.9, StateTransition 25.7, PreUpdate 7.0
+switch  7 -> kit ran          now KIT: worst frame frame_ms 267.7 busy_ms 260.3 | StateTransition 172.8, Update 42.5, PostUpdate 37.4, PreUpdate 5.9
+switch  8 -> map ran          now MAP: worst frame frame_ms 102.8 busy_ms 95.2 | Update 37.2, PostUpdate 32.9, StateTransition 16.1, PreUpdate 7.5
+switch  9 -> kit ran          now KIT: worst frame frame_ms 246.8 busy_ms 230.5 | StateTransition 153.6, Update 43.6, PostUpdate 25.2, PreUpdate 6.6
+switch 10 -> map ran          now MAP: worst frame frame_ms 93.0 busy_ms 84.9 | PostUpdate 31.3, Update 30.4, StateTransition 13.7, PreUpdate 8.1
+switch 11 -> kit ran          now KIT: worst frame frame_ms 165.4 busy_ms 159.9 | StateTransition 101.5, Update 27.2, PostUpdate 23.6, PreUpdate 6.2
+switch 12 -> map ran          now MAP: worst frame frame_ms 90.9 busy_ms 81.3 | Update 32.5, PostUpdate 29.2, StateTransition 12.8, PreUpdate 5.6
+switch 13 -> kit ran          now KIT: worst frame frame_ms 152.5 busy_ms 146.6 | StateTransition 88.1, Update 27.6, PostUpdate 22.8, PreUpdate 6.8
+switch 14 -> map ran          now MAP: worst frame frame_ms 88.6 busy_ms 82.9 | PostUpdate 31.3, Update 30.5, StateTransition 14.3, PreUpdate 5.5
+switch 15 -> kit ran          now KIT: worst frame frame_ms 163.2 busy_ms 154.7 | StateTransition 98.9, Update 25.7, PostUpdate 23.1, PreUpdate 5.7
+switch 16 -> map ran          now MAP: worst frame frame_ms 83.4 busy_ms 76.9 | Update 28.5, PostUpdate 27.1, StateTransition 13.0, PreUpdate 7.1
+switch 17 -> kit ran          now KIT: worst frame frame_ms 156.1 busy_ms 149.8 | StateTransition 93.3, Update 25.9, PostUpdate 23.8, PreUpdate 5.5
+switch 18 -> map ran          now MAP: worst frame frame_ms 103.8 busy_ms 98.0 | Update 35.1, PostUpdate 32.9, StateTransition 23.1, PreUpdate 5.3
+switch 19 -> kit ran          now KIT: worst frame frame_ms 239.0 busy_ms 227.2 | StateTransition 153.3, Update 37.0, PostUpdate 29.6, PreUpdate 5.9
+switch 20 -> map ran          now MAP: worst frame frame_ms 115.0 busy_ms 99.9 | Update 37.7, PostUpdate 32.3, StateTransition 23.0, PreUpdate 5.5
+SWITCH n=20 worst-frame frame_ms p50 146.86 p90 248.52 max 307.9 | busy_ms p50 139.72 p90 236.82 max 291.5 | over 100 ms busy: 13/20
+SWITCH split p50: StateTransition 56.91, Update 36.08, PostUpdate 31.34, PreUpdate 6.36, RemoteLast 0.84, First 0.22

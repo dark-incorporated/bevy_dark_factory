@@ -744,6 +744,9 @@ pub const OWNERSHIP: &[(&str, Ownership)] = &[
     ("bevy_dark_factory::design_view::DesignPictures", Ownership::Project),
     // Derived from the kit's meshes: a different kit means different thumbnails.
     ("bevy_dark_factory::thumbs::Thumbnails", Ownership::Project),
+    // **The cached portraits already read**, keyed by cache path, which names the mesh's size and modification time (#678): derived
+    // from the project's files, and what lets a switch hand the palette its pictures without decoding them again.
+    ("bevy_dark_factory::thumbs::Portraits", Ownership::Project),
     (
         "bevy_dark_factory::thumbs::ThumbGeneration",
         Ownership::Project,
