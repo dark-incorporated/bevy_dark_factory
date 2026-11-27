@@ -100,7 +100,7 @@ pub const AUTO_SAVE_NAMES: &[&str] = &["Off", "Every 30 s", "Every minute", "Eve
 pub const THEMES: &[&str] = &["Tool dark", "Parchment", "High contrast"];
 
 /// The names of [`SyntaxTheme`]'s variants, in declaration order.
-pub const SYNTAX_THEMES: &[&str] = &["Skin", "Warm", "Cool", "Mono", "Separated"];
+pub const SYNTAX_THEMES: &[&str] = &["Skin", "Warm", "Cool", "Mono", "Separated", "Monokai", "Solarized", "GitHub"];
 
 /// The names of [`TerminalCursor`]'s variants, in declaration order.
 pub const TERMINAL_CURSORS: &[&str] = &["Block", "Underline", "Bar"];
@@ -129,14 +129,14 @@ pub const CATALOGUE: &[Setting] = &[
         description: "The colours and look of the editor.",
         kind: Kind::Options(THEMES),
     },
-    // **The code editor's hues** (#525, `feedback-1795094391027`): five presets gooey derives from the skin's seeds. `Skin`
-    // is the shipped default and draws exactly the colours the editor drew before this row existed, so a person who never
-    // opens the screen sees nothing move.
+    // **The code editor's colours** (#525, `feedback-1795094391027`; #610): a palette laid on the skin, not a skin — gooey's five
+    // presets and the Monokai, Solarized and GitHub palettes (`code_palette`). `Skin` is the shipped default and draws exactly the
+    // colours the editor drew before this row existed, so a person who never opens the screen sees nothing move.
     Setting {
         key: "syntax_theme",
         label: "Code colours",
         category: "Appearance",
-        description: "The hues the code editor gives a key, a string, a number, a keyword, a reference, a function and a type, in a file open in the Files workspace. Skin is the editor's own; Warm is amber and sand; Cool is blues and violets; Mono is one hue told apart by lightness, for quiet reading and for readers who cannot tell hues apart; Separated spreads the hues as far as they go, for reading a pane at a glance. A comment, an operator and an error keep their colours in every set.",
+        description: "The palette the code editor colours a key, a string, a number, a keyword, a reference, a function and a type with, in a file open in the Files workspace. It is laid on the skin, not a skin: the theme still decides the ground and the text, and every colour still holds the contrast bar on that ground. Skin, the default, is the theme's own colours; Monokai, Solarized and GitHub are those palettes' hues, as light or dark as this theme lets them read; Warm is amber and sand; Cool is blues and violets; Mono is one hue told apart by lightness, for quiet reading and for readers who cannot tell hues apart; Separated spreads the hues as far as they go, for reading a pane at a glance. A comment, an operator and an error keep their colours in every palette.",
         kind: Kind::Options(SYNTAX_THEMES),
     },
     Setting {
@@ -320,6 +320,9 @@ pub fn syntax_theme_index(theme: SyntaxTheme) -> usize {
         SyntaxTheme::Cool => 2,
         SyntaxTheme::Mono => 3,
         SyntaxTheme::Separated => 4,
+        SyntaxTheme::Monokai => 5,
+        SyntaxTheme::Solarized => 6,
+        SyntaxTheme::GitHub => 7,
     }
 }
 
@@ -329,6 +332,9 @@ fn syntax_theme_at(index: usize) -> SyntaxTheme {
         2 => SyntaxTheme::Cool,
         3 => SyntaxTheme::Mono,
         4 => SyntaxTheme::Separated,
+        5 => SyntaxTheme::Monokai,
+        6 => SyntaxTheme::Solarized,
+        7 => SyntaxTheme::GitHub,
         _ => SyntaxTheme::Skin,
     }
 }

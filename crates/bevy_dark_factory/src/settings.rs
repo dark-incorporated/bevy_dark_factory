@@ -70,16 +70,20 @@ pub enum Theme {
     HighContrast,
 }
 
-/// **The hues the code editor's colours are derived from** (#525, `feedback-1795094391027`: *"...as well as
-/// syntax highlighting (we should have a setting to pick a syntax highlighting theme)"*).
+/// **The colours the code editor gives each role of code** (#525, `feedback-1795094391027`: *"...as well as
+/// syntax highlighting (we should have a setting to pick a syntax highlighting theme)"*; #610).
 ///
-/// gooey derives a colour for each [`SyntaxRole`](bevy_gooey::SyntaxRole) from the skin's seeds and a fixed
-/// hue table, and [`GooeySkin::syntax_theme`](bevy_gooey::GooeySkin) lets a host choose those hues. This is
-/// the person's choice of them, one to one with gooey's [`SyntaxPreset`](bevy_gooey::SyntaxPreset).
+/// **A palette laid on the skin, not a skin**: the owner's call on #610 (2026-11-27) was *a separate "Code colours"
+/// setting listing named syntax palettes (Skin default, plus e.g. Monokai, Solarized, GitHub)*. gooey derives a colour
+/// for each [`SyntaxRole`](bevy_gooey::SyntaxRole) from the skin's seeds and a fixed hue table, and
+/// [`GooeySkin::syntax_theme`](bevy_gooey::GooeySkin) lets a host choose those hues apart from the rest of the skin.
+/// This is the person's choice of them: gooey's five [`SyntaxPreset`](bevy_gooey::SyntaxPreset)s, and three palettes
+/// other editors made famous ([`crate::code_palette`]). Whichever is chosen, the skin keeps its ground and text and
+/// gooey still holds every colour to the contrast bar.
 ///
 /// **A setting the skin builder applies**, not a style-sheet value: `Theme` is the shape this repo already
 /// has for "pick one of a few looks", and the style sheet's `skin:` section is a layer a person edits by hand
-/// — five choices with names the screen shows are a setting, and [`SettingsLayer`] is where the screen writes.
+/// — a few choices with names the screen shows are a setting, and [`SettingsLayer`] is where the screen writes.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum SyntaxTheme {
@@ -92,38 +96,55 @@ pub enum SyntaxTheme {
     Mono,
     /// The widest hue spacing the roles allow: read at a glance.
     Separated,
+    /// Monokai's hues ([`crate::code_palette::MONOKAI`]).
+    Monokai,
+    /// Solarized's accents ([`crate::code_palette::SOLARIZED`]).
+    Solarized,
+    /// github.com's light code colours ([`crate::code_palette::GITHUB`]); the file says `github`.
+    #[serde(rename = "github")]
+    GitHub,
 }
 
 impl SyntaxTheme {
-    /// Every preset, in the order the Settings row offers them.
-    pub const ALL: [SyntaxTheme; 5] = [SyntaxTheme::Skin, SyntaxTheme::Warm, SyntaxTheme::Cool, SyntaxTheme::Mono, SyntaxTheme::Separated];
+    /// Every choice, in the order the Settings row offers them.
+    pub const ALL: [SyntaxTheme; 8] = [
+        SyntaxTheme::Skin,
+        SyntaxTheme::Warm,
+        SyntaxTheme::Cool,
+        SyntaxTheme::Mono,
+        SyntaxTheme::Separated,
+        SyntaxTheme::Monokai,
+        SyntaxTheme::Solarized,
+        SyntaxTheme::GitHub,
+    ];
 
-    /// What the row says this choice does, so five similar-sounding names cannot be mistaken for each other.
+    /// What the row says this choice does, so similar-sounding names cannot be mistaken for each other.
     pub fn meaning(self) -> &'static str {
         match self {
-            SyntaxTheme::Skin => "the editor's own hues, as before this setting",
+            SyntaxTheme::Skin => "the skin's own colours, the default, as before this setting",
             SyntaxTheme::Warm => "amber, orange and sand, like a warm terminal",
             SyntaxTheme::Cool => "blues, teals and violets, like a night sky",
             SyntaxTheme::Mono => "one hue told apart by lightness, for quiet reading and colour-blind readers",
             SyntaxTheme::Separated => "the widest hue spacing there is, for reading a pane at a glance",
+            SyntaxTheme::Monokai => "Monokai's pink keywords, yellow strings, purple numbers and green names",
+            SyntaxTheme::Solarized => "Solarized's green keywords, cyan strings, magenta numbers and blue names",
+            SyntaxTheme::GitHub => "GitHub's red keywords, navy strings, blue numbers and purple names",
         }
     }
 
-    /// gooey's preset for this choice — the one place the two lists are held together, so a variant added
-    /// here is a compile error there and not a silently missing theme.
-    pub fn preset(self) -> bevy_gooey::SyntaxPreset {
-        match self {
-            SyntaxTheme::Skin => bevy_gooey::SyntaxPreset::Skin,
-            SyntaxTheme::Warm => bevy_gooey::SyntaxPreset::Warm,
-            SyntaxTheme::Cool => bevy_gooey::SyntaxPreset::Cool,
-            SyntaxTheme::Mono => bevy_gooey::SyntaxPreset::Mono,
-            SyntaxTheme::Separated => bevy_gooey::SyntaxPreset::Separated,
-        }
-    }
-
-    /// The theme this choice puts on the skin.
+    /// **The theme this choice puts on the skin** — the one place the setting meets gooey's presets and the
+    /// editor's palettes, so a variant added here is a compile error until it says which it is.
     pub fn theme(self) -> bevy_gooey::SyntaxTheme {
-        self.preset().theme()
+        match self {
+            SyntaxTheme::Skin => bevy_gooey::SyntaxPreset::Skin.theme(),
+            SyntaxTheme::Warm => bevy_gooey::SyntaxPreset::Warm.theme(),
+            SyntaxTheme::Cool => bevy_gooey::SyntaxPreset::Cool.theme(),
+            SyntaxTheme::Mono => bevy_gooey::SyntaxPreset::Mono.theme(),
+            SyntaxTheme::Separated => bevy_gooey::SyntaxPreset::Separated.theme(),
+            SyntaxTheme::Monokai => crate::code_palette::MONOKAI.theme(),
+            SyntaxTheme::Solarized => crate::code_palette::SOLARIZED.theme(),
+            SyntaxTheme::GitHub => crate::code_palette::GITHUB.theme(),
+        }
     }
 }
 
