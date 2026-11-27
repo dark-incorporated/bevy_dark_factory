@@ -22,7 +22,11 @@ use bevy::text::{Font, FontSource};
 /// Fira Sans Regular, SIL Open Font License 1.1 (`assets/fonts/FiraSans-OFL.txt`). 457 KB: the one extra face in the binary.
 pub const PROSE_FONT_BYTES: &[u8] = include_bytes!("../assets/fonts/FiraSans-Regular.ttf");
 
-/// The prose face, in the asset store for as long as the app runs.
+/// **The prose face's id**, fixed, so the face can be named before its bytes are in the store — the way the terminal's face
+/// (`terminal_view::TERMINAL_FONT`) is kept.
+pub const PROSE_FONT: Handle<Font> = bevy::asset::uuid_handle!("37b4ecc9-4d24-48d6-bbe8-811820467d61");
+
+/// The prose face, [`PROSE_FONT`], in the asset store for as long as the app runs.
 #[derive(Resource, Clone, Debug)]
 pub struct ProseFont(pub Handle<Font>);
 
@@ -39,21 +43,25 @@ pub fn face(prose: &ProseFont) -> bevy_gooey::TextFace {
     bevy_gooey::TextFace(FontSource::Handle(prose.0.clone()))
 }
 
-/// Loads the prose face **when the plugin is built**, not in a startup system.
+/// **Names the prose face when the plugin is built, and puts its bytes in the store at `Startup`.**
 ///
-/// A startup system would be too late to be the only path: the launcher builds its pages in `OnEnter`, and a face pinned by a hook or read from a
-/// resource the schedule has not inserted yet is a face the text never gets. Built here, [`ProseFont`] exists before any system can spawn a text.
+/// The handle is a fixed id, so [`ProseFont`] exists before any system runs, and a text the launcher spawns in its `OnEnter` carries the face
+/// whether or not the bytes are in yet: Bevy lays a text out once its face has loaded. Nothing here needs `TextPlugin` to be built first, so the
+/// plugin may be added in any order and to any app — `headless::the_editor_plugin_registers_the_tool_resources_its_systems_take` adds the
+/// editor's plugins to `MinimalPlugins` alone, where loading the face at build time panicked.
 pub struct ProsePlugin;
 
 impl Plugin for ProsePlugin {
     fn build(&self, app: &mut App) {
-        // **`Assets<Font>` is `TextPlugin`'s, and `DefaultPlugins` is always built before this** (the binary,
-        // `harness::add_editor_plugins`, and every test's app all add it first). A host that added this plugin
-        // without it has no text at all, so the failure is named rather than left to a panic inside the store.
-        let Some(mut fonts) = app.world_mut().get_resource_mut::<Assets<Font>>() else {
-            panic!("`ProsePlugin` needs `bevy::text::TextPlugin` (and so `DefaultPlugins`) ahead of it: it loads the prose face into `Assets<Font>`");
-        };
-        let handle = fonts.add(Font::from_bytes(PROSE_FONT_BYTES.to_vec()));
-        app.insert_resource(ProseFont(handle));
+        app.insert_resource(ProseFont(PROSE_FONT)).add_systems(Startup, install_the_prose_face);
+    }
+}
+
+/// Put the prose face's bytes in the font assets under [`PROSE_FONT`]. An app with no `Assets<Font>` has no `TextPlugin` and draws no
+/// text, so there is no face to install.
+fn install_the_prose_face(fonts: Option<ResMut<Assets<Font>>>) {
+    let Some(mut fonts) = fonts else { return };
+    if let Err(why) = fonts.insert(PROSE_FONT.id(), Font::from_bytes(PROSE_FONT_BYTES.to_vec())) {
+        error!("the prose face could not be installed, so prose draws in no face: {why}");
     }
 }
