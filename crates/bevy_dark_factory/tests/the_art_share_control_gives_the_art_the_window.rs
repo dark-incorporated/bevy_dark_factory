@@ -170,6 +170,8 @@ fn one_click_gives_the_art_the_window_and_a_second_gives_work_back_exactly() {
         "the state reports Look's share too"
     );
     assert_reachable(&mut app, art, "in Look");
+    // **The numbers the issue's comment quotes**, from this run: the label, the share and the state's rects in each state.
+    eprintln!("measured at {WINDOW:?}: Work {work_words:?} share {work_share} rects {work_rects}; Look {look_words:?} share {look_share} rects {}", state_rects(&mut app));
 
     click(&mut app, art);
 
