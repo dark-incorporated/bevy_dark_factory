@@ -45,8 +45,8 @@ result=/tmp/fleet/result-$cluster.md
 log=/tmp/fleet/predone-$cluster.log
 sha=$(git rev-parse --short=9 HEAD)
 {
-  cargo clippy --workspace --all-targets -q -- -D warnings &&
-    cargo nextest run --workspace --no-fail-fast -E 'not test(terminal)'
+  cargo clippy --workspace --all-targets --features bevy_dark_factory/family_all -q -- -D warnings &&
+    cargo nextest run --workspace --features bevy_dark_factory/family_all --no-fail-fast -E 'not test(terminal)'
 } >"$log" 2>&1
 rc=$?
 grep -E 'FAIL \[|Summary|^error' "$log" | head -40
