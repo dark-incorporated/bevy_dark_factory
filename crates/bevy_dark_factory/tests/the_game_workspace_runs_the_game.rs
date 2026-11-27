@@ -293,6 +293,48 @@ fn a_crash_stays_on_screen_with_its_exit_code_and_a_badge() {
     until(&mut app, "the badge to clear on a new run", |app| game_badge(app) == 0);
 }
 
+/// **The stub that crashes on a cue**: boots, waits for `go` in its project, then says what it was doing, complains on
+/// stderr and exits with code 3. A minute with no cue ends it anyway, so a test that fails first leaves nothing running.
+const CRASH_ON_CUE: &str = r#"
+import os, sys, time
+print("stub game booted", flush=True)
+go = os.path.join(os.environ["BLUEPRINT_PLAY_ROOT"], "go")
+for _ in range(6000):
+    if os.path.exists(go):
+        break
+    time.sleep(0.01)
+print("about to load the map", flush=True)
+print("thread 'main' panicked: no such entity", file=sys.stderr, flush=True)
+sys.exit(3)
+"#;
+
+/// **A crash's last output is on screen in the frame its exit code is** (#674). The exit is found every frame and the log
+/// was read a quarter second apart, so a crash that fell between two reads was shown as "Crashed" beside "No output yet." —
+/// red in CI, where the stub started too slowly for `press`'s three frames to cover it. Here the stub crashes on a cue
+/// given right after a frame that read the log, and the one frame after the crash must show the code and the words.
+#[test]
+fn a_crash_is_shown_with_its_last_output_in_the_same_frame() {
+    let root = project("crash_cue", CRASH_ON_CUE, free_port());
+    let _log = LogGuard(root.clone());
+    let mut app = editor(&root);
+    switch_to(&mut app, Workspace::Game);
+    press(&mut app, PlayButton::Play);
+    let pid = ops_play::running_pid(&root).unwrap_or_else(|| panic!("Play did not start the stub"));
+    let _cleanup = crate::play_starts_and_stops_the_game::KillGroupOnDrop(u64::from(pid));
+    // The first frame to show the boot line is a frame that read the log, so the next read is a poll away.
+    until(&mut app, "the stub's boot line", |app| shows_part(app, "stub game booted"));
+    std::fs::write(root.join("go"), "").unwrap_or_else(|e| panic!("{e}"));
+    // The editor is not stepped while the stub crashes, so the next frame is the one that finds the exit.
+    let deadline = Instant::now() + WAIT;
+    while ops_play::running_pid(&root).is_some() {
+        assert!(Instant::now() < deadline, "the stub never crashed on its cue");
+        std::thread::sleep(PAUSE);
+    }
+    app.update();
+    assert!(shows_part(&mut app, "exit code 3"), "the crash is shown the frame it is found: {:#?}", words(&mut app));
+    assert!(shows_part(&mut app, "no such entity"), "and its last output with it, not a poll later: {:#?}", words(&mut app));
+}
+
 /// Removes the project's game log when the test ends, however it ends, so a run leaves nothing in the temporary directory.
 struct LogGuard(PathBuf);
 
