@@ -45,7 +45,9 @@ Games depend on these crates by path and the editor runs on a game as its projec
   `python3 tools/changelog/changelog.py check`, `python3 tools/loop/version.py check` and
   `python3 tools/loop/wall_clock_filter.py` (the `backlog`, `changelog`, `version` and `wall-clock-filter` checks), then
   `cargo clippy --workspace --all-targets -- -D warnings`, `cargo nextest run --workspace`,
-  `cargo test --workspace --doc` and `RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps`), and a
+  `cargo test --workspace --doc` and `RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps`, each with
+  `--features bevy_dark_factory/family_all` because that is the build a release ships, plus a `cargo check` of the
+  default build so it keeps compiling (#687)), and a
   hand-run is a second full pass for nothing. **The rustdoc step is the one no crate-scoped run covers**:
   neither `cargo nextest run -p <crate>` nor `cargo clippy -p <crate>` reads a doc comment, so a change to one
   is checked only by the push. A consumer (`Sanctuary`, `bevy_emerge`) is checked with `cargo nextest run` in

@@ -986,6 +986,10 @@ fn keys_legend_words(page: &str) -> Vec<String> {
 const GATE_STEPS: &[(&str, &str)] = &[
     ("clippy", "cargo clippy --workspace --all-targets"),
     ("clippy-merge", "cargo clippy --workspace --all-targets"),
+    // **The default build still compiles** (#687): the lint, test and doc steps build `family_all`, what a release
+    // ships, and this check keeps the build with no family crate compiling.
+    ("check-default", "cargo check --workspace --all-targets"),
+    ("check-default-merge", "cargo check --workspace --all-targets"),
     ("test", "cargo nextest run --workspace"),
     ("doc", "cargo test --workspace --doc"),
     ("rustdoc", "cargo doc --workspace --no-deps"),

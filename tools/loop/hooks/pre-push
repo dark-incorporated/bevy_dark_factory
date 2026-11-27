@@ -265,7 +265,7 @@ else
       note "the $(wc -l < "$failed_dir/$tree") named test(s) pass alone at this tree"
       # The record survives the push it unblocked, so a tree tested a third time still runs only these first.
       rm -f "$failed_dir/$tree.alone"
-      timed doc $cargo test --workspace "${features[@]}" --doc -q || refuse "cargo test --workspace --doc failed (doctests are not run by nextest)"
+      timed doc $cargo test --workspace --doc "${features[@]}" -q || refuse "cargo test --workspace --doc failed (doctests are not run by nextest)"
     else
       # **The named tests failed alone, so this is a real failure and the push stays refused.** If it was already the second
       # attempt at this tree the record says so, and the message says which of the two attempts it was.
@@ -293,7 +293,7 @@ else
       refuse "cargo nextest run --workspace failed (the failing tests are named above and kept against tree ${tree:0:9})"
     fi
     rm -f "$out"
-    timed doc $cargo test --workspace "${features[@]}" --doc -q || refuse "cargo test --workspace --doc failed (doctests are not run by nextest)"
+    timed doc $cargo test --workspace --doc "${features[@]}" -q || refuse "cargo test --workspace --doc failed (doctests are not run by nextest)"
   else
     timed test $cargo test --workspace "${features[@]}" -q --no-fail-fast || refuse "cargo test --workspace failed (the failing tests are named above)"
   fi
