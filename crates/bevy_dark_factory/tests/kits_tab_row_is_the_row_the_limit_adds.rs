@@ -91,8 +91,9 @@ fn the_tab_row_table_is_what_the_kit_lays_out() {
 ///
 /// At 300% a panel needs more than the dock's threshold, so the only heights a choice is held at are the need plus the dock's row and up
 /// (`surface::fit_interface_scale`). The smallest window that holds 100% is found from the function and turned back into a frame
-/// height; it must be the Map's need, the dock's row and the Kit's measured tab row, within the limit's one unit of slack and a half
-/// unit of layout rounding. With the old 35 it stood about 14 units short (the Kit lays out 48.68 at 300%).
+/// height; it must be at least the Map's need, the dock's row and the Kit's measured tab row (below it, a panel on the Kit has no row to
+/// read), and no further above it than the table's rounding up ([`ABOVE`]) and the limit's own one unit of slack. With the old 35 it
+/// stood about 13 units short (the Kit lays out 48.39 on bmb and 48.68 on big at 300%).
 #[test]
 fn the_limit_on_the_kit_at_text_300_adds_the_row_the_kit_lays_out() {
     const TEXT: f32 = 3.0;
@@ -100,7 +101,8 @@ fn the_limit_on_the_kit_at_text_300_adds_the_row_the_kit_lays_out() {
     let app = kit_at(&root, TEXT);
     let row = measured_row(&app);
     assert!(row > 35.0 + BELOW, "at text 300% the Kit's tab row ({row:.2}) is taller than the strip's least height of 35");
-    assert!((tab_row_at(TEXT) - row).abs() <= ABOVE, "tab_row_at(3.0) is {} and the Kit lays out {row:.2}", tab_row_at(TEXT));
+    let table = tab_row_at(TEXT);
+    assert!(table >= row - BELOW && table - row <= ABOVE, "tab_row_at(3.0) is {table} and the Kit lays out {row:.2}");
 
     // The smallest logical height, at the reference width (no growth), whose limit leaves 100% as it is.
     let width = 1280.0;
@@ -118,8 +120,10 @@ fn the_limit_on_the_kit_at_text_300_adds_the_row_the_kit_lays_out() {
     let frame = tall / layout.ui_scale;
     let need = LAYOUT_BY_TEXT_SIZE.iter().find(|r| r.0 == TEXT).map(|r| r.2).expect("the table has a 300% row");
     let expected = need + layout.bottom_dock_h + row;
+    // The limit's slack (`surface::LAYOUT_SLACK`, one layout unit) stands on top of the row the table rounds up.
+    let limit_slack = 1.0;
     assert!(
-        (frame - expected).abs() <= ABOVE + BELOW,
+        frame >= expected && frame - expected <= ABOVE + limit_slack,
         "the limit holds 100% at text 300% from a {frame:.2}-unit frame; the Map's need {need}, the dock {} and the Kit's row {row:.2} make {expected:.2}",
         layout.bottom_dock_h
     );
