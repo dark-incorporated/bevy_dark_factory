@@ -508,6 +508,13 @@ pub(crate) fn despawn_scene(world: &mut World) {
 /// that is genuinely shared.
 pub(crate) fn scene_roots(world: &mut World) -> Vec<Entity> {
     let switching = world.contains_resource::<Crossing>();
+    // **Gathered in one pass, then filtered**, because the filter reads the world the query borrows:
+    // a closure holding `world` beside `iter(world)` is two borrows of one thing.
+    let kept: std::collections::HashSet<Entity> = if switching {
+        world.query_filtered::<Entity, With<KeptAcrossASwitch>>().iter(world).collect()
+    } else {
+        std::collections::HashSet::new()
+    };
     world
         .query_filtered::<Entity, (
             Or<(With<Transform>, With<Node>)>,
@@ -531,7 +538,7 @@ pub(crate) fn scene_roots(world: &mut World) -> Vec<Entity> {
         // **And what every workspace that shows the map shares** (#695, #678) — but only while a switch is in
         // flight. A leave must still sweep it: the next door is another project, and the map it draws is not
         // this one's.
-        .filter(|e| !switching || world.get::<KeptAcrossASwitch>(*e).is_none())
+        .filter(|e| !kept.contains(e))
         .collect()
 }
 
