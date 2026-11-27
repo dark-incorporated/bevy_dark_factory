@@ -666,6 +666,7 @@ fn float_the_art_share(
                 *home = at;
             }
             commands.entity(frame.root).add_child(control);
+            // PLACES-ITSELF-OK: not a panel; the one control left in Look (#669) floats in the window's corner so the way back to Work stays reachable while the band it lives in is hidden.
             node.position_type = PositionType::Absolute;
             node.right = inset;
             node.bottom = inset;
