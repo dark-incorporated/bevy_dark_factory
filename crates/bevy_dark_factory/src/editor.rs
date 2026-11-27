@@ -2654,7 +2654,10 @@ impl Plugin for EditorPlugin {
                 // **The weathered carved ground is cut by the eye too** (#472): it wears a material the
                 // plain system cannot see, and a cut that applied to one of the two would make hiding
                 // the terrain work on some maps and not others.
-                crate::environment::cut_the_weathered_ground.after(crate::environment::dress_volume),
+                // Only with `bevy_elements`' material store, which a windowless editor does not have (#687).
+                crate::environment::cut_the_weathered_ground
+                    .after(crate::environment::dress_volume)
+                    .run_if(resource_exists::<Assets<bevy_elements::WeatheredMaterial>>),
             ),
         );
         #[cfg(all(feature = "bevy_flora", feature = "bevy_elements"))]

@@ -691,6 +691,11 @@ fn build_stepped(
     // The same knob the binary sets, by the same name — a literal here would be the second
     // definition the constant exists to prevent, and headless is where a drift goes unseen.
     .insert_resource(UiScale(crate::style::metrics().layout.ui_scale));
+    // **A build with `bevy_siren` has `AudioPlugin`'s asset store** (`main.rs` keeps the plugin for it), and the
+    // audio panel asks the asset server for a cue's sound on its first frames. The harness has no device, so it
+    // registers the store the plugin would, once, before any frame runs (#687).
+    #[cfg(feature = "bevy_siren")]
+    app.init_asset::<bevy::audio::AudioSource>();
 
     // **Despawning a light or a mesh must not panic in here.** `backends: None` registers every
     // render type but skips the render world — and with it `SyncWorldPlugin`, whose

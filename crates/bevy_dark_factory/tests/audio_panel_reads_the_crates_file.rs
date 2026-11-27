@@ -95,9 +95,6 @@ fn an_audition_is_a_play_and_the_panel_hears_it() {
     let text = r#"{settings: {max_voices: 8, buses: [{name: "Effects"}], ducks: []}, cues: {cues: [{name: "ui.click", sounds: [{sound: "click"}]}]}}"#;
     let root = project("siren_audition", text);
     let mut app = harness::build_headless(&root, "m", None).unwrap_or_else(|e| panic!("{e}"));
-    // The headless harness has no `AudioPlugin` (nothing opens a device), so the audio asset store the editor's
-    // real build gets from it is added here — the same `init_asset` a headless audio test uses.
-    app.init_asset::<AudioSource>();
     app.init_resource::<Heard>().add_systems(Update, hear);
     for _ in 0..4 {
         app.update();
@@ -338,10 +335,9 @@ fn the_panel_asks_the_asset_server_for_the_cues_sound() {
     let text = r#"{settings: {max_voices: 8, buses: [{name: "Effects"}], ducks: []}, cues: {cues: [{name: "ui.click", sounds: [{sound: "step_01"}]}]}}"#;
     let root = project("missing_sound", text);
     let mut app = harness::build_headless(&root, "m", None).unwrap_or_else(|e| panic!("{e}"));
-    // **The headless harness has no `AudioPlugin`** (nothing opens a device), so the `AudioSource` asset
-    // type is absent — and `read_audio` takes `Option<Res<AssetServer>>`, so without this it would skip the
-    // load and this assertion would hold against an editor that asked for nothing.
-    app.init_asset::<AudioSource>();
+    // **The harness registers `AudioSource`'s store** under `bevy_siren`, as the binary's `AudioPlugin` does; the
+    // assertion below needs it, because `read_audio` skips the load without an asset server for the type.
+    assert!(app.world().contains_resource::<Assets<AudioSource>>(), "the harness registers the audio asset store");
     for _ in 0..4 {
         app.update();
     }
