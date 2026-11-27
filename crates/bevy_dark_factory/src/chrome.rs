@@ -1619,9 +1619,16 @@ pub struct BottomDock;
 /// panel's name never changes. What separates a title from the rows under it is that it is the
 /// largest thing on the panel ([`text::TITLE`]) and has a group gap below it — size and space, which
 /// is what a heading is supposed to be made of.
+///
+/// **A title wider than its panel breaks at a letter rather than drawing past the panel** (#692, the crate's rule for one
+/// word wider than its column: [`fill_text`], #468). A title is one word more often than not, and Bevy's default breaks only
+/// between words, so a one-word title keeps its whole width as its least: `NIGHTSHIFT` at text scale 1.5 on a 2x display is
+/// wider than the 381 px AGENT panel's content box and ran 18 px past it (28.6 px at interface scale 1.6), where `FAMILIAR`
+/// fitted. `WordOrCharacter` makes the least a letter, so the title's box is the column's and the line breaks inside it.
 pub fn title(parent: &mut ChildSpawnerCommands, text: &str) {
     parent.spawn((
         Text::new(text.to_owned()),
+        TextLayout::new(Justify::Left, LineBreak::WordOrCharacter),
         TextColor(ink().text),
         typed(text::TITLE),
         spaced(margin_bottom(STEP_ROW)),
