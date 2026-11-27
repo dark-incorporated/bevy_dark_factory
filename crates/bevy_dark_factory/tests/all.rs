@@ -472,6 +472,7 @@ mod piece_note_and_width_are_operations;
 mod a_mesh_scan_is_a_cell_operation;
 mod kit_create_and_authoring_are_operations;
 mod kit_rescan_is_an_operation;
+mod kits_tab_row_is_the_row_the_limit_adds;
 mod labeller_requests_are_operations;
 mod rig_history_is_an_operation;
 mod shelf_is_an_operation;
