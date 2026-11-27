@@ -24,10 +24,27 @@ def step(number, name, started=None, concluded=None, conclusion="success"):
     }
 
 
+# **The classifier's own job reads itself** (#674). Run 46023866009 taught this the hard way: the API returns the
+# `classify` job too, and while it is reading, that job's current step has a start and no conclusion -- so the
+# first version called a run "stopped by the host" over its own healthy test job. Every fixture below is therefore
+# a *whole run*: the job under test plus the classifier's job, still in progress.
+SELF = {
+    "id": 140618983967,
+    "name": "what stopped the run",
+    "status": "in_progress",
+    "conclusion": None,
+    "steps": [
+        step(1, "Set up job", "2026-11-27T16:17:41Z", "2026-11-27T16:17:42Z"),
+        step(3, "Run actions/checkout@v4", "2026-11-27T16:17:42Z", None, None),
+    ],
+}
+
+
 # 45263369724: the step that died has a start and no conclusion, and the steps after it never started.
 KILLED_MID_STEP = {
     "id": 138003727733,
     "name": "test (workspace)",
+    "status": "completed",
     "conclusion": "failure",
     "steps": [
         step(1, "Set up job", "2026-11-23T20:49:45Z", "2026-11-23T20:49:48Z"),
@@ -44,6 +61,7 @@ NEVER_STARTED = {"name": "test (workspace)", "conclusion": "failure", "steps": [
 # 45202786364: the one red in the census that was the code's.
 TEST_FAILED = {
     "name": "test (workspace)",
+    "status": "completed",
     "conclusion": "failure",
     "steps": [
         step(1, "Set up job", "2026-11-23T15:13:26Z", "2026-11-23T15:13:29Z"),
@@ -55,6 +73,7 @@ TEST_FAILED = {
 # The shape #572 closed: every step green, the job red anyway because `| tee` ate cargo's status.
 ALL_STEPS_GREEN = {
     "name": "test (workspace)",
+    "status": "completed",
     "conclusion": "failure",
     "steps": [
         step(1, "Set up job", "2026-11-20T07:22:49Z", "2026-11-20T07:22:52Z"),
@@ -65,6 +84,7 @@ ALL_STEPS_GREEN = {
 
 CANCELLED = {
     "name": "test (workspace)",
+    "status": "completed",
     "conclusion": "cancelled",
     "steps": [
         step(1, "Set up job", "2026-11-24T10:00:00Z", "2026-11-24T10:00:03Z"),
@@ -77,7 +97,7 @@ class Classify(unittest.TestCase):
     def run_on(self, job, logs=None):
         with tempfile.TemporaryDirectory() as tmp:
             payload = Path(tmp) / "jobs.json"
-            payload.write_text(json.dumps({"jobs": [job]}))
+            payload.write_text(json.dumps({"jobs": [job, SELF]}))
             args = [sys.executable, str(HERE / "classify_run.py"), str(payload)]
             if logs:
                 logdir = Path(tmp) / "logs"
@@ -146,6 +166,38 @@ class Classify(unittest.TestCase):
         rc, out = self.run_on(CANCELLED)
         self.assertEqual(rc, 0, out)
         self.assertTrue(out.startswith("cancelled:"), out)
+
+    def test_a_run_whose_test_job_passed_is_not_stopped_by_the_host(self):
+        # 46023866009's first version: the classify job read the API while it was still running, saw its own
+        # current step with a start and no conclusion, and reported "the host stopped this run" over a test job
+        # that had concluded. A job that has not finished says nothing about the run.
+        passed = {
+            "name": "test (workspace)",
+            "status": "completed",
+            "conclusion": "success",
+            "steps": [step(7, "workspace tests (nextest)", "2026-11-27T15:20:00Z", "2026-11-27T16:17:20Z")],
+        }
+        rc, out = self.run_on(passed)
+        self.assertEqual(rc, 0, out)
+        self.assertIn("in-progress: what stopped the run", out)
+        self.assertNotIn("host-stopped", out)
+
+    def test_a_host_stop_outranks_a_job_the_classifier_cannot_explain(self):
+        # One job it can name, one it cannot: the run is still one the host stopped, and reporting `unknown` over
+        # that would throw the useful verdict away.
+        puzzling = {
+            "name": "something else",
+            "status": "completed",
+            "conclusion": "failure",
+            "steps": [step(1, "Set up job", "2026-11-27T15:20:00Z", "2026-11-27T15:20:01Z")],
+        }
+        with tempfile.TemporaryDirectory() as tmp:
+            payload = Path(tmp) / "jobs.json"
+            payload.write_text(json.dumps({"jobs": [KILLED_MID_STEP, puzzling, SELF]}))
+            done = subprocess.run([sys.executable, str(HERE / "classify_run.py"), str(payload)],
+                                  text=True, capture_output=True)
+        self.assertEqual(done.returncode, 1, done.stdout)
+        self.assertIn("host-stopped: test (workspace)", done.stdout)
 
 
 if __name__ == "__main__":

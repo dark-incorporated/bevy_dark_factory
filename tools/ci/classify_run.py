@@ -68,6 +68,12 @@ def where_a_kill_is_spelled(text):
 
 def classify(job, log_dir):
     """(verdict, the line that says why) for one job."""
+    # **A job that has not finished is not evidence of anything** (#674). Measured on run 46023866009: the
+    # classifier's own job was still in progress while it read the API, so its current step had a start and no
+    # conclusion, and it reported itself as "the host stopped this run" over a job that was merely running. The
+    # caller passes every job in the run, including this one.
+    if job.get("status") not in (None, "completed"):
+        return "in-progress", f"still {job.get('status')}, so it is not evidence about the run yet"
     steps = job.get("steps") or []
     text = job_log(log_dir, job.get("id"))
     if text:
@@ -94,27 +100,32 @@ def classify(job, log_dir):
     cancelled = [step for step in steps if step.get("conclusion") == "cancelled"]
     if cancelled:
         return "cancelled", f"step {cancelled[0].get('number')} was cancelled"
+    if job.get("conclusion") == "success":
+        return "passed", "every step concluded and the job passed"
     return "unknown", "every step concluded and none failed, so nothing here explains the job's failure"
 
 
 def main(argv):
     if not 1 <= len(argv) <= 2:
         print(__doc__.strip().splitlines()[0], file=sys.stderr)
-        print("usage: classify_run.py <job-json-file> [<step-log-dir>]", file=sys.stderr)
+        print("usage: classify_run.py <job-json-file> [<job-log-dir>]", file=sys.stderr)
         return 2
     with open(argv[0], encoding="utf-8") as handle:
         payload = json.load(handle)
     jobs = payload.get("jobs", payload) if isinstance(payload, dict) else payload
     log_dir = argv[1] if len(argv) == 2 else ""
-    worst = 0
+    # **`host-stopped` outranks `unknown`.** It is the answer to the question this script exists for; `unknown`
+    # only means the script has nothing to say about one job. A run with one of each is still a run the host
+    # stopped, and reporting `unknown` over that would throw the useful verdict away.
+    host_stopped = unknown = False
     for job in jobs:
         verdict, why = classify(job, log_dir)
         print(f"{verdict}: {job.get('name')} — {why}")
-        if verdict == "host-stopped":
-            worst = max(worst, 1)
-        elif verdict == "unknown":
-            worst = max(worst, 2)
-    return worst
+        host_stopped = host_stopped or verdict == "host-stopped"
+        unknown = unknown or verdict == "unknown"
+    if host_stopped:
+        return 1
+    return 2 if unknown else 0
 
 
 if __name__ == "__main__":
