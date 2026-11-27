@@ -85,6 +85,14 @@ fn the_catalog_is_the_shells_own_panels() {
 #[test]
 fn every_panel_in_the_catalog_stages() {
     let mut app = editor(&format!("stage_every_{}", std::process::id()));
+    // **What the workbench states need to be shown** (#696): a style page for `design_styles` to open, and a POSIX shell
+    // for `terminal_shell` to wait on, so the walk does not depend on the host's login shell.
+    let root = app.world().resource::<bevy_dark_factory::project::Project>().root.clone();
+    std::fs::create_dir_all(root.join("design")).unwrap_or_else(|e| panic!("{e}"));
+    std::fs::write(root.join("design/style.md"), "# The game\n").unwrap_or_else(|e| panic!("{e}"));
+    app.world_mut()
+        .resource_mut::<bevy_dark_factory::terminal::Terminal>()
+        .set_shell(Some(bevy_dark_factory::terminal::ShellChoice { program: "/bin/sh".to_owned(), args: Vec::new() }));
     let order = stage_panels::capture_order();
     assert_eq!(order.len(), STAGES.len(), "the capture order names every panel once: {order:?}");
     let mut staged = Vec::new();
@@ -128,6 +136,110 @@ fn a_dock_panel_is_staged_by_selecting_its_tab() {
             "`{panel}` is the tab its group shows after being staged: {now:?}"
         );
     }
+}
+
+/// **The four workbench states #696 names are stage ids, and each is reached in one call** — the acceptance the issue
+/// states. A state that stages and leaves nothing on screen is the blank clip the issue is about, so each test asks the
+/// world what the stage arranged rather than trusting the answer.
+#[test]
+fn the_states_three_reviews_could_not_reach_are_stage_ids() {
+    for id in ["style_inspector", "section_cut", "design_styles", "terminal_shell"] {
+        assert!(stage_panels::stage(id).is_some(), "`{id}` is a stage id");
+        assert!(stage_panels::is_state(id), "`{id}` is a workbench state, not a screen and not a dock panel");
+        assert!(!stage_panels::is_screen(id), "`{id}` is not a screen");
+        assert!(!stage_panels::dock_panels().contains(&id), "`{id}` is not a dock panel, so the catalog cannot ask for its tab");
+    }
+}
+
+/// **The style inspector, up and asked about a panel edge**: the overlay exists in the world after the one call, which is
+/// what a picture of it needs.
+#[test]
+fn the_style_inspector_stages_up_on_a_panel_edge() {
+    let mut app = editor(&format!("stage_style_{}", std::process::id()));
+    let staged = stage_panels::arrange(app.world_mut(), "style_inspector").unwrap_or_else(|e| panic!("#696's style inspector stage: {e}"));
+    assert_eq!(staged.id, "style_inspector");
+    assert_eq!(staged.screen, Screen::Editor, "the inspector is up over the workbench");
+    assert!(app.world().resource::<bevy_dark_factory::style_inspect::StyleInspector>().on, "the inspector is on");
+    let overlays = app.world_mut().query_filtered::<Entity, With<bevy_dark_factory::style_inspect::StyleInspectorRoot>>().iter(app.world()).count();
+    assert_eq!(overlays, 1, "the overlay is up, asked about the panel edge, after one call");
+}
+
+/// **The section cut, on**: the one number `blueprint/section_cut` writes, written by the stage, and nothing else.
+#[test]
+fn the_section_cut_stages_on() {
+    let mut app = editor(&format!("stage_cut_{}", std::process::id()));
+    assert_eq!(app.world().resource::<bevy_dark_factory::view::SectionCut>().metres(), None, "off before it is staged");
+    let staged = stage_panels::arrange(app.world_mut(), "section_cut").unwrap_or_else(|e| panic!("#696's section cut stage: {e}"));
+    assert_eq!(staged.id, "section_cut");
+    assert_eq!(
+        app.world().resource::<bevy_dark_factory::view::SectionCut>().metres(),
+        Some(stage_panels::STAGE_CUT_M),
+        "the cut stands where the stage put it"
+    );
+}
+
+/// **The Design workspace, showing a page its own tree names**: the workspace is crossed to and the first page the tree
+/// lists — the game's own `style` — is the one open, so the capture shows the tree and a page together.
+#[test]
+fn the_design_styles_stage_shows_a_populated_tree() {
+    let mut app = editor(&format!("stage_design_{}", std::process::id()));
+    let root = app.world().resource::<bevy_dark_factory::project::Project>().root.clone();
+    std::fs::create_dir_all(root.join("design/levels/m")).unwrap_or_else(|e| panic!("{e}"));
+    std::fs::write(root.join("design/levels/m/style.md"), "# Yard\n").unwrap_or_else(|e| panic!("{e}"));
+    std::fs::write(root.join("design/style.md"), "# The game\n").unwrap_or_else(|e| panic!("{e}"));
+    let staged = stage_panels::arrange(app.world_mut(), "design_styles").unwrap_or_else(|e| panic!("#696's design styles stage: {e}"));
+    assert_eq!(staged.id, "design_styles");
+    assert_eq!(*app.world().resource::<bevy_dark_factory::workspace::Workspace>(), bevy_dark_factory::workspace::Workspace::Design);
+    // The tree the capture shows is the project's own, read by its one reader: the game, the level written above, and the
+    // page the stage opened.
+    let tree = blueprint_model::design::Tree::read(&root);
+    let paths: Vec<&str> = tree.places.iter().map(|place| place.path.as_str()).collect();
+    assert!(paths.contains(&"design/levels/m"), "the level the test wrote is in the tree: {paths:?}");
+    let selected = app.world().resource::<bevy_dark_factory::design_view::DesignView>().selected().map(str::to_owned);
+    assert_eq!(selected.as_deref(), Some("design/style.md"), "the game's own style page, the tree's first, is the one open");
+}
+
+/// **A project with no style pages is refused, naming where the first one goes**, and the workspace is left where it was:
+/// a stage onto an empty tree is the capture the review already had.
+#[test]
+fn the_design_styles_stage_refuses_a_project_with_no_pages() {
+    let mut app = editor(&format!("stage_design_none_{}", std::process::id()));
+    let before = *app.world().resource::<bevy_dark_factory::workspace::Workspace>();
+    let refused = stage_panels::arrange(app.world_mut(), "design_styles").expect_err("a project with no style page has nothing to show");
+    assert!(refused.contains("design/style.md"), "the refusal says where the game's page goes: {refused}");
+    assert_eq!(*app.world().resource::<bevy_dark_factory::workspace::Workspace>(), before, "a refused stage crosses nowhere");
+}
+
+/// **The terminal, raised in front of a shell that has printed its prompt**, when the one call returns: a pane over a
+/// blank screen is the capture the review already had. The shell is a POSIX `sh`, the person's choice the pane honours, so
+/// the test does not depend on the login shell of the host it runs on.
+#[test]
+fn the_terminal_shell_stage_raises_the_pane_over_a_prompt() {
+    use bevy_dark_factory::terminal::{ShellChoice, Terminal};
+    let mut app = editor(&format!("stage_terminal_{}", std::process::id()));
+    {
+        let mut terminal = app.world_mut().resource_mut::<Terminal>();
+        terminal.set_collapsed(true);
+        terminal.set_shell(Some(ShellChoice { program: "/bin/sh".to_owned(), args: Vec::new() }));
+    }
+    assert!(app.world().resource::<Terminal>().is_empty(), "no shell before the stage: the pane was never raised");
+    let staged = stage_panels::arrange(app.world_mut(), "terminal_shell").unwrap_or_else(|e| panic!("#696's terminal stage: {e}"));
+    assert_eq!(staged.id, "terminal_shell");
+    let mut terminal = app.world_mut().resource_mut::<Terminal>();
+    assert!(!terminal.is_collapsed(), "the pane is raised");
+    let tab = terminal.tab_mut().expect("the stage opened a shell");
+    let screen: String = tab.screen_mut().lines().iter().flat_map(|line| line.cells.iter().map(|cell| cell.ch)).collect();
+    assert!(screen.contains('$') || screen.contains('#'), "the shell's prompt is on screen when the call returns: {screen:?}");
+}
+
+/// **A workbench state is refused off the workbench**, as a dock panel is, rather than writing state into a closed editor.
+#[test]
+fn a_workbench_state_is_refused_off_the_workbench() {
+    let mut app = editor(&format!("stage_state_closed_{}", std::process::id()));
+    app.world_mut().resource_mut::<NextState<Screen>>().set(Screen::Launcher);
+    updates(&mut app, 6);
+    let refused = stage_panels::arrange(app.world_mut(), "terminal_shell").expect_err("the workbench is closed");
+    assert!(refused.contains("terminal_shell") && refused.contains("Launcher"), "{refused}");
 }
 
 /// **A name the shell has not got is refused in words that say what it has.**

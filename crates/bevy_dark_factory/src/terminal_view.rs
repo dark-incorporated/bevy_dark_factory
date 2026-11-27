@@ -389,21 +389,29 @@ fn pump_the_terminal(
 
     // **Not before the settings are read**, or a person who chose an agent gets a plain first shell.
     if raised && terminal.settings_taken() && project_layer_in {
-        // The cells the pane is drawing, so the shell's first prompt is wrapped for the width it will
-        // actually be shown at rather than for a guessed 80 and then resized a frame later.
-        let (cols, rows) = crate::terminal_pane::measured_cells(&pane);
-        // **No agent starts by itself.** A session costs tokens to warm up, so with an agent chosen the
-        // pane stays empty and shows an `Invoke Agent` button (`terminal_pane`), and only its press opens
-        // the agent tab. A person who is just looking around the game pays nothing.
-        if !terminal.invites_the_agent() && terminal.is_empty() {
-            let cwd = terminal.next_cwd();
-            terminal.spawn(cols.max(2), rows.max(1), &cwd);
-        }
+        open_the_first_shell(&mut terminal, &pane);
     }
     if terminal.is_empty() {
         return;
     }
     terminal.pump();
+}
+
+/// **Open the pane's first shell**, when it has none and no agent is chosen: the one place a raised, empty pane gets a
+/// shell, for the frame's pump and for `stage_panels`' `terminal_shell` stage alike, so the two cannot start different
+/// shells. The caller has already checked that the pane is raised and the settings are read.
+pub(crate) fn open_the_first_shell(terminal: &mut Terminal, pane: &TerminalPane) {
+    // **No agent starts by itself.** A session costs tokens to warm up, so with an agent chosen the
+    // pane stays empty and shows an `Invoke Agent` button (`terminal_pane`), and only its press opens
+    // the agent tab. A person who is just looking around the game pays nothing.
+    if terminal.invites_the_agent() || !terminal.is_empty() {
+        return;
+    }
+    // The cells the pane is drawing, so the shell's first prompt is wrapped for the width it will
+    // actually be shown at rather than for a guessed 80 and then resized a frame later.
+    let (cols, rows) = crate::terminal_pane::measured_cells(pane);
+    let cwd = terminal.next_cwd();
+    terminal.spawn(cols.max(2), rows.max(1), &cwd);
 }
 
 /// **Rebuild the drawn rows, but only when the screen changed.**

@@ -75,7 +75,22 @@ read and what it drove.
   | Workspaces | every variant the `Workspace` enum names — Project, Map, World, Kit, Animation, Sound, Files, Game, Agent, Design (ten, 2026-11-27) — and name any that does not open |
   | Panels | inspector (empty and with a long piece selected), place, library, kit rows, DATA table, design styles, notes, reload, audio buses/cues/log, terminal, console, notifications, problems list, world lists, animation bench, rig list, tile palette, compose, behaviours, crosslinks |
   | Overlays | command palette (empty and with a query), goto, keymap screen, a dialog (new project, a refusal), a menu open, the style inspector on a panel edge, the section cut, the status band, a tab strip with several tabs |
+  | Staged states | **every state a `blueprint/stage_panel` id reaches, by that id** (see the table below): the four below in particular are the states three passes could not reach (#696) |
   | Sizes | the reference window **and** a narrow one (1100×700): a layout that only works wide is a defect |
+
+  **Stage the state, do not script it.** Every state below is `blueprint/stage_panel` with the id in the first column,
+  reached in one call and settled when it returns; a state that will not stage answers with the reason, which is the
+  Gaps line. The ids are `stage_panels::STAGES` (`crates/bevy_dark_factory/src/stage_panels.rs`), and a stage added there
+  must be added here and to that module's test:
+
+  | Stage id | What the capture must show |
+  |---|---|
+  | `launcher`, `loader`, `settings` | the screen, by its own state |
+  | `inspector`, `viewport`, `place` | each dock panel, its group's tab selected |
+  | `style_inspector` | the style inspector up, asked about a panel edge — the panel's classes, the rules that match in cascade order, and the size they add up to |
+  | `section_cut` | the Map camera cutting at `stage_panels::STAGE_CUT_M`, so the near wall is gone and the interior shows |
+  | `design_styles` | the Design workspace with a styles tree that has pages in it, the game's first page open (refused, naming `design/style.md`, on a project with no style page: review one that has them) |
+  | `terminal_shell` | the terminal raised in front of a shell that has printed its prompt (refused when the project chooses an agent, or the shell prints nothing within `stage_panels::PROMPT_WITHIN_SECS`) |
 
   The `Workspace` enum and the panel registry are the authority for what exists; read both and say in the report
   which states you could not reach and why. A gap named is worth more than a state silently skipped.
