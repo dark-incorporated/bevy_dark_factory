@@ -331,3 +331,76 @@ fn a_switch_frame_names_the_schedule_it_spent_its_time_in() {
         transition_ms(&settled)
     );
 }
+
+/// Every `.glb` under `dir`, dated a minute back, as meshes on disk before the editor opened are: a file modified
+/// within `import::SETTLED` of a look is opened again at the next one, which is a rule of its own and not the
+/// subject here.
+fn settle(dir: &std::path::Path) {
+    for entry in std::fs::read_dir(dir).unwrap_or_else(|e| panic!("{}: {e}", dir.display())).flatten() {
+        let path = entry.path();
+        if path.is_dir() {
+            settle(&path);
+        } else if path.extension().is_some_and(|e| e == "glb") {
+            std::fs::File::options()
+                .write(true)
+                .open(&path)
+                .and_then(|f| f.set_modified(std::time::SystemTime::now() - std::time::Duration::from_secs(60)))
+                .unwrap_or_else(|e| panic!("{}: {e}", path.display()));
+        }
+    }
+}
+
+/// **A second arrival at Kit opens no mesh the first one measured** (#678, #541).
+///
+/// Kit scans the `.glb` files under `assets/` that the kit does not hold on every arrival. Measured on `big` on
+/// 2026-11-27 (the review's `bedroom` project, 162 `.glb`), that scan was most of a Kit switch's `StateTransition`:
+/// every arrival opened and measured every candidate again, though nothing on disk or in the library had changed.
+/// The work is counted rather than timed. The first arrival opens each candidate once; the second opens none and
+/// lists the same candidates; and a mesh dropped in while the person was on the Map is found on the next arrival,
+/// which is the reason Kit looks at the directory at all.
+///
+/// Fails on the tree before #678: `close_the_door` reset `ImportState` whole, so the second arrival opened every
+/// candidate again.
+#[test]
+fn a_second_arrival_at_kit_opens_no_mesh_the_first_one_measured() {
+    use bevy_dark_factory::tiles::ImportState;
+
+    fn candidates(app: &App) -> Vec<String> {
+        app.world().resource::<ImportState>().candidates.iter().map(|c| c.mesh.clone()).collect()
+    }
+    fn opened(app: &App) -> usize {
+        app.world().resource::<ImportState>().on_disk.opened()
+    }
+
+    let root = fixtures::Fixture::new(&format!("kit_arrival_{}", std::process::id()))
+        .flat_descriptor("alpha/floor", 1.0, 1.0)
+        .place_as("floor@0", "alpha/floor", (0.0, 0.0))
+        .pack("loose", &["stool", "lamp"])
+        .build("m");
+    settle(&root.join("assets"));
+    let mut app = harness::build_headless(&root, "m", None).unwrap_or_else(|e| panic!("{e}"));
+    for _ in 0..SETTLE_FRAMES {
+        app.update();
+    }
+
+    chord_to(&mut app, Workspace::Kit);
+    let first = candidates(&app);
+    for mesh in ["loose/lamp.glb", "loose/stool.glb"] {
+        assert!(first.iter().any(|m| m == mesh), "the pack's `{mesh}` is a candidate on the first arrival: {first:?}");
+    }
+    assert_eq!(opened(&app), first.len(), "the first arrival opens each candidate once");
+
+    chord_to(&mut app, Workspace::Map);
+    chord_to(&mut app, Workspace::Kit);
+    assert_eq!(candidates(&app), first, "the second arrival lists the same candidates");
+    assert_eq!(opened(&app), 0, "and opens none of them: nothing under assets/ or in the library changed");
+
+    chord_to(&mut app, Workspace::Map);
+    let pack = root.join("assets").join("loose");
+    std::fs::copy(pack.join("stool.glb"), pack.join("chair.glb")).unwrap_or_else(|e| panic!("{e}"));
+    chord_to(&mut app, Workspace::Kit);
+    let now = candidates(&app);
+    assert!(now.iter().any(|m| m == "loose/chair.glb"), "a mesh dropped in while the person was on the Map is a candidate: {now:?}");
+    assert_eq!(now.len(), first.len() + 1, "beside every candidate there was: {now:?}");
+    assert_eq!(opened(&app), now.len(), "and the directory it changed is measured again");
+}

@@ -140,6 +140,11 @@ pub struct ImportState {
     /// the list used to assert *"every mesh under assets/ is already in the library"* about a
     /// folder it never opened. Set with the problem line, cleared by the next scan that succeeds.
     pub scan_failed: bool,
+    /// **The last scan, with what it read** (#678, #541): a look at a directory nothing touched since is
+    /// answered without opening a file — see [`import::Scanned`]. The one field of this state a workspace
+    /// switch keeps (`screen::close_the_door`), because the project it measured crosses with the person;
+    /// every other field still starts again on arrival.
+    pub on_disk: import::Scanned,
     /// What the last scan found. **Persistent**, and separate from [`Self::status`] on purpose: the
     /// first version had one field, so "N mesh(es) not in the library" was replaced by "layer: on
     /// support" the moment anyone did anything, and the one number that says whether you have seen
@@ -5490,8 +5495,9 @@ pub(crate) fn scan(project: &Project, state: &mut ImportState) {
     // **Scanned against the kit being authored, not the merge.** A mesh another kit has already
     // imported is a candidate here: that is what lets a second kit adopt one, and the accept path
     // still refuses a clashing id by name. `import::scan` takes any `Library`, and this is the
-    // kit's own.
-    match import::scan(&root, &root, &project.measured) {
+    // kit's own. **Through the last scan** (#678): a directory and a library nothing has touched since
+    // are answered without opening a file, which is what made every arrival at Kit cost a frame.
+    match state.on_disk.scan(&root, &root, &project.measured) {
         Ok(found) => {
             // **On the first look, every pack is folded** — reported as `feedback-1793968919654`:
             // *"They should default to collapsed."* The rule before it opened every pack the kit draws

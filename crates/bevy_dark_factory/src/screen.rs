@@ -186,9 +186,22 @@ pub fn close_the_door(world: &mut World) {
         // #379), and the selection follows the lock (`selection::follow_the_lock`), so emptying it
         // here would drop the selection the decision says a switch never drops.
         let lock = world.remove_resource::<crate::editor::TargetLock>();
+        // **And the last scan crosses with the project it measured** (#678, #541). `ImportState` is
+        // `Ownership::Workspace` and starts again, so Kit still looks at the directory on arrival — but a
+        // directory and a library nothing has touched since are answered without opening a file. Reset
+        // with the rest, every arrival at Kit re-measured every `.glb` under `assets/` the kit does not
+        // hold: most of a Kit switch's 94–232 ms `StateTransition` on the review's `bedroom` project.
+        let on_disk = world
+            .get_resource_mut::<crate::tiles::ImportState>()
+            .map(|mut state| std::mem::take(&mut state.on_disk));
         reset_door_state(world);
         if let Some(lock) = lock {
             world.insert_resource(lock);
+        }
+        if let Some(on_disk) = on_disk
+            && let Some(mut state) = world.get_resource_mut::<crate::tiles::ImportState>()
+        {
+            state.on_disk = on_disk;
         }
         if let Some(receipt) = receipt.filter(|r| !r.is_empty())
             && let Some(mut state) = world.get_resource_mut::<crate::editor::EditorState>()

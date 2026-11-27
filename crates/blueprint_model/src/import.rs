@@ -127,12 +127,99 @@ impl Candidate {
 /// `dir` is walked relative to `asset_root`; the returned `mesh` paths are relative to `asset_root`,
 /// because that is the frame a descriptor and the engine both use.
 pub fn scan(asset_root: &Path, dir: &Path, library: &Library) -> Result<Vec<Candidate>, String> {
+    Ok(measure_all(asset_root, &glb_files(dir)?, library))
+}
+
+/// **The last scan's answer, kept with what it was asked** — so a second look at a directory nothing
+/// touched opens no file (#678, #541).
+///
+/// Measuring is the whole cost of a scan: every `.glb` the library does not hold is opened and its
+/// vertices walked. The editor's Kit workspace scans on every arrival, and on the 2026-11-27 review's
+/// `bedroom` project (162 files under `assets/`) one scan was 225–680 ms of a single frame on `big` —
+/// the most of a switch's `StateTransition`. A scan's answer is a function of the file list, each
+/// file's length and modification time, and the library, so when none of those moved since the last
+/// call the answer is that call's. The directory is still walked and every file still stamped, so a
+/// mesh dropped in while the editor was elsewhere is found on the next look, as before.
+///
+/// **A file that cannot be stamped is never taken as unchanged**, and neither is one modified within
+/// [`SETTLED`] of the look that stamped it: the scan measures everything again.
+#[derive(Clone, Debug, Default)]
+pub struct Scanned {
+    asked: Option<Asked>,
+    found: Vec<Candidate>,
+    opened: usize,
+}
+
+/// **How long before a look a file must have been modified for its stamp to be trusted.** A modification
+/// time is only as fine as the file system keeps it — a kernel tick on Linux, a second on HFS+, two on
+/// FAT — so a file rewritten at the same length within that grain of a look would keep the stamp the
+/// look read. Such a file is opened again on the next look, as git does with a racily clean index entry.
+pub const SETTLED: std::time::Duration = std::time::Duration::from_secs(2);
+
+/// Everything a scan's answer depends on.
+#[derive(Clone, Debug, PartialEq)]
+struct Asked {
+    asset_root: PathBuf,
+    dir: PathBuf,
+    library: Library,
+    /// Each `.glb` with its length and modification time, in walk order.
+    files: Vec<(PathBuf, u64, std::time::SystemTime)>,
+}
+
+impl Scanned {
+    /// [`scan`], answered from the last call when nothing it reads has changed since.
+    pub fn scan(&mut self, asset_root: &Path, dir: &Path, library: &Library) -> Result<Vec<Candidate>, String> {
+        let looked = std::time::SystemTime::now();
+        let paths = glb_files(dir)?;
+        let files: Option<Vec<_>> = paths
+            .iter()
+            .map(|path| {
+                let meta = std::fs::metadata(path).ok()?;
+                Some((path.clone(), meta.len(), meta.modified().ok()?))
+            })
+            .collect();
+        let asked = files.map(|files| Asked {
+            asset_root: asset_root.to_path_buf(),
+            dir: dir.to_path_buf(),
+            library: library.clone(),
+            files,
+        });
+        if asked.is_some() && asked == self.asked {
+            self.opened = 0;
+            return Ok(self.found.clone());
+        }
+        let found = measure_all(asset_root, &paths, library);
+        self.opened = found.len();
+        self.found = found.clone();
+        // Kept only when every file is settled, so a rewrite in the same grain as its stamp is still seen.
+        self.asked = asked.filter(|asked| {
+            asked
+                .files
+                .iter()
+                .all(|(_, _, modified)| modified.checked_add(SETTLED).is_some_and(|settled| settled < looked))
+        });
+        Ok(found)
+    }
+
+    /// How many files the last [`Scanned::scan`] opened and measured: none when its answer was the one
+    /// already held.
+    pub fn opened(&self) -> usize {
+        self.opened
+    }
+}
+
+/// Every `.glb` under `dir`, sorted.
+fn glb_files(dir: &Path) -> Result<Vec<PathBuf>, String> {
     let mut paths = Vec::new();
     collect_glb(dir, &mut paths)?;
     // Sorted, so two machines produce the same list in the same order. A directory walk is not
     // ordered, and an importer whose list shuffles between runs is one nobody can talk about.
     paths.sort();
+    Ok(paths)
+}
 
+/// Measure each of `paths` the library does not already have.
+fn measure_all(asset_root: &Path, paths: &[PathBuf], library: &Library) -> Vec<Candidate> {
     let known: Vec<&str> = library
         .descriptors
         .iter()
@@ -143,15 +230,15 @@ pub fn scan(asset_root: &Path, dir: &Path, library: &Library) -> Result<Vec<Cand
     for path in paths {
         let rel = path
             .strip_prefix(asset_root)
-            .unwrap_or(&path)
+            .unwrap_or(path)
             .to_string_lossy()
             .replace('\\', "/");
         if known.contains(&rel.as_str()) {
             continue;
         }
-        out.push(measure(&path, &rel, library));
+        out.push(measure(path, &rel, library));
     }
-    Ok(out)
+    out
 }
 
 fn collect_glb(dir: &Path, out: &mut Vec<PathBuf>) -> Result<(), String> {
@@ -762,6 +849,87 @@ mod tests {
 
     fn messages(f: &[Finding]) -> String {
         f.iter().map(|f| f.message.clone()).collect::<Vec<_>>().join(" | ")
+    }
+
+    /// One look through `scanned`: the meshes it answered with.
+    fn look(scanned: &mut Scanned, root: &Path, library: &Library) -> Vec<String> {
+        let found = scanned.scan(root, root, library).unwrap_or_else(|e| panic!("{e}"));
+        found.iter().map(|c| c.mesh.clone()).collect()
+    }
+
+    /// A scan with nothing remembered, for the answer a look must agree with.
+    fn fresh(root: &Path, library: &Library) -> Vec<String> {
+        let found = scan(root, root, library).unwrap_or_else(|e| panic!("{e}"));
+        found.iter().map(|c| c.mesh.clone()).collect()
+    }
+
+    /// **A second look at a directory nothing touched opens no file** (#678, #541), and a look after
+    /// anything the answer depends on moved — a file added, a file rewritten, the library — opens them
+    /// all again and answers as a fresh scan does. A file modified within [`SETTLED`] of a look is not
+    /// trusted to be untouched at the next one.
+    ///
+    /// The files are not glTF: one that cannot be read is still opened and is still a candidate (with a
+    /// blocking finding), which is all counting the opens needs. Each is dated a minute back, as a file
+    /// that was on disk before the editor looked is, except where the test is about one that is not.
+    #[test]
+    fn a_second_look_at_an_untouched_directory_opens_no_file() {
+        let root = std::env::temp_dir().join(format!("blueprint_scanned_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        let pack = root.join("pack");
+        std::fs::create_dir_all(&pack).unwrap_or_else(|e| panic!("{e}"));
+        let write = |name: &str, bytes: &[u8]| std::fs::write(pack.join(name), bytes).unwrap_or_else(|e| panic!("{e}"));
+        let settle = |name: &str| {
+            std::fs::File::options()
+                .write(true)
+                .open(pack.join(name))
+                .and_then(|f| f.set_modified(std::time::SystemTime::now() - std::time::Duration::from_secs(60)))
+                .unwrap_or_else(|e| panic!("{e}"))
+        };
+        write("a.glb", b"not a glb");
+        write("b.glb", b"not a glb");
+        settle("a.glb");
+        settle("b.glb");
+        let empty = empty_library();
+        let mut scanned = Scanned::default();
+
+        let first = look(&mut scanned, &root, &empty);
+        assert_eq!(first, ["pack/a.glb", "pack/b.glb"]);
+        assert_eq!(scanned.opened(), 2, "the first look opens every candidate");
+        assert_eq!(look(&mut scanned, &root, &empty), first, "the second look answers as the first");
+        assert_eq!(scanned.opened(), 0, "and opens nothing, because nothing it reads has changed");
+
+        write("c.glb", b"not a glb");
+        assert_eq!(look(&mut scanned, &root, &empty), fresh(&root, &empty), "a mesh added since is found");
+        assert_eq!(scanned.opened(), 3, "a file added since the last look measures the directory again");
+        look(&mut scanned, &root, &empty);
+        assert_eq!(
+            scanned.opened(),
+            3,
+            "a file modified within SETTLED of the last look is opened again, since a same-length rewrite in its \
+             grain would keep the stamp that look read"
+        );
+        settle("c.glb");
+        look(&mut scanned, &root, &empty);
+        look(&mut scanned, &root, &empty);
+        assert_eq!(scanned.opened(), 0, "once every file is settled, an untouched directory opens nothing");
+
+        write("a.glb", b"not a glb, and longer");
+        settle("a.glb");
+        look(&mut scanned, &root, &empty);
+        assert_eq!(scanned.opened(), 3, "a file rewritten since the last look measures the directory again");
+
+        let mut holding_a = empty_library();
+        holding_a.descriptors.push(Descriptor {
+            id: "a".to_owned(),
+            mesh: Some("pack/a.glb".to_owned()),
+            ..Descriptor::default()
+        });
+        assert_eq!(look(&mut scanned, &root, &holding_a), ["pack/b.glb", "pack/c.glb"], "a mesh the library now holds is no candidate");
+        assert_eq!(scanned.opened(), 2, "a library changed since the last look measures the directory again");
+        assert_eq!(look(&mut scanned, &root, &holding_a), fresh(&root, &holding_a));
+        assert_eq!(scanned.opened(), 0, "and the same library on an untouched directory opens nothing again");
+
+        let _ = std::fs::remove_dir_all(&root);
     }
 
     /// **A proposal is the stem alone** — the pack folder is not a namespace.
