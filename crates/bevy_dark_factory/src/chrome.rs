@@ -2192,15 +2192,6 @@ pub fn notifications_overlay(mut commands: Commands, frame: Res<Frame>) {
 pub struct NotificationsOverlay;
 
 
-/// **A scrolling list that fills what is left of its panel.**
-///
-/// `flex_grow` with `min_height: 0`, not `max_height`: a flex item's automatic minimum size is its
-/// content, which would grow the node to fit every row and leave `overflow` with nothing to clip. The
-/// panel must be `full_height` for this to bound anything.
-/// **Where a scroll must move so a row is on screen** — the one arithmetic every list-follow
-/// system shares (`tiles::keep_selection_on_screen`, `editor::keep_palette_selection_on_screen`).
-///
-/// Extracted when the palette gained the same correction the candidates list had (F-9,
 /// **Arms when the SELECTION changes — not when the resource holding it does.**
 ///
 /// Every list that follows its highlight needs the same two-step: notice the selection moved, then
@@ -2265,36 +2256,35 @@ impl<K: PartialEq> Follow<K> {
     }
 }
 
-/// 2026-08-14): two hand-copied versions of fold geometry is how the two lists drift a half-pixel
-/// apart, and the arithmetic is the testable part — fold detection, the physical→logical
-/// conversion, the clamp, and the dead-band all hold in a unit test, where the pixel scroll itself
-/// needs a window.
+/// **Where a scroll must move so a row is on screen** — the editor's frame around
+/// [`bevy_gooey::scroll_to_reveal`], which every list-follow system calls through this
+/// (`tiles::keep_selection_on_screen`, `editor::keep_palette_selection_on_screen`, … — #649).
 ///
-/// Inputs are **physical** pixels — `ComputedNode` and `UiGlobalTransform`, centre and half-size —
-/// and the answer is the new **logical** `ScrollPosition::y`, or `None` when the row is already
-/// comfortably visible or the correction is under half a pixel (the dead-band that keeps a
-/// change-detected write from re-firing layout every frame). A row taller than the list scrolls to
-/// its **top**, the half you read first.
+/// **The arithmetic is gooey's**: the margin cut to what the viewport can hold beside the row, the
+/// scroll that puts that margin on the side the row would leave through, a row taller than the list
+/// read from its top, a move of more than one viewport centring the row instead of creeping to the
+/// edge, and the answer kept within `0..=max`. What stays here is the frame it is asked in and the
+/// editor's two decisions:
 ///
-/// # It reveals with context, and that is the seed bug
+/// - **The frame.** The callers read `UiGlobalTransform` and `ComputedNode`, so `row` and `list` are
+///   **physical** centres and half-sizes on screen; gooey measures the row from the start of the
+///   scrolled content, in the scroll's own **logical** pixels. The row's offset below the list's top
+///   edge, times `inverse_scale`, plus `scroll_y`, is that.
+/// - **The margin**: `layout.context_rows` (the sheet's 2.0) of the row's own height either side, where
+///   gooey's own follower keeps 1.5 rows. It is the 2026-09-03 seed fix: until then a row was revealed
+///   to the edge exactly, and forty presses down the Meshes list left the selection on the bottom pixel
+///   with nothing of what was coming in sight — *"I don't see a list of meshes as I press up and down
+///   arrows, but I see the mesh change."*
+/// - **The dead band**: `None` when the scroll would move by half a pixel or less, so a change-detected
+///   `ScrollPosition` is not written, and layout not re-run, every frame — the same half pixel gooey's
+///   own follower (`scroll_to_focus`) waits for before it writes.
 ///
-/// Until 2026-09-03 the correction was exactly `row_bottom - bottom`: enough to put the row's edge
-/// on the viewport's edge and not one pixel more. A test pinned that as correct — *"Touching the
-/// edges exactly is still inside — flush is not off-screen"* — and it is the wrong rule for a list
-/// you walk with the keyboard. Measured live on the Meshes list: after forty presses the selection
-/// is glued to the bottom pixel with twenty-six rows of already-passed context above it and **zero
-/// rows of what is coming below**. Reported as *"I don't see a list of meshes as I press up and down
-/// arrows, but I see the mesh change"* — the list is there, and the part of it that would tell you
-/// where you are going is not.
-///
-/// So the row is revealed with `layout.context_rows` of list either side of it, in units of the row's own
-/// height — no new parameter, and it scales with whatever the caller's rows measure. The margin is
-/// clamped so a viewport too short to hold row-plus-margins asks for the largest margin that still
-/// fits rather than thrashing, which also preserves the over-tall row's scroll-to-top.
-///
-/// **A jump of more than one viewport re-centres instead of creeping.** A `Shift`×5 step, a click,
-/// or a filter that rebuilds the list under the cursor are not walks, and edging such a move to the
-/// margin puts the author at the boundary of a region they have not seen; centring says *here* .
+/// **The ceiling is clamped, not only the floor**: Bevy clamps `ComputedNode::scroll_position`
+/// (`bevy_ui-0.20.0/src/layout/mod.rs:493-496`) and leaves the `ScrollPosition` component every caller
+/// reads back holding any surplus, so a reveal at the end of a list that asked for `max + margin` left
+/// the list standing still while the highlight walked off it. **An infinite ceiling is no ceiling**:
+/// gooey reads a non-finite input as nothing usable and answers the scroll unchanged, so an unbounded
+/// `max_scroll_y` (the unit tests' `NO_LIMIT`) is passed as the largest finite one.
 pub fn scroll_to_reveal(
     row: (f32, f32),
     list: (f32, f32),
@@ -2302,30 +2292,11 @@ pub fn scroll_to_reveal(
     max_scroll_y: f32,
     inverse_scale: f32,
 ) -> Option<f32> {
-    let (row_top, row_bottom) = (row.0 - row.1, row.0 + row.1);
-    let (top, bottom) = (list.0 - list.1, list.0 + list.1);
-    let (row_h, list_h) = (row.1 * 2.0, list.1 * 2.0);
-    // The largest margin that still leaves the row itself room, so a short viewport degrades to
-    // flush rather than to a fight between two margins it cannot satisfy.
-    let margin = (crate::style::metrics().layout.context_rows * row_h).min(((list_h - row_h) * 0.5).max(0.0));
-    // Above the fold, or below it. Never both — the above check winning is what sends an
-    // over-tall row to its top.
-    let delta = if row_top - margin < top {
-        row_top - margin - top
-    } else if row_bottom + margin > bottom {
-        row_bottom + margin - bottom
-    } else {
-        return None;
-    };
-    // Further than a viewport is a jump, not a step: put the row in the middle.
-    let delta = if delta.abs() > list_h { row.0 - list.0 } else { delta };
-    // **Clamped at BOTH ends.** The floor was always here; the ceiling is what the two-row margin
-    // made necessary — a reveal at the end of a list asks for `max + margin`, Bevy clamps only
-    // `ComputedNode::scroll_position` (`bevy_ui-0.20.0/src/layout/mod.rs:493-496`, through
-    // `bypass_change_detection`), and the component every caller reads back keeps the surplus. The
-    // list then stands still while the highlight walks off it — the 2026-09-03 seed, reintroduced
-    // by its own fix.
-    let want = (scroll_y + delta * inverse_scale).clamp(0.0, max_scroll_y.max(0.0));
+    // The row as gooey measures it: logical px from the start of the scrolled content.
+    let row_h = row.1 * 2.0 * inverse_scale;
+    let top = scroll_y + (row.0 - row.1 - (list.0 - list.1)) * inverse_scale;
+    let margin = crate::style::metrics().layout.context_rows * row_h;
+    let want = bevy_gooey::scroll_to_reveal(top, top + row_h, list.1 * 2.0 * inverse_scale, scroll_y, max_scroll_y.min(f32::MAX), margin);
     ((scroll_y - want).abs() > 0.5).then_some(want)
 }
 
@@ -2387,6 +2358,10 @@ pub fn scroll_gutter() -> f32 {
 /// so the two disagree by exactly the gutter width. Overlaying sidesteps it.
 ///
 /// # It bounds itself with `flex_grow`, so it needs a bounded parent
+///
+/// `flex_grow` with `min_height: 0`, not `max_height`: a flex item's automatic minimum size is its
+/// content, which would grow the node to fit every row and leave `overflow` with nothing to clip. The
+/// panel must be `full_height` for this to bound anything.
 ///
 /// Right for a pane that owns the rest of its dock, and useless **nested inside another scroll**:
 /// there the parent is content-sized, `flex_grow` resolves to nothing, and the whole thing collapses
@@ -4236,6 +4211,20 @@ mod scroll_tests {
         assert_eq!(
             scroll_to_reveal((300.0, 260.0), (200.0, 100.0), 100.0, NO_LIMIT, 1.0),
             Some(40.0)
+        );
+    }
+
+    /// **And so does one whose top is already in view** (#649). The editor's own arithmetic answered
+    /// this one with its bottom edge — `row_bottom - bottom`, 150 here — so a row taller than the list,
+    /// walked onto from the row above it, was shown from its end with its first lines scrolled away;
+    /// gooey's reads a span taller than the viewport from its top however it is reached, which is the
+    /// rule above.
+    #[test]
+    fn an_over_tall_row_whose_top_is_in_view_is_read_from_its_top() {
+        // Row spans [150, 450] against fold [100, 300], at scroll 0: its top comes to the fold's top.
+        assert_eq!(
+            scroll_to_reveal((300.0, 150.0), (200.0, 100.0), 0.0, NO_LIMIT, 1.0),
+            Some(50.0)
         );
     }
 
