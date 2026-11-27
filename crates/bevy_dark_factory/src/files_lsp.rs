@@ -36,6 +36,7 @@ use std::io::{self, BufRead, BufReader, Read, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::sync::mpsc::{Receiver, Sender, TryRecvError, channel};
+use std::sync::{Mutex, PoisonError};
 use std::thread::JoinHandle;
 
 use bevy::prelude::*;
@@ -196,7 +197,9 @@ enum FromServer {
 struct Server {
     /// Dropped first (fields drop in the order they are declared), so the writing thread ends; the process goes last.
     to: Sender<Value>,
-    from: Receiver<FromServer>,
+    /// Behind a lock only because a resource is shared between threads and a receiver is not: the frame is its one reader,
+    /// and reads it through `get_mut`, which takes no lock.
+    from: Mutex<Receiver<FromServer>>,
     /// The `initialize` answer came and `initialized` was sent: documents may be opened.
     ready: bool,
     encoding: Encoding,
@@ -229,7 +232,7 @@ impl Server {
         let errors = std::thread::Builder::new().name("rust-analyzer stderr".into()).spawn(move || last_line(errors))?;
         std::thread::Builder::new().name("rust-analyzer out".into()).spawn(move || read_frames(output, &incoming, errors))?;
         std::thread::Builder::new().name("rust-analyzer in".into()).spawn(move || write_frames(input, &outgoing))?;
-        let server = Server { to, from, ready: false, encoding: Encoding::Utf16, root, documents: BTreeMap::new(), _process: process };
+        let server = Server { to, from: Mutex::new(from), ready: false, encoding: Encoding::Utf16, root, documents: BTreeMap::new(), _process: process };
         server.send(json!({ "jsonrpc": "2.0", "id": INITIALIZE_ID, "method": Initialize::METHOD, "params": params }));
         Ok(server)
     }
@@ -417,7 +420,7 @@ pub fn talk_to_rust_analyzer(mut rust: ResMut<RustAnalyzer>, project: Option<Res
 /// **Read everything the server said since the last frame.** `Some` when it stopped, saying why.
 fn hear(server: &mut Server, published: &mut BTreeMap<String, Published>, generation: &mut u64, mut state: Option<&mut EditorState>) -> Option<String> {
     loop {
-        let message = match server.from.try_recv() {
+        let message = match server.from.get_mut().unwrap_or_else(PoisonError::into_inner).try_recv() {
             Ok(FromServer::Message(message)) => message,
             Ok(FromServer::Closed(why)) => return Some(why),
             Err(TryRecvError::Empty) => return None,
