@@ -89,16 +89,14 @@ fn an_edit_to_the_file_shows_without_a_restart() {
     let (mut app, file) = editor(&format!("inspector_relations_live_{}", std::process::id()), None);
     assert_eq!(relations_row(&mut app).0, "none");
     write(&file, r#"{of: "door", kind: !ClearInFront {depth: 2.0, width: 1.0}}"#);
-    std::thread::sleep(std::time::Duration::from_millis(1200));
-    for _ in 0..4 {
-        app.update();
-    }
-    assert_eq!(relations_row(&mut app).0, "1 unmet: door clear in front (crate in the way)");
+    // **Waited on the row, not on a guessed 1.2 s** (#576): the inspector re-reads the relations file about once a second on
+    // the wall clock (`editor.rs`, `relations_read_at`), so the test steps frames until the row says what the test asserts.
+    const UNMET: &str = "1 unmet: door clear in front (crate in the way)";
+    crate::settle_support::until(&mut app, UNMET, |app| relations_row(app).0 == UNMET);
+    assert_eq!(relations_row(&mut app).0, UNMET);
 
     std::fs::write(&file, "{version: 1, relations: [oops]}").unwrap_or_else(|e| panic!("{e}"));
-    std::thread::sleep(std::time::Duration::from_millis(1200));
-    for _ in 0..4 {
-        app.update();
-    }
-    assert_eq!(relations_row(&mut app).0, "m.relations.yaml does not read");
+    const UNREAD: &str = "m.relations.yaml does not read";
+    crate::settle_support::until(&mut app, UNREAD, |app| relations_row(app).0 == UNREAD);
+    assert_eq!(relations_row(&mut app).0, UNREAD);
 }

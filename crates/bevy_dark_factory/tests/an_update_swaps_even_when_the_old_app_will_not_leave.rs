@@ -97,16 +97,39 @@ fn finished(child: &mut Child, what: &str) {
 
 /// A stand-in for the old app that will not leave when asked: it ignores `SIGTERM` and `SIGHUP`.
 fn the_old_app_that_will_not_leave() -> Child {
-    let old = Command::new("/bin/sh")
+    let mut old = Command::new("/bin/sh")
         .args(["-c", "trap '' TERM HUP; exec sleep 120"])
         .stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::null())
         .spawn()
         .unwrap_or_else(|e| panic!("{e}"));
-    // The trap and the exec both happen in the first moments; the script reads the program's name when it starts.
-    std::thread::sleep(Duration::from_millis(300));
-    old
+    if runs_sleep_within(old.id(), Duration::from_secs(PATIENCE_S)) {
+        old
+    } else {
+        // Reaped before the test fails, so a stand-in that never exec'd is not left behind.
+        let _ = old.kill();
+        let _ = old.wait();
+        panic!("the stand-in never became `sleep` within {PATIENCE_S} s");
+    }
+}
+
+/// **Waited for, not guessed**: the swap script reads the program's name when it starts, so the stand-in must already be
+/// `sleep` — and the trap is set before the exec, whose ignored signals the exec keeps. `ps` is asked until it says so.
+fn runs_sleep_within(pid: u32, within: Duration) -> bool {
+    let deadline = Instant::now() + within;
+    while Instant::now() < deadline {
+        let named = Command::new("ps")
+            .args(["-o", "comm=", "-p", &pid.to_string()])
+            .output()
+            .map(|out| String::from_utf8_lossy(&out.stdout).trim().ends_with("sleep"))
+            .unwrap_or(false);
+        if named {
+            return true;
+        }
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    false
 }
 
 #[test]

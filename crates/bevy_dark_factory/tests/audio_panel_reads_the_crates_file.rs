@@ -51,22 +51,6 @@ fn project(tag: &str, text: &str) -> std::path::PathBuf {
     root
 }
 
-/// **Run frames until `done` holds**, or fail saying so.
-///
-/// An asset load runs on Bevy's I/O pool, so its outcome — a 404, a decoded file — arrives some
-/// frames after the read that asked for it. A fixed `for _ in 0..N` is a guess: it passes on an idle
-/// host and fails on a busy one, which is the shape of a flaky gate.
-fn settle(app: &mut App, mut done: impl FnMut(&App) -> bool) {
-    for _ in 0..2000 {
-        if done(app) {
-            return;
-        }
-        std::thread::sleep(std::time::Duration::from_millis(1));
-        app.update();
-    }
-    panic!("the asset server never settled what the test waited on");
-}
-
 /// **A key as a person presses it**: the `KeyboardInput` events Bevy's own `keyboard_input_system`
 /// reads.
 ///
@@ -166,8 +150,9 @@ fn an_audition_is_a_play_and_the_panel_hears_it() {
         );
         assert_eq!(sounds.missing(app.world().resource::<CueTable>()), Vec::<String>::new(), "the handle exists");
     }
-    // A load is asynchronous, so the failure lands a few frames after the read.
-    settle(&mut app, |app| {
+    // A load is asynchronous, on Bevy's I/O pool, so the failure lands some frames after the read: waited on with the
+    // suite's one `until` (#576), which names what never happened if it does not.
+    crate::settle_support::until(&mut app, "the asset server reported the sound `click` failed to load", |app| {
         let server = app.world().resource::<AssetServer>();
         !app.world().resource::<SirenSounds>().failed(server, app.world().resource::<CueTable>()).is_empty()
     });

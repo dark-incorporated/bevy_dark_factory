@@ -384,8 +384,13 @@ fn reference_walk(root: &Path, hidden_suffixes: &[&str], hidden_root_folders: &[
 /// **The three answers and the independent walk, until they are the same** (the editor writes a file or two of its own, which the
 /// index publishes after the debounce): the finder's scan, `listed_files` and the Files tree against `reference_walk`.
 fn agree_with_the_walk(app: &mut App, root: &Path, suffixes: &[&str], folders: &[&str], why: &str) -> BTreeSet<String> {
+    // **A wait on the agreement itself**, bounded by the six seconds the sixty 100 ms steps it replaced gave it; the step is
+    // how often the four answers are compared, not how long the test waits.
+    const AGREE_WITHIN: Duration = Duration::from_secs(6);
+    const COMPARE_EVERY: Duration = Duration::from_millis(10);
+    let deadline = Instant::now() + AGREE_WITHIN;
     let mut last = String::new();
-    for _ in 0..60 {
+    while Instant::now() < deadline {
         let index = app.world().resource::<ProjectIndex>();
         let from_the_index: BTreeSet<String> = listed(root).into_iter().collect();
         let snapshot = index.snapshot().unwrap_or_else(|| panic!("the index has listed the project"));
@@ -405,7 +410,7 @@ fn agree_with_the_walk(app: &mut App, root: &Path, suffixes: &[&str], folders: &
             scanned.difference(&text).collect::<Vec<_>>(),
             text.difference(&scanned).collect::<Vec<_>>(),
         );
-        std::thread::sleep(Duration::from_millis(100));
+        std::thread::sleep(COMPARE_EVERY);
         app.update();
     }
     panic!("{why}: the index and an independent walk of the project never agreed: {last}");
