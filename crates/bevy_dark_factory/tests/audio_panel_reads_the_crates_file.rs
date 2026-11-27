@@ -362,7 +362,9 @@ fn the_panel_draws_the_buses_the_cues_and_the_log() {
         let world = app.world();
         let lists: Vec<Entity> = match kind {
             "bus" => world.iter_entities().filter(|e| e.get::<audio_panel::BusList>().is_some()).map(|e| e.id()).collect(),
-            "cue" => world.iter_entities().filter(|e| e.get::<audio_panel::CueChooser>().is_some()).map(|e| e.id()).collect(),
+            // **One cue list in every build** (#392, #600): the panel's cue column *is* `world_lists::CueList`,
+            // filled by the reader that owns the names, so this is the same column a build without the crate draws.
+            "cue" => world.iter_entities().filter(|e| e.get::<bevy_dark_factory::world_lists::CueList>().is_some()).map(|e| e.id()).collect(),
             _ => world.iter_entities().filter(|e| e.get::<audio_panel::LogTail>().is_some()).map(|e| e.id()).collect(),
         };
         let Some(&list) = lists.first() else { return Vec::new() };
@@ -392,7 +394,11 @@ fn the_panel_draws_the_buses_the_cues_and_the_log() {
     // here marked one list while Audition played the other's choice).
     let cues = rows_of(&app, "cue");
     assert_eq!(cues.len(), 2, "one row per cue: {cues:?}");
-    assert_eq!(cues, audio_panel::cue_rows(&panel, None), "the cue rows are `cue_rows`' own strings");
+    assert_eq!(
+        cues,
+        vec!["ui.click".to_owned(), "step.grass".to_owned()],
+        "the cue list draws the file's names, in its order, unmarked while nothing is chosen"
+    );
     assert!(!cues.iter().any(|c| c.starts_with(bevy_dark_factory::world_lists::CUE_MARK)), "nothing is chosen yet: {cues:?}");
 
     let tail = rows_of(&app, "log");

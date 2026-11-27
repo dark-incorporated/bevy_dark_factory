@@ -45,6 +45,12 @@ pub struct AudioPanel {
     pub root: Option<std::path::PathBuf>,
     /// The bytes last read, so a frame that changed nothing costs nothing and a hand edit is picked up once.
     pub text: String,
+    /// **Why the file is not the crate's tables**, when it is not: the sentence
+    /// [`world_lists`](crate::world_lists) draws as the cue list's one row. It lives here because this is the
+    /// reader that parses the file as `SirenSettings` and `CueTable`; the list's own plain-value reader cannot
+    /// say why a file that is not a table at all did not read, and two readers would be two wordings for one
+    /// failure. `None` when the file read, and when there is no file at all (a project may ship no sound yet).
+    pub unread: Option<String>,
 }
 
 /// Audition the selected cue, the top of the panel's one row of buttons.
@@ -60,12 +66,12 @@ pub fn spawn_section(s: &mut ChildSpawnerCommands) {
     section(s, "AUDIO");
     button(s, AuditionButton, "Audition cue", Severity::Plain);
     s.spawn((BusList, list_column()));
-    s.spawn((CueChooser, list_column()));
-    // **The `used by` column, which answers the other question a cue has** (#600): which file and
-    // line names it. It is `world_lists`' own column, filled by its own reader, because the answer
-    // comes from the finder's index and not from the crate — and it holds the same
-    // `world_lists::SelectedCue` the panel marks, so following a reference and auditioning cannot
-    // disagree about the choice.
+    // **The cue column is `world_lists`' own list** (#392, #600), not a column of this panel: its reader
+    // names the cues from the project's file in *both* builds, marks the one `world_lists::SelectedCue`
+    // holds — the same value Audition reads — and says a file that does not read as a row of its own.
+    // One writer per list is the rule the rest of this file follows, so the panel draws the bus mix and
+    // the log and leaves the cue names to the list that owns them.
+    crate::world_lists::spawn_cue_column(s);
     crate::world_lists::spawn_cue_uses(s);
     s.spawn((LogTail, list_column()));
 }
@@ -78,11 +84,6 @@ fn list_column() -> impl Bundle {
 /// **One row per bus**, from this frame's [`bevy_siren::SirenMix`]: the list [`bus_rows`] fills.
 #[derive(Component, Clone, Copy)]
 pub struct BusList;
-
-/// **Every cue, the selected one marked**, and the value **Audition** reads: the list [`cue_rows`] fills from
-/// [`AudioPanel::cues`] and [`AudioPanel::selected`].
-#[derive(Component, Clone, Copy)]
-pub struct CueChooser;
 
 /// **The tail of [`bevy_siren::SirenLog`]**: the last few decisions, newest first, so an audition's
 /// `Played`/`Refused` is on screen and not only on the status line.
@@ -97,7 +98,7 @@ pub const LOG_TAIL_ROWS: usize = 3;
 const CUE_MARK: &str = crate::world_lists::CUE_MARK;
 
 /// **Read the project's sound** when the project changes and when its file changes on disk — once per change, never
-/// per frame. A file that does not parse is a problem naming the field, and the previous settings stay in force.
+/// per frame. A file that does not read is a problem naming the field, and the previous settings stay in force.
 ///
 /// A missing file is not a problem: a project may ship no sound yet, and the crate's defaults are a real mix. The
 /// panel still names the buses and the cues from the crate's own tables, so it has rows to draw.
@@ -161,6 +162,7 @@ pub fn read_audio(
             }
             panel.buses = read.bus_names().iter().map(|b| (*b).to_owned()).collect();
             panel.cues = table_read.names().map(str::to_owned).collect();
+            panel.unread = None;
             *settings = read;
             *table = table_read;
             // **Ask the asset server for the project's sounds** (#555): `audio/<key>`, which the
@@ -175,7 +177,15 @@ pub fn read_audio(
                 sounds.load_table(server, &table, "audio");
             }
         }
-        Err(problem) => state.status.problem(problem),
+        Err(problem) => {
+            // **Said once.** The cue list draws `panel.unread` as its one row, where a person is looking at
+            // the cues; raising the status line as well said the same sentence twice in a build whose panel
+            // is drawn (measured: three "did not read" nodes where the test counts one). A build without the
+            // crate has no panel to read it, so the status line is that build's only place for it.
+            panel.unread = Some(problem);
+            #[cfg(not(feature = "bevy_siren"))]
+            state.status.problem(panel.unread.clone().unwrap_or_default());
+        }
     }
 }
 
@@ -192,7 +202,7 @@ pub fn read_file(text: &str) -> Result<(bevy_siren::SirenSettings, bevy_siren::C
         cues: bevy_siren::CueTable,
     }
     let file: File = blueprint_model::yaml::from_str(text, &format!("family/{FILE}"))
-        .map_err(|p| format!("family/{FILE} does not parse: {}", p.line()))?;
+        .map_err(|p| format!("family/{FILE} did not read: {}", p.line()))?;
     Ok((file.settings, file.cues))
 }
 
@@ -312,8 +322,10 @@ pub fn bus_rows(mix: &bevy_siren::SirenMix, buses: &[String]) -> Vec<String> {
         .collect()
 }
 
-/// **The cue list**: every cue in the file's order, the chosen one marked with [`CUE_MARK`]. The marked row is
-/// the same [`AudioPanel::selected`] **Audition** reads, so what a person reads as chosen is what plays.
+/// **The cue list's rows**: every cue in the file's order, the chosen one marked with [`CUE_MARK`]. The marked
+/// row is the same [`world_lists::SelectedCue`](crate::world_lists::SelectedCue) **Audition** reads, so what a
+/// person reads as chosen is what plays. The `world_lists` reader owns the list that shows these; this function
+/// stays because the panel's own note and a test name it.
 pub fn cue_rows(panel: &AudioPanel, selected: Option<&str>) -> Vec<String> {
     if panel.cues.is_empty() {
         // **An empty project says so**, the way the log does. A blank column reads as a list that failed to fill,
@@ -344,13 +356,11 @@ pub fn log_rows(log: &bevy_siren::SirenLog) -> Vec<String> {
 #[derive(bevy::ecs::system::SystemParam)]
 struct Columns<'w, 's> {
     buses: Query<'w, 's, (Entity, Has<Children>), With<BusList>>,
-    cues: Query<'w, 's, (Entity, Has<Children>), With<CueChooser>>,
     tail: Query<'w, 's, (Entity, Has<Children>), With<LogTail>>,
 }
 
 fn draw_the_panel(
     panel: Option<Res<AudioPanel>>,
-    selected: Option<Res<crate::world_lists::SelectedCue>>,
     mix: Option<Res<bevy_siren::SirenMix>>,
     log: Option<Res<bevy_siren::SirenLog>>,
     mut columns: Columns,
@@ -361,14 +371,17 @@ fn draw_the_panel(
         let rows = bus_rows(mix, panel.as_deref().map_or(&[][..], |p| p.buses.as_slice()));
         fill(&mut commands, &mut columns.buses, &mut held.buses, rows);
     }
-    if let Some(panel) = panel.as_deref() {
-        let chosen = selected.as_deref().and_then(|s| s.0.as_deref());
-        fill(&mut commands, &mut columns.cues, &mut held.cues, cue_rows(panel, chosen));
-    }
     if let Some(log) = log.as_deref() {
         fill(&mut commands, &mut columns.tail, &mut held.log, log_rows(log));
     }
 }
+
+/// **The frame's cue walk**, ordered before `world_lists::refresh_cues` draws the marks it writes
+/// (#557): both run in `Update`, and without this a press moved the value a frame after the row that
+/// shows it. It was the same frame while the panel drew its own cue column; the list that owns the
+/// names now draws them, so the order has to be said.
+#[derive(SystemSet, Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct TheCueWalk;
 
 /// **Up/Down over the cue list moves the selection** (#557): `world_lists::SelectedCue`, the editor's own,
 /// which **Audition** reads and reveal and the nav stops write, so walking the list is choosing what plays. The arrows are `bevy::prelude::KeyCode`'s own rather
@@ -416,7 +429,6 @@ fn stepped(cues: &[String], from: Option<&str>, step: isize) -> Option<String> {
 #[derive(Default)]
 struct Drawn {
     buses: Option<Vec<String>>,
-    cues: Option<Vec<String>>,
     log: Option<Vec<String>>,
 }
 
@@ -460,7 +472,9 @@ impl bevy::prelude::Plugin for AudioPanelPlugin {
         app.add_systems(
             Update,
             // **The walk before the draw**, so a press and the marked row it moves land in one frame.
-            (walk_the_cues, draw_the_panel).chain().run_if(crate::workspace::Workspace::sound_is_open),
+            (walk_the_cues.in_set(TheCueWalk), draw_the_panel)
+                .chain()
+                .run_if(crate::workspace::Workspace::sound_is_open),
         );
     }
 }
