@@ -249,14 +249,15 @@ pub fn write_file(
 /// **The crate's answers an audition asks for**, grouped so [`on_audition`] stays inside clippy's
 /// seven-argument limit without an `#[allow]` — the same grouping `Columns` uses for the same reason.
 ///
-/// **All three are required.** `SirenPlugins` inserts every one of them beside this observer in
-/// `editor.rs`; a missing resource is a build that forgot the plugin, and it must panic its observer
-/// rather than audition into a hole.
+/// **Each is an `Option`, because `on_audition` is a global observer**: it runs for every `Activate` in the editor, on
+/// every screen, and a bare `Res` would panic it wherever the crate's stores are not in the world (a door that does not
+/// build them, a screen before the editor). The panic would come from a click that has nothing to do with sound, so the
+/// observer first checks that the click was Audition's, then says what is missing (`no_observer_hides_a_resource_in_a_bundle`).
 #[derive(bevy::ecs::system::SystemParam)]
 pub struct Sounds<'w> {
-    sounds: Res<'w, bevy_siren::SirenSounds>,
-    table: Res<'w, bevy_siren::CueTable>,
-    server: Res<'w, AssetServer>,
+    sounds: Option<Res<'w, bevy_siren::SirenSounds>>,
+    table: Option<Res<'w, bevy_siren::CueTable>>,
+    server: Option<Res<'w, AssetServer>>,
 }
 
 /// **Audition** plays the selected cue through the crate's own door, and the panel's log shows what happened.
@@ -271,6 +272,13 @@ pub fn on_audition(
     if buttons.get(activate.entity).is_err() {
         return;
     }
+    let (Some(sounds), Some(table), Some(server)) = (heard.sounds.as_deref(), heard.table.as_deref(), heard.server.as_deref())
+    else {
+        state
+            .status
+            .problem("Audition needs the sound crate's stores and the asset server, and this editor has not built them".to_owned());
+        return;
+    };
     let Some(cue) = selected.as_deref().and_then(|s| s.0.clone()) else {
         state
             .status
@@ -289,13 +297,12 @@ pub fn on_audition(
     // load", so the play below still reaches `Played`; these two are what make the failure visible,
     // and both mean the same next step, so they are one list in the cue's own order and both name
     // the file.
-    let wanted: Vec<String> = heard
-        .table
+    let wanted: Vec<String> = table
         .get(&cue)
         .map(|cue| cue.sounds.iter().map(|slot| slot.sound.clone()).collect())
         .unwrap_or_default();
-    let missing = heard.sounds.missing(&heard.table);
-    let failed = heard.sounds.failed(&heard.server, &heard.table);
+    let missing = sounds.missing(table);
+    let failed = sounds.failed(server, table);
     let unloaded: Vec<String> = wanted
         .into_iter()
         .filter(|key| missing.contains(key) || failed.contains(key))
