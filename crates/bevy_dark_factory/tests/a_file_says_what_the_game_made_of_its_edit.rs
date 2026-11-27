@@ -159,7 +159,7 @@ fn drawn(app: &mut App) -> Vec<(String, f32)> {
             let outside = a.world().resource::<bevy_dark_factory::project_index::OutsideFiles>();
             outside.snapshot(&dir).is_some_and(|listing| listing.stamp(&name).is_some())
         });
-        support::pump(app, Duration::from_millis(800));
+        support::pump(app, crate::settle_support::Frames::covering(Duration::from_millis(800), support::STEP));
         for _ in 0..8 {
             app.update();
         }
