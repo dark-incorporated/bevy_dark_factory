@@ -98,7 +98,9 @@ every workspace, as before.
 **The workspace strip is a row only where a workspace has more than one panel** — the Kit's Meshes, Tiles and Compose
 (#670). A workspace with one panel folds its tab, and the way to the other workspace, into the chrome bar after the way
 out, so no row stands between the bars and the body; the bar's far end then names the subject alone (`bedroom`, not
-`MAP: bedroom`), because the tab beside it names the workspace.
+`MAP: bedroom`), because the tab beside it names the workspace. While the shortcuts key is held the strip stands in its
+row again, because the bar's one row cannot hold the way out's, the strip's and the title's badges side by side; on
+release it folds back and the body has its exact rect again.
 
 The **default layout of each workspace**, and every one is a different arrangement on purpose — a
 person who moves a divider in one workspace and finds it where they left it in the next has proof the
