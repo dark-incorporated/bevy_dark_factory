@@ -51,15 +51,26 @@ jobs:
     # container under memory pressure. **The job runs with the memory-safe limits of the local pre-push gate**
     # (2026-11-15): the daily run was killed mid "workspace tests (nextest)" (no step conclusion, so the runner or
     # oomd killed it); the cause is big's RAM, which cargo's one job per core and nextest's one test thread per
-    # core (each test a Bevy app) outgrow while other agents use it. The pre-push gate runs this same suite with
-    # these limits in about 12 minutes, so the job takes `CARGO_BUILD_JOBS` 3, `NEXTEST_TEST_THREADS` 2 and an
-    # hour's `timeout-minutes`.
+    # core (each test a Bevy app) outgrow while other agents use it, so the job takes `CARGO_BUILD_JOBS` 3 and
+    # `NEXTEST_TEST_THREADS` 2.
+    #
+    # **Two hours, because an hour was the job's own length** (#674). Run 46023866009 measured the parts: 280 s
+    # queued behind a push gate, a cold build of 25.5 min, and 27 min of tests at two threads — 58 of its 60
+    # minutes, with the doctests not yet started (a test had failed). The gate's wait has no bound of its own, and
+    # `family_all` (#687) adds twelve crates to the build and 119 tests to the run, so the cap is twice the measured
+    # job rather than a number the next push gate decides.
     runs-on: [self-hosted, big]
-    timeout-minutes: 60
+    timeout-minutes: 120
     env:
       CARGO_BUILD_JOBS: 3
     steps:
       - uses: actions/checkout@v4
+      # **The one LFS object a test reads** (#674). `bevy_oracle`'s recorded OpenRouter exchange was recorded with
+      # `docs/changelog/media/2026-10-24-S1.5.png`, and `actions/checkout` leaves every LFS file a 131-byte pointer
+      # unless asked; its `lfs: true` would fetch every changelog clip as well, which no test opens. `git-lfs` is in
+      # the runner image, and the checkout's token is what it authenticates with.
+      - name: Fetch the LFS image the oracle replay is compared with
+        run: git lfs pull --include docs/changelog/media/2026-10-24-S1.5.png
       - uses: dtolnay/rust-toolchain@stable
       - uses: taiki-e/install-action@nextest
       # **The limit this job is held to, printed by the job** (#674). `gh-runner-run` gives every container
@@ -117,12 +128,17 @@ jobs:
       # at 16.0 GB of memory (one rustc for the editor crate), the whole runner slice is capped at 14 GiB, and the
       # host's swap is 31 GB of zram on 32 GB of RAM. Both being in that phase at once is what killed the runs this
       # workflow reports as test failures, so the step waits where waiting is free -- before any rustc exists.
+      #
+      # **`--features bevy_dark_factory/family_all`, because that is what the release ships** (#687). The gate now
+      # builds every lint, test and doc step with it; before that, 16 modules and 119 tests reached a release that
+      # no gate had ever compiled. CI testing the default features would be a second opinion about a build nobody
+      # ships, and it is the same flag on the same two commands the gate runs.
       - name: workspace tests (nextest)
         env:
           NEXTEST_TEST_THREADS: 2
-        run: tools/ci/wait-for-gate.sh xvfb-run -a cargo nextest run --workspace --no-fail-fast 2>&1 | tee test-output.txt
+        run: tools/ci/wait-for-gate.sh xvfb-run -a cargo nextest run --workspace --features bevy_dark_factory/family_all --no-fail-fast 2>&1 | tee test-output.txt
       - name: doctests (nextest does not run them)
-        run: tools/ci/wait-for-gate.sh cargo test --workspace --doc 2>&1 | tee doc-output.txt
+        run: tools/ci/wait-for-gate.sh cargo test --workspace --doc --features bevy_dark_factory/family_all 2>&1 | tee doc-output.txt
       - name: Report the waits and the memory this run used
         if: always()
         run: |
