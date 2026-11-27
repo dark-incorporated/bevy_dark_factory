@@ -198,7 +198,7 @@ pub struct Dressing {
 
 /// **The carved ground wears the game's weathered material** (#101). While the project has a
 /// `family/bevy_elements.yaml` and `bevy_elements`' plugins are in the app, every chunk of the carved
-/// ground ([`TerrainView::Volume`](crate::terrain_view::TerrainView::Volume)) is drawn with one
+/// ground ([`TerrainView::Volume`]) is drawn with one
 /// `WeatheredMaterial`, so the preview's snow and wetness are what the game draws. The file's
 /// [`ElementsSettings::volume_cover`] is put on that material with `set_cover` when the file changes,
 /// so an edit shows in the next frame without remeshing; a file that does not parse keeps the previous
@@ -329,7 +329,7 @@ impl ClockScrub {
 /// smooths the right thing; the step was the editor's. This walks the hour there instead.
 ///
 /// **Only the hour.** A date, a climate or a pause is not a transition — walking one would be a lie about
-/// what the file says — and [`same_except_hour`] is the test that keeps this to the one edit it is for.
+/// what the file says — and `same_except_hour` is the test that keeps this to the one edit it is for.
 #[derive(Resource, Default, Clone, Copy, Debug, PartialEq)]
 pub struct ClockRamp {
     /// The hour the file asks for, in `[0, 24)`.

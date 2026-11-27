@@ -20,7 +20,7 @@
 //! onto it would be a second path to the file — one that skips `family_set`'s YAML value surgery, its refusal of
 //! a value the crate's type will not read, its atomic write, its log line and its inverse. So
 //! [`FamilyView`] is a **reflected view of the file's editable fields**, spawned on an entity of its own;
-//! the inspector edits *it*, and [`an_edit_is_the_operation`] turns the change into the write. That is the
+//! the inspector edits *it*, and `an_edit_is_the_operation` turns the change into the write. That is the
 //! shape `inspector_view.rs` uses for the selection's pose, for the same reason: the editor's own type,
 //! and one writer per fact.
 //!
@@ -91,7 +91,7 @@ pub const CRATE: &str = crate::environment::CRATE;
 /// `(the view's field, the dot-path `family_set` takes)`.
 ///
 /// `hour` is deliberately absent: it is the one field that is camera-style state, handled by
-/// [`an_edit_is_the_operation`] through [`ClockScrub`] (see the module note).
+/// `an_edit_is_the_operation` through [`ClockScrub`] (see the module note).
 pub const FILE_FIELDS: &[(&str, &str)] = &[
     ("time_scale", "clock.time_scale"),
     ("paused", "clock.paused"),
@@ -322,7 +322,7 @@ pub struct FamilyBlock {
 pub struct FamilyWidget;
 
 /// **The settings file of a crate this build has no fields for, as it is shown**: one `Text` under that
-/// crate's heading, carrying the crate whose text it is so [`mirror_the_blocks`] can keep it current.
+/// crate's heading, carrying the crate whose text it is so `mirror_the_blocks` can keep it current.
 #[derive(Component, Clone, Debug, PartialEq, Eq)]
 pub struct FamilyFile {
     /// The crate the text is read from.

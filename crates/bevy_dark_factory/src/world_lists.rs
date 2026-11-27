@@ -238,7 +238,7 @@ pub fn spawn_cue_list(p: &mut ChildSpawnerCommands) {
 /// and by the audio panel's own section with it (#600). One list, one reader, one selection.
 ///
 /// The panel already reads `family/bevy_siren.yaml` as the crate's `SirenSettings` and `CueTable` when it is
-/// built, so [`refresh_cues`] takes this list's names from the panel there rather than reading the file a
+/// built, so `refresh_cues` takes this list's names from the panel there rather than reading the file a
 /// second time; a second reader would be a second wording for one failure, which is how the Sound workspace
 /// came to say a broken file twice and the panel once.
 pub fn spawn_cue_column(p: &mut ChildSpawnerCommands) {

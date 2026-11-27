@@ -7,13 +7,13 @@
 //!
 //! # What it draws
 //!
-//! - A row per bus: its level from [`SirenMix::db`], the duck on it from `ducked`, and its live voices from `voices`.
+//! - A row per bus: its level from [`bevy_siren::SirenMix::db`], the duck on it from `ducked`, and its live voices from `voices`.
 //!   The same numbers a game's own meter reads, because it is the same resource.
 //! - Every cue by name, the chosen one marked, and an **Audition** button on it that writes
-//!   [`Play::cue`] — the door a game uses. Up and Down walk the list and the marked row *is* what Audition plays, so
+//!   `Play::cue` ([`bevy_siren::Play`]) — the door a game uses. Up and Down walk the list and the marked row *is* what Audition plays, so
 //!   choosing and playing are one fact. The log then shows `Played` or `Refused`, so a cue that cannot play says
 //!   what it is missing rather than doing nothing.
-//! - The tail of [`SirenLog`], so "why is the music quiet" has an answer on the screen.
+//! - The tail of [`bevy_siren::SirenLog`], so "why is the music quiet" has an answer on the screen.
 //!
 //! # A file that does not parse
 //!
@@ -247,7 +247,7 @@ pub fn write_file(
 }
 
 /// **The crate's answers an audition asks for**, grouped so [`on_audition`] stays inside clippy's
-/// seven-argument limit without an `#[allow]` — the same grouping [`Columns`] uses for the same reason.
+/// seven-argument limit without an `#[allow]` — the same grouping `Columns` uses for the same reason.
 ///
 /// **All three are required.** `SirenPlugins` inserts every one of them beside this observer in
 /// `editor.rs`; a missing resource is a build that forgot the plugin, and it must panic its observer
@@ -345,7 +345,7 @@ pub fn bus_rows(mix: &bevy_siren::SirenMix, buses: &[String]) -> Vec<String> {
         .collect()
 }
 
-/// **The cue list's rows**: every cue in the file's order, the chosen one marked with [`CUE_MARK`]. The marked
+/// **The cue list's rows**: every cue in the file's order, the chosen one marked with [`crate::world_lists::CUE_MARK`]. The marked
 /// row is the same [`world_lists::SelectedCue`](crate::world_lists::SelectedCue) **Audition** reads, so what a
 /// person reads as chosen is what plays. The `world_lists` reader owns the list that shows these; this function
 /// stays because the panel's own note and a test name it.
