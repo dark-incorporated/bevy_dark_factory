@@ -89,6 +89,12 @@ Regions, top to bottom and left to right:
 | status bar                                                   |
 ```
 
+**The toolbar** — the map's tool modes, Fill, undo, redo, save and the view helpers — stands under the chrome bar on
+Map, World and Kit, and on no other workspace (#690): a workspace without the map's tools draws no bar, and its panels
+have the room. A control is enabled where its key works, so on World and Kit only Save and the snip can be pressed and
+no tool is drawn lit. Undo, redo and save stayed on the bar rather than moving: the menus and the keys reach them on
+every workspace, as before.
+
 The **default layout of each workspace**, and every one is a different arrangement on purpose — a
 person who moves a divider in one workspace and finds it where they left it in the next has proof the
 layouts are per workspace rather than one shared one:

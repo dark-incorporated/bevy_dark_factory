@@ -2,6 +2,10 @@
 
 What each change added, newest first. A visible change has a clip: click the still to play it. `python3 tools/changelog/changelog.py page --open` plays them all in one page.
 
+## 2026-11-27
+
+- **690** The toolbar is drawn only on Map, World and Kit, and no tool is lit where it cannot act *For you: Workspaces without the map's tools no longer show the toolbar, so their panels get its room; on World and Kit the tools that cannot act there are shown disabled.* *No clip: a layout measured headless; proved by tests/the_toolbar_follows_the_workspace.rs (census of all ten workspaces, the room given back, the armed tool lit on arrival)*
+
 ## 2026-11-25
 
 - **618** `d73cb2da` A closed comment issue's own grep is now a test, and four regressions it caught are fixed *No clip: a test and comment fixes; nobody can see this; proved by a_closed_comment_issues_grep_stays_clean*

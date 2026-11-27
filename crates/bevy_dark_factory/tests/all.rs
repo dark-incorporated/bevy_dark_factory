@@ -562,6 +562,7 @@ mod the_status_band_counts_the_set_in_hand;
 mod the_status_band_says_when_a_file_needs_attention;
 mod the_status_bands_kind_draws_a_mark;
 mod the_toolbar_arms_a_tool_through_its_key;
+mod the_toolbar_follows_the_workspace;
 mod the_layout_score_counts_crossings;
 mod the_left_dock_slides_and_peeks_under_the_pointer;
 mod the_library_seed_is_a_selection;

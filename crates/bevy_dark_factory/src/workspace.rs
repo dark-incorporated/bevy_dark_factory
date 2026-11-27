@@ -310,6 +310,14 @@ impl Workspace {
         matches!(self, Workspace::Map | Workspace::World | Workspace::Kit | Workspace::Animation)
     }
 
+    /// **Does this workspace draw the toolbar?** (#690, the owner's "per workspace", 2026-11-27.) Map, World and
+    /// Kit: the three where a person works over the map's view with its tools to hand. Every other workspace
+    /// draws no bar, so its panels have the room the bar took, and nothing there claims a tool is armed where
+    /// none can act. Animation shows the map too, but its bench is not worked with these tools.
+    pub const fn has_the_toolbar(self) -> bool {
+        matches!(self, Workspace::Map | Workspace::World | Workspace::Kit)
+    }
+
     /// **Where this workspace starts**: its dock, before a person has moved a divider.
     ///
     /// Each is a different arrangement on purpose — the Kit workspace gives the library more room
