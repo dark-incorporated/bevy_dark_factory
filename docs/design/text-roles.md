@@ -30,8 +30,8 @@ panel is three things stacked, and the note is about all three:
 | what a person sees | drawn by | role | size then (before #518) | size now |
 |---|---|---|---|---|
 | `TERRAIN`, `WATER`, `FOREST`, `LIGHTS` | `chrome::section` (`chrome.rs:827`) | [`text::HEADING`] | 10 px, uppercase, `Ink::label` | **11 px**, the sheet's `metrics.type.heading` |
-| `set on the TERRAIN line: water ...` | `chrome::body` (`world_lists.rs:128`) | [`text::BODY`] | 11.67 px, gooey `Role::Label` | **11 px**, the sheet's `metrics.type.body` |
-| `no water placed` | `chrome::body` (`world_lists.rs:128`) | [`text::BODY`] | 11.67 px, gooey `Role::Label` | **11 px**, the sheet's `metrics.type.body` |
+| `set on the TERRAIN line: water ...` | `chrome::body` (`world_lists.rs:133`) | [`text::BODY`] | 11.67 px, gooey `Role::Label` | **11 px**, the sheet's `metrics.type.body` |
+| `no water placed` | `chrome::body` (`world_lists.rs:133`) | [`text::BODY`] | 11.67 px, gooey `Role::Label` | **11 px**, the sheet's `metrics.type.body` |
 
 **The bug the note pointed at was the last column: two systems decided a text's size, and they did not agree.** The
 crate's hand-drawn labels go through `chrome::font`, which is `role.px() * text_scale()`. A label the crate spawned as a
