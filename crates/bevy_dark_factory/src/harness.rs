@@ -694,6 +694,12 @@ fn build_stepped(
     // **A build with `bevy_siren` has `AudioPlugin`'s asset store** (`main.rs` keeps the plugin for it), and the
     // audio panel asks the asset server for a cue's sound on its first frames. The harness has no device, so it
     // registers the store the plugin would, once, before any frame runs (#687).
+    //
+    // **Only the store, because only the store is what `AudioPlugin` adds here.** It registers
+    // `AudioLoader` behind `any(mp3, flac, wav, vorbis)` and this workspace enables none of them, so a
+    // cue's `audio/<key>` fails to resolve a loader whether or not the harness adds one. Either way the
+    // load ends `LoadState::Failed`, which is the state `SirenSounds::failed` reads and the panel
+    // reports; adding a loader here would make the harness claim a capability the editor does not ship.
     #[cfg(feature = "bevy_siren")]
     app.init_asset::<bevy::audio::AudioSource>();
 

@@ -61,6 +61,12 @@ pub fn spawn_section(s: &mut ChildSpawnerCommands) {
     button(s, AuditionButton, "Audition cue", Severity::Plain);
     s.spawn((BusList, list_column()));
     s.spawn((CueChooser, list_column()));
+    // **The `used by` column, which answers the other question a cue has** (#600): which file and
+    // line names it. It is `world_lists`' own column, filled by its own reader, because the answer
+    // comes from the finder's index and not from the crate — and it holds the same
+    // `world_lists::SelectedCue` the panel marks, so following a reference and auditioning cannot
+    // disagree about the choice.
+    crate::world_lists::spawn_cue_uses(s);
     s.spawn((LogTail, list_column()));
 }
 
@@ -157,10 +163,14 @@ pub fn read_audio(
             panel.cues = table_read.names().map(str::to_owned).collect();
             *settings = read;
             *table = table_read;
-            // **Ask the asset server for the project's sounds** (#555): `<root>/audio/<key>`, which is
-            // where a game puts them and where `bevy_siren`'s own quick start reads from. A project with
-            // no `audio/` folder still refuses a cue, but the panel can now name the file it wanted
-            // (`SirenSounds::missing`) instead of saying it has no handle.
+            // **Ask the asset server for the project's sounds** (#555): `audio/<key>`, which the
+            // server reads from the project's asset root as `<project>/assets/audio/<key>` — where a
+            // game puts them and where `bevy_siren`'s own quick start reads from. A handle is
+            // held whether or not the file is there, so a project with no `audio/` folder plays a
+            // voice that waits for an asset which will never arrive; the panel names that file from
+            // `SirenSounds::failed` when the cue is auditioned, which is the one place a person is
+            // told which file to deliver (`SirenSounds::missing` is now the narrower case: no handle
+            // at all, which is a build whose read had no asset server).
             if let Some(server) = server.as_deref() {
                 sounds.load_table(server, &table, "audio");
             }
@@ -203,14 +213,26 @@ pub fn write_file(
     .map_err(|p| format!("family/{FILE} does not write: {}", p.line()))
 }
 
+/// **The crate's answers an audition asks for**, grouped so [`on_audition`] stays inside clippy's
+/// seven-argument limit without an `#[allow]` — the same grouping [`Columns`] uses for the same reason.
+///
+/// **All three are required.** `SirenPlugins` inserts every one of them beside this observer in
+/// `editor.rs`; a missing resource is a build that forgot the plugin, and it must panic its observer
+/// rather than audition into a hole.
+#[derive(bevy::ecs::system::SystemParam)]
+pub struct Sounds<'w> {
+    sounds: Res<'w, bevy_siren::SirenSounds>,
+    table: Res<'w, bevy_siren::CueTable>,
+    server: Res<'w, AssetServer>,
+}
+
 /// **Audition** plays the selected cue through the crate's own door, and the panel's log shows what happened.
 pub fn on_audition(
     activate: On<Activate>,
     buttons: Query<(), With<AuditionButton>>,
     selected: Option<Res<crate::world_lists::SelectedCue>>,
     mut plays: MessageWriter<bevy_siren::Play>,
-    sounds: Option<Res<bevy_siren::SirenSounds>>,
-    table: Option<Res<bevy_siren::CueTable>>,
+    heard: Sounds,
     mut state: ResMut<EditorState>,
 ) {
     if buttons.get(activate.entity).is_err() {
@@ -225,35 +247,45 @@ pub fn on_audition(
     // **What the cue cannot sound, said before it is asked to** (#555): `Play::cue` answers
     // `Refused { MissingSound }` and the log explains it a frame later, but the button's own answer
     // should be the file a person has to deliver. A project with no `audio/` folder is the ordinary
-    // case, and "no file `audio/step_01` in this project" is a thing an author can act on.
-    // The cue's own sound keys, from the table the panel already holds.
-    let wanted: Vec<String> = table
-        .as_deref()
-        .and_then(|table| table.get(&cue))
+    // case, and "no file `assets/audio/step_01` in this project" is a thing an author can act on.
+    //
+    // **Two ways a key cannot sound, and the panel says both** (#555's second half). `missing` is a
+    // key with no handle at all — a read that had no asset server; `failed` is a handle whose file
+    // the server could not read, which is *every* cue of a project with an empty `audio/` folder now
+    // that `read_audio` asks for all of them. The crate asks "is there a handle", not "did the file
+    // load", so the play below still reaches `Played`; these two are what make the failure visible,
+    // and both mean the same next step, so they are one list in the cue's own order and both name
+    // the file.
+    let wanted: Vec<String> = heard
+        .table
+        .get(&cue)
         .map(|cue| cue.sounds.iter().map(|slot| slot.sound.clone()).collect())
         .unwrap_or_default();
-    let unloaded: Vec<String> = sounds.as_deref().map_or_else(Vec::new, |sounds| {
-        sounds
-            .missing(table.as_deref().expect("a cue was found in the table"))
-            .into_iter()
-            .filter(|key| wanted.iter().any(|w| w == key))
-            .collect()
-    });
+    let missing = heard.sounds.missing(&heard.table);
+    let failed = heard.sounds.failed(&heard.server, &heard.table);
+    let unloaded: Vec<String> = wanted
+        .into_iter()
+        .filter(|key| missing.contains(key) || failed.contains(key))
+        .collect();
     plays.write(bevy_siren::Play::cue(cue.clone()));
     if unloaded.is_empty() {
         state.status.note(format!("auditioning `{cue}`"));
     } else {
+        // **The path a person must deliver, relative to the project** — not `audio/<key>`, which is
+        // the *asset-server*-relative spelling `read_audio` hands to `load_table`: the server is
+        // rooted at `<project>/assets` (`project_assets.rs`), so the file on disk is
+        // `assets/audio/<key>`.
         state.status.problem(format!(
-            "`{cue}` cannot sound: nothing is loaded for {}. Put the file in the project's \
-             `audio/` folder as {}",
+            "`{cue}` has no sound: {}. Put {} at {} in the project's `assets/audio/` folder",
             unloaded
                 .iter()
                 .map(|key| format!("`{key}`"))
                 .collect::<Vec<_>>()
                 .join(", "),
+            if unloaded.len() == 1 { "it" } else { "them" },
             unloaded
                 .iter()
-                .map(|key| format!("`audio/{key}`"))
+                .map(|key| format!("`assets/audio/{key}`"))
                 .collect::<Vec<_>>()
                 .join(", "),
         ));

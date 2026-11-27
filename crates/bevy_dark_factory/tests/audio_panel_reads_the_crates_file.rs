@@ -51,6 +51,44 @@ fn project(tag: &str, text: &str) -> std::path::PathBuf {
     root
 }
 
+/// **Run frames until `done` holds**, or fail saying so.
+///
+/// An asset load runs on Bevy's I/O pool, so its outcome — a 404, a decoded file — arrives some
+/// frames after the read that asked for it. A fixed `for _ in 0..N` is a guess: it passes on an idle
+/// host and fails on a busy one, which is the shape of a flaky gate.
+fn settle(app: &mut App, mut done: impl FnMut(&App) -> bool) {
+    for _ in 0..2000 {
+        if done(app) {
+            return;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(1));
+        app.update();
+    }
+    panic!("the asset server never settled what the test waited on");
+}
+
+/// **A key as a person presses it**: the `KeyboardInput` events Bevy's own `keyboard_input_system`
+/// reads.
+///
+/// **Writing straight into `ButtonInput<KeyCode>` does not work for `just_pressed`.** That system
+/// clears `just_pressed` in `PreUpdate`, so a `press()` written after the last `update()` is cleared
+/// before any editor system — `walk_the_cues` among them — reads it. (A press *inside* a frame does
+/// reach the editor, which is why `keyboard_input_system` is where this belongs.)
+fn tap(app: &mut App, code: KeyCode) {
+    use bevy::input::keyboard::{Key, KeyboardInput, NativeKey};
+    for state in [bevy::input::ButtonState::Pressed, bevy::input::ButtonState::Released] {
+        app.world_mut().write_message(KeyboardInput {
+            key_code: code,
+            logical_key: Key::Unidentified(NativeKey::Unidentified),
+            state,
+            text: None,
+            repeat: false,
+            window: Entity::PLACEHOLDER,
+        });
+    }
+    app.update();
+}
+
 /// **A file the crate's own types read** becomes the running editor's mix: the bus list from the file, and the cue
 /// names in the panel, with a key for every sound the panel can audition.
 #[test]
@@ -86,33 +124,112 @@ fn the_panel_reads_the_crates_own_file() {
 }
 
 /// **Audition is a `Play`**, and the panel hears the answer through the same door a game does: refused by name when
-/// the key has no handle, played once it does.
+/// the key has no handle at all, played once it does — and when the handle exists but its file does not, the play
+/// still happens and **the panel is what names the missing file** (#555).
 ///
-/// Both halves matter. A panel that only ever showed `Played` would hide a missing file; a panel that played with no
-/// key would be playing something the project did not ship.
+/// All three matter. A panel that only ever showed `Played` would hide a missing file; a panel that played with no
+/// key would be playing something the project did not ship; and a panel whose message came only from
+/// `SirenSounds::missing` would say nothing at all now that `read_audio` holds a handle for every cue, because a
+/// handle exists whether or not the server ever finds the bytes (`SirenSounds::failed` is that answer).
 #[test]
 fn an_audition_is_a_play_and_the_panel_hears_it() {
     let text = r#"{settings: {max_voices: 8, buses: [{name: "Effects"}], ducks: []}, cues: {cues: [{name: "ui.click", sounds: [{sound: "click"}]}]}}"#;
     let root = project("siren_audition", text);
-    let mut app = harness::build_headless(&root, "m", None).unwrap_or_else(|e| panic!("{e}"));
+    // **The Sound workspace**, so the panel — and its Audition button — is drawn.
+    let mut app = harness::build_headless_at(&root, "m", None, bevy_dark_factory::tiles::Mode::Sound)
+        .unwrap_or_else(|e| panic!("{e}"));
     app.init_resource::<Heard>().add_systems(Update, hear);
     for _ in 0..4 {
         app.update();
     }
 
-    // The file's one cue is the panel's cue list — the choice among them is `world_lists::SelectedCue`, which
-    // the person sets and Audition reads, so a reading of the file names the cue and chooses nothing. The panel
-    // writes the crate's own `Play`, as a game would; with no handle for `click`, the answer is a refusal that
-    // names the key, which is exactly what the panel prints.
+    // **The file's one cue is the panel's cue list**, and the choice among them is
+    // `world_lists::SelectedCue`, which the person sets and Audition reads, so a reading of the file
+    // names the cue and chooses nothing.
     let panel = app.world().resource::<AudioPanel>();
     assert_eq!(panel.cues, vec!["ui.click".to_owned()]);
+
+    // **#555 changed this half, and the old premise is what broke.** `read_audio` asks the asset
+    // server for every cue's sound, so a handle for `click` *exists*; it is the load of that handle
+    // that fails, because the project ships no file for it. This used to assert
+    // `SirenSounds::missing == ["click"]`, which is only true if the load never ran — it now measures
+    // the exact opposite of what #555 shipped. `SirenSounds::failed` is the crate's own accessor for
+    // "the file is not there", and the assertion is *stricter*: it still names `click`, and it also
+    // proves the panel asked for the key and the server rejected it, where the old one could pass
+    // with nothing asked at all.
+    {
+        let sounds = app.world().resource::<SirenSounds>();
+        assert!(
+            sounds.keys().any(|key| key == "click"),
+            "the panel asked the asset server for `click` (#555). Keys held: {:?}",
+            sounds.keys().collect::<Vec<_>>()
+        );
+        assert_eq!(sounds.missing(app.world().resource::<CueTable>()), Vec::<String>::new(), "the handle exists");
+    }
+    // A load is asynchronous, so the failure lands a few frames after the read.
+    settle(&mut app, |app| {
+        let server = app.world().resource::<AssetServer>();
+        !app.world().resource::<SirenSounds>().failed(server, app.world().resource::<CueTable>()).is_empty()
+    });
+    let failed = {
+        let server = app.world().resource::<AssetServer>();
+        app.world().resource::<SirenSounds>().failed(server, app.world().resource::<CueTable>())
+    };
     assert_eq!(
-        app.world()
-            .resource::<SirenSounds>()
-            .missing(app.world().resource::<CueTable>()),
+        failed,
         vec!["click".to_owned()],
-        "the panel can say which file is missing"
+        "the project ships no `assets/audio/click`, so the crate says which file to deliver"
     );
+
+    // **What a person reads when they press Audition**: the cue and the path they must create, said
+    // before the play is asked for. This is #555's own half — the message, not a log line a frame on.
+    let button = app
+        .world()
+        .iter_entities()
+        .find(|e| e.get::<audio_panel::AuditionButton>().is_some())
+        .map(|e| e.id())
+        .expect("the Sound workspace draws the panel's Audition button");
+    app.world_mut()
+        .resource_mut::<bevy_dark_factory::world_lists::SelectedCue>()
+        .0 = Some("ui.click".to_owned());
+    app.world_mut()
+        .commands()
+        .trigger(bevy::ui_widgets::Activate { entity: button });
+    app.update();
+    let absent = app.world().resource::<EditorState>().status.problem_text().to_owned();
+    assert!(
+        absent.contains("ui.click") && absent.contains("assets/audio/click"),
+        "Audition names the cue and the file to deliver, by the path the person creates: {absent}"
+    );
+
+    // **The play still reaches `Played`**, because `Play::cue` asks whether a handle exists, not
+    // whether its file loaded. A voice whose asset never arrives is Bevy's own silent wait, which is
+    // exactly why the message above — not the log — is what tells a person.
+    app.world_mut().write_message(Play::cue("ui.click"));
+    for _ in 0..3 {
+        app.update();
+    }
+    let answer = app
+        .world()
+        .resource::<Heard>()
+        .played
+        .last()
+        .cloned()
+        .expect("a held handle plays, whether or not its file loaded");
+    assert_eq!(answer.cue, "ui.click");
+    assert_eq!(answer.bus, "Effects");
+    assert!(answer.gain_db.is_finite());
+    assert!(
+        app.world()
+            .resource::<SirenLog>()
+            .iter()
+            .any(|e| matches!(e, bevy_siren::Entry::Played { cue, .. } if cue == "ui.click")),
+        "the panel's own log tail shows the audition"
+    );
+
+    // **No handle at all is the one case that still refuses, and it names the key.** A build whose
+    // read ran with no asset server leaves `SirenSounds` empty, which is what a fresh one is.
+    app.world_mut().insert_resource(SirenSounds::new());
     app.world_mut().write_message(Play::cue("ui.click"));
     for _ in 0..3 {
         app.update();
@@ -131,38 +248,6 @@ fn an_audition_is_a_play_and_the_panel_hears_it() {
         }
     );
 
-    // Give the panel the key a game would have loaded, and the same audition now plays.
-    let handle = app
-        .world_mut()
-        .resource_mut::<Assets<bevy::audio::AudioSource>>()
-        .add(bevy::audio::AudioSource {
-            bytes: vec![0u8; 4].into(),
-        });
-    app.world_mut()
-        .resource_mut::<SirenSounds>()
-        .insert("click", handle);
-    app.world_mut().write_message(Play::cue("ui.click"));
-    for _ in 0..3 {
-        app.update();
-    }
-
-    let answer = app
-        .world()
-        .resource::<Heard>()
-        .played
-        .last()
-        .cloned()
-        .expect("the audition played once its key resolved");
-    assert_eq!(answer.cue, "ui.click");
-    assert_eq!(answer.bus, "Effects");
-    assert!(answer.gain_db.is_finite());
-    assert!(
-        app.world()
-            .resource::<SirenLog>()
-            .iter()
-            .any(|e| matches!(e, bevy_siren::Entry::Played { cue, .. } if cue == "ui.click")),
-        "the panel's own log tail shows the audition"
-    );
     let mix = app.world().resource::<SirenMix>().clone();
     assert!(
         mix.db.contains_key("Effects"),
@@ -314,8 +399,7 @@ fn the_panel_draws_the_buses_the_cues_and_the_log() {
     assert!(!tail.is_empty(), "the log tail says at least that nothing has played: {tail:?}");
 
     // **Down chooses the first cue**, and the mark follows the value Audition reads.
-    app.world_mut().resource_mut::<ButtonInput<KeyCode>>().press(KeyCode::ArrowDown);
-    app.update();
+    tap(&mut app, KeyCode::ArrowDown);
     let chosen = app.world().resource::<bevy_dark_factory::world_lists::SelectedCue>().0.clone();
     assert_eq!(chosen.as_deref(), Some("ui.click"), "Down walks the cue list and writes the editor's selection");
     let moved = rows_of(&app, "cue");
