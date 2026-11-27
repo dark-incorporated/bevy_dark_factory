@@ -60,6 +60,8 @@ pub mod chords;
 // **The editor's own log, in the window** (#509).
 pub mod console;
 pub mod chrome;
+// **Monokai, Solarized and GitHub as gooey syntax themes**, for the Code colours row (#610).
+pub mod code_palette;
 pub mod command_palette;
 pub mod crosslinks;
 pub mod nav;

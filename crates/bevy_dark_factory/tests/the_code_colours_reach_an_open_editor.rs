@@ -21,9 +21,17 @@
 //! Delete the one application in `style::apply_style` that writes `skin.syntax_theme` and
 //! `switching_the_preset_changes_the_drawn_colour_of_a_key` fails: the spans keep `Skin`'s colours. Measured, not
 //! assumed — see the commit body.
+//!
+//! # The named palettes (#610)
+//!
+//! Monokai, Solarized and GitHub are palettes laid on the skin (`code_palette`): a keyword is drawn at its palette's
+//! published hue, as light or dark as the skin's ground lets it hold the bar. That is measured the same way, with the
+//! expectation independent of the editor's table: the hue each palette's authors publish for a keyword is written
+//! here as their hex, and the drawn run's hue is compared with it, in a file of each language the editor colours.
 
 use std::time::Duration;
 
+use bevy::color::Oklcha;
 use bevy::input_focus::{FocusCause, InputFocus};
 use bevy::prelude::*;
 use bevy::window::PrimaryWindow;
@@ -32,7 +40,7 @@ use bevy_dark_factory::commands;
 use bevy_dark_factory::harness;
 use bevy_dark_factory::keys::Live;
 use bevy_dark_factory::settings::{SyntaxTheme, UserSettingsFile};
-use bevy_gooey::{CodeEditor, GooeySkin, Role};
+use bevy_gooey::{CodeEditor, GooeySkin, Role, SyntaxRole};
 
 use crate::fixtures;
 use crate::settle_support;
@@ -65,11 +73,21 @@ fn until(app: &mut App, what: &str, mut done: impl FnMut(&mut App) -> bool) {
 }
 
 /// The editor on the fixture, the YAML file open in the Files workspace and focused, and the settings file
-/// `warm` was written to.
+/// `preset` was written to.
 fn rig(tag: &str, preset: SyntaxTheme) -> (App, std::path::PathBuf) {
+    rig_files(tag, preset, &[(REL, FILE)])
+}
+
+/// The editor on the fixture with `files` (`(relative path, text)`) written into it, the first open in the Files
+/// workspace and focused, and the settings file `preset` was written to.
+fn rig_files(tag: &str, preset: SyntaxTheme, files: &[(&str, &str)]) -> (App, std::path::PathBuf) {
     let name = format!("code_colours_{tag}_{}", std::process::id());
     let root = fixtures::Fixture::new(&name).descriptor("site/wall", "alpha").place("site/wall", (1.5, 1.5)).build("m");
-    std::fs::write(root.join(REL), FILE).unwrap_or_else(|e| panic!("{e}"));
+    for (rel, text) in files {
+        let path = root.join(rel);
+        std::fs::create_dir_all(path.parent().unwrap_or(&root)).unwrap_or_else(|e| panic!("{e}"));
+        std::fs::write(&path, text).unwrap_or_else(|e| panic!("{e}"));
+    }
     let file = root.join(format!("user_config_{name}/settings.yaml"));
     std::fs::create_dir_all(file.parent().unwrap_or(&root)).unwrap_or_else(|e| panic!("{e}"));
     std::fs::write(&file, settings_text(preset)).unwrap_or_else(|e| panic!("{e}"));
@@ -82,7 +100,8 @@ fn rig(tag: &str, preset: SyntaxTheme) -> (App, std::path::PathBuf) {
     let live = *app.world().resource::<Live>();
     app.world_mut().resource_mut::<Chords>().queue(&command, live);
     settle_support::settle(&mut app);
-    bevy_dark_factory::files::open_file(app.world_mut(), REL).unwrap_or_else(|e| panic!("{e}"));
+    let (first, _) = files.first().unwrap_or_else(|| panic!("a rig opens a file"));
+    bevy_dark_factory::files::open_file(app.world_mut(), first).unwrap_or_else(|e| panic!("{e}"));
     settle_support::settle(&mut app);
     let editor = app
         .world_mut()
@@ -158,7 +177,7 @@ fn every_themed_preset_moves_a_drawn_role_and_skin_puts_them_back() {
     let skin_key = syntax_ink(&mut app, "version");
     let skin_word = syntax_ink(&mut app, "true");
     assert_ne!(skin_key, skin_word, "a key and a keyword are two hues even in the skin's own set: {skin_key:?} {skin_word:?}");
-    for preset in [SyntaxTheme::Warm, SyntaxTheme::Cool, SyntaxTheme::Mono, SyntaxTheme::Separated] {
+    for preset in SyntaxTheme::ALL.into_iter().filter(|preset| *preset != SyntaxTheme::Skin) {
         std::fs::write(&file, settings_text(preset)).unwrap_or_else(|e| panic!("{e}"));
         let want = preset.theme();
         until(&mut app, &format!("{preset:?} to reach the skin"), |app| app.world().resource::<GooeySkin>().syntax_theme == want);
@@ -171,4 +190,91 @@ fn every_themed_preset_moves_a_drawn_role_and_skin_puts_them_back() {
     until(&mut app, "skin to come back", |app| app.world().resource::<GooeySkin>().syntax_theme == want);
     assert_eq!(syntax_ink(&mut app, "version"), skin_key, "choosing `skin` back draws the editor's own key hue");
     assert_eq!(syntax_ink(&mut app, "true"), skin_word, "choosing `skin` back draws the editor's own keyword hue");
+}
+
+/// **A keyword in each language the Files editor colours** — YAML, RON, Rhai and Markdown (#610's acceptance) — each
+/// in a file of its own: `(path, text, words of the keyword's run)`. A `.rs` file is not one of them: the editor colours
+/// no Rust (`files_lang::REGISTRY`), so Rhai is the Rust-like case. A Markdown heading is gooey's keyword role.
+const KEYWORDS: [(&str, &str, &str); 4] = [
+    ("notes/keyword.yaml", "enabled: true\n", "true"),
+    ("notes/keyword.ron", "(version: 3, bash: None)\n", "None"),
+    ("notes/keyword.rhai", "fn open(door) {\n    door\n}\n", "fn"),
+    ("notes/keyword.md", "# Heading\n\nSome words.\n", "Heading"),
+];
+
+/// **Monokai's keyword colour as its authors publish it**: `keyword` and `storage` in `Monokai.tmTheme`.
+const MONOKAI_KEYWORD: u32 = 0xF9_26_72;
+/// **Solarized's keyword colour**: its `Statement`, the accent green.
+const SOLARIZED_KEYWORD: u32 = 0x85_99_00;
+/// **How far a drawn hue may sit from the published one**, in degrees. gooey keeps a theme's hue and moves only its
+/// lightness and chroma, so the two agree but for float rounding; Monokai's and Solarized's keywords are 120° apart.
+const HUE_TOLERANCE_DEG: f32 = 0.5;
+
+/// The Oklch hue of a published `0xRRGGBB` colour.
+fn published_hue(hex: u32) -> f32 {
+    let [_, r, g, b] = hex.to_be_bytes();
+    Oklcha::from(Color::srgb_u8(r, g, b)).hue
+}
+
+/// The angle between two hues, in degrees: 0 to 180.
+fn hue_gap(a: f32, b: f32) -> f32 {
+    let gap = (a - b).rem_euclid(360.0);
+    gap.min(360.0 - gap)
+}
+
+/// Writes `preset` into the person's settings file and runs frames until the running skin carries it.
+fn choose(app: &mut App, file: &std::path::Path, preset: SyntaxTheme) {
+    std::fs::write(file, settings_text(preset)).unwrap_or_else(|e| panic!("{e}"));
+    let want = preset.theme();
+    until(app, &format!("{preset:?} to reach the skin"), |app| app.world().resource::<GooeySkin>().syntax_theme == want);
+}
+
+/// **The drawn keyword of each of [`KEYWORDS`]**, in order: each file is opened in the Files workspace in turn, and its
+/// keyword read back as a drawn `Role::CodeSyntax(Keyword)` run, painted in the running skin's keyword colour.
+fn keyword_inks(app: &mut App) -> [Color; 4] {
+    KEYWORDS.map(|(rel, _, words)| {
+        bevy_dark_factory::files::open_file(app.world_mut(), rel).unwrap_or_else(|e| panic!("{e}"));
+        let mut ink = None;
+        until(app, &format!("`{words}` in {rel} drawn as a keyword in the skin's keyword colour"), |app| {
+            let want = app.world().resource::<GooeySkin>().syntax(SyntaxRole::Keyword);
+            ink = drawn(app)
+                .into_iter()
+                .find(|(run, role, colour)| run.contains(words) && *role == Role::CodeSyntax(SyntaxRole::Keyword) && *colour == want)
+                .map(|(.., colour)| colour);
+            ink.is_some()
+        });
+        ink.unwrap_or_else(|| unreachable!("`until` returned, so the run was found"))
+    })
+}
+
+/// **A named palette draws a keyword in its own published hue, in every language the editor colours, and `Skin` puts
+/// the skin's own keyword back** (#610: *"a separate 'Code colours' setting listing named syntax palettes (Skin default,
+/// plus e.g. Monokai, Solarized, GitHub)"*). Monokai and Solarized are two palettes, so they give two keyword inks in
+/// each language, and both differ from the skin's; switching back to `Skin` draws exactly the colours drawn before.
+#[test]
+fn a_named_palette_draws_its_keyword_hue_in_every_language_and_skin_puts_it_back() {
+    let (mut app, file) = rig_files("palettes", SyntaxTheme::Skin, &KEYWORDS.map(|(rel, text, _)| (rel, text)));
+    let skin = keyword_inks(&mut app);
+    choose(&mut app, &file, SyntaxTheme::Monokai);
+    let monokai = keyword_inks(&mut app);
+    choose(&mut app, &file, SyntaxTheme::Solarized);
+    let solarized = keyword_inks(&mut app);
+    for (at, (rel, _, words)) in KEYWORDS.into_iter().enumerate() {
+        let drawn_hue = Oklcha::from(monokai[at]).hue;
+        assert!(
+            hue_gap(drawn_hue, published_hue(MONOKAI_KEYWORD)) < HUE_TOLERANCE_DEG,
+            "`{words}` in {rel} under Monokai is hue {drawn_hue}, not Monokai's keyword hue {}",
+            published_hue(MONOKAI_KEYWORD)
+        );
+        let drawn_hue = Oklcha::from(solarized[at]).hue;
+        assert!(
+            hue_gap(drawn_hue, published_hue(SOLARIZED_KEYWORD)) < HUE_TOLERANCE_DEG,
+            "`{words}` in {rel} under Solarized is hue {drawn_hue}, not Solarized's keyword hue {}",
+            published_hue(SOLARIZED_KEYWORD)
+        );
+        assert_ne!(monokai[at], skin[at], "`{words}` in {rel}: Monokai drew the skin's own keyword colour");
+        assert_ne!(monokai[at], solarized[at], "`{words}` in {rel}: two palettes drew one keyword colour");
+    }
+    choose(&mut app, &file, SyntaxTheme::Skin);
+    assert_eq!(keyword_inks(&mut app), skin, "choosing `Skin` back draws the skin's own keyword colour in every language");
 }

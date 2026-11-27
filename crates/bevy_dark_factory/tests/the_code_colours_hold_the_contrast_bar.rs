@@ -10,8 +10,9 @@
 //!
 //! # What these assert
 //!
-//! The editor's **compiled** skin for each of its three themes (`style::compiled_for`), with each of the five
-//! presets laid on, is a skin `problems()` answers empty for. That is the editor's own skin and its own grounds,
+//! The editor's **compiled** skin for each of its three themes (`style::compiled_for`), with each of the eight
+//! choices laid on (gooey's five presets and the Monokai, Solarized and GitHub palettes, #610), is a skin
+//! `problems()` answers empty for. That is the editor's own skin and its own grounds,
 //! not gooey's presets: a parchment ground and a high-contrast one fail the same search in different places, and a
 //! preset that cleared the bar on gooey's `dark()` alone would be no evidence for either.
 //!
@@ -19,6 +20,7 @@
 //! give any role a colour at the bar, so `problems()` reports it. Without that, "every preset is clean" would also
 //! be true of a `problems()` that reports nothing.
 
+use bevy::color::Oklcha;
 use bevy::prelude::*;
 use bevy_dark_factory::settings::SyntaxTheme;
 use bevy_dark_factory::style;
@@ -96,4 +98,36 @@ fn warm_and_cool_differ_for_the_roles_a_theme_colours() {
     let cool = skin(bevy_dark_factory::settings::Theme::ToolDark, SyntaxTheme::Cool);
     let differing = SyntaxRole::ALL.into_iter().filter(|role| warm.syntax(*role) != cool.syntax(*role)).count();
     assert!(differing >= 6, "`warm` and `cool` tell {differing} roles apart; the hues they state must reach the colours");
+}
+
+/// **The keyword colour each named palette's authors publish** (#610), written here as their hex so the expectation
+/// is not the editor's own table: Monokai's `keyword`, Solarized's `Statement` green and GitHub's `pl-k` red.
+const PUBLISHED_KEYWORDS: [(SyntaxTheme, u32); 3] =
+    [(SyntaxTheme::Monokai, 0xF9_26_72), (SyntaxTheme::Solarized, 0x85_99_00), (SyntaxTheme::GitHub, 0xD7_3A_49)];
+
+/// **How far a derived hue may sit from the published one**, in degrees: gooey keeps a theme's hue and moves only
+/// its lightness and chroma, so the two agree but for float rounding.
+const HUE_TOLERANCE_DEG: f32 = 0.5;
+
+/// **On every theme, each named palette gives a keyword its own published hue, and the three are three colours**
+/// (#610): a light theme and a high-contrast one move the lightness to hold the bar, never the hue, so Monokai on
+/// Parchment is still Monokai's pink.
+#[test]
+fn every_named_palette_keeps_its_keyword_hue_on_every_theme() {
+    for theme in THEMES {
+        let mut keywords: Vec<Color> = Vec::new();
+        for (palette, hex) in PUBLISHED_KEYWORDS {
+            let keyword = skin(theme, palette).syntax(SyntaxRole::Keyword);
+            let [_, r, g, b] = hex.to_be_bytes();
+            let published = Oklcha::from(Color::srgb_u8(r, g, b)).hue;
+            let derived = Oklcha::from(keyword).hue;
+            let gap = (derived - published).rem_euclid(360.0);
+            assert!(
+                gap.min(360.0 - gap) < HUE_TOLERANCE_DEG,
+                "{theme:?} with {palette:?}: a keyword is hue {derived}, the palette publishes {published}"
+            );
+            assert!(!keywords.contains(&keyword), "{theme:?}: {palette:?} gives a keyword another palette's colour");
+            keywords.push(keyword);
+        }
+    }
 }

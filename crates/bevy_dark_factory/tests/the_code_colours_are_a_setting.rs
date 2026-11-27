@@ -4,16 +4,17 @@
 //!
 //! `bevy_gooey` 0.58.0 gave `GooeySkin` a `syntax_theme` (its issue #116): the hues every `Role::CodeSyntax`
 //! colour is derived from, with the contrast search still run, so a theme chooses hue and never whether the
-//! bar is met. This is the editor's side of it: a person-level setting naming one of gooey's five presets.
+//! bar is met. This is the editor's side of it: a person-level setting naming one of gooey's five presets or one
+//! of the editor's three named palettes, Monokai, Solarized and GitHub (#610).
 //!
 //! # What these assert
 //!
-//! - **It reads and writes as one of the five**, in the spelling the file uses (`warm`, `cool`, `mono`,
-//!   `separated`, `skin`), through the same `SettingsLayer` every other key goes through, and a person's file
-//!   laid over the project's resolves the way `theme` does.
+//! - **It reads and writes as one of the eight**, in the spelling the file uses (`skin`, `warm`, `cool`, `mono`,
+//!   `separated`, `monokai`, `solarized`, `github`), through the same `SettingsLayer` every other key goes through,
+//!   and a person's file laid over the project's resolves the way `theme` does.
 //! - **A wrong value is refused, naming the field**, by `SettingsLayer::read` — not by a later stage, and not
 //!   with the value silently dropped to the default.
-//! - **It is a catalogue row** whose five names are the presets' own, in the order the enum declares them.
+//! - **It is a catalogue row** whose eight names are the choices' own, in the order the enum declares them.
 //!
 //! **Through the file, not the resource**: a test that assigned `EditorSettings` would be overwritten by
 //! `sync_settings`, so the two that read the running editor write the file and run frames.
@@ -60,11 +61,15 @@ fn word_in(text: &str) -> String {
     text.lines().find_map(|line| line.trim().strip_prefix("syntax_theme: ")).unwrap_or_else(|| panic!("no `syntax_theme` in {text:?}")).trim().to_owned()
 }
 
-/// **Each of the five reads from the file, and a layer writes it back as the same word.**
+/// **Each of the eight reads from the file, and a layer writes it back as the same word.**
 #[test]
 fn every_preset_reads_and_round_trips_through_the_file() {
-    // **The five words a person may write**, which is also the five the screen writes.
-    assert_eq!(SyntaxTheme::ALL.map(|theme| word_in(&written(theme))), ["skin", "warm", "cool", "mono", "separated"], "the file's five words");
+    // **The eight words a person may write**, which is also the eight the screen writes.
+    assert_eq!(
+        SyntaxTheme::ALL.map(|theme| word_in(&written(theme))),
+        ["skin", "warm", "cool", "mono", "separated", "monokai", "solarized", "github"],
+        "the file's eight words"
+    );
     for want in SyntaxTheme::ALL {
         let word = word_in(&written(want));
         let text = format!("version: 1\nsyntax_theme: {word}\n");
@@ -105,13 +110,13 @@ fn the_project_layer_wins_and_an_absent_key_falls_through() {
     assert_eq!(EditorSettings::default().syntax_theme, SyntaxTheme::Skin, "the shipped default is the colours the editor drew before the setting");
 }
 
-/// **It is a row on the Settings screen**: an Appearance choice whose five names are the presets', and whose
+/// **It is a row on the Settings screen**: an Appearance choice whose eight names are the choices' own, and whose
 /// default is `Skin` — the colours a person already has, so nobody's editor moves until they choose.
 #[test]
 fn the_setting_is_a_row_whose_five_names_are_the_presets() {
     let setting = setting_catalogue::find("syntax_theme").unwrap_or_else(|| panic!("`syntax_theme` is a catalogue row"));
     assert_eq!(setting.category, "Appearance", "it sits with the other looks");
-    let Kind::Options(names) = setting.kind else { panic!("it is a choice among five presets") };
+    let Kind::Options(names) = setting.kind else { panic!("it is a choice among eight palettes") };
     assert_eq!(names, setting_catalogue::SYNTAX_THEMES, "the row offers the presets' own names");
     assert_eq!(names.len(), SyntaxTheme::ALL.len(), "every preset is offered");
     assert_eq!(setting_catalogue::default_value("syntax_theme"), Some(Value::Option(0)), "`Skin` is first, the shipped default");
