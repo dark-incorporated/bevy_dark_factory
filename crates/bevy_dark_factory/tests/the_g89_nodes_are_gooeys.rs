@@ -91,7 +91,7 @@ fn a_panel_is_a_sized_column_that_follows_the_editors_display() {
     let world = app.world_mut();
     let (mut open, mut closed) = (0, 0);
     for (entity, node, vis) in world.query_filtered::<(Entity, &Node, &Visibility), With<bevy_dark_factory::chrome::PanelEdge>>().iter(world) {
-        assert_eq!(world.get::<bevy_gooey::Role>(entity), Some(&bevy_gooey::Role::Sized), "a panel is a gooey sized box");
+        assert_eq!(world.get::<bevy_gooey::Role>(entity), Some(&bevy_gooey::Role::Panel), "a panel is gooey's own panel role (#650)");
         assert!(world.get::<ShownFollow>(entity).is_some(), "whose `display` is the editor's to write");
         assert_eq!((node.flex_direction, node.row_gap), (FlexDirection::Column, Val::Px(5.0)), "a column, 5 px between its parts");
         assert_eq!((node.padding.left, node.margin.left, node.border.left), (Val::Px(12.0), Val::Px(12.0), Val::Px(1.0)), "12 px in, 12 px out, a 1 px edge");

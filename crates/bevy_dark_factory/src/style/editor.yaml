@@ -128,8 +128,12 @@ metrics:
 # (`[3, 5, 12, 16, 20, 24]`), so a theme or an interface size moves it; `!Px` is a literal off the scale.
 # Specificity is classes plus states; a tie goes to the later rule.
 rules:
-  # A panel: a row step between its parts, a pad in and out all round, a panel's corner.
-  ".chrome-panel": {gap: !Step 1, padding: !Step 2, margin: !Step 2, radius: !Step 1}
+  # A panel's **margin** (its place is its dock's; no role states one) and its **inset**, which is a
+  # stated override of `skin.pad()`: this editor's panels want twice the air a dialog's gets, and the
+  # override is a step of the spacing scale rather than a px so a theme's scale still moves it. Its
+  # corner and row gap are `Role::Panel`'s (`skin.corner(1)`, `skin.gap`), which is why the rule no
+  # longer names them: two answers to one question, and the role's is the one the skin owns.
+  ".chrome-panel": {padding: !Step 2, margin: !Step 2}
   # The chrome bar and the status band: their parts a group apart, a pad in from each end.
   ".chrome-bar": {gap: !Step 3, padding: {x: !Step 2}}
   # The journal, the console and the profile: overlays over the viewport.
