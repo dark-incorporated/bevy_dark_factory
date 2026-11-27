@@ -22,12 +22,14 @@ static SHELL_ENV: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
 struct OneGlyphShell(#[allow(dead_code)] std::sync::MutexGuard<'static, ()>);
 
-/// The terminal's screen as text, trailing blanks and empty rows dropped.
-fn screen_text(app: &mut App) -> String {
+/// The terminal's screen as text, trailing blanks and empty rows dropped, or `None` while no shell is open. The first shell
+/// opens on the first frame the pane is raised after the settings are read (`terminal_view::pump_the_terminal`), and the
+/// pump runs in `PreUpdate` while the settings are taken in `Update`, so the first frame has none.
+fn screen_text(app: &mut App) -> Option<String> {
     let mut terminal = app.world_mut().resource_mut::<Terminal>();
-    let screen = terminal.tab_mut().expect("a shell is open").screen_mut();
+    let screen = terminal.tab_mut()?.screen_mut();
     let lines: Vec<String> = screen.lines().iter().map(|line| line.cells.iter().map(|c| c.ch).collect()).collect();
-    lines.iter().map(|line| line.trim_end()).collect::<Vec<_>>().join("\n").trim_end().to_owned()
+    Some(lines.iter().map(|line| line.trim_end()).collect::<Vec<_>>().join("\n").trim_end().to_owned())
 }
 
 fn until(app: &mut App, what: &str, done: impl Fn(&mut App) -> bool) {
@@ -58,9 +60,13 @@ fn a_shell_whose_prompt_is_one_glyph_still_gets_a_measured_cell() {
         PrimaryWindow,
     ));
 
-    until(&mut app, "the shell's prompt on screen", |app| screen_text(app) == "$");
+    until(&mut app, "the shell's prompt on screen", |app| screen_text(app).as_deref() == Some("$"));
     until(&mut app, "a measured cell while the screen holds one glyph", |app| {
         app.world().resource::<CellMetrics>().is_measured()
     });
-    assert_eq!(screen_text(&mut app), "$", "the measurement came from the pane, not from anything the shell printed");
+    assert_eq!(
+        screen_text(&mut app).as_deref(),
+        Some("$"),
+        "the measurement came from the pane, not from anything the shell printed"
+    );
 }
