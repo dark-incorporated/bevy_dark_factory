@@ -653,6 +653,38 @@ pub struct FileHeader;
 #[derive(Component)]
 pub struct FilePosition;
 
+/// **The section the caret stands in** (#612): the open page's name, then every heading whose section holds the caret's
+/// line, outermost first — `notes.md › Combat › Weapons › Swords` — on its own row over the editor, as VS Code's
+/// breadcrumb bar and Obsidian's do. Read from the page's outline ([`FileOutline`]), the one list the outline tree and an
+/// agent's `file_outline` read too, so the three cannot name different sections. A file with no headings (any language but
+/// Markdown, or a page without one) has no sections, and the row is not drawn: the path on the header is all it would say.
+#[derive(Component)]
+pub struct FileBreadcrumb;
+
+/// The mark between two crumbs of the [`FileBreadcrumb`].
+pub const CRUMB_SEPARATOR: &str = " \u{203A} ";
+
+/// **The headings whose sections hold `line`**, outermost first: a heading's section runs to the next heading as shallow or
+/// shallower, so walking the headings down to `line` and dropping every open one as deep or deeper than the next leaves the
+/// chain. `headings` is in the page's order, as [`files_lang::outline`] gives it.
+pub fn sections_at(headings: &[files_lang::Heading], line: usize) -> Vec<&files_lang::Heading> {
+    let mut chain: Vec<&files_lang::Heading> = Vec::new();
+    for heading in headings.iter().take_while(|heading| heading.line <= line) {
+        while chain.last().is_some_and(|open| open.level >= heading.level) {
+            chain.pop();
+        }
+        chain.push(heading);
+    }
+    chain
+}
+
+/// **What the [`FileBreadcrumb`] reads** for the file at `rel` with the caret on `line`: the file's name, then
+/// [`sections_at`] the line, joined by [`CRUMB_SEPARATOR`].
+pub fn breadcrumb(rel: &str, headings: &[files_lang::Heading], line: usize) -> String {
+    let name = rel.rsplit('/').next().unwrap_or(rel);
+    std::iter::once(name).chain(sections_at(headings, line).into_iter().map(|heading| heading.title.as_str())).collect::<Vec<_>>().join(CRUMB_SEPARATOR)
+}
+
 /// The question a file that changed under unsaved edits asks, with its two buttons.
 #[derive(Component)]
 pub struct ConflictBar(pub String);
@@ -771,6 +803,8 @@ impl Plugin for FilesPlugin {
             .init_resource::<crate::files_lsp::RustAnalyzer>()
             .add_systems(PreUpdate, crate::files_lsp::talk_to_rust_analyzer)
             .add_systems(Update, hear_the_project)
+            // **Both workspaces' editors**, so not in either chain: it only meets a find bar the frame gooey spawns one.
+            .add_systems(Update, keep_the_find_bars_keys)
             .add_systems(OnEnter(Screen::Editor), spawn_the_files_workspace.after(FrameSystems).run_if(in_files))
             .add_systems(
                 Update,
@@ -785,6 +819,7 @@ impl Plugin for FilesPlugin {
                     follow_on_primary_click,
                     keep_the_header,
                     keep_the_position,
+                    keep_the_breadcrumb,
                     keep_the_field_line,
                     keep_the_conflict_bar,
                     keep_the_tree,
@@ -872,6 +907,19 @@ fn spawn_the_files_workspace(mut commands: Commands, frame: Res<Frame>) {
                     // **The readout stands on the row's far edge** (#542), through the helper that carries
                     // the `Role` its `TextFlow` needs to be applied at all.
                     chrome::text_at_the_rows_end(),
+                ));
+            });
+            // **The section the caret stands in, on the row under the path** (#612): [`FileBreadcrumb`], drawn only while the
+            // open page has headings ([`keep_the_breadcrumb`] shows and hides the row), so a YAML file loses no line to it.
+            host.spawn(bevy_gooey::row(1.0)).with_children(|line| {
+                line.spawn((
+                    FileBreadcrumb,
+                    Text::new(String::new()),
+                    TextColor(ink.dim),
+                    chrome::typed(chrome::text::LABEL),
+                    TextLayout::new(Justify::Left, LineBreak::NoWrap),
+                    // The crumbs take the row's free width, as the path above them does.
+                    chrome::text_narrows(),
                 ));
             });
             // **The field line names itself** (#599). It was spawned with its placeholder as its only
@@ -1536,6 +1584,60 @@ fn keep_the_position(editors: Query<&CodeEditor>, mut positions: Query<(&mut Tex
     let visibility = if standing.is_some() { Visibility::Inherited } else { Visibility::Hidden };
     if *shown != visibility {
         *shown = visibility;
+    }
+}
+
+/// **Name the section the caret stands in** (#612): [`breadcrumb`] of the open file at the caret's line, read from the
+/// [`FileOutline`] [`decorate_the_editor`] keeps on the editor, so it follows an edit that adds or renames a heading the frame
+/// the outline does. The row is drawn only while the file has headings: a file with none has no section to name, and a row
+/// coming and going as the caret crosses the first heading would move the text under the caret.
+fn keep_the_breadcrumb(
+    editors: Query<(&CodeEditor, &FileEditor, Option<&FileOutline>)>,
+    mut crumbs: Query<(&mut Text, &ChildOf), With<FileBreadcrumb>>,
+    mut rows: Query<&mut Node>,
+) {
+    let Ok((mut text, row)) = crumbs.single_mut() else { return };
+    let want = editors.single().ok().and_then(|(editor, file, outline)| {
+        let headings = outline.map(|outline| outline.headings.as_slice()).filter(|headings| !headings.is_empty())?;
+        Some(breadcrumb(file.shown.as_deref()?, headings, editor.buffer().caret().line))
+    });
+    let display = if want.is_some() { Display::Flex } else { Display::None };
+    let words = want.unwrap_or_default();
+    if text.0 != words {
+        text.0 = words;
+    }
+    if let Ok(mut node) = rows.get_mut(row.parent())
+        && node.display != display
+    {
+        node.display = display;
+    }
+}
+
+/// **The file editor's find bar keeps its keys** (#612): `Enter` in its query steps to the next match, and is not also a key
+/// pressed in the page under it.
+///
+/// The bar is gooey's (`CodeFind`), and its fields are children of the code editor. gooey's text field lets `Enter` bubble on
+/// purpose (a submit a dialog may also hear), and the editor's own key handler answers every key that reaches it, so `Enter`
+/// in the query stepped to a match and then put a line break in the page where the caret stood, replacing the match it had
+/// just selected: the walk the bar's count promises could not be taken by keyboard. A bar under a [`FileEditor`] stops a
+/// key at the bar, `Escape` excepted, which goes on to the editor and lets go of the keyboard as before
+/// (dark-incorporated/bevy_gooey#128 asks gooey's bar to do this itself).
+fn keep_the_find_bars_keys(
+    mut commands: Commands,
+    bars: Query<(Entity, &bevy_gooey::Role, &ChildOf), Added<bevy_gooey::Role>>,
+    editors: Query<(), With<FileEditor>>,
+) {
+    for (bar, role, editor) in &bars {
+        if *role == bevy_gooey::Role::CodeFind && editors.contains(editor.parent()) {
+            commands.entity(bar).observe(the_bar_keeps_its_keys);
+        }
+    }
+}
+
+/// A key pressed in the find bar stops there, `Escape` excepted (see [`keep_the_find_bars_keys`]).
+fn the_bar_keeps_its_keys(mut key: On<bevy::input_focus::FocusedInput<bevy::input::keyboard::KeyboardInput>>) {
+    if key.input.key_code != KeyCode::Escape {
+        key.propagate(false);
     }
 }
 
