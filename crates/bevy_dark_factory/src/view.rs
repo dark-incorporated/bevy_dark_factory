@@ -336,13 +336,17 @@ fn setup(
     surface: Res<crate::surface::Surface>,
     open: Option<Res<crate::project::OpenMap>>,
     drawn: Option<Res<DrawnExtent>>,
+    // **A switch to a workspace that shows the map keeps the camera and its key light** (#695:
+    // `screen::TheMapsScene`), and `OnEnter(Editor)` runs on every switch, so the two are spawned only when
+    // none stands. Two would be two main cameras: every `single()` on `MainCamera` would fail.
+    cameras: Query<(), With<MainCamera>>,
 ) {
+    if !cameras.is_empty() {
+        return;
+    }
     let tf = Transform::from_translation(rig.focus + ISO_OFFSET).looking_at(rig.focus, Vec3::Y);
-    // **The map's camera is the map's, not the workspace's** (#695, #678): Map, World, Kit and Animation share
-    // one viewport, so a switch between them keeps the camera pointed where the person left it.
     commands.spawn((
         Name::new("editor camera"),
-        crate::screen::KeptAcrossASwitch,
         MainCamera,
         Camera3d::default(),
         // **The world goes into the surface, not into the window** — `crate::surface` owns why, and
@@ -371,7 +375,6 @@ fn setup(
     // A key light and enough ambient to read a mesh's form. Directional rather than point, because
     // this scene is not a room — it is a plane an author is looking down at.
     commands.spawn((
-        crate::screen::KeptAcrossASwitch,
         EditorKeyLight,
         DirectionalLight {
             illuminance: 6_000.0,
