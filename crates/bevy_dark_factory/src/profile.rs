@@ -588,7 +588,7 @@ mod tests {
         assert_eq!(once.first(), Some(&FrameHead.intern()), "the head runs first: {once:?}");
         assert_eq!(once.last(), Some(&FrameFoot.intern()), "the foot runs last: {once:?}");
         let between = &once[1..once.len() - 1];
-        assert!(between.len() >= 2 && between.len() % 2 == 0, "{once:?}");
+        assert!(between.len() >= 2 && between.len().is_multiple_of(2), "{once:?}");
         for pair in between.chunks(2) {
             assert_eq!(pair[1], EndOf(pair[0]).intern(), "every schedule is followed by its own mark: {once:?}");
         }
