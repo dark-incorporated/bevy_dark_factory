@@ -441,10 +441,11 @@ fn register_script_functions(engine: &mut Engine) {
     });
 
     // **`timer(name, seconds)`**: an event called `name`, fired once after `seconds`, for the entity that started
-    // it.
-    engine.register_fn("timer", |context: rhai::NativeCallContext, name: String, seconds: f64| {
+    // it. `seconds` is rhai's own `FLOAT`: a crate in the same build may turn on rhai's `f32_float` (`bevy_society`
+    // does), and a function registered for `f64` is then never matched by a script's `1.0`.
+    engine.register_fn("timer", |context: rhai::NativeCallContext, name: String, seconds: FLOAT| {
         if let Some(outbox) = outbox_of(&context) {
-            outbox.timer(&name, seconds);
+            outbox.timer(&name, f64::from(seconds));
         }
     });
 }
