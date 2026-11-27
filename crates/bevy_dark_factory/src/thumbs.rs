@@ -174,6 +174,38 @@ pub struct ThumbGeneration(pub u32);
 #[derive(Resource, Default)]
 pub struct ThumbOrder(pub Vec<String>);
 
+/// **The cached portraits already read this session, by cache path** (#678, #541).
+///
+/// [`setup`] runs on every arrival at a workspace, and builds [`Thumbnails`] empty, so the bake's first
+/// frame used to read and decode every cached portrait again: 90 PNGs on the 2026-11-27 review's `bedroom`
+/// project, in the arrival's own frame, on every switch. A cache path names everything its picture
+/// depends on ([`cache_path`]: the id, the mesh's size and mtime, its `align`, the portrait size and
+/// `CACHE_VERSION`), so the same path is the same picture and the image read the first time is the one
+/// to hand out again. A changed mesh has a new path, and is read or baked as before.
+#[derive(Resource, Default)]
+pub struct Portraits {
+    read: std::collections::HashMap<PathBuf, Handle<Image>>,
+    reads: usize,
+}
+
+impl Portraits {
+    /// The portrait cached at `path`, read from disk only the first time it is asked for.
+    fn get(&mut self, path: &Path, images: &mut Assets<Image>) -> Option<Handle<Image>> {
+        if let Some(handle) = self.read.get(path) {
+            return Some(handle.clone());
+        }
+        let handle = images.add(load_cached(path)?);
+        self.reads += 1;
+        self.read.insert(path.to_path_buf(), handle.clone());
+        Some(handle)
+    }
+
+    /// How many cached portraits have been read from disk this session.
+    pub fn reads(&self) -> usize {
+        self.reads
+    }
+}
+
 /// Bumped whenever the booth's framing, lighting or backdrop changes, so a cached portrait taken
 /// under the old rules is not served as if it were taken under the new ones.
 const CACHE_VERSION: u32 = 1;
@@ -319,6 +351,7 @@ impl Plugin for ThumbsPlugin {
         );
         app.init_resource::<ThumbGeneration>()
             .init_resource::<ThumbOrder>()
+            .init_resource::<Portraits>()
             // Chained so an eviction is visible to the same frame's bake — a pruned id must not be
             // staged one more time off a stale `pending` answer.
             .add_systems(Update,
@@ -459,6 +492,7 @@ fn bake(
     mut commands: Commands,
     mut thumbs: ResMut<Thumbnails>,
     mut images: ResMut<Assets<Image>>,
+    mut portraits: ResMut<Portraits>,
     mut generation: ResMut<ThumbGeneration>,
     order: Res<ThumbOrder>,
     project: Res<Project>,
@@ -488,16 +522,15 @@ fn bake(
     }
     // Every descriptor gets a handle as soon as it exists, so the palette has something to bind
     // before this one's turn comes round. A piece with a cached portrait gets its picture here and
-    // is done — before `pending` is asked, so it is never staged.
+    // is done — before `pending` is asked, so it is never staged. **Read once a session**
+    // ([`Portraits`]): a switch builds `Thumbnails` again, and the pictures it held are the same.
     for other in &project.library.descriptors {
         if !thumbs.images.contains_key(&other.id) {
-            let cached = cache_path(&project.root, other)
-                .as_deref()
-                .and_then(load_cached);
+            let cached = cache_path(&project.root, other).and_then(|path| portraits.get(&path, &mut images));
             let handle = match cached {
-                Some(image) => {
+                Some(handle) => {
                     thumbs.baked.insert(other.id.clone());
-                    images.add(image)
+                    handle
                 }
                 None => blank_target(&mut images),
             };
