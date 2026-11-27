@@ -25,8 +25,11 @@ skin:
   outline: !Srgba {red: 0.44, green: 0.409, blue: 0.356, alpha: 1.0}
   surface_edge: null
   scrim: !Srgba {red: 0.0, green: 0.0, blue: 0.0, alpha: 0.55}
-  text_size: 11.0
-  heading_size: 15.0
+  # **The type scale is `metrics.type`'s, and this block states none of it** (#648). `text_size` and
+  # `type_scale` used to be written here a second and a third time, in numbers that matched by hand: edit
+  # `metrics.type.body` and the editor's own labels moved while every gooey label stayed at 11, one window
+  # with two body sizes again. `crate::style::merge` derives `text_size`, `heading_size` and `type_scale`
+  # from `metrics.type` on every layer sum, so a person edits one key and both systems move.
   gap: 5.0
   padding: 12.0
   radius: 4.0
@@ -37,7 +40,6 @@ skin:
   text_scale: 1.0
   spacing: [3.0, 5.0, 12.0, 16.0, 20.0, 24.0]
   radii: [3.0, 4.0, 8.0]
-  type_scale: [9.0, 10.0, 11.0, 13.0, 15.0]
   # The elevation ladder, lowest first: background, surface, header, raised, slot, hover, selected, edge
   # (`metrics.ink` names the steps the chrome reads).
   surfaces:
