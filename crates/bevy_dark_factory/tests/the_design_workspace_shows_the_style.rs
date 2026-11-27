@@ -188,8 +188,9 @@ fn cmd_0_opens_design_and_a_level_selected_by_its_label_shows_its_headings_pictu
     assert_eq!(*app.world().resource::<Workspace>(), Workspace::Design, "Cmd/Ctrl+0 is the Design workspace");
     assert_eq!(selected(&app).as_deref(), Some(GAME), "it opens on the game's page");
 
-    // The level's row exists, labelled `m`.
-    assert!(visible(&mut app, "m"), "the tree has a row labelled `m`");
+    // The level's row exists, labelled `m`: looked for among the tree's rows (#670), because the chrome bar of a one-panel workspace names the
+    // map alone, so `m` is also the bar's words and a lookup over every label finds two.
+    assert!(tree_row(&mut app, "m").is_some(), "the tree has a row labelled `m`");
     // The level, by the label of its row in the tree.
     click(&mut app, "m");
     assert_eq!(selected(&app).as_deref(), Some(LEVEL), "a click on the level's row selects its page");

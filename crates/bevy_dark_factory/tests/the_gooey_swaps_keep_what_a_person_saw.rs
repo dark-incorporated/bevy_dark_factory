@@ -215,10 +215,11 @@ fn the_night_shift_block_fills_its_pane() {
 }
 
 /// **The workspace strip keeps its 35 px** now that its `min_height` is gooey's `Sizing` and not a patch: the edge tabs' own inset is smaller, so the strip holds the height the
-/// panels under it were laid out from.
+/// panels under it were laid out from. On the Kit (#670): a workspace with one panel folds its tab into the chrome bar and has no row, so the Kit, whose three tabs keep theirs,
+/// is where the row is.
 #[test]
 fn the_workspace_strip_keeps_its_height_through_sizing() {
-    let mut app = editor_on("strip", Mode::Map);
+    let mut app = editor_on("strip", Mode::Meshes);
     let world = app.world_mut();
     let mut q = world.query::<(&Role, &Node, &bevy_gooey::Sizing)>();
     let strips = q.iter(world).filter(|(role, node, sizing)| **role == Role::Row && node.min_height == Val::Px(35.0) && sizing.min_height == Some(bevy_gooey::Extent::Px(35.0))).count();

@@ -1590,6 +1590,29 @@ fn tag_the_words<B: Bundle>(widget: &mut EntityCommands, markers: B) {
     });
 }
 
+/// **A folded tab's name is one of the chrome bar's readouts** (#670): `chrome::BAR_READOUT`, in the bar's ink, like the
+/// words beside it, so the bar does not draw a word at the menu titles' size (#480).
+///
+/// gooey's skin owns a `TabText`'s size and ink and writes them on every restyle, so the name is given back to this crate
+/// rather than written over: the role comes off and the words are typed as every other readout on the bar is. Queued like
+/// [`tag_the_words`], and on the same first text, which is the one `edge_tab` made; the tab's edge stays gooey's.
+fn read_as_the_bars_readout(tab: &mut EntityCommands) {
+    tab.queue(|mut entity: EntityWorldMut| {
+        let id = entity.id();
+        entity.world_scope(|world| {
+            let words = world
+                .get::<Children>(id)
+                .and_then(|children| children.iter().find(|child| world.get::<Text>(*child).is_some()));
+            if let Some(words) = words {
+                world
+                    .entity_mut(words)
+                    .remove::<bevy_gooey::Role>()
+                    .insert((crate::chrome::typed(crate::chrome::BAR_READOUT), TextColor(crate::chrome::ink().dim)));
+            }
+        });
+    });
+}
+
 /// One cell, in words. Used for the status line and the button glyph's tooltip role.
 fn describe_cell(c: &blueprint_model::descriptor::SubCell) -> String {
     let mut parts: Vec<String> = Vec::new();
@@ -4069,7 +4092,7 @@ impl Plugin for TilesPlugin {
 /// The height of the workspace strip, logical px: what the hand-built tab made it (two 8 px paddings, a 3 px edge and a 16 px line).
 /// The tabs are gooey's `edge_tab`s, whose own inset is smaller, so the strip holds this height itself: the panels under it
 /// (the inspector's scroll, the badges' free ground, the history list) are laid out from where the strip ends.
-const TAB_STRIP_H: f32 = 35.0;
+pub const TAB_STRIP_H: f32 = 35.0;
 
 /// **The strip of panels this workspace holds** — three on the Kit workspace, one on Map and
 /// Animation, and none on a workspace whose part is not built.
@@ -4119,10 +4142,23 @@ fn spawn_tab_strip(
             crate::chrome::Control(crate::keys::ControlId::WorkspaceStrip),
         ))
         .id();
-    commands.entity(frame.door_strip).add_child(strip);
-    // **The strip keeps the height the hand-built tab gave it** ([`TAB_STRIP_H`]): gooey's `edge_tab` brings a smaller inset of its own, and
-    // everything under the strip (the inspector, the badges' free ground, the history list) is laid out from where it ends.
-    commands.entity(strip).insert(bevy_gooey::Sizing { min_height: Some(bevy_gooey::Extent::Px(TAB_STRIP_H)), ..default() });
+    // **Where the strip stands** (#670, the owner's "fold", 2026-11-27). A workspace with one panel folds its tab into
+    // the chrome bar, straight after the way out (index 1: `insert_children` clamps it to the end of an empty bar, and
+    // the bar puts its way out first whichever came first), so its 35 px row lays out to nothing and the body has it.
+    // A workspace with more panels keeps a row of its own, at the height the hand-built tab gave it ([`TAB_STRIP_H`]):
+    // gooey's `edge_tab` brings a smaller inset of its own, and everything under the strip (the inspector, the badges'
+    // free ground, the history list) is laid out from where it ends.
+    let folded = workspace.folds_its_tabs_into_the_chrome_bar();
+    if folded {
+        commands.entity(frame.chrome_bar).insert_children(1, &[strip]);
+    } else {
+        commands.entity(frame.door_strip).add_child(strip);
+        commands.entity(strip).insert(bevy_gooey::Sizing { min_height: Some(bevy_gooey::Extent::Px(TAB_STRIP_H)), ..default() });
+    }
+    // **The strip's words, at the band's own size.** In a row of its own the cue is `BODY` (below) and a tab's name is gooey's;
+    // folded into the chrome bar both are that bar's readouts, which are all `chrome::BAR_READOUT` (#480), so neither reads as
+    // the menu row ([`read_as_the_bars_readout`]).
+    let cue_role = if folded { crate::chrome::BAR_READOUT } else { crate::chrome::text::BODY };
     commands
         .entity(strip)
         .with_children(|p| {
@@ -4140,6 +4176,9 @@ fn spawn_tab_strip(
                 ));
                 // Before the badge is added: the first text among the tab's children is the label `edge_tab` made.
                 tag_the_words(&mut tab, TabLabel);
+                if folded {
+                    read_as_the_bars_readout(&mut tab);
+                }
                 tab.with_children(|tab| {
                     // Empty until the anim bench has something stale to say — see [`TabBadge`].
                     tab.spawn((
@@ -4182,17 +4221,18 @@ fn spawn_tab_strip(
                 m.spawn((
                     Text::new(SWITCH_TO),
                     TextColor(crate::chrome::ink().muted),
-                    crate::chrome::typed(crate::chrome::text::BODY),
+                    crate::chrome::typed(cue_role),
                 ));
                 m.spawn((
                     // Written every frame by [`name_the_other_door`], which says the other workspace's name.
                     Text::new(String::new()),
                     TextColor(crate::chrome::ink().muted),
-                    // **`BODY`, not `LABEL`.** `LABEL` is 10 px and the strip's own labels are
+                    // **`BODY`, not `LABEL`, in a row of its own.** `LABEL` is 10 px and the strip's own labels are
                     // `TAB`'s 13 — so at `LABEL` the phrase is a whisper beside a shout. `BODY` is
                     // 11 px, the readable default, and it is still a step below the panels: **the
-                    // panels are the strip's subject, and the cue is a sentence beside them.**
-                    crate::chrome::typed(crate::chrome::text::BODY),
+                    // panels are the strip's subject, and the cue is a sentence beside them.** Folded into
+                    // the chrome bar it is that bar's readout instead (`cue_role`).
+                    crate::chrome::typed(cue_role),
                     crate::chrome::spaced(crate::chrome::margin_right(crate::chrome::STEP_ROW)),
                     OtherWorkspaceLabel,
                 ));
