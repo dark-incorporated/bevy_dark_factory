@@ -1735,10 +1735,12 @@ pub const BINDINGS: &[Binding] = &[
     // Legal against the bare `E` (turn view) on the rule `S`/`Cmd+S` and `Z`/`Cmd+Z` already follow:
     // `just_pressed` refuses a bare binding while the modifier is down and a modified one while it
     // is not. The mnemonic is the word, not the neighbour.
-    b(
+    // Shift up: `Cmd+Shift+E` is the console's chord (`chords.rs`), and a Shift-indifferent row fired on it too.
+    bs(
         Action::ShowErrors,
         KeyCode::KeyE,
         true,
+        false,
         Context::Global,
         "E",
         "notifications this session",
@@ -2749,10 +2751,13 @@ pub const BINDINGS: &[Binding] = &[
     //
     // **Global, because the box is on every tab.** A per-tab row would have cost three keys and
     // taught three chords for one idea.
-    b(
+    // Shift up: `Cmd+Shift+F` is the frame profile's chord, and a Shift-indifferent row put a filter box in charge of
+    // the keyboard every time the profile was toggled, refusing every workspace switch after it (#678).
+    bs(
         Action::FocusFilter,
         KeyCode::KeyF,
         true,
+        false,
         Context::Global,
         "F",
         "filter the list",

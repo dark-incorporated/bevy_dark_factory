@@ -59,6 +59,7 @@ mod every_family_feature_is_a_name_the_host_knows;
 mod fixtures;
 mod index_view_support;
 mod no_two_fixed_chords_are_the_same_key;
+mod no_key_row_fires_on_a_shift_chord;
 mod settings_search_support;
 mod settle_support;
 mod new_topics_start_from_templates_in_the_design_workspace;
