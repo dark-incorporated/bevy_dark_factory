@@ -40,7 +40,7 @@
 //! never closes, a string that never ends: the engine's own compile is a crate the editor does not link).
 //! Markdown's colours are `bevy_gooey`'s own (`CodeMarkdown`, #525), and its errors are the paths the design reader names.
 
-use std::ops::Range;
+use std::ops::{Range, RangeInclusive};
 use std::path::Path;
 
 use bevy_gooey::{CodeSeverity, SyntaxRole};
@@ -50,6 +50,7 @@ mod code;
 mod markdown;
 mod rhai;
 mod ron;
+mod rust;
 mod yaml;
 
 pub use blueprint_model::design::Heading;
@@ -62,6 +63,8 @@ pub enum Lang {
     Ron,
     Rhai,
     Markdown,
+    /// A game's own Rust source, when its crate sits in the project: the editor knows its comment and nothing else.
+    Rust,
     /// Anything else the project holds as text: no colour, no folds, no findings.
     Plain,
 }
@@ -81,7 +84,29 @@ impl Lang {
 }
 
 /// **The one registry from an extension to a language.** A file of an extension no row names is [`Lang::Plain`].
-pub static REGISTRY: [&dyn Language; 4] = [&yaml::Yaml, &ron::Ron, &rhai::Rhai, &markdown::Markdown];
+pub static REGISTRY: [&dyn Language; 5] = [&yaml::Yaml, &ron::Ron, &rhai::Rhai, &markdown::Markdown, &rust::Rust];
+
+/// **How a language writes a comment**, which `Cmd+/` puts on lines and takes off them (#612, [`toggle_comment`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CommentSyntax {
+    /// A mark that comments the rest of its line: `#` in YAML, `//` in `.ron`, Rhai and Rust.
+    Line(&'static str),
+    /// A pair that encloses what it comments: `<!--` and `-->` in Markdown, which has no line comment.
+    Wrap(&'static str, &'static str),
+}
+
+impl CommentSyntax {
+    /// Whether `body` (a line with its indent taken off) is already commented in this syntax.
+    fn marks(self, body: &str) -> bool {
+        match self {
+            CommentSyntax::Line(mark) => body.starts_with(mark),
+            CommentSyntax::Wrap(open, close) => {
+                let body = body.trim_end_matches([' ', '\t']);
+                body.len() >= open.len() + close.len() && body.starts_with(open) && body.ends_with(close)
+            }
+        }
+    }
+}
 
 /// What a language is told about the project around the file it reads: the folder the paths are relative to, and
 /// the two lists a completion draws on. Nothing here is read until a language asks.
@@ -146,6 +171,11 @@ pub trait Language: Sync {
     /// The headings of a page, in order. A language without headings has none.
     fn outline(&self, _text: &str) -> Vec<Heading> {
         Vec::new()
+    }
+
+    /// How the language writes a comment, for `Cmd+/`. A language with none leaves the key doing nothing.
+    fn comment(&self) -> Option<CommentSyntax> {
+        None
     }
 }
 
@@ -242,6 +272,55 @@ pub fn outline(lang: Lang, text: &str) -> Vec<Heading> {
         return Vec::new();
     }
     lang.language().outline(text)
+}
+
+/// **What `Cmd+/` does to lines `lines` of `text`** (#612): the edits, as byte ranges of `text` and what replaces each, that comment
+/// the lines in `lang`'s own syntax, or that take the comment off when every line with words on it already carries one. `None` for a
+/// language with no comment syntax ([`Lang::Plain`]).
+///
+/// The rule is the one VS Code keeps: a blank line is left as it is; the mark goes at the shallowest indent of the lines, so a block
+/// keeps its shape and comes back to it; and the mark is followed by one space, which is taken off with it. A range past the text's
+/// end stops at its last line.
+pub fn toggle_comment(lang: Lang, text: &str, lines: RangeInclusive<usize>) -> Option<Vec<(Range<usize>, String)>> {
+    let syntax = lang.language().comment()?;
+    let all = Lines::new(text);
+    let last = (*lines.end()).min(all.count().saturating_sub(1));
+    let first = (*lines.start()).min(last);
+    let indent = |line: &str| line.len() - line.trim_start_matches([' ', '\t']).len();
+    let worded: Vec<(usize, &str)> = (first..=last).map(|n| (all.range(n).start, all.text(n))).filter(|(_, line)| !line.trim().is_empty()).collect();
+    let commented = !worded.is_empty() && worded.iter().all(|(_, line)| syntax.marks(&line[indent(line)..]));
+    let mut edits = Vec::new();
+    if commented {
+        for &(start, line) in &worded {
+            let lead = indent(line);
+            let body = &line[lead..];
+            let (open, close) = match syntax {
+                CommentSyntax::Line(mark) => (mark, None),
+                CommentSyntax::Wrap(open, close) => (open, Some(close)),
+            };
+            let cut = open.len() + usize::from(body[open.len()..].starts_with(' '));
+            edits.push((start + lead..start + lead + cut, String::new()));
+            if let Some(close) = close {
+                let end = line.trim_end_matches([' ', '\t']).len();
+                let from = end - close.len();
+                let from = if from > lead + cut && line[..from].ends_with(' ') { from - 1 } else { from };
+                edits.push((start + from..start + end, String::new()));
+            }
+        }
+    } else {
+        let at = worded.iter().map(|(_, line)| indent(line)).min().unwrap_or(0);
+        for &(start, line) in &worded {
+            match syntax {
+                CommentSyntax::Line(mark) => edits.push((start + at..start + at, format!("{mark} "))),
+                CommentSyntax::Wrap(open, close) => {
+                    let end = start + line.trim_end_matches([' ', '\t']).len();
+                    edits.push((start + at..start + at, format!("{open} ")));
+                    edits.push((end..end, format!(" {close}")));
+                }
+            }
+        }
+    }
+    Some(edits)
 }
 
 /// **One thing wrong in a file**, by byte range.

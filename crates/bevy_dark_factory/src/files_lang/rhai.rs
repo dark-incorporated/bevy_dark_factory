@@ -7,7 +7,7 @@ use bevy_gooey::SyntaxRole;
 use serde_json::Value;
 
 use super::code::{self, Code};
-use super::{Env, Finding, Lang, Language};
+use super::{CommentSyntax, Env, Finding, Lang, Language};
 
 /// The language of `.rhai` files.
 pub struct Rhai;
@@ -19,6 +19,10 @@ impl Language for Rhai {
 
     fn extensions(&self) -> &'static [&'static str] {
         &["rhai"]
+    }
+
+    fn comment(&self) -> Option<CommentSyntax> {
+        Some(CommentSyntax::Line("//"))
     }
 
     fn highlights(&self, text: &str, _schema: Option<&Value>) -> Vec<(Range<usize>, SyntaxRole)> {
