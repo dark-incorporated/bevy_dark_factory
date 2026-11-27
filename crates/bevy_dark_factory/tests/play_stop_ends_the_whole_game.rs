@@ -31,8 +31,55 @@ fn free_port() -> u16 {
 
 #[test]
 fn stop_ends_a_game_started_through_a_launcher() {
+    stop_ends_the_game_behind_a_launcher("play_launcher");
+}
+
+/// **`play_stop` ends the group itself, whatever `kill` is on `PATH`** (#697). It used to run the `kill` program,
+/// and procps-ng 4.0.4's — Ubuntu 24.04's `/usr/bin/kill` — signals minus the group's *first digit*: the game
+/// behind the launcher kept answering, and a group id starting with `1` was `kill(-1)`, every process the person
+/// owns. A `kill` that does nothing stands first on `PATH` here, so a stop that goes back to the program fails on
+/// every host, not only on one whose `kill` misreads it.
+#[test]
+fn stop_ends_the_game_whatever_kill_is_on_the_path() {
+    let bin = std::env::temp_dir().join(format!("blueprint-697-kill-{}", std::process::id()));
+    std::fs::create_dir_all(&bin).unwrap_or_else(|e| panic!("{}: {e}", bin.display()));
+    let kill = bin.join("kill");
+    std::fs::write(&kill, "#!/bin/sh\nexit 0\n").unwrap_or_else(|e| panic!("{}: {e}", kill.display()));
+    std::fs::set_permissions(&kill, std::os::unix::fs::PermissionsExt::from_mode(0o755)).unwrap_or_else(|e| panic!("{}: {e}", kill.display()));
+    let _path = PathFirst::new(&bin);
+    stop_ends_the_game_behind_a_launcher("play_launcher_path");
+    let _ = std::fs::remove_dir_all(&bin);
+}
+
+/// **`PATH` with `dir` in front of it, put back when dropped.** `PATH` is process-wide, and nextest runs each test
+/// in a process of its own, so only this test sees the change.
+struct PathFirst(Option<std::ffi::OsString>);
+
+impl PathFirst {
+    fn new(dir: &std::path::Path) -> Self {
+        let old = std::env::var_os("PATH");
+        let dirs = std::iter::once(dir.to_path_buf()).chain(old.iter().flat_map(std::env::split_paths));
+        let path = std::env::join_paths(dirs).unwrap_or_else(|e| panic!("{e}"));
+        // SAFETY: a test's own process; see the type's doc.
+        unsafe { std::env::set_var("PATH", path) };
+        PathFirst(old)
+    }
+}
+
+impl Drop for PathFirst {
+    fn drop(&mut self) {
+        // SAFETY: as in `new`.
+        match &self.0 {
+            Some(old) => unsafe { std::env::set_var("PATH", old) },
+            None => unsafe { std::env::remove_var("PATH") },
+        }
+    }
+}
+
+/// Plays a game started through a launcher, stops it, and asserts the game is gone with the launcher.
+fn stop_ends_the_game_behind_a_launcher(tag: &str) {
     let port = free_port();
-    let root = fixtures::Fixture::new(&format!("play_launcher{}", std::process::id()))
+    let root = fixtures::Fixture::new(&format!("{tag}{}", std::process::id()))
         .descriptor("site/wall", "alpha")
         .build("town");
     std::fs::write(root.join("game.py"), GAME).unwrap();

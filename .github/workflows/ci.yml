@@ -22,6 +22,11 @@ concurrency:
 defaults:
   run:
     shell: bash --noprofile --norc -eo pipefail {0}
+# **A job reads its own run, to say whether the host or the tests stopped it** (#674). The `classify` job at the
+# bottom asks the API for the `test` job's steps, which needs `actions: read` and nothing else.
+permissions:
+  contents: read
+  actions: read
 env:
   CARGO_TERM_COLOR: always
   CARGO_PROFILE_DEV_DEBUG: 0
@@ -33,6 +38,10 @@ env:
   # `gh-runner-prune` is the only thing that deletes it (a slot over its cap loses the whole target and builds cold
   # once, which is the property that keeps `/home` from filling).
   CARGO_TARGET_DIR: /cache/target
+  # **Where the gate wait is reported** (#674). `tools/ci/wait-for-gate.sh` appends one line here per heavy step,
+  # and the step at the bottom prints them, so a run that spent twenty minutes queued behind a push gate says so
+  # instead of looking slow.
+  GHR_GATE_LOG: /tmp/gate-wait.txt
 jobs:
   test:
     name: test (workspace)
@@ -42,17 +51,45 @@ jobs:
     # container under memory pressure. **The job runs with the memory-safe limits of the local pre-push gate**
     # (2026-11-15): the daily run was killed mid "workspace tests (nextest)" (no step conclusion, so the runner or
     # oomd killed it); the cause is big's RAM, which cargo's one job per core and nextest's one test thread per
-    # core (each test a Bevy app) outgrow while other agents use it. The pre-push gate runs this same suite with
-    # these limits in about 12 minutes, so the job takes `CARGO_BUILD_JOBS` 3, `NEXTEST_TEST_THREADS` 2 and an
-    # hour's `timeout-minutes`.
+    # core (each test a Bevy app) outgrow while other agents use it, so the job takes `CARGO_BUILD_JOBS` 3 and
+    # `NEXTEST_TEST_THREADS` 2.
+    #
+    # **Two hours, because an hour was the job's own length** (#674). Run 46023866009 measured the parts: 280 s
+    # queued behind a push gate, a cold build of 25.5 min, and 27 min of tests at two threads — 58 of its 60
+    # minutes, with the doctests not yet started (a test had failed). The gate's wait has no bound of its own, and
+    # `family_all` (#687) adds twelve crates to the build and 119 tests to the run, so the cap is twice the measured
+    # job rather than a number the next push gate decides.
     runs-on: [self-hosted, big]
-    timeout-minutes: 60
+    timeout-minutes: 120
     env:
       CARGO_BUILD_JOBS: 3
     steps:
       - uses: actions/checkout@v4
+      # **The one LFS object a test reads** (#674). `bevy_oracle`'s recorded OpenRouter exchange was recorded with
+      # `docs/changelog/media/2026-10-24-S1.5.png`, and `actions/checkout` leaves every LFS file a 131-byte pointer
+      # unless asked; its `lfs: true` would fetch every changelog clip as well, which no test opens. `git-lfs` is in
+      # the runner image, and the checkout's token is what it authenticates with.
+      - name: Fetch the LFS image the oracle replay is compared with
+        run: git lfs pull --include docs/changelog/media/2026-10-24-S1.5.png
       - uses: dtolnay/rust-toolchain@stable
       - uses: taiki-e/install-action@nextest
+      # **The limit this job is held to, printed by the job** (#674). `gh-runner-run` gives every container
+      # `--memory` and `--memory-swap` (both from `GHR_MEMORY`), so a job that outgrows its share is killed in its
+      # own cgroup and `memory.events` says so, instead of growing until the kernel compresses all of big into its
+      # 31 GB of zram and picks a victim somewhere else. Both numbers were 0 before this change, and a step whose
+      # process died had no conclusion at all, so 13 of the 17 reds in #674's census could not be told apart.
+      - name: Name the memory limit this job is held to
+        run: |
+          echo "cgroup: $(cat /proc/self/cgroup)"
+          echo "memory.max      $(cat /sys/fs/cgroup/memory.max 2>/dev/null || echo '(unreadable)')"
+          echo "memory.swap.max $(cat /sys/fs/cgroup/memory.swap.max 2>/dev/null || echo '(unreadable)')"
+          echo "memory.events   $(cat /sys/fs/cgroup/memory.events 2>/dev/null | tr '\n' ' ' || true)"
+          max=$(cat /sys/fs/cgroup/memory.max 2>/dev/null || echo max)
+          if [ "$max" = max ]; then
+            echo "::warning::this container has no memory limit of its own, so a job that outgrows its share of big is killed by the slice or the kernel with nothing here to name"
+          else
+            echo "this job is capped at $((max / 1048576)) MiB with no swap; exceeding it kills this job in this cgroup"
+          fi
       # **What a cold run costs is the triple, and a cold run names it** (#573). A warm run compiles 11-21 workspace
       # crates in 175-240 s; a run whose target was invalidated compiled 451-510 in 648-1,271 s (5.3x) and nothing in
       # the log said which of the four inputs moved. The last triple is kept beside the target, so the next run can
@@ -84,18 +121,40 @@ jobs:
       # which `| tee` then buries in 500 lines of `Compiling`. Measured: 111 s of a 274 s doctest step was the queue.
       # The steps below tee their output and the log is scanned afterwards, so the number is reported where a person
       # looks for it.
+      #
+      # **And a wait for the push gate, before either compiler starts** (#674). `tools/ci/wait-for-gate.sh` takes
+      # `/tmp/fleet/big-heavy.lock` shared -- the same lock `tools/loop/hooks/pre-push` takes exclusively for a whole
+      # push, which `gh-runner-run` now bind-mounts at `/fleet` read-only. Measured on big: the gate's own runs peak
+      # at 16.0 GB of memory (one rustc for the editor crate), the whole runner slice is capped at 14 GiB, and the
+      # host's swap is 31 GB of zram on 32 GB of RAM. Both being in that phase at once is what killed the runs this
+      # workflow reports as test failures, so the step waits where waiting is free -- before any rustc exists.
+      #
+      # **`--features bevy_dark_factory/family_all`, because that is what the release ships** (#687). The gate now
+      # builds every lint, test and doc step with it; before that, 16 modules and 119 tests reached a release that
+      # no gate had ever compiled. CI testing the default features would be a second opinion about a build nobody
+      # ships, and it is the same flag on the same two commands the gate runs.
       - name: workspace tests (nextest)
         env:
           NEXTEST_TEST_THREADS: 2
-        run: xvfb-run -a cargo nextest run --workspace --no-fail-fast 2>&1 | tee test-output.txt
+        run: tools/ci/wait-for-gate.sh xvfb-run -a cargo nextest run --workspace --features bevy_dark_factory/family_all --no-fail-fast 2>&1 | tee test-output.txt
       - name: doctests (nextest does not run them)
-        run: cargo test --workspace --doc 2>&1 | tee doc-output.txt
-      - name: Report the cargo-slot wait
+        run: tools/ci/wait-for-gate.sh cargo test --workspace --doc --features bevy_dark_factory/family_all 2>&1 | tee doc-output.txt
+      - name: Report the waits and the memory this run used
         if: always()
         run: |
           line=$(grep -h 'ghr-cargo: got cargo slot' test-output.txt doc-output.txt 2>/dev/null | head -1 || true)
           if [ -n "$line" ]; then echo "cargo slot wait: ${line#*after }"; else echo "cargo slot wait: none (no queue)"; fi
           grep -h 'ghr-cargo: all .* busy; queued' test-output.txt doc-output.txt 2>/dev/null || true
+          if [ -s "${GHR_GATE_LOG:-/dev/null}" ]; then
+            echo "--- the push gate ---"
+            cat "$GHR_GATE_LOG"
+          else
+            echo "push gate: no wait recorded"
+          fi
+          echo "--- peak memory this job reached ---"
+          echo "memory.peak      $(cat /sys/fs/cgroup/memory.peak 2>/dev/null || echo '(unreadable)') bytes of $(cat /sys/fs/cgroup/memory.max 2>/dev/null)"
+          echo "memory.swap.peak $(cat /sys/fs/cgroup/memory.swap.peak 2>/dev/null || echo '(unreadable)') bytes"
+          echo "memory.events    $(cat /sys/fs/cgroup/memory.events 2>/dev/null | tr '\n' ' ' || true)"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -103,3 +162,57 @@ jobs:
           path: |
             test-output.txt
             doc-output.txt
+            /tmp/gate-wait.txt
+          if-no-files-found: warn
+  # **Whether a red run was the code or the host** (#674, item 3). Thirteen of the seventeen reds in the census
+  # behind this issue were not test failures: seven were killed mid-step -- GitHub records no conclusion for the
+  # step whose process died, and the job concludes `failure` anyway -- and six never had a runner start the job at
+  # all. Sorting those by hand is what the census in the issue had to do, and it took a week of the run list.
+  #
+  # This runs as its **own job** for the one case the `test` job cannot report: when the runner is killed, the
+  # `if: always()` steps inside it never run either, so the only thing left that can say what happened is a job
+  # on a different container reading the API afterwards. `needs: test` plus `if: always()` is what makes it run
+  # after a failed `test`; `GHR_JOB_SLOTS` 2 lets it have a slot while another repo's job holds the other.
+  classify:
+    name: what stopped the run
+    needs: test
+    if: always()
+    runs-on: [self-hosted, big]
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Classify the run
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_ID: ${{ github.run_id }}
+          REPO: ${{ github.repository }}
+          TEST_RESULT: ${{ needs.test.result }}
+        run: |
+          # `gh` is not in the runner image (checked 2026-11-27: jq, python3, curl and flock are, gh is not), so
+          # the API is read with curl. A run has one job today and `per_page=100` covers it; `--paginate` is not
+          # something curl does, and `Link` headers are not worth the shell for a one-job workflow.
+          api() { curl -sS --fail-with-body -H "Authorization: Bearer $GH_TOKEN" \
+                    -H 'Accept: application/vnd.github+json' "$@"; }
+          echo "::group::$REPO run $RUN_ID"
+          if ! api "https://api.github.com/repos/$REPO/actions/runs/$RUN_ID/jobs?per_page=100" > jobs.json; then
+            echo "::warning::could not read the run's jobs from the API, so nothing here can say what stopped it"
+            exit 0
+          fi
+          echo "::endgroup::"
+          # The test job's own log, so a `signal: 9 (SIGKILL)` can be quoted rather than guessed at. A log GitHub
+          # no longer has (a killed run sometimes never wrote one) is simply absent.
+          mkdir -p step-logs
+          jq -r '.jobs[] | select(.name == "test (workspace)") | .id' jobs.json | while read -r job; do
+            api -L "https://api.github.com/repos/$REPO/actions/jobs/$job/logs" > "step-logs/$job.log" || rm -f "step-logs/$job.log"
+          done
+          set +e
+          python3 tools/ci/classify_run.py jobs.json step-logs | tee classify.txt
+          rc=${PIPESTATUS[0]}
+          case "$rc" in
+            0) echo "::notice::the tests ran and concluded: $TEST_RESULT is the code's" ;;
+            1) echo "::error::the host stopped this run, not a test — read the step with no conclusion above" ;;
+            *) echo "::warning::this classifier cannot account for the run's failure" ;;
+          esac
+          # Not `exit $rc`: this job's own status is not the run's, and a red classifier over a green run would be a
+          # second thing to investigate. It reports and exits 0; the run's conclusion stays the test job's.
+          exit 0

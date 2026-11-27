@@ -33,6 +33,9 @@ ureq = { version = "3", features = ["json"] }
 # graph, so this adds an edge and no crate.
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"
+# **Signals by `kill(2)`, never by the `kill` program** (#697): procps-ng 4.0.4's `kill` (Ubuntu 24.04) reads
+# `kill -KILL -<pgid>` as minus the pgid's first digit. `rustix` is the editor's own process crate, already in the lock.
+rustix = { version = "1", default-features = false, features = ["std", "process"] }
 
 [[bin]]
 name = "dark_factory-bench"

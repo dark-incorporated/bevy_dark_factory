@@ -893,6 +893,7 @@ dependencies = [
  "bevy_gooey",
  "blueprint_model",
  "libc",
+ "rustix 1.1.5",
  "serde",
  "serde_json",
  "sha2",

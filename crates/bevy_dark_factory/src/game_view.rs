@@ -402,6 +402,11 @@ pub fn watch_the_game(
         view.pid = pid;
     }
     if view.exit != exit {
+        // **And a game that has just ended is read at once** (#674), so its last words are on screen with its exit code: a
+        // crash shown a frame before its log was read again said "No output yet." beside the code it died with.
+        if exit.is_some() {
+            view.since_log = LOG_POLL_S;
+        }
         view.exit = exit;
     }
     // **The log is bounded while the game runs**: checked once a second, the cut is the editor's.

@@ -34,13 +34,13 @@ use bevy::ui::ComputedNode;
 use crate::chrome;
 use crate::terminal::{CaretShape, Terminal, SCROLLBACK};
 use crate::terminal_pane::{
-    TerminalBody, TerminalCaret, TerminalFind, TerminalFocus, TerminalPane, TerminalRow,
+    TerminalBody, TerminalCaret, TerminalCellProbe, TerminalFind, TerminalFocus, TerminalPane, TerminalRow,
 };
 
 /// **One cell's advance**, logical px: the shipped face is `FiraMono`, whose advance is `0.6 em` — the
 /// ratio `capture_feedback_1793905698793`'s test measured independently, stated once here for the
-/// terminal. `measure_the_cell` replaces it with a real measurement on the first frame that has a
-/// laid-out glyph, so a project's own face is honoured.
+/// terminal. `measure_the_cell` replaces it with a real measurement on the first frame the pane is
+/// laid out, from its probe row ([`TerminalCellProbe`]), so a project's own face is honoured.
 pub fn terminal_cell_w() -> f32 {
     chrome::text::LABEL.px() * 0.6
 }
@@ -131,6 +131,8 @@ impl Plugin for TerminalViewPlugin {
                     measure_the_cell,
                     resize_the_terminal.after(measure_the_cell),
                     draw_the_terminal.after(resize_the_terminal),
+                    // The probe row's size last, as the rows' is: the next frame measures a layout made at it.
+                    size_the_cell_probe,
                 )
                     .chain(),
             );
@@ -139,7 +141,7 @@ impl Plugin for TerminalViewPlugin {
 
 /// **The measured advance of one glyph**, which is what the pane's column count is computed from.
 ///
-/// Measured once, from a laid-out `Text` holding one `M` in the shipped face, and remeasured whenever
+/// Measured once, from a laid-out `Text` holding two `M`s in the terminal's face (the probe row), and remeasured whenever
 /// the font changes (`measure_the_cell` compares the size it saw). A hard-coded 6.6 px would be
 /// right until somebody chose a project face with a different advance, at which point every column
 /// would drift by a fraction of a cell per character and the pane would look broken in a way nobody
@@ -253,11 +255,15 @@ fn take_the_terminal_settings(
 /// measurement: its `glyphs` carry the advance per character. The first frame that has one is
 /// measured; after that this reads a `bool`.
 ///
-/// **Falls back to the ratio** when no row has been drawn yet (an empty scrollback is no rows at all),
-/// which is what makes the first frame's column count sane rather than zero — and the fallback is
-/// replaced the moment there is a glyph to measure, so it can never be the answer for long.
+/// **The probe row first** ([`TerminalCellProbe`], #674): it is two glyphs whatever the shell printed, where a
+/// drawn row can be one (`$`) or wide ones. A drawn row is measured only while no probe is laid out at the size.
+///
+/// **Falls back to the ratio** until the probe has been laid out (its first frame), which is what makes the
+/// first frame's column count sane rather than zero — and the fallback is replaced the frame after, so it can
+/// never be the answer for long.
 fn measure_the_cell(
     mut metrics: ResMut<CellMetrics>,
+    probes: Query<(&bevy::text::TextLayoutInfo, &TextFont), With<TerminalCellProbe>>,
     rows: Query<(&bevy::text::TextLayoutInfo, &TextFont), With<TerminalRow>>,
 ) {
     if metrics.measured {
@@ -266,8 +272,9 @@ fn measure_the_cell(
     // **Only a row already drawn at the current size is a measurement** (#324): after the text size
     // changes, a row still laid out at the old one would be measured and kept for good.
     let size = terminal_font(metrics.text_scale).font_size;
-    let Some((layout, advance)) = rows
+    let Some((layout, advance)) = probes
         .iter()
+        .chain(rows.iter())
         .filter(|(_, font)| font.font_size == size)
         .find_map(|(layout, _)| advance_of(layout).map(|advance| (layout, advance)))
     else {
@@ -289,6 +296,17 @@ fn measure_the_cell(
     metrics.height = height;
     metrics.scale = scale;
     metrics.measured = true;
+}
+
+/// **The probe row takes the rows' text size**, after the measurement: a size set before `measure_the_cell` in the
+/// same frame would be measured from the layout made at the old one, which is the mistake its filter exists for.
+fn size_the_cell_probe(metrics: Res<CellMetrics>, mut probes: Query<&mut TextFont, With<TerminalCellProbe>>) {
+    let size = terminal_font(metrics.text_scale).font_size;
+    for mut font in &mut probes {
+        if font.font_size != size {
+            font.font_size = size;
+        }
+    }
 }
 
 /// A step between two neighbouring pens shorter than this, physical px, is a mark drawn over the cell

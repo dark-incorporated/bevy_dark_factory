@@ -194,6 +194,7 @@ mod a_modifier_is_not_note_text;
 mod a_new_project_that_names_an_existing_folder_is_refused_beside_the_field;
 mod a_note_box_can_say_auto;
 mod a_note_on_picked_pieces_is_saved;
+mod a_one_glyph_prompt_still_measures_the_terminal_cell;
 mod a_palette_click_arms_the_piece;
 mod a_palette_click_leaves_the_rows_standing;
 mod a_person_finds_and_runs_a_command_in_the_palette;

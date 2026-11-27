@@ -20,8 +20,13 @@ class H(http.server.BaseHTTPRequestHandler):
 http.server.HTTPServer(("127.0.0.1", int(sys.argv[3])), H).serve_forever()
 "#;
 
+/// Whether `pid` is still a process: `kill(pid, 0)`, which delivers nothing — the call itself, not the `kill`
+/// program, whose parse of its arguments is the host's (#697).
 fn alive(pid: u64) -> bool {
-    std::process::Command::new("kill").args(["-0", &pid.to_string()]).stderr(std::process::Stdio::null()).status().unwrap().success()
+    i32::try_from(pid)
+        .ok()
+        .and_then(rustix::process::Pid::from_raw)
+        .is_some_and(|pid| rustix::process::test_kill_process(pid).is_ok())
 }
 
 fn free_port() -> u16 {
@@ -75,10 +80,10 @@ pub(crate) struct KillGroupOnDrop(pub(crate) u64);
 
 impl Drop for KillGroupOnDrop {
     fn drop(&mut self) {
-        let _ = std::process::Command::new("kill")
-            .args(["-KILL", &format!("-{}", self.0)])
-            .stderr(std::process::Stdio::null())
-            .status();
+        // The editor's own group kill, so a test cleans up the way `play_stop` stops (#697).
+        if let Ok(pgid) = u32::try_from(self.0) {
+            bevy_dark_factory::ops_play::kill_group(pgid);
+        }
     }
 }
 

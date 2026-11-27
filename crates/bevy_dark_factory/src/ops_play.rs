@@ -59,6 +59,22 @@ pub fn last_exit(root: &std::path::Path) -> Option<Exit> {
     with_exits(|t| t.get(root).copied())
 }
 
+/// **Kill process group `pgid` and everything in it**: a game and the launcher that started it, a cargo and its rustc.
+///
+/// **`kill(2)` on `-pgid` itself, never the `kill` program** (#697). What `kill -KILL -<pgid>` does is the host's
+/// `kill`'s parse: util-linux and BSD signal the group, but procps-ng 4.0.4 — Ubuntu 24.04's `/usr/bin/kill` — signals
+/// minus the argument's *first digit*, so `kill -KILL -78301` signalled group 7, not 78301, and left the game running; any group id
+/// starting with `1` became `kill(-1)`, every process the person owns. A pid that names no group (`0`, or past `i32`) is
+/// left alone.
+pub fn kill_group(pgid: u32) {
+    #[cfg(unix)]
+    if let Some(group) = i32::try_from(pgid).ok().and_then(rustix::process::Pid::from_raw) {
+        let _ = rustix::process::kill_process_group(group, rustix::process::Signal::KILL);
+    }
+    #[cfg(not(unix))]
+    let _ = pgid;
+}
+
 /// **The most bytes the game's log file holds.** A game that prints for an hour must not fill a disk: the editor cuts the file
 /// back to a line saying so once it is past this ([`enforce_log_cap`]), and the run goes on.
 pub const LOG_CAP_BYTES: u64 = 1024 * 1024;
@@ -331,11 +347,7 @@ impl Operation for PlayStop {
         let pid = child.id();
         // The group first (its id is the launcher's pid, from `process_group(0)` in `play`), then the
         // launcher itself, which also covers a platform with no process groups.
-        #[cfg(unix)]
-        let _ = Command::new("kill")
-            .args(["-KILL", &format!("-{pid}")])
-            .stderr(std::process::Stdio::null())
-            .status();
+        kill_group(pid);
         let killed = child.kill();
         let _ = child.wait();
         remove_log(&root);

@@ -174,6 +174,18 @@ pub struct TerminalBody;
 #[reflect(Component)]
 pub struct TerminalRow(pub usize);
 
+/// **The row the cell is measured from**, whatever the shell has printed (#674): [`CELL_PROBE`] in the terminal's face at
+/// the rows' text size, laid out like a row and never shown. A cell is the step between two neighbouring glyphs' pens, and
+/// a prompt of one glyph (`$ ` is `$` once a row is trimmed: dash's, Ubuntu's `/bin/sh`) has no pair, so the cell stayed
+/// the 0.6 em ratio — the caret, the column count and a click's cell off by 0.17 px a column — until something longer was
+/// printed. This row is always a pair.
+#[derive(Component, Reflect)]
+#[reflect(Component)]
+pub struct TerminalCellProbe;
+
+/// The probe row's text: two glyphs, one step between their pens.
+pub const CELL_PROBE: &str = "MM";
+
 /// The caret's node.
 #[derive(Component, Reflect)]
 #[reflect(Component)]
@@ -485,6 +497,7 @@ impl Plugin for TerminalPanePlugin {
             .register_type::<TerminalPlacement>()
             .register_type::<TerminalPaneRoot>()
             .register_type::<TerminalRow>()
+            .register_type::<TerminalCellProbe>()
             .register_type::<TerminalBar>()
             .register_type::<TerminalBody>()
             .register_type::<TerminalCaret>()
@@ -796,7 +809,20 @@ fn build_the_pane(
         ))
         .id();
 
-    commands.entity(body_node).add_child(caret);
+    // **The row the cell is measured from** ([`TerminalCellProbe`]): over the body's corner, hidden, never picked. Its size is
+    // `terminal_view`'s to keep, as the rows' is.
+    let probe = commands
+        .spawn((
+            bevy_gooey::placed_at(0.0, 0.0),
+            Text::new(CELL_PROBE),
+            TextLayout::no_wrap(),
+            crate::terminal_view::terminal_font(1.0),
+            Visibility::Hidden,
+            TerminalCellProbe,
+            Name::new("terminal cell probe"),
+        ))
+        .id();
+    commands.entity(body_node).add_children(&[caret, probe]);
     commands.entity(root).add_children(&[grip, bar, body_node]);
     // **Above the status band, below the body.** `insert_children` at the band's index keeps the band
     // at the foot of the window, where it has been since the frame was written; an `add_child` would

@@ -25,7 +25,6 @@
 #![allow(dead_code)] // Each test uses a different corner of the builder.
 
 use std::path::{Path, PathBuf};
-use std::process::Stdio;
 use std::sync::Once;
 
 use blueprint_model::composition::{Body, Compositions, Envelope, Member};
@@ -69,17 +68,14 @@ fn sweep_dead_fixtures() {
     });
 }
 
-/// `kill -0` delivers no signal and only reports whether the pid exists. A spawn failure counts as
-/// alive, so an unexpected environment deletes nothing.
+/// `kill(pid, 0)` delivers no signal and only reports whether the pid exists — the call itself, not the `kill`
+/// program, whose parse of its arguments is the host's (#697). Only "no such process" is dead, so an unexpected
+/// answer deletes nothing.
 fn pid_is_alive(pid: u32) -> bool {
-    std::process::Command::new("kill")
-        .arg("-0")
-        .arg(pid.to_string())
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .status()
-        .map(|s| s.success())
-        .unwrap_or(true)
+    let Some(pid) = i32::try_from(pid).ok().and_then(rustix::process::Pid::from_raw) else {
+        return true;
+    };
+    rustix::process::test_kill_process(pid) != Err(rustix::io::Errno::SRCH)
 }
 
 /// A throwaway project directory in the system temp dir, named `blueprint-fixture-<pid>-<name>`.

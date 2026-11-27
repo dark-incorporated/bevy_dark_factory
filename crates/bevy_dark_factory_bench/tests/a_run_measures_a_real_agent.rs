@@ -101,6 +101,12 @@ fn lingering(mark: &str) -> Vec<String> {
     found
 }
 
+/// **`SIGKILL` to `pid`** by `kill(2)` itself, not the `kill` program, whose parse of its arguments is the host's (#697).
+fn kill_hard(pid: u32) -> rustix::io::Result<()> {
+    let pid = i32::try_from(pid).ok().and_then(rustix::process::Pid::from_raw).ok_or(rustix::io::Errno::INVAL)?;
+    rustix::process::kill_process(pid, rustix::process::Signal::KILL)
+}
+
 /// **The operations the suite's own task files use**, read from `bench/tasks/*/task.yaml` (every `op:` but the
 /// hand-back), sorted and without repeats. A stand-in editor answers `--print-operations` with these, so the list is
 /// never a second copy that goes stale when a task starts using another operation (#433).
@@ -799,8 +805,8 @@ impl Drop for Standing {
         let _ = self.child.kill();
         let _ = self.child.wait();
         for entry in lingering(&self.mark) {
-            if let Some(pid) = entry.split_whitespace().next() {
-                let _ = Command::new("kill").args(["-KILL", pid]).status();
+            if let Some(pid) = entry.split_whitespace().next().and_then(|pid| pid.parse().ok()) {
+                let _ = kill_hard(pid);
             }
         }
     }
@@ -900,8 +906,8 @@ fn run_with_stand_in_agent(test: &str, run_name: &str) -> Standing {
 fn a_real_editor_killed_while_an_agent_runs_is_a_harness_error() {
     let mut run = run_with_stand_in_agent("a-real-editor-killed-while-an-agent-runs", "the-killed-editor");
     let pid = run.editor_pid();
-    let killed = Command::new("kill").args(["-KILL", &pid.to_string()]).status().unwrap_or_else(|e| panic!("kill: {e}"));
-    assert!(killed.success(), "the real editor (pid {pid}) is killed");
+    let killed = kill_hard(pid);
+    assert!(killed.is_ok(), "the real editor (pid {pid}) is killed: {killed:?}");
     let killed_at = std::time::Instant::now();
 
     let finished = loop {
@@ -955,9 +961,9 @@ fn a_harness_killed_outright_leaves_no_child_running() {
         before.iter().any(|p| p.ends_with("Xvfb")) && before.iter().any(|p| p.ends_with("bevy_dark_factory")),
         "the trial is up: an Xvfb and an editor carry the run's mark (found {before:?})"
     );
-    let harness = run.child.id().to_string();
-    let killed = Command::new("kill").args(["-KILL", &harness]).status().unwrap_or_else(|e| panic!("kill: {e}"));
-    assert!(killed.success(), "the harness (pid {harness}) is killed");
+    let harness = run.child.id();
+    let killed = kill_hard(harness);
+    assert!(killed.is_ok(), "the harness (pid {harness}) is killed: {killed:?}");
     let _ = run.child.wait();
 
     let waited = std::time::Instant::now();
