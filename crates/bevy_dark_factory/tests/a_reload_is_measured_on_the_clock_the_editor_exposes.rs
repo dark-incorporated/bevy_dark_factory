@@ -19,7 +19,7 @@ use bevy::prelude::*;
 use bevy::time::TimeUpdateStrategy;
 use bevy_dark_factory::editor::EditorState;
 use bevy_dark_factory::family_host::{reload_settings, FamilySettings};
-use bevy_dark_factory::project_index::{MIN_SWEEP, ProjectIndex};
+use bevy_dark_factory::project_index::{MAX_SWEEP_EVERY, MIN_SWEEP, ProjectIndex};
 
 use crate::fixtures;
 
@@ -79,11 +79,18 @@ fn a_clock_that_does_not_advance_still_reloads_the_file() {
 fn stepping_the_clock_does_not_reload_the_file_before_the_index_has_seen_it() {
     let (root, file) = project("reload_stepped_clock");
     let mut app = editor(&root, STEP);
+    // **The index is held still while the clock steps**, so "nothing has landed" does not rest on three frames taking under the
+    // index's 100 ms debounce of wall clock: a family_all frame is slower than that on a loaded host, and the index then landed the
+    // edit honestly inside the three steps. A long sweep is the index's own test lever (`ProjectIndex::set_sweep`); the pause
+    // lets a sweep already under way finish before the write, so the only thing that could land the file is the clock.
+    app.world().resource::<ProjectIndex>().set_sweep(MAX_SWEEP_EVERY);
+    std::thread::sleep(MIN_SWEEP * 4);
     std::fs::write(&file, SETTINGS_LATER).unwrap();
-    // Three steps are 0.6 s of the editor's clock and no time at all for the index: its debounce alone is 100 ms of wall clock.
+    // Three steps are 0.6 s of the editor's clock and no sweep at all for the index.
     for _ in 0..3 {
         app.update();
     }
     assert_eq!(held(&app), SETTINGS, "the clock moved past the old poll and settle, and the index has not had its debounce, so nothing has landed");
+    app.world().resource::<ProjectIndex>().set_sweep(MIN_SWEEP);
     until_landed(&mut app);
 }
