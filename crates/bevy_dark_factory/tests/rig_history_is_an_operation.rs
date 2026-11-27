@@ -10,6 +10,7 @@ use std::time::Duration;
 use bevy::input::ButtonState;
 use bevy::input::keyboard::{Key, KeyboardInput};
 use bevy::prelude::*;
+use bevy::time::TimeUpdateStrategy;
 use bevy::window::{PrimaryWindow, Window};
 use bevy_dark_factory::anim_tab::BenchState;
 use bevy_dark_factory::keys::Action;
@@ -41,6 +42,11 @@ fn editor(tag: &str) -> (App, std::path::PathBuf) {
     let path = root.join("assets/blueprint/rigs.yaml");
     std::fs::copy(workspace_asset("blueprint/rigs.yaml"), &path).expect("rigs.yaml");
     let mut app = bevy_dark_factory::harness::build_headless_at(&root, "m", None, Mode::Anim).unwrap_or_else(|e| panic!("{e}"));
+    // **The editor's clock counts this test's frames** (#644). An agent's step is revealed, its page opened off the Anim tab, once
+    // the person has left the view alone for `follow::FOLLOW_IDLE_S` of `Time<Real>`. The waits here are bounded in frames, so on
+    // a loaded host their wall clock outran that hold and the reveal landed between a person's key and the step the test asks of
+    // the bench. Advanced by the waits' own pause a frame, the hold is a count of frames as the waits are.
+    app.insert_resource(TimeUpdateStrategy::ManualDuration(support::STEP));
     app.add_plugins(bevy_debugger_bevy::DebuggerPlugin::default());
     app.add_plugins(bevy_dark_factory::ops_brp::OpsBridgePlugin);
     app.world_mut().spawn((Window::default(), PrimaryWindow));
