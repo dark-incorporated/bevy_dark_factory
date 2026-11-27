@@ -1269,8 +1269,8 @@ dependencies = [
 
 [[package]]
 name = "bevy_gooey"
-version = "0.61.0"
-source = "git+https://github.com/dark-incorporated/bevy_gooey?rev=175a8834b478c3cc2fe08feeedcd6bce99a0fd36#175a8834b478c3cc2fe08feeedcd6bce99a0fd36"
+version = "0.62.0"
+source = "git+https://github.com/dark-incorporated/bevy_gooey?rev=2d30a8261cbc037fde9e9b0a47b805150845925b#2d30a8261cbc037fde9e9b0a47b805150845925b"
 dependencies = [
  "accesskit",
  "bevy",
