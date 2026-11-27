@@ -1429,6 +1429,13 @@ pub fn spawn_frame(
             // no `Hovered` in this gooey revision. Measured over BRP after the fix: a 105-px drag
             // takes `SplitFraction` from 0.22 to 0.32.
             bevy::picking::Pickable::default(),
+            // **The divider is the sheet's seam, not gooey's target** (#689, #476). `Role::SplitDivider`
+            // gives the channel `MIN_TARGET_PX` (24 logical px) unless the split carries a thickness, which
+            // `update_splits` writes into the divider's own `Sizing` and keeps across every restyle — the
+            // knob `bevy_gooey#108` was filed for. The sheet's `divider_w` is the number the dock arithmetic
+            // already subtracts (`size_the_shell_split`), so the width a pane is measured with is the width
+            // drawn.
+            bevy_gooey::SplitThickness(crate::style::metrics().layout.divider_w),
             ShellSplit,
             SplitUnsized::default(),
         ))

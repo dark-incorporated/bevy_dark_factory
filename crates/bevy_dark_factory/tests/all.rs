@@ -805,6 +805,7 @@ mod the_type_scale_is_declared_once;
 mod a_files_header_stands_at_its_two_ends;
 mod a_place_rows_name_never_breaks_inside_a_word;
 mod the_history_is_a_section_that_starts_closed;
+mod the_drawn_divider_is_the_sheets_seam;
 mod index_waits;
 mod the_world_lists_follow_the_project_index;
 mod the_problems_list_follows_the_project_index;

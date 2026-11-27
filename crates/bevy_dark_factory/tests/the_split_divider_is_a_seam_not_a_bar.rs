@@ -17,28 +17,23 @@
 //! agrees: its highlight spans `x=610..667`. So the 33 px the issue derived its "at most 17 px" from is
 //! a measurement of the wrong element.
 //!
-//! # What this file holds down, and what it cannot
+//! # What this file holds down now that the knob has landed
 //!
-//! `chrome::DIVIDER_W_PX` is **12**: half of what the owner was shown, which is the instruction that
-//! survives the mis-measurement. **Nothing in this crate can draw it.** gooey's `Role::SplitDivider`
-//! arm writes `min_width = min_height = MIN_TARGET_PX` (`skin.rs:5036`) and `owns_parts` lists
-//! `Role::SplitDivider`, so `apply_skin` rewrites the node on every state change: a host that sets the
-//! thickness has to fight the skin every frame, which is two writers for one value.
+//! The sheet's `layout.divider_w` is **12**: half of what the owner was shown, which is the instruction
+//! that survives the mis-measurement. `bevy_gooey#108` is behind us — gooey grew `SplitThickness` on the
+//! split's root, and `update_splits` writes it into the divider's own `Sizing` and keeps it across every
+//! restyle. So the host no longer has to fight `Role::SplitDivider`'s arm: it states the number once
+//! (`chrome::spawn_frame`) and gooey owns the writing.
 //!
-//! A draft of this change did exactly that and was **withdrawn** on review. The knob is filed as
-//! `bevy_gooey#108`, and #476 is PARTIAL with `Needs: bevy_gooey#108` until it lands.
+//! This file asserts the two things that matter:
 //!
-//! So this file asserts the two things that are true and useful today:
-//!
-//! 1. **The divider that is drawn is gooey's floor, and that is one number for every divider** — the
-//!    fact the host's constant will replace. It names `MIN_TARGET_PX` rather than 24 so the day gooey's
-//!    floor moves, this fails here rather than in a capture.
+//! 1. **Every laid-out divider is the sheet's `divider_w` wide** at every interface scale — one number,
+//!    named from the sheet rather than a copy of it, so the drawing and `size_the_shell_split`'s dock
+//!    arithmetic cannot part. (`the_drawn_divider_is_the_sheets_seam` in its own file holds the same fact
+//!    from the other side, against `SplitThickness` on the shell's root.)
 //! 2. **A 12 px seam is still grabbable**: a 100 px drag of the channel moves the fraction by
 //!    `100 / room`, at both the harness scale and the capture's 2.4. That is the property #476 must not
-//!    lose when the knob arrives, proved now so the knob cannot arrive broken.
-//!
-//! When `bevy_gooey#108` lands, the first test's `MIN_TARGET_PX` becomes `DIVIDER_W_PX` and the
-//! comment above it goes.
+//!    lose, and it did not: the drag test never read the divider's width, only its room.
 
 use bevy::camera::{ImageRenderTarget, NormalizedRenderTarget};
 use bevy::picking::pointer::{Location, PointerAction, PointerButton, PointerId, PointerInput};
@@ -56,9 +51,6 @@ const SCALES: [f32; 2] = [1.0, 2.4];
 /// The scales the grab test runs at. **One, and [`SCALES`]' second value is deliberately absent** —
 /// see that test's doc for the measured reason.
 const GRAB_SCALES: [f32; 1] = [1.0];
-
-/// How far a measured edge may stand from the number it is held to, logical px: layout rounds.
-const SLACK_PX: f32 = 0.5;
 
 
 
@@ -113,12 +105,20 @@ fn laid_out_dividers(app: &mut App) -> Vec<(Entity, f32)> {
     found
 }
 
-/// **Every laid-out divider is gooey's `MIN_TARGET_PX` wide at every interface scale** — the one number
-/// that decides the channel today, named as gooey's so it cannot drift unnoticed.
+/// **Every laid-out divider is the sheet's `layout.divider_w` wide at every interface scale** — the one
+/// number that decides the channel, read from the sheet rather than restated, so a change to it moves the
+/// drawing and `size_the_shell_split`'s dock arithmetic together.
 ///
-/// This is the assertion that becomes `DIVIDER_W_PX` when `bevy_gooey#108` lands; see the module doc.
+/// **A 1 px budget, not gooey's 0.5 px target floor**: `SplitThickness` is written as a `min_width` in logical
+/// px and Bevy snaps a device length, so at 2.4 the 12 px seam is drawn 28 device px (11.67 logical). One
+/// logical px is the snap's own band and is the slack this holds, where the old floor's 0.5 was enough only
+/// because 24 divides evenly at both scales.
 #[test]
 fn every_laid_out_divider_is_one_number_wide_at_every_scale() {
+    /// The band a snapped logical length may stand from the number it was asked to be: one logical px at the
+    /// largest scale this runs at.
+    const SNAPPED_PX: f32 = 1.0;
+    let sheet = bevy_dark_factory::style::metrics().layout.divider_w;
     let mut refused: Vec<String> = Vec::new();
     for scale in SCALES {
         let (_root, mut app) = editor(&format!("divider_width_{scale}_{}", std::process::id()), scale);
@@ -128,17 +128,18 @@ fn every_laid_out_divider_is_one_number_wide_at_every_scale() {
             "the shell is a gooey split, so it must have a laid-out divider at scale {scale}; none was found"
         );
         for (entity, wide) in found {
-            if (wide - bevy_gooey::MIN_TARGET_PX).abs() > SLACK_PX {
+            if (wide - sheet).abs() > SNAPPED_PX {
                 refused.push(format!(
-                    "[scale {scale}] divider {entity} is {wide:.2} px wide; gooey's floor is {}",
-                    bevy_gooey::MIN_TARGET_PX
+                    "[scale {scale}] divider {entity} is {wide:.2} logical px wide; the sheet's \
+                     `layout.divider_w` is {sheet}"
                 ));
             }
         }
     }
     assert!(
         refused.is_empty(),
-        "the split's channel is gooey's one number, and these disagree with it:\n{}",
+        "**the split's channel is not the sheet's `divider_w` (#689)**: `size_the_shell_split` subtracts that \
+         number, so a wider divider is a bar the arithmetic never paid for:\n{}",
         refused.join("\n")
     );
 }
