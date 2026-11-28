@@ -73,6 +73,11 @@ jobs:
         run: git lfs pull --include docs/changelog/media/2026-10-24-S1.5.png
       - uses: dtolnay/rust-toolchain@stable
       - uses: taiki-e/install-action@nextest
+      # **rust-analyzer for the toolchain this repo pins** (#611): `a_rust_files_compiler_errors_are_marked_by_rust_analyzer`
+      # starts the real server and does not skip without it, so CI installs it the way a person is told to. Run in the
+      # checkout, so `rustup` resolves the repo's own toolchain file and not the action's `stable`.
+      - name: Install rust-analyzer for the pinned toolchain
+        run: rustup component add rust-analyzer
       # **The limit this job is held to, printed by the job** (#674). `gh-runner-run` gives every container
       # `--memory` and `--memory-swap` (both from `GHR_MEMORY`), so a job that outgrows its share is killed in its
       # own cgroup and `memory.events` says so, instead of growing until the kernel compresses all of big into its
