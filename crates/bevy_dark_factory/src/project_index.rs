@@ -23,7 +23,8 @@
 //! stamp has been steady for [`DEBOUNCE`] (or for [`MAX_HOLD`], so a file written more often than that still publishes), then diffed
 //! against what the index holds: a save is one event, and a file that ends where it began is none. **An operation that has just
 //! finished writing** (`file_create`, `file_rename`, `file_delete`) says so with [`note_written`] and is published at once: it knows
-//! the write is done, and the row it made must be on screen in the next frame.
+//! the write is done, and the row it made must be on screen in the next frame. [`Follow::held`] says how many changes are held now
+//! (an atomic load), so a test that needs one held waits on the index's own observation and not on a window of the wall clock.
 //!
 //! # How the thread finds changes, with no new dependency
 //!
@@ -440,6 +441,8 @@ struct Shared {
     walks: AtomicU64,
     sweep_millis: AtomicU64,
     last_sweep_micros: AtomicU64,
+    /// How many changes the thread holds (seen, not yet published), as of the end of its last look: [`Follow::held`].
+    held: AtomicU64,
     /// Whether `State::failure` is set, so a quiet frame asking for it costs an atomic load.
     failed: AtomicBool,
 }
@@ -1131,6 +1134,8 @@ fn run(shared: Arc<Shared>) {
             let ripe = sweeper.ripen(sync);
             sweeper.apply(ripe);
         }
+        // Before a caller's settle is answered, so the caller reads what is held after it.
+        shared.held.store(u64::try_from(sweeper.pending.len()).unwrap_or(u64::MAX), Ordering::Release);
         for waiting in syncs {
             let _ = waiting.send(());
         }
@@ -1245,6 +1250,14 @@ impl Follow {
         self.handle.as_ref().map_or(Duration::ZERO, |h| Duration::from_micros(h.shared.last_sweep_micros.load(Ordering::Relaxed)))
     }
 
+    /// **How many changes the thread holds now**: seen, and not yet published because their stamp has not been steady for [`DEBOUNCE`]
+    /// (nor held for [`MAX_HOLD`]); `0` once everything it saw is published. An atomic load, as of the thread's last look. A test lever,
+    /// as [`Follow::set_sweep`] is: a test that needs a change held when something else happens waits on this, the index's own
+    /// observation, and not on a window of the wall clock or of frames, which a loaded host stretches past [`MAX_HOLD`].
+    pub fn held(&self) -> u64 {
+        self.handle.as_ref().map_or(0, |h| h.shared.held.load(Ordering::Acquire))
+    }
+
     /// Wait for the first listing. `false` when `timeout` passes first or the root cannot be read (see [`Follow::failure`]).
     pub fn wait_ready(&self, timeout: Duration) -> bool {
         let start = Instant::now();
@@ -1270,6 +1283,7 @@ impl Follow {
             walks: AtomicU64::new(0),
             sweep_millis: AtomicU64::new(u64::try_from(SWEEP.as_millis()).unwrap_or(u64::MAX)),
             last_sweep_micros: AtomicU64::new(0),
+            held: AtomicU64::new(0),
             failed: AtomicBool::new(false),
         });
         registry().push((shared.id, root.to_path_buf(), Arc::downgrade(&shared)));
