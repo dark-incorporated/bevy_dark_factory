@@ -350,17 +350,19 @@ fn settle(dir: &std::path::Path) {
     }
 }
 
-/// **A second arrival at Kit opens no mesh the first one measured** (#678, #541).
+/// **No arrival at Kit opens a mesh the project's look already measured** (#678, #541).
 ///
 /// Kit scans the `.glb` files under `assets/` that the kit does not hold on every arrival. Measured on `big` on
 /// 2026-11-27 (the review's `bedroom` project, 162 `.glb`), that scan was most of a Kit switch's `StateTransition`:
 /// every arrival opened and measured every candidate again, though nothing on disk or in the library had changed.
-/// The work is counted rather than timed. The first arrival opens each candidate once; the second opens none and
-/// lists the same candidates; and a mesh dropped in while the person was on the Map is found on the next arrival,
-/// which is the reason Kit looks at the directory at all.
+/// Then the first arrival was the cost (149.6 ms of a 234 ms frame, `tiles::scan_on_entering_the_kits_door`), so the
+/// project's meshes are looked at on a compute thread while the person is on the Map (`tiles::ScanWarming`).
+/// The work is counted rather than timed. The look opens each candidate once; the first arrival's frame opens none
+/// and lists them; the second opens none and lists the same candidates; and a mesh dropped in while the person was on
+/// the Map is found on the next arrival, which is the reason Kit looks at the directory at all.
 ///
 /// Fails on the tree before #678: `close_the_door` reset `ImportState` whole, so the second arrival opened every
-/// candidate again.
+/// candidate again; and before #541's look, the first arrival opened every candidate in its own frame.
 #[test]
 fn a_second_arrival_at_kit_opens_no_mesh_the_first_one_measured() {
     use bevy_dark_factory::tiles::ImportState;
@@ -382,13 +384,24 @@ fn a_second_arrival_at_kit_opens_no_mesh_the_first_one_measured() {
     for _ in 0..SETTLE_FRAMES {
         app.update();
     }
+    // **The look lands while the person is on the Map**: it runs on a compute thread, so the test gives it frames.
+    for _ in 0..200 {
+        if app.world().resource::<ImportState>().on_disk.answered() {
+            break;
+        }
+        app.update();
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    }
+    assert!(app.world().resource::<ImportState>().on_disk.answered(), "the project's look landed while on the Map");
+    let looked = opened(&app);
 
     chord_to(&mut app, Workspace::Kit);
     let first = candidates(&app);
     for mesh in ["loose/lamp.glb", "loose/stool.glb"] {
         assert!(first.iter().any(|m| m == mesh), "the pack's `{mesh}` is a candidate on the first arrival: {first:?}");
     }
-    assert_eq!(opened(&app), first.len(), "the first arrival opens each candidate once");
+    assert_eq!(looked, first.len(), "the look on the Map opened each candidate once");
+    assert_eq!(opened(&app), 0, "and the first arrival's frame opens none of them: the look answered it");
 
     chord_to(&mut app, Workspace::Map);
     chord_to(&mut app, Workspace::Kit);

@@ -206,6 +206,12 @@ impl Scanned {
     pub fn opened(&self) -> usize {
         self.opened
     }
+
+    /// **Whether a look is held that the next [`Scanned::scan`] can answer from**: every file the last one read was
+    /// settled. A memo that holds none measures again whatever it is asked.
+    pub fn answered(&self) -> bool {
+        self.asked.is_some()
+    }
 }
 
 /// Every `.glb` under `dir`, sorted.

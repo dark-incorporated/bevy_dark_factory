@@ -1,0 +1,65 @@
+SETTLED n=50 busy_ms p50 14.08 p90 15.23
+switch  1 -> kit  : busy_ms 118.6 frame_ms 128.1 | PostUpdate 44.4, Update 33.6, StateTransition 27.5, PreUpdate 11.2 | screen::close_the_door 13.8, bevy_ui::UiSystems::PostLayout 7.6, bevy_ui::ui_layout_system 4.8, tiles::scan_on_entering_the_kits_door 2.9
+switch  2 -> map  : busy_ms 110.7 frame_ms 119.1 | Update 41.6, PostUpdate 36.0, StateTransition 20.9, PreUpdate 10.2 | bevy_ui::ui_layout_system 8.0, screen::close_the_door 5.9, bevy_ui::UiSystems::PostLayout 5.0, editor::spawn_existing 0.2
+switch  3 -> kit  : busy_ms 93.9 frame_ms 102.5 | Update 32.6, PostUpdate 26.3, StateTransition 22.7, PreUpdate 10.5 | screen::close_the_door 8.2, bevy_ui::ui_layout_system 5.5, bevy_ui::UiSystems::PostLayout 3.4, tiles::scan_on_entering_the_kits_door 2.7
+switch  4 -> map  : busy_ms 125.6 frame_ms 134.0 | Update 43.8, PostUpdate 36.9, StateTransition 32.0, PreUpdate 10.7 | bevy_ui::ui_layout_system 6.8, screen::close_the_door 6.3, bevy_ui::UiSystems::PostLayout 5.8, editor::spawn_panel 0.5
+switch  5 -> kit  : busy_ms 86.4 frame_ms 92.7 | PostUpdate 25.6, StateTransition 25.1, Update 24.3, PreUpdate 9.9 | screen::close_the_door 7.0, bevy_ui::ui_layout_system 5.0, bevy_ui::UiSystems::PostLayout 4.5, tiles::scan_on_entering_the_kits_door 2.8
+switch  6 -> map  : busy_ms 107.9 frame_ms 114.2 | Update 41.8, PostUpdate 33.3, StateTransition 20.9, PreUpdate 10.5 | bevy_ui::UiSystems::PostLayout 7.2, screen::close_the_door 6.8, bevy_ui::ui_layout_system 5.1, editor::spawn_panel 0.1
+switch  7 -> kit  : busy_ms 92.3 frame_ms 99.4 | PostUpdate 30.1, Update 26.3, StateTransition 24.7, PreUpdate 9.5 | screen::close_the_door 10.3, bevy_ui::ui_layout_system 5.0, bevy_ui::UiSystems::PostLayout 4.4, tiles::scan_on_entering_the_kits_door 1.6
+switch  8 -> map  : busy_ms 87.6 frame_ms 93.9 | Update 28.4, PostUpdate 28.0, StateTransition 19.0, PreUpdate 10.5 | screen::close_the_door 6.0, bevy_ui::UiSystems::PostLayout 5.0, bevy_ui::ui_layout_system 5.0, editor::spawn_existing 0.1
+switch  9 -> kit  : busy_ms 100.3 frame_ms 106.8 | Update 32.8, StateTransition 28.4, PostUpdate 28.2, PreUpdate 9.3 | screen::close_the_door 10.0, bevy_ui::ui_layout_system 5.2, bevy_ui::UiSystems::PostLayout 3.7, tiles::scan_on_entering_the_kits_door 3.2
+switch 10 -> map  : busy_ms 99.6 frame_ms 104.4 | Update 36.4, PostUpdate 33.8, StateTransition 18.1, PreUpdate 9.3 | bevy_ui::UiSystems::PostLayout 5.9, screen::close_the_door 5.5, bevy_ui::ui_layout_system 5.0, editor::spawn_existing 0.1
+switch 11 -> kit  : busy_ms 107.6 frame_ms 116.4 | PostUpdate 32.6, Update 32.1, StateTransition 28.7, PreUpdate 12.0 | screen::close_the_door 11.3, bevy_ui::ui_layout_system 6.1, bevy_ui::UiSystems::PostLayout 3.7, tiles::scan_on_entering_the_kits_door 3.1
+switch 12 -> map  : busy_ms 102.4 frame_ms 111.8 | Update 38.7, PostUpdate 31.0, StateTransition 21.1, PreUpdate 9.5 | bevy_ui::ui_layout_system 6.0, screen::close_the_door 5.7, bevy_ui::UiSystems::PostLayout 4.9, editor::spawn_existing 0.1
+switch 13 -> kit  : busy_ms 93.8 frame_ms 101.6 | PostUpdate 29.4, Update 26.1, StateTransition 24.6, PreUpdate 10.9 | screen::close_the_door 7.3, tiles::scan_on_entering_the_kits_door 6.8, bevy_ui::ui_layout_system 4.8, bevy_ui::UiSystems::PostLayout 3.6
+switch 14 -> map  : busy_ms 101.3 frame_ms 109.0 | PostUpdate 34.6, Update 34.5, StateTransition 21.1, PreUpdate 9.4 | bevy_ui::UiSystems::PostLayout 6.7, bevy_ui::ui_layout_system 6.0, screen::close_the_door 5.7, editor::spawn_existing 0.1
+switch 15 -> kit  : busy_ms 81.9 frame_ms 90.9 | Update 27.1, PostUpdate 25.4, StateTransition 17.6, PreUpdate 10.3 | screen::close_the_door 6.5, bevy_ui::ui_layout_system 4.2, bevy_ui::UiSystems::PostLayout 2.8, tiles::scan_on_entering_the_kits_door 2.1
+switch 16 -> map  : busy_ms 110.7 frame_ms 119.7 | PostUpdate 38.6, Update 37.8, StateTransition 22.4, PreUpdate 10.0 | bevy_ui::ui_layout_system 9.3, bevy_ui::UiSystems::PostLayout 5.6, screen::close_the_door 5.1, editor::spawn_existing 0.1
+switch 17 -> kit  : busy_ms 73.8 frame_ms 80.6 | PostUpdate 24.2, Update 23.2, StateTransition 15.0, PreUpdate 10.0 | screen::close_the_door 6.7, bevy_ui::ui_layout_system 4.4, bevy_ui::UiSystems::PostLayout 3.4, tiles::scan_on_entering_the_kits_door 2.2
+switch 18 -> map  : busy_ms 152.8 frame_ms 161.0 | PreUpdate 60.1, Update 38.3, PostUpdate 30.6, StateTransition 21.7 | bevy_ui::UiSystems::PostLayout 5.5, bevy_ui::ui_layout_system 5.2, screen::close_the_door 4.9, editor::spawn_panel 0.1
+switch 19 -> kit  : busy_ms 96.0 frame_ms 101.6 | Update 35.1, PostUpdate 26.0, StateTransition 23.0, PreUpdate 10.1 | screen::close_the_door 6.7, bevy_ui::ui_layout_system 4.6, bevy_ui::UiSystems::PostLayout 3.7, tiles::scan_on_entering_the_kits_door 1.9
+switch 20 -> map  : busy_ms 85.6 frame_ms 93.9 | PostUpdate 29.8, Update 29.3, StateTransition 15.7, PreUpdate 9.0 | bevy_ui::ui_layout_system 5.2, screen::close_the_door 5.1, bevy_ui::UiSystems::PostLayout 4.3, editor::spawn_existing 0.1
+SWITCH map<->kit {"n": 20, "busy_ms_p50": 99.91, "busy_ms_p90": 118.61, "busy_ms_max": 152.797609, "over_100_ms": 10, "schedules_p50": {"Update": 33.23, "PostUpdate": 30.35, "StateTransition": 22.03, "PreUpdate": 10.16, "RemoteLast": 1.14, "First": 0.26}, "systems_p50": {"screen::close_the_door": 6.6, "bevy_ui::ui_layout_system": 5.15, "bevy_ui::UiSystems::PostLayout": 4.7, "tiles::scan_on_entering_the_kits_door": 2.73, "editor::spawn_existing": 0.08, "editor::spawn_palette_panel": 0.06}}
+switch  1 -> world: busy_ms 93.4 frame_ms 97.8 | StateTransition 30.5, Update 27.3, PostUpdate 23.9, PreUpdate 10.3 | screen::close_the_door 9.1, bevy_ui::UiSystems::PostLayout 3.6, bevy_ui::ui_layout_system 3.1, workspace_panels::spawn_world_panel 0.2
+switch  2 -> map  : busy_ms 88.9 frame_ms 95.9 | Update 30.3, PostUpdate 28.6, StateTransition 19.0, PreUpdate 9.3 | bevy_ui::UiSystems::PostLayout 6.1, bevy_ui::ui_layout_system 5.1, screen::close_the_door 4.0, editor::spawn_panel 0.1
+switch  3 -> world: busy_ms 75.6 frame_ms 84.0 | Update 23.1, StateTransition 21.5, PostUpdate 19.1, PreUpdate 10.4 | screen::close_the_door 7.8, bevy_ui::ui_layout_system 3.3, bevy_ui::UiSystems::PostLayout 2.6, workspace_panels::spawn_world_panel 0.0
+switch  4 -> map  : busy_ms 89.0 frame_ms 96.8 | PostUpdate 32.6, Update 31.3, StateTransition 14.1, PreUpdate 9.7 | bevy_ui::ui_layout_system 7.6, bevy_ui::UiSystems::PostLayout 5.4, screen::close_the_door 3.9, editor::spawn_existing 0.1
+switch  5 -> world: busy_ms 74.6 frame_ms 82.2 | Update 29.6, PostUpdate 19.1, StateTransition 14.2, PreUpdate 10.4 | screen::close_the_door 5.4, bevy_ui::ui_layout_system 3.0, bevy_ui::UiSystems::PostLayout 2.3, chrome::spawn_frame 0.0
+switch  6 -> map  : busy_ms 100.4 frame_ms 107.8 | Update 38.0, PostUpdate 31.4, StateTransition 20.5, PreUpdate 9.1 | bevy_ui::ui_layout_system 8.3, bevy_ui::UiSystems::PostLayout 4.6, screen::close_the_door 4.3, editor::spawn_existing 0.1
+switch  7 -> world: busy_ms 73.5 frame_ms 81.5 | Update 23.0, PostUpdate 20.7, StateTransition 18.1, PreUpdate 10.3 | screen::close_the_door 6.4, bevy_ui::ui_layout_system 3.6, bevy_ui::UiSystems::PostLayout 2.5, workspace_panels::spawn_world_panel 0.0
+switch  8 -> map  : busy_ms 111.5 frame_ms 118.7 | PostUpdate 41.5, Update 38.3, StateTransition 20.1, PreUpdate 9.8 | bevy_ui::UiSystems::PostLayout 7.4, bevy_ui::ui_layout_system 5.2, screen::close_the_door 5.0, editor::spawn_panel 0.4
+switch  9 -> world: busy_ms 68.8 frame_ms 77.2 | Update 21.2, PostUpdate 19.8, StateTransition 16.0, PreUpdate 10.4 | screen::close_the_door 5.9, bevy_ui::UiSystems::PostLayout 3.0, bevy_ui::ui_layout_system 2.8, workspace_panels::spawn_world_panel 0.0
+switch 10 -> map  : busy_ms 111.9 frame_ms 118.3 | PostUpdate 38.9, Update 35.7, StateTransition 25.8, PreUpdate 9.5 | bevy_ui::UiSystems::PostLayout 7.0, screen::close_the_door 6.8, bevy_ui::ui_layout_system 5.2, editor::spawn_panel 0.4
+switch 11 -> world: busy_ms 89.4 frame_ms 97.6 | StateTransition 26.9, Update 26.9, PostUpdate 23.2, PreUpdate 10.3 | screen::close_the_door 10.3, bevy_ui::ui_layout_system 4.1, bevy_ui::UiSystems::PostLayout 3.2, workspace_panels::spawn_world_panel 0.0
+switch 12 -> map  : busy_ms 90.4 frame_ms 94.9 | PostUpdate 30.7, Update 29.1, StateTransition 20.0, PreUpdate 9.2 | bevy_ui::UiSystems::PostLayout 5.1, bevy_ui::ui_layout_system 4.6, screen::close_the_door 3.8, editor::spawn_existing 0.1
+switch 13 -> world: busy_ms 82.5 frame_ms 86.7 | Update 27.7, StateTransition 22.0, PostUpdate 21.2, PreUpdate 9.6 | screen::close_the_door 7.2, bevy_ui::UiSystems::PostLayout 3.1, bevy_ui::ui_layout_system 2.6, workspace_panels::spawn_world_panel 0.0
+switch 14 -> map  : busy_ms 78.0 frame_ms 86.0 | PostUpdate 28.9, Update 26.2, StateTransition 11.1, PreUpdate 10.2 | bevy_ui::UiSystems::PostLayout 5.2, bevy_ui::ui_layout_system 4.7, screen::close_the_door 3.8, editor::spawn_existing 0.1
+switch 15 -> world: busy_ms 60.7 frame_ms 69.5 | Update 18.4, PostUpdate 16.3, StateTransition 15.4, PreUpdate 9.3 | screen::close_the_door 5.7, bevy_ui::ui_layout_system 2.6, bevy_ui::UiSystems::PostLayout 2.3, workspace_panels::spawn_world_panel 0.0
+switch 16 -> map  : busy_ms 74.9 frame_ms 81.7 | PostUpdate 28.2, Update 25.6, StateTransition 10.7, PreUpdate 8.8 | bevy_ui::ui_layout_system 5.3, bevy_ui::UiSystems::PostLayout 4.3, screen::close_the_door 3.0, editor::spawn_existing 0.0
+switch 17 -> world: busy_ms 61.3 frame_ms 65.1 | Update 19.0, PostUpdate 17.2, StateTransition 13.1, PreUpdate 10.2 | screen::close_the_door 5.7, bevy_ui::UiSystems::PostLayout 2.3, bevy_ui::ui_layout_system 2.3, workspace_panels::spawn_world_panel 0.0
+switch 18 -> map  : busy_ms 80.4 frame_ms 86.5 | PostUpdate 29.1, Update 25.5, StateTransition 14.8, PreUpdate 9.5 | bevy_ui::ui_layout_system 5.5, screen::close_the_door 4.7, bevy_ui::UiSystems::PostLayout 4.4, editor::spawn_panel 0.1
+switch 19 -> world: busy_ms 69.9 frame_ms 76.7 | Update 22.1, StateTransition 19.8, PostUpdate 16.7, PreUpdate 9.9 | screen::close_the_door 7.9, bevy_ui::ui_layout_system 2.7, bevy_ui::UiSystems::PostLayout 2.5, workspace_panels::spawn_world_panel 0.0
+switch 20 -> map  : busy_ms 76.6 frame_ms 80.4 | PostUpdate 26.7, Update 25.9, StateTransition 14.0, PreUpdate 8.9 | bevy_ui::ui_layout_system 5.7, bevy_ui::UiSystems::PostLayout 4.3, screen::close_the_door 3.9, editor::spawn_existing 0.0
+SWITCH map<->world {"n": 20, "busy_ms_p50": 79.21, "busy_ms_p90": 100.44, "busy_ms_max": 111.912791, "over_100_ms": 3, "schedules_p50": {"Update": 26.55, "PostUpdate": 25.32, "StateTransition": 18.54, "PreUpdate": 9.72, "RemoteLast": 0.88, "First": 0.23}, "systems_p50": {"screen::close_the_door": 5.52, "bevy_ui::ui_layout_system": 4.39, "bevy_ui::UiSystems::PostLayout": 3.95, "editor::spawn_panel": 0.06, "editor::spawn_existing": 0.06, "workspace_panels::spawn_world_panel": 0.04}}
+raise  1: words laid out after 124.8 ms, 4.0 frames, heaviest frame busy 17.0 ms
+raise  2: words laid out after 125.0 ms, 4.0 frames, heaviest frame busy 14.6 ms
+raise  3: words laid out after 126.1 ms, 4.0 frames, heaviest frame busy 14.4 ms
+raise  4: words laid out after 126.3 ms, 4.0 frames, heaviest frame busy 15.6 ms
+raise  5: words laid out after 126.2 ms, 4.0 frames, heaviest frame busy 15.8 ms
+raise  6: words laid out after 140.0 ms, 4.0 frames, heaviest frame busy 14.2 ms
+raise  7: words laid out after 157.2 ms, 4.0 frames, heaviest frame busy 21.7 ms
+raise  8: words laid out after 147.9 ms, 4.0 frames, heaviest frame busy 19.4 ms
+raise  9: words laid out after 140.6 ms, 4.0 frames, heaviest frame busy 15.8 ms
+raise 10: words laid out after 145.1 ms, 4.0 frames, heaviest frame busy 15.9 ms
+raise 11: words laid out after 141.1 ms, 4.0 frames, heaviest frame busy 18.3 ms
+raise 12: words laid out after 147.6 ms, 4.0 frames, heaviest frame busy 16.8 ms
+raise 13: words laid out after 144.2 ms, 4.0 frames, heaviest frame busy 20.1 ms
+raise 14: words laid out after 149.1 ms, 4.0 frames, heaviest frame busy 18.4 ms
+raise 15: words laid out after 164.0 ms, 4.0 frames, heaviest frame busy 22.1 ms
+raise 16: words laid out after 139.0 ms, 4.0 frames, heaviest frame busy 17.6 ms
+raise 17: words laid out after 136.6 ms, 4.0 frames, heaviest frame busy 18.1 ms
+raise 18: words laid out after 126.0 ms, 4.0 frames, heaviest frame busy 15.0 ms
+raise 19: words laid out after 128.4 ms, 4.0 frames, heaviest frame busy 16.8 ms
+raise 20: words laid out after 140.9 ms, 4.0 frames, heaviest frame busy 18.5 ms
+RAISE {"n": 20, "ms_p50": 140.31, "ms_p90": 149.08, "frames_p50": 4.0, "frames_p90": 4.0, "busy_ms_p50": 16.9, "busy_ms_p90": 20.14, "over_100_ms": 20}
+load 15.15380859375 -> 11.595703125

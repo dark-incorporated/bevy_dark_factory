@@ -30,6 +30,7 @@ mod a_markdown_page_wraps_and_is_drawn_in_ink;
 mod a_markdown_pages_emphasis_is_drawn_in_colour;
 mod a_marquee_selects_what_it_covers;
 mod a_prose_text_keeps_its_face_through_a_restyle;
+mod a_raised_terminal_shows_its_words_on_the_next_frame;
 mod a_project_skin_previews_only_in_the_panel;
 mod a_reference_is_followed_from_where_it_is_written;
 mod a_refused_registry_names_why_it_was_refused;
