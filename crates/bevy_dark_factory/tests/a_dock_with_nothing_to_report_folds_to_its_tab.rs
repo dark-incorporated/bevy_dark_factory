@@ -21,7 +21,10 @@
 //! resource is writing the answer the panel publishes — the fold's *input* — which is exactly what a
 //! layout test should hand the layout.
 
+use std::time::Duration;
+
 use bevy::prelude::*;
+use bevy::time::TimeUpdateStrategy;
 use bevy::ui::ComputedNode;
 
 use bevy_dark_factory::chrome::Frame;
@@ -29,23 +32,34 @@ use bevy_dark_factory::editor::ReloadNews;
 use bevy_dark_factory::shell_view::ShellView;
 use bevy_dark_factory::style::metrics;
 
-use crate::fixtures;
+use crate::{fixtures, settle_support};
 
 /// The issue's own window, and the one its first two boxes are measured at.
 const WIDE: (u32, u32) = (1600, 1000);
 /// The issue's second size: the docks are the same width there, so the art's share differs.
 const NARROW: (u32, u32) = (1100, 700);
+/// The frames the dock and the layout take to answer a written `ReloadNews`.
+const LAYOUT_FRAMES: u32 = 6;
+/// One frame's clock while the written answer must stand: `LAYOUT_FRAMES` of these stay well inside the
+/// half second after which `refresh_reload_list` republishes its own answer.
+const FRAME: Duration = Duration::from_millis(16);
 
+/// **The answer the panel publishes is written once its first walk has landed, and stands while the dock
+/// answers it.** `refresh_reload_list` republishes `ReloadNews` from the project every 0.5 s of the app's
+/// clock and writes it back whenever it differs, so a written `true` over a fixture with no news lasts
+/// until its next look. With the frames on the wall clock, 12 frames to "the first walk" and 6 more to
+/// lay out were a race the host's load decided: the 2026-11-28 release gate on big (load about 33) folded
+/// the "full" strip too (29 px against 29 px). Now the wait is for the walk itself (`ReloadNews` is
+/// `None` until it lands, and that look restarts the half second), and the layout frames step a fixed
+/// clock, so the next look cannot fall among them on any host.
 fn editor(tag: &str, (width, height): (u32, u32), news: bool) -> App {
     let root = fixtures::Fixture::new(&format!("{tag}_{}", std::process::id())).descriptor("floor", "alpha").build("m");
     let mut app = bevy_dark_factory::harness::build_headless(&root, "m", None).unwrap_or_else(|e| panic!("the fixture project must open: {e}"));
     bevy_dark_factory::harness::resize_surface(&mut app, width, height).unwrap_or_else(|e| panic!("{e}"));
-    for _ in 0..12 {
-        app.update();
-    }
-    // **The answer the panel publishes**, written after the first walk so it is not overwritten by it.
+    settle_support::until(&mut app, "the reload panel's first walk", |app| app.world().resource::<ReloadNews>().0.is_some());
+    app.insert_resource(TimeUpdateStrategy::ManualDuration(FRAME));
     app.world_mut().resource_mut::<ReloadNews>().0 = Some(news);
-    for _ in 0..6 {
+    for _ in 0..LAYOUT_FRAMES {
         app.update();
     }
     app
