@@ -72,6 +72,15 @@ class Editor:
         home = os.path.join(os.path.dirname(self.args.project), "home")
         env = dict(os.environ, BEVY_BRP_PORT=str(self.args.port), HOME=home, XDG_DATA_HOME=os.path.join(home, "data"),
                    XDG_CONFIG_HOME=os.path.join(home, "config"), SHELL="/bin/bash")
+        # **A plain shell, not the agent's invitation** (#541): with an agent chosen the pane opens empty with an Invoke
+        # Agent button (`Terminal::invites_the_agent`), and a raise has no words to show. `terminal_agent: Off` in the
+        # user's settings file chooses the shell, as `tests/the_terminal_agent_is_a_setting.rs` reads it.
+        settings = os.path.join(home, "config", "Blueprint", "settings.yaml")
+        os.makedirs(os.path.dirname(settings), exist_ok=True)
+        lines = open(settings).read().splitlines() if os.path.exists(settings) else ["version: 1"]
+        lines = [line for line in lines if not line.startswith("terminal_agent:")] + ["terminal_agent: Off"]
+        with open(settings, "w") as f:
+            f.write("\n".join(lines) + "\n")
         if self.args.xvfb is not None:
             xvfb = subprocess.Popen(["Xvfb", f":{self.args.xvfb}", "-screen", "0", "1600x1000x24", "-nolisten", "tcp"],
                                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -146,23 +155,25 @@ def switches(port, other):
     return summary
 
 
-ROWS = {"data": {"components": ["bevy_ui::ui_node::ComputedNode"], "option": ["bevy_ui::widget::text::Text"]},
+ROWS = {"data": {"components": ["bevy_ui::ui_node::ComputedNode"]},
         "filter": {"with": ["bevy_dark_factory::terminal_pane::TerminalRow"]}}
+SPANS = {"data": {"components": ["bevy_text::text::TextSpan", "bevy_ecs::hierarchy::ChildOf"]}}
 
 
 def words_laid_out(port):
-    """Whether a terminal row is laid out (a height) and has words in it."""
+    """Whether a terminal row laid out with a height holds words. A row's `Text` is empty: its words are its `TextSpan`
+    children, one per run of same-coloured cells (`terminal_view`)."""
+    laid_out = set()
     for row in brp(port, "world.query", ROWS) or []:
-        comps = row.get("components") or {}
-        size = (comps.get("bevy_ui::ui_node::ComputedNode") or {}).get("size") or [0, 0]
-        text = comps.get("bevy_ui::widget::text::Text")
-        # A newtype reads as its string, or as a one-field list or map, depending on the serializer.
-        if isinstance(text, list):
-            text = text[0] if text else ""
-        elif isinstance(text, dict):
-            text = next(iter(text.values()), "")
-        height = size[1] if isinstance(size, list) else (size or {}).get("y", 0)
-        if height > 0 and isinstance(text, str) and text.strip():
+        size = ((row.get("components") or {}).get("bevy_ui::ui_node::ComputedNode") or {}).get("size") or [0, 0]
+        if size[1] > 0:
+            laid_out.add(row.get("entity"))
+    if not laid_out:
+        return False
+    for span in brp(port, "world.query", SPANS) or []:
+        comps = span.get("components") or {}
+        text = comps.get("bevy_text::text::TextSpan")
+        if comps.get("bevy_ecs::hierarchy::ChildOf") in laid_out and isinstance(text, str) and text.strip():
             return True
     return False
 
@@ -184,26 +195,53 @@ def raises(port):
             print(f"RAISE not measured: no shell's words in the pane after 20 s; terminal {json.dumps(state)}")
             return {"error": "no shell's words in the pane", "terminal": state}
         time.sleep(0.2)
-    ms, frames = [], []
+    ms, frames, busy = [], [], []
     for i in range(20):
-        brp(port, "blueprint/run_command", {"id": "terminal.raise"})
-        while placement(port) != "collapsed":
-            time.sleep(0.02)
+        # **Lowered by its own command**, so the raise below is always from collapsed. `terminal.collapse` cycles the pane
+        # Maximised -> Collapsed -> Quarter (`terminal_pane::cycle_the_pane`), so it is pressed until the pane is collapsed;
+        # `terminal.raise` then shows a lowered pane in one press (`toggle_on_the_chord`).
+        for _ in range(3):
+            if placement(port) == "collapsed":
+                break
+            before = placement(port)
+            brp(port, "blueprint/run_command", {"id": "terminal.collapse"})
+            deadline = time.time() + 5
+            while placement(port) == before:
+                if time.time() > deadline:
+                    print(f"raise {i + 1:2d}: terminal.collapse left the pane {before}")
+                    return {"error": f"terminal.collapse left the pane {before}", "ms": ms}
+                time.sleep(0.02)
+        if placement(port) != "collapsed":
+            print(f"raise {i + 1:2d}: three presses of terminal.collapse never collapsed the pane")
+            return {"error": "terminal.collapse never collapsed the pane", "ms": ms}
         time.sleep(0.4)
+        if words_laid_out(port):
+            print(f"raise {i + 1:2d}: the lowered pane still lays out its words, so a raise cannot be timed")
+            return {"error": "the lowered pane still lays out its words"}
         f0 = frame(port).get("frame_count")
         t0 = time.perf_counter()
         brp(port, "blueprint/run_command", {"id": "terminal.raise"})
+        seen = {}
         while not words_laid_out(port):
+            f = frame(port)
+            if f.get("busy_ms") is not None:
+                seen[f.get("frame_count")] = f["busy_ms"]
             if time.perf_counter() - t0 > 5:
                 print(f"raise {i + 1:2d}: the shell's words were not laid out within 5 s")
                 return {"error": f"raise {i + 1} showed no words within 5 s", "ms": ms}
         dt = (time.perf_counter() - t0) * 1000
-        f1 = frame(port).get("frame_count")
+        f1 = frame(port)
+        if f1.get("busy_ms") is not None:
+            seen[f1.get("frame_count")] = f1["busy_ms"]
         ms.append(dt)
-        frames.append((f1 or 0) - (f0 or 0))
-        print(f"raise {i + 1:2d}: words laid out after {dt:.1f} ms, {frames[-1]} frames")
+        frames.append((f1.get("frame_count") or 0) - (f0 or 0))
+        busy.append(max(seen.values(), default=0.0))
+        print(f"raise {i + 1:2d}: words laid out after {dt:.1f} ms, {frames[-1]} frames, heaviest frame busy {busy[-1]:.1f} ms")
         time.sleep(0.4)
-    summary = {"n": len(ms), "ms_p50": med(ms), "ms_p90": p90(ms), "frames_p50": med(frames), "over_100_ms": sum(1 for m in ms if m > 100)}
+    # **Frames and busy time are the editor's; the wall time is also the poll's**: each look is a BRP round trip answered
+    # in the editor's frame, so it carries up to a frame of the drive's own latency.
+    summary = {"n": len(ms), "ms_p50": med(ms), "ms_p90": p90(ms), "frames_p50": med(frames), "frames_p90": p90(frames),
+               "busy_ms_p50": med(busy), "busy_ms_p90": p90(busy), "over_100_ms": sum(1 for m in ms if m > 100)}
     print("RAISE " + json.dumps(summary))
     return summary
 

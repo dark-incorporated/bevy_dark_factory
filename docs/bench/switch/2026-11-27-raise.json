@@ -1,0 +1,65 @@
+{
+  "bin": "/tmp/m678/bdf-raise",
+  "load_before": 15.15380859375,
+  "settled": {
+    "busy_ms_p50": 14.08,
+    "busy_ms_p90": 15.23
+  },
+  "map_kit": {
+    "n": 20,
+    "busy_ms_p50": 99.91,
+    "busy_ms_p90": 118.61,
+    "busy_ms_max": 152.797609,
+    "over_100_ms": 10,
+    "schedules_p50": {
+      "Update": 33.23,
+      "PostUpdate": 30.35,
+      "StateTransition": 22.03,
+      "PreUpdate": 10.16,
+      "RemoteLast": 1.14,
+      "First": 0.26
+    },
+    "systems_p50": {
+      "screen::close_the_door": 6.6,
+      "bevy_ui::ui_layout_system": 5.15,
+      "bevy_ui::UiSystems::PostLayout": 4.7,
+      "tiles::scan_on_entering_the_kits_door": 2.73,
+      "editor::spawn_existing": 0.08,
+      "editor::spawn_palette_panel": 0.06
+    }
+  },
+  "map_world": {
+    "n": 20,
+    "busy_ms_p50": 79.21,
+    "busy_ms_p90": 100.44,
+    "busy_ms_max": 111.912791,
+    "over_100_ms": 3,
+    "schedules_p50": {
+      "Update": 26.55,
+      "PostUpdate": 25.32,
+      "StateTransition": 18.54,
+      "PreUpdate": 9.72,
+      "RemoteLast": 0.88,
+      "First": 0.23
+    },
+    "systems_p50": {
+      "screen::close_the_door": 5.52,
+      "bevy_ui::ui_layout_system": 4.39,
+      "bevy_ui::UiSystems::PostLayout": 3.95,
+      "editor::spawn_panel": 0.06,
+      "editor::spawn_existing": 0.06,
+      "workspace_panels::spawn_world_panel": 0.04
+    }
+  },
+  "terminal_raise": {
+    "n": 20,
+    "ms_p50": 140.31,
+    "ms_p90": 149.08,
+    "frames_p50": 4.0,
+    "frames_p90": 4.0,
+    "busy_ms_p50": 16.9,
+    "busy_ms_p90": 20.14,
+    "over_100_ms": 20
+  },
+  "load_after": 11.595703125
+}

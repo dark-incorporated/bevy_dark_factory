@@ -3889,6 +3889,11 @@ impl Plugin for TilesPlugin {
                 (spawn_tab_strip, spawn_tiles_panel, scan_on_entering_the_kits_door)
                     .after(crate::chrome::FrameSystems),
             )
+            .init_resource::<ScanWarming>()
+            .add_systems(
+                Update,
+                (warm_the_kit_scan, land_the_warm_scan).chain().run_if(in_state(crate::screen::Screen::Editor)),
+            )
             .add_systems(Update, unfold_under_the_badges.run_if(in_state(crate::screen::Screen::Editor)))
             .add_systems(
                 Update,
@@ -4918,6 +4923,52 @@ fn scan_on_entering_the_kits_door(
     };
     if workspace.opens_on() == Mode::Meshes && !state.scanned {
         scan(&project, &mut state);
+    }
+}
+
+/// **The Kit's first scan, taken off the arrival frame** (#541): the project's meshes are looked at on a compute thread
+/// while the person is on another workspace, so the first arrival at Kit is answered from that look
+/// ([`import::Scanned`]) and opens no mesh. Measured on `big` before this (the review's `bedroom` project), the first
+/// arrival's [`scan_on_entering_the_kits_door`] was 149.6 ms of a 234 ms frame.
+///
+/// **Not a second scan path**: the thread runs [`import::Scanned::scan`], the one reader [`scan`] calls, into a memo of
+/// its own, and [`land_the_warm_scan`] hands that memo to [`ImportState::on_disk`] only while it holds no answer. The
+/// arrival still calls [`scan`], which still walks the directory and stamps every file, so a mesh dropped in after the
+/// look is measured on arrival as before.
+#[derive(Resource, Default)]
+pub(crate) struct ScanWarming {
+    /// The project root the last look was started for: one look per project opened.
+    root: Option<std::path::PathBuf>,
+    /// The look in flight.
+    task: Option<bevy::tasks::Task<import::Scanned>>,
+}
+
+/// **Start the look** once per project, on a workspace that has not scanned and a memo with no answer.
+fn warm_the_kit_scan(project: Option<Res<Project>>, state: Res<ImportState>, mut warming: ResMut<ScanWarming>) {
+    let Some(project) = project else { return };
+    if warming.root.as_ref() == Some(&project.root) || state.scanned || state.on_disk.answered() {
+        return;
+    }
+    let root = project.root.join("assets");
+    let library = project.measured.clone();
+    warming.root = Some(project.root.clone());
+    warming.task = Some(bevy::tasks::AsyncComputeTaskPool::get().spawn(async move {
+        let mut look = import::Scanned::default();
+        // A directory that cannot be read leaves the memo without an answer, and the arrival reads it and says so.
+        let _ = look.scan(&root, &root, &library);
+        look
+    }));
+}
+
+/// **Land the look** into [`ImportState::on_disk`] when it is done, unless an arrival has answered it first or another
+/// project is open now.
+fn land_the_warm_scan(project: Option<Res<Project>>, mut state: ResMut<ImportState>, mut warming: ResMut<ScanWarming>) {
+    let Some(task) = warming.task.as_mut() else { return };
+    let Some(look) = bevy::tasks::futures::check_ready(task) else { return };
+    warming.task = None;
+    let same = project.is_some_and(|project| warming.root.as_ref() == Some(&project.root));
+    if same && !state.on_disk.answered() {
+        state.on_disk = look;
     }
 }
 

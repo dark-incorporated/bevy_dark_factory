@@ -992,6 +992,11 @@ pub const OWNERSHIP: &[(&str, Ownership)] = &[
     // the project it happens to have open, and a door change that emptied it would erase the stutter a person opened the
     // panel to find.
     ("bevy_dark_factory::profile::Profiler", Ownership::Session),
+    // **And the layout's mark** (#678): the instant the layout span began, read in the same frame's `PostUpdate`.
+    ("bevy_dark_factory::profile::LayoutMark", Ownership::Session),
+    // **The Kit's warmed scan is the session's** (#541): it is keyed on the project's root and lands only into a memo
+    // with no answer, so a door change neither stops it nor lets another project's answer in.
+    ("bevy_dark_factory::tiles::ScanWarming", Ownership::Session),
     // **`Door`, like the light map**: the audio panel's buses, cue names and selection are read from
     // this door's `family/bevy_siren.yaml`, and another project's sound is another file.
     #[cfg(feature = "bevy_siren")]
