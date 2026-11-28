@@ -283,16 +283,17 @@ fn the_band_follows_the_view_when_the_wheel_scrolls_it_with_no_edit() {
     let (opened_top, opened_height) = band.expect("the lane draws a view band");
     let revision = app.world().get::<CodeEditor>(editor).map(|e| e.buffer().revision()).unwrap_or_else(|| panic!("the editor is open"));
 
-    // **The pointer over the text**: a quarter of the way into the code area from its top-left, among the
-    // rows. The surface is the window's size at a scale factor of 1, so a surface pixel is a window pixel.
+    // **The pointer over the middle of the text**: the centre of the code area, where a person turns the wheel.
+    // This project's map is empty, and until #700 the map's empty prompt stood here over the Files editor and took
+    // the pointer. The surface is the window's size at a scale factor of 1, so a surface pixel is a window pixel.
     let over = {
         let world = app.world();
-        let area = under(world, editor)
+        under(world, editor)
             .into_iter()
             .find(|e| world.get::<Role>(*e) == Some(&Role::CodeArea))
             .and_then(|area| border_box(world, area))
-            .unwrap_or_else(|| panic!("the editor's code area is laid out"));
-        area.min + area.size() * 0.25
+            .unwrap_or_else(|| panic!("the editor's code area is laid out"))
+            .center()
     };
     app.init_resource::<Aim>();
     app.add_systems(PreUpdate, aim.after(InputSystems));

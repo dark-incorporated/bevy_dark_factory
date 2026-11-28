@@ -842,3 +842,4 @@ mod zen_and_the_left_panel_work_with_the_terminal_raised;
 mod a_dock_with_nothing_to_report_folds_to_its_tab;
 mod the_editor_has_one_button;
 mod the_art_share_control_gives_the_art_the_window;
+mod the_empty_maps_prompt_belongs_to_the_map_viewport;

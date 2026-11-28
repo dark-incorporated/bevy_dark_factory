@@ -21,6 +21,13 @@
 //!
 //! The overlay is a child of the frame's viewport, so it follows the world's hole when a dock is
 //! dragged, and it is `Pickable::IGNORE` itself so a click that misses the button reaches the map.
+//!
+//! **It belongs to the map's viewport, so it stands only on a workspace that shows the map** (#700):
+//! Map, World, Kit and Animation ([`crate::workspace::Workspace::shows_the_map`]). Files and Design draw
+//! a page of their own in the middle and the others give their panel the centre, and on each of them a
+//! prompt about the map was drawn over the page and caught the pointer: a wheel turned over the middle
+//! of the Files editor landed on **Open library** and scrolled nothing (found by #540's capture). On
+//! those workspaces the prompt is not hidden but gone, by the rule above.
 
 use bevy::prelude::*;
 
@@ -28,6 +35,7 @@ use crate::chrome::{Frame, FrameSystems};
 use crate::confirm::Confirm;
 use crate::project::{OpenMap, Project};
 use crate::screen::Screen;
+use crate::workspace::Workspace;
 
 /// What the prompt says. One sentence, no full stop, as the writing style has every label.
 pub const SENTENCE: &str = "Place a piece from the library";
@@ -66,24 +74,29 @@ impl Plugin for EmptyStatePlugin {
     }
 }
 
-/// **What the prompt is, from what is true now**: `None` unless the map is empty, the library has pieces to place, no question
-/// is open and no agent has been invoked. An agent that is working the map is the answer to "what do I do next", and a sentence
-/// that sends a person to the library while one is placing things (or has built a forest, which are not placements) is in the
-/// way (`feedback-1794146746836`: *"This should go away if I invoke an agent"*).
+/// **What the prompt is, from what is true now**: `None` unless the workspace shows the map, the map is empty, the library has
+/// pieces to place, no question is open and no agent has been invoked. An agent that is working the map is the answer to "what
+/// do I do next", and a sentence that sends a person to the library while one is placing things (or has built a forest, which
+/// are not placements) is in the way (`feedback-1794146746836`: *"This should go away if I invoke an agent"*).
 ///
 /// **A library with no pieces gets no prompt over the map** (`feedback-1794147258746`, `feedback-1794230462401`: *"We do not
 /// want the 'Add Meshes' here, it should be in the panel on the right. It shouldn't block the map area"*). There is nothing
 /// to place, and the PLACE list in the right dock already says so and offers **Add meshes…**
 /// ([`crate::add_meshes::AddMeshesButton`]), which is where the person who has no meshes yet looks.
-fn wanted_prompt(map_is_empty: bool, question_open: bool, agent_invoked: bool, library_is_empty: bool) -> Option<EmptyMapPrompt> {
-    (map_is_empty && !question_open && !agent_invoked && !library_is_empty).then_some(EmptyMapPrompt::NoPlacements)
+///
+/// **A workspace that does not show the map gets none either** (#700): the prompt is about the map's viewport, and a page or a
+/// panel stands where that viewport would be.
+fn wanted_prompt(map_is_shown: bool, map_is_empty: bool, question_open: bool, agent_invoked: bool, library_is_empty: bool) -> Option<EmptyMapPrompt> {
+    (map_is_shown && map_is_empty && !question_open && !agent_invoked && !library_is_empty).then_some(EmptyMapPrompt::NoPlacements)
 }
 
-/// **The prompt exists exactly while the open map has no placements, no question is open and no agent is invoked.**
-/// Reads before it writes: a map that stays empty (or stays full) spawns and despawns nothing.
+/// **The prompt exists exactly while a workspace shows the open map, the map has no placements, no question is open and no agent
+/// is invoked.** Reads before it writes: a map that stays empty (or stays full) spawns and despawns nothing.
+#[allow(clippy::too_many_arguments)] // a bevy system: each parameter is one of the facts the prompt is decided from
 fn keep_the_prompt_while_the_map_is_empty(
     mut commands: Commands,
     frame: Option<Res<Frame>>,
+    workspace: Option<Res<Workspace>>,
     open: Option<Res<OpenMap>>,
     project: Option<Res<Project>>,
     confirm: Option<Res<Confirm>>,
@@ -94,6 +107,7 @@ fn keep_the_prompt_while_the_map_is_empty(
     // popover (a `Dialog`), and a prompt behind one is where it belongs.
     // **So does an invoked agent**: a tab the terminal opened for one, until that tab is closed.
     let wanted = wanted_prompt(
+        workspace.is_some_and(|w| w.shows_the_map()),
         open.is_some_and(|o| o.map.placements.is_empty()),
         confirm.is_some_and(|c| c.is_open()),
         terminal.is_some_and(|t| t.tabs().iter().any(|tab| tab.agent().is_some())),
@@ -181,7 +195,7 @@ mod tests {
             for question_open in [false, true] {
                 for agent_invoked in [false, true] {
                     for library_is_empty in [false, true] {
-                        let wanted = wanted_prompt(map_is_empty, question_open, agent_invoked, library_is_empty);
+                        let wanted = wanted_prompt(true, map_is_empty, question_open, agent_invoked, library_is_empty);
                         let stands = map_is_empty && !question_open && !agent_invoked && !library_is_empty;
                         assert_eq!(
                             wanted,
@@ -189,6 +203,27 @@ mod tests {
                             "map empty {map_is_empty}, question {question_open}, agent {agent_invoked}, library empty {library_is_empty}"
                         );
                     }
+                }
+            }
+        }
+    }
+
+    /// **The prompt is the map viewport's, so a workspace that does not show the map never has it** (#700), whatever else is
+    /// true; and a workspace that shows the map has it exactly as the four facts above decide.
+    #[test]
+    fn only_a_workspace_that_shows_the_map_gets_the_prompt() {
+        for workspace in Workspace::ALL {
+            for map_is_empty in [false, true] {
+                for library_is_empty in [false, true] {
+                    let wanted = wanted_prompt(workspace.shows_the_map(), map_is_empty, false, false, library_is_empty);
+                    let stands = workspace.shows_the_map() && map_is_empty && !library_is_empty;
+                    assert_eq!(
+                        wanted,
+                        stands.then_some(EmptyMapPrompt::NoPlacements),
+                        "{} (shows the map: {}), map empty {map_is_empty}, library empty {library_is_empty}",
+                        workspace.title(),
+                        workspace.shows_the_map()
+                    );
                 }
             }
         }
