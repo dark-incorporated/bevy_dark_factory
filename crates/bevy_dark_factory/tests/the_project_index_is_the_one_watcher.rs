@@ -317,6 +317,62 @@ fn a_change_held_when_the_root_goes_does_not_end_the_refusal() {
     assert!(back, "the root is back, so the listing is answered again");
 }
 
+/// **A file dropped while the root was gone is listed again when the root comes back, in a folder older than the racy window.** A
+/// file is written every 10 ms when the root is moved away, so the index holds its change, and the listing asked for then folds it to
+/// a removal (the file cannot be looked at while its root is gone). The file changes once more while the root is gone, and the root
+/// comes back with it in a folder whose time is more than 2 s old, which a sweep trusts and does not read unless the time moves: the
+/// index must list the file again and publish it, with the stamp it has now.
+#[test]
+fn a_file_dropped_while_the_root_was_gone_is_listed_again_when_the_root_comes_back() {
+    use std::sync::Arc;
+    use std::sync::atomic::{AtomicBool, Ordering};
+    let root = project("dropped_then_back");
+    write(&root, "data/a.yaml", "n: 0\n");
+    // **The folder is older than the racy window** before the first listing, so the index trusts its time from the start.
+    let long_ago = std::time::SystemTime::now() - Duration::from_secs(10);
+    std::fs::File::open(root.join("data")).and_then(|dir| dir.set_modified(long_ago)).unwrap_or_else(|e| panic!("{e}"));
+    let mut app = stepped(&root);
+    let index = app.world().resource::<ProjectIndex>();
+    index.set_sweep(Duration::from_millis(25));
+
+    let stop = Arc::new(AtomicBool::new(false));
+    let writer = {
+        let (stop, path) = (stop.clone(), root.join("data/a.yaml"));
+        std::thread::spawn(move || {
+            let mut n = 0;
+            while !stop.load(Ordering::Relaxed) {
+                n += 1;
+                if let Ok(mut file) = std::fs::OpenOptions::new().append(true).open(&path) {
+                    let _ = writeln!(file, "n: {n}");
+                }
+                std::thread::sleep(Duration::from_millis(10));
+            }
+        })
+    };
+    assert!(until_the_index(index, |index| index.held() > 0), "the index never held a change to a file written every 10 ms, in {} looks", LOOKS.0);
+    let aside = PathBuf::from(format!("{}.aside", root.display()));
+    std::fs::rename(&root, &aside).unwrap_or_else(|e| panic!("{e}"));
+    stop.store(true, Ordering::Relaxed);
+    writer.join().unwrap_or_else(|_| panic!("the writer thread"));
+    assert!(files::listed_files(&root).is_err(), "a root that has gone is refused");
+    assert_eq!(index.snapshot().and_then(|s| s.stamp("data/a.yaml")), None, "the change held when the root went was folded to a removal");
+
+    // **The file changes while the root is gone**, and its folder's time does not move (no entry came or went).
+    write(&aside, "data/a.yaml", "n: changed while the root was gone\n");
+    let now_len = std::fs::metadata(aside.join("data/a.yaml")).map(|m| m.len()).unwrap_or_else(|e| panic!("{e}"));
+    std::fs::rename(&aside, &root).unwrap_or_else(|e| panic!("{e}"));
+
+    let back = files::listed_files(&root).unwrap_or_else(|e| panic!("the root is back, so the listing is answered: {e}"));
+    assert!(back.contains(&"data/a.yaml".to_owned()), "the root came back with the file, so the index lists it again: {back:?}");
+    assert!(
+        pump(&mut app, PATIENCE, |app| heard_of(app, "data/a.yaml").last().is_some_and(|e| e.kind == ChangeKind::Created)),
+        "a subscriber that heard the file removed hears it created when the root comes back: {:?}",
+        heard_of(&app, "data/a.yaml")
+    );
+    let heard = heard_of(&app, "data/a.yaml");
+    assert_eq!(heard.last().and_then(|e| e.stamp).map(|s| s.len), Some(now_len), "and with the stamp it has now: {heard:?}");
+}
+
 /// **No caller can make the thread spin, and one slow sweep cannot park it**: a sweep time of nothing is raised to the floor, and the
 /// back-off after a slow sweep stops at its ceiling.
 #[test]
