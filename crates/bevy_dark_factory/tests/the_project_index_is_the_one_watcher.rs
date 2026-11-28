@@ -16,7 +16,7 @@
 use std::collections::BTreeSet;
 use std::io::Write;
 use std::path::{Path, PathBuf};
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use bevy::prelude::*;
 use bevy_dark_factory::goto::{GotoIndex, Kind};
@@ -37,10 +37,13 @@ const PAST_A_SWEEP: Frames = Frames::covering(Duration::from_millis(1600), PAUSE
 const AFTER_THE_SAVE: Frames = Frames::covering(Duration::from_secs(1), PAUSE);
 /// Frames after an event, for a second one to show: at least 1.2 s at [`PAUSE`].
 const NOTHING_MORE: Frames = Frames::covering(Duration::from_millis(1200), PAUSE);
-/// Frames while a file keeps moving: at least 0.4 s at [`PAUSE`].
-const WHILE_IT_MOVES: Frames = Frames::covering(Duration::from_millis(400), PAUSE);
 /// Frames over a folder that cannot be read: at least 0.5 s at [`PAUSE`].
 const OVER_THE_LOCKED_FOLDER: Frames = Frames::covering(Duration::from_millis(500), PAUSE);
+/// How often a wait on the index's own state looks. No frame is stepped between looks: the index runs on its own thread, and a frame on
+/// a loaded host can outlast its debounce.
+const LOOK_EVERY: Duration = Duration::from_millis(1);
+/// How many looks such a wait takes at most: at least 10 s at [`LOOK_EVERY`], counted so a starved host does not run it out early (#644).
+const LOOKS: Frames = Frames::covering(Duration::from_secs(10), LOOK_EVERY);
 
 /// What one subscriber heard: each has its own cursor over the one message.
 #[derive(Resource, Default)]
@@ -102,6 +105,18 @@ fn pump(app: &mut App, within: Frames, mut done: impl FnMut(&mut App) -> bool) -
 
 fn pump_for(app: &mut App, frames: Frames) {
     pump(app, frames, |_| false);
+}
+
+/// **Look at the index until `done`**, at most [`LOOKS`] times [`LOOK_EVERY`] apart, with no frame between looks: the test acts the moment
+/// the index has seen what it waits for, however slow the editor's frames are.
+fn until_the_index(index: &ProjectIndex, done: impl Fn(&ProjectIndex) -> bool) -> bool {
+    for _ in 0..LOOKS.0 {
+        if done(index) {
+            return true;
+        }
+        std::thread::sleep(LOOK_EVERY);
+    }
+    done(index)
 }
 
 fn heard_of(app: &App, rel: &str) -> Vec<ProjectFileChanged> {
@@ -176,7 +191,9 @@ fn one_saved_file_is_one_event_for_every_subscriber_and_the_ui_thread_looks_at_n
 ///
 /// The sweeps are set 20 ms apart and the file is written five times, 50 ms apart (under the 100 ms debounce, as a literal), so the
 /// file is seen at five different sizes across 250 ms. Without the debounce the first sweep would publish a half-written file and the
-/// later ones more.
+/// later ones more. **The writes are paced on the wall clock alone, with no frame between them**: the index keeps its debounce on its
+/// own thread, and a frame on a loaded host outlasts it, so writes that waited for frames landed 150-360 ms apart and the index rightly
+/// published them as three saves.
 #[test]
 fn a_save_that_takes_longer_than_the_debounce_is_still_one_event() {
     let root = project("debounce");
@@ -194,11 +211,7 @@ fn a_save_that_takes_longer_than_the_debounce_is_still_one_event() {
         file.write_all(line.as_bytes()).unwrap_or_else(|e| panic!("{e}"));
         file.flush().unwrap_or_else(|e| panic!("{e}"));
         written += line.len() as u64;
-        let until = Instant::now() + gap;
-        while Instant::now() < until {
-            app.update();
-            std::thread::sleep(Duration::from_millis(5));
-        }
+        std::thread::sleep(gap);
     }
     drop(file);
     assert!(pump(&mut app, PATIENCE, |app| !heard_of(app, "data/long.yaml").is_empty()), "the finished save was published");
@@ -249,8 +262,10 @@ fn a_root_that_goes_after_it_was_listed_is_refused_until_it_is_back() {
 }
 
 /// **A change that is still held when the root goes does not end the refusal.** A file is written every 10 ms, so the index holds a
-/// change to it (the debounce never settles) when the root is moved away; a listing asked for then flushes what is held, which folds to
-/// a removal and publishes, and that publish must not clear the failure the sweep has just found.
+/// change to it (the debounce never settles), and the root is moved away **the moment the index says it holds one** (`held`, its own
+/// observation, not a window of frames: on a loaded host the 80 frames this waited stretched past `MAX_HOLD`, after which the index
+/// publishes a change however often it moves). A listing asked for then flushes what is held, which folds to a removal and publishes,
+/// and that publish must not clear the failure the sweep has just found.
 #[test]
 fn a_change_held_when_the_root_goes_does_not_end_the_refusal() {
     use std::sync::Arc;
@@ -258,7 +273,10 @@ fn a_change_held_when_the_root_goes_does_not_end_the_refusal() {
     let root = project("held_then_gone");
     write(&root, "data/a.yaml", "n: 0\n");
     let mut app = stepped(&root);
-    app.world().resource::<ProjectIndex>().set_sweep(Duration::from_millis(25));
+    let index = app.world().resource::<ProjectIndex>();
+    index.set_sweep(Duration::from_millis(25));
+    let first_stamp = index.snapshot().and_then(|s| s.stamp("data/a.yaml"));
+    assert!(first_stamp.is_some(), "the first listing has the file");
 
     let stop = Arc::new(AtomicBool::new(false));
     let writer = {
@@ -274,14 +292,19 @@ fn a_change_held_when_the_root_goes_does_not_end_the_refusal() {
             }
         })
     };
-    pump_for(&mut app, WHILE_IT_MOVES);
-    assert!(heard_of(&app, "data/a.yaml").is_empty(), "the file kept moving, so its change is held and not yet published");
+    assert!(until_the_index(index, |index| index.held() > 0), "the index never held a change to a file written every 10 ms, in {} looks", LOOKS.0);
+    let at_the_move = index.generation();
+    assert_eq!(index.snapshot().and_then(|s| s.stamp("data/a.yaml")), first_stamp, "the file kept moving, so its change is held and not yet published");
 
     let aside = PathBuf::from(format!("{}.aside", root.display()));
     std::fs::rename(&root, &aside).unwrap_or_else(|e| panic!("{e}"));
     let refused = files::listed_files(&root).expect_err("a root that has gone is refused even when a held change is flushed against it");
     assert!(refused.contains("project root"), "{refused}");
     assert!(files::listed_files(&root).is_err(), "and it stays refused");
+    assert!(
+        app.world().resource::<ProjectIndex>().generation() > at_the_move,
+        "the change held when the root went was published against it (a removal), so the refusals above stood through a publish"
+    );
 
     std::fs::rename(&aside, &root).unwrap_or_else(|e| panic!("{e}"));
     let mut back = false;
