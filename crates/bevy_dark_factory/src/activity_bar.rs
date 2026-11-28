@@ -48,9 +48,9 @@ pub const BAR_NAME: &str = "Activity bar";
 
 /// The bar: the strip's container, spawned into the frame's body at its far left.
 ///
-/// It records the frame it was spawned into and what it was drawn with, so `keep_the_activity_bar` can
-/// tell a bar that is current from one that is stale — a new frame (the old one's root, and the bar with
-/// it, are despawned), or a count that moved.
+/// It records the frame it stands in and what it was drawn with, so `keep_the_activity_bar` can tell a bar
+/// that is current from one that is stale — a count that moved — and a bar a switch kept (`screen::TheKeptChrome`)
+/// from one already back in the new frame.
 #[derive(Component, Debug, Clone, PartialEq, Eq)]
 pub struct ActivityBar {
     /// The frame root this bar belongs to.
@@ -133,18 +133,23 @@ struct Wants<'w> {
     game: Option<Res<'w, crate::game_view::GameView>>,
 }
 
-/// **Spawn the bar while it is wanted, and keep it what it should show.**
+/// **Spawn the bar while it is wanted, keep it what it should show, and put back the bar a switch kept.**
 ///
 /// A system rather than `OnEnter` for the menu bar's reason: the bar is a child of the frame's body, which
 /// the frame respawns on every entry, so "there is a frame and no bar for it" is the one condition that
-/// covers a new screen, a new workspace and the setting turned back on.
+/// covers a new screen, a leave and the setting turned back on.
+///
+/// **A switch keeps the bar** (#678, #541): `screen::close_the_door` lifts it off the frame it sweeps, and this puts it
+/// back at the far left of the new frame's body in the switch's own frame, so its tabs are neither spawned nor
+/// measured again. Its tabs are the registered workspaces on every workspace; which one is lit is
+/// [`follow_the_workspace`]'s.
 fn keep_the_activity_bar(
     mut commands: Commands,
     frame: Option<Res<Frame>>,
     workspace: Option<Res<Workspace>>,
     atlas: Option<Res<crate::toolbar::ToolbarAtlas>>,
     wants: Wants,
-    bars: Query<(Entity, &ActivityBar)>,
+    mut bars: Query<(Entity, &mut ActivityBar)>,
 ) {
     let Some(frame) = frame else { return };
     // **Zen mode takes the bar with everything else** (`shell_view::ZenParts`): it is not drawn, so it is
@@ -159,11 +164,15 @@ fn keep_the_activity_bar(
         .collect();
 
     let mut current = false;
-    for (entity, bar) in &bars {
-        if wanted && bar.frame == frame.root && bar.shown == shown {
-            current = true;
-        } else {
+    for (entity, mut bar) in &mut bars {
+        if !wanted || current || bar.shown != shown {
             commands.entity(entity).despawn();
+            continue;
+        }
+        current = true;
+        if bar.frame != frame.root {
+            bar.frame = frame.root;
+            commands.entity(frame.body).insert_children(0, &[entity]);
         }
     }
     if !wanted || current || shown.is_empty() {

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""#677/#678/#541: both frame clocks and the schedule split, settled and across 20 workspace switches."""
+"""#677/#678/#541: both frame clocks and the schedule split, settled and across 20 Map<->Kit and 20 Map<->World switches."""
 import json, os, statistics, sys, time, urllib.request
 
 PORT = int(os.environ.get("PORT", "15877"))
@@ -55,32 +55,43 @@ for f in rows:
         per.setdefault(s["schedule"], []).append(s["ms"])
 print("SETTLED split p50:", ", ".join(f"{k} {med(v)}" for k, v in sorted(per.items(), key=lambda kv: -statistics.median(kv[1]))[:6]))
 
-# 2. Switches: 20 workspace switches, Map <-> Kit, each through the command the chord runs (door_open).
-out = []
-for i in range(20):
-    target = "kit" if i % 2 == 0 else "map"
-    f0 = frame().get("frame_count")
-    r = brp("blueprint/run_command", {"id": f"workspace.{target}"})
-    outcome = (r or {}).get("outcome") if isinstance(r, dict) else r
-    frames = {}
-    deadline = time.time() + 1.5
-    while time.time() < deadline:
-        f = frame()
-        c = f.get("frame_count")
-        if c != f0 and c not in frames and f.get("busy_ms") is not None:
-            frames[c] = f
-        time.sleep(0.003)
-    worst = max(frames.values(), key=lambda f: f["busy_ms"])
-    ws = (brp("blueprint/state").get("ui") or {}).get("workspace")
-    out.append(worst)
-    print(f"switch {i+1:2d} -> {target:3s} {str(outcome)[:12]:12s} now {ws}: worst frame frame_ms {worst['frame_ms']:.1f} busy_ms {worst['busy_ms']:.1f} | {split(worst)}")
-    time.sleep(0.4)
-wf = [f["frame_ms"] for f in out]
-wb = [f["busy_ms"] for f in out]
-print(f"SWITCH n={len(out)} worst-frame frame_ms p50 {med(wf)} p90 {p90(wf)} max {max(wf):.1f} | busy_ms p50 {med(wb)} p90 {p90(wb)} max {max(wb):.1f} | over 100 ms busy: {sum(1 for b in wb if b > 100)}/{len(wb)}")
-per = {}
-for f in out:
-    for s in f.get("schedules") or []:
-        per.setdefault(s["schedule"], []).append(s["ms"])
-print("SWITCH split p50:", ", ".join(f"{k} {med(v)}" for k, v in sorted(per.items(), key=lambda kv: -statistics.median(kv[1]))[:6]))
-os.system("uptime")
+# 2. Switches: 20 Map <-> Kit, then 20 Map <-> World (OTHERS overrides), each through the command the chord runs (door_open).
+def p50_split(fs):
+    per = {}
+    for f in fs:
+        for s in f.get("schedules") or []:
+            per.setdefault(s["schedule"], []).append(s["ms"])
+    return ", ".join(f"{k} {med(v)}" for k, v in sorted(per.items(), key=lambda kv: -statistics.median(kv[1]))[:6])
+
+
+def switches(other):
+    out = {other: [], "map": []}
+    for i in range(20):
+        target = other if i % 2 == 0 else "map"
+        f0 = frame().get("frame_count")
+        r = brp("blueprint/run_command", {"id": f"workspace.{target}"})
+        outcome = (r or {}).get("outcome") if isinstance(r, dict) else r
+        frames = {}
+        deadline = time.time() + 1.5
+        while time.time() < deadline:
+            f = frame()
+            c = f.get("frame_count")
+            if c != f0 and c not in frames and f.get("busy_ms") is not None:
+                frames[c] = f
+            time.sleep(0.003)
+        worst = max(frames.values(), key=lambda f: f["busy_ms"])
+        ws = (brp("blueprint/state").get("ui") or {}).get("workspace")
+        out[target].append(worst)
+        print(f"switch {i+1:2d} -> {target:5s} {str(outcome)[:12]:12s} now {ws}: worst frame frame_ms {worst['frame_ms']:.1f} busy_ms {worst['busy_ms']:.1f} | {split(worst)}")
+        time.sleep(0.4)
+    both = out[other] + out["map"]
+    for label, fs in ((f"map<->{other}", both), (f"-> {other}", out[other]), ("-> map", out["map"])):
+        wf = [f["frame_ms"] for f in fs]
+        wb = [f["busy_ms"] for f in fs]
+        print(f"SWITCH {label} n={len(fs)} worst-frame frame_ms p50 {med(wf)} p90 {p90(wf)} max {max(wf):.1f} | busy_ms p50 {med(wb)} p90 {p90(wb)} max {max(wb):.1f} | over 100 ms busy: {sum(1 for b in wb if b > 100)}/{len(wb)}")
+        print(f"SWITCH {label} split p50:", p50_split(fs))
+    os.system("uptime")
+
+
+for other in os.environ.get("OTHERS", "kit world").split():
+    switches(other)

@@ -30,9 +30,9 @@
 //!
 //! **Two exceptions, named in one place**: a switch to a workspace that shows the map keeps the map's
 //! scene — the camera, its key light and what the map draws — because Map, World, Kit and Animation share
-//! one viewport (#695); and every switch keeps the menu bar, which is the same on every workspace (#678).
-//! `TheMapsScene` and `TheMenuBar` are the whole list; everything else is still swept and spawned again, and
-//! the spawners that would draw a kept thing twice skip what stands.
+//! one viewport (#695); and every switch keeps the menu bar, the activity bar and the toolbar, which are the same
+//! on every workspace that draws them (#678). `TheMapsScene` and `TheKeptChrome` are the whole list; everything else
+//! is still swept and spawned again, and the spawners that would draw a kept thing twice skip what stands.
 //!
 //! # Doors are reached through the menu — and now also through a key
 //!
@@ -491,7 +491,7 @@ door_state![
 ///
 /// So the rule lives in [`scene_roots`] and nobody writes it a second time.
 pub(crate) fn despawn_scene(world: &mut World) {
-    lift_the_menu_bar(world);
+    lift_the_kept_chrome(world);
     for e in scene_roots(world) {
         if let Ok(entity) = world.get_entity_mut(e) {
             entity.despawn();
@@ -499,18 +499,23 @@ pub(crate) fn despawn_scene(world: &mut World) {
     }
 }
 
-/// **A switch keeps the menu bar** (#678, #541): it is lifted off the frame here, so the frame's sweep does not take it,
-/// and `menu_bar::keep_the_menu_bar` puts it back on top of the next frame in the switch's own frame.
+/// **A switch keeps the menu bar, the activity bar and the toolbar** (#678, #541): they are lifted off the frame here, so
+/// the frame's sweep does not take them, and their keepers (`menu_bar::keep_the_menu_bar`,
+/// `activity_bar::keep_the_activity_bar`, `toolbar::the_bar_follows_the_workspace`) put them back in the next frame, in
+/// the switch's own frame, or sweep one the workspace it lands on does not draw.
 ///
-/// The bar is every command of the registry in eleven menus — about 900 nodes and 420 texts, measured headless, which was
-/// two thirds of what a switch built and laid out again, and it is the same bar on every workspace: its rows are the
+/// The menu bar is every command of the registry in eleven menus — about 900 nodes and 420 texts, measured headless, which
+/// was two thirds of what a switch built and laid out again, and it is the same bar on every workspace: its rows are the
 /// registry's, a row's greying follows the stance every frame (`refresh_the_rows`), and each tick follows what it says
-/// (`tick_the_menu_rows` and the others). A leave sweeps it with the frame, as before.
-fn lift_the_menu_bar(world: &mut World) {
+/// (`tick_the_menu_rows` and the others). The activity bar is the registered workspaces' tabs: which tab is lit follows
+/// the workspace (`follow_the_workspace`), and a badge that moves draws it again. The toolbar is the map's tools on every
+/// workspace that has them: the lit mode and the quiet buttons follow the editor every frame. A leave sweeps all three
+/// with the frame, as before.
+fn lift_the_kept_chrome(world: &mut World) {
     if !world.contains_resource::<Crossing>() {
         return;
     }
-    let bars: Vec<Entity> = world.query_filtered::<Entity, (TheMenuBar, With<ChildOf>)>().iter(world).collect();
+    let bars: Vec<Entity> = world.query_filtered::<Entity, (TheKeptChrome, With<ChildOf>)>().iter(world).collect();
     for bar in bars {
         if let Ok(mut bar) = world.get_entity_mut(bar) {
             bar.remove::<ChildOf>();
@@ -530,7 +535,7 @@ fn lift_the_menu_bar(world: &mut World) {
 /// that is genuinely shared.
 ///
 /// **And the map's scene, during a switch to a workspace that shows the map** (#695): see [`TheMapsScene`]. **And the
-/// menu bar, during any switch** (#678): see [`TheMenuBar`].
+/// kept chrome, during any switch** (#678): see [`TheKeptChrome`].
 pub(crate) fn scene_roots(world: &mut World) -> Vec<Entity> {
     // **Gathered first, then filtered**: the filter reads entities the root query is iterating.
     let mut kept: std::collections::HashSet<Entity> = if keeps_the_scene(world) {
@@ -539,7 +544,7 @@ pub(crate) fn scene_roots(world: &mut World) -> Vec<Entity> {
         std::collections::HashSet::new()
     };
     if world.contains_resource::<Crossing>() {
-        kept.extend(world.query_filtered::<Entity, TheMenuBar>().iter(world));
+        kept.extend(world.query_filtered::<Entity, TheKeptChrome>().iter(world));
     }
     world
         .query_filtered::<Entity, (
@@ -591,9 +596,13 @@ type TheMapsScene = Or<(
     With<crate::terrain_view::TerrainView>,
 )>;
 
-/// **The menu bar: what every switch leaves standing** (#678, #541), lifted off the frame by `lift_the_menu_bar` and put
-/// back on the next one by `menu_bar::keep_the_menu_bar`, which also draws the bar when none stands.
-type TheMenuBar = With<crate::menu_bar::EditorMenuBar>;
+/// **The chrome every switch leaves standing** (#678, #541): the menu bar, the activity bar and the toolbar, lifted off the
+/// frame by `lift_the_kept_chrome` and put back on the next one by their keepers, which also draw a bar when none stands.
+type TheKeptChrome = Or<(
+    With<crate::menu_bar::EditorMenuBar>,
+    With<crate::activity_bar::ActivityBar>,
+    With<crate::toolbar::Toolbar>,
+)>;
 
 /// **Whether this teardown keeps [`TheMapsScene`]**: a switch, to a workspace that shows the map. A leave sweeps
 /// it, because the next door is another project; a switch to a workspace whose middle is not the world sweeps it

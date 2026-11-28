@@ -1,0 +1,59 @@
+build: keep2-5ae2567f+kept (/tmp/m678/bdf-5ae2567f-keep)
+ 20:25:23 up 2 days,  3:43,  7 users,  load average: 11.18, 9.82, 12.44
+ 20:26:07 up 2 days,  3:43,  7 users,  load average: 14.23, 10.80, 12.64
+ 20:26:47 up 2 days,  3:44,  7 users,  load average: 11.04, 10.35, 12.41
+jobs: {"count": 0, "items": [], "line": "", "progress": null} | workspace: MAP
+SETTLED n=50 frame_ms p50 47.27 p90 50.25 | busy_ms p50 13.27 p90 14.83 | frame-busy p50 34.19 min 30.51 | equal within 0.1 ms: 0/50
+SETTLED split p50: Update 6.03, PostUpdate 4.48, RemoteLast 0.92, PreUpdate 0.81, First 0.24, RunFixedMainLoop 0.22
+switch  1 -> kit   ran          now KIT: worst frame frame_ms 324.4 busy_ms 309.1 | StateTransition 201.3, PostUpdate 55.1, Update 43.3, PreUpdate 7.4
+switch  2 -> map   ran          now MAP: worst frame frame_ms 97.7 busy_ms 91.0 | PostUpdate 36.7, Update 29.4, StateTransition 16.8, PreUpdate 6.0
+switch  3 -> kit   ran          now KIT: worst frame frame_ms 68.4 busy_ms 62.9 | Update 21.0, PostUpdate 20.9, StateTransition 13.9, PreUpdate 5.7
+switch  4 -> map   ran          now MAP: worst frame frame_ms 74.8 busy_ms 70.8 | PostUpdate 27.8, Update 22.4, StateTransition 12.9, PreUpdate 5.8
+switch  5 -> kit   ran          now KIT: worst frame frame_ms 77.5 busy_ms 73.2 | PostUpdate 33.1, Update 19.2, StateTransition 13.9, PreUpdate 5.5
+switch  6 -> map   ran          now MAP: worst frame frame_ms 76.7 busy_ms 69.7 | PostUpdate 27.3, Update 22.2, StateTransition 12.2, PreUpdate 6.7
+switch  7 -> kit   ran          now KIT: worst frame frame_ms 70.3 busy_ms 63.2 | PostUpdate 22.0, Update 21.9, StateTransition 12.4, PreUpdate 5.5
+switch  8 -> map   ran          now MAP: worst frame frame_ms 73.9 busy_ms 69.9 | PostUpdate 26.3, Update 22.9, StateTransition 13.8, PreUpdate 5.5
+switch  9 -> kit   ran          now KIT: worst frame frame_ms 82.0 busy_ms 66.6 | PostUpdate 23.1, Update 20.8, StateTransition 15.8, PreUpdate 5.6
+switch 10 -> map   ran          now MAP: worst frame frame_ms 92.6 busy_ms 84.9 | PostUpdate 30.9, Update 28.5, StateTransition 17.7, PreUpdate 5.7
+switch 11 -> kit   ran          now KIT: worst frame frame_ms 113.6 busy_ms 105.8 | PostUpdate 34.5, StateTransition 30.5, Update 29.5, PreUpdate 7.5
+switch 12 -> map   ran          now MAP: worst frame frame_ms 156.0 busy_ms 147.4 | PostUpdate 71.2, Update 42.3, StateTransition 25.3, PreUpdate 5.7
+switch 13 -> kit   ran          now KIT: worst frame frame_ms 341.9 busy_ms 322.7 | StateTransition 97.1, Update 91.5, PreUpdate 77.6, PostUpdate 47.0
+switch 14 -> map   ran          now MAP: worst frame frame_ms 306.6 busy_ms 294.3 | PostUpdate 107.5, StateTransition 86.8, Update 81.3, PreUpdate 12.2
+switch 15 -> kit   ran          now KIT: worst frame frame_ms 74.1 busy_ms 66.0 | Update 20.1, PostUpdate 19.2, StateTransition 18.9, PreUpdate 6.5
+switch 16 -> map   ran          now MAP: worst frame frame_ms 80.3 busy_ms 74.2 | PostUpdate 28.7, Update 24.6, StateTransition 13.2, PreUpdate 6.4
+switch 17 -> kit   ran          now KIT: worst frame frame_ms 72.8 busy_ms 68.2 | PostUpdate 22.1, Update 21.0, StateTransition 18.0, PreUpdate 5.8
+switch 18 -> map   ran          now MAP: worst frame frame_ms 73.5 busy_ms 69.2 | PostUpdate 27.0, Update 22.4, StateTransition 12.1, PreUpdate 6.4
+switch 19 -> kit   ran          now KIT: worst frame frame_ms 61.4 busy_ms 56.4 | PostUpdate 18.1, Update 17.0, StateTransition 13.8, PreUpdate 6.4
+switch 20 -> map   ran          now MAP: worst frame frame_ms 71.9 busy_ms 67.6 | PostUpdate 25.8, Update 21.6, StateTransition 13.2, PreUpdate 5.6
+SWITCH map<->kit n=20 worst-frame frame_ms p50 77.13 p90 306.59 max 341.9 | busy_ms p50 70.37 p90 294.27 max 322.7 | over 100 ms busy: 5/20
+SWITCH map<->kit split p50: PostUpdate 27.56, Update 22.41, StateTransition 14.85, PreUpdate 5.91, RemoteLast 0.84, First 0.23
+SWITCH -> kit n=10 worst-frame frame_ms p50 75.82 p90 324.4 max 341.9 | busy_ms p50 67.41 p90 309.14 max 322.7 | over 100 ms busy: 3/10
+SWITCH -> kit split p50: PostUpdate 22.56, Update 21.0, StateTransition 16.89, PreUpdate 6.1, RemoteLast 0.84, First 0.23
+SWITCH -> map n=10 worst-frame frame_ms p50 78.51 p90 155.99 max 306.6 | busy_ms p50 72.49 p90 147.39 max 294.3 | over 100 ms busy: 2/10
+SWITCH -> map split p50: PostUpdate 28.28, Update 23.73, StateTransition 13.49, PreUpdate 5.87, RemoteLast 0.82, First 0.22
+switch  1 -> world ran          now WORLD: worst frame frame_ms 80.6 busy_ms 75.7 | Update 23.6, PostUpdate 22.7, StateTransition 20.8, PreUpdate 7.1
+switch  2 -> map   ran          now MAP: worst frame frame_ms 75.8 busy_ms 69.7 | PostUpdate 27.0, Update 21.7, StateTransition 14.4, PreUpdate 5.4
+switch  3 -> world ran          now WORLD: worst frame frame_ms 62.3 busy_ms 57.9 | Update 18.0, PostUpdate 17.0, StateTransition 14.8, PreUpdate 6.7
+switch  4 -> map   ran          now MAP: worst frame frame_ms 77.4 busy_ms 71.0 | PostUpdate 26.9, Update 23.4, StateTransition 13.7, PreUpdate 5.8
+switch  5 -> world ran          now WORLD: worst frame frame_ms 75.0 busy_ms 67.6 | StateTransition 20.5, Update 19.8, PostUpdate 19.3, PreUpdate 6.6
+switch  6 -> map   ran          now MAP: worst frame frame_ms 75.6 busy_ms 67.4 | PostUpdate 25.6, Update 20.9, StateTransition 14.0, PreUpdate 5.4
+switch  7 -> world ran          now WORLD: worst frame frame_ms 66.8 busy_ms 60.0 | StateTransition 17.9, PostUpdate 17.6, Update 17.0, PreUpdate 6.3
+switch  8 -> map   ran          now MAP: worst frame frame_ms 77.9 busy_ms 74.3 | PostUpdate 28.0, Update 22.0, StateTransition 17.5, PreUpdate 5.4
+switch  9 -> world ran          now WORLD: worst frame frame_ms 71.8 busy_ms 68.7 | StateTransition 23.3, PostUpdate 18.5, Update 18.0, PreUpdate 7.6
+switch 10 -> map   ran          now MAP: worst frame frame_ms 73.9 busy_ms 70.1 | PostUpdate 28.3, Update 22.3, StateTransition 11.9, PreUpdate 6.2
+switch 11 -> world ran          now WORLD: worst frame frame_ms 66.6 busy_ms 60.3 | StateTransition 18.7, Update 18.4, PostUpdate 16.6, PreUpdate 5.4
+switch 12 -> map   ran          now MAP: worst frame frame_ms 76.1 busy_ms 71.2 | PostUpdate 27.5, Update 23.6, StateTransition 12.5, PreUpdate 6.3
+switch 13 -> world ran          now WORLD: worst frame frame_ms 65.8 busy_ms 61.7 | PostUpdate 18.0, Update 17.1, StateTransition 14.1, PreUpdate 11.1
+switch 14 -> map   ran          now MAP: worst frame frame_ms 82.1 busy_ms 77.8 | PostUpdate 31.9, Update 26.0, StateTransition 12.9, PreUpdate 5.4
+switch 15 -> world ran          now WORLD: worst frame frame_ms 61.5 busy_ms 56.6 | PostUpdate 18.3, Update 17.0, StateTransition 14.5, PreUpdate 5.4
+switch 16 -> map   ran          now MAP: worst frame frame_ms 83.1 busy_ms 78.5 | PostUpdate 30.0, Update 26.5, StateTransition 14.2, PreUpdate 6.4
+switch 17 -> world ran          now WORLD: worst frame frame_ms 85.8 busy_ms 78.0 | Update 27.9, PostUpdate 21.7, StateTransition 20.8, PreUpdate 5.7
+switch 18 -> map   ran          now MAP: worst frame frame_ms 85.5 busy_ms 81.8 | PostUpdate 28.2, Update 26.1, StateTransition 20.3, PreUpdate 5.7
+switch 19 -> world ran          now WORLD: worst frame frame_ms 74.6 busy_ms 68.3 | PostUpdate 22.4, Update 21.3, StateTransition 17.0, PreUpdate 6.0
+switch 20 -> map   ran          now MAP: worst frame frame_ms 96.1 busy_ms 89.0 | PostUpdate 32.7, Update 30.9, StateTransition 16.6, PreUpdate 6.5
+SWITCH map<->world n=20 worst-frame frame_ms p50 75.7 p90 85.49 max 96.1 | busy_ms p50 69.93 p90 78.53 max 89.0 | over 100 ms busy: 0/20
+SWITCH map<->world split p50: PostUpdate 24.12, Update 21.88, StateTransition 15.66, PreUpdate 6.08, RemoteLast 0.85, First 0.21
+SWITCH -> world n=10 worst-frame frame_ms p50 69.33 p90 80.64 max 85.8 | busy_ms p50 64.69 p90 75.68 max 78.0 | over 100 ms busy: 0/10
+SWITCH -> world split p50: PostUpdate 18.38, StateTransition 18.3, Update 18.24, PreUpdate 6.45, RemoteLast 0.86, First 0.2
+SWITCH -> map n=10 worst-frame frame_ms p50 77.64 p90 85.49 max 96.1 | busy_ms p50 72.78 p90 81.8 max 89.0 | over 100 ms busy: 0/10
+SWITCH -> map split p50: PostUpdate 28.11, Update 23.47, StateTransition 14.12, PreUpdate 5.78, RemoteLast 0.84, First 0.23
