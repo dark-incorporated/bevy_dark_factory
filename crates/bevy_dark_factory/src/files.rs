@@ -138,6 +138,9 @@ pub struct OpenFile {
     /// Counts the times the text was replaced from outside the editor widget (a reload), so the widget knows
     /// to take it.
     pub pushed: u64,
+    /// **Counts the times this buffer was written to its file** (a save), so the project's Rust server is told of each
+    /// ([`crate::files_lsp`], #698): rust-analyzer checks the project again on a save.
+    pub saves: u64,
     /// A match to bring into view and select when the editor next shows this file: line, column (bytes into the
     /// line) and length (a search result's, GD-13).
     pub reveal: Option<(usize, usize, usize)>,
@@ -315,6 +318,7 @@ impl OpenFile {
             problem: None,
             edited_at: None,
             pushed: 0,
+            saves: 0,
             reveal: None,
             incoming: None,
             agent_lines: Vec::new(),
@@ -450,6 +454,7 @@ pub fn save_file(files: &mut Files, root: &Path, rel: &str) -> Result<(), String
     blueprint_model::atomic_file::write(&full, &file.text).map_err(|e| format!("{rel} was not saved: {e}"))?;
     file.disk = file.text.clone();
     file.stamp = Stamp::of(&full);
+    file.saves += 1;
     Ok(())
 }
 /// **Write the person's text over what the disk holds**, for `KeepEditorChanges`: the person has been told the file changed
@@ -460,6 +465,7 @@ fn overwrite_what_the_disk_holds(files: &mut Files, root: &Path, rel: &str) -> R
     let full = inside(root, rel)?;
     blueprint_model::atomic_file::write(&full, &file.text).map_err(|e| format!("{rel} was not saved: {e}"))?;
     file.disk = file.text.clone();
+    file.saves += 1;
     file.stamp = Stamp::of(&full);
     Ok(())
 }
@@ -1072,6 +1078,7 @@ fn keep_the_open_files(
                         problem: Some(why.clone()),
                         edited_at: None,
                         pushed: 0,
+                        saves: 0,
                         reveal: None,
                         incoming: None,
                         agent_lines: Vec::new(),
@@ -1760,17 +1767,22 @@ fn answer_the_conflict(activate: On<Activate>, answers: Query<&ConflictAnswer>, 
     }
 }
 
-/// **Complete from the kit's schema**: the field names, an enum's values, the ids a reference points at.
+/// **Complete from the kit's schema**: the field names, an enum's values, the ids a reference points at. **A file the
+/// project's Rust server holds asks the server** (#698), which answers on a later frame ([`crate::files_lsp`]).
 fn on_completion_request(
     request: On<CodeCompletionRequested>,
     mut files: ResMut<Files>,
     editors: Query<(&FileEditor, &CodeEditorValue)>,
     trees: Query<&TreeNames, With<FilesTree>>,
     project: Option<Res<Project>>,
+    rust: Option<ResMut<crate::files_lsp::RustAnalyzer>>,
     mut commands: Commands,
 ) {
     let Ok((editor, value)) = editors.get(request.entity) else { return };
     let Some(rel) = editor.shown.clone() else { return };
+    if rust.is_some_and(|mut rust| rust.ask_completion(&request, &rel, value.text())) {
+        return;
+    }
     let schema = files.schema_for(&rel);
     let refs = |kind: &str| -> Vec<String> {
         let Some(project) = project.as_deref() else { return Vec::new() };
@@ -1799,10 +1811,20 @@ fn on_completion_request(
     commands.entity(request.entity).insert(CodeCompletions { anchor: found.anchor, items });
 }
 
-/// **Say what a key is**, from its doc comment, and what a picture is, from its place's board.
-fn on_hover_request(request: On<CodeHoverRequested>, mut files: ResMut<Files>, editors: Query<(&FileEditor, &CodeEditorValue)>, mut commands: Commands) {
+/// **Say what a key is**, from its doc comment, and what a picture is, from its place's board. **A file the project's Rust
+/// server holds asks the server** (#698), which answers on a later frame ([`crate::files_lsp`]).
+fn on_hover_request(
+    request: On<CodeHoverRequested>,
+    mut files: ResMut<Files>,
+    editors: Query<(&FileEditor, &CodeEditorValue)>,
+    rust: Option<ResMut<crate::files_lsp::RustAnalyzer>>,
+    mut commands: Commands,
+) {
     let Ok((editor, value)) = editors.get(request.entity) else { return };
     let Some(rel) = editor.shown.clone() else { return };
+    if rust.is_some_and(|mut rust| rust.ask_hover(&request, &rel, value.text())) {
+        return;
+    }
     let schema = files.schema_for(&rel);
     let root = files.root.clone();
     let around = files_lang::Env { root: root.as_deref(), refs: &|_: &str| Vec::new(), files: &Vec::new };
