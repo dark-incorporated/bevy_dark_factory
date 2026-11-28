@@ -35,3 +35,7 @@ main1-5ae2567f (load 14.4 -> 16.9): map<->kit busy p50 101.7 p90 161.3 (11/20 ov
 keep1+kept     (load  8.1 ->  8.3): map<->kit busy p50  81.6 p90  96.2 ( 2/20)         | map<->world p50 66.4 p90  80.1 (0/20)
 main2-5ae2567f (load  8.6 -> 10.9): map<->kit busy p50  75.7 p90  92.5 ( 2/20)         | map<->world p50 85.0 p90  94.5 (1/20)
 keep2+kept     (load 11.2 -> 11.0): map<->kit busy p50  70.4 p90 294.3 ( 5/20)         | map<->world p50 69.9 p90  78.5 (0/20)
+
+# The drive moved to tools/demo/switch_drive.py (#678 box 3, #541 box 4): it starts the editor itself, adds 20 terminal
+# raises, and writes the summary a release prints (docs/bench/switch/, tools/release/bench_advisory.sh). The logs above
+# were taken with measure.py/start.sh/stop.sh as they stood at d85e3f0.

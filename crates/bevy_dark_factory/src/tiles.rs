@@ -4121,6 +4121,7 @@ fn spawn_tab_strip(
     workspace: Option<Res<crate::workspace::Workspace>>,
     frame: Res<crate::chrome::Frame>,
 ) {
+    let _timed = crate::profile::door_span("tiles::spawn_tab_strip");
     let Some(workspace) = workspace else { return };
     // **Into the frame's own band, not floating over the window.** It was absolute at
     // `left: MARGIN, top: MARGIN` with `GlobalZIndex(101)` to sit above the panels it overlapped —
@@ -4639,6 +4640,7 @@ fn spawn_tiles_panel(
     // **A list heading's ink, from the editor's skin** (UI-02, #210).
     skin: Option<Res<bevy_gooey::GooeySkin>>,
 ) {
+    let _timed = crate::profile::door_span("tiles::spawn_tiles_panel");
     let heading = crate::chrome::ListHeadingInk::of(skin.as_deref());
     crate::chrome::panel_root(
         &mut commands,
@@ -4910,6 +4912,7 @@ fn scan_on_entering_the_kits_door(
     workspace: Option<Res<crate::workspace::Workspace>>,
     mut state: ResMut<ImportState>,
 ) {
+    let _timed = crate::profile::door_span("tiles::scan_on_entering_the_kits_door");
     let (Some(project), Some(workspace)) = (project, workspace) else {
         return;
     };

@@ -1,0 +1,65 @@
+{
+  "bin": "/tmp/m678/bdf-acc",
+  "load_before": 6.1669921875,
+  "settled": {
+    "busy_ms_p50": 12.41,
+    "busy_ms_p90": 13.38
+  },
+  "map_kit": {
+    "n": 20,
+    "busy_ms_p50": 74.12,
+    "busy_ms_p90": 263.78,
+    "busy_ms_max": 650.892563,
+    "over_100_ms": 6,
+    "schedules_p50": {
+      "PostUpdate": 26.45,
+      "Update": 24.06,
+      "StateTransition": 14.51,
+      "PreUpdate": 6.71,
+      "RemoteLast": 0.87,
+      "First": 0.24
+    },
+    "systems_p50": {
+      "screen::close_the_door": 5.57,
+      "bevy_ui::ui_layout_system": 4.71,
+      "bevy_ui::UiSystems::PostLayout": 4.07,
+      "tiles::scan_on_entering_the_kits_door": 1.57,
+      "editor::spawn_palette_panel": 0.08,
+      "chrome::spawn_chrome_bar": 0.07
+    }
+  },
+  "map_world": {
+    "n": 20,
+    "busy_ms_p50": 63.02,
+    "busy_ms_p90": 68.75,
+    "busy_ms_max": 81.47375,
+    "over_100_ms": 0,
+    "schedules_p50": {
+      "PostUpdate": 21.02,
+      "Update": 20.05,
+      "StateTransition": 13.53,
+      "PreUpdate": 5.75,
+      "RemoteLast": 0.78,
+      "First": 0.16
+    },
+    "systems_p50": {
+      "screen::close_the_door": 4.78,
+      "bevy_ui::ui_layout_system": 3.6,
+      "bevy_ui::UiSystems::PostLayout": 3.2,
+      "editor::spawn_existing": 0.05,
+      "editor::spawn_panel": 0.04,
+      "workspace_panels::spawn_world_panel": 0.02
+    }
+  },
+  "terminal_raise": {
+    "error": "no shell's words in the pane",
+    "terminal": {
+      "height": 320.0,
+      "next": "maximised",
+      "placement": "quarter",
+      "shell_live": false,
+      "tabs": 0
+    }
+  },
+  "load_after": 8.92822265625
+}

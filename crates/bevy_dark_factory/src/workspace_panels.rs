@@ -70,6 +70,7 @@ fn block<'a>(p: &'a mut ChildSpawnerCommands) -> EntityCommands<'a> {
 
 /// **The World workspace's panel**, in the left dock like every inspector, scrolling like the Map's.
 fn spawn_world_panel(mut commands: Commands, frame: Res<Frame>) {
+    let _timed = crate::profile::door_span("workspace_panels::spawn_world_panel");
     let root = chrome::panel_root(
         &mut commands,
         &frame,

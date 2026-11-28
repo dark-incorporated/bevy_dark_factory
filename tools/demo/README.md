@@ -9,6 +9,7 @@ Dev-only. These scripts make the GIFs in `docs/media/`. They are not part of any
 - `storyboards/*.json` are the demos. Eight are the standing ones in `docs/media/`: `hero`, `agent_drives`, `agent_removes_then_undo`, `place_and_undo`, `build_a_map`, `frame_the_map`, `move_the_camera` and `review_labels`. Each aims at the `bedroom` map in this repository's own `assets/blueprint/maps/`, so none needs a game's project; the others record one changelog clip each.
 - `stills.py` takes `docs/media/editor.png`, the whole window after an agent changed the map.
 - `check.py` measures a rendered GIF (every change moment changes at least 5% of the scene, no static run over 1.5 s) and `stale.py` says which standing demos a later visible change has left behind. A storyboard presses Ctrl+Z, which is the editor's undo on Linux and Windows (Cmd+Z on a Mac).
+- `switch_drive.py` is not a demo: it measures a workspace switch and a terminal raise (#678, #541). It starts the editor on a scratch copy of a project (under its own Xvfb with `--xvfb N` on Linux), drives 20 Map↔Kit and 20 Map↔World switches and 20 raises of the terminal over BRP, and prints each switch frame's `busy_ms`, schedule split and the systems the frame names (`blueprint/state.frame.systems`), with the load average. `--out docs/bench/switch/<date>-<sha>.json` writes the summary a release prints: `tools/release/bench_advisory.sh` runs `switch_drive.py --report docs/bench/switch`, the newest two side by side. Two runs compare only at a similar load.
 
 ## Run
 

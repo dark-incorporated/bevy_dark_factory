@@ -162,6 +162,7 @@ fn open_the_door(world: &mut World) {
 /// reach. `tests/the_arm_crosses_the_door.rs` calls it directly, which is the only way to ask *"what
 /// does a door change do to this resource?"* without standing up a second application.
 pub fn close_the_door(world: &mut World) {
+    let _timed = crate::profile::door_span("screen::close_the_door");
     // **A switch to a workspace that shows the map spares the map's scene** (#695): `scene_roots` says which
     // roots, so this stays one sweep with one rule.
     despawn_scene(world);

@@ -91,6 +91,7 @@ fn name_on_rows(
 }
 
 fn spawn_menu(mut commands: Commands) {
+    let _timed = crate::profile::door_span("palette_menu::spawn_menu");
     let menu = commands.spawn((context_menu(()), PaletteMenu)).id();
     for entry in ITEMS {
         let Some((label, verb)) = entry else {

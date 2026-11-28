@@ -3810,6 +3810,7 @@ pub struct MapControlsPane;
 /// Build the panel's fixed furniture. The palette itself is `rebuild_palette`'s, which is why neither
 /// the project nor the thumbnails are read here — they were parameters that had stopped being used.
 fn spawn_panel(mut commands: Commands, frame: Res<crate::chrome::Frame>) {
+    let _timed = crate::profile::door_span("editor::spawn_panel");
     let root = crate::chrome::panel_root(
         &mut commands,
         &frame,
@@ -4155,6 +4156,7 @@ fn spawn_palette_panel(
     // **A list heading's ink, from the editor's skin** (UI-02, #210).
     skin: Option<Res<bevy_gooey::GooeySkin>>,
 ) {
+    let _timed = crate::profile::door_span("editor::spawn_palette_panel");
     let heading = crate::chrome::ListHeadingInk::of(skin.as_deref());
     crate::chrome::panel_root(
         &mut commands,
@@ -11921,6 +11923,7 @@ fn spawn_existing(
     placed: Query<(Entity, &Placement)>,
     transforms: Query<&Transform>,
 ) {
+    let _timed = crate::profile::door_span("editor::spawn_existing");
     state.next_id = next_id_after(&open.map);
     if let Err(e) = draw_every_placement(&mut commands, &assets, &project, &open, &placed, &transforms) {
         error!("{e}");

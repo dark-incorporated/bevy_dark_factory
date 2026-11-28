@@ -79,6 +79,7 @@ impl Plugin for PieceMenuPlugin {
 }
 
 fn spawn_menu(mut commands: Commands) {
+    let _timed = crate::profile::door_span("piece_menu::spawn_menu");
     let menu = commands.spawn((context_menu(()), PieceMenu)).id();
     for entry in ITEMS {
         match entry {
