@@ -11,7 +11,7 @@
 //! - `textDocument/didOpen`, `didChange` (an edit or the whole text) and `didSave`: it keeps the text, and publishes one
 //!   information finding over the file's first three bytes saying what it holds (`held`).
 //! - `textDocument/completion`: four items (`completion`), of which the editor's list can write two.
-//! - `textDocument/hover`: `stub hover on `<word>``, about the word at the position in the text it holds.
+//! - `textDocument/hover`: ``stub hover on `WORD` ``, where WORD is the word at the position in the text it holds.
 //! - `shutdown`, then `exit`; any other request is answered as a method it does not have.
 
 use std::collections::BTreeMap;
