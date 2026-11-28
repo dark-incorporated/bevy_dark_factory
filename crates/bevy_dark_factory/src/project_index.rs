@@ -41,7 +41,9 @@
 //! when none does, when it cannot settle, or when the project root cannot be read: there is no fallback walk on the caller's thread.
 //! An unreadable folder is listed empty, **warned about once**, and read again on every sweep until it can be read (its stamp is not
 //! advanced meanwhile, so what is inside is not lost). A name that is not UTF-8 is skipped with a warning. **A root that goes after it was
-//! listed refuses too**, even though an older listing is held, and the tree says so; the refusal ends when the root can be looked at again.
+//! listed refuses too**, even though an older listing is held, and the tree says so; the refusal ends when the root can be looked at again,
+//! and **the sweep that finds it back reads every folder once** (#699): a change held when the root went was folded to a removal, and a
+//! folder older than `RACY` whose time did not move would otherwise never be read again, so the file would stay unlisted.
 //!
 //! **`listed_files` from an operation blocks its caller** while the thread settles (one `stat` per folder, and what was held flushed):
 //! it can wait for the first listing (0.26 s at 10,000 files and 1.6 s at 100,000, measured below with a stepped editor's own build) or
@@ -803,7 +805,14 @@ impl Sweeper {
             return;
         }
         match observe(&self.shared.root, "") {
-            Ok(Some((true, _))) => self.clear_failure(),
+            Ok(Some((true, _))) => {
+                // **A root that comes back is not trusted folder by folder** (#699): no folder's time says what was folded away while the
+                // root could not be looked at, so each folder is read on this sweep, once (a read sets `settled` again).
+                if self.shared.failed.load(Ordering::Acquire) {
+                    self.entries.values_mut().filter(|e| e.dir).for_each(|e| e.settled = false);
+                }
+                self.clear_failure();
+            }
             Ok(_) => {
                 let why = format!("the project root {} is not there", self.root().display());
                 self.fail(why);
