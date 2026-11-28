@@ -1298,6 +1298,7 @@ pub fn spawn_frame(
     settings: Option<Res<crate::settings::EditorSettings>>,
     workspace: Option<Res<crate::workspace::Workspace>>,
 ) {
+    let _timed = crate::profile::door_span("chrome::spawn_frame");
     // **The workspace's own arrangement, else its default** (UI-33, #227; per workspace since
     // NV-02, #379). `sync_settings` has read the files by the time a frame is built, so this is the
     // layout the editor opens on — and it is keyed by the workspace, so Map's inspector being wide
@@ -4496,6 +4497,7 @@ pub fn spawn_chrome_bar(
     open_map: Option<Res<crate::project::OpenMap>>,
     project: Option<Res<crate::project::Project>>,
 ) {
+    let _timed = crate::profile::door_span("chrome::spawn_chrome_bar");
     // **The bar's words come from [`the_bars_words`]**, so the spawn and the repaint cannot disagree
     // about them any more than they can about the name (`subject`).
     let here = door.as_deref().map(|d| the_bars_words(d, open_map.as_deref(), project.as_deref()));
@@ -4611,6 +4613,7 @@ pub fn repaint_where_you_are(
 /// rather than one, and a band that grew to hold it would move the viewport every time a refusal
 /// landed.
 pub fn spawn_status_band(mut commands: Commands, frame: Res<Frame>, project: Option<Res<crate::project::Project>>) {
+    let _timed = crate::profile::door_span("chrome::spawn_status_band");
     let back = back_name(project.as_deref());
     commands.entity(frame.status).with_children(|band| {
         // **The agent and the decision model, at the band's left end** (#514). Where it stands is a layout decision with a

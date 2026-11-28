@@ -868,6 +868,11 @@ fn frame_json(store: Option<&bevy::diagnostic::DiagnosticsStore>, profiler: Opti
         "schedules": whole.map(|frame| {
             frame.schedules.iter().map(|s| json!({"schedule": s.name(), "ms": s.ms})).collect::<Vec<_>>()
         }),
+        // **Which systems the same frame spent it in** (#678, #541), heaviest first: the door's own on a switch's frame
+        // (`profile::door_span`) and the ui layout's on every frame. Eight, so a switch's sweep and spawners fit.
+        "systems": whole.map(|frame| {
+            frame.systems.iter().take(8).map(|s| json!({"system": s.system, "ms": s.ms})).collect::<Vec<_>>()
+        }),
         // **The heaviest span of the same frame**, named only while the panel is recording: an agent asking "which
         // system" gets the same sentence a person sees.
         "heaviest_span": whole

@@ -49,6 +49,17 @@
 //! schedule that ran between them: `StateTransition` (where every `OnExit` and `OnEnter` runs), `Update`, `PostUpdate`
 //! (layout and text). The shares add up to `busy_ms` exactly. They are the clock read at more places, so they are not
 //! gated either, and a frame's list reuses the allocation of the frame that fell off the ring.
+//!
+//! # Which systems a switch spent it in (#678, #541)
+//!
+//! A share names a schedule, and `StateTransition` alone is every `OnExit` and `OnEnter` of the editor. So the door's
+//! own systems — the sweep (`screen::close_the_door`) and the spawners `OnEnter(Editor)` runs — each time their body
+//! with [`door_span`], and the frame's ui layout (`bevy_ui`'s `UiSystems::Layout` and `UiSystems::PostLayout`) is timed
+//! between marks around it. [`Frame::systems`] keeps them, heaviest first, and `blueprint/state.frame.systems`
+//! reports them. **Not gated**: a door is rare, and a frame that ran none carries the two layout spans, which are three
+//! clock reads and a list that reuses the allocation of the frame that fell off the ring. **A spawner's span is its body**:
+//! the entities its `Commands` queue are made at the sync point after it, which is in `StateTransition`'s share and in no
+//! system's span.
 
 use std::collections::VecDeque;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -73,6 +84,62 @@ static RECORDING: AtomicBool = AtomicBool::new(false);
 /// **Where the spans of the frame being run are put.** A `static` for [`record_span`]'s reason. Only touched while
 /// [`RECORDING`] is on.
 static PENDING: LazyLock<Mutex<Vec<Span>>> = LazyLock::new(|| Mutex::new(Vec::new()));
+
+/// **Where the systems of the frame being run are put**: [`door_span`]'s and the layout marks'. Never gated, so a switch
+/// is named on the frame it happens whether or not the panel is recording.
+static SYSTEMS: LazyLock<Mutex<Vec<Span>>> = LazyLock::new(|| Mutex::new(Vec::new()));
+
+/// The systems timed so far this frame, locked; a poisoned lock keeps its spans, as [`pending`]'s does.
+fn timed_systems() -> MutexGuard<'static, Vec<Span>> {
+    SYSTEMS.lock().unwrap_or_else(|e| e.into_inner())
+}
+
+/// **One of the door's own systems, timed for the frame it runs in** (#678, #541): bind it at the top of the body
+/// (`let _timed = profile::door_span("screen::close_the_door");`) and the system's time is in that frame's
+/// [`Frame::systems`] when the guard drops.
+#[must_use]
+pub fn door_span(system: &'static str) -> DoorSpan {
+    DoorSpan { system, started: Instant::now() }
+}
+
+/// [`door_span`]'s guard: it records the span when it drops.
+pub struct DoorSpan {
+    system: &'static str,
+    started: Instant,
+}
+
+impl Drop for DoorSpan {
+    fn drop(&mut self) {
+        timed_systems().push(Span { system: self.system, ms: self.started.elapsed().as_secs_f64() * 1000.0 });
+    }
+}
+
+/// The name the frame lists `bevy_ui`'s layout under: `UiSystems::Layout`, which is `ui_layout_system`.
+pub const LAYOUT_SPAN: &str = "bevy_ui::ui_layout_system";
+/// The name the frame lists the work after layout under: `UiSystems::PostLayout`, the text laid out and clipped.
+pub const POST_LAYOUT_SPAN: &str = "bevy_ui::UiSystems::PostLayout";
+
+/// When the layout span being timed began, for the mark that ends it.
+#[derive(Resource, Default)]
+struct LayoutMark(Option<Instant>);
+
+fn begin_the_layout_span(mut mark: ResMut<LayoutMark>) {
+    mark.0 = Some(Instant::now());
+}
+
+/// Ends the layout span and begins the one after it, so the two are one clock read apart.
+fn end_the_layout_span(mut mark: ResMut<LayoutMark>) {
+    let now = Instant::now();
+    if let Some(began) = mark.0.replace(now) {
+        timed_systems().push(Span { system: LAYOUT_SPAN, ms: now.duration_since(began).as_secs_f64() * 1000.0 });
+    }
+}
+
+fn end_the_post_layout_span(mut mark: ResMut<LayoutMark>) {
+    if let Some(began) = mark.0.take() {
+        timed_systems().push(Span { system: POST_LAYOUT_SPAN, ms: began.elapsed().as_secs_f64() * 1000.0 });
+    }
+}
 
 /// The spans recorded so far this frame, locked. A poisoned lock means a panic happened while profiling, and the spans
 /// are still worth having: `log_file::OneSink` makes the same call for the same reason.
@@ -119,6 +186,9 @@ pub struct Frame {
     pub spans: Vec<Span>,
     /// **Where `busy_ms` went**: one share per main schedule, in the order they ran (#678).
     pub schedules: Vec<ScheduleSpan>,
+    /// **The systems timed this frame**, heaviest first: the door's own ([`door_span`]) and the ui layout's (#678, #541).
+    /// `blueprint/state.frame.systems`.
+    pub systems: Vec<Span>,
 }
 
 impl Frame {
@@ -277,15 +347,18 @@ fn close_the_frame(mut profiler: ResMut<Profiler>, frames: Res<bevy::diagnostic:
     spans.shrink_to_fit();
     // **The ring is trimmed before it grows**, so the frame that falls off lends its schedule list to this one and a full
     // ring allocates nothing for it.
-    let mut schedules = Vec::new();
+    let (mut schedules, mut systems) = (Vec::new(), Vec::new());
     while profiler.frames.len() >= HISTORY_FRAMES {
         let Some(fell_off) = profiler.frames.pop_front() else { break };
-        schedules = fell_off.schedules;
+        (schedules, systems) = (fell_off.schedules, fell_off.systems);
         profiler.dropped += 1;
     }
     schedules.clear();
     schedules.extend_from_slice(&profiler.this_frame);
-    profiler.frames.push_back(Frame { number: u64::from(frames.0), busy_ms, wall_ms: None, spans, schedules });
+    systems.clear();
+    systems.append(&mut timed_systems());
+    systems.sort_by(|a, b| b.ms.total_cmp(&a.ms));
+    profiler.frames.push_back(Frame { number: u64::from(frames.0), busy_ms, wall_ms: None, spans, schedules, systems });
 }
 
 /// The frame's head: a schedule of its own, run before the first main schedule.
@@ -334,12 +407,23 @@ fn mark_the_main_schedules(app: &mut App) {
 /// **The frame clock**: the ring, the head and foot around the main schedules, and a mark after each (#677, #678).
 fn time_the_frame(app: &mut App) {
     app.init_resource::<Profiler>()
+        .init_resource::<LayoutMark>()
         .edit_schedule(FrameHead, |schedule| {
             schedule.set_executor(SingleThreadedExecutor::new()).add_systems(begin_the_frame);
         })
         .edit_schedule(FrameFoot, |schedule| {
             schedule.set_executor(SingleThreadedExecutor::new()).add_systems(close_the_frame);
-        });
+        })
+        // **The layout's marks** (#678): `bevy_ui` runs its sets in order, so a mark between `Content` and `Layout`, one
+        // between `Layout` and `PostLayout` and one after `PostLayout` time the two.
+        .add_systems(
+            PostUpdate,
+            (
+                begin_the_layout_span.after(bevy::ui::UiSystems::Content).before(bevy::ui::UiSystems::Layout),
+                end_the_layout_span.after(bevy::ui::UiSystems::Layout).before(bevy::ui::UiSystems::PostLayout),
+                end_the_post_layout_span.after(bevy::ui::UiSystems::PostLayout),
+            ),
+        );
     mark_the_main_schedules(app);
 }
 

@@ -90,6 +90,7 @@ impl Plugin for FilesMenuPlugin {
 /// **Build the one menu** the tree and every row of it name, on entering the editor: the screen's sweep takes it when the
 /// door closes, so the next door needs its own.
 fn spawn_menu(mut commands: Commands, mut handle: ResMut<FilesMenuHandle>) {
+    let _timed = crate::profile::door_span("files_menu::spawn_menu");
     let menu = commands
         .spawn((
             FilesMenu,

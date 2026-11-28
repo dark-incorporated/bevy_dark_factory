@@ -1298,6 +1298,7 @@ fn dispatch_sight(
 /// **The row's menus, spawned once with the screen.** gooey's `context_menu`; the items are gooey's
 /// `menu_item`s, and the row they were opened for is gooey's `ContextTarget`.
 fn spawn_row_menu(mut commands: Commands) {
+    let _timed = crate::profile::door_span("outliner::spawn_row_menu");
     let menu = commands.spawn((bevy_gooey::context_menu(()), OutlinerRowMenu)).id();
     for (label, verb) in ROW_ITEMS {
         commands
