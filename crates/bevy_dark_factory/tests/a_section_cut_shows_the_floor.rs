@@ -36,7 +36,7 @@
 use bevy::prelude::*;
 
 use bevy_dark_factory::harness::{self, Device};
-use bevy_dark_factory::view::SectionCut;
+use bevy_dark_factory::view::{MainCamera, Rig, SectionCut};
 
 use crate::fixtures;
 
@@ -46,9 +46,16 @@ const FLOOR_M: f32 = 6.0;
 const CEILING_M: f32 = 18.4;
 /// **The top of the hill**, metres: what a still with no cut shows.
 const ROCK_TOP_M: f32 = 22.0;
-/// **The plane that reaches this room's floor**, metres from the camera. Measured, not guessed: the room's near
-/// wall stands 27.89 m along the view and its floor 31.00, so a plane at 31 deletes the near half of the interior.
+/// **The plane that reaches this room's floor**, metres from the camera. Measured, not guessed, from a camera framed
+/// on [`ROOM_CENTRE`]: the room's near wall stands 27.89 m along the view and its floor 31.00, so a plane at 31
+/// deletes the near half of the interior.
 const CUT_M: f32 = 31.0;
+/// **Where the camera is framed**: the room's centre, the focus [`CUT_M`] was measured from. The camera stands
+/// `view::ISO_DISTANCE` (20.78 m) up its view from its focus, and the plane is metres from the camera, so the same
+/// number is a different plane under another focus: under the whole-map frame the editor opens on (the focus at
+/// the map box's middle, y = 1.5) a plane at 31 m stands at y = -4.4, inside the rock under the floor, and the
+/// centre of the picture is the clear colour (#472, reopened).
+const ROOM_CENTRE: Vec3 = Vec3::new(0.0, (FLOOR_M + CEILING_M) / 2.0, 0.0);
 
 /// **A map of rock with one room carved in it**, the shape #472's `liches_lair` has: a hill of solid rock, a room
 /// at 6 m whose ceiling is at 18.4, and four columns standing in it.
@@ -72,12 +79,16 @@ fn an_air_room(tag: &str) -> std::path::PathBuf {
         blueprint.join("volume/lair.yaml"),
         format!(
             "version: 1\nedits:\n\
-             - shape: {{Box: {{center: [0.0, 2.0, 0.0], half_m: [40.0, {rock_half}, 40.0]}}}}\n  mode: Add\n  smooth_m: 0.0\n\
+             - shape: {{Box: {{center: [0.0, {rock_mid}, 0.0], half_m: [40.0, {rock_half}, 40.0]}}}}\n  mode: Add\n  smooth_m: 0.0\n\
              - shape: {{Box: {{center: [0.0, {room_mid}, 0.0], half_m: [10.0, {room_half}, 10.0]}}}}\n  mode: Carve\n  smooth_m: 0.0\n\
              - shape: {{Box: {{center: [-5.0, {room_mid}, -5.0], half_m: [0.9, {room_half}, 0.9]}}}}\n  mode: Add\n  smooth_m: 0.0\n\
              - shape: {{Box: {{center: [5.0, {room_mid}, -5.0], half_m: [0.9, {room_half}, 0.9]}}}}\n  mode: Add\n  smooth_m: 0.0\n\
              - shape: {{Box: {{center: [-5.0, {room_mid}, 5.0], half_m: [0.9, {room_half}, 0.9]}}}}\n  mode: Add\n  smooth_m: 0.0\n\
              - shape: {{Box: {{center: [5.0, {room_mid}, 5.0], half_m: [0.9, {room_half}, 0.9]}}}}\n  mode: Add\n  smooth_m: 0.0\n",
+            // **From the soil to the hill's top**, 2 → 22 m, so the room is buried. Centred on the soil (2 m), the
+            // box stood -8 → 12 m, the room's carve (6 → 18.4) broke through its top, and the room was an open pit
+            // with no ceiling: not the shape #472 describes, nor the one `CUT_M` was measured on.
+            rock_mid = (2.0 + ROCK_TOP_M) / 2.0,
             rock_half = (ROCK_TOP_M - 2.0) / 2.0,
             room_mid = (FLOOR_M + CEILING_M) / 2.0,
             room_half = (CEILING_M - FLOOR_M) / 2.0,
@@ -87,7 +98,7 @@ fn an_air_room(tag: &str) -> std::path::PathBuf {
     root
 }
 
-/// **The editor on a real device**, stepped until the cut is drawn.
+/// **The editor on a real device**, framed on the room and stepped until the cut is drawn.
 fn rendering_editor(tag: &str) -> Option<App> {
     if !harness::real_device_available() {
         return None;
@@ -102,7 +113,37 @@ fn rendering_editor(tag: &str) -> Option<App> {
     for _ in 0..30 {
         app.update();
     }
+    // After the whole-map frame the editor takes once on open, so the room is not framed over.
+    frame_the_room(&mut app);
     Some(app)
+}
+
+/// **Frame the room under the picture's centre**, the texel these tests sample. The Map camera draws into the hole
+/// between the docks, not the whole picture, so the picture's centre is not the camera's axis: the focus goes on
+/// [`ROOM_CENTRE`] and then slides across the view until the ray through the centre texel passes through it. The
+/// slide is square to the view, so the room's centre stays `ISO_DISTANCE` from the camera and [`CUT_M`] still
+/// reaches the floor.
+fn frame_the_room(app: &mut App) {
+    app.world_mut().resource_mut::<Rig>().focus = ROOM_CENTRE;
+    for _ in 0..3 {
+        app.update();
+    }
+    let size = {
+        let world = app.world();
+        let surface = &world.resource::<bevy_dark_factory::surface::Surface>().image;
+        world.resource::<Assets<Image>>().get(surface).expect("the surface's image").texture_descriptor.size
+    };
+    let world = app.world_mut();
+    let mut cameras = world.query_filtered::<(&Camera, &GlobalTransform), With<MainCamera>>();
+    let (camera, at) = cameras.single(world).expect("one Map camera");
+    let corner = camera.logical_viewport_rect().expect("the Map camera has its viewport").min;
+    let texel = Vec2::new((size.width / 2) as f32 + 0.5, (size.height / 2) as f32 + 0.5);
+    let ray = camera.viewport_to_world(at, texel - corner).expect("the picture's centre is a ray from the Map camera");
+    let through = ray.origin + *ray.direction * (ROOM_CENTRE - ray.origin).dot(*ray.direction);
+    app.world_mut().resource_mut::<Rig>().focus = ROOM_CENTRE - (through - ROOM_CENTRE);
+    for _ in 0..3 {
+        app.update();
+    }
 }
 
 /// **The picture's pixels, as the renderer drew them**: the surface read back by `harness::capture`, the editor's own
@@ -159,7 +200,7 @@ fn a_section_cut_draws_the_room_floor_and_the_rock_is_gone() {
         let px = pixels(&mut app).expect("the surface image is there");
         (px.0, px.1)
     };
-    // **Frame the room**, the way an agent frames a still, and then place the plane.
+    // **Place the plane** on the room `rendering_editor` framed.
     app.world_mut().resource_mut::<SectionCut>().set(CUT_M);
     for _ in 0..6 {
         app.update();
