@@ -77,18 +77,56 @@ impl Edit {
         match self.shape {
             Shape::Sphere { center, radius_m } => len(sub(p, center)) - radius_m,
             Shape::Box { center, half_m } => {
-                let q = sub(p, center);
-                let d = [q[0].abs() - half_m[0], q[1].abs() - half_m[1], q[2].abs() - half_m[2]];
+                let (_, d) = box_reach(p, center, half_m);
                 len([d[0].max(0.0), d[1].max(0.0), d[2].max(0.0)]) + d[0].max(d[1]).max(d[2]).min(0.0)
             }
-            Shape::Capsule { a, b, radius_m } => {
-                let ab = sub(b, a);
-                let ap = sub(p, a);
-                let t = (dot(ap, ab) / dot(ab, ab).max(f32::MIN_POSITIVE)).clamp(0.0, 1.0);
-                len(sub(ap, [ab[0] * t, ab[1] * t, ab[2] * t])) - radius_m
-            }
+            Shape::Capsule { a, b, radius_m } => len(capsule_reach(p, a, b)) - radius_m,
         }
     }
+
+    /// **The gradient of [`Edit::distance`] at `p`**, one long and pointing out of the primitive (#701): inside a box
+    /// the normal of its nearest face, outside it the way out. Where the distance has no one gradient (a sphere's
+    /// centre, a capsule's axis, a box's edge or centre seen from inside) it is one of the directions that meet there,
+    /// so it is never zero.
+    pub fn gradient(&self, p: [f32; 3]) -> [f32; 3] {
+        match self.shape {
+            Shape::Sphere { center, .. } => unit(sub(p, center)),
+            Shape::Box { center, half_m } => {
+                let (q, d) = box_reach(p, center, half_m);
+                let side = |i: usize| if q[i] < 0.0 { -1.0 } else { 1.0 };
+                if d.iter().any(|&reach| reach > 0.0) {
+                    unit([d[0].max(0.0) * side(0), d[1].max(0.0) * side(1), d[2].max(0.0) * side(2)])
+                } else {
+                    let axis = (1..3).fold(0, |nearest, i| if d[i] > d[nearest] { i } else { nearest });
+                    let mut g = [0.0; 3];
+                    g[axis] = side(axis);
+                    g
+                }
+            }
+            Shape::Capsule { a, b, .. } => unit(capsule_reach(p, a, b)),
+        }
+    }
+}
+
+/// A point's offset from a box's centre, and how far past each half-size it reaches (negative inside).
+fn box_reach(p: [f32; 3], center: [f32; 3], half_m: [f32; 3]) -> ([f32; 3], [f32; 3]) {
+    let q = sub(p, center);
+    (q, [q[0].abs() - half_m[0], q[1].abs() - half_m[1], q[2].abs() - half_m[2]])
+}
+
+/// A point's offset from the nearest point of a capsule's segment `a`–`b`.
+fn capsule_reach(p: [f32; 3], a: [f32; 3], b: [f32; 3]) -> [f32; 3] {
+    let ab = sub(b, a);
+    let ap = sub(p, a);
+    let t = (dot(ap, ab) / dot(ab, ab).max(f32::MIN_POSITIVE)).clamp(0.0, 1.0);
+    sub(ap, [ab[0] * t, ab[1] * t, ab[2] * t])
+}
+
+/// `v` over its length; straight up where it has none (a sphere's centre, a capsule's axis), where every direction is
+/// the gradient's and one is picked.
+fn unit(v: [f32; 3]) -> [f32; 3] {
+    let l = len(v);
+    if l > 0.0 { [v[0] / l, v[1] / l, v[2] / l] } else { [0.0, 1.0, 0.0] }
 }
 
 fn sub(a: [f32; 3], b: [f32; 3]) -> [f32; 3] {
@@ -101,13 +139,14 @@ fn len(a: [f32; 3]) -> f32 {
     dot(a, a).sqrt()
 }
 
-/// Polynomial smooth minimum; `k == 0` is a plain `min`.
-fn smin(a: f32, b: f32, k: f32) -> f32 {
+/// Polynomial smooth minimum, and the weight `a` carries in it: the blend's gradient is `w ∇a + (1 − w) ∇b`. `k == 0` is
+/// a plain `min`, where a tie keeps `a`, the field as it stood before the edit (#701).
+fn smin(a: f32, b: f32, k: f32) -> (f32, f32) {
     if k <= 0.0 {
-        return a.min(b);
+        return (a.min(b), if a <= b { 1.0 } else { 0.0 });
     }
     let h = (0.5 + 0.5 * (b - a) / k).clamp(0.0, 1.0);
-    b + (a - b) * h - k * h * (1.0 - h)
+    (b + (a - b) * h - k * h * (1.0 - h), h)
 }
 
 /// The format version of a volume file (#202). A file with no `version` is the first.
@@ -195,12 +234,35 @@ impl Volume {
     /// partway through, which is how "what did this carve cut that was standing when it arrived" is
     /// asked of the same fold rather than a second implementation of it (#473).
     pub fn sdf_before(&self, count: usize, p: [f32; 3], base: f32) -> f32 {
-        self.edits.iter().take(count).fold(base, |d, e| {
-            let s = e.distance(p);
-            match e.mode {
-                Mode::Add => smin(d, s, e.smooth_m),
-                Mode::Carve => -smin(-d, s, e.smooth_m),
-            }
+        self.fold::<false>(count, p, base, [0.0; 3]).0
+    }
+
+    /// **The field's gradient at `p`**, through the same fold as [`Volume::sdf`] (#701): the gradient of the primitive,
+    /// or of the base, that the fold took there, blended across a smooth edit's blend. `base_gradient` is the base
+    /// distance's own (the ground's `(−∂h/∂x, 1, −∂h/∂z)`). Where a box stands on the ground or a column on a carved
+    /// floor, two faces lie on one plane with solid on both sides and the field peaks at zero there, so central
+    /// differences of it read no slope at all; the fold's tie keeps the field as it stood before the edit, so the answer
+    /// is that face's normal, never zero.
+    pub fn gradient(&self, p: [f32; 3], base: f32, base_gradient: [f32; 3]) -> [f32; 3] {
+        self.fold::<true>(self.edits.len(), p, base, base_gradient).1
+    }
+
+    /// **The one fold of the edit list**: the distance after the first `count` entries over `base`, and, when `GRADIENT`,
+    /// the gradient that goes with it from `base_gradient`. A carve is the union of the complements, `-smin(-d, s)`.
+    fn fold<const GRADIENT: bool>(&self, count: usize, p: [f32; 3], base: f32, base_gradient: [f32; 3]) -> (f32, [f32; 3]) {
+        self.edits.iter().take(count).fold((base, base_gradient), |(d, g), e| {
+            let sign = match e.mode {
+                Mode::Add => 1.0,
+                Mode::Carve => -1.0,
+            };
+            let (v, w) = smin(sign * d, e.distance(p), e.smooth_m);
+            let g = if GRADIENT {
+                let s = e.gradient(p);
+                [0, 1, 2].map(|i| w * g[i] + sign * (1.0 - w) * s[i])
+            } else {
+                g
+            };
+            (sign * v, g)
         })
     }
 
@@ -271,6 +333,44 @@ mod tests {
         let cap = Edit { shape: Shape::Capsule { a: [0.0; 3], b: [4.0, 0.0, 0.0], radius_m: 1.0 }, mode: Mode::Add, smooth_m: 0.0 };
         assert!((cap.distance([2.0, 3.0, 0.0]) - 2.0).abs() < 1e-5);
         assert!((cap.distance([6.0, 0.0, 0.0]) - 1.0).abs() < 1e-5);
+    }
+
+    #[test]
+    fn the_gradient_is_the_fields_slope_and_a_faces_normal_on_a_seam() {
+        // Rock under a flat ground at y = 2; a block standing on it, a sphere carved into it, a capsule over it and a
+        // sphere blended onto it.
+        let ground = |p: [f32; 3]| p[1] - 2.0;
+        let up = [0.0, 1.0, 0.0];
+        let mut v = Volume::default();
+        for (shape, mode, smooth_m) in [
+            (Shape::Box { center: [0.0, 5.0, 0.0], half_m: [4.0, 3.0, 4.0] }, Mode::Add, 0.0),
+            (Shape::Sphere { center: [10.0, 2.0, 0.0], radius_m: 2.0 }, Mode::Carve, 0.0),
+            (Shape::Capsule { a: [-10.0, 4.0, 0.0], b: [-6.0, 4.0, 0.0], radius_m: 1.0 }, Mode::Add, 0.0),
+            (Shape::Sphere { center: [0.0, 2.0, 12.0], radius_m: 1.5 }, Mode::Add, 1.0),
+        ] {
+            v.push(Edit { shape, mode, smooth_m }).unwrap();
+        }
+        let slope = |p: [f32; 3]| {
+            let h = 1e-2;
+            [0, 1, 2].map(|i| {
+                let (mut a, mut b) = (p, p);
+                a[i] += h;
+                b[i] -= h;
+                (v.sdf(a, ground(a)) - v.sdf(b, ground(b))) / (2.0 * h)
+            })
+        };
+        // Off every seam and edge it is the field's own slope: over the block, inside its top, past its side, in the
+        // carved sphere, over the capsule, and in the smooth blend.
+        for p in [[1.0, 8.5, -2.0], [0.5, 7.5, 1.0], [4.6, 5.0, 1.0], [11.0, 1.0, 0.5], [-8.0, 5.5, 0.5], [1.5, 2.6, 12.0]] {
+            let (g, s) = (v.gradient(p, ground(p), up), slope(p));
+            assert!((0..3).all(|i| (g[i] - s[i]).abs() < 1e-3), "at {p:?} the gradient {g:?} is not the slope {s:?}");
+        }
+        // Under the block its bottom face and the ground are one plane with rock on both sides: the field peaks at zero
+        // there and has no slope, and the tie keeps the ground as it stood before the block.
+        let seam = [1.0, 2.0, 1.0];
+        assert_eq!(v.sdf(seam, ground(seam)), 0.0);
+        assert!(slope(seam).iter().all(|s| s.abs() < 1e-3), "the field has no slope on the seam: {:?}", slope(seam));
+        assert_eq!(v.gradient(seam, ground(seam), up), up);
     }
 
     #[test]

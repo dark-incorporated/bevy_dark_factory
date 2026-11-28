@@ -18,7 +18,27 @@ pub struct VolumeField<'a, G: Fn(f32, f32) -> f32> {
 impl<G: Fn(f32, f32) -> f32> Sdf for VolumeField<'_, G> {
     type Scalar = f32;
     fn sample(&self, p: [f32; 3]) -> f32 {
-        self.volume.sdf(p, p[1] - (self.ground)(p[0], p[2]))
+        self.volume.sdf(p, Ground(&self.ground).sample(p))
+    }
+
+    /// **The gradient of the edit the field took at `p`** ([`Volume::gradient`], #701), over the ground's own slope:
+    /// isomesh's default, central differences of the whole field, reads no slope at all where a box stands on the
+    /// ground or a column on a carved floor. There two faces lie on one plane with solid on both sides and the field
+    /// peaks at zero, and a vertex on that plane tripped "zero gradient at a surface vertex".
+    fn gradient(&self, p: [f32; 3]) -> [f32; 3] {
+        let ground = Ground(&self.ground);
+        self.volume.gradient(p, ground.sample(p), ground.gradient(p))
+    }
+}
+
+/// **The ground alone**, `p.y - ground(x, z)`: its gradient is isomesh's central differences of it,
+/// `(−∂h/∂x, 1, −∂h/∂z)`, the slope of a ground that is a function and has no other.
+struct Ground<'a, G>(&'a G);
+
+impl<G: Fn(f32, f32) -> f32> Sdf for Ground<'_, G> {
+    type Scalar = f32;
+    fn sample(&self, p: [f32; 3]) -> f32 {
+        p[1] - (self.0)(p[0], p[2])
     }
 }
 
