@@ -128,6 +128,9 @@ fn take_the_escape_that_closed_a_menu(
     }
 }
 
+/// The menu bars standing: each one's entity, the node it hangs from, and the chords its rows were drawn with.
+type MenuBars<'w, 's> = Query<'w, 's, (Entity, Option<&'static ChildOf>, Option<&'static DrawnWith>), With<EditorMenuBar>>;
+
 /// **The bar is there while the workbench is, a question or not** (#299).
 ///
 /// It used to be taken down while the editor's own question was up, because the interface's tests count `Role::ButtonText`
@@ -147,7 +150,7 @@ fn keep_the_menu_bar(
     live: Option<Res<Live>>,
     settings: Option<Res<crate::settings::EditorSettings>>,
     recents: Option<Res<crate::recent::RecentProjects>>,
-    bars: Query<(Entity, Option<&ChildOf>, Option<&DrawnWith>), With<EditorMenuBar>>,
+    bars: MenuBars<'_, '_>,
 ) {
     let Some(frame) = frame else { return };
     let live = live.as_deref().copied();
