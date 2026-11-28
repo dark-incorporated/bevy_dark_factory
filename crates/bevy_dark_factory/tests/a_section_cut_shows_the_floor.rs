@@ -105,11 +105,11 @@ fn rendering_editor(tag: &str) -> Option<App> {
     Some(app)
 }
 
-/// **The picture's pixels, as the surface image holds them.**
+/// **The picture's pixels, as the renderer drew them**: the surface read back by `harness::capture`, the editor's own
+/// capture path. The surface's entry in `Assets<Image>` is a render target whose texels live on the GPU, so reading its
+/// `data` (as this file first did) read the zeroed buffer it was created with, never a drawn frame (#540).
 fn pixels(app: &mut App) -> Option<(u32, u32, Vec<u8>)> {
-    let surface = app.world().resource::<bevy_dark_factory::surface::Surface>().image.clone();
-    let images = app.world().resource::<Assets<Image>>();
-    let image = images.get(&surface)?;
+    let image = harness::capture(app).unwrap_or_else(|e| panic!("{e}"));
     let size = image.texture_descriptor.size;
     Some((size.width, size.height, image.data.clone().unwrap_or_default()))
 }
@@ -127,13 +127,10 @@ fn at(px: &(u32, u32, Vec<u8>), x: u32, y: u32) -> Option<[u8; 3]> {
 
 /// **Skip rather than lie**: a host with no adapter, or a build with no mesher, cannot answer this question.
 ///
-/// **Measured on macOS 2026-11-17: `real_device_available()` answers NO in a test process**, so every test in this
-/// file skips here. The reason is the platform, not the code: `winit` refuses a second `EventLoop` in a process and
-/// a test runs on a worker thread, so an app built here never reaches a real `RenderDevice` — which is the same
-/// limit `the_surface_and_the_camera_agree` records when it spawns a `Window` *component* instead of a window. The
-/// pixel half therefore has to run under Xvfb on Linux, where `xvfb-run` gives the process a display, or in a
-/// dedicated binary that owns the main thread. **Until one of those runs it, this file proves nothing about
-/// pixels** and the issue must not be closed on it.
+/// **Until 2026-11-27 `real_device_available()` answered NO in every test process**, so every test in this file
+/// skipped here. It was put down to `winit`; the cause was the harness: the renderer's device is moved into the worlds
+/// by `RenderPlugin::finish`, which `App::run` calls and a stepped app never did (#540, `harness::Device`). The
+/// harness now finishes an app on a real device, so on a host with an adapter (big under Xvfb, a Mac) these tests run.
 ///
 /// **A skipped test must say so out loud.** The first version of this file returned early and *passed*, and a
 /// green tick from a test that measured nothing is the failure this whole issue is about. So the skip is printed

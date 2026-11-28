@@ -33,7 +33,8 @@
 //! and none of that reads pixels back.
 //!
 //! Rendering is therefore genuinely out of scope here. "Does the highlight land on the right cell"
-//! is a question for `descriptor::pick_cell`, which answers it in arithmetic.
+//! is a question for `descriptor::pick_cell`, which answers it in arithmetic. The one exception is
+//! [`Device::Real`], a test's opt-in to a real adapter, read back through [`capture`].
 
 use std::path::Path;
 use std::sync::atomic::{AtomicU32, Ordering};
@@ -444,6 +445,13 @@ pub fn build_headless_at(
 ///
 /// **A real device is opt-in per test and skipped when there is none**, because a machine without one must not
 /// fail a suite it cannot answer for: see [`real_device_available`].
+///
+/// **A real device reaches the worlds at `finish`, not at `build`** (#540). `RenderPlugin::build` asks wgpu for the
+/// device, but only `RenderPlugin::finish` moves it into the main and render worlds, and `App::update` never calls
+/// `finish`: `App::run` does. A stepped app built without it had a render sub-app and no `RenderDevice`, so
+/// [`real_device_available`] answered no on every host (it was blamed on winit) and `Device::Real` panicked in
+/// `bevy_pbr`'s `no_automatic_morph_batching` before its first frame (#542). Both now finish the app the way
+/// `bevy_app`'s `run_once` does, through `finish_plugins`.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Device {
     None,
@@ -562,6 +570,7 @@ pub fn real_device_available() -> bool {
                 .disable::<bevy::log::LogPlugin>()
                 .disable::<bevy::audio::AudioPlugin>(),
         );
+        finish_plugins(&mut app);
         Ok(app.world().get_resource::<bevy::render::renderer::RenderDevice>().is_some())
     });
     let _ = std::fs::remove_dir_all(&root);
@@ -573,6 +582,49 @@ pub fn real_device_available() -> bool {
             false
         }
     }
+}
+
+/// **The plugins finished the way `App::run` finishes them**: wait for every plugin to be ready, then `finish` and `cleanup`.
+/// `bevy_app`'s `run_once` makes exactly these calls before its first update; a stepped app that skips them never receives the
+/// `RenderDevice` its renderer created (see [`Device`]).
+fn finish_plugins(app: &mut App) {
+    while app.plugins_state() == bevy::app::PluginsState::Adding {
+        bevy::tasks::tick_global_task_pools_on_main_thread();
+    }
+    app.finish();
+    app.cleanup();
+}
+
+/// **How many frames a [`capture`] waits for its readback**: one lands two or three frames after it is asked for, because the
+/// render world copies the frame it draws and hands it back on a later update.
+pub const CAPTURE_FRAMES: u32 = 60;
+
+/// **The editor's picture, read back the way every capture in this editor reads it** (#540): [`Screenshot::image`] of the
+/// [`crate::surface::Surface`] the world and the interface are both drawn into, which is what `report.rs` files, what
+/// `map_thumbs.rs` keeps and what `blueprint_capture_still` returns. The picture is the frame the renderer drew, in the surface's
+/// own `Bgra8UnormSrgb` texels.
+///
+/// Only an app built on [`Device::Real`] can answer; a deviceless one has no render world to copy a frame from, and says so in
+/// [`CAPTURE_FRAMES`] frames rather than waiting for ever.
+///
+/// [`Screenshot::image`]: bevy::render::view::screenshot::Screenshot::image
+pub fn capture(app: &mut App) -> Result<Image, String> {
+    use bevy::render::view::screenshot::{Screenshot, ScreenshotCaptured};
+    let surface = app.world().get_resource::<crate::surface::Surface>().ok_or("no Surface resource — is the editor built?")?.image.clone();
+    let landed: std::sync::Arc<std::sync::Mutex<Option<Image>>> = std::sync::Arc::default();
+    let slot = landed.clone();
+    app.world_mut().spawn(Screenshot::image(surface)).observe(move |shot: On<ScreenshotCaptured>| {
+        if let Ok(mut held) = slot.lock() {
+            *held = Some(shot.image.clone());
+        }
+    });
+    for _ in 0..CAPTURE_FRAMES {
+        app.update();
+        if let Some(image) = landed.lock().map_err(|e| format!("the capture's slot was poisoned: {e}"))?.take() {
+            return Ok(image);
+        }
+    }
+    Err(format!("no picture came back in {CAPTURE_FRAMES} frames: is this app on `Device::Real`?"))
 }
 
 /// **The stepped editor, on a chosen device.** [`build_headless_at`] is this with [`Device::None`].
@@ -750,6 +802,11 @@ fn build_stepped(
     app.init_resource::<crate::app_verbs::LinksOff>();
     app.init_resource::<crate::wish_view::WishSearchOff>();
     install_font(&mut app, &root)?;
+    // **A real device is moved into the worlds here** (see [`Device`]); a deviceless editor is left unfinished, as every other
+    // test has always stepped it.
+    if device == Device::Real {
+        finish_plugins(&mut app);
+    }
     Ok(app)
 }
 

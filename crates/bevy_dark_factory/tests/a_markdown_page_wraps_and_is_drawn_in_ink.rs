@@ -14,7 +14,9 @@
 //! 4. **The wrap and the ink follow the file shown**: a page has them, a map opened in the same editor has neither, and
 //!    the page again has both.
 //! 5. **A wrapped list item's later rows start under its text** (#612, `CodeWrapIndent::Same`), read from where the rows'
-//!    boxes stand against the editor's own column, and a paragraph with no marker keeps its rows at the edge.
+//!    boxes stand against the editor's own column, and a paragraph with no marker keeps its rows at the edge. The same
+//!    hang is then read off a captured frame (`harness::capture` on a real device), with it and without it: the two
+//!    pictures are #612's before and after, kept as `fixtures::kept_picture("wrap_off")` and `("wrap_on")`.
 
 use bevy::input::ButtonState;
 use bevy::input::keyboard::{Key, KeyboardInput, NativeKey};
@@ -26,7 +28,7 @@ use bevy::window::{PrimaryWindow, Window, WindowResolution};
 use bevy_dark_factory::command_run::Chords;
 use bevy_dark_factory::commands;
 use bevy_dark_factory::files::{self, Files};
-use bevy_dark_factory::harness;
+use bevy_dark_factory::harness::{self, Device};
 use bevy_dark_factory::keys::Live;
 use bevy_dark_factory::settings::UserSettingsFile;
 use bevy_dark_factory::workspace::Workspace;
@@ -507,6 +509,140 @@ fn a_wrapped_list_items_later_rows_start_under_its_text_and_a_paragraphs_at_the_
     for (k, (row, words)) in paragraph_rows.iter().enumerate() {
         let at = column_of(*row);
         assert_eq!(at, 0, "the paragraph's row {k} ({words:?}) starts at column {at}: a line with no marker does not hang");
+    }
+    assert_eq!(text(&mut app), page, "a hang is drawn, never written");
+}
+
+// ── Acceptance 5, on the picture ────────────────────────────────────────────────────────────
+
+/// **The window the hang is captured in**, physical px at a scale factor of 1: a laptop's window, so a list item of one
+/// [`PARAGRAPH_ONCE`] wraps over a few rows and the picture is a size a changelog still can show.
+const CAPTURE_W: u32 = 1280;
+const CAPTURE_H: u32 = 800;
+
+/// **How far a texel must stand from the page's ground to be ink**, in any channel out of 255: well past the caret line's
+/// band and the rounding of an sRGB target, well short of a glyph's stem.
+const INK_STEP: u8 = 48;
+
+/// **The editor on a real device with `text` open as [`PAGE`]**, or `None` (said out loud) on a host with no adapter. The surface
+/// is sized to the window before the first frame, as [`files_editor`] sizes it.
+fn rendering_page(tag: &str, text: &str) -> Option<App> {
+    if !harness::real_device_available() {
+        eprintln!("SKIPPED: no wgpu adapter on this host, so no frame can be rendered or read back");
+        return None;
+    }
+    let root = fixtures::Fixture::new(&format!("wrap_px_{tag}_{}", std::process::id()))
+        .descriptor("alpha/floor", "alpha")
+        .place_as("floor@0", "alpha/floor", (0.0, 0.0))
+        .build("m");
+    let page = root.join(PAGE);
+    std::fs::create_dir_all(page.parent().unwrap_or(&root)).unwrap_or_else(|e| panic!("{e}"));
+    std::fs::write(&page, text).unwrap_or_else(|e| panic!("{e}"));
+    let user = root.join("user_settings/settings.yaml");
+    std::fs::create_dir_all(user.parent().expect("a settings folder")).expect("a settings folder");
+    std::fs::write(&user, "version: 1\ninterface_scale: 1.0\n").expect("a settings file");
+    let mut app = harness::build_stepped_at(&root, "m", None, bevy_dark_factory::tiles::Mode::default(), Device::Real).unwrap_or_else(|e| panic!("{e}"));
+    app.insert_resource(UserSettingsFile(user));
+    let window = app.world_mut().spawn((Window { resolution: WindowResolution::new(CAPTURE_W, CAPTURE_H), ..default() }, PrimaryWindow)).id();
+    app.world_mut().get_mut::<Window>(window).expect("the window just spawned").resolution.set_scale_factor_override(Some(1.0));
+    harness::resize_surface(&mut app, CAPTURE_W, CAPTURE_H).unwrap_or_else(|e| panic!("{e}"));
+    settle_support::settle(&mut app);
+    let command = commands::by_id("workspace.files").unwrap_or_else(|| panic!("`workspace.files` is not a command"));
+    let live = *app.world().resource::<Live>();
+    app.world_mut().resource_mut::<Chords>().queue(&command, live);
+    settle_support::settle(&mut app);
+    assert_eq!(*app.world().resource::<Workspace>(), Workspace::Files, "the Files workspace is reachable by its command");
+    files::open_file(app.world_mut(), PAGE).unwrap_or_else(|e| panic!("{e}"));
+    settle_support::settle(&mut app);
+    Some(app)
+}
+
+/// **One capture of the page, read for the hang.** The frame is read back, and for each of the item's later rows the column its ink
+/// starts at is measured from where the paragraph's first row's ink starts (its `alpha`, at column 0): the leftmost texel of the row's
+/// box, inside the code area, that stands [`INK_STEP`] off the page's ground. The frame is kept as
+/// `fixtures::kept_picture("wrap_<name>")`, cut to the editor's box over the item's and the paragraph's rows. Answers `(the row's
+/// words, its column)`.
+fn the_hang_in_a_capture(app: &mut App, name: &str, item: &str) -> Vec<(String, i32)> {
+    let frame = harness::capture(app)
+        .unwrap_or_else(|e| panic!("{e}"))
+        .try_into_dynamic()
+        .unwrap_or_else(|e| panic!("the capture is a picture: {e:?}"))
+        .to_rgba8();
+    let column = column_px(app);
+    let area = code_area(app);
+    let editor = editor_of(app);
+    let drawn = drawn_rows(app);
+    let world = app.world();
+    let editor_box = border_box(world, editor).unwrap_or_else(|| panic!("the editor is laid out"));
+    let end_of = |from: usize, len: usize| -> usize {
+        let (mut end, mut taken) = (from, 0);
+        while end < drawn.len() && taken < len {
+            taken += drawn[end].1.chars().count();
+            end += 1;
+        }
+        assert_eq!(taken, len, "the rows from row {from} draw a line of {len} characters whole");
+        end
+    };
+    let item_end = end_of(0, item.chars().count());
+    let paragraph_end = end_of(item_end, PARAGRAPH_ONCE.chars().count());
+    let (item_rows, paragraph_rows) = (&drawn[..item_end], &drawn[item_end..paragraph_end]);
+    assert!(item_rows.len() >= 3 && paragraph_rows.len() >= 2, "the item and the paragraph each wrap: {} and {} rows", item_rows.len(), paragraph_rows.len());
+    let row_box = |row: Entity| border_box(world, row).unwrap_or_else(|| panic!("a drawn row is laid out"));
+    let last = row_box(paragraph_rows[paragraph_rows.len() - 1].0);
+    let (w, h) = (frame.width(), frame.height());
+    // The page's ground: the code area's left edge, a little below the paragraph's last row, where no row draws.
+    let ground = frame.get_pixel((area.min.x as u32 + 2).min(w - 1), ((last.max.y + 4.0) as u32).min(h - 1)).0;
+    let ink_start = |row: Entity| -> f32 {
+        let b = row_box(row);
+        let mut first = None::<u32>;
+        for y in (b.min.y.ceil() as u32)..(b.max.y.floor() as u32).min(h) {
+            for x in (area.min.x.ceil() as u32)..(area.max.x.floor() as u32).min(w) {
+                let p = frame.get_pixel(x, y).0;
+                if (0..3).any(|c| p[c].abs_diff(ground[c]) > INK_STEP) {
+                    first = Some(first.map_or(x, |f| f.min(x)));
+                    break;
+                }
+            }
+        }
+        first.unwrap_or_else(|| panic!("a drawn row paints no ink: {b:?}")) as f32
+    };
+    let edge = ink_start(paragraph_rows[0].0);
+    let hang: Vec<(String, i32)> = item_rows.iter().skip(1).map(|(row, words)| (words.clone(), ((ink_start(*row) - edge) / column).round() as i32)).collect();
+
+    let top = (row_box(item_rows[0].0).min.y - 6.0).max(0.0) as u32;
+    let bottom = ((last.max.y + 6.0) as u32).min(h);
+    let left = editor_box.min.x.max(0.0) as u32;
+    let right = (editor_box.max.x as u32).min(w);
+    let kept = fixtures::kept_picture(&format!("wrap_{name}"));
+    image::imageops::crop_imm(&frame, left, top, right - left, bottom - top)
+        .to_image()
+        .save(&kept)
+        .unwrap_or_else(|e| panic!("the picture is kept at {}: {e}", kept.display()));
+    eprintln!("the {name} picture: {} ({} x {} px; a column is {column} px; ground {ground:?})", kept.display(), right - left, bottom - top);
+    hang
+}
+
+/// **The hang is in the picture** (#612's before and after): with `CodeWrapIndent::Same`, which the Files editor puts on a page, every
+/// later row of a wrapped `- ` item draws its first ink two columns right of the paragraph's first letter; with `CodeWrapIndent::None`,
+/// the editor before #612, every one of them draws it at the paragraph's own column. Both frames are read off the renderer, so this is
+/// what a person sees and not what the layout says it laid out.
+#[test]
+fn a_captured_page_draws_a_wrapped_list_items_later_rows_under_its_text_and_at_the_edge_without_the_hang() {
+    let item = format!("- {PARAGRAPH_ONCE}");
+    let page = format!("{item}\n{PARAGRAPH_ONCE}\n");
+    let Some(mut app) = rendering_page("hang", &page) else { return };
+    let editor = editor_of(&mut app);
+    assert_eq!(app.world().get::<CodeWrapIndent>(editor), Some(&CodeWrapIndent::Same), "a page's wrapped lines hang under their first word");
+    let on = the_hang_in_a_capture(&mut app, "on", &item);
+    for (words, at) in &on {
+        assert_eq!(*at, 2, "with the hang, the item's row {words:?} draws its first ink at column {at}, not under the item's text at column 2: {on:?}");
+    }
+
+    app.world_mut().entity_mut(editor).insert(CodeWrapIndent::None);
+    settle_support::settle(&mut app);
+    let off = the_hang_in_a_capture(&mut app, "off", &item);
+    for (words, at) in &off {
+        assert_eq!(*at, 0, "without the hang, the item's row {words:?} draws its first ink at column {at}, not at the edge: {off:?}");
     }
     assert_eq!(text(&mut app), page, "a hang is drawn, never written");
 }

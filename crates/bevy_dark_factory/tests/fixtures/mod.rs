@@ -38,6 +38,15 @@ use blueprint_model::map::{Map, Placed};
 use blueprint_model::policy::Policy;
 use blueprint_model::vocab::{Token, Vocabularies, Vocabulary};
 
+/// **Where a test keeps a picture it captured, for a person to look at**: `<temp>/blueprint-captures/<name>.png`, written over by
+/// the next run. Not under a fixture's root, because [`sweep_dead_fixtures`] removes the root of every finished process and nextest
+/// finishes one per test, so a picture kept there is gone before anyone opens it.
+pub fn kept_picture(name: &str) -> std::path::PathBuf {
+    let dir = std::env::temp_dir().join("blueprint-captures");
+    std::fs::create_dir_all(&dir).unwrap_or_else(|e| panic!("cannot make {}: {e}", dir.display()));
+    dir.join(format!("{name}.png"))
+}
+
 /// Remove the directories of exited test processes, once per process. A directory whose pid is
 /// alive belongs to a run in flight and is left alone, as is anything that does not parse.
 fn sweep_dead_fixtures() {
