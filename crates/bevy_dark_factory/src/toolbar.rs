@@ -222,16 +222,21 @@ pub fn decode_the_sheet(
 /// **The bar follows the workspace** (#690): one bar in the frame while the workspace has the map's tools
 /// ([`Workspace::has_the_toolbar`]), and none while it has not, so the docks below take the height it gave up.
 ///
-/// A system rather than `OnEnter`, because a switch between the workspaces that share the viewport keeps the
-/// frame (#695): "the frame holds the wrong bar for this workspace" is the one condition that covers a new
-/// screen, a kept frame and a respawned one. A bar that is not this frame's is gone with the frame it was in.
+/// A system rather than `OnEnter`, because "the frame holds the wrong bar for this workspace" is the one condition
+/// that covers a new screen and a respawned frame. A bar that is not this frame's is gone with the frame it was in.
+///
+/// **A switch keeps the bar** (#678, #541): `screen::close_the_door` lifts it off the frame it sweeps, and this puts it
+/// back straight after the new frame's chrome bar in the switch's own frame, when the workspace it lands on has the
+/// map's tools; one that has not sweeps it. Its buttons are the same on every workspace that draws it: which mode is
+/// lit and which button is quiet follow the editor every frame ([`the_group_follows_the_armed_tool`],
+/// [`quiet_what_cannot_act_here`]).
 fn the_bar_follows_the_workspace(
     mut commands: Commands,
     frame: Option<Res<crate::chrome::Frame>>,
     workspace: Option<Res<Workspace>>,
     atlas: Option<Res<ToolbarAtlas>>,
     skin: Res<bevy_gooey::GooeySkin>,
-    bars: Query<(Entity, &ChildOf), With<Toolbar>>,
+    bars: Query<(Entity, Option<&ChildOf>), With<Toolbar>>,
 ) {
     let Some(frame) = frame else {
         return;
@@ -239,10 +244,19 @@ fn the_bar_follows_the_workspace(
     let wanted = workspace.is_some_and(|w| w.has_the_toolbar());
     let mut drawn = false;
     for (bar, parent) in &bars {
-        if wanted && !drawn && parent.parent() == frame.root {
-            drawn = true;
-        } else {
+        if !wanted || drawn {
             commands.entity(bar).despawn();
+            continue;
+        }
+        match parent.map(ChildOf::parent) {
+            Some(parent) if parent == frame.root => drawn = true,
+            Some(_) => {
+                commands.entity(bar).despawn();
+            }
+            None => {
+                put_after_the_chrome_bar(&mut commands, &frame, bar);
+                drawn = true;
+            }
         }
     }
     if wanted
@@ -343,9 +357,13 @@ fn spawn_the_bar(commands: &mut Commands, frame: &crate::chrome::Frame, atlas: &
             }))),
         ))
         .id();
-    // **Straight after the chrome bar**, found where it stands when the command runs: the menu bar goes in at
-    // index 0 from a system of its own, and a bar spawned into a kept frame (#695) arrives after it, so a fixed
-    // index would put this bar above the chrome bar or below it depending on which came first.
+    put_after_the_chrome_bar(commands, frame, bar);
+}
+
+/// **Put the bar straight after the chrome bar**, found where it stands when the command runs: the menu bar goes in at
+/// index 0 from a system of its own, and either may reach a new frame first, so a fixed index would put this bar above
+/// the chrome bar or below it depending on which came first. A new bar and one a switch kept go in the same way.
+fn put_after_the_chrome_bar(commands: &mut Commands, frame: &crate::chrome::Frame, bar: Entity) {
     let (root, chrome_bar) = (frame.root, frame.chrome_bar);
     commands.queue(move |world: &mut World| {
         let at = world

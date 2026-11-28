@@ -12,15 +12,24 @@
 //! number of switches, once and on top of the frame; what comes and goes under it is the tooltip of a row whose greying
 //! the new workspace changed; and a switch spawns fewer nodes than the bar holds. `--no-capture` prints each switch's
 //! counts and its first frames' split.
+//!
+//! **The activity bar and the toolbar are kept the same way** (#678): the registered workspaces' tabs, and the map's
+//! tools on the workspaces that have them, were the next-largest things a switch drew again that it did not change.
+//! `close_the_door` lifts them with the menu bar; `activity_bar::keep_the_activity_bar` puts the activity bar back at the
+//! far left of the new frame's body and `toolbar::the_bar_follows_the_workspace` puts the toolbar back after the chrome
+//! bar, or sweeps it on a workspace without the map's tools. The last two tests count that no node under either is
+//! spawned or swept by a switch that keeps it.
 
 use std::collections::{HashMap, HashSet};
 
 use bevy::prelude::*;
 
+use bevy_dark_factory::activity_bar::{ActivityBar, ActivityStrip};
 use bevy_dark_factory::chrome::Frame;
 use bevy_dark_factory::harness;
 use bevy_dark_factory::menu_bar::EditorMenuBar;
 use bevy_dark_factory::profile::Profiler;
+use bevy_dark_factory::toolbar::Toolbar;
 use bevy_dark_factory::workspace::Workspace;
 
 use crate::fixtures;
@@ -186,4 +195,126 @@ fn a_switch_keeps_the_menu_bar_and_spawns_less_than_the_bar_holds() {
             to.title()
         );
     }
+}
+
+/// **A switch keeps the activity bar and every node under it but the lit tab's rail, at the far left of the new frame's
+/// body, and lights the workspace it lands on.**
+///
+/// What comes and goes under the bar is the rail the editor draws under the `Selected` tab (`ui::SelectedRail`): a switch
+/// moves it from the tab it leaves to the tab it lands on, one swept and one spawned. Nothing else is.
+///
+/// Fails on the tree before the activity bar's cut: the bar was a child of the frame's body, so every switch despawned it
+/// with the frame and `keep_the_activity_bar` drew it again — a new entity, and every node under it new.
+#[test]
+fn a_switch_keeps_the_activity_bar_and_spawns_none_of_its_nodes() {
+    let mut app = editor("activity");
+    switch(&mut app, Workspace::Kit);
+    switch(&mut app, Workspace::Map);
+    let the_activity_bar = |app: &mut App| {
+        let bars = with::<ActivityBar>(app);
+        assert_eq!(bars.len(), 1, "one activity bar stands, not {}", bars.len());
+        bars.into_iter().next().unwrap_or_else(|| panic!("an activity bar"))
+    };
+    let bar = the_activity_bar(&mut app);
+    let mut tabs = subtree(&parents(&mut app), bar);
+    let tab_nodes = tabs.iter().filter(|e| app.world().get::<Node>(**e).is_some()).count();
+    println!("the activity bar: {tab_nodes} nodes");
+    assert!(tab_nodes > 10, "the bar holds a tab for every registered workspace: {tab_nodes} nodes");
+
+    for to in [Workspace::Kit, Workspace::Map, Workspace::World, Workspace::Animation, Workspace::Map] {
+        let nodes = with::<Node>(&mut app);
+        switch(&mut app, to);
+
+        assert_eq!(the_activity_bar(&mut app), bar, "the switch to {} kept the activity bar", to.title());
+        let parent = parents(&mut app);
+        let after = subtree(&parent, bar);
+        let spawned: Vec<Entity> = after.difference(&tabs).copied().collect();
+        let swept = tabs.difference(&after).count();
+        let on_the_lit_tab = |e: &Entity| parent.get(e).is_some_and(|tab| app.world().get::<bevy::ui::Selected>(*tab).is_some());
+        let named: Vec<String> = spawned
+            .iter()
+            .map(|e| {
+                let names: Vec<String> = app.world().inspect_entity(*e).map(|c| c.map(|(_, c)| format!("{:?}", c.name())).collect()).unwrap_or_default();
+                names.join(" ")
+            })
+            .collect();
+        assert!(
+            spawned.len() <= 1 && swept <= 1 && spawned.iter().all(on_the_lit_tab),
+            "the switch to {} spawned {} and swept {swept} entities under the activity bar, more than the lit tab's rail: it was \
+             drawn again; spawned: {named:?}",
+            to.title(),
+            spawned.len()
+        );
+        let frame = app.world().resource::<Frame>();
+        let (root, body) = (frame.root, frame.body);
+        let first = app.world().get::<Children>(body).and_then(|kids| kids.first().copied());
+        assert_eq!(first, Some(bar), "the kept bar stands at the far left of the body the switch to {} built", to.title());
+        assert_eq!(app.world().get::<ActivityBar>(bar).map(|b| b.frame), Some(root), "the kept bar names the new frame");
+        let lit = {
+            let world = app.world_mut();
+            let mut strips = world.query::<(&ActivityStrip, &bevy_gooey::TabsValue)>();
+            let (strip, value) = strips.single(world).unwrap_or_else(|e| panic!("one activity strip: {e}"));
+            strip.0.get(value.0).copied()
+        };
+        assert_eq!(lit, Some(to), "the kept bar lights {}", to.title());
+        println!(
+            "to {}: {} nodes new, under the activity bar {} new (the lit tab's rail) of {tab_nodes}",
+            to.title(),
+            with::<Node>(&mut app).difference(&nodes).count(),
+            spawned.len()
+        );
+        tabs = after;
+    }
+}
+
+/// **A switch between the workspaces with the map's tools keeps the toolbar and every node under it, straight after the
+/// new frame's chrome bar; a switch to one without them sweeps it, and the way back draws one.**
+///
+/// Fails on the tree before the toolbar's cut: the bar was a child of the frame's root, so every switch despawned it with
+/// the frame and `the_bar_follows_the_workspace` drew it again — a new entity, and every node under it new.
+#[test]
+fn a_switch_keeps_the_toolbar_where_the_workspace_has_it_and_spawns_none_of_its_nodes() {
+    let mut app = editor("toolbar");
+    switch(&mut app, Workspace::Kit);
+    switch(&mut app, Workspace::Map);
+    let bar = {
+        let bars = with::<Toolbar>(&mut app);
+        assert_eq!(bars.len(), 1, "one toolbar stands on Map, not {}", bars.len());
+        bars.into_iter().next().unwrap_or_else(|| panic!("a toolbar"))
+    };
+    let buttons = subtree(&parents(&mut app), bar);
+    let bar_nodes = buttons.iter().filter(|e| app.world().get::<Node>(**e).is_some()).count();
+    println!("the toolbar: {bar_nodes} nodes");
+    assert!(bar_nodes > 10, "the bar holds the map's tools: {bar_nodes} nodes");
+
+    for to in [Workspace::Kit, Workspace::Map, Workspace::World, Workspace::Map] {
+        let nodes = with::<Node>(&mut app);
+        switch(&mut app, to);
+
+        assert_eq!(with::<Toolbar>(&mut app), HashSet::from([bar]), "the switch to {} kept the one toolbar", to.title());
+        let after = subtree(&parents(&mut app), bar);
+        assert_eq!(
+            after.difference(&buttons).count() + buttons.difference(&after).count(),
+            0,
+            "the switch to {} spawned or swept nodes under the toolbar: it was drawn again",
+            to.title()
+        );
+        let frame = app.world().resource::<Frame>();
+        let (root, chrome_bar) = (frame.root, frame.chrome_bar);
+        let kids: Vec<Entity> = app.world().get::<Children>(root).map(|kids| kids.to_vec()).unwrap_or_default();
+        let chrome_at = kids.iter().position(|kid| *kid == chrome_bar);
+        assert_eq!(
+            chrome_at.and_then(|at| kids.get(at + 1)).copied(),
+            Some(bar),
+            "the kept toolbar stands straight after the chrome bar of the frame the switch to {} built",
+            to.title()
+        );
+        println!("to {}: {} nodes new, none under the toolbar ({bar_nodes} kept)", to.title(), with::<Node>(&mut app).difference(&nodes).count());
+    }
+
+    switch(&mut app, Workspace::Animation);
+    assert!(with::<Toolbar>(&mut app).is_empty(), "Animation has no map tools, so the switch to it swept the toolbar");
+    switch(&mut app, Workspace::Map);
+    let again = with::<Toolbar>(&mut app);
+    assert_eq!(again.len(), 1, "the way back to Map draws one toolbar, not {}", again.len());
 }

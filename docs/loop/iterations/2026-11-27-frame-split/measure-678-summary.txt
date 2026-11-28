@@ -26,3 +26,12 @@
   -> kit (n=10): StateTransition 244.3-582.9 (p50 356.0) | Update p50 89.1 | busy 370.3-836.8 (p50 510.6) | over 100 ms: 10/10
   -> map (n=10): StateTransition 24.4-100.0 (p50 33.7) | Update p50 84.0 | busy 151.5-511.4 (p50 184.2) | over 100 ms: 10/10
   SWITCH n=20 worst-frame frame_ms p50 438.4 p90 817.44 max 860.1 | busy_ms p50 412.21 p90 757.08 max 836.8 | over 100 ms busy: 20/20
+
+# 2026-11-27 evening, big, Xvfb :77, bedroom copy in ~/fleetscratch/f677: main 5ae2567f (Kit scan memo, portrait cache,
+# menu bar kept) and main + the toolbar and activity bar kept across a switch (fix/678-measure-main), interleaved
+# keep1, main2, keep2 after main1. measure.py now drives 20 Map<->Kit then 20 Map<->World. busy_ms of the switch frame.
+main1-5ae2567f (load 14.4 -> 16.9): map<->kit busy p50 101.7 p90 161.3 (11/20 over 100) | map<->world p50 95.7 p90 112.0 (9/20)
+  kit split p50: PostUpdate 34.3, Update 30.7, StateTransition 24.2 | world split p50: PostUpdate 33.5, Update 32.0, StateTransition 22.4
+keep1+kept     (load  8.1 ->  8.3): map<->kit busy p50  81.6 p90  96.2 ( 2/20)         | map<->world p50 66.4 p90  80.1 (0/20)
+main2-5ae2567f (load  8.6 -> 10.9): map<->kit busy p50  75.7 p90  92.5 ( 2/20)         | map<->world p50 85.0 p90  94.5 (1/20)
+keep2+kept     (load 11.2 -> 11.0): map<->kit busy p50  70.4 p90 294.3 ( 5/20)         | map<->world p50 69.9 p90  78.5 (0/20)
