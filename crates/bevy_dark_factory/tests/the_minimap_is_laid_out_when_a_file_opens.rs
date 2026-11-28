@@ -260,15 +260,11 @@ fn border_box(world: &World, entity: Entity) -> Option<Rect> {
     Some(Rect::from_center_size(at, computed.size()))
 }
 
-/// **Whether the pointer stands over `editor`**: the nearest node a pointer's `HoverMap` entry holds is the
-/// editor or one of its parts, which is the node `code_on_wheel` walks up from to find the editor it scrolls.
-fn hovered(app: &App, editor: Entity) -> bool {
-    let world = app.world();
-    let Some(hover) = world.get_resource::<HoverMap>() else {
-        return false;
-    };
-    let parts = under(world, editor);
-    hover.values().any(|hits| hits.iter().min_by(|a, b| a.1.depth.total_cmp(&b.1.depth)).is_some_and(|(hit, _)| parts.contains(hit)))
+/// **The node a pointer stands over**: the nearest hit of the first pointer whose `HoverMap` entry holds one,
+/// which is the node `code_on_wheel` walks up from to find the editor it scrolls.
+fn nearest_hit(app: &App) -> Option<Entity> {
+    let hover = app.world().get_resource::<HoverMap>()?;
+    hover.values().find_map(|hits| hits.iter().min_by(|a, b| a.1.depth.total_cmp(&b.1.depth)).map(|(hit, _)| *hit))
 }
 
 /// **The band follows the view when the person's wheel scrolls it, with no edit** (#540 acceptance 2, "by
@@ -287,13 +283,28 @@ fn the_band_follows_the_view_when_the_wheel_scrolls_it_with_no_edit() {
     let (opened_top, opened_height) = band.expect("the lane draws a view band");
     let revision = app.world().get::<CodeEditor>(editor).map(|e| e.buffer().revision()).unwrap_or_else(|| panic!("the editor is open"));
 
-    // **The pointer over the text**: the centre of the editor's box. The surface is the window's size at a
-    // scale factor of 1, so a surface pixel is a window pixel.
-    let over = border_box(app.world(), editor).unwrap_or_else(|| panic!("the editor is laid out")).center();
+    // **The pointer over the text**: a quarter of the way into the code area from its top-left, among the
+    // rows. The surface is the window's size at a scale factor of 1, so a surface pixel is a window pixel.
+    let over = {
+        let world = app.world();
+        let area = under(world, editor)
+            .into_iter()
+            .find(|e| world.get::<Role>(*e) == Some(&Role::CodeArea))
+            .and_then(|area| border_box(world, area))
+            .unwrap_or_else(|| panic!("the editor's code area is laid out"));
+        area.min + area.size() * 0.25
+    };
     app.init_resource::<Aim>();
     app.add_systems(PreUpdate, aim.after(InputSystems));
     app.world_mut().resource_mut::<Aim>().0 = Some(over);
-    settle_support::until(&mut app, "the pointer stands over the editor", |app| hovered(app, editor));
+    settle_support::until(&mut app, "the pointer's hover reaches the interface", |app| nearest_hit(app).is_some());
+    let hit = nearest_hit(&app).unwrap_or_else(|| panic!("the pointer stands over a node"));
+    assert!(
+        under(app.world(), editor).contains(&hit),
+        "the pointer at {over} stands over the editor's text, not over {hit:?} ({:?}, {:?})",
+        app.world().get::<Role>(hit),
+        app.world().get::<Name>(hit)
+    );
 
     let window = app.world_mut().query_filtered::<Entity, With<PrimaryWindow>>().single(app.world()).unwrap_or_else(|e| panic!("one primary window: {e}"));
     app.world_mut().write_message(MouseWheel { unit: MouseScrollUnit::Line, x: 0.0, y: -NOTCHES, window, phase: TouchPhase::Moved });
@@ -312,6 +323,9 @@ fn the_band_follows_the_view_when_the_wheel_scrolls_it_with_no_edit() {
     assert!(view.start > 0, "the wheel moved the view down the file: it shows lines {view:?}");
     let (band, _) = lane(&app, editor);
     let (top, height) = band.expect("the lane draws a view band");
+    eprintln!(
+        "{NOTCHES} notches over {over} at UiScale {ui_scale}: the view scrolled {scrolled} px to lines {view:?}; the band moved from top {opened_top} to {top}, {height} px tall"
+    );
     assert_ne!(top, opened_top, "the band moved with the view");
     assert_eq!(top, view.start as f32 * BAR_PITCH_PX, "the band starts at the lane's row of the view's first line, {}", view.start);
     assert_eq!(height, opened_height, "the viewport holds as many rows as it did at the top, so the band is as tall as it was");
@@ -383,7 +397,7 @@ fn a_captured_frame_of_a_file_opened_for_reading_paints_the_bar_colour_in_the_la
     // **The census**: every texel of the lane outside the band, counted where it is the bar colour.
     let (mut texels, mut rows) = (0usize, BTreeSet::new());
     for y in lane_box.min.y.ceil() as u32..lane_box.max.y.floor() as u32 {
-        if band_box.min.y <= y as f32 + 0.5 && y as f32 + 0.5 <= band_box.max.y {
+        if (band_box.min.y..=band_box.max.y).contains(&(y as f32 + 0.5)) {
             continue;
         }
         for x in lane_box.min.x.ceil() as u32..lane_box.max.x.floor() as u32 {
