@@ -34,6 +34,7 @@ mod a_project_skin_previews_only_in_the_panel;
 mod a_reference_is_followed_from_where_it_is_written;
 mod a_refused_registry_names_why_it_was_refused;
 mod a_rigs_clip_is_found_by_the_finder;
+mod a_rust_files_completion_and_hover_come_from_its_server;
 mod a_rust_files_compiler_errors_are_marked_by_rust_analyzer;
 mod a_saved_arrangement_is_the_one_the_editor_shows;
 mod a_capture_is_filed_as_an_issue;
