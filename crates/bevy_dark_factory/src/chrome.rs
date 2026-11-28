@@ -3316,9 +3316,8 @@ pub fn quiet_row_shape() -> impl Bundle {
 /// `BorderPx` with neither `InkOverride` nor `InkFollow` is what
 /// `the_borders_and_paddings_are_gooeys::a_px_border_keeps_the_edge_colour_the_editor_gave_it` forbids.
 ///
-/// **A row's cells stand at its middle** (`quiet_list_row`'s `Center`), and a `RowLayout` cannot move them:
-/// gooey writes one only on layout containers, and a `ListRow` is not one (bevy_gooey#127). A row whose
-/// cells must stand elsewhere says so per cell, with gooey's `TextFlow::align` (the palette's rows).
+/// **A row's cells stand at its middle** (`quiet_list_row`'s `Center`) unless the row carries a `RowLayout`, which gooey writes
+/// on a `ListRow` as on any row (bevy_gooey#127): the palette's rows put their cells at the top with `align: FlexStart`.
 fn row_shape(classes: &str) -> impl Bundle {
     (
         bevy_gooey::quiet_list_row(),

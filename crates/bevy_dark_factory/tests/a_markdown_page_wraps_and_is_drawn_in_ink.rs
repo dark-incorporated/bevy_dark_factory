@@ -13,6 +13,8 @@
 //! 3. **Editing, selection, undo and Up/Down by drawn row work on a wrapped line.**
 //! 4. **The wrap and the ink follow the file shown**: a page has them, a map opened in the same editor has neither, and
 //!    the page again has both.
+//! 5. **A wrapped list item's later rows start under its text** (#612, `CodeWrapIndent::Same`), read from where the rows'
+//!    boxes stand against the editor's own column, and a paragraph with no marker keeps its rows at the edge.
 
 use bevy::input::ButtonState;
 use bevy::input::keyboard::{Key, KeyboardInput, NativeKey};
@@ -28,7 +30,7 @@ use bevy_dark_factory::harness;
 use bevy_dark_factory::keys::Live;
 use bevy_dark_factory::settings::UserSettingsFile;
 use bevy_dark_factory::workspace::Workspace;
-use bevy_gooey::{CodeEditor, CodeEditorValue, CodeMarkdown, CodePos, CodeSoftWrap, Role};
+use bevy_gooey::{CodeEditor, CodeEditorValue, CodeMarkdown, CodePos, CodeSoftWrap, CodeWrapIndent, Role};
 
 use crate::fixtures;
 use crate::settle_support;
@@ -200,11 +202,11 @@ fn painted(world: &World, row: Entity) -> Option<Rect> {
     out
 }
 
-/// The editor's drawn rows, top to bottom: `(words the row holds, what it paints)`.
-fn rows(app: &mut App) -> Vec<(String, Option<Rect>)> {
+/// The editor's drawn rows, top to bottom: `(the row, the words it holds)`.
+fn drawn_rows(app: &mut App) -> Vec<(Entity, String)> {
     let editor = editor_of(app);
     let world = app.world();
-    let mut found: Vec<(f32, String, Option<Rect>)> = descendants(world, editor)
+    let mut found: Vec<(f32, Entity, String)> = descendants(world, editor)
         .into_iter()
         .filter(|e| world.get::<Role>(*e) == Some(&Role::CodeText))
         .filter(|e| world.get::<Node>(*e).is_some_and(|n| n.display != Display::None))
@@ -218,11 +220,18 @@ fn rows(app: &mut App) -> Vec<(String, Option<Rect>)> {
                 }
             }
             let y = border_box(world, e)?.min.y;
-            Some((y, words, painted(world, e)))
+            Some((y, e, words))
         })
         .collect();
     found.sort_by(|a, b| a.0.total_cmp(&b.0));
-    found.into_iter().map(|(_, words, rect)| (words, rect)).collect()
+    found.into_iter().map(|(_, row, words)| (row, words)).collect()
+}
+
+/// The editor's drawn rows, top to bottom: `(words the row holds, what it paints)`.
+fn rows(app: &mut App) -> Vec<(String, Option<Rect>)> {
+    let drawn = drawn_rows(app);
+    let world = app.world();
+    drawn.into_iter().map(|(row, words)| (words, painted(world, row))).collect()
 }
 
 /// Every span under the editor that holds words: `(its words, its colour)`.
@@ -439,6 +448,67 @@ fn an_unsaved_edit_survives_a_tab_change_between_a_page_and_a_map() {
     caret_at(&mut app, 0, 4);
     bevy_gooey::testing::press(&mut app, KeyCode::ArrowDown);
     assert!(caret(&mut app).col > 4, "Down moves by a drawn row after the round trip: {:?}", caret(&mut app));
+}
+
+// ── Acceptance 5 ────────────────────────────────────────────────────────────────────────────
+
+/// **One column of the editor's face**, physical px: the width of gooey's hidden measuring row over the characters it holds.
+fn column_px(app: &mut App) -> f32 {
+    let editor = editor_of(app);
+    let world = app.world();
+    let probe = descendants(world, editor)
+        .into_iter()
+        .find(|e| world.get::<Role>(*e) == Some(&Role::CodeText) && world.get::<Visibility>(*e) == Some(&Visibility::Hidden))
+        .unwrap_or_else(|| panic!("the editor measures its column on a hidden row"));
+    let chars = world.get::<Text>(probe).map_or(0, |t| t.0.chars().count());
+    let width = border_box(world, probe).map_or(0.0, |b| b.width());
+    assert!(chars > 0 && width > 0.0, "the measuring row holds characters and is laid out: {chars} in {width} px");
+    width / chars as f32
+}
+
+/// **A wrapped list item's later rows start under its text, not at the editor's left edge** (#612, the owner's pick of 2026-11-27:
+/// `CodeWrapIndent::Same`). `- ` is two columns, so every row of the item after its first starts two columns right of the first
+/// row, which starts with the `-`. The paragraph on the next line has no marker, so its rows start where the item's first row
+/// does: the hang is the item's, not every wrapped row's. Read from each row's box against the editor's own column, rounded to
+/// whole columns, so a pixel of layout rounding cannot move a row by a column and a hang of one column or none cannot pass.
+#[test]
+fn a_wrapped_list_items_later_rows_start_under_its_text_and_a_paragraphs_at_the_edge() {
+    let item = format!("- {}", paragraph());
+    let page = format!("{item}\n{}\n", paragraph());
+    let mut app = files_editor("hang", 1.0, &page);
+    let editor = editor_of(&mut app);
+    assert_eq!(app.world().get::<CodeWrapIndent>(editor), Some(&CodeWrapIndent::Same), "a page's wrapped lines hang under their first word");
+    let column = column_px(&mut app);
+    let drawn = drawn_rows(&mut app);
+    // The rows of each line are the ones whose words add up to it.
+    let end_of = |from: usize, len: usize| -> usize {
+        let (mut end, mut taken) = (from, 0);
+        while end < drawn.len() && taken < len {
+            taken += drawn[end].1.chars().count();
+            end += 1;
+        }
+        assert_eq!(taken, len, "the rows from row {from} draw a line of {len} characters whole");
+        end
+    };
+    let item_end = end_of(0, item.chars().count());
+    let paragraph_end = end_of(item_end, paragraph().chars().count());
+    let (item_rows, paragraph_rows) = (&drawn[..item_end], &drawn[item_end..paragraph_end]);
+    assert!(item_rows.len() >= 3 && paragraph_rows.len() >= 3, "the item and the paragraph each wrap: {} and {} rows", item_rows.len(), paragraph_rows.len());
+    assert!(item_rows[0].1.starts_with("- "), "the item's first row starts with its marker: {:?}", item_rows[0].1);
+
+    let world = app.world();
+    let left = |row: Entity| border_box(world, row).unwrap_or_else(|| panic!("a drawn row is laid out")).min.x;
+    let edge = left(item_rows[0].0);
+    let column_of = |row: Entity| ((left(row) - edge) / column).round() as i32;
+    for (k, (row, words)) in item_rows.iter().enumerate().skip(1) {
+        let at = column_of(*row);
+        assert_eq!(at, 2, "the item's row {k} ({words:?}) starts at column {at}, not under the item's text at column 2 ({column} px a column)");
+    }
+    for (k, (row, words)) in paragraph_rows.iter().enumerate() {
+        let at = column_of(*row);
+        assert_eq!(at, 0, "the paragraph's row {k} ({words:?}) starts at column {at}: a line with no marker does not hang");
+    }
+    assert_eq!(text(&mut app), page, "a hang is drawn, never written");
 }
 
 /// **The host's primary modifier key** (#638): the editor's chords are `Modifiers::PRIMARY`, which is `Control` on

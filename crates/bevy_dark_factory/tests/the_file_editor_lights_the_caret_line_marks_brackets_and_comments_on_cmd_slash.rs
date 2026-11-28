@@ -14,7 +14,8 @@
 //! # What this measures
 //!
 //! The band's own rect against the caret's row, both marks' rects against the two brackets' places, and the file's text after
-//! `Cmd+/` and after a second one. The comment's spelling for each language is measured on `files_lang::toggle_comment` itself.
+//! `Cmd+/`, after a second one, and after `Cmd+Z`, which takes a press back as one step of the person's own (bevy_gooey#125). The
+//! comment's spelling for each language is measured on `files_lang::toggle_comment` itself.
 
 use bevy::input::ButtonState;
 use bevy::input::keyboard::{Key, KeyboardInput, NativeKey};
@@ -188,16 +189,21 @@ fn primary() -> KeyCode {
     if cfg!(target_os = "macos") { KeyCode::SuperLeft } else { KeyCode::ControlLeft }
 }
 
-/// **One `Cmd+/`**, as the keyboard sends it: the modifier down, `/` down and up, the modifier up.
-fn cmd_slash(app: &mut App) {
+/// **One `Cmd+<key>`**, as the keyboard sends it: the modifier down, the key down and up, the modifier up.
+fn cmd(app: &mut App, key_code: KeyCode, character: &str) {
     let unidentified = || Key::Unidentified(NativeKey::Unidentified);
     send(app, primary(), unidentified(), ButtonState::Pressed);
     app.update();
-    send(app, KeyCode::Slash, Key::Character("/".into()), ButtonState::Pressed);
+    send(app, key_code, Key::Character(character.into()), ButtonState::Pressed);
     app.update();
-    send(app, KeyCode::Slash, Key::Character("/".into()), ButtonState::Released);
+    send(app, key_code, Key::Character(character.into()), ButtonState::Released);
     send(app, primary(), unidentified(), ButtonState::Released);
     settle_support::settle(app);
+}
+
+/// **One `Cmd+/`**.
+fn cmd_slash(app: &mut App) {
+    cmd(app, KeyCode::Slash, "/");
 }
 
 /// The file's text as the editor holds it, after checking the widget holds the same.
@@ -209,7 +215,9 @@ fn held(app: &mut App, editor: Entity) -> String {
 }
 
 /// **`Cmd+/` on a `.rs` line puts `// ` at its indent, and a second `Cmd+/` takes it off** (#612 pick 3). The caret stays on the
-/// text it was on, and the file is dirty after the first press and clean after the second.
+/// text it was on, and the file is dirty after the first press and clean after the second. **`Cmd+Z` takes a press back**
+/// (bevy_gooey#125): a third press comments the line again, `Cmd+Z` restores the text, and a second `Cmd+Z` takes back the press
+/// before it, so a toggle is one step on top of the person's history and not the end of it.
 #[test]
 fn cmd_slash_comments_a_rust_line_and_a_second_press_takes_it_off() {
     let (mut app, editor) = editor_on("comment", REL, SOURCE);
@@ -223,6 +231,13 @@ fn cmd_slash_comments_a_rust_line_and_a_second_press_takes_it_off() {
     cmd_slash(&mut app);
     assert_eq!(held(&mut app, editor), SOURCE, "a second Cmd+/ takes the comment off, and the text is as it was");
     assert!(!app.world().resource::<Files>().is_dirty(REL), "back to what the disk holds");
+    cmd_slash(&mut app);
+    assert_eq!(held(&mut app, editor), once, "a third Cmd+/ comments the line again");
+    cmd(&mut app, KeyCode::KeyZ, "z");
+    assert_eq!(held(&mut app, editor), SOURCE, "Cmd+Z takes the comment back, and the text is as it was");
+    assert!(!app.world().resource::<Files>().is_dirty(REL), "the undone press leaves the file as the disk holds it");
+    cmd(&mut app, KeyCode::KeyZ, "z");
+    assert_eq!(held(&mut app, editor), once, "a second Cmd+Z takes back the press before it, which took the comment off");
 }
 
 /// **A selection over several lines comments them all at their shallowest indent, leaving the blank line alone**, and `Cmd+/` again

@@ -52,8 +52,8 @@ use bevy::ui::{ComputedNode, InteractionDisabled, ScrollPosition, UiGlobalTransf
 use bevy::ui_widgets::{Activate, ValueChange};
 use bevy_gooey::{
     CodeAuthor, CodeCompletionRequested, CodeCompletions, CodeEdit, CodeEditor, CodeEditorValue, CodeHover, CodeHoverRequested, CodeIndent,
-    CodeIndentation, CodeMarkdown, CodeMinimap, CodePos, CodeSeverity, CodeSoftWrap, CompletionItem, Diagnostic, Diagnostics, FoldRanges, Highlights, ListView, RowSource,
-    SelectMode, TableSelection, Tree, TreeNode, observe, tree,
+    CodeIndentation, CodeMarkdown, CodeMinimap, CodePos, CodeSeverity, CodeSoftWrap, CodeWrapIndent, CompletionItem, Diagnostic, Diagnostics,
+    FoldRanges, Highlights, ListView, RowSource, SelectMode, TableSelection, Tree, TreeNode, observe, tree,
 };
 use serde_json::Value;
 
@@ -743,6 +743,10 @@ pub fn active_file(session: &Session) -> Option<String> {
 /// ([`CodeSoftWrap`]) instead of running off it, and its marks (headings, emphasis, code, links, quotes, lists) are drawn in the skin's inks
 /// ([`CodeMarkdown`]). A wrap is drawn and never written, so the file's text, the caret and the undo history are as without it.
 ///
+/// **A wrapped line's later rows hang under its first word** ([`CodeWrapIndent::Same`], #612, the owner's pick of 2026-11-27): a list item,
+/// a quote or an indented line continues under its own text instead of at the editor's left edge, as VS Code's `wrappingIndent: same` and
+/// Obsidian draw it. The hang goes and comes with the wrap, so it is one pair of components.
+///
 /// **A default chosen while implementing #525, not a setting** (the owner approved soft wrap and highlighting in the issue, and was away for
 /// the choice of a switch): the note was *"this markdown editor is not great"*, and what a person met was a paragraph on one line to scroll
 /// sideways to read, so Markdown wraps. A YAML, `.ron` or Rhai file keeps gooey's code editor, which is what [`CodeSoftWrap`]'s own docs say a
@@ -754,10 +758,10 @@ fn mark_the_prose(mut commands: Commands, editors: Query<(Entity, &FileEditor, H
         let (wrap, ink) = editor.shown.as_deref().map_or((false, false), prose_of);
         match (wrap, wrapped) {
             (true, false) => {
-                commands.entity(entity).insert(CodeSoftWrap);
+                commands.entity(entity).insert((CodeSoftWrap, CodeWrapIndent::Same));
             }
             (false, true) => {
-                commands.entity(entity).remove::<CodeSoftWrap>();
+                commands.entity(entity).remove::<(CodeSoftWrap, CodeWrapIndent)>();
             }
             _ => {}
         }
@@ -809,8 +813,6 @@ impl Plugin for FilesPlugin {
             .init_resource::<crate::files_lsp::RustAnalyzer>()
             .add_systems(PreUpdate, crate::files_lsp::talk_to_rust_analyzer)
             .add_systems(Update, hear_the_project)
-            // **Both workspaces' editors**, so not in either chain: it only meets a find bar the frame gooey spawns one.
-            .add_systems(Update, keep_the_find_bars_keys)
             .add_systems(OnEnter(Screen::Editor), spawn_the_files_workspace.after(FrameSystems).run_if(in_files))
             .add_systems(
                 Update,
@@ -1334,15 +1336,13 @@ fn on_edit(
 /// editor's own key ([`crate::chords::Fixed::FilesToggleComment`]), read only while an editor has the keyboard, as gooey's own keys are.
 /// A read-only file, and a file whose language has no comment, are said on the status line and left as they are.
 ///
-/// **The edit is gooey's host edit** ([`CodeEditor::apply_external_edit`]): the caret and the selection stay on the text they were on
-/// and the view does not move. Gooey has no way for a host to make an edit as the person's own, so the step is not one `Cmd+Z` takes
-/// back — it drops the undo history, as a reload does — and `Cmd+/` again is its undo (bevy_gooey#125 asks for the person's edit). The
-/// lines carry no tint, because the person is not someone else. Nothing reaches [`on_edit`] from a host edit, so the buffer is kept here.
+/// **The edit is the person's own** ([`CodeEditor::edit`], bevy_gooey#125): one undo step on top of their history, so `Cmd+Z` takes a
+/// toggle back and the edits before it are still there to take back after it. The caret and the selection stay on the text they were
+/// on, and the lines carry no tint. Gooey sends the edit to [`on_edit`] as the one `ValueChange` a keystroke sends, so the buffer is kept
+/// there, as for typing.
 fn toggle_comment_on_chord(
     keys: Res<ButtonInput<KeyCode>>,
-    mut files: ResMut<Files>,
     mut editors: Query<(&FileEditor, &mut CodeEditor, Has<bevy_gooey::TextEditing>, Has<InteractionDisabled>)>,
-    time: Res<Time<Real>>,
     mut state: Option<ResMut<EditorState>>,
 ) {
     if !crate::chords::chord(crate::chords::Fixed::FilesToggleComment).just_pressed(&keys) {
@@ -1371,16 +1371,10 @@ fn toggle_comment_on_chord(
         return;
     }
     let edits: Vec<CodeEdit> = edits.into_iter().map(|(range, text)| CodeEdit::new(range, text)).collect();
-    if let Err(why) = widget.apply_external_edit(&edits, CodeAuthor::new("the person", Color::NONE)) {
-        if let Some(state) = state.as_deref_mut() {
-            state.status.problem(format!("NOT COMMENTED: {why}"));
-        }
-        return;
-    }
-    if let Some(file) = files.open.get_mut(&rel) {
-        file.text = widget.buffer().text();
-        file.agent_lines.clear();
-        file.edited_at = Some(time.elapsed_secs_f64());
+    if let Err(why) = widget.edit(&edits)
+        && let Some(state) = state.as_deref_mut()
+    {
+        state.status.problem(format!("NOT COMMENTED: {why}"));
     }
 }
 
@@ -1680,34 +1674,6 @@ fn keep_the_breadcrumb(
         && node.display != display
     {
         node.display = display;
-    }
-}
-
-/// **The file editor's find bar keeps its keys** (#612): `Enter` in its query steps to the next match, and is not also a key
-/// pressed in the page under it.
-///
-/// The bar is gooey's (`CodeFind`), and its fields are children of the code editor. gooey's text field lets `Enter` bubble on
-/// purpose (a submit a dialog may also hear), and the editor's own key handler answers every key that reaches it, so `Enter`
-/// in the query stepped to a match and then put a line break in the page where the caret stood, replacing the match it had
-/// just selected: the walk the bar's count promises could not be taken by keyboard. A bar under a [`FileEditor`] stops a
-/// key at the bar, `Escape` excepted, which goes on to the editor and lets go of the keyboard as before
-/// (dark-incorporated/bevy_gooey#128 asks gooey's bar to do this itself).
-fn keep_the_find_bars_keys(
-    mut commands: Commands,
-    bars: Query<(Entity, &bevy_gooey::Role, &ChildOf), Added<bevy_gooey::Role>>,
-    editors: Query<(), With<FileEditor>>,
-) {
-    for (bar, role, editor) in &bars {
-        if *role == bevy_gooey::Role::CodeFind && editors.contains(editor.parent()) {
-            commands.entity(bar).observe(the_bar_keeps_its_keys);
-        }
-    }
-}
-
-/// A key pressed in the find bar stops there, `Escape` excepted (see [`keep_the_find_bars_keys`]).
-fn the_bar_keeps_its_keys(mut key: On<bevy::input_focus::FocusedInput<bevy::input::keyboard::KeyboardInput>>) {
-    if key.input.key_code != KeyCode::Escape {
-        key.propagate(false);
     }
 }
 

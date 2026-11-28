@@ -9,16 +9,18 @@
 //! What it does **not** prove: the colours a bar and a band's edge are held to are gooey's own
 //! (`GooeySkin::minimap_bar`, `minimap_band_edge`, held by its `tests/skin.rs`), and a pixel census of the
 //! lane needs a renderer (`harness::Device::Real`), which is a separate, opt-in test. Every number here
-//! is read off the world: a bar's `top` and `width` from its `Node`, the lane's pitch from the bars.
+//! is read off the world: a bar's `top` and `width` from its `Node`, the lane's pitch from the bars, the
+//! lines in view from `CodeEditor::visible_lines`.
 //!
-//! # What is not asserted here, and why
+//! # The band
 //!
-//! **The band's `top` and `height` are not asserted.** `bevy_gooey` v0.61.0 counts the band's last drawn
-//! row as `first_row + drawn - 1` where `drawn = first_row + needed` (`code_overlay.rs`, the `drawn` /
-//! `bottom_line` pair) — `first_row` twice. On the opening frame `first_row` is 0 so the band is right,
-//! and after a scroll it grows with the distance scrolled: measured 44 lines tall in a 20-line view after
-//! `scroll_to_line(30)`. That is the dependency's arithmetic, not this editor's, and a test here cannot
-//! fix it. Filed on #540 with the line numbers; the `drawn` line is the one to change.
+//! **The band is the text in view: it starts at the lane's row of the view's first line and is as many
+//! rows tall as the view holds lines**, on the frame the file opens and after a scroll with no edit. Until
+//! `bevy_gooey` v0.64.1 (`bevy_gooey#123`) it counted its last row as `first_row + drawn - 1` with
+//! `drawn = first_row + needed`, `first_row` twice: right at the top of the file, and grown by the distance
+//! scrolled after a scroll (measured 44 lines tall in a 20-line view after `scroll_to_line(30)`). The scroll
+//! here is `CodeEditor::scroll_to_line`, the view's own move, not a wheel: the band reads the same glided
+//! view whichever moved it.
 
 use std::path::{Path, PathBuf};
 
@@ -166,13 +168,53 @@ fn a_file_opened_for_reading_draws_its_minimap_bars_on_the_first_frame() {
         assert!((step - BAR_PITCH_PX).abs() < 1.0, "drawn bars stand {step} px apart, not the lane's {BAR_PITCH_PX} px pitch: {:?}", &tops[..tops.len().min(8)]);
     }
 
-    // **The band is the text in view**, not the whole lane and not nothing.
+    // **The band is the text in view** (#540 acceptance 2): it starts at the view's first line, which is the
+    // file's first, and it is as many rows tall as the view holds lines.
     let (band_top, band_height) = band.expect("the lane draws a view band");
-    assert!(band_height > 0.0, "the band has no height, so it was never laid out");
-    assert_eq!(band_top, 0.0, "the file opens at its first line, so the band starts at the lane's top");
+    let view = visible(&app, editor);
+    assert_eq!(view.start, 0, "the file opens at its first line");
+    assert_eq!(band_top, view.start as f32 * BAR_PITCH_PX, "the band starts at the lane's row of the view's first line, {}", view.start);
+    assert_eq!(band_height, view.len() as f32 * BAR_PITCH_PX, "the band is as tall as the {} lines in view ({view:?})", view.len());
     let lane_height = drawn.len() as f32 * BAR_PITCH_PX;
     assert!(
         band_height < lane_height,
         "the band is {band_height} px of a {lane_height} px lane for a {BODY_LINES}-line file in a window that shows less: it covers the whole file, not the part in view"
     );
+}
+
+/// **The lines the view holds**, first to one past the last, as the editor reports them.
+fn visible(app: &App, editor: Entity) -> std::ops::Range<usize> {
+    app.world().get::<CodeEditor>(editor).map(CodeEditor::visible_lines).unwrap_or_else(|| panic!("the editor is open"))
+}
+
+/// **How far down the file the view is moved**, in lines.
+const SCROLLED_TO: usize = 30;
+
+/// **The band follows the view when it scrolls, with no edit** (#540 acceptance 2, `bevy_gooey#123`): after the
+/// view moves down the file, the band starts at the lane's row of the view's new first line and is as tall as
+/// the lines in view, the height it had at the top. The buffer's revision does not move, so nothing typed
+/// drew it. On v0.61.0 the band grew by the distance scrolled.
+#[test]
+fn the_band_follows_the_view_when_it_scrolls_with_no_edit() {
+    let (root, rel) = project("scroll");
+    let mut app = files_editor(&root, rel.as_str());
+    let editor = editor_of(&mut app);
+    let (band, bars) = lane(&app, editor);
+    let (_, opened_height) = band.expect("the lane draws a view band");
+    let (lines, revision) =
+        app.world().get::<CodeEditor>(editor).map(|e| (e.buffer().len_lines(), e.buffer().revision())).unwrap_or_else(|| panic!("the editor is open"));
+    // A lane that holds every line does not scroll itself, so a line's row in the lane is its number.
+    assert_eq!(bars.len(), lines, "the lane holds a bar for each of the file's {lines} lines");
+
+    app.world_mut().get_mut::<CodeEditor>(editor).unwrap_or_else(|| panic!("the editor is open")).scroll_to_line(SCROLLED_TO);
+    settle_support::settle(&mut app);
+    let view = visible(&app, editor);
+    assert!(view.start > 0, "the view moved down the file: it shows lines {view:?}");
+    let (band, _) = lane(&app, editor);
+    let (top, height) = band.expect("the lane draws a view band");
+    assert_eq!(top, view.start as f32 * BAR_PITCH_PX, "the band starts at the lane's row of the view's first line, {}", view.start);
+    assert_eq!(height, view.len() as f32 * BAR_PITCH_PX, "the band is as tall as the {} lines in view ({view:?})", view.len());
+    assert_eq!(height, opened_height, "the view holds as many lines as it did at the top, so the band is as tall as it was");
+    let now = app.world().get::<CodeEditor>(editor).map(|e| e.buffer().revision()).unwrap_or_else(|| panic!("the editor is open"));
+    assert_eq!(now, revision, "nothing was typed: the band followed the view, not an edit");
 }

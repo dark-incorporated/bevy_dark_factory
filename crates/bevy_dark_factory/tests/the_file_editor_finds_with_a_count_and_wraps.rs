@@ -8,11 +8,11 @@
 //! `FocusFilter`, which is `Context::Global`; on the Files workspace it takes no box (`tiles::focus_filter`), so with the
 //! editor focused the chord is the editor's alone.
 //!
-//! The bar's fields are children of the code editor, gooey's text field lets `Enter` bubble, and the editor answers every
-//! key that reaches it: `Enter` in the query stepped to a match and then put a line break in the page over it (read from
-//! gooey's source at the pin, `code_editor.rs:964` and `text.rs:143`; dark-incorporated/bevy_gooey#128). The editor now
-//! stops the bar's keys at the bar (`files::keep_the_find_bars_keys`), and this measures the bar as a person reaches it:
-//! the Files workspace, a page open from the project, the editor focused.
+//! The bar's fields are children of the code editor, gooey's text field lets `Enter` bubble, and the editor answered every
+//! key that reached it: `Enter` in the query stepped to a match and then put a line break in the page over it
+//! (dark-incorporated/bevy_gooey#128). Since gooey v0.64.2 the editor takes only a key pressed on itself or a chord, so the
+//! bar's keys are the bar's with nothing of this editor's own in between (it stopped them at the bar until then), and this
+//! measures the bar as a person reaches it: the Files workspace, a page open from the project, the editor focused.
 //!
 //! # What this measures
 //!

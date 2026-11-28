@@ -4334,17 +4334,14 @@ fn rebuild_palette(
                     // accent selection rail all come from the builder now, and what is left of it
                     // is [`arm_palette_rows`], which says only *which* row is armed.
                     //
-                    // **Each cell stands at the row's top (`FlexStart`), not its middle** (#486): `Center`
+                    // **The cells stand at the row's top (`FlexStart`), not its middle** (#486): `Center`
                     // centres a *box*, so a one-line triangle count beside a name that wrapped to three
                     // lines landed on the **middle** line — measured, 14.0 px below the name's first.
                     // `FlexStart` puts the cells' first lines on one line, which is what a reader scans.
-                    //
-                    // It is written per cell, as gooey's `TextFlow::align` (`align_self`), because the row
-                    // cannot say it: a `ListRow` keeps `quiet_list_row`'s `Center` and takes no `RowLayout`
-                    // (bevy_gooey#127), and a hand patch of its `Node` is a raw node the editor does not keep.
-                    let top = bevy_gooey::TextFlow { align: Some(AlignSelf::FlexStart), ..default() };
+                    // The row says it with gooey's `RowLayout`, which a `ListRow` takes (bevy_gooey#127).
                     let mut palette_row =
                         crate::chrome::list_row(p, state.brush == Some(ix), PaletteRow(ix));
+                    palette_row.insert(bevy_gooey::RowLayout { align: Some(AlignItems::FlexStart), ..default() });
                     // **The id and the count's unit, where a person can find them** (#289): the row
                     // reads as words, and two kits may each have a `wall` that both read "Wall".
                     let tris = project.triangles.get(ix).copied().unwrap_or(0);
@@ -4357,7 +4354,6 @@ fn rebuild_palette(
                             let mut slot = row.spawn((
                                 // A row that never shrinks.
                                 bevy_gooey::row_with(0.0, bevy_gooey::RowLayout { shrink: Some(0.0), ..default() }),
-                                top,
                                 bevy_gooey::Sizing {
                                     width: Some(bevy_gooey::Extent::Px(crate::style::metrics().layout.thumb_slot)),
                                     height: Some(bevy_gooey::Extent::Px(crate::style::metrics().layout.thumb_slot)),
@@ -4400,7 +4396,6 @@ fn rebuild_palette(
                                 // text would be zero wide on every row but the armed one, which is exactly the
                                 // misalignment the column exists to prevent.
                                 PaletteArmedMark,
-                                top,
                             ));
                             column.with_child((
                                 Text::new(crate::marks::armed_mark(state.brush == Some(ix))),
@@ -4410,8 +4405,8 @@ fn rebuild_palette(
                                 // the ink a quiet tone takes on that fill for the same reason.
                                 TextColor(crate::chrome::ink().text),
                                 PaletteArmedWords,
-                                // **The mark is the name's type size** (#486): with every cell at the row's top the
-                                // cells start at the same line, and what is left is the half-leading of a smaller type.
+                                // **The mark is the name's type size** (#486): with the row on `FlexStart` the cells
+                                // start at the same line, and what is left is the half-leading of a smaller type.
                                 crate::chrome::typed(crate::chrome::text::BODY),
                                 TextLayout::new(Justify::Left, LineBreak::NoWrap),
                             ));
@@ -4426,9 +4421,7 @@ fn rebuild_palette(
                                 TextColor(crate::chrome::ink().text),
                                 PaletteName,
                                 crate::chrome::typed(crate::chrome::text::BODY),
-                            ))
-                            .entry::<bevy_gooey::TextFlow>()
-                            .and_modify(move |mut flow| flow.align = top.align);
+                            ));
                             // **The triangle cost keeps its own ink** (`cost_tint`: the accent past a busy piece, the danger past the
                             // importer's limit), which gooey's `count_text` would not: the skin writes that text's colour.
                             // **And it is the cell that gives way** (#693): the count yields before the name it stands beside,
@@ -4440,9 +4433,7 @@ fn rebuild_palette(
                                 TextColor(cost_ink(tris, state.brush == Some(ix))),
                                 PaletteCost(tris),
                                 crate::chrome::typed(crate::chrome::text::LABEL),
-                            ))
-                            .entry::<bevy_gooey::TextFlow>()
-                            .and_modify(move |mut flow| flow.align = top.align);
+                            ));
                     });
                 }
             }

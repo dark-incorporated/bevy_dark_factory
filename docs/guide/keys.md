@@ -219,7 +219,7 @@ The Files workspace's editor, and the Design workspace's (the same editor), read
 
 | Key | Works when | Does |
 | --- | --- | --- |
-| `Cmd+/` | Any time, when the file editor has the keys | Comment the lines the caret or the selection is on, in the file's own syntax: `//` in `.ron`, Rhai and Rust files, `#` in YAML, `<!-- -->` round a Markdown line. When every line with words on it is already commented, the comment comes off instead. A blank line is left alone, and the mark goes at the shallowest indent so a block keeps its shape. `Cmd+Z` does not take it back yet; press `Cmd+/` again. `Ctrl+/` elsewhere. |
+| `Cmd+/` | Any time, when the file editor has the keys | Comment the lines the caret or the selection is on, in the file's own syntax: `//` in `.ron`, Rhai and Rust files, `#` in YAML, `<!-- -->` round a Markdown line. When every line with words on it is already commented, the comment comes off instead. A blank line is left alone, and the mark goes at the shallowest indent so a block keeps its shape. `Cmd+Z` takes a press back, as it takes back typing. `Ctrl+/` elsewhere. |
 
 ## The terminal
 
