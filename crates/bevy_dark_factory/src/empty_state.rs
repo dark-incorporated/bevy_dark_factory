@@ -92,6 +92,7 @@ fn wanted_prompt(map_is_shown: bool, map_is_empty: bool, question_open: bool, ag
 
 /// **The prompt exists exactly while a workspace shows the open map, the map has no placements, no question is open and no agent
 /// is invoked.** Reads before it writes: a map that stays empty (or stays full) spawns and despawns nothing.
+#[allow(clippy::too_many_arguments)] // a bevy system: each parameter is one of the facts the prompt is decided from
 fn keep_the_prompt_while_the_map_is_empty(
     mut commands: Commands,
     frame: Option<Res<Frame>>,
