@@ -75,6 +75,12 @@ pub struct ActivityBarItem;
 #[derive(Component)]
 pub struct EditorMenuBar;
 
+/// **The settings' chords the bar's rows were drawn with.** A row's shortcut is written where it is spawned
+/// ([`Command::shortcut_in`]), and a switch keeps the bar (#678), so a rebinding is drawn by a new bar rather than by the
+/// next door.
+#[derive(Component)]
+struct DrawnWith(crate::keys::Rebound);
+
 pub struct MenuBarPlugin;
 
 impl Plugin for MenuBarPlugin {
@@ -131,22 +137,39 @@ fn take_the_escape_that_closed_a_menu(
 ///
 /// It is a system rather than `OnEnter` for one more reason: the bar is a child of the frame's root, which the frame
 /// respawns on every door, so "there is a frame and no bar" is the condition that covers both a new screen and a new door.
+///
+/// **A switch keeps the bar** (#678, #541): `screen::close_the_door` lifts it off the frame it sweeps, and this puts it
+/// back at the top of the new frame, in the switch's own frame, so it is never laid out anywhere else. A leave sweeps it
+/// with the frame, and the next door draws it again. Respawned, the bar was two thirds of a switch's new nodes.
 fn keep_the_menu_bar(
     mut commands: Commands,
     frame: Option<Res<Frame>>,
     live: Option<Res<Live>>,
     settings: Option<Res<crate::settings::EditorSettings>>,
     recents: Option<Res<crate::recent::RecentProjects>>,
-    bars: Query<Entity, With<EditorMenuBar>>,
+    bars: Query<(Entity, Option<&ChildOf>, Option<&DrawnWith>), With<EditorMenuBar>>,
 ) {
     let Some(frame) = frame else { return };
-    if bars.iter().next().is_some() {
+    let live = live.as_deref().copied();
+    let rebound = live.unwrap_or_default().3;
+    let mut standing = false;
+    for (bar, parent, drawn) in &bars {
+        if drawn.is_none_or(|drawn| drawn.0 != rebound) {
+            commands.entity(bar).despawn();
+            continue;
+        }
+        standing = true;
+        if parent.map(ChildOf::parent) != Some(frame.root) {
+            commands.entity(frame.root).insert_children(0, &[bar]);
+        }
+    }
+    if standing {
         return;
     }
     spawn_menu_bar(
         &mut commands,
         &frame,
-        live.as_deref().copied(),
+        live,
         settings.as_deref().is_some_and(|s| s.show_statistics),
         settings.as_deref().is_none_or(|s| s.show_activity_bar),
         recent_projects(recents.as_deref()),
@@ -344,7 +367,7 @@ fn spawn_menu_bar(commands: &mut Commands, frame: &Frame, live: Option<Live>, sh
         MENUS.iter().map(|(category, title)| (*title, layout(category, &registry, recent.clone()))).collect();
     let bar = commands
         .spawn((
-            EditorMenuBar,
+            (EditorMenuBar, DrawnWith(live.3)),
             bevy_gooey::menu_bar(Children::spawn(SpawnWith(move |parent: &mut bevy::ecs::relationship::RelatedSpawner<ChildOf>| {
                 for (title, slots) in menus {
                     parent.spawn(bevy_gooey::menu_title(
