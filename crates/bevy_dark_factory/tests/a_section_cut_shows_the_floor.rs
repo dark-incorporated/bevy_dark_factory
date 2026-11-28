@@ -35,8 +35,10 @@
 
 use bevy::prelude::*;
 
+use bevy_dark_factory::editor::MapFraming;
 use bevy_dark_factory::harness::{self, Device};
-use bevy_dark_factory::view::SectionCut;
+use bevy_dark_factory::terrain_view;
+use bevy_dark_factory::view::{MainCamera, Rig, SectionCut};
 
 use crate::fixtures;
 
@@ -46,48 +48,61 @@ const FLOOR_M: f32 = 6.0;
 const CEILING_M: f32 = 18.4;
 /// **The top of the hill**, metres: what a still with no cut shows.
 const ROCK_TOP_M: f32 = 22.0;
-/// **The plane that reaches this room's floor**, metres from the camera. Measured, not guessed: the room's near
-/// wall stands 27.89 m along the view and its floor 31.00, so a plane at 31 deletes the near half of the interior.
+/// **The plane that reaches this room's floor**, metres from the camera. Measured, not guessed, from a camera framed
+/// on [`ROOM_CENTRE`]: the room's near wall stands 27.89 m along the view and its floor 31.00, so a plane at 31
+/// deletes the near half of the interior.
 const CUT_M: f32 = 31.0;
+/// **Where the camera is framed**: the room's centre, the focus [`CUT_M`] was measured from. The camera stands
+/// `view::ISO_DISTANCE` (20.78 m) up its view from its focus, and the plane is metres from the camera, so the same
+/// number is a different plane under another focus: under the whole-map frame the editor opens on (the focus at
+/// the map box's middle, y = 1.5) the plane at 31 m stands 10.7 m lower, in the rock under the floor.
+const ROOM_CENTRE: Vec3 = Vec3::new(0.0, (FLOOR_M + CEILING_M) / 2.0, 0.0);
 
 /// **A map of rock with one room carved in it**, the shape #472's `liches_lair` has: a hill of solid rock, a room
 /// at 6 m whose ceiling is at 18.4, and four columns standing in it.
 fn an_air_room(tag: &str) -> std::path::PathBuf {
+    use blueprint_model::heightfield::Heightfield;
+    use blueprint_model::volume::{Edit, Mode, Shape, Volume};
     let root = fixtures::Fixture::new(tag).side(40.0).build("lair");
-    let blueprint = root.join("assets/blueprint");
-    std::fs::create_dir_all(blueprint.join("terrain")).expect("a terrain folder");
-    std::fs::create_dir_all(blueprint.join("volume")).expect("a volume folder");
+    // **Into the kit's directory**, where the editor reads a map's ground and carve list (`Project::blueprint_dir`, the
+    // authoring kit's). Written one level up, beside the kits, neither file was ever read and no rock was ever drawn.
+    let kit = root.join("assets/blueprint").join(fixtures::DEFAULT_KIT);
+    std::fs::create_dir_all(kit.join("terrain")).expect("a terrain folder");
+    std::fs::create_dir_all(kit.join("volume")).expect("a volume folder");
+    // **Both files through the model's own writer, from a value**, as the fixture writes everything: the carve list was
+    // hand-written `shape: {Box: ...}`, which the reader refuses (a shape is a tag, `!Box`), so the rock was never read.
     // A flat 2 m of soil: the rock above it is the volume, because a heightfield is a *surface* and a surface has
     // no inside to carve.
-    let cells = 40;
-    std::fs::write(
-        blueprint.join("terrain/lair.yaml"),
-        format!(
-            "origin: [-40.0, -40.0]\ncell_m: 2.0\nwidth: {cells}\ndepth: {cells}\nheights: [{}]\n",
-            vec!["2.0"; cells * cells].join(", ")
-        ),
-    )
-    .expect("the ground is written");
-    std::fs::write(
-        blueprint.join("volume/lair.yaml"),
-        format!(
-            "version: 1\nedits:\n\
-             - shape: {{Box: {{center: [0.0, 2.0, 0.0], half_m: [40.0, {rock_half}, 40.0]}}}}\n  mode: Add\n  smooth_m: 0.0\n\
-             - shape: {{Box: {{center: [0.0, {room_mid}, 0.0], half_m: [10.0, {room_half}, 10.0]}}}}\n  mode: Carve\n  smooth_m: 0.0\n\
-             - shape: {{Box: {{center: [-5.0, {room_mid}, -5.0], half_m: [0.9, {room_half}, 0.9]}}}}\n  mode: Add\n  smooth_m: 0.0\n\
-             - shape: {{Box: {{center: [5.0, {room_mid}, -5.0], half_m: [0.9, {room_half}, 0.9]}}}}\n  mode: Add\n  smooth_m: 0.0\n\
-             - shape: {{Box: {{center: [-5.0, {room_mid}, 5.0], half_m: [0.9, {room_half}, 0.9]}}}}\n  mode: Add\n  smooth_m: 0.0\n\
-             - shape: {{Box: {{center: [5.0, {room_mid}, 5.0], half_m: [0.9, {room_half}, 0.9]}}}}\n  mode: Add\n  smooth_m: 0.0\n",
-            rock_half = (ROCK_TOP_M - 2.0) / 2.0,
-            room_mid = (FLOOR_M + CEILING_M) / 2.0,
-            room_half = (CEILING_M - FLOOR_M) / 2.0,
-        ),
-    )
-    .expect("the carve list is written");
+    let ground = Heightfield::flat((-40.0, -40.0), 2.0, 40, 40, 2.0);
+    std::fs::write(kit.join("terrain/lair.yaml"), blueprint_model::yaml::to_string(&ground).expect("the ground as YAML"))
+        .expect("the ground is written");
+    let (room_mid, room_half) = ((FLOOR_M + CEILING_M) / 2.0, (CEILING_M - FLOOR_M) / 2.0);
+    // **A column runs a metre into the floor and the ceiling**, so it is one solid with the rock. Standing exactly on the
+    // floor's plane, its foot and the floor are two faces on one plane, a zero of the field with no gradient, which the
+    // mesher refuses (`zero gradient at a surface vertex`); inside the room it is the same column either way.
+    let column_half = room_half + 1.0;
+    let edit = |center: [f32; 3], half_m: [f32; 3], mode| Edit { shape: Shape::Box { center, half_m }, mode, smooth_m: 0.0 };
+    let mut volume = Volume::default();
+    for e in [
+        // **From under the soil to the hill's top**, 0 → 22 m, so the room is buried. Centred on the soil (2 m), the box
+        // stood -8 → 12 m, the room's carve (6 → 18.4) broke through its top, and the room was an open pit with no
+        // ceiling: not the shape #472 describes, nor the one `CUT_M` was measured on. It overlaps the 2 m of soil rather
+        // than standing on it, for the column's reason.
+        edit([0.0, ROCK_TOP_M / 2.0, 0.0], [40.0, ROCK_TOP_M / 2.0, 40.0], Mode::Add),
+        edit([0.0, room_mid, 0.0], [10.0, room_half, 10.0], Mode::Carve),
+        edit([-5.0, room_mid, -5.0], [0.9, column_half, 0.9], Mode::Add),
+        edit([5.0, room_mid, -5.0], [0.9, column_half, 0.9], Mode::Add),
+        edit([-5.0, room_mid, 5.0], [0.9, column_half, 0.9], Mode::Add),
+        edit([5.0, room_mid, 5.0], [0.9, column_half, 0.9], Mode::Add),
+    ] {
+        volume.push(e).expect("an edit the model takes");
+    }
+    std::fs::write(kit.join("volume/lair.yaml"), blueprint_model::yaml::to_string(&volume).expect("the carve list as YAML"))
+        .expect("the carve list is written");
     root
 }
 
-/// **The editor on a real device**, stepped until the cut is drawn.
+/// **The editor on a real device, the rock drawn and the room framed**, ready for the cut.
 fn rendering_editor(tag: &str) -> Option<App> {
     if !harness::real_device_available() {
         return None;
@@ -99,10 +114,47 @@ fn rendering_editor(tag: &str) -> Option<App> {
     if !cfg!(feature = "isomesh") {
         return None;
     }
-    for _ in 0..30 {
-        app.update();
-    }
+    // **The rock is drawn before anything is sampled**, so a picture without it is a loud setup failure and not a
+    // texel of the map's grid, which is what this file sampled until #472 was reopened.
+    crate::settle_support::until(&mut app, "the carved rock drawn", |a| {
+        let world = a.world_mut();
+        world.query::<&terrain_view::Surface>().iter(world).any(|s| *s == terrain_view::Surface::Volume)
+    });
+    frame_the_room(&mut app);
     Some(app)
+}
+
+/// **Frame the room under the picture's centre**, the texel these tests sample. The Map camera draws into the hole
+/// between the docks, not the whole picture, so the picture's centre is not the camera's axis: the focus goes on
+/// [`ROOM_CENTRE`] and then slides square to the view until the ray through the centre texel passes through it, so
+/// the room's centre stays `ISO_DISTANCE` from the camera and [`CUT_M`] still reaches the floor. The editor's own
+/// one-shot frame of the whole map is spent first, so it cannot land after this one.
+fn frame_the_room(app: &mut App) {
+    app.world_mut().resource_mut::<MapFraming>().settle();
+    app.world_mut().resource_mut::<Rig>().focus = ROOM_CENTRE;
+    // The surface is drawn at a scale factor of one, so a texel is a point in the camera's target, which is what
+    // `viewport_to_world` takes.
+    let texel = {
+        let world = app.world();
+        let surface = &world.resource::<bevy_dark_factory::surface::Surface>().image;
+        let size = world.resource::<Assets<Image>>().get(surface).expect("the surface's image").texture_descriptor.size;
+        Vec2::new((size.width / 2) as f32 + 0.5, (size.height / 2) as f32 + 0.5)
+    };
+    for _ in 0..5 {
+        for _ in 0..3 {
+            app.update();
+        }
+        let world = app.world_mut();
+        let mut cameras = world.query_filtered::<(&Camera, &GlobalTransform), With<MainCamera>>();
+        let (camera, at) = cameras.single(world).expect("one Map camera");
+        let ray = camera.viewport_to_world(at, texel).expect("the centre texel is a ray from the Map camera");
+        let miss = ray.origin + *ray.direction * (ROOM_CENTRE - ray.origin).dot(*ray.direction) - ROOM_CENTRE;
+        if miss.length() < 0.01 {
+            return;
+        }
+        app.world_mut().resource_mut::<Rig>().focus -= miss;
+    }
+    panic!("the room's centre never came under the picture's centre texel {texel}");
 }
 
 /// **The picture's pixels, as the renderer drew them**: the surface read back by `harness::capture`, the editor's own
@@ -159,7 +211,7 @@ fn a_section_cut_draws_the_room_floor_and_the_rock_is_gone() {
         let px = pixels(&mut app).expect("the surface image is there");
         (px.0, px.1)
     };
-    // **Frame the room**, the way an agent frames a still, and then place the plane.
+    // **Place the plane** on the room `rendering_editor` framed.
     app.world_mut().resource_mut::<SectionCut>().set(CUT_M);
     for _ in 0..6 {
         app.update();
