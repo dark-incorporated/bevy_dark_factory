@@ -98,6 +98,6 @@ fn a_raise_lays_out_the_shells_words_on_the_next_frame_and_spawns_no_text() {
         };
         println!("raise {raise}: words laid out after {frames} frame(s), {spawned} text node(s) spawned");
         assert!(frames <= FRAME_BUDGET, "raise {raise} took {frames} frames to lay out the shell's words, over {FRAME_BUDGET}");
-        assert!(spawned <= TEXT_BUDGET, "raise {raise} spawned {spawned} text nodes, over {TEXT_BUDGET}: the rows were rebuilt");
+        assert_eq!(spawned, TEXT_BUDGET, "raise {raise} spawned {spawned} text nodes, over {TEXT_BUDGET}: the rows were rebuilt");
     }
 }
